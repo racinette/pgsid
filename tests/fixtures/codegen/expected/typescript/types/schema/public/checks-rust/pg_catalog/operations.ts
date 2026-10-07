@@ -1957,6 +1957,17 @@ export function boolgeGviq(left: checkruntime.BoolValue, right: checkruntime.Boo
     }
     return { kind: "Unknown" };
 }
+function byteaAsciiCharacter(value: number): string {
+    value = langruntime.checkedI32(value);
+    const chars: string[] = Array.from("\0\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\v\f\r\u000E\u000F\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001A\u001B\u001C\u001D\u001E\u001F !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~");
+    let index: number = 0;
+    let count: number = value;
+    while (count > 0) {
+        index = langruntime.checkedAdd(index, 1);
+        count = langruntime.checkedI32(langruntime.checkedSignedSubtract(count, 1));
+    }
+    return langruntime.indexChar(chars, langruntime.checkedIndex(index));
+}
 const byteaMaxLength = 1073741819;
 const byteaAllocationError = 56966976;
 function byteaConcatLength(left: number, right: number): checkruntime.Int4Value {
@@ -2467,6 +2478,468 @@ export function setBit06f4(input: checkruntime.ByteaValue, position: checkruntim
     }
     return { kind: "Unknown" };
 }
+const byteaEncodingError = 3452619;
+const byteaSyntaxError = 3484946;
+const byteaCodecLimit = 8584704;
+function byteaCodecLengthFits(length: bigint): boolean {
+    length = langruntime.checkedI64(length);
+    return length <= 1073741819n;
+}
+function byteaBase64EncodedLength(length: bigint): bigint {
+    length = langruntime.checkedI64(length);
+    return langruntime.checkedI64Add(langruntime.checkedI64Multiply(langruntime.checkedI64Divide((langruntime.checkedI64Add(length, 2n)), 3n), 4n), langruntime.checkedI64Divide(length, 57n));
+}
+function byteaCodecUtf8Length(value: string): bigint {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let index: number = 0;
+    let length: bigint = 0n;
+    while (index < chars.length) {
+        const codepoint: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (codepoint <= 127) {
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, 1n));
+        }
+        else if (codepoint <= 2047) {
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, 2n));
+        }
+        else if (codepoint <= 65535) {
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, 3n));
+        }
+        else {
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, 4n));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return length;
+}
+function byteaEscapeEncodedLength(value: string): bigint {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let index: number = 0;
+    let length: bigint = 0n;
+    while (index < chars.length) {
+        const high: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        const low: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+        const byte: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(high, 16), low);
+        if (byte === 0 || byte >= 128) {
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, 4n));
+        }
+        else if (byte === 92) {
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, 2n));
+        }
+        else {
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, 1n));
+        }
+        index = langruntime.checkedIndex(langruntime.checkedAdd(index, 2));
+    }
+    return length;
+}
+function byteaFormatIs(input: string, expected: string): boolean {
+    input = langruntime.checkedString(input);
+    expected = langruntime.checkedString(expected);
+    const chars: string[] = Array.from(input);
+    const spelling: string[] = Array.from(expected);
+    if (!(chars.length === spelling.length)) {
+        return false;
+    }
+    let index: number = 0;
+    while (index < chars.length) {
+        if (!(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === langruntime.indexChar(spelling, langruntime.checkedIndex(index)))) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+function byteaCodecSpace(value: string): boolean {
+    value = langruntime.checkedChar(value);
+    return value === " " || value === "\t" || value === "\r" || value === "\n";
+}
+function byteaBase64Digit(value: string): number {
+    value = langruntime.checkedChar(value);
+    const alphabet: string[] = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
+    let index: number = 0;
+    let number: number = 0;
+    while (index < alphabet.length) {
+        if (langruntime.indexChar(alphabet, langruntime.checkedIndex(index)) === value) {
+            return number;
+        }
+        index = langruntime.checkedAdd(index, 1);
+        number = langruntime.checkedI32(langruntime.checkedSignedAdd(number, 1));
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function byteaBase64Character(value: number): string {
+    value = langruntime.checkedI32(value);
+    const alphabet: string[] = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
+    let index: number = 0;
+    let remaining: number = value;
+    while (remaining > 0) {
+        index = langruntime.checkedAdd(index, 1);
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+    }
+    return langruntime.indexChar(alphabet, langruntime.checkedIndex(index));
+}
+function byteaBase64Encode(value: string): string {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let output: string = "";
+    let index: number = 0;
+    let packed: number = 0;
+    let count: number = 0;
+    let line: number = 0;
+    while (index < chars.length) {
+        const high: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        const low: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+        const byte: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(high, 16), low);
+        packed = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(packed, 256), byte));
+        count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+        index = langruntime.checkedIndex(langruntime.checkedAdd(index, 2));
+        if (count === 3) {
+            const a: string = byteaBase64Character(langruntime.checkedSignedDivide(packed, 262144));
+            const b: string = byteaBase64Character(langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(packed, 4096), 64));
+            const c: string = byteaBase64Character(langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(packed, 64), 64));
+            const d: string = byteaBase64Character(langruntime.checkedSignedRemainder(packed, 64));
+            output = output + langruntime.checkedChar(a);
+            output = output + langruntime.checkedChar(b);
+            output = output + langruntime.checkedChar(c);
+            output = output + langruntime.checkedChar(d);
+            packed = langruntime.checkedI32(0);
+            count = langruntime.checkedI32(0);
+            line = langruntime.checkedI32(langruntime.checkedSignedAdd(line, 4));
+            if (line === 76) {
+                output = output + langruntime.checkedChar("\n");
+                line = langruntime.checkedI32(0);
+            }
+        }
+    }
+    if (!(count === 0)) {
+        if (count === 1) {
+            packed = langruntime.checkedI32(langruntime.checkedSignedMultiply(packed, 65536));
+        }
+        else {
+            packed = langruntime.checkedI32(langruntime.checkedSignedMultiply(packed, 256));
+        }
+        const a: string = byteaBase64Character(langruntime.checkedSignedDivide(packed, 262144));
+        const b: string = byteaBase64Character(langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(packed, 4096), 64));
+        output = output + langruntime.checkedChar(a);
+        output = output + langruntime.checkedChar(b);
+        if (count === 2) {
+            const c: string = byteaBase64Character(langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(packed, 64), 64));
+            output = output + langruntime.checkedChar(c);
+        }
+        else {
+            output = output + langruntime.checkedChar("=");
+        }
+        output = output + langruntime.checkedChar("=");
+    }
+    return output;
+}
+function byteaBase64Decode(value: string): checkruntime.ByteaValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let output: string = "";
+    let index: number = 0;
+    let packed: number = 0;
+    let count: number = 0;
+    let end: number = 0;
+    while (index < chars.length) {
+        const character: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        index = langruntime.checkedAdd(index, 1);
+        if (byteaCodecSpace(character) === false) {
+            let digit: number = 0;
+            if (character === "=") {
+                if (end === 0) {
+                    if (count === 2) {
+                        end = langruntime.checkedI32(1);
+                    }
+                    else if (count === 3) {
+                        end = langruntime.checkedI32(2);
+                    }
+                    else {
+                        return { kind: "Error", value: checkruntime.makeSqlError(byteaEncodingError) };
+                    }
+                }
+            }
+            else {
+                digit = langruntime.checkedI32(byteaBase64Digit(character));
+                if (digit < 0) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(byteaEncodingError) };
+                }
+            }
+            packed = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(packed, 64), digit));
+            count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+            if (count === 4) {
+                output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(packed, 65536), 256)));
+                if (end === 0 || end > 1) {
+                    output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(packed, 256), 256)));
+                }
+                if (end === 0 || end > 2) {
+                    output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(packed, 256)));
+                }
+                packed = langruntime.checkedI32(0);
+                count = langruntime.checkedI32(0);
+            }
+        }
+    }
+    if (!(count === 0)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(byteaEncodingError) };
+    }
+    return { kind: "Value", value: output };
+}
+function byteaHexDecode(value: string): checkruntime.ByteaValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let output: string = "";
+    let index: number = 0;
+    while (index < chars.length) {
+        if (byteaCodecSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else {
+            const high: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+            if (high > 15 || index >= chars.length) {
+                return { kind: "Error", value: checkruntime.makeSqlError(byteaEncodingError) };
+            }
+            const low: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+            if (low > 15) {
+                return { kind: "Error", value: checkruntime.makeSqlError(byteaEncodingError) };
+            }
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(high, 16), low)));
+        }
+    }
+    return { kind: "Value", value: output };
+}
+function byteaOctalDigit(value: string): number {
+    value = langruntime.checkedChar(value);
+    if (value === "0") {
+        return 0;
+    }
+    if (value === "1") {
+        return 1;
+    }
+    if (value === "2") {
+        return 2;
+    }
+    if (value === "3") {
+        return 3;
+    }
+    if (value === "4") {
+        return 4;
+    }
+    if (value === "5") {
+        return 5;
+    }
+    if (value === "6") {
+        return 6;
+    }
+    if (value === "7") {
+        return 7;
+    }
+    return 8;
+}
+function byteaEscapeDecodedLength(value: string): checkruntime.Int8Value {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let index: number = 0;
+    let length: bigint = 0n;
+    while (index < chars.length) {
+        const character: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        index = langruntime.checkedAdd(index, 1);
+        if (!(character === "\\")) {
+            const codepoint: number = langruntime.checkedChar(character).codePointAt(0)!;
+            if (codepoint <= 127) {
+                length = langruntime.checkedI64(langruntime.checkedI64Add(length, 1n));
+            }
+            else if (codepoint <= 2047) {
+                length = langruntime.checkedI64(langruntime.checkedI64Add(length, 2n));
+            }
+            else if (codepoint <= 65535) {
+                length = langruntime.checkedI64(langruntime.checkedI64Add(length, 3n));
+            }
+            else {
+                length = langruntime.checkedI64(langruntime.checkedI64Add(length, 4n));
+            }
+        }
+        else if (langruntime.checkedAdd(index, 2) < chars.length && byteaOctalDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) <= 3 && byteaOctalDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) <= 7 && byteaOctalDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 2)))) <= 7) {
+            index = langruntime.checkedIndex(langruntime.checkedAdd(index, 3));
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, 1n));
+        }
+        else if (index < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "\\") {
+            index = langruntime.checkedAdd(index, 1);
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, 1n));
+        }
+        else {
+            return { kind: "Error", value: checkruntime.makeSqlError(byteaSyntaxError) };
+        }
+    }
+    return { kind: "Value", value: length };
+}
+function byteaEscapeDecode(value: string): checkruntime.ByteaValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let output: string = "";
+    let index: number = 0;
+    while (index < chars.length) {
+        const character: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        index = langruntime.checkedAdd(index, 1);
+        if (!(character === "\\")) {
+            output = langruntime.checkedString(byteaUtf8Character(output, character));
+        }
+        else if (index < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "\\") {
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, 92));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else if (langruntime.checkedAdd(index, 2) < chars.length) {
+            const a: number = byteaOctalDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            const b: number = byteaOctalDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+            const c: number = byteaOctalDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 2))));
+            if (a > 3 || b > 7 || c > 7) {
+                return { kind: "Error", value: checkruntime.makeSqlError(byteaSyntaxError) };
+            }
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(a, 64), langruntime.checkedSignedMultiply(b, 8)), c)));
+            index = langruntime.checkedIndex(langruntime.checkedAdd(index, 3));
+        }
+        else {
+            return { kind: "Error", value: checkruntime.makeSqlError(byteaSyntaxError) };
+        }
+    }
+    return { kind: "Value", value: output };
+}
+function byteaEscapeEncode(value: string): string {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let output: string = "";
+    let index: number = 0;
+    while (index < chars.length) {
+        const high: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        const low: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+        const byte: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(high, 16), low);
+        if (byte === 0 || byte >= 128) {
+            output = output + langruntime.checkedChar("\\");
+            const a: string = byteaAsciiCharacter(langruntime.checkedSignedAdd(langruntime.checkedSignedDivide(byte, 64), 48));
+            const b: string = byteaAsciiCharacter(langruntime.checkedSignedAdd(langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(byte, 8), 8), 48));
+            const c: string = byteaAsciiCharacter(langruntime.checkedSignedAdd(langruntime.checkedSignedRemainder(byte, 8), 48));
+            output = output + langruntime.checkedChar(a);
+            output = output + langruntime.checkedChar(b);
+            output = output + langruntime.checkedChar(c);
+        }
+        else if (byte === 92) {
+            output = output + langruntime.checkedChar("\\");
+            output = output + langruntime.checkedChar("\\");
+        }
+        else {
+            const character: string = byteaAsciiCharacter(byte);
+            output = output + langruntime.checkedChar(character);
+        }
+        index = langruntime.checkedIndex(langruntime.checkedAdd(index, 2));
+    }
+    return output;
+}
+export function encodeBvkp(input: checkruntime.ByteaValue, format: checkruntime.TextValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (format.kind === "Error") {
+        const error: checkruntime.SqlError = format.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(format, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" }) || checkruntime.equalTextValue(format, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (format.kind === "Value") {
+            const name: string = langruntime.checkedString(format.value);
+            if (byteaFormatIs(name, "hex")) {
+                const length: number = byteaPayloadLength(value);
+                const encoded: bigint = BigInt(langruntime.checkedI32(length));
+                if (byteaCodecLengthFits(langruntime.checkedI64Multiply(encoded, 2n)) === false) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(byteaCodecLimit) };
+                }
+                return { kind: "Value", value: value };
+            }
+            if (byteaFormatIs(name, "base64")) {
+                const length: number = byteaPayloadLength(value);
+                const bytes: bigint = BigInt(langruntime.checkedI32(length));
+                const encoded: bigint = byteaBase64EncodedLength(bytes);
+                if (byteaCodecLengthFits(encoded) === false) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(byteaCodecLimit) };
+                }
+                const result: string = byteaBase64Encode(value);
+                return { kind: "Value", value: result };
+            }
+            if (byteaFormatIs(name, "escape")) {
+                const encoded: bigint = byteaEscapeEncodedLength(value);
+                if (byteaCodecLengthFits(encoded) === false) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(byteaCodecLimit) };
+                }
+                const result: string = byteaEscapeEncode(value);
+                return { kind: "Value", value: result };
+            }
+            return { kind: "Error", value: checkruntime.makeSqlError(byteaEncodingError) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function decodeB6gt(input: checkruntime.TextValue, format: checkruntime.TextValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (format.kind === "Error") {
+        const error: checkruntime.SqlError = format.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(format, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalTextValue(format, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (format.kind === "Value") {
+            const name: string = langruntime.checkedString(format.value);
+            if (byteaFormatIs(name, "hex")) {
+                const bytes: bigint = byteaCodecUtf8Length(value);
+                if (byteaCodecLengthFits(langruntime.checkedI64Divide(bytes, 2n)) === false) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(byteaCodecLimit) };
+                }
+                return byteaHexDecode(value);
+            }
+            if (byteaFormatIs(name, "base64")) {
+                const bytes: bigint = byteaCodecUtf8Length(value);
+                if (byteaCodecLengthFits(langruntime.checkedI64Divide(langruntime.checkedI64Multiply(bytes, 3n), 4n)) === false) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(byteaCodecLimit) };
+                }
+                return byteaBase64Decode(value);
+            }
+            if (byteaFormatIs(name, "escape")) {
+                const estimate: checkruntime.Int8Value = byteaEscapeDecodedLength(value);
+                if (estimate.kind === "Error") {
+                    const error: checkruntime.SqlError = estimate.value;
+                    return { kind: "Error", value: error };
+                }
+                if (estimate.kind === "Value") {
+                    const length: bigint = langruntime.checkedI64(estimate.value);
+                    if (byteaCodecLengthFits(length) === false) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(byteaCodecLimit) };
+                    }
+                }
+                return byteaEscapeDecode(value);
+            }
+            return { kind: "Error", value: checkruntime.makeSqlError(byteaEncodingError) };
+        }
+    }
+    return { kind: "Unknown" };
+}
 function byteaHashBytes(value: string): checkruntime.HashByte[] {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);
@@ -2817,6 +3290,160 @@ export function boolsendOo82(input: checkruntime.BoolValue): checkruntime.ByteaV
     }
     return { kind: "Unknown" };
 }
+const digestMd5K: ReadonlyArray<bigint> = [3614090360n, 3905402710n, 606105819n, 3250441966n, 4118548399n, 1200080426n, 2821735955n, 4249261313n, 1770035416n, 2336552879n, 4294925233n, 2304563134n, 1804603682n, 4254626195n, 2792965006n, 1236535329n, 4129170786n, 3225465664n, 643717713n, 3921069994n, 3593408605n, 38016083n, 3634488961n, 3889429448n, 568446438n, 3275163606n, 4107603335n, 1163531501n, 2850285829n, 4243563512n, 1735328473n, 2368359562n, 4294588738n, 2272392833n, 1839030562n, 4259657740n, 2763975236n, 1272893353n, 4139469664n, 3200236656n, 681279174n, 3936430074n, 3572445317n, 76029189n, 3654602809n, 3873151461n, 530742520n, 3299628645n, 4096336452n, 1126891415n, 2878612391n, 4237533241n, 1700485571n, 2399980690n, 4293915773n, 2240044497n, 1873313359n, 4264355552n, 2734768916n, 1309151649n, 4149444226n, 3174756917n, 718787259n, 3951481745n];
+const digestMd5Shifts: ReadonlyArray<number> = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
+function digestMd5Select(round: number, b: bigint, c: bigint, d: bigint): bigint {
+    round = langruntime.checkedIndex(round);
+    b = langruntime.checkedI64(b);
+    c = langruntime.checkedI64(c);
+    d = langruntime.checkedI64(d);
+    if (round < 16) {
+        const chosen: bigint = digestAnd(b, c);
+        const unchosen: bigint = digestAnd(langruntime.checkedI64Subtract(4294967295n, b), d);
+        return checkruntime.hashXor(chosen, unchosen);
+    }
+    if (round < 32) {
+        const chosen: bigint = digestAnd(b, d);
+        const unchosen: bigint = digestAnd(c, langruntime.checkedI64Subtract(4294967295n, d));
+        return checkruntime.hashXor(chosen, unchosen);
+    }
+    if (round < 48) {
+        return digestXor3(b, c, d);
+    }
+    const opposite: bigint = langruntime.checkedI64Subtract(4294967295n, d);
+    const exclusive: bigint = checkruntime.hashXor(b, opposite);
+    const common: bigint = digestAnd(b, opposite);
+    return checkruntime.hashXor(c, langruntime.checkedI64Add(exclusive, common));
+}
+function digestMd5Hex(input: string): string {
+    input = langruntime.checkedString(input);
+    let stateA: bigint = 1732584193n;
+    let stateB: bigint = 4023233417n;
+    let stateC: bigint = 2562383102n;
+    let stateD: bigint = 271733878n;
+    const bytes: checkruntime.HashByte[] = digestPadding(input, false, true);
+    let offset: number = 0;
+    while (offset < bytes.length) {
+        let words: checkruntime.HashByte[] = [];
+        let index: number = 0;
+        while (index < 16) {
+            let word: bigint = 0n;
+            let place: bigint = 1n;
+            let octet: number = 0;
+            while (octet < 4) {
+                word = langruntime.checkedI64(langruntime.checkedI64Add(word, langruntime.checkedI64Multiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(offset), checkruntime.copyHashByte).value, place)));
+                place = langruntime.checkedI64(langruntime.checkedI64Multiply(place, 256n));
+                offset = langruntime.checkedAdd(offset, 1);
+                octet = langruntime.checkedAdd(octet, 1);
+            }
+            langruntime.pushStruct(words, { value: word }, checkruntime.copyHashByte);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let a: bigint = stateA;
+        let b: bigint = stateB;
+        let c: bigint = stateC;
+        let d: bigint = stateD;
+        let round: number = 0;
+        let roundNumber: number = 0;
+        while (round < 64) {
+            const selected: bigint = digestMd5Select(round, b, c, d);
+            let needed: number = roundNumber;
+            if (round >= 48) {
+                needed = langruntime.checkedI32(langruntime.checkedSignedRemainder(langruntime.checkedSignedMultiply(roundNumber, 7), 16));
+            }
+            else if (round >= 32) {
+                needed = langruntime.checkedI32(langruntime.checkedSignedRemainder((langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(roundNumber, 3), 5)), 16));
+            }
+            else if (round >= 16) {
+                needed = langruntime.checkedI32(langruntime.checkedSignedRemainder((langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(roundNumber, 5), 1)), 16));
+            }
+            let position: number = 0;
+            while (needed > 0) {
+                position = langruntime.checkedAdd(position, 1);
+                needed = langruntime.checkedI32(langruntime.checkedSignedSubtract(needed, 1));
+            }
+            const sum: bigint = digestWrap(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(a, selected), langruntime.indexStatic(digestMd5K, langruntime.checkedIndex(round))), langruntime.indexStruct(words, langruntime.checkedIndex(position), checkruntime.copyHashByte).value));
+            const rotated: bigint = digestRight(sum, langruntime.checkedSignedSubtract(32, langruntime.indexStatic(digestMd5Shifts, langruntime.checkedIndex(round))), true);
+            const next: bigint = digestWrap(langruntime.checkedI64Add(b, rotated));
+            a = langruntime.checkedI64(d);
+            d = langruntime.checkedI64(c);
+            c = langruntime.checkedI64(b);
+            b = langruntime.checkedI64(next);
+            round = langruntime.checkedAdd(round, 1);
+            roundNumber = langruntime.checkedI32(langruntime.checkedSignedAdd(roundNumber, 1));
+        }
+        stateA = langruntime.checkedI64(digestWrap(langruntime.checkedI64Add(stateA, a)));
+        stateB = langruntime.checkedI64(digestWrap(langruntime.checkedI64Add(stateB, b)));
+        stateC = langruntime.checkedI64(digestWrap(langruntime.checkedI64Add(stateC, c)));
+        stateD = langruntime.checkedI64(digestWrap(langruntime.checkedI64Add(stateD, d)));
+    }
+    let output: string = "";
+    let index: number = 0;
+    while (index < 4) {
+        let word: bigint = stateA;
+        if (index === 1) {
+            word = langruntime.checkedI64(stateB);
+        }
+        else if (index === 2) {
+            word = langruntime.checkedI64(stateC);
+        }
+        else if (index === 3) {
+            word = langruntime.checkedI64(stateD);
+        }
+        let octet: number = 0;
+        while (octet < 4) {
+            const byte: bigint = langruntime.checkedI64Remainder(word, 256n);
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, Number(BigInt.asIntN(32, langruntime.checkedI64(byte)))));
+            word = langruntime.checkedI64(langruntime.checkedI64Divide(word, 256n));
+            octet = langruntime.checkedAdd(octet, 1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
+export function md5Vpfl(input: checkruntime.ByteaValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const result: string = digestMd5Hex(value);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
+export function md5Kt50(input: checkruntime.TextValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        let encoded: string = "";
+        let index: number = 0;
+        while (index < chars.length) {
+            encoded = langruntime.checkedString(byteaUtf8Character(encoded, langruntime.indexChar(chars, langruntime.checkedIndex(index))));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        const result: string = digestMd5Hex(encoded);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
 function byteaOverlay(input: checkruntime.ByteaValue, replacement: checkruntime.ByteaValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value, hasLength: boolean): checkruntime.ByteaValue {
     hasLength = langruntime.checkedBool(hasLength);
     if (input.kind === "Error") {
@@ -2924,6 +3551,468 @@ export function position9w14(input: checkruntime.ByteaValue, pattern: checkrunti
         }
     }
     return { kind: "Unknown" };
+}
+const digestSha256K: ReadonlyArray<bigint> = [1116352408n, 1899447441n, 3049323471n, 3921009573n, 961987163n, 1508970993n, 2453635748n, 2870763221n, 3624381080n, 310598401n, 607225278n, 1426881987n, 1925078388n, 2162078206n, 2614888103n, 3248222580n, 3835390401n, 4022224774n, 264347078n, 604807628n, 770255983n, 1249150122n, 1555081692n, 1996064986n, 2554220882n, 2821834349n, 2952996808n, 3210313671n, 3336571891n, 3584528711n, 113926993n, 338241895n, 666307205n, 773529912n, 1294757372n, 1396182291n, 1695183700n, 1986661051n, 2177026350n, 2456956037n, 2730485921n, 2820302411n, 3259730800n, 3345764771n, 3516065817n, 3600352804n, 4094571909n, 275423344n, 430227734n, 506948616n, 659060556n, 883997877n, 958139571n, 1322822218n, 1537002063n, 1747873779n, 1955562222n, 2024104815n, 2227730452n, 2361852424n, 2428436474n, 2756734187n, 3204031479n, 3329325298n];
+const digestSha224Initial: ReadonlyArray<bigint> = [3238371032n, 914150663n, 812702999n, 4144912697n, 4290775857n, 1750603025n, 1694076839n, 3204075428n];
+const digestSha256Initial: ReadonlyArray<bigint> = [1779033703n, 3144134277n, 1013904242n, 2773480762n, 1359893119n, 2600822924n, 528734635n, 1541459225n];
+function digestWrap(value: bigint): bigint {
+    value = langruntime.checkedI64(value);
+    return langruntime.checkedI64Remainder(value, 4294967296n);
+}
+function digestAnd(left: bigint, right: bigint): bigint {
+    left = langruntime.checkedI64(left);
+    right = langruntime.checkedI64(right);
+    const unequal: bigint = checkruntime.hashXor(left, right);
+    return langruntime.checkedI64Divide((langruntime.checkedI64Subtract(langruntime.checkedI64Add(left, right), unequal)), 2n);
+}
+function digestRight(value: bigint, bits: number, rotate: boolean): bigint {
+    value = langruntime.checkedI64(value);
+    bits = langruntime.checkedI32(bits);
+    rotate = langruntime.checkedBool(rotate);
+    let divisor: bigint = 1n;
+    let remaining: number = bits;
+    while (remaining > 0) {
+        divisor = langruntime.checkedI64(langruntime.checkedI64Multiply(divisor, 2n));
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+    }
+    let result: bigint = langruntime.checkedI64Divide(value, divisor);
+    if (rotate) {
+        result = langruntime.checkedI64(langruntime.checkedI64Add(result, langruntime.checkedI64Multiply(langruntime.checkedI64Remainder(value, divisor), (langruntime.checkedI64Divide(4294967296n, divisor)))));
+    }
+    return result;
+}
+function digestXor3(a: bigint, b: bigint, c: bigint): bigint {
+    a = langruntime.checkedI64(a);
+    b = langruntime.checkedI64(b);
+    c = langruntime.checkedI64(c);
+    const pair: bigint = checkruntime.hashXor(a, b);
+    return checkruntime.hashXor(pair, c);
+}
+function digestSigma(value: bigint, first: number, second: number, last: number, rotateLast: boolean): bigint {
+    value = langruntime.checkedI64(value);
+    first = langruntime.checkedI32(first);
+    second = langruntime.checkedI32(second);
+    last = langruntime.checkedI32(last);
+    rotateLast = langruntime.checkedBool(rotateLast);
+    const a: bigint = digestRight(value, first, true);
+    const b: bigint = digestRight(value, second, true);
+    const c: bigint = digestRight(value, last, rotateLast);
+    return digestXor3(a, b, c);
+}
+function digestPadding(input: string, wide: boolean, little: boolean): checkruntime.HashByte[] {
+    input = langruntime.checkedString(input);
+    wide = langruntime.checkedBool(wide);
+    little = langruntime.checkedBool(little);
+    const chars: string[] = Array.from(input);
+    let bytes: checkruntime.HashByte[] = [];
+    let bits: bigint = 0n;
+    let index: number = 0;
+    let position: number = 0;
+    let width: number = 64;
+    let limit: number = 56;
+    if (wide) {
+        width = langruntime.checkedI32(128);
+        limit = langruntime.checkedI32(112);
+    }
+    while (index < chars.length) {
+        const high: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        const low: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+        const byte: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(high, 16), low);
+        langruntime.pushStruct(bytes, { value: BigInt(langruntime.checkedI32(byte)) }, checkruntime.copyHashByte);
+        bits = langruntime.checkedI64(langruntime.checkedI64Add(bits, 8n));
+        index = langruntime.checkedIndex(langruntime.checkedAdd(index, 2));
+        position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+        if (position === width) {
+            position = langruntime.checkedI32(0);
+        }
+    }
+    langruntime.pushStruct(bytes, { value: 128n }, checkruntime.copyHashByte);
+    position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+    if (position === width) {
+        position = langruntime.checkedI32(0);
+    }
+    while (!(position === limit)) {
+        langruntime.pushStruct(bytes, { value: 0n }, checkruntime.copyHashByte);
+        position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+        if (position === width) {
+            position = langruntime.checkedI32(0);
+        }
+    }
+    if (wide) {
+        let zeros: number = 0;
+        while (zeros < 8) {
+            langruntime.pushStruct(bytes, { value: 0n }, checkruntime.copyHashByte);
+            zeros = langruntime.checkedAdd(zeros, 1);
+        }
+    }
+    let count: number = 0;
+    let divisor: bigint = 72057594037927936n;
+    while (count < 8) {
+        if (little) {
+            langruntime.pushStruct(bytes, { value: langruntime.checkedI64Remainder(bits, 256n) }, checkruntime.copyHashByte);
+            bits = langruntime.checkedI64(langruntime.checkedI64Divide(bits, 256n));
+        }
+        else {
+            langruntime.pushStruct(bytes, { value: langruntime.checkedI64Remainder(langruntime.checkedI64Divide(bits, divisor), 256n) }, checkruntime.copyHashByte);
+            divisor = langruntime.checkedI64(langruntime.checkedI64Divide(divisor, 256n));
+        }
+        count = langruntime.checkedAdd(count, 1);
+    }
+    return bytes;
+}
+function digestSha256Hex(input: string, short: boolean): string {
+    input = langruntime.checkedString(input);
+    short = langruntime.checkedBool(short);
+    let state: checkruntime.HashByte[] = [];
+    let initial: number = 0;
+    while (initial < 8) {
+        let value: bigint = langruntime.indexStatic(digestSha256Initial, langruntime.checkedIndex(initial));
+        if (short) {
+            value = langruntime.checkedI64(langruntime.indexStatic(digestSha224Initial, langruntime.checkedIndex(initial)));
+        }
+        langruntime.pushStruct(state, { value: value }, checkruntime.copyHashByte);
+        initial = langruntime.checkedAdd(initial, 1);
+    }
+    const bytes: checkruntime.HashByte[] = digestPadding(input, false, false);
+    let offset: number = 0;
+    while (offset < bytes.length) {
+        let words: checkruntime.HashByte[] = [];
+        let index: number = 0;
+        while (index < 16) {
+            let word: bigint = 0n;
+            let octet: number = 0;
+            while (octet < 4) {
+                word = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(word, 256n), langruntime.indexStruct(bytes, langruntime.checkedIndex(offset), checkruntime.copyHashByte).value));
+                offset = langruntime.checkedAdd(offset, 1);
+                octet = langruntime.checkedAdd(octet, 1);
+            }
+            langruntime.pushStruct(words, { value: word }, checkruntime.copyHashByte);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (index < 64) {
+            const a: bigint = digestSigma(langruntime.indexStruct(words, langruntime.checkedIndex(langruntime.checkedSubtract(index, 15)), checkruntime.copyHashByte).value, 7, 18, 3, false);
+            const b: bigint = digestSigma(langruntime.indexStruct(words, langruntime.checkedIndex(langruntime.checkedSubtract(index, 2)), checkruntime.copyHashByte).value, 17, 19, 10, false);
+            const sum: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.indexStruct(words, langruntime.checkedIndex(langruntime.checkedSubtract(index, 16)), checkruntime.copyHashByte).value, a), langruntime.indexStruct(words, langruntime.checkedIndex(langruntime.checkedSubtract(index, 7)), checkruntime.copyHashByte).value), b);
+            const word: bigint = digestWrap(sum);
+            langruntime.pushStruct(words, { value: word }, checkruntime.copyHashByte);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let a: bigint = langruntime.indexStruct(state, langruntime.checkedIndex(0), checkruntime.copyHashByte).value;
+        let b: bigint = langruntime.indexStruct(state, langruntime.checkedIndex(1), checkruntime.copyHashByte).value;
+        let c: bigint = langruntime.indexStruct(state, langruntime.checkedIndex(2), checkruntime.copyHashByte).value;
+        let d: bigint = langruntime.indexStruct(state, langruntime.checkedIndex(3), checkruntime.copyHashByte).value;
+        let e: bigint = langruntime.indexStruct(state, langruntime.checkedIndex(4), checkruntime.copyHashByte).value;
+        let f: bigint = langruntime.indexStruct(state, langruntime.checkedIndex(5), checkruntime.copyHashByte).value;
+        let g: bigint = langruntime.indexStruct(state, langruntime.checkedIndex(6), checkruntime.copyHashByte).value;
+        let h: bigint = langruntime.indexStruct(state, langruntime.checkedIndex(7), checkruntime.copyHashByte).value;
+        let round: number = 0;
+        while (round < 64) {
+            const sigmaE: bigint = digestSigma(e, 6, 11, 25, true);
+            const chosen: bigint = digestAnd(e, f);
+            const unchosen: bigint = digestAnd(langruntime.checkedI64Subtract(4294967295n, e), g);
+            const choice: bigint = checkruntime.hashXor(chosen, unchosen);
+            const t1: bigint = digestWrap(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(h, sigmaE), choice), langruntime.indexStatic(digestSha256K, langruntime.checkedIndex(round))), langruntime.indexStruct(words, langruntime.checkedIndex(round), checkruntime.copyHashByte).value));
+            const sigmaA: bigint = digestSigma(a, 2, 13, 22, true);
+            const ab: bigint = digestAnd(a, b);
+            const ac: bigint = digestAnd(a, c);
+            const bc: bigint = digestAnd(b, c);
+            const majority: bigint = digestXor3(ab, ac, bc);
+            const t2: bigint = digestWrap(langruntime.checkedI64Add(sigmaA, majority));
+            h = langruntime.checkedI64(g);
+            g = langruntime.checkedI64(f);
+            f = langruntime.checkedI64(e);
+            e = langruntime.checkedI64(digestWrap(langruntime.checkedI64Add(d, t1)));
+            d = langruntime.checkedI64(c);
+            c = langruntime.checkedI64(b);
+            b = langruntime.checkedI64(a);
+            a = langruntime.checkedI64(digestWrap(langruntime.checkedI64Add(t1, t2)));
+            round = langruntime.checkedAdd(round, 1);
+        }
+        state[langruntime.checkedIndexIn(state, 0)] = checkruntime.copyHashByte({ value: digestWrap(langruntime.checkedI64Add(langruntime.indexStruct(state, langruntime.checkedIndex(0), checkruntime.copyHashByte).value, a)) });
+        state[langruntime.checkedIndexIn(state, 1)] = checkruntime.copyHashByte({ value: digestWrap(langruntime.checkedI64Add(langruntime.indexStruct(state, langruntime.checkedIndex(1), checkruntime.copyHashByte).value, b)) });
+        state[langruntime.checkedIndexIn(state, 2)] = checkruntime.copyHashByte({ value: digestWrap(langruntime.checkedI64Add(langruntime.indexStruct(state, langruntime.checkedIndex(2), checkruntime.copyHashByte).value, c)) });
+        state[langruntime.checkedIndexIn(state, 3)] = checkruntime.copyHashByte({ value: digestWrap(langruntime.checkedI64Add(langruntime.indexStruct(state, langruntime.checkedIndex(3), checkruntime.copyHashByte).value, d)) });
+        state[langruntime.checkedIndexIn(state, 4)] = checkruntime.copyHashByte({ value: digestWrap(langruntime.checkedI64Add(langruntime.indexStruct(state, langruntime.checkedIndex(4), checkruntime.copyHashByte).value, e)) });
+        state[langruntime.checkedIndexIn(state, 5)] = checkruntime.copyHashByte({ value: digestWrap(langruntime.checkedI64Add(langruntime.indexStruct(state, langruntime.checkedIndex(5), checkruntime.copyHashByte).value, f)) });
+        state[langruntime.checkedIndexIn(state, 6)] = checkruntime.copyHashByte({ value: digestWrap(langruntime.checkedI64Add(langruntime.indexStruct(state, langruntime.checkedIndex(6), checkruntime.copyHashByte).value, g)) });
+        state[langruntime.checkedIndexIn(state, 7)] = checkruntime.copyHashByte({ value: digestWrap(langruntime.checkedI64Add(langruntime.indexStruct(state, langruntime.checkedIndex(7), checkruntime.copyHashByte).value, h)) });
+    }
+    let output: string = "";
+    let index: number = 0;
+    let count: number = 8;
+    if (short) {
+        count = langruntime.checkedIndex(7);
+    }
+    while (index < count) {
+        let divisor: bigint = 16777216n;
+        let octet: number = 0;
+        while (octet < 4) {
+            const value: bigint = langruntime.checkedI64Remainder(langruntime.checkedI64Divide(langruntime.indexStruct(state, langruntime.checkedIndex(index), checkruntime.copyHashByte).value, divisor), 256n);
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, Number(BigInt.asIntN(32, langruntime.checkedI64(value)))));
+            divisor = langruntime.checkedI64(langruntime.checkedI64Divide(divisor, 256n));
+            octet = langruntime.checkedAdd(octet, 1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
+function digestSha256(input: checkruntime.ByteaValue, short: boolean): checkruntime.ByteaValue {
+    short = langruntime.checkedBool(short);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const result: string = digestSha256Hex(value, short);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
+export function sha224S7oo(input: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    return digestSha256(input, true);
+}
+export function sha25619zu(input: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    return digestSha256(input, false);
+}
+const digestSha512KHigh: ReadonlyArray<bigint> = [1116352408n, 1899447441n, 3049323471n, 3921009573n, 961987163n, 1508970993n, 2453635748n, 2870763221n, 3624381080n, 310598401n, 607225278n, 1426881987n, 1925078388n, 2162078206n, 2614888103n, 3248222580n, 3835390401n, 4022224774n, 264347078n, 604807628n, 770255983n, 1249150122n, 1555081692n, 1996064986n, 2554220882n, 2821834349n, 2952996808n, 3210313671n, 3336571891n, 3584528711n, 113926993n, 338241895n, 666307205n, 773529912n, 1294757372n, 1396182291n, 1695183700n, 1986661051n, 2177026350n, 2456956037n, 2730485921n, 2820302411n, 3259730800n, 3345764771n, 3516065817n, 3600352804n, 4094571909n, 275423344n, 430227734n, 506948616n, 659060556n, 883997877n, 958139571n, 1322822218n, 1537002063n, 1747873779n, 1955562222n, 2024104815n, 2227730452n, 2361852424n, 2428436474n, 2756734187n, 3204031479n, 3329325298n, 3391569614n, 3515267271n, 3940187606n, 4118630271n, 116418474n, 174292421n, 289380356n, 460393269n, 685471733n, 852142971n, 1017036298n, 1126000580n, 1288033470n, 1501505948n, 1607167915n, 1816402316n];
+const digestSha512KLow: ReadonlyArray<bigint> = [3609767458n, 602891725n, 3964484399n, 2173295548n, 4081628472n, 3053834265n, 2937671579n, 3664609560n, 2734883394n, 1164996542n, 1323610764n, 3590304994n, 4068182383n, 991336113n, 633803317n, 3479774868n, 2666613458n, 944711139n, 2341262773n, 2007800933n, 1495990901n, 1856431235n, 3175218132n, 2198950837n, 3999719339n, 766784016n, 2566594879n, 3203337956n, 1034457026n, 2466948901n, 3758326383n, 168717936n, 1188179964n, 1546045734n, 1522805485n, 2643833823n, 2343527390n, 1014477480n, 1206759142n, 344077627n, 1290863460n, 3158454273n, 3505952657n, 106217008n, 3606008344n, 1432725776n, 1467031594n, 851169720n, 3100823752n, 1363258195n, 3750685593n, 3785050280n, 3318307427n, 3812723403n, 2003034995n, 3602036899n, 1575990012n, 1125592928n, 2716904306n, 442776044n, 593698344n, 3733110249n, 2999351573n, 3815920427n, 3928383900n, 566280711n, 3454069534n, 4000239992n, 1914138554n, 2731055270n, 3203993006n, 320620315n, 587496836n, 1086792851n, 365543100n, 2618297676n, 3409855158n, 4234509866n, 987167468n, 1246189591n];
+const digestSha384InitialHigh: ReadonlyArray<bigint> = [3418070365n, 1654270250n, 2438529370n, 355462360n, 1731405415n, 2394180231n, 3675008525n, 1203062813n];
+const digestSha384InitialLow: ReadonlyArray<bigint> = [3238371032n, 914150663n, 812702999n, 4144912697n, 4290775857n, 1750603025n, 1694076839n, 3204075428n];
+const digestSha512InitialHigh: ReadonlyArray<bigint> = [1779033703n, 3144134277n, 1013904242n, 2773480762n, 1359893119n, 2600822924n, 528734635n, 1541459225n];
+const digestSha512InitialLow: ReadonlyArray<bigint> = [4089235720n, 2227873595n, 4271175723n, 1595750129n, 2917565137n, 725511199n, 4215389547n, 327033209n];
+interface DigestWord {
+    high: bigint;
+    low: bigint;
+}
+function copyDigestWord(value: DigestWord): DigestWord {
+    return { high: langruntime.checkedI64(value.high), low: langruntime.checkedI64(value.low) };
+}
+function equalDigestWord(left: DigestWord, right: DigestWord): boolean {
+    return left.high === right.high && left.low === right.low;
+}
+function digestWideAdd(left: DigestWord, right: DigestWord): DigestWord {
+    left = copyDigestWord(left);
+    right = copyDigestWord(right);
+    const sum: bigint = langruntime.checkedI64Add(left.low, right.low);
+    const low: bigint = digestWrap(sum);
+    const high: bigint = digestWrap(langruntime.checkedI64Add(langruntime.checkedI64Add(left.high, right.high), langruntime.checkedI64Divide(sum, 4294967296n)));
+    return { high: high, low: low };
+}
+function digestWideAnd(left: DigestWord, right: DigestWord): DigestWord {
+    left = copyDigestWord(left);
+    right = copyDigestWord(right);
+    const high: bigint = digestAnd(left.high, right.high);
+    const low: bigint = digestAnd(left.low, right.low);
+    return { high: high, low: low };
+}
+function digestWideXor(left: DigestWord, right: DigestWord): DigestWord {
+    left = copyDigestWord(left);
+    right = copyDigestWord(right);
+    const high: bigint = checkruntime.hashXor(left.high, right.high);
+    const low: bigint = checkruntime.hashXor(left.low, right.low);
+    return { high: high, low: low };
+}
+function digestWideNot(value: DigestWord): DigestWord {
+    value = copyDigestWord(value);
+    return { high: langruntime.checkedI64Subtract(4294967295n, value.high), low: langruntime.checkedI64Subtract(4294967295n, value.low) };
+}
+function digestWideRight(value: DigestWord, bits: number, rotate: boolean): DigestWord {
+    value = copyDigestWord(value);
+    bits = langruntime.checkedI32(bits);
+    rotate = langruntime.checkedBool(rotate);
+    let remaining: number = bits;
+    let high: bigint = value.high;
+    let low: bigint = value.low;
+    if (remaining >= 32) {
+        low = langruntime.checkedI64(value.high);
+        high = langruntime.checkedI64(0n);
+        if (rotate) {
+            high = langruntime.checkedI64(value.low);
+        }
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 32));
+    }
+    if (remaining === 0) {
+        return { high: high, low: low };
+    }
+    let divisor: bigint = 1n;
+    while (remaining > 0) {
+        divisor = langruntime.checkedI64(langruntime.checkedI64Multiply(divisor, 2n));
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+    }
+    const multiplier: bigint = langruntime.checkedI64Divide(4294967296n, divisor);
+    const shiftedLow: bigint = langruntime.checkedI64Add(langruntime.checkedI64Divide(low, divisor), langruntime.checkedI64Multiply(langruntime.checkedI64Remainder(high, divisor), multiplier));
+    let shiftedHigh: bigint = langruntime.checkedI64Divide(high, divisor);
+    if (rotate) {
+        shiftedHigh = langruntime.checkedI64(langruntime.checkedI64Add(shiftedHigh, langruntime.checkedI64Multiply(langruntime.checkedI64Remainder(low, divisor), multiplier)));
+    }
+    return { high: shiftedHigh, low: shiftedLow };
+}
+function digestWideSigma(value: DigestWord, first: number, second: number, last: number, rotateLast: boolean): DigestWord {
+    value = copyDigestWord(value);
+    first = langruntime.checkedI32(first);
+    second = langruntime.checkedI32(second);
+    last = langruntime.checkedI32(last);
+    rotateLast = langruntime.checkedBool(rotateLast);
+    const a: DigestWord = copyDigestWord(digestWideRight(value, first, true));
+    const b: DigestWord = copyDigestWord(digestWideRight(value, second, true));
+    const c: DigestWord = copyDigestWord(digestWideRight(value, last, rotateLast));
+    const pair: DigestWord = copyDigestWord(digestWideXor(a, b));
+    return digestWideXor(pair, c);
+}
+function digestSha512Hex(input: string, short: boolean): string {
+    input = langruntime.checkedString(input);
+    short = langruntime.checkedBool(short);
+    let state: DigestWord[] = [];
+    let initial: number = 0;
+    while (initial < 8) {
+        let high: bigint = langruntime.indexStatic(digestSha512InitialHigh, langruntime.checkedIndex(initial));
+        let low: bigint = langruntime.indexStatic(digestSha512InitialLow, langruntime.checkedIndex(initial));
+        if (short) {
+            high = langruntime.checkedI64(langruntime.indexStatic(digestSha384InitialHigh, langruntime.checkedIndex(initial)));
+            low = langruntime.checkedI64(langruntime.indexStatic(digestSha384InitialLow, langruntime.checkedIndex(initial)));
+        }
+        langruntime.pushStruct(state, { high: high, low: low }, copyDigestWord);
+        initial = langruntime.checkedAdd(initial, 1);
+    }
+    const bytes: checkruntime.HashByte[] = digestPadding(input, true, false);
+    let offset: number = 0;
+    while (offset < bytes.length) {
+        let words: DigestWord[] = [];
+        let index: number = 0;
+        while (index < 16) {
+            let high: bigint = 0n;
+            let low: bigint = 0n;
+            let octet: number = 0;
+            while (octet < 4) {
+                high = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 256n), langruntime.indexStruct(bytes, langruntime.checkedIndex(offset), checkruntime.copyHashByte).value));
+                offset = langruntime.checkedAdd(offset, 1);
+                octet = langruntime.checkedAdd(octet, 1);
+            }
+            octet = langruntime.checkedIndex(0);
+            while (octet < 4) {
+                low = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(low, 256n), langruntime.indexStruct(bytes, langruntime.checkedIndex(offset), checkruntime.copyHashByte).value));
+                offset = langruntime.checkedAdd(offset, 1);
+                octet = langruntime.checkedAdd(octet, 1);
+            }
+            langruntime.pushStruct(words, { high: high, low: low }, copyDigestWord);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (index < 80) {
+            const a: DigestWord = copyDigestWord(digestWideSigma(langruntime.indexStruct(words, langruntime.checkedIndex(langruntime.checkedSubtract(index, 15)), copyDigestWord), 1, 8, 7, false));
+            const b: DigestWord = copyDigestWord(digestWideSigma(langruntime.indexStruct(words, langruntime.checkedIndex(langruntime.checkedSubtract(index, 2)), copyDigestWord), 19, 61, 6, false));
+            const first: DigestWord = copyDigestWord(digestWideAdd(langruntime.indexStruct(words, langruntime.checkedIndex(langruntime.checkedSubtract(index, 16)), copyDigestWord), a));
+            const second: DigestWord = copyDigestWord(digestWideAdd(langruntime.indexStruct(words, langruntime.checkedIndex(langruntime.checkedSubtract(index, 7)), copyDigestWord), b));
+            const word: DigestWord = copyDigestWord(digestWideAdd(first, second));
+            langruntime.pushStruct(words, word, copyDigestWord);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let working: DigestWord[] = [];
+        let copied: number = 0;
+        while (copied < 8) {
+            langruntime.pushStruct(working, langruntime.indexStruct(state, langruntime.checkedIndex(copied), copyDigestWord), copyDigestWord);
+            copied = langruntime.checkedAdd(copied, 1);
+        }
+        let round: number = 0;
+        while (round < 80) {
+            const a: DigestWord = copyDigestWord(langruntime.indexStruct(working, langruntime.checkedIndex(0), copyDigestWord));
+            const b: DigestWord = copyDigestWord(langruntime.indexStruct(working, langruntime.checkedIndex(1), copyDigestWord));
+            const c: DigestWord = copyDigestWord(langruntime.indexStruct(working, langruntime.checkedIndex(2), copyDigestWord));
+            const d: DigestWord = copyDigestWord(langruntime.indexStruct(working, langruntime.checkedIndex(3), copyDigestWord));
+            const e: DigestWord = copyDigestWord(langruntime.indexStruct(working, langruntime.checkedIndex(4), copyDigestWord));
+            const f: DigestWord = copyDigestWord(langruntime.indexStruct(working, langruntime.checkedIndex(5), copyDigestWord));
+            const g: DigestWord = copyDigestWord(langruntime.indexStruct(working, langruntime.checkedIndex(6), copyDigestWord));
+            const h: DigestWord = copyDigestWord(langruntime.indexStruct(working, langruntime.checkedIndex(7), copyDigestWord));
+            const sigmaE: DigestWord = copyDigestWord(digestWideSigma(e, 14, 18, 41, true));
+            const chosen: DigestWord = copyDigestWord(digestWideAnd(e, f));
+            const opposite: DigestWord = copyDigestWord(digestWideNot(e));
+            const unchosen: DigestWord = copyDigestWord(digestWideAnd(opposite, g));
+            const choice: DigestWord = copyDigestWord(digestWideXor(chosen, unchosen));
+            const constant: DigestWord = copyDigestWord({ high: langruntime.indexStatic(digestSha512KHigh, langruntime.checkedIndex(round)), low: langruntime.indexStatic(digestSha512KLow, langruntime.checkedIndex(round)) });
+            const first: DigestWord = copyDigestWord(digestWideAdd(h, sigmaE));
+            const second: DigestWord = copyDigestWord(digestWideAdd(choice, constant));
+            const combined: DigestWord = copyDigestWord(digestWideAdd(first, second));
+            const t1: DigestWord = copyDigestWord(digestWideAdd(combined, langruntime.indexStruct(words, langruntime.checkedIndex(round), copyDigestWord)));
+            const sigmaA: DigestWord = copyDigestWord(digestWideSigma(a, 28, 34, 39, true));
+            const ab: DigestWord = copyDigestWord(digestWideAnd(a, b));
+            const ac: DigestWord = copyDigestWord(digestWideAnd(a, c));
+            const bc: DigestWord = copyDigestWord(digestWideAnd(b, c));
+            const pair: DigestWord = copyDigestWord(digestWideXor(ab, ac));
+            const majority: DigestWord = copyDigestWord(digestWideXor(pair, bc));
+            const t2: DigestWord = copyDigestWord(digestWideAdd(sigmaA, majority));
+            working[langruntime.checkedIndexIn(working, 7)] = copyDigestWord(g);
+            working[langruntime.checkedIndexIn(working, 6)] = copyDigestWord(f);
+            working[langruntime.checkedIndexIn(working, 5)] = copyDigestWord(e);
+            working[langruntime.checkedIndexIn(working, 4)] = copyDigestWord(digestWideAdd(d, t1));
+            working[langruntime.checkedIndexIn(working, 3)] = copyDigestWord(c);
+            working[langruntime.checkedIndexIn(working, 2)] = copyDigestWord(b);
+            working[langruntime.checkedIndexIn(working, 1)] = copyDigestWord(a);
+            working[langruntime.checkedIndexIn(working, 0)] = copyDigestWord(digestWideAdd(t1, t2));
+            round = langruntime.checkedAdd(round, 1);
+        }
+        let merged: number = 0;
+        while (merged < 8) {
+            state[langruntime.checkedIndexIn(state, merged)] = copyDigestWord(digestWideAdd(langruntime.indexStruct(state, langruntime.checkedIndex(merged), copyDigestWord), langruntime.indexStruct(working, langruntime.checkedIndex(merged), copyDigestWord)));
+            merged = langruntime.checkedAdd(merged, 1);
+        }
+    }
+    let output: string = "";
+    let index: number = 0;
+    let count: number = 8;
+    if (short) {
+        count = langruntime.checkedIndex(6);
+    }
+    while (index < count) {
+        let half: number = 0;
+        while (half < 2) {
+            let value: bigint = langruntime.indexStruct(state, langruntime.checkedIndex(index), copyDigestWord).high;
+            if (half === 1) {
+                value = langruntime.checkedI64(langruntime.indexStruct(state, langruntime.checkedIndex(index), copyDigestWord).low);
+            }
+            let divisor: bigint = 16777216n;
+            let octet: number = 0;
+            while (octet < 4) {
+                const byte: bigint = langruntime.checkedI64Remainder(langruntime.checkedI64Divide(value, divisor), 256n);
+                output = langruntime.checkedString(checkruntime.byteaAppendByte(output, Number(BigInt.asIntN(32, langruntime.checkedI64(byte)))));
+                divisor = langruntime.checkedI64(langruntime.checkedI64Divide(divisor, 256n));
+                octet = langruntime.checkedAdd(octet, 1);
+            }
+            half = langruntime.checkedAdd(half, 1);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
+function digestSha512(input: checkruntime.ByteaValue, short: boolean): checkruntime.ByteaValue {
+    short = langruntime.checkedBool(short);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const result: string = digestSha512Hex(value, short);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
+export function sha38441g6(input: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    return digestSha512(input, true);
+}
+export function sha512Si49(input: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    return digestSha512(input, false);
 }
 const byteaSubstringError = 3452581;
 function byteaSubstring(input: checkruntime.ByteaValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value, hasLength: boolean): checkruntime.ByteaValue {
@@ -3072,6 +4161,31 @@ export function ltrimP5mp(input: checkruntime.ByteaValue, pattern: checkruntime.
 }
 export function rtrim33rv(input: checkruntime.ByteaValue, pattern: checkruntime.ByteaValue): checkruntime.ByteaValue {
     return byteaTrim(input, pattern, false, true);
+}
+function byteaUtf8Character(output: string, character: string): string {
+    output = langruntime.checkedString(output);
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    let result: string = output;
+    if (code < 128) {
+        result = langruntime.checkedString(checkruntime.byteaAppendByte(result, code));
+    }
+    else if (code < 2048) {
+        result = langruntime.checkedString(checkruntime.byteaAppendByte(result, langruntime.checkedSignedAdd(192, langruntime.checkedSignedDivide(code, 64))));
+        result = langruntime.checkedString(checkruntime.byteaAppendByte(result, langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(code, 64))));
+    }
+    else if (code < 65536) {
+        result = langruntime.checkedString(checkruntime.byteaAppendByte(result, langruntime.checkedSignedAdd(224, langruntime.checkedSignedDivide(code, 4096))));
+        result = langruntime.checkedString(checkruntime.byteaAppendByte(result, langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(code, 64), 64))));
+        result = langruntime.checkedString(checkruntime.byteaAppendByte(result, langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(code, 64))));
+    }
+    else {
+        result = langruntime.checkedString(checkruntime.byteaAppendByte(result, langruntime.checkedSignedAdd(240, langruntime.checkedSignedDivide(code, 262144))));
+        result = langruntime.checkedString(checkruntime.byteaAppendByte(result, langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(code, 4096), 64))));
+        result = langruntime.checkedString(checkruntime.byteaAppendByte(result, langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(code, 64), 64))));
+        result = langruntime.checkedString(checkruntime.byteaAppendByte(result, langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(code, 64))));
+    }
+    return result;
 }
 function bpcharCodepointCompare(left: string, right: string): number {
     left = langruntime.checkedString(left);

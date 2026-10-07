@@ -1133,6 +1133,27 @@ describe('world CHECK INSERT parity', () => {
       ],
       ['payload_hashes', ['digest_hash', 'digest_seeded', 'digest_crc', 'digest_crc_c']],
       ['payload_labels', ['label_code', 'label_varchar_code', 'label_fixed_code', 'label_trimmed']],
+      [
+        'payload_encodings',
+        [
+          'encoding_text',
+          'encoding_bytes',
+          'encoding_roundtrip',
+          'encoding_selected',
+          'encoding_default',
+        ],
+      ],
+      [
+        'payload_crypto',
+        [
+          'crypto_md5',
+          'crypto_text_md5',
+          'crypto_sha224',
+          'crypto_sha256',
+          'crypto_sha384',
+          'crypto_sha512',
+        ],
+      ],
     ] as const) {
       for (const name of names) {
         const identity = `world_017_feature_masks.${table}.${name}`

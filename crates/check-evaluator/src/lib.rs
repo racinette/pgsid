@@ -48,6 +48,12 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/bytea_trim.rs");
     include!("operations/pg_catalog/bytea_integers.rs");
     include!("operations/pg_catalog/bytea_hash.rs");
+    include!("operations/pg_catalog/bytea_encoding.rs");
+    include!("operations/pg_catalog/bytea_utf8.rs");
+    include!("operations/pg_catalog/bytea_ascii.rs");
+    include!("operations/pg_catalog/bytea_sha256.rs");
+    include!("operations/pg_catalog/bytea_sha512.rs");
+    include!("operations/pg_catalog/bytea_md5.rs");
     include!("operations/pg_catalog/bit.rs");
     include!("operations/pg_catalog/bit_bitwise.rs");
     include!("operations/pg_catalog/bit_cast.rs");
@@ -113,6 +119,22 @@ pub mod pg_catalog {
             assert_eq!(
                 sql_error_message(make_sql_error(BYTEA_ALLOCATION_ERROR)).message,
                 "internal error"
+            );
+        }
+
+        #[test]
+        fn bytea_codecs_check_estimates_at_the_allocation_boundary() {
+            assert!(bytea_codec_length_fits(1073741819i64));
+            assert!(!bytea_codec_length_fits(1073741820i64));
+            assert_eq!(bytea_base64_encoded_length(57i64), 77i64);
+            assert_eq!(bytea_base64_encoded_length(794847840i64), 1073741818i64);
+            assert_eq!(bytea_base64_encoded_length(794847841i64), 1073741822i64);
+            assert_eq!(bytea_codec_utf8_length("aé😀"), 7i64);
+            assert_eq!(bytea_escape_encoded_length("005c80ff41"), 15i64);
+            assert!(bytea_escape_decoded_length(r"\000\377é😀\\a") == Int8Value::Value(10i64));
+            assert!(
+                bytea_escape_decoded_length(r"\400")
+                    == Int8Value::Error(make_sql_error(BYTEA_SYNTAX_ERROR))
             );
         }
     }

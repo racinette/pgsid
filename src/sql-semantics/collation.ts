@@ -34,6 +34,25 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     metadata.result === 'pg_catalog.int4'
   const characterText =
     builtinCast('pg_catalog.bpchar', 'pg_catalog.text')?.implementation === signature
+  const byteCodec =
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    ((metadata.name === 'encode' &&
+      metadata.args.length === 2 &&
+      metadata.args[0] === 'pg_catalog.bytea' &&
+      metadata.args[1] === 'pg_catalog.text' &&
+      metadata.result === 'pg_catalog.text') ||
+      (metadata.name === 'decode' &&
+        metadata.args.length === 2 &&
+        metadata.args.every((type) => type === 'pg_catalog.text') &&
+        metadata.result === 'pg_catalog.bytea'))
+  const textDigest =
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    metadata.name === 'md5' &&
+    metadata.args.length === 1 &&
+    metadata.args[0] === 'pg_catalog.text' &&
+    metadata.result === 'pg_catalog.text'
   const utcConversion =
     metadata.kind === 'function' &&
     metadata.schema === 'pg_catalog' &&
@@ -44,6 +63,8 @@ export function supportsTextCallableCollation(signature: string, collation?: str
   return (
     characterCode ||
     characterText ||
+    byteCodec ||
+    textDigest ||
     utcConversion ||
     collation === 'C' ||
     (collation === 'deterministic' &&
