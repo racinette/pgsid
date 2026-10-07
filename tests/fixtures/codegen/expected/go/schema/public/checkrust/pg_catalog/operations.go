@@ -1290,6 +1290,149 @@ func BitEqck(input checkruntime.BitValue, width checkruntime.Int4Value, explicit
 func Varbit7ap7(input checkruntime.BitValue, width checkruntime.Int4Value, explicit checkruntime.BoolValue) checkruntime.BitValue {
 	return bitCoerce(input, width, explicit, true)
 }
+func bitIntegerEncode(input int64, requested int) string {
+	requested = langruntime.CheckedI32(requested)
+	width := requested
+	if width <= 0 || width > bitMaxLength {
+		width = langruntime.CheckedI32(1)
+	}
+	remaining := input
+	reversed := ""
+	count := 0
+	for count < width {
+		odd := langruntime.CheckedI64Remainder(remaining, int64(2)) != int64(0)
+		if odd {
+			reversed = reversed + string(langruntime.CheckedChar('1'))
+		} else {
+			reversed = reversed + string(langruntime.CheckedChar('0'))
+		}
+		negative := remaining < int64(0)
+		remaining = langruntime.CheckedI64Divide(remaining, int64(2))
+		if negative && odd {
+			remaining = langruntime.CheckedI64Subtract(remaining, int64(1))
+		}
+		count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+	}
+	chars := []rune(reversed)
+	index := len(chars)
+	output := ""
+	for index > 0 {
+		index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+		output = output + string(langruntime.CheckedChar(chars[index]))
+	}
+	return output
+}
+func bitIntegerDecode(input string, signedWidth int) int64 {
+	input = langruntime.CheckedString(input)
+	signedWidth = langruntime.CheckedIndex(signedWidth)
+	chars := []rune(input)
+	result := int64(0)
+	index := 0
+	if len(chars) == signedWidth {
+		if chars[0] == '1' {
+			result = int64(-1)
+		}
+		index = langruntime.CheckedIndex(1)
+	}
+	for index < len(chars) {
+		result = langruntime.CheckedI64Multiply(result, int64(2))
+		if chars[index] == '1' {
+			result = langruntime.CheckedI64Add(result, int64(1))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return result
+}
+func BitM5gi(input checkruntime.Int4Value, width checkruntime.Int4Value) checkruntime.BitValue {
+	if input.Kind == checkruntime.Int4ValueError {
+		error := input.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if width.Kind == checkruntime.Int4ValueError {
+		error := width.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || width == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || width == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueNull}
+	}
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		if width.Kind == checkruntime.Int4ValueValue {
+			length := langruntime.CheckedI32(width.Value)
+			widened := int64(langruntime.CheckedI32(value))
+			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: bitIntegerEncode(widened, length)}
+		}
+	}
+	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+}
+func Bit1ahy(input checkruntime.Int8Value, width checkruntime.Int4Value) checkruntime.BitValue {
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if width.Kind == checkruntime.Int4ValueError {
+		error := width.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || width == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || width == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		value := input.Value
+		if width.Kind == checkruntime.Int4ValueValue {
+			length := langruntime.CheckedI32(width.Value)
+			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: bitIntegerEncode(value, length)}
+		}
+	}
+	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+}
+func Int4Lp2l(input checkruntime.BitValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if checkruntime.BitPayloadLength(value) > 32 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+		}
+		result := bitIntegerDecode(value, 32)
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(result))}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Int809r6(input checkruntime.BitValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if checkruntime.BitPayloadLength(value) > 64 {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+		}
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: bitIntegerDecode(value, 64)}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
 func BooleqY6qu(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error

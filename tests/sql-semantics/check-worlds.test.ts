@@ -920,6 +920,41 @@ describe('world CHECK INSERT parity', () => {
       }
     }
     for (const name of [
+      'encoding_integer',
+      'encoding_bigint',
+      'encoding_decode_integer',
+      'encoding_decode_bigint',
+      'encoding_low_bit',
+      'encoding_selected',
+      'encoding_default',
+      'encoding_direct',
+    ]) {
+      const identity = `world_017_feature_masks.mask_encodings.${name}`
+      const measured = coverage.get(identity)!
+      for (const kind of ['true', 'false', 'null'] as const)
+        expect(measured[kind], identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+      if (
+        [
+          'encoding_decode_integer',
+          'encoding_decode_bigint',
+          'encoding_selected',
+          'encoding_default',
+        ].includes(name)
+      ) {
+        expect(measured.error, identity).toBeGreaterThan(0)
+        const errors = caseResults.flatMap((row) =>
+          row.name.startsWith('017_feature_masks/')
+            ? row.checks.filter(
+                (check) => check.constraint === name && check.result.error === '22003',
+              )
+            : [],
+        )
+        expect(errors.length, identity).toBeGreaterThan(0)
+        for (const check of errors) expect(check.message).toContain('numeric value out of range')
+      }
+    }
+    for (const name of [
       'import_fixed',
       'import_varying',
       'import_varchar',

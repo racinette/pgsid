@@ -252,10 +252,13 @@ describe('Rust CHECK bit and varbit values', () => {
     await runCheckParity(directory, 'bitchecks', group, fixtureNames, fixtures)
   }, 180000)
 
-  it('defers integer casts and unported bit operations', async () => {
+  it('defers casts without a catalog link and unported bit operations', async () => {
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find((item) => item.name === 'bit_checks')!
-    for (const sql of ['a = 7::bit(8)', 'a::int4 > 0']) {
+    for (const sql of ['a = 7::int2::bit(8)', 'av::int4 > 0', 'a::int2 > 0']) {
+      await expect(pg.query(`SELECT (${sql}) FROM bit_checks`)).rejects.toMatchObject({
+        code: '42846',
+      })
       const bound = lowerTableCheck(
         table,
         { name: 'width', type: 'check', definition: `CHECK (${sql})` },

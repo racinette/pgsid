@@ -333,3 +333,87 @@ VALUES (521, 1, '101', '101', B'10101010', B'101', B'101', B'101', B'101', '1010
 -- name: mask_import_all_null_values_propagate
 INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
 VALUES (522, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: mask_encoding_positive_low_bits
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (600, 1, 7, 7, B'111', B'00000111', B'0000000000000111', 7, 7, B'1', false, false);
+
+-- name: mask_encoding_negative_twos_complement
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (601, 1, -1, -1, X'FFFFFFFF', X'FF', X'FFFF', -1, 4294967295, B'1', false, true);
+
+-- name: mask_encoding_integer_minimum
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (602, 1, -2147483648, -2147483648, X'80000000', X'00', X'0000', -2147483648, 2147483648, B'0', false, false);
+
+-- name: mask_encoding_bigint_minimum
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (603, 1, 0, -9223372036854775808, NULL, X'00', X'0000', 0, NULL, B'0', false, true);
+
+-- name: mask_encoding_bigint_maximum
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (604, 1, 2147483647, 9223372036854775807, X'7FFFFFFF', X'FF', X'FFFF', 2147483647, 2147483647, B'1', false, false);
+
+-- name: mask_encoding_short_high_bit_is_unsigned
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (605, 1, 1, 1, B'1', X'01', X'0001', 1, 1, B'1', false, false);
+
+-- name: mask_encoding_leading_zeros
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (606, 1, 7, 7, B'000000111', X'07', X'0007', 7, 7, B'1', false, false);
+
+-- name: mask_encoding_empty_bits_are_zero
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (607, 1, 0, 0, B'', X'00', X'0000', 0, 0, B'0', false, false);
+
+-- name: mask_encoding_rejects_integer_encoding
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (608, 1, 7, 7, B'111', X'08', X'0007', 7, 7, B'1', false, false);
+
+-- name: mask_encoding_rejects_bigint_encoding
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (609, 1, 7, 7, B'111', X'07', X'0008', 7, 7, B'1', false, false);
+
+-- name: mask_encoding_rejects_wrong_integer_decode
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (610, 1, 7, 7, B'111', X'07', X'0007', 8, 7, B'1', false, false);
+
+-- name: mask_encoding_rejects_wrong_bigint_decode
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (611, 1, 7, 7, B'111', X'07', X'0007', 7, 8, B'1', false, false);
+
+-- name: mask_encoding_rejects_wrong_default_width
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (612, 1, 7, 7, B'111', X'07', X'0007', 7, 7, B'0', false, false);
+
+-- name: mask_encoding_rejects_oversized_zero_integer
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (613, 1, 0, 0, B'000000000000000000000000000000000', X'00', X'0000', 0, 0, B'0', false, false);
+
+-- name: mask_encoding_rejects_oversized_zero_bigint
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (614, 1, 0, 0, B'00000000000000000000000000000000000000000000000000000000000000000', X'00', X'0000', 0, 0, B'0', false, false);
+
+-- name: mask_encoding_skips_oversized_input
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (615, 1, 7, 7, B'00000000000000000000000000000000000000000000000000000000000000000', X'07', X'0007', 7, 7, B'1', true, true);
+
+-- name: mask_encoding_null_choice_evaluates_oversized_input
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (616, 1, 0, 0, B'000000000000000000000000000000000', X'00', X'0000', 0, 0, B'0', NULL, NULL);
+
+-- name: mask_encoding_coalesce_uses_bits_after_null
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (617, 1, NULL, 7, B'111', NULL, X'0007', 7, 7, NULL, false, false);
+
+-- name: mask_encoding_coalesce_reaches_overflow
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (618, 1, NULL, 0, B'000000000000000000000000000000000', NULL, X'0000', 0, 0, NULL, true, true);
+
+-- name: mask_encoding_null_values_propagate
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (619, 1, NULL, NULL, NULL, X'07', X'0007', 7, 7, B'1', false, false);
+
+-- name: mask_encoding_null_expected_values_propagate
+INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
+VALUES (620, 1, 7, 7, B'111', NULL, NULL, NULL, NULL, NULL, false, false);
