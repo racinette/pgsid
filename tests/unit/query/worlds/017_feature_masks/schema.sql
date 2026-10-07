@@ -384,3 +384,17 @@ CREATE TABLE payload_hashes (
   CONSTRAINT digest_crc CHECK (crc32(packet) = recorded_crc),
   CONSTRAINT digest_crc_c CHECK (crc32c(packet) = recorded_crc_c)
 );
+
+CREATE TABLE payload_labels (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  label text COLLATE "C",
+  short_label varchar COLLATE "C",
+  fixed_label char(8) COLLATE "C",
+  recorded_code integer,
+  recorded_trim text COLLATE "C",
+  CONSTRAINT label_code CHECK (ascii(label) = recorded_code),
+  CONSTRAINT label_varchar_code CHECK (ascii(short_label) = recorded_code),
+  CONSTRAINT label_fixed_code CHECK (ascii(fixed_label::text) = recorded_code),
+  CONSTRAINT label_trimmed CHECK (fixed_label::text = recorded_trim)
+);

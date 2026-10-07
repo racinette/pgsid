@@ -397,7 +397,7 @@ fn infer_expr_type(
         Expr::Cast(cast) => {
             let target = type_name(&cast.ty)?;
             let source = infer_expr_type(&cast.expr, locals, semantics)?;
-            if (target == "u32" && source.as_deref() == Some("char"))
+            if (matches!(target.as_str(), "u32" | "i32") && source.as_deref() == Some("char"))
                 || (target == "usize" && matches!(source.as_deref(), Some("u16" | "u32")))
                 || (target == "i64" && source.as_deref() == Some("i32"))
                 || (target == "i32" && source.as_deref() == Some("i64"))

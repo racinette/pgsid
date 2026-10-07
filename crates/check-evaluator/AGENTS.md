@@ -41,8 +41,8 @@ import them. Keep schema-only helpers with their callables.
   Char comparisons use the same wrapper and ignore only trailing ASCII spaces.
   Equality accepts deterministic collations; ordering requires C. Inputs are
   already SQL-coerced. Raw bounded varchar and char query parameters defer until
-  assignment coercion is modeled. Length-changing casts and casts out of char
-  require separate conversion semantics.
+  assignment coercion is modeled. Char-to-text removes only trailing ASCII spaces;
+  length-changing casts require separate conversion semantics.
 - The operation parity command discovers the immutable, strict
   `int4 × int4 → bool`, `int8 × int8 → bool`, mixed `int4`/`int8` comparisons,
   `bool × bool → bool`, and `text × text → bool`
@@ -182,6 +182,8 @@ import them. Keep schema-only helpers with their callables.
   Builders mutate only local strings through character or borrowed-text appends.
   Explicit wrapper clones preserve Rust ownership when generated branches reuse
   text; target immutable wrappers need no copy helpers.
+  Character codes use the first Unicode scalar, or zero for empty text,
+  independently of collation.
 - Bytea payloads own canonical lowercase hexadecimal strings without a prefix.
   Public adapters convert byte arrays and nested domains; Rust validates hex input.
   Comparison preserves unsigned octet differences and signed-unit prefix order.

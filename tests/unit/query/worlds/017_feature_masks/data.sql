@@ -48,3 +48,6 @@ VALUES (1, 1, '\x0007', -32768, -2147483648, -9223372036854775808, true, DATE '2
 
 INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
 VALUES (1, 1, '\x0080ff', -1, -1033711642, 4215318346883157957, 3921718996, 920259282);
+
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1, 1, 'é', 'é', 'é', 233, 'é');

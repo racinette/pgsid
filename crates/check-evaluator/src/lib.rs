@@ -65,6 +65,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/bigint_arithmetic.rs");
     include!("operations/pg_catalog/text.rs");
     include!("operations/pg_catalog/character.rs");
+    include!("operations/pg_catalog/text_ascii.rs");
+    include!("operations/pg_catalog/character_text.rs");
     include!("operations/pg_catalog/regex.rs");
 
     #[cfg(test)]

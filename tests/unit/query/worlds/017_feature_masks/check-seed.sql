@@ -1169,3 +1169,51 @@ VALUES (1706, 1, '\x0080ff', NULL, -1033711642, 4215318346883157957, 3921718996,
 -- name: payload_digest_null_results
 INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
 VALUES (1707, 1, '\x0080ff', -1, NULL, NULL, NULL, NULL);
+
+-- name: payload_label_ascii
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1800, 1, 'A', 'A', 'A', 65, 'A');
+
+-- name: payload_label_latin
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1801, 1, 'é', 'é', 'é', 233, 'é');
+
+-- name: payload_label_cjk
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1802, 1, '界', '界', '界', 30028, '界');
+
+-- name: payload_label_emoji
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1803, 1, '😀', '😀', '😀', 128512, '😀');
+
+-- name: payload_label_combining_mark
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1804, 1, 'é', 'é', 'é', 101, 'é');
+
+-- name: payload_label_empty
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1805, 1, '', '', '', 0, '');
+
+-- name: payload_label_trailing_spaces
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1806, 1, 'A B   ', 'A B   ', 'A B   ', 65, 'A B');
+
+-- name: payload_label_preserves_nbsp
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1807, 1, '  ', '  ', '  ', 160, ' ');
+
+-- name: payload_label_preserves_em_space
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1808, 1, '  ', '  ', '  ', 8195, ' ');
+
+-- name: payload_label_rejects_wrong_results
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1809, 1, 'é', 'é', 'é', 65, 'wrong');
+
+-- name: payload_label_null_inputs
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1810, 1, NULL, NULL, NULL, 233, 'é');
+
+-- name: payload_label_null_results
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1811, 1, 'é', 'é', 'é', NULL, NULL);

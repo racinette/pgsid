@@ -3267,6 +3267,34 @@ func BpcharneQkuu(left checkruntime.TextValue, right checkruntime.TextValue) che
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func TextVc4r(input checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		end := len(chars)
+		for end > 0 && chars[langruntime.CheckedSubtract(end, 1)] == ' ' {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		output := ""
+		index := 0
+		for index < end {
+			output = output + string(langruntime.CheckedChar(chars[index]))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func MakeDateZ9pv(year checkruntime.Int4Value, month checkruntime.Int4Value, day checkruntime.Int4Value) checkruntime.DateValue {
 	if year.Kind == checkruntime.Int4ValueError {
 		error := year.Error
@@ -6381,6 +6409,28 @@ func TextGeT8pg(left checkruntime.TextValue, right checkruntime.TextValue) check
 		}
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Ascii7m47(input checkruntime.TextValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		if len(chars) == 0 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+		code := int(langruntime.CheckedChar(chars[0]))
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: code}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func TimestampEqJd79(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.TimestampValueError {

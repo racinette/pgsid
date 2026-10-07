@@ -1,4 +1,4 @@
-import { builtinCallables, builtinMetadata } from '../postgres/builtins/inventory.js'
+import { builtinCallables, builtinCast, builtinMetadata } from '../postgres/builtins/inventory.js'
 
 export function equalityOperation(signature: string, argumentType: string): '=' | '<>' | null {
   const metadata = builtinMetadata(signature)
@@ -25,6 +25,15 @@ export function equalityOperation(signature: string, argumentType: string): '=' 
 
 export function supportsTextCallableCollation(signature: string, collation?: string): boolean {
   const metadata = builtinMetadata(signature)
+  const characterCode =
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    metadata.name === 'ascii' &&
+    metadata.args.length === 1 &&
+    metadata.args[0] === 'pg_catalog.text' &&
+    metadata.result === 'pg_catalog.int4'
+  const characterText =
+    builtinCast('pg_catalog.bpchar', 'pg_catalog.text')?.implementation === signature
   const utcConversion =
     metadata.kind === 'function' &&
     metadata.schema === 'pg_catalog' &&
@@ -33,6 +42,8 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     metadata.args[0] === 'pg_catalog.text' &&
     (metadata.args[1] === 'pg_catalog."timestamp"' || metadata.args[1] === 'pg_catalog.timestamptz')
   return (
+    characterCode ||
+    characterText ||
     utcConversion ||
     collation === 'C' ||
     (collation === 'deterministic' &&
