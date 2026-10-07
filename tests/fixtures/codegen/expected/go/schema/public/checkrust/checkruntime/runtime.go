@@ -392,10 +392,14 @@ const sqlErrorInvalidTextRepresentation = 3484946
 const sqlErrorStringLengthMismatch = 3452622
 const sqlErrorStringRightTruncation = 3452545
 const sqlErrorArraySubscript = 3452630
+const sqlErrorFeatureNotSupported = 466560
 const sqlErrorProgramLimit = 8584704
 const sqlErrorInternal = 56966976
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorFeatureNotSupported {
+		return SqlErrorDescription{Message: "feature not supported"}
+	}
 	if error.State == sqlErrorInvalidFrameSize {
 		return SqlErrorDescription{Message: "invalid preceding or following size"}
 	}
@@ -2352,6 +2356,39 @@ func HexDigit(ch rune) int {
 		return 15
 	}
 	return 16
+}
+func TextSignedNumber(value int64) string {
+	digits := []rune("0123456789")
+	reversed := []rune{}
+	remaining := value
+	if remaining > int64(0) {
+		remaining = langruntime.CheckedI64Subtract(int64(0), remaining)
+	}
+	if remaining == int64(0) {
+		langruntime.CheckedAdd(len(reversed), 1)
+		reversed = append(reversed, langruntime.CheckedChar('0'))
+	}
+	for remaining < int64(0) {
+		digit := langruntime.CheckedI64Subtract(int64(0), (langruntime.CheckedI64Remainder(remaining, int64(10))))
+		index := 0
+		for digit > int64(0) {
+			index = langruntime.CheckedAdd(index, 1)
+			digit = langruntime.CheckedI64Subtract(digit, int64(1))
+		}
+		langruntime.CheckedAdd(len(reversed), 1)
+		reversed = append(reversed, langruntime.CheckedChar(digits[index]))
+		remaining = langruntime.CheckedI64Divide(remaining, int64(10))
+	}
+	output := ""
+	if value < int64(0) {
+		output = output + string(langruntime.CheckedChar('-'))
+	}
+	position := len(reversed)
+	for position > 0 {
+		position = langruntime.CheckedIndex(langruntime.CheckedSubtract(position, 1))
+		output = output + string(langruntime.CheckedChar(reversed[position]))
+	}
+	return output
 }
 
 const dateFieldOverflow = 3452552

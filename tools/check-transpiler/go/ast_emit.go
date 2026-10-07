@@ -181,6 +181,8 @@ func (g *generator) goExpression(value *node) ast.Expr {
 			return goCall("int64", goInteger(value.Digits))
 		}
 		return goInteger(value.Digits)
+	case "character-from-codepoint":
+		return goCall("characterFromI32", g.goExpression(value.Value), g.goExpression(value.Fallback))
 	case "character":
 		characters := []rune(value.Scalar)
 		if len(characters) != 1 {

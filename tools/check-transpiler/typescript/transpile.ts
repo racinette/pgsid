@@ -11,6 +11,7 @@ type Expr =
   | { kind: 'path'; segments: string[] }
   | { kind: 'integer'; digits: string; integerType?: 'i64' }
   | { kind: 'character'; scalar: string }
+  | { kind: 'character-from-codepoint'; value: Expr; fallback: Expr }
   | { kind: 'boolean'; state: boolean }
   | { kind: 'string'; text: string }
   | { kind: 'parenthesized'; inner: Expr }
@@ -276,6 +277,7 @@ class Transpiler {
       case 'integer':
         return value.integerType ?? 'usize'
       case 'character':
+      case 'character-from-codepoint':
         return 'char'
       case 'boolean':
         return 'bool'
@@ -380,6 +382,12 @@ class Transpiler {
             : literal
         }
         return f.createNumericLiteral(value.digits)
+      case 'character-from-codepoint':
+        return call(
+          'characterFromI32',
+          this.expression(value.value, locals),
+          this.expression(value.fallback, locals),
+        )
       case 'character':
         return f.createStringLiteral(value.scalar)
       case 'boolean':

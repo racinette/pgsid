@@ -43,6 +43,8 @@ change to the regex transpiler unless the regex engine itself changes.
   immutable text/wrappers has value semantics; keep aggregate vector copying.
   Unicode scalars cast to `u32` or `i32` without truncation. Other character casts
   remain rejected. The ASCII CHECK and code-point suite exercise signed conversion.
+  Construct Unicode scalars only with `char::from_u32(i32_value as u32).unwrap_or(char_fallback)`;
+  reject general Option handling and integer-to-u32 casts. Validate both operands eagerly.
   Never append through a wrapper field. The network host and binary-send CHECKs
   exercise builders, and `check-owned-text.test.ts` covers Unicode and rejection.
 - Payload enum tests accept a single immutable identifier binding or `_`.

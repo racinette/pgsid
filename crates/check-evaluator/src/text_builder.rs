@@ -97,3 +97,35 @@ pub fn hex_digit(ch: char) -> i32 {
     }
     16
 }
+
+pub fn text_signed_number(value: i64) -> String {
+    let digits: Vec<char> = "0123456789".chars().collect();
+    let mut reversed: Vec<char> = Vec::new();
+    let mut remaining = value;
+    if remaining > 0i64 {
+        remaining = 0i64 - remaining;
+    }
+    if remaining == 0i64 {
+        reversed.push('0');
+    }
+    while remaining < 0i64 {
+        let mut digit = 0i64 - (remaining % 10i64);
+        let mut index: usize = 0;
+        while digit > 0i64 {
+            index += 1;
+            digit = digit - 1i64;
+        }
+        reversed.push(digits[index]);
+        remaining = remaining / 10i64;
+    }
+    let mut output = String::new();
+    if value < 0i64 {
+        output.push('-');
+    }
+    let mut position = reversed.len();
+    while position > 0 {
+        position = position - 1;
+        output.push(reversed[position]);
+    }
+    output
+}

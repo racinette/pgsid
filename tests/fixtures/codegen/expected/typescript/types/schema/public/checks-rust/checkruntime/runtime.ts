@@ -434,9 +434,13 @@ const sqlErrorInvalidTextRepresentation = 3484946;
 const sqlErrorStringLengthMismatch = 3452622;
 const sqlErrorStringRightTruncation = 3452545;
 const sqlErrorArraySubscript = 3452630;
+const sqlErrorFeatureNotSupported = 466560;
 const sqlErrorProgramLimit = 8584704;
 const sqlErrorInternal = 56966976;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorFeatureNotSupported) {
+        return { message: "feature not supported" };
+    }
     if (error.state === sqlErrorInvalidFrameSize) {
         return { message: "invalid preceding or following size" };
     }
@@ -2453,6 +2457,38 @@ export function hexDigit(ch: string): number {
         return 15;
     }
     return 16;
+}
+export function textSignedNumber(value: bigint): string {
+    value = langruntime.checkedI64(value);
+    const digits: string[] = Array.from("0123456789");
+    let reversed: string[] = [];
+    let remaining: bigint = value;
+    if (remaining > 0n) {
+        remaining = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, remaining));
+    }
+    if (remaining === 0n) {
+        langruntime.pushChar(reversed, "0");
+    }
+    while (remaining < 0n) {
+        let digit: bigint = langruntime.checkedI64Subtract(0n, (langruntime.checkedI64Remainder(remaining, 10n)));
+        let index: number = 0;
+        while (digit > 0n) {
+            index = langruntime.checkedAdd(index, 1);
+            digit = langruntime.checkedI64(langruntime.checkedI64Subtract(digit, 1n));
+        }
+        langruntime.pushChar(reversed, langruntime.indexChar(digits, langruntime.checkedIndex(index)));
+        remaining = langruntime.checkedI64(langruntime.checkedI64Divide(remaining, 10n));
+    }
+    let output: string = "";
+    if (value < 0n) {
+        output = output + langruntime.checkedChar("-");
+    }
+    let position: number = reversed.length;
+    while (position > 0) {
+        position = langruntime.checkedIndex(langruntime.checkedSubtract(position, 1));
+        output = output + langruntime.checkedChar(langruntime.indexChar(reversed, langruntime.checkedIndex(position)));
+    }
+    return output;
 }
 const dateFieldOverflow = 3452552;
 const invalidDateText = 3452551;

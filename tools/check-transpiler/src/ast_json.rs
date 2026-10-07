@@ -410,6 +410,12 @@ fn expr(value: &Expr) -> Result<Value> {
             "base": expr(&node.expr)?,
             "index": expr(&node.index)?,
         })),
+        Expr::MethodCall(node) if crate::syntax::character_from_codepoint(node).is_some() => {
+            let (value, fallback) = crate::syntax::character_from_codepoint(node).unwrap();
+            Ok(
+                json!({ "kind": "character-from-codepoint", "value": expr(value)?, "fallback": expr(fallback)? }),
+            )
+        }
         Expr::MethodCall(node) => {
             if node.method == "collect" {
                 let Expr::MethodCall(chars) = &*node.receiver else {
@@ -851,6 +857,35 @@ mod tests {
         assert!(parse("pub fn f(value: i32) -> char { value as char }").is_err());
         assert!(parse("pub fn f(value: u32) -> usize { value as usize }").is_ok());
         assert!(parse("pub fn f(value: i32) -> usize { value as usize }").is_err());
+    }
+
+    #[test]
+    fn constructs_characters_with_a_closed_option_fallback() {
+        let tree: serde_json::Value = serde_json::from_str(&parse(
+            "pub fn f(value: i32, fallback: char) -> char { char::from_u32(value as u32).unwrap_or(fallback) }"
+        ).unwrap()).unwrap();
+        assert_eq!(
+            tree["items"][0]["body"][0]["value"]["kind"],
+            "character-from-codepoint"
+        );
+        assert_eq!(
+            tree["items"][0]["body"][0]["value"]["value"]["segments"],
+            serde_json::json!(["value"])
+        );
+        for source in [
+            "pub fn f(value: u32) -> char { char::from_u32(value as u32).unwrap_or('x') }",
+            "pub fn f(value: i64) -> char { char::from_u32(value as u32).unwrap_or('x') }",
+            "pub fn f(value: i32) -> char { char::from_u32(value as u32).unwrap_or(true) }",
+            "pub fn f(value: i32) -> char { char::from_u32(value as u32).unwrap_or() }",
+            "pub fn f(value: i32) -> char { char::from_u32(value as u32).unwrap() }",
+            "pub fn f(value: i32) -> u32 { value as u32 }",
+            "pub fn f(value: u32) -> char { char::from_u32(value).unwrap_or('x') }",
+            "pub fn f(value: i32) -> Option<char> { char::from_u32(value as u32) }",
+            "pub fn f(value: i32) -> char { char::from_u32(value as u32).unwrap_or('x', 'y') }",
+            "pub fn f(value: i32) -> char { Other::from_u32(value as u32).unwrap_or('x') }",
+        ] {
+            assert!(parse(source).is_err(), "accepted {source}");
+        }
     }
 
     #[test]

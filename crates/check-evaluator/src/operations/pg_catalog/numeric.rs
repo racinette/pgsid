@@ -13,8 +13,8 @@ fn numeric_compare(left: NumericValue, right: NumericValue) -> Int4Value {
     }
     if let NumericValue::Value(left_value) = left {
         if let NumericValue::Value(right_value) = right {
-            let a = numeric_parts(left_value);
-            let b = numeric_parts(right_value);
+            let a = numeric_parts(left_value.as_str());
+            let b = numeric_parts(right_value.as_str());
             if a.valid == false || b.valid == false {
                 return Int4Value::Unknown;
             }
