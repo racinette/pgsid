@@ -159,7 +159,11 @@ fn expr(expr: &Expr) -> Result {
             if node.attrs.is_empty()
                 && matches!(
                     node.lit,
-                    syn::Lit::Int(_) | syn::Lit::Char(_) | syn::Lit::Str(_) | syn::Lit::Bool(_)
+                    syn::Lit::Int(_)
+                        | syn::Lit::Float(_)
+                        | syn::Lit::Char(_)
+                        | syn::Lit::Str(_)
+                        | syn::Lit::Bool(_)
                 ) =>
         {
             Ok(())
@@ -177,7 +181,7 @@ fn expr(expr: &Expr) -> Result {
             self::expr(&node.expr)
         }
         Expr::Cast(node) if node.attrs.is_empty() => {
-            if !matches!(&*node.ty, Type::Path(target) if target.path.is_ident("u32") || target.path.is_ident("usize") || target.path.is_ident("i64") || target.path.is_ident("i32"))
+            if !matches!(&*node.ty, Type::Path(target) if target.path.is_ident("f64") || target.path.is_ident("u32") || target.path.is_ident("usize") || target.path.is_ident("i64") || target.path.is_ident("i32"))
             {
                 return Err("cast target is outside the syntax subset".into());
             }
@@ -225,7 +229,7 @@ fn expr(expr: &Expr) -> Result {
             }
             if matches!(
                 method.as_str(),
-                "to_ascii_lowercase" | "to_owned" | "as_str" | "clone"
+                "to_ascii_lowercase" | "to_owned" | "as_str" | "clone" | "abs" | "ln" | "log10"
             ) && node.args.is_empty()
             {
                 return self::expr(&node.receiver);

@@ -309,6 +309,8 @@ func (g *generator) inferType(value *node) *node {
 				}
 			}
 		}
+	case "float":
+		return namedType("f64")
 	case "integer":
 		if value.IntegerType == "i64" {
 			return namedType("i64")
@@ -316,6 +318,9 @@ func (g *generator) inferType(value *node) *node {
 		return namedType("usize")
 	case "unary":
 		if value.Operator == "negate" {
+			if path(g.inferType(value.Value)) == "f64" {
+				return namedType("f64")
+			}
 			return namedType("i32")
 		}
 	case "character", "character-from-codepoint":
@@ -345,6 +350,8 @@ func (g *generator) inferType(value *node) *node {
 		return nil
 	case "method-call":
 		switch value.Method {
+		case "abs", "ln", "log10":
+			return namedType("f64")
 		case "len":
 			return namedType("usize")
 		case "to_ascii_lowercase":
@@ -704,7 +711,7 @@ func (g *generator) immutableField(value *node) bool {
 		return path(value.Inner) == "str"
 	}
 	switch path(value) {
-	case "usize", "u32", "i32", "i64", "bool", "char", "String":
+	case "usize", "u32", "i32", "i64", "f64", "bool", "char", "String":
 		return true
 	default:
 		return g.immutable[path(value)]

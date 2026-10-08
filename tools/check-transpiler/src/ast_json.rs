@@ -52,6 +52,7 @@ fn check_type(
                     | "u32"
                     | "i32"
                     | "i64"
+                    | "f64"
                     | "bool"
                     | "char"
                     | "String"
@@ -173,6 +174,9 @@ fn check_types(file: &syn::File) -> Result<()> {
                 };
                 for field in &fields.named {
                     reject_stored_struct_borrow(&field.ty)?;
+                    if type_name(&field.ty)? == "f64" {
+                        return Err("f64 is limited to scalar calculations".into());
+                    }
                     check_type(&field.ty, &declarations, &structs, &copy_structs)?;
                 }
             }
@@ -180,6 +184,9 @@ fn check_types(file: &syn::File) -> Result<()> {
                 for variant in &node.variants {
                     if let Fields::Unnamed(fields) = &variant.fields {
                         reject_stored_struct_borrow(&fields.unnamed[0].ty)?;
+                        if type_name(&fields.unnamed[0].ty)? == "f64" {
+                            return Err("f64 is limited to scalar calculations".into());
+                        }
                         check_type(
                             &fields.unnamed[0].ty,
                             &declarations,
@@ -263,6 +270,26 @@ fn integer(value: &syn::LitInt) -> Result<String> {
         ));
     }
     Ok(number.to_string())
+}
+
+fn float_literal(value: &syn::LitFloat, negative: bool) -> Result<Value> {
+    let source = value.to_string();
+    let digits = source
+        .strip_suffix("f64")
+        .ok_or("float literals require an f64 suffix")?;
+    if digits.contains('_') {
+        return Err("f64 literals require decimal syntax".into());
+    }
+    let parsed = digits.parse::<f64>().map_err(|_| "invalid f64 literal")?;
+    if !parsed.is_finite() {
+        return Err("f64 literal is not finite".into());
+    }
+    let digits = if negative {
+        format!("-{digits}")
+    } else {
+        digits.to_owned()
+    };
+    Ok(json!({"kind":"float", "digits":digits}))
 }
 
 fn int64_literal(value: &syn::LitInt, negative: bool) -> Result<Value> {
@@ -351,6 +378,7 @@ fn expr(value: &Expr) -> Result<Value> {
     match value {
         Expr::Path(node) => Ok(json!({ "kind": "path", "segments": segments(&node.path) })),
         Expr::Lit(node) => match &node.lit {
+            syn::Lit::Float(number) => float_literal(number, false),
             syn::Lit::Int(number) if number.suffix() == "i64" => int64_literal(number, false),
             syn::Lit::Int(number) => Ok(json!({ "kind": "integer", "digits": integer(number)? })),
             syn::Lit::Char(character) => {
@@ -362,6 +390,18 @@ fn expr(value: &Expr) -> Result<Value> {
         },
         Expr::Paren(node) => Ok(json!({ "kind": "parenthesized", "inner": expr(&node.expr)? })),
         Expr::Group(node) => expr(&node.expr),
+        Expr::Unary(node)
+            if matches!(node.op, syn::UnOp::Neg(_))
+                && matches!(&*node.expr, Expr::Lit(lit) if matches!(&lit.lit, syn::Lit::Float(_))) =>
+        {
+            let Expr::Lit(lit) = &*node.expr else {
+                unreachable!()
+            };
+            let syn::Lit::Float(number) = &lit.lit else {
+                unreachable!()
+            };
+            float_literal(number, true)
+        }
         Expr::Unary(node)
             if matches!(node.op, syn::UnOp::Neg(_))
                 && matches!(&*node.expr, Expr::Lit(lit) if matches!(&lit.lit, syn::Lit::Int(number) if number.suffix() == "i64")) =>
@@ -1198,5 +1238,66 @@ mod tests {
             smoke::named_position(smoke::NamedSpan { from_position: 2 }),
             2
         );
+    }
+}
+
+#[cfg(test)]
+mod f64_tests {
+    use super::parse;
+    #[test]
+    fn permits_precision_estimate_primitives() {
+        let source = "const FACTOR: f64 = 2.302585092994046f64; pub fn weight(digits: i32, exponent: i32) -> i32 { let first = digits as f64; let second = exponent as f64; let estimate = first.ln() + second * FACTOR; estimate.abs().log10() as i32 }";
+        assert!(parse(source).is_ok());
+        for source in [
+            "pub fn f(value: f64) -> f64 { -value }",
+            "pub fn f() -> f64 { -0.0f64 }",
+            "pub fn f(a:f64,b:f64)->f64 { (a+b)/(a-b)*b }",
+            "pub fn f(a:f64,b:f64)->bool {a < b || a == b}",
+        ] {
+            assert!(parse(source).is_ok(), "{source}");
+        }
+    }
+    #[test]
+    fn rejects_float_expansion_beyond_precision_calculations() {
+        for source in [
+            "pub fn f() -> f64 { 1.0 }",
+            "pub fn f() -> f64 { 1.0f32 }",
+            "pub fn f() -> f64 { 1 }",
+            "pub fn f() -> f64 { 1e999f64 }",
+            "pub fn f() -> f64 { 1_000.0f64 }",
+            "pub fn f(x:f64) -> f64 { x + 1 }",
+            "pub fn f(x:f64)->bool { x > 1 }",
+            "pub fn f(x:f64)->bool { x && x }",
+            "pub fn f(x:f64)->f64 { x % 1.0f64 }",
+            "pub fn f(x:f64)->f64 { x.exp() }",
+            "pub fn f(x:i32)->i32 { x.ln() }",
+            "pub fn f(x:i64)->f64 { x as f64 }",
+            "pub fn f(x:f64)->i64 { x as i64 }",
+            "pub fn f(x:f64)->usize { x as usize }",
+            "pub fn f(x:u32)->f64 { x as f64 }",
+            "pub fn f()->f64 { let result:f64=1; result }",
+            "pub fn f()->f64 { return 1; }",
+            "const A:f64=1; pub fn f()->f64 { A }",
+            "const A:f64=1.0f64+1.0f64; pub fn f()->f64 {A}",
+            "struct Value { number:f64 } pub fn f()->bool {true}",
+            "enum Value { Number(f64) } pub fn f()->bool {true}",
+            "const TABLE:&[f64]=&[1.0f64]; pub fn f()->bool {true}",
+        ] {
+            assert!(parse(source).is_err(), "{source}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod immutable_record_rebinding_tests {
+    use super::parse;
+    #[test]
+    fn rebinds_an_owned_record_without_mutating_its_fields() {
+        let source = "#[derive(Clone)] struct Work { value:String, count:i32 } pub fn f(input:Work)->String { let mut work=input; let old=work.clone(); work=Work {value:old.value.clone(),count:1}; work.value }";
+        assert!(parse(source).is_ok());
+        for source in [
+            "#[derive(Clone)] struct Work { value:String } pub fn f(input:Work)->Work { let mut work=input; work.value=String::new(); work }",
+            "#[derive(Clone)] struct Work { value:String } pub fn f(input:Work)->Work { let work=input; work=Work {value:String::new()}; work }",
+        ] { assert!(parse(source).is_err(), "{source}"); }
     }
 }

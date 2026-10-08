@@ -89,6 +89,8 @@ func (g *generator) goType(value *node) ast.Expr {
 		return goIdent("int")
 	case "i64":
 		return goIdent("int64")
+	case "f64":
+		return goIdent("float64")
 	case "bool":
 		return goIdent("bool")
 	case "char":
@@ -176,6 +178,15 @@ func (g *generator) goExpression(value *node) ast.Expr {
 			}
 		}
 		reject("unknown path " + strings.Join(value.Segments, "::"))
+	case "float":
+		parsed, err := strconv.ParseFloat(value.Digits, 64)
+		if err != nil {
+			reject("invalid f64 literal")
+		}
+		if parsed == 0 && strings.HasPrefix(value.Digits, "-") {
+			return goCall("f64Negate", goCall("float64", &ast.BasicLit{Kind: token.FLOAT, Value: strings.TrimPrefix(value.Digits, "-")}))
+		}
+		return goCall("float64", &ast.BasicLit{Kind: token.FLOAT, Value: value.Digits})
 	case "integer":
 		if value.IntegerType == "i64" {
 			return goCall("int64", goInteger(value.Digits))
@@ -204,10 +215,18 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		if value.Operator != "negate" {
 			reject("unsupported unary operator")
 		}
+		if path(g.inferType(value.Value)) == "f64" {
+			return goCall("f64Negate", g.goExpression(value.Value))
+		}
 		return goCall("checkedSignedNegate", g.goExpression(value.Value))
 	case "cast":
 		switch path(value.TargetType) {
+		case "f64":
+			return goCall("float64", g.goExpression(value.Value))
 		case "i32":
+			if path(g.inferType(value.Value)) == "f64" {
+				return goCall("f64ToI32", g.goExpression(value.Value))
+			}
 			if path(g.inferType(value.Value)) == "char" {
 				return goCall("int", goCall("checkedChar", g.goExpression(value.Value)))
 			}
@@ -226,6 +245,12 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 	case "binary":
 		left, right := g.goExpression(value.Left), g.goExpression(value.Right)
+		if (value.Operator == "add" || value.Operator == "subtract" || value.Operator == "multiply" || value.Operator == "divide") && path(g.inferType(value.Left)) == "f64" {
+			helpers := map[string]string{"add": "f64Add", "subtract": "f64Subtract", "multiply": "f64Multiply", "divide": "f64Divide"}
+			if helper, ok := helpers[value.Operator]; ok {
+				return goCall(helper, left, right)
+			}
+		}
 		if (value.Operator == "multiply" || value.Operator == "add" || value.Operator == "subtract" || value.Operator == "divide" || value.Operator == "remainder") && path(g.inferType(value.Left)) == "i64" {
 			switch value.Operator {
 			case "multiply":
@@ -283,6 +308,12 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		return &ast.IndexExpr{X: g.goExpression(value.Base), Index: g.goExpression(value.Index)}
 	case "method-call":
 		switch {
+		case value.Method == "abs" && len(value.Arguments) == 0:
+			return goCall("f64Abs", g.goExpression(value.Receiver))
+		case value.Method == "ln" && len(value.Arguments) == 0:
+			return goCall("f64Ln", g.goExpression(value.Receiver))
+		case value.Method == "log10" && len(value.Arguments) == 0:
+			return goCall("f64Log10", g.goExpression(value.Receiver))
 		case value.Method == "clone":
 			return g.goDetach(g.goExpression(value.Receiver), g.inferType(value.Receiver))
 		case value.Method == "to_owned" || value.Method == "as_str":
@@ -497,7 +528,11 @@ func (g *generator) goItem(value *node) []ast.Decl {
 				Names: []*ast.Ident{goIdent(g.name(value.Name))}, Values: []ast.Expr{&ast.CompositeLit{Type: g.goType(value.Type), Elts: elements}},
 			}}}}
 		}
-		return []ast.Decl{&ast.GenDecl{Tok: token.CONST, Specs: []ast.Spec{&ast.ValueSpec{
+		declarationToken := token.CONST
+		if value.Type.Kind == "path" && path(value.Type) == "f64" {
+			declarationToken = token.VAR
+		}
+		return []ast.Decl{&ast.GenDecl{Tok: declarationToken, Specs: []ast.Spec{&ast.ValueSpec{
 			Names: []*ast.Ident{goIdent(g.name(value.Name))}, Values: []ast.Expr{g.goExpression(value.Value)},
 		}}}}
 	case "struct":
