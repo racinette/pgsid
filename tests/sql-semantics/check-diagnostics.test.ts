@@ -25,6 +25,7 @@ const conditions = [
   ['22023', 'invalid parameter value'],
   ['22025', 'invalid escape sequence'],
   ['22P02', 'invalid text representation'],
+  ['42704', 'undefined object'],
   ['22026', 'string data length mismatch'],
   ['22001', 'string data right truncation'],
   ['2202E', 'array subscript error'],
@@ -35,7 +36,7 @@ const conditions = [
 ] as const
 
 describe('CHECK SQL error diagnostics', () => {
-  it('uses PostgreSQL SQLSTATEs for numeric and SQL pattern errors', async () => {
+  it('uses PostgreSQL SQLSTATEs for numeric, SQL pattern and encoding errors', async () => {
     const pg = await PGlite.create()
     try {
       for (const [expression, state] of [
@@ -43,6 +44,7 @@ describe('CHECK SQL error diagnostics', () => {
         ['sqrt(-1::numeric)', '2201F'],
         ['width_bucket(1::numeric, 0::numeric, 2::numeric, 0)', '2201G'],
         [String.raw`pg_catalog.similar_to_escape('\"a\"b\"')`, '2200C'],
+        ["pg_catalog.to_ascii('value', -1)", '42704'],
       ] as const) {
         await expect(pg.query(`SELECT ${expression}`)).rejects.toMatchObject({ code: state })
         expect(conditions.some(([code]) => code === state)).toBe(true)

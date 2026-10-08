@@ -435,6 +435,7 @@ const sqlErrorInvalidWidthBucket = 3452596;
 const sqlErrorInvalidParameter = 3452619;
 const sqlErrorInvalidEscape = 3452621;
 const sqlErrorInvalidTextRepresentation = 3484946;
+const sqlErrorUndefinedObject = 6820852;
 const sqlErrorStringLengthMismatch = 3452622;
 const sqlErrorStringRightTruncation = 3452545;
 const sqlErrorArraySubscript = 3452630;
@@ -442,6 +443,9 @@ const sqlErrorFeatureNotSupported = 466560;
 const sqlErrorProgramLimit = 8584704;
 const sqlErrorInternal = 56966976;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorUndefinedObject) {
+        return { message: "undefined object" };
+    }
     if (error.state === sqlErrorFeatureNotSupported) {
         return { message: "feature not supported" };
     }
