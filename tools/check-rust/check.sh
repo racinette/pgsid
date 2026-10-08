@@ -5,6 +5,8 @@ repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$repo_dir"
 bash scripts/build-check-rust-wasm.sh
 cargo test --quiet --locked --manifest-path crates/check-evaluator/Cargo.toml
+cargo test --quiet --locked --manifest-path tools/check-unicode-data/Cargo.toml
+pnpm exec vitest run tests/sql-semantics/check-unicode-foundation.test.ts
 go -C tools/check-transpiler/go test ./...
 bash tools/check-rust-spike/check.sh
 node --import tsx tools/check-rust-bound/check.ts
