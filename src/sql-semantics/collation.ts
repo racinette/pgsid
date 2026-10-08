@@ -178,6 +178,39 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     implementation.result === implementation.args[0] &&
     ((implementation.name === 'bpchar' && implementation.args[0] === 'pg_catalog.bpchar') ||
       (implementation.name === 'varchar' && implementation.args[0] === 'pg_catalog."varchar"'))
+  const textLike =
+    implementation.kind === 'function' &&
+    implementation.schema === 'pg_catalog' &&
+    implementation.strict &&
+    implementation.volatility === 'i' &&
+    !implementation.returnsSet &&
+    implementation.result === 'pg_catalog.bool' &&
+    implementation.args.length === 2 &&
+    ['pg_catalog.text', 'pg_catalog.bpchar'].includes(implementation.args[0]!) &&
+    implementation.args[1] === 'pg_catalog.text' &&
+    ['like', 'notlike', 'textlike', 'textnlike', 'bpcharlike', 'bpcharnlike'].includes(
+      implementation.name,
+    )
+  const likeEscape =
+    implementation.kind === 'function' &&
+    implementation.schema === 'pg_catalog' &&
+    implementation.strict &&
+    implementation.volatility === 'i' &&
+    !implementation.returnsSet &&
+    implementation.name === 'like_escape' &&
+    implementation.result === 'pg_catalog.text' &&
+    implementation.args.length === 2 &&
+    implementation.args.every((type) => type === 'pg_catalog.text')
+  const sizeBytes =
+    implementation.kind === 'function' &&
+    implementation.schema === 'pg_catalog' &&
+    implementation.name === 'pg_size_bytes' &&
+    implementation.strict &&
+    implementation.volatility === 'i' &&
+    !implementation.returnsSet &&
+    implementation.args.length === 1 &&
+    implementation.args[0] === 'pg_catalog.text' &&
+    implementation.result === 'pg_catalog.int8'
   const textIntrinsic =
     implementation.kind === 'function' &&
     implementation.schema === 'pg_catalog' &&
@@ -218,7 +251,9 @@ export function supportsTextCallableCollation(signature: string, collation?: str
               (implementation.name === 'btbpchar_pattern_cmp' &&
                 implementation.result === 'pg_catalog.int4'))))))
   return (
+    likeEscape ||
     textIntrinsic ||
+    sizeBytes ||
     textBuilder ||
     textWidth ||
     textSlice ||
@@ -230,7 +265,8 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     utcConversion ||
     collation === 'C' ||
     (collation === 'deterministic' &&
-      (textHash ||
+      (textLike ||
+        textHash ||
         textSearch ||
         equalityOperation(signature, 'pg_catalog.text') !== null ||
         equalityOperation(signature, 'pg_catalog.bpchar') !== null))

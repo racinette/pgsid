@@ -312,3 +312,50 @@ CREATE TABLE label_literal_records (
  CONSTRAINT label_quoted_literal CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.quote_literal(label)=recorded_literal END),
  CONSTRAINT label_quoted_octets CHECK (CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.quote_literal(label))=recorded_octets END)
 );
+
+CREATE TABLE label_storage_records (
+ id integer PRIMARY KEY,
+ suppress_invalid boolean NOT NULL DEFAULT false,
+ size_label text,
+ recorded_bytes bigint,
+ maximum_bytes bigint,
+ CONSTRAINT label_size_bytes CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.pg_size_bytes(size_label) = recorded_bytes END),
+ CONSTRAINT label_size_limit CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.pg_size_bytes(size_label) <= maximum_bytes END)
+);
+
+CREATE TABLE label_pattern_records (
+ id integer PRIMARY KEY,
+ suppress_invalid boolean NOT NULL DEFAULT false,
+ label text COLLATE "C",
+ fixed_label bpchar COLLATE "C",
+ pattern text COLLATE "C",
+ escape_character text,
+ recorded_bpchariclike boolean,
+ recorded_bpcharicnlike boolean,
+ recorded_bpcharlike boolean,
+ recorded_bpcharnlike boolean,
+ recorded_like boolean,
+ recorded_notlike boolean,
+ recorded_texticlike boolean,
+ recorded_texticnlike boolean,
+ recorded_textlike boolean,
+ recorded_textnlike boolean,
+ recorded_escaped_match boolean,
+ recorded_escaped_folded_match boolean,
+ normalized_pattern text COLLATE "C",
+ normalized_octets int4,
+ CONSTRAINT label_bpchariclike CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.bpchariclike(fixed_label,pattern)=recorded_bpchariclike END),
+ CONSTRAINT label_bpcharicnlike CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.bpcharicnlike(fixed_label,pattern)=recorded_bpcharicnlike END),
+ CONSTRAINT label_bpcharlike CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.bpcharlike(fixed_label,pattern)=recorded_bpcharlike END),
+ CONSTRAINT label_bpcharnlike CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.bpcharnlike(fixed_label,pattern)=recorded_bpcharnlike END),
+ CONSTRAINT label_like CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.like(label,pattern)=recorded_like END),
+ CONSTRAINT label_notlike CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.notlike(label,pattern)=recorded_notlike END),
+ CONSTRAINT label_texticlike CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.texticlike(label,pattern)=recorded_texticlike END),
+ CONSTRAINT label_texticnlike CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.texticnlike(label,pattern)=recorded_texticnlike END),
+ CONSTRAINT label_textlike CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.textlike(label,pattern)=recorded_textlike END),
+ CONSTRAINT label_textnlike CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.textnlike(label,pattern)=recorded_textnlike END),
+ CONSTRAINT label_escaped_match CHECK (CASE WHEN suppress_invalid THEN true ELSE (label LIKE pattern ESCAPE escape_character)=recorded_escaped_match END),
+ CONSTRAINT label_escaped_folded_match CHECK (CASE WHEN suppress_invalid THEN true ELSE (label ILIKE pattern ESCAPE escape_character)=recorded_escaped_folded_match END),
+ CONSTRAINT label_normalized_pattern CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.like_escape(pattern,escape_character)=normalized_pattern END),
+ CONSTRAINT label_normalized_octets CHECK (CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.like_escape(pattern,escape_character))=normalized_octets END)
+);

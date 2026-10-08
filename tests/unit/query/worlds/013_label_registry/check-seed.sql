@@ -979,3 +979,257 @@ VALUES (18,false,'ordinary',NULL,NULL);
 -- name: label_literals_skipped_mismatch
 INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
 VALUES (19,true,'ordinary','wrong',-1);
+
+-- name: label_storage_sample_0
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (1,false,'0',0,9223372036854775807);
+
+-- name: label_storage_sample_1
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (2,false,'-0',0,9223372036854775807);
+
+-- name: label_storage_sample_2
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (3,false,'.5 bytes',1,9223372036854775807);
+
+-- name: label_storage_sample_3
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (4,false,'-.5 B',-1,9223372036854775807);
+
+-- name: label_storage_sample_4
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (5,false,'1 kB',1024,9223372036854775807);
+
+-- name: label_storage_sample_5
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (6,false,'1.5 MB',1572864,9223372036854775807);
+
+-- name: label_storage_sample_6
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (7,false,'0.1 kB',102,9223372036854775807);
+
+-- name: label_storage_sample_7
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (8,false,'.00048828125 kB',1,9223372036854775807);
+
+-- name: label_storage_sample_8
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (9,false,'-.00048828125 kB',-1,9223372036854775807);
+
+-- name: label_storage_sample_9
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (10,false,'1 GB',1073741824,9223372036854775807);
+
+-- name: label_storage_sample_10
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (11,false,'1 TB',1099511627776,9223372036854775807);
+
+-- name: label_storage_sample_11
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (12,false,'1 PB',1125899906842624,9223372036854775807);
+
+-- name: label_storage_sample_12
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (13,false,'1e2',100,9223372036854775807);
+
+-- name: label_storage_sample_13
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (14,false,'1E-3 MB',1049,9223372036854775807);
+
+-- name: label_storage_sample_14
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (15,false,'  1.5 kB	',1536,9223372036854775807);
+
+-- name: label_storage_sample_15
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (16,false,'9007199254740993',9007199254740993,9223372036854775807);
+
+-- name: label_storage_sample_16
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (17,false,'9223372036854775807.4',9223372036854775807,9223372036854775807);
+
+-- name: label_storage_sample_17
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (18,false,'-9223372036854775808.4',-9223372036854775808,9223372036854775807);
+
+-- name: label_storage_sample_18
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (19,false,'0e1073741823',0,9223372036854775807);
+
+-- name: label_storage_sample_19
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (20,false,'1e-16383',0,9223372036854775807);
+
+-- name: label_storage_sample_20
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (21,false,NULL,NULL,9223372036854775807);
+
+-- name: label_storage_wrong_bytes
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (22,false,'1 kB',1000,1024);
+
+-- name: label_storage_exceeds_limit
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (23,false,'1 kB',1024,1023);
+
+-- name: label_storage_null_recorded
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (24,false,'1 kB',NULL,NULL);
+
+-- name: label_storage_invalid_0
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (25,false,'',0,0);
+
+-- name: label_storage_invalid_1
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (26,false,'garbage',0,0);
+
+-- name: label_storage_invalid_2
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (27,false,'1 KiB',0,0);
+
+-- name: label_storage_invalid_3
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (28,false,'1e 2',0,0);
+
+-- name: label_storage_invalid_4
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (29,false,'1e1073741824',0,0);
+
+-- name: label_storage_invalid_5
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (30,false,'1e-16384',0,0);
+
+-- name: label_storage_invalid_6
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (31,false,'9223372036854775807.5',0,0);
+
+-- name: label_storage_invalid_7
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (32,false,'-9223372036854775808.5',0,0);
+
+-- name: label_storage_invalid_8
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (33,false,'8192 PB',0,0);
+
+-- name: label_storage_invalid_9
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (34,false,'1e30 invalid',0,0);
+
+-- name: label_storage_invalid_10
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (35,false,'1e131072 invalid',0,0);
+
+-- name: label_storage_invalid_11
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (36,false,'1 kB',0,0);
+
+-- name: label_storage_skipped_invalid
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (37,true,'invalid',0,0);
+
+-- name: label_pattern_sample_0
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (1,false,'alpha','alpha','a%','\',true,false,true,false,true,false,true,false,true,false,true,true,'a%',2);
+
+-- name: label_pattern_sample_1
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (2,false,'AbC','AbC','a_c','\',true,false,false,true,false,true,true,false,false,true,false,true,'a_c',3);
+
+-- name: label_pattern_sample_2
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (3,false,'é😊','é😊','__','\',true,false,true,false,true,false,true,false,true,false,true,true,'__',2);
+
+-- name: label_pattern_sample_3
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (4,false,'é','é','__','\',true,false,true,false,true,false,true,false,true,false,true,true,'__',2);
+
+-- name: label_pattern_sample_4
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (5,false,'','','%','',true,false,true,false,true,false,true,false,true,false,true,true,'%',1);
+
+-- name: label_pattern_sample_5
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (6,false,'','','_','',false,true,false,true,false,true,false,true,false,true,false,false,'_',1);
+
+-- name: label_pattern_sample_6
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (7,false,'alpha','alpha','%l%h%','',true,false,true,false,true,false,true,false,true,false,true,true,'%l%h%',5);
+
+-- name: label_pattern_sample_7
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (8,false,'alpha','alpha','%a%a%b','',false,true,false,true,false,true,false,true,false,true,false,false,'%a%a%b',6);
+
+-- name: label_pattern_sample_8
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (9,false,'a%','a%','a\%','\',true,false,true,false,true,false,true,false,true,false,true,true,'a\%',3);
+
+-- name: label_pattern_sample_9
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (10,false,'a_','a_','a\_','\',true,false,true,false,true,false,true,false,true,false,true,true,'a\_',3);
+
+-- name: label_pattern_sample_10
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (11,false,'a\b','a\b','a\b','',false,true,false,true,false,true,false,true,false,true,true,true,'a\\b',4);
+
+-- name: label_pattern_sample_11
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (12,false,'a%','a%','a!%','!',false,true,false,true,false,true,false,true,false,true,true,true,'a\%',3);
+
+-- name: label_pattern_sample_12
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (13,false,'😊%','😊%','😊é%','é',false,true,false,true,false,true,false,true,false,true,true,true,'😊\%',6);
+
+-- name: label_pattern_sample_13
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (14,false,'a%','a%','a😊%','😊',false,true,false,true,false,true,false,true,false,true,true,true,'a\%',3);
+
+-- name: label_pattern_sample_14
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (15,false,'a  ','a  ','a','\',false,true,false,true,false,true,false,true,false,true,false,false,'a',1);
+
+-- name: label_pattern_sample_15
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (16,false,'a  ','a  ','a%','\',true,false,true,false,true,false,true,false,true,false,true,true,'a%',2);
+
+-- name: label_pattern_sample_16
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (17,false,'Ä','Ä','ä','\',false,true,false,true,false,true,false,true,false,true,false,false,'ä',2);
+
+-- name: label_pattern_sample_17
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (18,false,'a
+β','a
+β','a_β','\',true,false,true,false,true,false,true,false,true,false,true,true,'a_β',4);
+
+-- name: label_pattern_sample_18
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (19,false,NULL,NULL,'%','',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'%',1);
+
+-- name: label_pattern_sample_19
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (20,false,'a','a',NULL,'',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+
+-- name: label_pattern_sample_20
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (21,false,'a','a','%',NULL,true,false,true,false,true,false,true,false,true,false,NULL,NULL,NULL,NULL);
+
+-- name: label_pattern_wrong_results
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (22,false,'alpha','alpha','a%','\',false,true,false,true,false,true,false,true,false,true,false,false,'wrong',-1);
+
+-- name: label_pattern_reached_escape
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (23,false,'a','a','\','\',true,false,true,false,true,false,true,false,true,false,true,true,'a%',2);
+
+-- name: label_pattern_escape_after_abort
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (24,false,'a','a','_\','\',false,true,false,true,false,true,false,true,false,true,false,false,'_\',2);
+
+-- name: label_pattern_invalid_escape
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (25,false,'alpha','alpha','a%','ab',true,false,true,false,true,false,true,false,true,false,true,true,'a%',2);
+
+-- name: label_pattern_skipped_invalid
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (26,true,'alpha','alpha','\','invalid',true,false,true,false,true,false,true,false,true,false,true,true,'a%',2);

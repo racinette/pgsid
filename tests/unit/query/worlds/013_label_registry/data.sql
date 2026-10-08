@@ -35,3 +35,9 @@ VALUES (100000,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc',3,'abc',3,'a
 
 INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
 VALUES (100000,false,'ordinary','''ordinary''',10);
+
+INSERT INTO label_storage_records (id,suppress_invalid,size_label,recorded_bytes,maximum_bytes)
+VALUES (100000,false,'1 kB',1024,9223372036854775807);
+
+INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
+VALUES (100000,false,'alpha','alpha','a%','\',true,false,true,false,true,false,true,false,true,false,true,true,'a%',2);

@@ -13608,6 +13608,245 @@ func GinCmpTslexeme1b7b(left checkruntime.TextValue, right checkruntime.TextValu
 func GinCompareJsonbIzgy(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
 	return textBinaryCompare(left, right, false)
 }
+
+const textLikeEscapeError = 3452621
+
+func textLikeCharacter(value rune, insensitive bool) rune {
+	value = langruntime.CheckedChar(value)
+	if insensitive {
+		return langruntime.AsciiLowercase(value)
+	}
+	return value
+}
+
+type textLikeFrame struct {
+	text      int
+	pattern   int
+	searching bool
+	first     rune
+}
+
+func copytextLikeFrame(value textLikeFrame) textLikeFrame {
+	return textLikeFrame{text: langruntime.CheckedIndex(value.text), pattern: langruntime.CheckedIndex(value.pattern), searching: value.searching, first: langruntime.CheckedChar(value.first)}
+}
+func textLikeMatch(input string, pattern string, insensitive bool) checkruntime.Int4Value {
+	input = langruntime.CheckedString(input)
+	pattern = langruntime.CheckedString(pattern)
+	text := []rune(input)
+	chars := []rune(pattern)
+	frames := []textLikeFrame{}
+	langruntime.CheckedAdd(len(frames), 1)
+	frames = append(frames, copytextLikeFrame(textLikeFrame{text: 0, pattern: 0, searching: false, first: '0'}))
+	depth := 1
+	for depth > 0 {
+		current := langruntime.CheckedSubtract(depth, 1)
+		frame := frames[current]
+		t := frame.text
+		p := frame.pattern
+		searching := frame.searching
+		first := frame.first
+		failed := false
+		if searching {
+			for t < len(text) && textLikeCharacter(text[t], insensitive) != first {
+				t = langruntime.CheckedIndex(langruntime.CheckedAdd(t, 1))
+			}
+			if t >= len(text) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			frames[current] = copytextLikeFrame(textLikeFrame{text: langruntime.CheckedAdd(t, 1), pattern: p, searching: true, first: first})
+			child := textLikeFrame{text: t, pattern: p, searching: false, first: '0'}
+			if depth < len(frames) {
+				frames[depth] = copytextLikeFrame(child)
+			} else {
+				langruntime.CheckedAdd(len(frames), 1)
+				frames = append(frames, copytextLikeFrame(child))
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+		} else {
+			if t < len(text) && p < len(chars) {
+				if chars[p] == '%' {
+					p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 1))
+					wildcards := true
+					for p < len(chars) && wildcards {
+						if chars[p] == '%' {
+							p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 1))
+						} else if chars[p] == '_' {
+							if t >= len(text) {
+								return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+							}
+							t = langruntime.CheckedIndex(langruntime.CheckedAdd(t, 1))
+							p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 1))
+						} else {
+							wildcards = false
+						}
+					}
+					if p >= len(chars) {
+						return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+					}
+					literal := p
+					if chars[p] == '\\' {
+						literal = langruntime.CheckedIndex(langruntime.CheckedAdd(literal, 1))
+						if literal >= len(chars) {
+							return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(textLikeEscapeError)}
+						}
+					}
+					first = langruntime.CheckedChar(textLikeCharacter(chars[literal], insensitive))
+					searching = true
+				} else if chars[p] == '_' {
+					t = langruntime.CheckedIndex(langruntime.CheckedAdd(t, 1))
+					p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 1))
+				} else {
+					if chars[p] == '\\' {
+						p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 1))
+						if p >= len(chars) {
+							return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(textLikeEscapeError)}
+						}
+					}
+					if textLikeCharacter(text[t], insensitive) != textLikeCharacter(chars[p], insensitive) {
+						failed = true
+					} else {
+						t = langruntime.CheckedIndex(langruntime.CheckedAdd(t, 1))
+						p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 1))
+					}
+				}
+			} else if t < len(text) {
+				failed = true
+			} else {
+				for p < len(chars) && chars[p] == '%' {
+					p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 1))
+				}
+				if p >= len(chars) {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+				}
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if failed {
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			} else {
+				frames[current] = copytextLikeFrame(textLikeFrame{text: t, pattern: p, searching: searching, first: first})
+			}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+}
+func textLike(input checkruntime.TextValue, pattern checkruntime.TextValue, insensitive bool, negate bool) checkruntime.BoolValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if pattern.Kind == checkruntime.TextValueError {
+		error := pattern.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if pattern.Kind == checkruntime.TextValueValue {
+			pat := langruntime.CheckedString(pattern.Value)
+			result := textLikeMatch(value, pat, insensitive)
+			if result.Kind == checkruntime.Int4ValueError {
+				error := result.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			if result.Kind == checkruntime.Int4ValueValue {
+				matched := langruntime.CheckedI32(result.Value)
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: (matched == 1) != negate}
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BpchariclikeApon(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, true, false)
+}
+func BpcharicnlikeBlnm(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, true, true)
+}
+func Bpcharlike3trv(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, false, false)
+}
+func BpcharnlikeHafu(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, false, true)
+}
+func LikeZn9s(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, false, false)
+}
+func Notlike45mm(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, false, true)
+}
+func TexticlikeQnr5(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, true, false)
+}
+func TexticnlikeMjxh(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, true, true)
+}
+func Textlike4fik(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, false, false)
+}
+func Textnlike7ux0(input checkruntime.TextValue, pattern checkruntime.TextValue) checkruntime.BoolValue {
+	return textLike(input, pattern, false, true)
+}
+func LikeEscapeXfrr(input checkruntime.TextValue, escape checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if escape.Kind == checkruntime.TextValueError {
+		error := escape.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || escape == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || escape == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if escape.Kind == checkruntime.TextValueValue {
+			esc := langruntime.CheckedString(escape.Value)
+			if textBuildOctets(value) > int64(536870909) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textSearchInternalError)}
+			}
+			chars := []rune(value)
+			escapeChars := []rune(esc)
+			if len(escapeChars) > 1 {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textLikeEscapeError)}
+			}
+			if len(escapeChars) == 1 && escapeChars[0] == '\\' {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
+			}
+			output := ""
+			index := 0
+			afterEscape := false
+			for index < len(chars) {
+				character := chars[index]
+				isEscape := false
+				if len(escapeChars) == 1 {
+					isEscape = character == escapeChars[0] && afterEscape == false
+				}
+				if isEscape {
+					output = output + string(langruntime.CheckedChar('\\'))
+					afterEscape = true
+				} else {
+					if character == '\\' && afterEscape == false {
+						output = output + string(langruntime.CheckedChar('\\'))
+					}
+					output = output + string(langruntime.CheckedChar(character))
+					afterEscape = false
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func BitLengthBpcw(value checkruntime.TextValue) checkruntime.Int4Value {
 	return textMeasureValue(value, false, 2)
 }
@@ -14441,6 +14680,176 @@ func SplitPartDoxr(input checkruntime.TextValue, separator checkruntime.TextValu
 		}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
+const sizeBytesParameterError = 3452619
+const sizeBytesNumericSyntaxError = 3484946
+
+func PgSizeBytesGgrt(input checkruntime.TextValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		characters := []rune(text)
+		index := 0
+		for index < len(characters) && checkruntime.NumericSpace(characters[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		sign := 1
+		if index < len(characters) && characters[index] == '-' {
+			sign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+			index = langruntime.CheckedAdd(index, 1)
+		} else if index < len(characters) && characters[index] == '+' {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		point := false
+		digits := 0
+		before := 0
+		fractional := 0
+		leading := 0
+		first := len(characters)
+		last := len(characters)
+		for index < len(characters) {
+			digit := numericWireDecimalDigit(characters[index])
+			if digit >= 0 {
+				if digit > 0 {
+					if first == len(characters) {
+						first = langruntime.CheckedIndex(index)
+						leading = langruntime.CheckedI32(digits)
+					}
+					last = langruntime.CheckedIndex(index)
+				}
+				digits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(digits, 1))
+				if point {
+					fractional = langruntime.CheckedI32(langruntime.CheckedSignedAdd(fractional, 1))
+				} else {
+					before = langruntime.CheckedI32(langruntime.CheckedSignedAdd(before, 1))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			} else if characters[index] == '.' && point == false {
+				point = true
+				index = langruntime.CheckedAdd(index, 1)
+			} else {
+				break
+			}
+		}
+		if digits == 0 {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sizeBytesParameterError)}
+		}
+		exponent := 0
+		if index < len(characters) && (characters[index] == 'e' || characters[index] == 'E') {
+			cursor := langruntime.CheckedAdd(index, 1)
+			whitespace := false
+			for cursor < len(characters) && checkruntime.NumericSpace(characters[cursor]) {
+				whitespace = true
+				cursor = langruntime.CheckedAdd(cursor, 1)
+			}
+			negative := false
+			if cursor < len(characters) && characters[cursor] == '-' {
+				negative = true
+				cursor = langruntime.CheckedAdd(cursor, 1)
+			} else if cursor < len(characters) && characters[cursor] == '+' {
+				cursor = langruntime.CheckedAdd(cursor, 1)
+			}
+			begin := cursor
+			overflow := false
+			for cursor < len(characters) && numericWireDecimalDigit(characters[cursor]) >= 0 {
+				digit := numericWireDecimalDigit(characters[cursor])
+				if exponent > 107374182 || (exponent == 107374182 && digit > 3) {
+					overflow = true
+				}
+				if overflow == false {
+					exponent = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(exponent, 10), digit))
+				}
+				cursor = langruntime.CheckedAdd(cursor, 1)
+			}
+			if cursor > begin {
+				index = langruntime.CheckedIndex(cursor)
+				if whitespace {
+					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sizeBytesNumericSyntaxError)}
+				}
+				if overflow {
+					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+				}
+				if negative {
+					exponent = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, exponent))
+				}
+			}
+		}
+		scale := langruntime.CheckedSignedSubtract(fractional, exponent)
+		if scale < 0 {
+			scale = langruntime.CheckedI32(0)
+		}
+		if scale > 16383 {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+		}
+		weight := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(before, leading), 1), exponent)
+		if first == len(characters) {
+			sign = langruntime.CheckedI32(0)
+			weight = langruntime.CheckedI32(0)
+		}
+		if weight > 131071 || weight < langruntime.CheckedSignedNegate(131072) {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+		}
+		for index < len(characters) && checkruntime.NumericSpace(characters[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		end := len(characters)
+		for end > index && checkruntime.NumericSpace(characters[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		unit := ""
+		for index < end {
+			unit = unit + string(langruntime.CheckedChar(langruntime.AsciiLowercase(characters[index])))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		power := 0
+		if unit == "kb" {
+			power = langruntime.CheckedI32(1)
+		} else if unit == "mb" {
+			power = langruntime.CheckedI32(2)
+		} else if unit == "gb" {
+			power = langruntime.CheckedI32(3)
+		} else if unit == "tb" {
+			power = langruntime.CheckedI32(4)
+		} else if unit == "pb" {
+			power = langruntime.CheckedI32(5)
+		} else if unit != "" && unit != "b" && unit != "bytes" {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sizeBytesParameterError)}
+		}
+		if sign != 0 && weight > 18 {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+		}
+		coefficient := ""
+		index = langruntime.CheckedIndex(first)
+		for index < len(characters) && index <= last {
+			if numericWireDecimalDigit(characters[index]) >= 0 {
+				coefficient = coefficient + string(langruntime.CheckedChar(characters[index]))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		quantity := numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: coefficient}
+		value := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(quantity)}
+		if power > 0 {
+			multiplier := int64(1)
+			for power > 0 {
+				multiplier = langruntime.CheckedI64Multiply(multiplier, int64(1024))
+				power = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(power, 1))
+			}
+			factor := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(multiplier)}
+			value = numericArithmetic(value, factor, 2)
+		}
+		return numericIntegerValue(value)
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
 
 const textSubstringError = 3452581

@@ -19,7 +19,7 @@ fn invalid_numeric_parts() -> NumericLayout {
     }
 }
 
-fn numeric_space(value: char) -> bool {
+pub fn numeric_space(value: char) -> bool {
     value == ' '
         || value == '\t'
         || value == '\n'
