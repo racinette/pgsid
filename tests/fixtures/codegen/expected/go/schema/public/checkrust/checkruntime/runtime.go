@@ -386,6 +386,9 @@ const sqlErrorDivisionByZero = 3452582
 const sqlErrorInvalidFrameSize = 3452583
 const sqlErrorSubstring = 3452581
 const sqlErrorInvalidRegex = 3452591
+const sqlErrorInvalidLogarithm = 3452594
+const sqlErrorInvalidPower = 3452595
+const sqlErrorInvalidWidthBucket = 3452596
 const sqlErrorInvalidParameter = 3452619
 const sqlErrorInvalidEscape = 3452621
 const sqlErrorInvalidTextRepresentation = 3484946
@@ -441,6 +444,15 @@ func SqlErrorMessage(error SqlError) SqlErrorDescription {
 	}
 	if error.State == sqlErrorDivisionByZero {
 		return SqlErrorDescription{Message: "division by zero"}
+	}
+	if error.State == sqlErrorInvalidLogarithm {
+		return SqlErrorDescription{Message: "invalid argument for logarithm"}
+	}
+	if error.State == sqlErrorInvalidPower {
+		return SqlErrorDescription{Message: "invalid argument for power function"}
+	}
+	if error.State == sqlErrorInvalidWidthBucket {
+		return SqlErrorDescription{Message: "invalid argument for width_bucket function"}
 	}
 	if error.State == sqlErrorInvalidRegex {
 		return SqlErrorDescription{Message: "invalid regular expression"}

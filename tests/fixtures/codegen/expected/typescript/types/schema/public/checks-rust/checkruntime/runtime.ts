@@ -428,6 +428,9 @@ const sqlErrorDivisionByZero = 3452582;
 const sqlErrorInvalidFrameSize = 3452583;
 const sqlErrorSubstring = 3452581;
 const sqlErrorInvalidRegex = 3452591;
+const sqlErrorInvalidLogarithm = 3452594;
+const sqlErrorInvalidPower = 3452595;
+const sqlErrorInvalidWidthBucket = 3452596;
 const sqlErrorInvalidParameter = 3452619;
 const sqlErrorInvalidEscape = 3452621;
 const sqlErrorInvalidTextRepresentation = 3484946;
@@ -482,6 +485,15 @@ export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
     }
     if (error.state === sqlErrorDivisionByZero) {
         return { message: "division by zero" };
+    }
+    if (error.state === sqlErrorInvalidLogarithm) {
+        return { message: "invalid argument for logarithm" };
+    }
+    if (error.state === sqlErrorInvalidPower) {
+        return { message: "invalid argument for power function" };
+    }
+    if (error.state === sqlErrorInvalidWidthBucket) {
+        return { message: "invalid argument for width_bucket function" };
     }
     if (error.state === sqlErrorInvalidRegex) {
         return { message: "invalid regular expression" };

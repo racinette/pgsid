@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createContext, runInContext } from 'node:vm'
 import ts from 'typescript'
+import { PGlite } from '@electric-sql/pglite'
 import { transpileCheckRust } from '../../src/codegen/shared/check-rust-transpile.js'
 
 const conditions = [
@@ -17,6 +18,9 @@ const conditions = [
   ['22013', 'invalid preceding or following size'],
   ['22011', 'substring error'],
   ['2201B', 'invalid regular expression'],
+  ['2201E', 'invalid argument for logarithm'],
+  ['2201F', 'invalid argument for power function'],
+  ['2201G', 'invalid argument for width_bucket function'],
   ['22023', 'invalid parameter value'],
   ['22025', 'invalid escape sequence'],
   ['22P02', 'invalid text representation'],
@@ -30,6 +34,22 @@ const conditions = [
 ] as const
 
 describe('CHECK SQL error diagnostics', () => {
+  it('uses PostgreSQL SQLSTATEs for numeric argument errors', async () => {
+    const pg = await PGlite.create()
+    try {
+      for (const [expression, state] of [
+        ['ln(0::numeric)', '2201E'],
+        ['sqrt(-1::numeric)', '2201F'],
+        ['width_bucket(1::numeric, 0::numeric, 2::numeric, 0)', '2201G'],
+      ] as const) {
+        await expect(pg.query(`SELECT ${expression}`)).rejects.toMatchObject({ code: state })
+        expect(conditions.some(([code]) => code === state)).toBe(true)
+      }
+    } finally {
+      await pg.close()
+    }
+  })
+
   it('preserves condition descriptions and unknown-state fallback in Rust and both targets', async () => {
     const values = await readFile('crates/check-evaluator/src/values.rs', 'utf8')
     const start = values.indexOf('#[derive(Clone, Copy, PartialEq, Eq)]\npub struct SqlError {')

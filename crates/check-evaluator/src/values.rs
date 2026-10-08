@@ -341,6 +341,9 @@ const SQL_ERROR_DIVISION_BY_ZERO: u32 = 3452582;
 const SQL_ERROR_INVALID_FRAME_SIZE: u32 = 3452583;
 const SQL_ERROR_SUBSTRING: u32 = 3452581;
 const SQL_ERROR_INVALID_REGEX: u32 = 3452591;
+const SQL_ERROR_INVALID_LOGARITHM: u32 = 3452594;
+const SQL_ERROR_INVALID_POWER: u32 = 3452595;
+const SQL_ERROR_INVALID_WIDTH_BUCKET: u32 = 3452596;
 const SQL_ERROR_INVALID_PARAMETER: u32 = 3452619;
 const SQL_ERROR_INVALID_ESCAPE: u32 = 3452621;
 const SQL_ERROR_INVALID_TEXT_REPRESENTATION: u32 = 3484946;
@@ -425,6 +428,21 @@ pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
     if error.state == SQL_ERROR_DIVISION_BY_ZERO {
         return SqlErrorDescription {
             message: "division by zero",
+        };
+    }
+    if error.state == SQL_ERROR_INVALID_LOGARITHM {
+        return SqlErrorDescription {
+            message: "invalid argument for logarithm",
+        };
+    }
+    if error.state == SQL_ERROR_INVALID_POWER {
+        return SqlErrorDescription {
+            message: "invalid argument for power function",
+        };
+    }
+    if error.state == SQL_ERROR_INVALID_WIDTH_BUCKET {
+        return SqlErrorDescription {
+            message: "invalid argument for width_bucket function",
         };
     }
     if error.state == SQL_ERROR_INVALID_REGEX {
