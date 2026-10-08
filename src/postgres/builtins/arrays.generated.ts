@@ -1400,6 +1400,7 @@ export const PG18_ARRAYS = {
     returnsSet: false,
     variadic: null,
     numArgDefaults: 1,
+    defaultArguments: 'true',
     aggKind: null,
     numDirectArgs: null,
   },

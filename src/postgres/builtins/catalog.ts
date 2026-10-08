@@ -18,6 +18,7 @@ export interface FunctionMetadata extends CallableMetadata {
   rustName: string
   variadic: string | null
   numArgDefaults: number
+  defaultArguments?: string
   aggKind: 'n' | 'o' | 'h' | null
   numDirectArgs: number | null
 }
@@ -72,6 +73,7 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       variadic: string | null
       canonical_variadic: string | null
       num_arg_defaults: number
+      argument_defaults: string | null
       agg_kind: 'n' | 'o' | 'h' | null
       num_direct_args: number | null
     }>(`SELECT n.nspname AS schema, p.proname AS name,
@@ -86,6 +88,7 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       CASE WHEN p.provariadic <> 0 THEN format_type(p.provariadic, null) END AS variadic,
       (${typeIdentity} p.provariadic) AS canonical_variadic,
       p.pronargdefaults::int AS num_arg_defaults,
+      pg_get_expr(p.proargdefaults, 0) AS argument_defaults,
       a.aggkind AS agg_kind, a.aggnumdirectargs::int AS num_direct_args
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       LEFT JOIN pg_aggregate a ON a.aggfnoid = p.oid
@@ -198,6 +201,7 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
         returnsSet: r.returns_set,
         variadic: r.canonical_variadic,
         numArgDefaults: r.num_arg_defaults,
+        ...(r.argument_defaults === null ? {} : { defaultArguments: r.argument_defaults }),
         aggKind: r.agg_kind,
         numDirectArgs: r.num_direct_args,
       },
