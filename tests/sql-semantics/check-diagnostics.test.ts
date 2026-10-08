@@ -14,6 +14,7 @@ const conditions = [
   ['22007', 'invalid date/time format'],
   ['22008', 'date/time field value out of range'],
   ['22009', 'time zone displacement out of range'],
+  ['2200C', 'invalid use of escape character'],
   ['22012', 'division by zero'],
   ['22013', 'invalid preceding or following size'],
   ['22011', 'substring error'],
@@ -34,13 +35,14 @@ const conditions = [
 ] as const
 
 describe('CHECK SQL error diagnostics', () => {
-  it('uses PostgreSQL SQLSTATEs for numeric argument errors', async () => {
+  it('uses PostgreSQL SQLSTATEs for numeric and SQL pattern errors', async () => {
     const pg = await PGlite.create()
     try {
       for (const [expression, state] of [
         ['ln(0::numeric)', '2201E'],
         ['sqrt(-1::numeric)', '2201F'],
         ['width_bucket(1::numeric, 0::numeric, 2::numeric, 0)', '2201G'],
+        [String.raw`pg_catalog.similar_to_escape('\"a\"b\"')`, '2200C'],
       ] as const) {
         await expect(pg.query(`SELECT ${expression}`)).rejects.toMatchObject({ code: state })
         expect(conditions.some(([code]) => code === state)).toBe(true)
