@@ -1387,3 +1387,706 @@ VALUES (134, true, 'abc', 'abc', '(', '', false, false, false);
 -- name: LabelRegexSkippedFlagError
 INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
 VALUES (135, true, 'abc', 'abc', 'a', 'g', false, false, false);
+
+-- name: LabelRegexcountOrdinary
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (100, false, 'abc abc', 'a', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountWrongRecorded2
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (101, false, 'abc abc', 'a', 1, '', 0, 2, 2);
+
+-- name: LabelRegexcountWrongRecorded3
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (102, false, 'abc abc', 'a', 1, '', 2, 0, 2);
+
+-- name: LabelRegexcountWrongRecorded4
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (103, false, 'abc abc', 'a', 1, '', 2, 2, 0);
+
+-- name: LabelRegexcountNullRecords
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (104, false, 'abc abc', 'a', 1, '', NULL, NULL, NULL);
+
+-- name: LabelRegexcountSecondMatch
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (105, false, 'abc abc', '(a)', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountUnicodePositions
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (106, false, '😊a😊a', 'a', 2, '', 2, 2, 2);
+
+-- name: LabelRegexcountOptionalCaptureMissing
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (107, false, 'b ab', '(a)?b', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountAlternativeCapture
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (108, false, 'ab', '(a)|(b)', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountNestedCapture
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (109, false, 'xabx', '(a(b))', 1, '', 1, 1, 1);
+
+-- name: LabelRegexcountWholeWithoutCaptures
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (110, false, 'abc', 'b', 1, '', 1, 1, 1);
+
+-- name: LabelRegexcountNoncapturingGroup
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (111, false, 'abc', '(?:b)', 1, '', 1, 1, 1);
+
+-- name: LabelRegexcountEmptyPattern
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (112, false, 'abc', '', 2, '', 4, 3, 3);
+
+-- name: LabelRegexcountZeroLengthProgress
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (113, false, 'baab', 'a*', 1, '', 4, 4, 4);
+
+-- name: LabelRegexcountEmptySubject
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (114, false, '', '', 1, '', 1, 1, 1);
+
+-- name: LabelRegexcountNoMatch
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (115, false, 'abc abc', 'z', 1, '', 0, 0, 0);
+
+-- name: LabelRegexcountPastEnd
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (116, false, 'abc', '', 20, '', 4, 0, 0);
+
+-- name: LabelRegexcountMaximumStart
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (117, false, 'abc abc', 'a', 2147483647, '', 2, 0, 0);
+
+-- name: LabelRegexcountMaximumOccurrence
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (118, false, 'abc abc', 'a', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountMaximumCapture
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (119, false, 'abc abc', '(a)', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountAsciiInsensitive
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (120, false, 'AaA', 'a', 1, 'i', 1, 1, 3);
+
+-- name: LabelRegexcountNewlineFlags
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (121, false, 'a
+b', '^b$', 1, 'n', 0, 0, 1);
+
+-- name: LabelRegexcountLiteralFlags
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (122, false, 'a+a+', 'a+', 1, 'q', 2, 2, 2);
+
+-- name: LabelRegexcountBasicFlags
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (123, false, 'aa', 'a+', 1, 'b', 1, 1, 0);
+
+-- name: LabelRegexcountExtendedMask
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (124, false, 'aa', 'a+', 1, 'e', 1, 1, 0);
+
+-- name: LabelRegexcountInvalidPattern
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (125, false, 'abc abc', '(', 1, '', NULL, NULL, NULL);
+
+-- name: LabelRegexcountInvalidFlags
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (126, false, 'abc abc', 'a', 1, 'invalid', 2, 2, NULL);
+
+-- name: LabelRegexcountGlobalRejected
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (127, false, 'abc abc', 'a', 1, 'g', 2, 2, NULL);
+
+-- name: LabelRegexcountZeroStart
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (128, false, 'abc abc', '(', 0, '', NULL, NULL, NULL);
+
+-- name: LabelRegexcountMinimumStart
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (129, false, 'abc abc', 'a', -2147483648, '', 2, NULL, NULL);
+
+-- name: LabelRegexcountZeroOccurrence
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (130, false, 'abc abc', 'a', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountNegativeOccurrence
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (131, false, 'abc abc', 'a', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountInvalidEndOption
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (132, false, 'abc abc', 'a', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountNegativeCapture
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (133, false, 'abc abc', 'a', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountNullLabel
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (134, false, NULL, '(', 0, 'g', NULL, NULL, NULL);
+
+-- name: LabelRegexcountNullPattern
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (135, false, 'abc abc', NULL, 0, 'g', NULL, NULL, NULL);
+
+-- name: LabelRegexcountNullStart
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (136, false, 'abc abc', 'a', NULL, '', 2, NULL, NULL);
+
+-- name: LabelRegexcountNullOccurrence
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (137, false, 'abc abc', 'a', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountNullEndOption
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (138, false, 'abc abc', 'a', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountNullFlags
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (139, false, 'abc abc', 'a', 1, NULL, 2, 2, NULL);
+
+-- name: LabelRegexcountNullCapture
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (140, false, 'abc abc', 'a', 1, '', 2, 2, 2);
+
+-- name: LabelRegexcountSkippedErrors
+INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting, flags, recorded_count_2, recorded_count_3, recorded_count_4)
+VALUES (141, true, 'abc abc', '(', 0, 'g', NULL, NULL, NULL);
+
+-- name: LabelRegexpositionOrdinary
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (100, false, 'abc abc', 'a', 1, 1, 0, '', 0, 1, 1, 1, 1, 1, 1);
+
+-- name: LabelRegexpositionWrongRecorded2
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (101, false, 'abc abc', 'a', 1, 1, 0, '', 0, 0, 1, 1, 1, 1, 1);
+
+-- name: LabelRegexpositionWrongRecorded3
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (102, false, 'abc abc', 'a', 1, 1, 0, '', 0, 1, 0, 1, 1, 1, 1);
+
+-- name: LabelRegexpositionWrongRecorded4
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (103, false, 'abc abc', 'a', 1, 1, 0, '', 0, 1, 1, 0, 1, 1, 1);
+
+-- name: LabelRegexpositionWrongRecorded5
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (104, false, 'abc abc', 'a', 1, 1, 0, '', 0, 1, 1, 1, 0, 1, 1);
+
+-- name: LabelRegexpositionWrongRecorded6
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (105, false, 'abc abc', 'a', 1, 1, 0, '', 0, 1, 1, 1, 1, 0, 1);
+
+-- name: LabelRegexpositionWrongRecorded7
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (106, false, 'abc abc', 'a', 1, 1, 0, '', 0, 1, 1, 1, 1, 1, 0);
+
+-- name: LabelRegexpositionNullRecords
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (107, false, 'abc abc', 'a', 1, 1, 0, '', 0, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionSecondMatch
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (108, false, 'abc abc', '(a)', 1, 2, 1, '', 1, 1, 1, 5, 6, 6, 6);
+
+-- name: LabelRegexpositionUnicodePositions
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (109, false, '😊a😊a', 'a', 2, 2, 1, '', 1, 2, 2, 4, 5, 5, 5);
+
+-- name: LabelRegexpositionOptionalCaptureMissing
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (110, false, 'b ab', '(a)?b', 1, 1, 0, '', 1, 1, 1, 1, 1, 1, 0);
+
+-- name: LabelRegexpositionAlternativeCapture
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (111, false, 'ab', '(a)|(b)', 1, 2, 1, '', 1, 1, 1, 2, 3, 3, 0);
+
+-- name: LabelRegexpositionNestedCapture
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (112, false, 'xabx', '(a(b))', 1, 1, 0, '', 2, 2, 2, 2, 2, 2, 3);
+
+-- name: LabelRegexpositionWholeWithoutCaptures
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (113, false, 'abc', 'b', 1, 1, 1, '', 1, 2, 2, 2, 3, 3, 3);
+
+-- name: LabelRegexpositionNoncapturingGroup
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (114, false, 'abc', '(?:b)', 1, 1, 0, '', 1, 2, 2, 2, 2, 2, 2);
+
+-- name: LabelRegexpositionEmptyPattern
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (115, false, 'abc', '', 2, 2, 1, '', 0, 1, 2, 3, 3, 3, 3);
+
+-- name: LabelRegexpositionZeroLengthProgress
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (116, false, 'baab', 'a*', 1, 3, 1, '', 1, 1, 1, 4, 4, 4, 4);
+
+-- name: LabelRegexpositionEmptySubject
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (117, false, '', '', 1, 1, 0, '', 0, 1, 1, 1, 1, 1, 1);
+
+-- name: LabelRegexpositionNoMatch
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (118, false, 'abc abc', 'z', 1, 1, 0, '', 0, 0, 0, 0, 0, 0, 0);
+
+-- name: LabelRegexpositionPastEnd
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (119, false, 'abc', '', 20, 1, 0, '', 0, 1, 0, 0, 0, 0, 0);
+
+-- name: LabelRegexpositionMaximumStart
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (120, false, 'abc abc', 'a', 2147483647, 1, 0, '', 0, 1, 0, 0, 0, 0, 0);
+
+-- name: LabelRegexpositionMaximumOccurrence
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (121, false, 'abc abc', 'a', 1, 2147483647, 0, '', 0, 1, 1, 0, 0, 0, 0);
+
+-- name: LabelRegexpositionMaximumCapture
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (122, false, 'abc abc', '(a)', 1, 1, 0, '', 2147483647, 1, 1, 1, 1, 1, 0);
+
+-- name: LabelRegexpositionAsciiInsensitive
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (123, false, 'AaA', 'a', 1, 2, 0, 'i', 0, 2, 2, 0, 0, 2, 2);
+
+-- name: LabelRegexpositionNewlineFlags
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (124, false, 'a
+b', '^b$', 1, 1, 0, 'n', 0, 0, 0, 0, 0, 3, 3);
+
+-- name: LabelRegexpositionLiteralFlags
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (125, false, 'a+a+', 'a+', 1, 2, 1, 'q', 1, 1, 1, 3, 4, 5, 5);
+
+-- name: LabelRegexpositionBasicFlags
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (126, false, 'aa', 'a+', 1, 1, 0, 'b', 0, 1, 1, 1, 1, 0, 0);
+
+-- name: LabelRegexpositionExtendedMask
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (127, false, 'aa', 'a+', 1, 1, 0, 'e', 0, 1, 1, 1, 1, 0, 0);
+
+-- name: LabelRegexpositionInvalidPattern
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (128, false, 'abc abc', '(', 1, 1, 0, '', 0, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionInvalidFlags
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (129, false, 'abc abc', 'a', 1, 1, 0, 'invalid', 0, 1, 1, 1, 1, NULL, NULL);
+
+-- name: LabelRegexpositionGlobalRejected
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (130, false, 'abc abc', 'a', 1, 1, 0, 'g', 0, 1, 1, 1, 1, NULL, NULL);
+
+-- name: LabelRegexpositionZeroStart
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (131, false, 'abc abc', '(', 0, 1, 0, '', 0, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionMinimumStart
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (132, false, 'abc abc', 'a', -2147483648, 1, 0, '', 0, 1, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionZeroOccurrence
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (133, false, 'abc abc', 'a', 1, 0, 0, '', 0, 1, 1, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionNegativeOccurrence
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (134, false, 'abc abc', 'a', 1, -1, 0, '', 0, 1, 1, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionInvalidEndOption
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (135, false, 'abc abc', 'a', 1, 1, 2, '', 0, 1, 1, 1, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionNegativeCapture
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (136, false, 'abc abc', 'a', 1, 1, 0, '', -1, 1, 1, 1, 1, 1, NULL);
+
+-- name: LabelRegexpositionNullLabel
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (137, false, NULL, '(', 0, 0, 2, 'g', -1, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionNullPattern
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (138, false, 'abc abc', NULL, 0, 0, 2, 'g', -1, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionNullStart
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (139, false, 'abc abc', 'a', NULL, 1, 0, '', 0, 1, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionNullOccurrence
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (140, false, 'abc abc', 'a', 1, NULL, 0, '', 0, 1, 1, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionNullEndOption
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (141, false, 'abc abc', 'a', 1, 1, NULL, '', 0, 1, 1, 1, NULL, NULL, NULL);
+
+-- name: LabelRegexpositionNullFlags
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (142, false, 'abc abc', 'a', 1, 1, 0, NULL, 0, 1, 1, 1, 1, NULL, NULL);
+
+-- name: LabelRegexpositionNullCapture
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (143, false, 'abc abc', 'a', 1, 1, 0, '', NULL, 1, 1, 1, 1, 1, NULL);
+
+-- name: LabelRegexpositionSkippedErrors
+INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7)
+VALUES (144, true, 'abc abc', '(', 0, 0, 2, 'g', -1, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractOrdinary
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (100, false, 'abc abc', 'a', 1, 1, '', 0, 'a', 'a', 'a', 'a', 'a');
+
+-- name: LabelRegexextractWrongRecorded2
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (101, false, 'abc abc', 'a', 1, 1, '', 0, 'a!', 'a', 'a', 'a', 'a');
+
+-- name: LabelRegexextractWrongRecorded3
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (102, false, 'abc abc', 'a', 1, 1, '', 0, 'a', 'a!', 'a', 'a', 'a');
+
+-- name: LabelRegexextractWrongRecorded4
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (103, false, 'abc abc', 'a', 1, 1, '', 0, 'a', 'a', 'a!', 'a', 'a');
+
+-- name: LabelRegexextractWrongRecorded5
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (104, false, 'abc abc', 'a', 1, 1, '', 0, 'a', 'a', 'a', 'a!', 'a');
+
+-- name: LabelRegexextractWrongRecorded6
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (105, false, 'abc abc', 'a', 1, 1, '', 0, 'a', 'a', 'a', 'a', 'a!');
+
+-- name: LabelRegexextractNullRecords
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (106, false, 'abc abc', 'a', 1, 1, '', 0, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractSecondMatch
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (107, false, 'abc abc', '(a)', 1, 2, '', 1, 'a', 'a', 'a', 'a', 'a');
+
+-- name: LabelRegexextractUnicodePositions
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (108, false, '😊a😊a', 'a', 2, 2, '', 1, 'a', 'a', 'a', 'a', 'a');
+
+-- name: LabelRegexextractOptionalCaptureMissing
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (109, false, 'b ab', '(a)?b', 1, 1, '', 1, 'b', 'b', 'b', 'b', NULL);
+
+-- name: LabelRegexextractAlternativeCapture
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (110, false, 'ab', '(a)|(b)', 1, 2, '', 1, 'a', 'a', 'b', 'b', NULL);
+
+-- name: LabelRegexextractNestedCapture
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (111, false, 'xabx', '(a(b))', 1, 1, '', 2, 'ab', 'ab', 'ab', 'ab', 'b');
+
+-- name: LabelRegexextractWholeWithoutCaptures
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (112, false, 'abc', 'b', 1, 1, '', 1, 'b', 'b', 'b', 'b', 'b');
+
+-- name: LabelRegexextractNoncapturingGroup
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (113, false, 'abc', '(?:b)', 1, 1, '', 1, 'b', 'b', 'b', 'b', 'b');
+
+-- name: LabelRegexextractEmptyPattern
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (114, false, 'abc', '', 2, 2, '', 0, '', '', '', '', '');
+
+-- name: LabelRegexextractZeroLengthProgress
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (115, false, 'baab', 'a*', 1, 3, '', 1, '', '', '', '', '');
+
+-- name: LabelRegexextractEmptySubject
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (116, false, '', '', 1, 1, '', 0, '', '', '', '', '');
+
+-- name: LabelRegexextractNoMatch
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (117, false, 'abc abc', 'z', 1, 1, '', 0, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractPastEnd
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (118, false, 'abc', '', 20, 1, '', 0, '', NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractMaximumStart
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (119, false, 'abc abc', 'a', 2147483647, 1, '', 0, 'a', NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractMaximumOccurrence
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (120, false, 'abc abc', 'a', 1, 2147483647, '', 0, 'a', 'a', NULL, NULL, NULL);
+
+-- name: LabelRegexextractMaximumCapture
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (121, false, 'abc abc', '(a)', 1, 1, '', 2147483647, 'a', 'a', 'a', 'a', NULL);
+
+-- name: LabelRegexextractAsciiInsensitive
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (122, false, 'AaA', 'a', 1, 2, 'i', 0, 'a', 'a', NULL, 'a', 'a');
+
+-- name: LabelRegexextractNewlineFlags
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (123, false, 'a
+b', '^b$', 1, 1, 'n', 0, NULL, NULL, NULL, 'b', 'b');
+
+-- name: LabelRegexextractLiteralFlags
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (124, false, 'a+a+', 'a+', 1, 2, 'q', 1, 'a', 'a', 'a', 'a+', 'a+');
+
+-- name: LabelRegexextractBasicFlags
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (125, false, 'aa', 'a+', 1, 1, 'b', 0, 'aa', 'aa', 'aa', NULL, NULL);
+
+-- name: LabelRegexextractExtendedMask
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (126, false, 'aa', 'a+', 1, 1, 'e', 0, 'aa', 'aa', 'aa', NULL, NULL);
+
+-- name: LabelRegexextractInvalidPattern
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (127, false, 'abc abc', '(', 1, 1, '', 0, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractInvalidFlags
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (128, false, 'abc abc', 'a', 1, 1, 'invalid', 0, 'a', 'a', 'a', NULL, NULL);
+
+-- name: LabelRegexextractGlobalRejected
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (129, false, 'abc abc', 'a', 1, 1, 'g', 0, 'a', 'a', 'a', NULL, NULL);
+
+-- name: LabelRegexextractZeroStart
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (130, false, 'abc abc', '(', 0, 1, '', 0, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractMinimumStart
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (131, false, 'abc abc', 'a', -2147483648, 1, '', 0, 'a', NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractZeroOccurrence
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (132, false, 'abc abc', 'a', 1, 0, '', 0, 'a', 'a', NULL, NULL, NULL);
+
+-- name: LabelRegexextractNegativeOccurrence
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (133, false, 'abc abc', 'a', 1, -1, '', 0, 'a', 'a', NULL, NULL, NULL);
+
+-- name: LabelRegexextractInvalidEndOption
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (134, false, 'abc abc', 'a', 1, 1, '', 0, 'a', 'a', 'a', 'a', 'a');
+
+-- name: LabelRegexextractNegativeCapture
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (135, false, 'abc abc', 'a', 1, 1, '', -1, 'a', 'a', 'a', 'a', NULL);
+
+-- name: LabelRegexextractNullLabel
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (136, false, NULL, '(', 0, 0, 'g', -1, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractNullPattern
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (137, false, 'abc abc', NULL, 0, 0, 'g', -1, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractNullStart
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (138, false, 'abc abc', 'a', NULL, 1, '', 0, 'a', NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexextractNullOccurrence
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (139, false, 'abc abc', 'a', 1, NULL, '', 0, 'a', 'a', NULL, NULL, NULL);
+
+-- name: LabelRegexextractNullEndOption
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (140, false, 'abc abc', 'a', 1, 1, '', 0, 'a', 'a', 'a', 'a', 'a');
+
+-- name: LabelRegexextractNullFlags
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (141, false, 'abc abc', 'a', 1, 1, NULL, 0, 'a', 'a', 'a', NULL, NULL);
+
+-- name: LabelRegexextractNullCapture
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (142, false, 'abc abc', 'a', 1, 1, '', NULL, 'a', 'a', 'a', 'a', NULL);
+
+-- name: LabelRegexextractSkippedErrors
+INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6)
+VALUES (143, true, 'abc abc', '(', 0, 0, 'g', -1, NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexreplacementOrdinary
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (100, false, 'abc abc', 'a', 'X', 1, 1, '', 'Xbc abc', 'Xbc abc', 'Xbc abc', 'Xbc abc', 'Xbc abc');
+
+-- name: LabelRegexreplacementWrongRecordedregexp_replace_q5ba
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (101, false, 'abc abc', 'a', 'X', 1, 1, '', 'Xbc abc!', 'Xbc abc', 'Xbc abc', 'Xbc abc', 'Xbc abc');
+
+-- name: LabelRegexreplacementWrongRecordedregexp_replace_7z9g
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (102, false, 'abc abc', 'a', 'X', 1, 1, '', 'Xbc abc', 'Xbc abc!', 'Xbc abc', 'Xbc abc', 'Xbc abc');
+
+-- name: LabelRegexreplacementWrongRecordedregexp_replace_ohuj
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (103, false, 'abc abc', 'a', 'X', 1, 1, '', 'Xbc abc', 'Xbc abc', 'Xbc abc!', 'Xbc abc', 'Xbc abc');
+
+-- name: LabelRegexreplacementWrongRecordedregexp_replace_j9on
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (104, false, 'abc abc', 'a', 'X', 1, 1, '', 'Xbc abc', 'Xbc abc', 'Xbc abc', 'Xbc abc!', 'Xbc abc');
+
+-- name: LabelRegexreplacementWrongRecordedregexp_replace_3spp
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (105, false, 'abc abc', 'a', 'X', 1, 1, '', 'Xbc abc', 'Xbc abc', 'Xbc abc', 'Xbc abc', 'Xbc abc!');
+
+-- name: LabelRegexreplacementNullRecords
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (106, false, 'abc abc', 'a', 'X', 1, 1, '', NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexreplacementGlobal
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (107, false, 'abc abc', 'a', 'X', 1, 1, 'g', 'Xbc abc', 'Xbc abc', 'Xbc abc', 'Xbc abc', 'Xbc Xbc');
+
+-- name: LabelRegexreplacementAllOccurrences
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (108, false, 'abc abc', 'a', 'X', 1, 0, '', 'Xbc abc', 'Xbc abc', 'Xbc Xbc', 'Xbc Xbc', 'Xbc abc');
+
+-- name: LabelRegexreplacementGlobalDoesNotOverrideNth
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (109, false, 'abc abc', 'a', 'X', 1, 2, 'g', 'Xbc abc', 'Xbc abc', 'abc Xbc', 'abc Xbc', 'Xbc Xbc');
+
+-- name: LabelRegexreplacementStartAtSecond
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (110, false, 'abc abc', 'a', 'X', 4, 1, '', 'Xbc abc', 'abc Xbc', 'abc Xbc', 'abc Xbc', 'Xbc abc');
+
+-- name: LabelRegexreplacementNoThird
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (111, false, 'abc abc', 'a', 'X', 1, 3, '', 'Xbc abc', 'Xbc abc', 'abc abc', 'abc abc', 'Xbc abc');
+
+-- name: LabelRegexreplacementMaximumStart
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (112, false, 'abc abc', 'a', 'X', 2147483647, 1, '', 'Xbc abc', 'abc abc', 'abc abc', 'abc abc', 'Xbc abc');
+
+-- name: LabelRegexreplacementMaximumOccurrence
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (113, false, 'abc abc', 'a', 'X', 1, 2147483647, '', 'Xbc abc', 'Xbc abc', 'abc abc', 'abc abc', 'Xbc abc');
+
+-- name: LabelRegexreplacementUnicodeCaptures
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (114, false, '😊a😊a', '(😊)(a)', '<\2\1>', 1, 2, 'g', '<a😊>😊a', '<a😊>😊a', '😊a<a😊>', '😊a<a😊>', '<a😊><a😊>');
+
+-- name: LabelRegexreplacementWholeReference
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (115, false, 'abc abc', 'a', '<\&>', 1, 1, 'g', '<a>bc abc', '<a>bc abc', '<a>bc abc', '<a>bc abc', '<a>bc <a>bc');
+
+-- name: LabelRegexreplacementMissingGroup
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (116, false, 'abc abc', 'a', '<\9>', 1, 1, '', '<>bc abc', '<>bc abc', '<>bc abc', '<>bc abc', '<>bc abc');
+
+-- name: LabelRegexreplacementOptionalCapture
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (117, false, 'b ab', '(a)?b', '<\1>', 1, 0, 'g', '<> ab', '<> ab', '<> <a>', '<> <a>', '<> <a>');
+
+-- name: LabelRegexreplacementLiteralBackslash
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (118, false, 'abc abc', 'a', '\\', 1, 1, '', '\bc abc', '\bc abc', '\bc abc', '\bc abc', '\bc abc');
+
+-- name: LabelRegexreplacementUnknownEscape
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (119, false, 'abc abc', 'a', '\z', 1, 1, '', '\zbc abc', '\zbc abc', '\zbc abc', '\zbc abc', '\zbc abc');
+
+-- name: LabelRegexreplacementZeroEscape
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (120, false, 'abc abc', 'a', '\0', 1, 1, '', '\0bc abc', '\0bc abc', '\0bc abc', '\0bc abc', '\0bc abc');
+
+-- name: LabelRegexreplacementTrailingEscape
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (121, false, 'abc abc', 'a', 'end\', 1, 1, '', 'end\bc abc', 'end\bc abc', 'end\bc abc', 'end\bc abc', 'end\bc abc');
+
+-- name: LabelRegexreplacementEmptyReplacement
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (122, false, 'abc abc', 'a', '', 1, 1, '', 'bc abc', 'bc abc', 'bc abc', 'bc abc', 'bc abc');
+
+-- name: LabelRegexreplacementEmptyPattern
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (123, false, 'abc abc', '', 'X', 1, 0, 'g', 'Xabc abc', 'Xabc abc', 'XaXbXcX XaXbXcX', 'XaXbXcX XaXbXcX', 'XaXbXcX XaXbXcX');
+
+-- name: LabelRegexreplacementEmptySubject
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (124, false, '', '', 'X', 1, 0, 'g', 'X', 'X', 'X', 'X', 'X');
+
+-- name: LabelRegexreplacementZeroLengthProgress
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (125, false, 'baab', 'a*', 'X', 1, 0, 'g', 'Xbaab', 'Xbaab', 'XbXXbX', 'XbXXbX', 'XbXXbX');
+
+-- name: LabelRegexreplacementNoMatch
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (126, false, 'abc abc', 'z', 'X', 1, 1, '', 'abc abc', 'abc abc', 'abc abc', 'abc abc', 'abc abc');
+
+-- name: LabelRegexreplacementCaseFlags
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (127, false, 'AaA', 'a', 'X', 1, 0, 'gi', 'AXA', 'AXA', 'AXA', 'XXX', 'XXX');
+
+-- name: LabelRegexreplacementLiteralFlags
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (128, false, 'a+a+', 'a+', 'X', 1, 0, 'qg', 'X+a+', 'X+a+', 'X+X+', 'XX', 'XX');
+
+-- name: LabelRegexreplacementBasicFlags
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (129, false, 'aa', 'a+', 'X', 1, 1, 'b', 'X', 'X', 'X', 'aa', 'aa');
+
+-- name: LabelRegexreplacementExtendedMask
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (130, false, 'aa', 'a+', 'X', 1, 1, 'e', 'X', 'X', 'X', 'aa', 'aa');
+
+-- name: LabelRegexreplacementInvalidPattern
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (131, false, 'abc abc', '(', 'X', 1, 1, '', NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexreplacementInvalidFlags
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (132, false, 'abc abc', 'a', 'X', 1, 1, 'invalid', 'Xbc abc', 'Xbc abc', 'Xbc abc', NULL, NULL);
+
+-- name: LabelRegexreplacementNumericFlags
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (133, false, 'abc abc', 'a', 'X', 1, 1, '2', 'Xbc abc', 'Xbc abc', 'Xbc abc', NULL, NULL);
+
+-- name: LabelRegexreplacementZeroStart
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (134, false, 'abc abc', 'a', 'X', 0, 1, '', 'Xbc abc', NULL, NULL, NULL, 'Xbc abc');
+
+-- name: LabelRegexreplacementMinimumStart
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (135, false, 'abc abc', 'a', 'X', -2147483648, 1, '', 'Xbc abc', NULL, NULL, NULL, 'Xbc abc');
+
+-- name: LabelRegexreplacementNegativeOccurrence
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (136, false, 'abc abc', 'a', 'X', 1, -1, '', 'Xbc abc', 'Xbc abc', NULL, NULL, 'Xbc abc');
+
+-- name: LabelRegexreplacementNullLabel
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (137, false, NULL, '(', 'X', 0, -1, 'invalid', NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexreplacementNullPattern
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (138, false, 'abc abc', NULL, 'X', 0, -1, 'invalid', NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexreplacementNullReplacement
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (139, false, 'abc abc', '(', NULL, 0, -1, 'invalid', NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelRegexreplacementNullStart
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (140, false, 'abc abc', 'a', 'X', NULL, 1, '', 'Xbc abc', NULL, NULL, NULL, 'Xbc abc');
+
+-- name: LabelRegexreplacementNullOccurrence
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (141, false, 'abc abc', 'a', 'X', 1, NULL, '', 'Xbc abc', 'Xbc abc', NULL, NULL, 'Xbc abc');
+
+-- name: LabelRegexreplacementNullFlags
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (142, false, 'abc abc', 'a', 'X', 1, 1, NULL, 'Xbc abc', 'Xbc abc', 'Xbc abc', NULL, NULL);
+
+-- name: LabelRegexreplacementSkippedErrors
+INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
+VALUES (143, true, 'abc abc', '(', 'X', 0, -1, 'invalid', NULL, NULL, NULL, NULL, NULL);

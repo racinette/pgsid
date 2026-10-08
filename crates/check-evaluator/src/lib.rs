@@ -127,6 +127,10 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/regex.rs");
     include!("operations/pg_catalog/regex_flags.rs");
     include!("operations/pg_catalog/regex_boolean.rs");
+    include!("operations/pg_catalog/regex_count.rs");
+    include!("operations/pg_catalog/regex_instr.rs");
+    include!("operations/pg_catalog/regex_substr.rs");
+    include!("operations/pg_catalog/regex_replace.rs");
 
     #[cfg(test)]
     mod binary_limit_tests {
