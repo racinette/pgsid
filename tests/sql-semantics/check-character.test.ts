@@ -51,6 +51,10 @@ const expressions: Record<string, string> = {
   char_override: 'ci_c COLLATE pg_catalog."C" = \'a\'',
   varchar_override: 'ci_v COLLATE pg_catalog."C" = \'a\'',
   literal_char: "'a  '::bpchar = 'a'::bpchar",
+  varchar_precision: "v::varchar(1) = 'a'",
+  char_precision: "fixed::char(1) = 'a'",
+  char_default_width: "'abc'::char = fixed",
+  char_to_varchar: 'fixed::varchar = v',
 }
 const comparisons = builtinCallables().filter(
   (fn) =>
@@ -66,10 +70,6 @@ for (const op of comparisons) {
 }
 const unsupported = {
   char_regex: 'fixed COLLATE pg_catalog."C" ~ \'^a *$\'',
-  varchar_precision: "v::varchar(1) = 'a'",
-  char_precision: "fixed::char(1) = 'a'",
-  char_default_width: "'abc'::char = fixed",
-  char_to_varchar: 'fixed::varchar = v',
   char_to_text_regex: '(fixed::text) COLLATE pg_catalog."C" ~ \'^a$\'',
   varchar_nondeterministic: "ci_v::text = 'a'",
   char_nondeterministic: "ci_c = 'a'",

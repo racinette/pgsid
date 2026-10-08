@@ -14087,6 +14087,362 @@ func TranslateTxpt(input checkruntime.TextValue, from checkruntime.TextValue, to
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 
+const textQuoteAllocationError = 56966976
+
+func QuoteLiteralD0rq(input checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if textBuildOctets(text) > int64(536870908) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textQuoteAllocationError)}
+		}
+		characters := []rune(text)
+		escaped := false
+		index := 0
+		for index < len(characters) {
+			if characters[index] == '\\' {
+				escaped = true
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		output := ""
+		if escaped {
+			output = output + string(langruntime.CheckedChar('E'))
+		}
+		output = output + string(langruntime.CheckedChar('\''))
+		index = langruntime.CheckedIndex(0)
+		for index < len(characters) {
+			character := characters[index]
+			if character == '\'' || character == '\\' {
+				output = output + string(langruntime.CheckedChar(character))
+			}
+			output = output + string(langruntime.CheckedChar(character))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		output = output + string(langruntime.CheckedChar('\''))
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
+const textSearchParameterError = 3452619
+const textSearchInternalError = 56966976
+
+type textSearchState struct {
+	characters []rune
+	pattern    []rune
+}
+
+func copytextSearchState(value textSearchState) textSearchState {
+	return textSearchState{characters: langruntime.CheckedChars(value.characters), pattern: langruntime.CheckedChars(value.pattern)}
+}
+func textSearchAt(search *textSearchState, from int) bool {
+	search = langruntime.CheckedBorrowed(search, copytextSearchState)
+	from = langruntime.CheckedIndex(from)
+	if len(search.pattern) > langruntime.CheckedSubtract(len(search.characters), from) {
+		return false
+	}
+	index := 0
+	for index < len(search.pattern) {
+		if search.characters[langruntime.CheckedAdd(from, index)] != search.pattern[index] {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func textSearchRange(search *textSearchState, from int, end int) string {
+	search = langruntime.CheckedBorrowed(search, copytextSearchState)
+	from = langruntime.CheckedIndex(from)
+	end = langruntime.CheckedIndex(end)
+	output := ""
+	index := from
+	for index < end {
+		output = output + string(langruntime.CheckedChar(search.characters[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return output
+}
+func TextcatS76e(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.TextValue {
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		first := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			second := langruntime.CheckedString(right.Value)
+			if langruntime.CheckedI64Add(textBuildOctets(first), textBuildOctets(second)) > int64(1073741819) {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textSearchInternalError)}
+			}
+			output := first
+			output = output + second
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func StrposEb1n(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		first := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			second := langruntime.CheckedString(right.Value)
+			search := textSearchState{characters: []rune(first), pattern: []rune(second)}
+			index := 0
+			position := 1
+			for index <= len(search.characters) {
+				if textSearchAt(&search, index) {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: position}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+				position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func PositionLq28(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
+	return StrposEb1n(left, right)
+}
+func textOverlayValue(input checkruntime.TextValue, replacement checkruntime.TextValue, position checkruntime.Int4Value, length checkruntime.Int4Value, omitted bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if replacement.Kind == checkruntime.TextValueError {
+		error := replacement.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if position.Kind == checkruntime.Int4ValueError {
+		error := position.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if length.Kind == checkruntime.Int4ValueError {
+		error := length.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || replacement == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || replacement == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if replacement.Kind == checkruntime.TextValueValue {
+			inserted := langruntime.CheckedString(replacement.Value)
+			if position.Kind == checkruntime.Int4ValueValue {
+				start := langruntime.CheckedI32(position.Value)
+				if length.Kind == checkruntime.Int4ValueValue {
+					requested := langruntime.CheckedI32(length.Value)
+					count := requested
+					if omitted {
+						measured := textMeasureValue(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: langruntime.CheckedString(inserted)}, false, 0)
+						if measured.Kind == checkruntime.Int4ValueValue {
+							value := langruntime.CheckedI32(measured.Value)
+							count = langruntime.CheckedI32(value)
+						}
+					}
+					if start <= 0 {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textSubstringError)}
+					}
+					end := langruntime.CheckedI64Add(int64(langruntime.CheckedI32(start)), int64(langruntime.CheckedI32(count)))
+					if end < int64(-2147483648) || end > int64(2147483647) {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textLengthRangeError)}
+					}
+					first := textSubstringValue(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: langruntime.CheckedString(text)}, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(start, 1)}, true)
+					second := textSubstringValue(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(end))}, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}, false)
+					head := TextcatS76e(first, checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: inserted})
+					return TextcatS76e(head, second)
+				}
+			}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func OverlayNiqv(input checkruntime.TextValue, replacement checkruntime.TextValue, position checkruntime.Int4Value) checkruntime.TextValue {
+	return textOverlayValue(input, replacement, position, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}, true)
+}
+func OverlayJu3l(input checkruntime.TextValue, replacement checkruntime.TextValue, position checkruntime.Int4Value, length checkruntime.Int4Value) checkruntime.TextValue {
+	return textOverlayValue(input, replacement, position, length, false)
+}
+func ReplaceGz9l(input checkruntime.TextValue, from checkruntime.TextValue, to checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if from.Kind == checkruntime.TextValueError {
+		error := from.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if to.Kind == checkruntime.TextValueError {
+		error := to.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || from == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || to == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || from == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || to == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if from.Kind == checkruntime.TextValueValue {
+			pattern := langruntime.CheckedString(from.Value)
+			if to.Kind == checkruntime.TextValueValue {
+				replacement := langruntime.CheckedString(to.Value)
+				if pattern == "" || text == "" {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+				}
+				search := textSearchState{characters: []rune(text), pattern: []rune(pattern)}
+				index := 0
+				outputSize := textBuildOctets(text)
+				difference := langruntime.CheckedI64Subtract(textBuildOctets(replacement), textBuildOctets(pattern))
+				for index < len(search.characters) {
+					if textSearchAt(&search, index) {
+						outputSize = langruntime.CheckedI64Add(outputSize, difference)
+						index = langruntime.CheckedAdd(index, len(search.pattern))
+					} else {
+						index = langruntime.CheckedAdd(index, 1)
+					}
+				}
+				if outputSize > int64(1073741822) {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textBuildLimitError)}
+				}
+				if outputSize > int64(1073741819) {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textSearchInternalError)}
+				}
+				output := ""
+				index = langruntime.CheckedIndex(0)
+				for index < len(search.characters) {
+					if textSearchAt(&search, index) {
+						output = output + replacement
+						index = langruntime.CheckedAdd(index, len(search.pattern))
+					} else {
+						output = output + string(langruntime.CheckedChar(search.characters[index]))
+						index = langruntime.CheckedAdd(index, 1)
+					}
+				}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+			}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func SplitPartDoxr(input checkruntime.TextValue, separator checkruntime.TextValue, field checkruntime.Int4Value) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if separator.Kind == checkruntime.TextValueError {
+		error := separator.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if field.Kind == checkruntime.Int4ValueError {
+		error := field.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || separator == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || field == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || separator == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || field == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if separator.Kind == checkruntime.TextValueValue {
+			pattern := langruntime.CheckedString(separator.Value)
+			if field.Kind == checkruntime.Int4ValueValue {
+				requested := langruntime.CheckedI32(field.Value)
+				if requested == 0 {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textSearchParameterError)}
+				}
+				if text == "" {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+				}
+				if pattern == "" {
+					if requested == 1 || requested == langruntime.CheckedSignedNegate(1) {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+					}
+					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: ""}
+				}
+				search := textSearchState{characters: []rune(text), pattern: []rune(pattern)}
+				target := int64(langruntime.CheckedI32(requested))
+				index := 0
+				if target < int64(0) {
+					fields := int64(1)
+					for index < len(search.characters) {
+						if textSearchAt(&search, index) {
+							fields = langruntime.CheckedI64Add(fields, int64(1))
+							index = langruntime.CheckedAdd(index, len(search.pattern))
+						} else {
+							index = langruntime.CheckedAdd(index, 1)
+						}
+					}
+					target = langruntime.CheckedI64Add(langruntime.CheckedI64Add(target, fields), int64(1))
+					if target <= int64(0) {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: ""}
+					}
+				}
+				index = langruntime.CheckedIndex(0)
+				first := 0
+				current := int64(1)
+				for index < len(search.characters) {
+					if textSearchAt(&search, index) {
+						if current == target {
+							return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: textSearchRange(&search, first, index)}
+						}
+						current = langruntime.CheckedI64Add(current, int64(1))
+						index = langruntime.CheckedAdd(index, len(search.pattern))
+						first = langruntime.CheckedIndex(index)
+					} else {
+						index = langruntime.CheckedAdd(index, 1)
+					}
+				}
+				if current == target {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: textSearchRange(&search, first, index)}
+				}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: ""}
+			}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
 const textSubstringError = 3452581
 
 func textSubstringValue(input checkruntime.TextValue, position checkruntime.Int4Value, length checkruntime.Int4Value, hasLength bool) checkruntime.TextValue {
@@ -14257,6 +14613,86 @@ func RtrimT07s(value checkruntime.TextValue) checkruntime.TextValue {
 }
 func RtrimG9ee(value checkruntime.TextValue, set checkruntime.TextValue) checkruntime.TextValue {
 	return textTrimValue(value, set, false, true)
+}
+
+const textWidthTruncationError = 3452545
+const textWidthAllocationError = 56966976
+
+func textWidthValue(input checkruntime.TextValue, modifier checkruntime.Int4Value, explicit checkruntime.BoolValue, fixed bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if modifier.Kind == checkruntime.Int4ValueError {
+		error := modifier.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if explicit.Kind == checkruntime.BoolValueError {
+		error := explicit.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || explicit == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || modifier == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || explicit == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if modifier.Kind == checkruntime.Int4ValueValue {
+			typmod := langruntime.CheckedI32(modifier.Value)
+			if explicit.Kind == checkruntime.BoolValueValue {
+				isExplicit := explicit.Value
+				if typmod < 4 {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+				}
+				width := langruntime.CheckedSignedSubtract(typmod, 4)
+				characters := []rune(text)
+				count := 0
+				index := 0
+				for index < len(characters) {
+					count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				if count == width || (fixed == false && count < width) {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+				}
+				if count < width {
+					padding := langruntime.CheckedSignedSubtract(width, count)
+					outputSize := langruntime.CheckedI64Add(textBuildOctets(text), int64(langruntime.CheckedI32(padding)))
+					if outputSize > int64(1073741819) {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textWidthAllocationError)}
+					}
+					output := text
+					for count < width {
+						output = output + string(langruntime.CheckedChar(' '))
+						count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+					}
+					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+				}
+				output := ""
+				position := 0
+				index = langruntime.CheckedIndex(0)
+				for index < len(characters) {
+					if position < width {
+						output = output + string(langruntime.CheckedChar(characters[index]))
+					} else if isExplicit == false && characters[index] != ' ' {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textWidthTruncationError)}
+					}
+					position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+			}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func Bpchar2uas(input checkruntime.TextValue, modifier checkruntime.Int4Value, explicit checkruntime.BoolValue) checkruntime.TextValue {
+	return textWidthValue(input, modifier, explicit, true)
+}
+func Varchar2rhn(input checkruntime.TextValue, modifier checkruntime.Int4Value, explicit checkruntime.BoolValue) checkruntime.TextValue {
+	return textWidthValue(input, modifier, explicit, false)
 }
 
 const textLengthRangeError = 3452547

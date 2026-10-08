@@ -115,7 +115,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         (['substr', 'substring'].includes(implementation.name) ||
           (implementation.args.length === 2 && ['left', 'right'].includes(implementation.name)))) ||
       (implementation.args.length === 1 &&
-        implementation.args[0] === 'pg_catalog.bool' &&
+        ['pg_catalog.bool', 'pg_catalog.bpchar'].includes(implementation.args[0]!) &&
         implementation.name === 'text'))
   const textBuilder =
     implementation.kind === 'function' &&
@@ -124,18 +124,60 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     implementation.volatility === 'i' &&
     !implementation.returnsSet &&
     implementation.result === 'pg_catalog.text' &&
-    ((['lpad', 'rpad'].includes(implementation.name) &&
-      [2, 3].includes(implementation.args.length) &&
-      implementation.args[0] === 'pg_catalog.text' &&
-      implementation.args[1] === 'pg_catalog.int4' &&
-      (implementation.args.length === 2 || implementation.args[2] === 'pg_catalog.text')) ||
+    ((implementation.name === 'quote_literal' &&
+      implementation.args.length === 1 &&
+      implementation.args[0] === 'pg_catalog.text') ||
+      (['lpad', 'rpad'].includes(implementation.name) &&
+        [2, 3].includes(implementation.args.length) &&
+        implementation.args[0] === 'pg_catalog.text' &&
+        implementation.args[1] === 'pg_catalog.int4' &&
+        (implementation.args.length === 2 || implementation.args[2] === 'pg_catalog.text')) ||
       (implementation.name === 'repeat' &&
         implementation.args.length === 2 &&
         implementation.args[0] === 'pg_catalog.text' &&
         implementation.args[1] === 'pg_catalog.int4') ||
       (implementation.name === 'translate' &&
         implementation.args.length === 3 &&
-        implementation.args.every((type) => type === 'pg_catalog.text')))
+        implementation.args.every((type) => type === 'pg_catalog.text')) ||
+      (implementation.name === 'textcat' &&
+        implementation.args.length === 2 &&
+        implementation.args.every((type) => type === 'pg_catalog.text')) ||
+      (implementation.name === 'overlay' &&
+        [3, 4].includes(implementation.args.length) &&
+        implementation.args.slice(0, 2).every((type) => type === 'pg_catalog.text') &&
+        implementation.args.slice(2).every((type) => type === 'pg_catalog.int4')))
+  const textSearch =
+    implementation.kind === 'function' &&
+    implementation.schema === 'pg_catalog' &&
+    implementation.strict &&
+    implementation.volatility === 'i' &&
+    !implementation.returnsSet &&
+    ((['position', 'strpos'].includes(implementation.name) &&
+      implementation.args.length === 2 &&
+      implementation.args.every((type) => type === 'pg_catalog.text') &&
+      implementation.result === 'pg_catalog.int4') ||
+      (implementation.name === 'replace' &&
+        implementation.args.length === 3 &&
+        implementation.args.every((type) => type === 'pg_catalog.text') &&
+        implementation.result === 'pg_catalog.text') ||
+      (implementation.name === 'split_part' &&
+        implementation.args.length === 3 &&
+        implementation.args[0] === 'pg_catalog.text' &&
+        implementation.args[1] === 'pg_catalog.text' &&
+        implementation.args[2] === 'pg_catalog.int4' &&
+        implementation.result === 'pg_catalog.text'))
+  const textWidth =
+    implementation.kind === 'function' &&
+    implementation.schema === 'pg_catalog' &&
+    implementation.strict &&
+    implementation.volatility === 'i' &&
+    !implementation.returnsSet &&
+    implementation.args.length === 3 &&
+    implementation.args[1] === 'pg_catalog.int4' &&
+    implementation.args[2] === 'pg_catalog.bool' &&
+    implementation.result === implementation.args[0] &&
+    ((implementation.name === 'bpchar' && implementation.args[0] === 'pg_catalog.bpchar') ||
+      (implementation.name === 'varchar' && implementation.args[0] === 'pg_catalog."varchar"'))
   const textIntrinsic =
     implementation.kind === 'function' &&
     implementation.schema === 'pg_catalog' &&
@@ -178,6 +220,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
   return (
     textIntrinsic ||
     textBuilder ||
+    textWidth ||
     textSlice ||
     temporalField ||
     characterCode ||
@@ -188,6 +231,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     collation === 'C' ||
     (collation === 'deterministic' &&
       (textHash ||
+        textSearch ||
         equalityOperation(signature, 'pg_catalog.text') !== null ||
         equalityOperation(signature, 'pg_catalog.bpchar') !== null))
   )
