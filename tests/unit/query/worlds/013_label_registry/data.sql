@@ -52,3 +52,8 @@ INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, rep
 
 INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
 VALUES (1, false, 'abc', '\', '^(?:abc)$', '^(?:abc)$');
+
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets)
+VALUES (1, 'Export 123', 8, 'Export 123', 10);
+INSERT INTO label_default_ascii_exports (id, label, ascii_label)
+VALUES (1, NULL, NULL);

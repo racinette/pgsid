@@ -142,6 +142,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/text_bool.rs");
     include!("operations/pg_catalog/character.rs");
     include!("operations/pg_catalog/text_ascii.rs");
+    include!("operations/pg_catalog/text_to_ascii.rs");
     include!("operations/pg_catalog/chr.rs");
     include!("operations/pg_catalog/character_text.rs");
     include!("operations/pg_catalog/regex.rs");

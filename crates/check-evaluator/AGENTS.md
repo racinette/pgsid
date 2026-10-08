@@ -181,6 +181,9 @@ import them. Keep schema-only helpers with their callables.
 - Text payloads own Rust `String`, lowered to immutable strings in both targets.
   Builders mutate local strings; wrapper clones preserve ownership across branches.
   Target wrappers need no copies; character codes, codecs, digests and temporal field decoding ignore collation.
+  Legacy ASCII conversion maps UTF8 bytes through the requested encoding table;
+  it does not transliterate Unicode. Invalid encoding codes return 42704 and
+  unsupported encodings, including the database-default UTF8 encoding, return 0A000.
 - Bytea payloads own canonical lowercase hexadecimal strings without a prefix.
   Public adapters convert byte arrays and nested domains; Rust validates hex input.
   Comparison preserves unsigned octet differences and signed-unit prefix order.

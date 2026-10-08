@@ -80,7 +80,7 @@ func CheckedIndex(value int) int {
 	return value
 }
 
-func indexFromI32(value int, fallback int) int {
+func IndexFromI32(value int, fallback int) int {
 	CheckedI32(value)
 	CheckedIndex(fallback)
 	if value < 0 {

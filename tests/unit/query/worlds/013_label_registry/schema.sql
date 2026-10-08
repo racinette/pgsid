@@ -483,3 +483,28 @@ CREATE TABLE label_pattern_conversions (
   CONSTRAINT label_default_pattern CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.similar_to_escape(pattern) COLLATE "C" = recorded_default END),
   CONSTRAINT label_escaped_pattern CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.similar_to_escape(pattern, escape) COLLATE "C" = recorded_escaped END)
 );
+
+CREATE TABLE label_ascii_exports (
+  id integer PRIMARY KEY,
+  label text,
+  encoding integer,
+  ascii_label text COLLATE "C",
+  ascii_octets integer,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  CONSTRAINT exported_ascii_label CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE pg_catalog.to_ascii(label, encoding) COLLATE "C" = ascii_label END
+  ),
+  CONSTRAINT exported_ascii_octets CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.to_ascii(label, encoding)) = ascii_octets END
+  )
+);
+
+CREATE TABLE label_default_ascii_exports (
+  id integer PRIMARY KEY,
+  label text,
+  ascii_label text COLLATE "C",
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  CONSTRAINT exported_default_ascii CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE pg_catalog.to_ascii(label) COLLATE "C" = ascii_label END
+  )
+);
