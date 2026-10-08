@@ -10,6 +10,27 @@ import {
   type EvalExpressionBackend,
 } from './eval-expressions.js'
 
+function legacyRegexOperand(value: EvalExpression): SqlExpression | null {
+  if (value.kind === 'certain') return value.expression
+  if (value.kind === 'input') return { kind: 'input', type: value.type, name: value.name }
+  if (
+    value.kind === 'call' &&
+    value.call.kind === 'cast' &&
+    value.call.signature === null &&
+    value.operands.length === 1 &&
+    value.call.type === 'pg_catalog.text'
+  ) {
+    const operand = legacyRegexOperand(value.operands[0]!)
+    if (
+      operand &&
+      (operand.kind === 'input' || operand.kind === 'text') &&
+      ['pg_catalog.text', 'pg_catalog."varchar"'].includes(operand.type)
+    )
+      return { ...operand, type: 'pg_catalog.text' }
+  }
+  return null
+}
+
 export type EvalBoolExpression =
   | { kind: 'eval-scalar'; expression: EvalExpression }
   | { kind: 'certain'; expression: SqlExpression }
@@ -113,6 +134,25 @@ export function emitEvalBoolExpression<Ast>(
   }
   const emit = (node: EvalBoolExpression): Ast => {
     if (node.kind === 'eval-scalar') {
+      const partial = node.expression
+      if (partial.kind === 'call' && partial.call.kind !== 'cast') {
+        const metadata = builtinMetadata(partial.call.signature)
+        const regex =
+          metadata.schema === 'pg_catalog' &&
+          metadata.result === 'pg_catalog.bool' &&
+          ((metadata.kind === 'operator' && ['~', '!~', '~*', '!~*'].includes(metadata.name)) ||
+            (metadata.kind === 'function' &&
+              (metadata.name === 'regexp_like' ||
+                /^(text|bpchar)(ic)?regex(eq|ne)$/u.test(metadata.name))))
+        if (regex) {
+          const operands = partial.operands.map(legacyRegexOperand)
+          if (operands.some((operand) => operand === null)) return emit({ kind: 'uncertain' })
+          return emit({
+            kind: 'eval-call',
+            call: { ...partial.call, operands: operands as SqlExpression[] },
+          })
+        }
+      }
       const result = emitEvalExpression(node.expression, scalarBackend, backend.scalar, emit)
       if (result.value.type !== 'pg_catalog.bool')
         throw new Error('A scalar CHECK atom must be boolean')

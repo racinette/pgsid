@@ -43,16 +43,32 @@ export function assembleCheckRust(evaluator: {
     })),
   })
   const requiresTimezone = evaluator.callables.some((name) => timezoneCallables.has(name))
+  const regexCallables = checkRustCallableNames({
+    ...maintained,
+    modules: maintained.modules.map((module) => ({
+      ...module,
+      files: module.files.filter(
+        (file) => module.name === 'pg_catalog' && /\/regex(?:_|\.rs$)/u.test(file.path),
+      ),
+    })),
+  })
+  const requiresRegex =
+    evaluator.requiresRegex === true || evaluator.callables.some((name) => regexCallables.has(name))
   const modules = maintained.modules.flatMap((module) => {
-    if (module.name === 'regex_engine' && !evaluator.requiresRegex) return []
+    if (module.name === 'regex_engine' && !requiresRegex) return []
     return [
       {
         ...module,
         dependencies: module.dependencies.filter(
-          (name) => evaluator.requiresRegex || name !== 'regex_engine',
+          (name) => requiresRegex || name !== 'regex_engine',
         ),
         files: module.files.filter((file) => {
-          if (!evaluator.requiresRegex && file.path.endsWith('/regex.rs')) return false
+          if (
+            module.name === 'pg_catalog' &&
+            !requiresRegex &&
+            /\/regex(?:_|\.rs$)/u.test(file.path)
+          )
+            return false
           if (
             module.name === 'pg_catalog' &&
             !requiresTimezone &&
@@ -93,7 +109,15 @@ export function prepareCheckRust(
   | { kind: 'unsupported'; reason: string } {
   try {
     const evaluator = emitCheckRustEvaluator(expression, identity)
-    return { kind: 'supported', evaluator, source: assembleCheckRust(evaluator) }
+    const source = assembleCheckRust(evaluator)
+    return {
+      kind: 'supported',
+      evaluator: {
+        ...evaluator,
+        requiresRegex: source.modules.some((module) => module.name === 'regex_engine'),
+      },
+      source,
+    }
   } catch (error) {
     if (error instanceof UnsupportedCheckRustExpression)
       return { kind: 'unsupported', reason: error.message }

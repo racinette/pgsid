@@ -1233,3 +1233,157 @@ VALUES (25,false,'alpha','alpha','a%','ab',true,false,true,false,true,false,true
 -- name: label_pattern_skipped_invalid
 INSERT INTO label_pattern_records (id,suppress_invalid,label,fixed_label,pattern,escape_character,recorded_bpchariclike,recorded_bpcharicnlike,recorded_bpcharlike,recorded_bpcharnlike,recorded_like,recorded_notlike,recorded_texticlike,recorded_texticnlike,recorded_textlike,recorded_textnlike,recorded_escaped_match,recorded_escaped_folded_match,normalized_pattern,normalized_octets)
 VALUES (26,true,'alpha','alpha','\','invalid',true,false,true,false,true,false,true,false,true,false,true,true,'a%',2);
+
+-- name: LabelRegexPlainMatch
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (100, false, 'abc', 'abc', 'a', '', true, true, true);
+
+-- name: LabelRegexNoMatch
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (101, false, 'abc', 'abc', 'z', '', false, false, false);
+
+-- name: LabelRegexCaseDifference
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (102, false, 'ABC', 'ABC', 'abc', 'i', false, true, true);
+
+-- name: LabelRegexCaseOverride
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (103, false, 'ABC', 'ABC', 'abc', 'ic', false, true, false);
+
+-- name: LabelRegexCaseLastWins
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (104, false, 'ABC', 'ABC', 'abc', 'ci', false, true, true);
+
+-- name: LabelRegexBasicFlavor
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (105, false, 'aa', 'aa', 'a+', 'b', true, true, false);
+
+-- name: LabelRegexExtendedFlagMask
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (106, false, 'aa', 'aa', 'a+', 'e', true, true, false);
+
+-- name: LabelRegexLiteralFlavor
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (107, false, 'a+', 'a+', 'a+', 'q', true, true, true);
+
+-- name: LabelRegexLiteralFlavorNoMatch
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (108, false, 'aaa', 'aaa', 'a+', 'q', true, true, false);
+
+-- name: LabelRegexNewlineAnchors
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (109, false, 'a
+b', 'a
+b', '^b$', 'n', false, false, true);
+
+-- name: LabelRegexNewlineDot
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (110, false, 'a
+b', 'a
+b', 'a.b', 'n', true, true, false);
+
+-- name: LabelRegexNewlineStop
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (111, false, 'a
+b', 'a
+b', 'a.b', 'p', true, true, false);
+
+-- name: LabelRegexNewlineAnchorsOnly
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (112, false, 'a
+b', 'a
+b', '^b$', 'w', false, false, true);
+
+-- name: LabelRegexExpandedPattern
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (113, false, 'ab', 'ab', 'a # note
+ b', 'x', false, false, true);
+
+-- name: LabelRegexExpandedLastWins
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (114, false, 'ab', 'ab', 'a # note
+ b', 'xt', false, false, false);
+
+-- name: LabelRegexUnicodeScalar
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (115, false, '😊', '😊', '^.$', '', true, true, true);
+
+-- name: LabelRegexUnicodeCNoFold
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (116, false, 'É', 'É', 'é', 'i', false, false, false);
+
+-- name: LabelRegexTrailingBlanks
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (117, false, 'a  ', 'a  ', '^a$', '', false, false, false);
+
+-- name: LabelRegexEmptyPattern
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (118, false, 'abc', 'abc', '', '', true, true, true);
+
+-- name: LabelRegexEmptySubject
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (119, false, '', '', 'a', '', false, false, false);
+
+-- name: LabelRegexBackReference
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (120, false, 'abab', 'abab', '(ab)\1', '', true, true, true);
+
+-- name: LabelRegexWordBoundary
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (121, false, 'ab1', 'ab1', '\mab\M', '', false, false, false);
+
+-- name: LabelRegexNullLabel
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (122, false, NULL, NULL, 'a', '', NULL, NULL, NULL);
+
+-- name: LabelRegexNullPattern
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (123, false, 'abc', 'abc', NULL, '', NULL, NULL, NULL);
+
+-- name: LabelRegexNullFlags
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (124, false, 'abc', 'abc', 'a', NULL, true, true, NULL);
+
+-- name: LabelRegexNullRecord
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (125, false, 'abc', 'abc', 'a', '', NULL, NULL, NULL);
+
+-- name: LabelRegexWrongSensitiveRecord
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (126, false, 'abc', 'abc', 'a', '', false, true, true);
+
+-- name: LabelRegexWrongInsensitiveRecord
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (127, false, 'abc', 'abc', 'a', '', true, false, true);
+
+-- name: LabelRegexWrongFlagRecord
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (128, false, 'abc', 'abc', 'a', '', true, true, false);
+
+-- name: LabelRegexInvalidPattern
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (129, false, 'abc', 'abc', '(', '', false, false, false);
+
+-- name: LabelRegexInvalidFlags
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (130, false, 'abc', 'abc', 'a', 'invalid', true, true, false);
+
+-- name: LabelRegexForbiddenGlobal
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (131, false, 'abc', 'abc', 'a', 'g', true, true, false);
+
+-- name: LabelRegexFlagErrorBeforePattern
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (132, false, 'abc', 'abc', '(', 'g', false, false, false);
+
+-- name: LabelRegexNullBeforeBadFlags
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (133, false, NULL, NULL, '(', 'g', NULL, NULL, NULL);
+
+-- name: LabelRegexSkippedPatternError
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (134, true, 'abc', 'abc', '(', '', false, false, false);
+
+-- name: LabelRegexSkippedFlagError
+INSERT INTO label_regex_records (id, suppress_invalid, label, fixed_label, pattern, flags, recorded_sensitive, recorded_insensitive, recorded_flagged)
+VALUES (135, true, 'abc', 'abc', 'a', 'g', false, false, false);

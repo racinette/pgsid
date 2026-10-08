@@ -359,3 +359,35 @@ CREATE TABLE label_pattern_records (
  CONSTRAINT label_normalized_pattern CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.like_escape(pattern,escape_character)=normalized_pattern END),
  CONSTRAINT label_normalized_octets CHECK (CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.like_escape(pattern,escape_character))=normalized_octets END)
 );
+
+
+CREATE TABLE label_regex_records (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  label text COLLATE "C",
+  fixed_label pg_catalog.bpchar COLLATE "C",
+  pattern text COLLATE "C",
+  flags text COLLATE "C",
+  recorded_sensitive boolean,
+  recorded_insensitive boolean,
+  recorded_flagged boolean,
+  CONSTRAINT recorded_regex CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_like(label, pattern) = recorded_sensitive END),
+  CONSTRAINT recorded_regex_flags CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_like(label, pattern, flags) = recorded_flagged END),
+  CONSTRAINT recorded_text_regexeq CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.textregexeq(label, pattern) = (recorded_sensitive) END),
+  CONSTRAINT recorded_text_regexne CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.textregexne(label, pattern) = (NOT recorded_sensitive) END),
+  CONSTRAINT recorded_text_icregexeq CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.texticregexeq(label, pattern) = (recorded_insensitive) END),
+  CONSTRAINT recorded_text_icregexne CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.texticregexne(label, pattern) = (NOT recorded_insensitive) END),
+  CONSTRAINT recorded_text_operator_match CHECK (CASE WHEN suppress_invalid THEN true ELSE (label ~ pattern) = (recorded_sensitive) END),
+  CONSTRAINT recorded_text_operator_not_match CHECK (CASE WHEN suppress_invalid THEN true ELSE (label !~ pattern) = (NOT recorded_sensitive) END),
+  CONSTRAINT recorded_text_operator_folded CHECK (CASE WHEN suppress_invalid THEN true ELSE (label ~* pattern) = (recorded_insensitive) END),
+  CONSTRAINT recorded_text_operator_not_folded CHECK (CASE WHEN suppress_invalid THEN true ELSE (label !~* pattern) = (NOT recorded_insensitive) END),
+  CONSTRAINT recorded_bpchar_regexeq CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.bpcharregexeq(fixed_label, pattern) = (recorded_sensitive) END),
+  CONSTRAINT recorded_bpchar_regexne CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.bpcharregexne(fixed_label, pattern) = (NOT recorded_sensitive) END),
+  CONSTRAINT recorded_bpchar_icregexeq CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.bpcharicregexeq(fixed_label, pattern) = (recorded_insensitive) END),
+  CONSTRAINT recorded_bpchar_icregexne CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.bpcharicregexne(fixed_label, pattern) = (NOT recorded_insensitive) END),
+  CONSTRAINT recorded_bpchar_operator_match CHECK (CASE WHEN suppress_invalid THEN true ELSE (fixed_label ~ pattern) = (recorded_sensitive) END),
+  CONSTRAINT recorded_bpchar_operator_not_match CHECK (CASE WHEN suppress_invalid THEN true ELSE (fixed_label !~ pattern) = (NOT recorded_sensitive) END),
+  CONSTRAINT recorded_bpchar_operator_folded CHECK (CASE WHEN suppress_invalid THEN true ELSE (fixed_label ~* pattern) = (recorded_insensitive) END),
+  CONSTRAINT recorded_bpchar_operator_not_folded CHECK (CASE WHEN suppress_invalid THEN true ELSE (fixed_label !~* pattern) = (NOT recorded_insensitive) END),
+  CONSTRAINT recorded_nested_regex CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_like(label || '', reverse(reverse(pattern)), flags) = recorded_flagged END)
+);
