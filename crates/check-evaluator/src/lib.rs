@@ -39,6 +39,13 @@ pub mod pg_catalog {
     include!(concat!(env!("OUT_DIR"), "/timezone-tables.rs"));
     include!("operations/pg_catalog/numeric.rs");
     include!("operations/pg_catalog/numeric_work.rs");
+    include!("operations/pg_catalog/numeric_arithmetic.rs");
+    include!("operations/pg_catalog/numeric_hash.rs");
+    include!("operations/pg_catalog/numeric_range.rs");
+    include!("operations/pg_catalog/numeric_typmod.rs");
+    include!("operations/pg_catalog/numeric_division.rs");
+    include!("operations/pg_catalog/numeric_common.rs");
+    include!("operations/pg_catalog/numeric_size.rs");
     include!("operations/pg_catalog/numeric_inspection.rs");
     include!("operations/pg_catalog/numeric_round.rs");
     include!("operations/pg_catalog/numeric_integer.rs");

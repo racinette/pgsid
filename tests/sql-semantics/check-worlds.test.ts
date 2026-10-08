@@ -1488,6 +1488,40 @@ describe('world CHECK INSERT parity', () => {
         expect(measured.unknown, measured.constraint).toBe(0)
       }
     }
+    for (const [table, count] of [
+      ['shipment_fee_totals', 7],
+      ['shipment_fee_fingerprints', 2],
+      ['shipment_fee_window', 1],
+      ['shipment_fee_bounds', 3],
+      ['shipment_fee_quotients', 10],
+      ['shipment_fee_common_units', 4],
+      ['shipment_storage_sizes', 2],
+    ] as const) {
+      const checks = [...coverage].filter(([identity]) =>
+        identity.startsWith(`world_014_shipment_defaults.${table}.`),
+      )
+      expect(checks).toHaveLength(count)
+      for (const [identity, measured] of checks) {
+        for (const state of ['true', 'false', 'null'] as const)
+          expect(measured[state], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(0)
+        if (
+          table === 'shipment_fee_window' ||
+          table === 'shipment_fee_bounds' ||
+          table === 'shipment_fee_quotients' ||
+          [
+            'fee_sum',
+            'fee_product',
+            'fee_sum_scale',
+            'fee_product_scale',
+            'fee_product_wire',
+            'fee_multiple',
+            'fee_multiple_wire',
+          ].includes(identity.split('.').at(-1)!)
+        )
+          expect(measured.error, identity).toBeGreaterThan(0)
+      }
+    }
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),
     )

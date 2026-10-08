@@ -21,3 +21,24 @@ INSERT INTO shipment_fee_small_units (id, suppress_invalid, amount, recorded_uni
 INSERT INTO shipment_fee_regular_units (id, suppress_invalid, amount, recorded_units, recorded_amount) VALUES (1, false, 1.5, 2, 2);
 
 INSERT INTO shipment_fee_bulk_units (id, suppress_invalid, amount, recorded_units, recorded_amount) VALUES (1, false, 1.5, 2, 2);
+
+INSERT INTO shipment_fee_totals (id, skip, amount, adjustment, sum_record, difference_record, product_record, next_record, sum_scale, product_scale, product_wire)
+VALUES (1, false, '12.3400'::numeric, '0.660'::numeric, '13.0000'::numeric, '11.6800'::numeric, '8.1444000'::numeric, '13.3400'::numeric, '4'::integer, '7'::integer, '\x0002000000000007000805a4'::bytea);
+
+INSERT INTO shipment_fee_fingerprints (id, skip, amount, seed, hash_record, seeded_hash_record)
+VALUES (1, false, '12.3400'::numeric, '0'::bigint, '-462988411'::integer, '-857365310575518843'::bigint);
+
+INSERT INTO shipment_fee_window (id, skip, amount, baseline, tolerance, subtract, less, range_record)
+VALUES (1, false, '10'::numeric, '10'::numeric, '1'::numeric, false, true, true);
+
+INSERT INTO shipment_fee_bounds (id, skip, amount, modifier, rounded_record, scale_record, wire_record)
+VALUES (1, false, '12.345'::numeric, 327686, '12.35'::numeric, '2'::integer, '\x0002000000000002000c0dac'::bytea);
+
+INSERT INTO shipment_fee_quotients (id, skip, amount, divisor, quotient_record, whole_record, remainder_record, quotient_scale, remainder_scale, quotient_wire)
+VALUES (1, false, '12.3400'::numeric, '0.660'::numeric, '18.6969696969696970'::numeric, '18'::numeric, '0.4600'::numeric, '16'::integer, '4'::integer, '\x000500000000001000121b391b391b391b3a'::bytea);
+
+INSERT INTO shipment_fee_common_units (id, skip, amount, baseline, common_record, multiple_record, common_scale, multiple_wire)
+VALUES (1, false, '12.3400'::numeric, '0.660'::numeric, '0.0200'::numeric, '407.2200'::numeric, '4'::integer, '\x000200000000000401970898'::bytea);
+
+INSERT INTO shipment_storage_sizes (id, skip, bytes, size_record, octets_record)
+VALUES (1, false, '12.3400'::numeric, '12.3400 bytes'::text, '13'::integer);
