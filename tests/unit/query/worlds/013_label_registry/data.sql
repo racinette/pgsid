@@ -57,3 +57,6 @@ INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets)
 VALUES (1, 'Export 123', 8, 'Export 123', 10);
 INSERT INTO label_default_ascii_exports (id, label, ascii_label)
 VALUES (1, NULL, NULL);
+
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets)
+VALUES (1, '\u0041', 'A', 1);

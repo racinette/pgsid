@@ -15254,6 +15254,99 @@ func RtrimG9ee(value checkruntime.TextValue, set checkruntime.TextValue) checkru
 	return textTrimValue(value, set, false, true)
 }
 
+const unistrSyntaxError = 6819553
+const unistrInvalidCodePoint = 3452619
+
+func UnistrN58m(input checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		output := ""
+		index := 0
+		firstSurrogate := 0
+		for index < len(characters) {
+			character := characters[index]
+			if character != '\\' {
+				if firstSurrogate != 0 {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrSyntaxError)}
+				}
+				output = output + string(langruntime.CheckedChar(character))
+				index = langruntime.CheckedAdd(index, 1)
+			} else if langruntime.CheckedAdd(index, 1) < len(characters) && characters[langruntime.CheckedAdd(index, 1)] == '\\' {
+				if firstSurrogate != 0 {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrSyntaxError)}
+				}
+				output = output + string(langruntime.CheckedChar('\\'))
+				index = langruntime.CheckedAdd(index, 2)
+			} else {
+				offset := 1
+				width := 4
+				if langruntime.CheckedAdd(index, 1) < len(characters) {
+					prefix := characters[langruntime.CheckedAdd(index, 1)]
+					if prefix == 'u' {
+						offset = langruntime.CheckedIndex(2)
+					} else if prefix == '+' {
+						offset = langruntime.CheckedIndex(2)
+						width = langruntime.CheckedIndex(6)
+					} else if prefix == 'U' {
+						offset = langruntime.CheckedIndex(2)
+						width = langruntime.CheckedIndex(8)
+					}
+				}
+				if langruntime.CheckedAdd(langruntime.CheckedAdd(index, offset), width) > len(characters) {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrSyntaxError)}
+				}
+				decoded := int64(0)
+				position := 0
+				for position < width {
+					digit := checkruntime.HexDigit(characters[langruntime.CheckedAdd(langruntime.CheckedAdd(index, offset), position)])
+					if digit > 15 {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrSyntaxError)}
+					}
+					widenedDigit := int64(langruntime.CheckedI32(digit))
+					decoded = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(decoded, int64(16)), widenedDigit)
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				if decoded == int64(0) || decoded > int64(1114111) {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrInvalidCodePoint)}
+				}
+				code := int(int32(decoded))
+				if firstSurrogate != 0 {
+					if code < 56320 || code > 57343 {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrSyntaxError)}
+					}
+					code = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(65536, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(firstSurrogate, 55296)), 1024)), code), 56320))
+					firstSurrogate = langruntime.CheckedI32(0)
+				} else if code >= 56320 && code <= 57343 {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrSyntaxError)}
+				}
+				if code >= 55296 && code <= 56319 {
+					firstSurrogate = langruntime.CheckedI32(code)
+				} else {
+					scalar := langruntime.CharacterFromI32(code, ' ')
+					output = output + string(langruntime.CheckedChar(scalar))
+				}
+				index = langruntime.CheckedIndex(langruntime.CheckedAdd(langruntime.CheckedAdd(index, offset), width))
+			}
+		}
+		if firstSurrogate != 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrSyntaxError)}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
 const textWidthTruncationError = 3452545
 const textWidthAllocationError = 56966976
 

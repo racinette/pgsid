@@ -184,6 +184,9 @@ import them. Keep schema-only helpers with their callables.
   Legacy ASCII conversion maps UTF8 bytes through the requested encoding table;
   it does not transliterate Unicode. Invalid encoding codes return 42704 and
   unsupported encodings, including the database-default UTF8 encoding, return 0A000.
+  Unicode escapes decode four, six or eight hexadecimal digits, combine mixed-form
+  UTF16 surrogate pairs, and preserve plain text without normalization. Malformed
+  escapes or pairs return 42601; zero or out-of-range code points return 22023.
 - Bytea payloads own canonical lowercase hexadecimal strings without a prefix.
   Public adapters convert byte arrays and nested domains; Rust validates hex input.
   Comparison preserves unsigned octet differences and signed-unit prefix order.

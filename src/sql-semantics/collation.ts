@@ -226,13 +226,17 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     implementation.volatility === 'i' &&
     !implementation.returnsSet &&
     ((implementation.args.length === 1 &&
-      ['pg_catalog.text', 'pg_catalog.bpchar'].includes(implementation.args[0]!) &&
-      implementation.result === 'pg_catalog.int4' &&
-      (['char_length', 'character_length', 'length', 'octet_length'].includes(
-        implementation.name,
-      ) ||
-        (implementation.args[0] === 'pg_catalog.text' &&
-          ['textlen', 'bit_length'].includes(implementation.name)))) ||
+      implementation.args[0] === 'pg_catalog.text' &&
+      implementation.result === 'pg_catalog.text' &&
+      implementation.name === 'unistr') ||
+      (implementation.args.length === 1 &&
+        ['pg_catalog.text', 'pg_catalog.bpchar'].includes(implementation.args[0]!) &&
+        implementation.result === 'pg_catalog.int4' &&
+        (['char_length', 'character_length', 'length', 'octet_length'].includes(
+          implementation.name,
+        ) ||
+          (implementation.args[0] === 'pg_catalog.text' &&
+            ['textlen', 'bit_length'].includes(implementation.name)))) ||
       ([1, 2].includes(implementation.args.length) &&
         implementation.args.every((type) => type === 'pg_catalog.text') &&
         implementation.result === 'pg_catalog.text' &&
