@@ -1,0 +1,9 @@
+[package]
+name = "pgsid-check-unicode-data"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+syn = { version = "2", features = ["full"] }
+quote = "1"
+serde_json = "1"

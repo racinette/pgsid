@@ -15,24 +15,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
-name = "pgsid-check-evaluator"
-version = "0.0.0"
-dependencies = [
- "pgsid-check-timezone-data",
- "pgsid-check-unicode-data",
- "pgsid-regex-engine",
-]
-
-[[package]]
-name = "pgsid-check-timezone-data"
-version = "0.0.0"
-dependencies = [
- "quote",
- "serde_json",
- "syn 2.0.119",
-]
-
-[[package]]
 name = "pgsid-check-unicode-data"
 version = "0.0.0"
 dependencies = [
@@ -40,10 +22,6 @@ dependencies = [
  "serde_json",
  "syn 2.0.119",
 ]
-
-[[package]]
-name = "pgsid-regex-engine"
-version = "0.0.0"
 
 [[package]]
 name = "proc-macro2"

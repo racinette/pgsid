@@ -9,6 +9,8 @@ pub mod checkruntime {
     include!("bit.rs");
     include!("hash.rs");
     include!("text_builder.rs");
+    include!(concat!(env!("OUT_DIR"), "/unicode-tables.rs"));
+    include!("unicode.rs");
     include!("date.rs");
     include!("timestamp.rs");
     include!("timestamptz.rs");

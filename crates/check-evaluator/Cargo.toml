@@ -11,3 +11,4 @@ pgsid-regex-engine = { path = "../regex-engine" }
 
 [build-dependencies]
 pgsid-check-timezone-data = { path = "../../tools/check-timezone-data" }
+pgsid-check-unicode-data = { path = "../../tools/check-unicode-data" }

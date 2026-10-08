@@ -43,6 +43,16 @@ export function assembleCheckRust(evaluator: {
     })),
   })
   const requiresTimezone = evaluator.callables.some((name) => timezoneCallables.has(name))
+  const unicodeCallables = checkRustCallableNames({
+    ...maintained,
+    modules: maintained.modules.map((module) => ({
+      ...module,
+      files: module.files.filter(
+        (file) => module.name === 'pg_catalog' && /\/text_unicode\.rs$/u.test(file.path),
+      ),
+    })),
+  })
+  const requiresUnicode = evaluator.callables.some((name) => unicodeCallables.has(name))
   const regexCallables = checkRustCallableNames({
     ...maintained,
     modules: maintained.modules.map((module) => ({
@@ -63,6 +73,18 @@ export function assembleCheckRust(evaluator: {
           (name) => requiresRegex || name !== 'regex_engine',
         ),
         files: module.files.filter((file) => {
+          if (
+            module.name === 'checkruntime' &&
+            !requiresUnicode &&
+            /\/unicode(?:_tables)?\.rs$/u.test(file.path)
+          )
+            return false
+          if (
+            module.name === 'pg_catalog' &&
+            !requiresUnicode &&
+            /\/text_unicode\.rs$/u.test(file.path)
+          )
+            return false
           if (
             module.name === 'pg_catalog' &&
             !requiresRegex &&

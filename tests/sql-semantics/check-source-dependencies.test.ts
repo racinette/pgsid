@@ -28,10 +28,21 @@ function fixture(): CheckRustSource {
     (item): item is FunctionMetadata =>
       item.kind === 'function' && item.name === 'regexp_count' && item.args.length === 2,
   )!
+  const normalization = builtinCallables().find(
+    (item): item is FunctionMetadata => item.kind === 'function' && item.name === 'normalize',
+  )!
   return {
     schemaVersion: 1,
     modules: [
-      { name: 'checkruntime', dependencies: [], files: [] },
+      {
+        name: 'checkruntime',
+        dependencies: [],
+        files: [
+          { path: 'runtime/values.rs', source: '' },
+          { path: 'runtime/unicode.rs', source: '' },
+          { path: 'generated/unicode_tables.rs', source: '' },
+        ],
+      },
       {
         name: 'regex_engine',
         dependencies: [],
@@ -55,6 +66,10 @@ function fixture(): CheckRustSource {
             source: 'const ZONES: &[i32] = &[0];',
           },
           { path: 'operations/pg_catalog/integer.rs', source: 'fn integer_helper() {}' },
+          {
+            path: 'operations/pg_catalog/text_unicode.rs',
+            source: `pub fn ${normalization.rustName}() {}`,
+          },
           { path: 'operations/pg_catalog/regex.rs', source: `pub fn ${regex.rustName}() {}` },
           { path: 'operations/pg_catalog/regex_count.rs', source: `pub fn ${count.rustName}() {}` },
         ],
@@ -72,7 +87,9 @@ describe('CHECK operation source dependencies', () => {
       if (!name) continue
       const assembled = assembleCheckRust({ source: '', callables: [name] })
       expect(assembled.modules.find((module) => module.name === 'pg_catalog')?.files).toEqual(
-        source.modules[2]!.files.filter((file) => !file.path.includes('/regex')),
+        source.modules[2]!.files.filter(
+          (file) => !file.path.includes('/regex') && !file.path.includes('/text_unicode'),
+        ),
       )
     }
   })
@@ -81,9 +98,34 @@ describe('CHECK operation source dependencies', () => {
     const assembled = assembleCheckRust({ source: '', callables: [] })
     expect(assembled.modules.find((module) => module.name === 'pg_catalog')?.files).toEqual(
       fixture().modules[2]!.files.filter(
-        (file) => !file.path.includes('/timezone') && !file.path.includes('/regex'),
+        (file) =>
+          !file.path.includes('/timezone') &&
+          !file.path.includes('/regex') &&
+          !file.path.includes('/text_unicode'),
       ),
     )
+  })
+  it('retains shared Unicode tables and helpers only for a Unicode catalog callable', () => {
+    const original = fixture()
+    const operation = original.modules[2]!.files.find((file) =>
+      file.path.endsWith('/text_unicode.rs'),
+    )!
+    const name = /pub fn (sql__[a-z0-9_]+)\(/u.exec(operation.source)![1]!
+    const selected = assembleCheckRust({ source: '', callables: [name] })
+    expect(selected.modules.find((module) => module.name === 'checkruntime')).toEqual(
+      original.modules[0],
+    )
+    expect(
+      selected.modules
+        .find((module) => module.name === 'pg_catalog')!
+        .files.map((file) => file.path),
+    ).toEqual(['operations/pg_catalog/integer.rs', 'operations/pg_catalog/text_unicode.rs'])
+    const unrelated = assembleCheckRust({ source: '', callables: [] })
+    expect(
+      unrelated.modules
+        .find((module) => module.name === 'checkruntime')!
+        .files.map((file) => file.path),
+    ).toEqual(['runtime/values.rs'])
   })
   it('retains the regex engine and every regex source file for a callable owned by that group', () => {
     const source = fixture()

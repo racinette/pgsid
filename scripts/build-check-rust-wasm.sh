@@ -4,6 +4,7 @@ set -euo pipefail
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 asset_dir="$repo_dir/src/codegen/go/assets"
 bash "$repo_dir/scripts/generate-check-timezone-data.sh"
+bash "$repo_dir/scripts/generate-check-unicode-data.sh"
 target_dir=/tmp/pgsid-check-rust-transpiler-target
 wasm_lib_dir=$(rustc --print target-libdir --target wasm32-unknown-unknown)
 
@@ -18,9 +19,9 @@ cp "$target_dir/wasm32-unknown-unknown/release/pgsid_check_transpiler.wasm" \
   "$asset_dir/check-rust-parser.wasm"
 bash "$repo_dir/scripts/build-tinygo-wasm.sh" \
   "$repo_dir/tools/check-transpiler/go/wasm" "$asset_dir/check-go-transpiler.wasm"
-node --input-type=module - "$repo_dir" "$asset_dir" /tmp/pgsid-check-timezone-data/tables.rs <<'JS'
+node --input-type=module - "$repo_dir" "$asset_dir" /tmp/pgsid-check-timezone-data/tables.rs /tmp/pgsid-check-unicode-data/tables.rs <<'JS'
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
-const [repo, assets, timezoneTables] = process.argv.slice(2)
+const [repo, assets, timezoneTables, unicodeTables] = process.argv.slice(2)
 const read = path => ({ path, source: readFileSync(`${repo}/${path}`, 'utf8') })
 const schema = 'crates/check-evaluator/src/operations/pg_catalog'
 const files = readdirSync(`${repo}/${schema}`).filter(name => name.endsWith('.rs')).sort()
@@ -37,6 +38,8 @@ writeFileSync(`${assets}/check-rust-sources.json`, JSON.stringify({
       read('crates/check-evaluator/src/bit.rs'),
       read('crates/check-evaluator/src/hash.rs'),
       read('crates/check-evaluator/src/text_builder.rs'),
+      { path: 'generated/unicode_tables.rs', source: readFileSync(unicodeTables, 'utf8') },
+      read('crates/check-evaluator/src/unicode.rs'),
       read('crates/check-evaluator/src/date.rs'),
       read('crates/check-evaluator/src/timestamp.rs'),
       read('crates/check-evaluator/src/timestamptz.rs'),

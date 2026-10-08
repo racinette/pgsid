@@ -5,6 +5,11 @@ fn main() {
     println!("cargo:rerun-if-env-changed=ZIC");
     let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("../..");
     let output = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    println!("cargo:rerun-if-changed=../../vendor/postgresql-unicode");
+    pgsid_check_unicode_data::generate(
+        &root.join("vendor/postgresql-unicode"),
+        &output.join("unicode-tables.rs"),
+    );
     let tzif = output.join("tzif");
     if tzif.exists() {
         std::fs::remove_dir_all(&tzif).unwrap();
