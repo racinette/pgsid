@@ -485,3 +485,127 @@ VALUES ('36', false, 'alphabet', NULL, '3', NULL, NULL, NULL, 'alp', 'bet', 'teb
 -- name: preview_null_width
 INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
 VALUES ('37', false, 'alphabet', '2', NULL, true, NULL, 'lphabet', NULL, NULL, 'tebahpla', 'true');
+
+-- name: label_builders_sample_0
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (1,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_1
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (2,false,'é😊a'::pg_catalog.text,8,'🙂'::pg_catalog.text,'é😊'::pg_catalog.text,'     é😊a'::pg_catalog.text,12,'🙂🙂🙂🙂🙂é😊a'::pg_catalog.text,27,'é😊aé😊aé😊aé😊aé😊aé😊aé😊aé😊a'::pg_catalog.text,56,'é😊a     '::pg_catalog.text,12,'é😊a🙂🙂🙂🙂🙂'::pg_catalog.text,27,'🙂a'::pg_catalog.text,5);
+
+-- name: label_builders_sample_2
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (3,false,'é😊a'::pg_catalog.text,2,'🙂'::pg_catalog.text,'é😊'::pg_catalog.text,'é😊'::pg_catalog.text,6,'é😊'::pg_catalog.text,6,'é😊aé😊a'::pg_catalog.text,14,'é😊'::pg_catalog.text,6,'é😊'::pg_catalog.text,6,'🙂a'::pg_catalog.text,5);
+
+-- name: label_builders_sample_3
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (4,false,'é'::pg_catalog.text,1,'😊'::pg_catalog.text,'e'::pg_catalog.text,'e'::pg_catalog.text,1,'e'::pg_catalog.text,1,'é'::pg_catalog.text,3,'e'::pg_catalog.text,1,'e'::pg_catalog.text,1,'😊́'::pg_catalog.text,6);
+
+-- name: label_builders_sample_4
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (5,false,'abc'::pg_catalog.text,-1,'x'::pg_catalog.text,'abc'::pg_catalog.text,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,'x'::pg_catalog.text,1);
+
+-- name: label_builders_sample_5
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (6,false,'abc'::pg_catalog.text,-2147483648,'x'::pg_catalog.text,'abc'::pg_catalog.text,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,'x'::pg_catalog.text,1);
+
+-- name: label_builders_sample_6
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (7,false,''::pg_catalog.text,7,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'       '::pg_catalog.text,7,'😊😊😊😊😊😊😊'::pg_catalog.text,28,''::pg_catalog.text,0,'       '::pg_catalog.text,7,'😊😊😊😊😊😊😊'::pg_catalog.text,28,''::pg_catalog.text,0);
+
+-- name: label_builders_sample_7
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (8,false,'abc'::pg_catalog.text,7,''::pg_catalog.text,'abc'::pg_catalog.text,'    abc'::pg_catalog.text,7,'abc'::pg_catalog.text,3,'abcabcabcabcabcabcabc'::pg_catalog.text,21,'abc    '::pg_catalog.text,7,'abc'::pg_catalog.text,3,''::pg_catalog.text,0);
+
+-- name: label_builders_sample_8
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (9,false,'abc'::pg_catalog.text,0,'x'::pg_catalog.text,'abc'::pg_catalog.text,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,'x'::pg_catalog.text,1);
+
+-- name: label_builders_sample_9
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (10,false,'aab'::pg_catalog.text,7,'XYZ'::pg_catalog.text,'aab'::pg_catalog.text,'    aab'::pg_catalog.text,7,'XYZXaab'::pg_catalog.text,7,'aabaabaabaabaabaabaab'::pg_catalog.text,21,'aab    '::pg_catalog.text,7,'aabXYZX'::pg_catalog.text,7,'XXZ'::pg_catalog.text,3);
+
+-- name: label_builders_sample_10
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (11,false,'abcabc'::pg_catalog.text,3,'😊x'::pg_catalog.text,'ab'::pg_catalog.text,'abc'::pg_catalog.text,3,'abc'::pg_catalog.text,3,'abcabcabcabcabcabc'::pg_catalog.text,18,'abc'::pg_catalog.text,3,'abc'::pg_catalog.text,3,'😊xc😊xc'::pg_catalog.text,12);
+
+-- name: label_builders_sample_11
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (12,false,'α😊α'::pg_catalog.text,3,'🙂'::pg_catalog.text,'α😊'::pg_catalog.text,'α😊α'::pg_catalog.text,8,'α😊α'::pg_catalog.text,8,'α😊αα😊αα😊α'::pg_catalog.text,24,'α😊α'::pg_catalog.text,8,'α😊α'::pg_catalog.text,8,'🙂🙂'::pg_catalog.text,8);
+
+-- name: label_builders_sample_12
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (13,false,NULL,3,'x'::pg_catalog.text,'ab'::pg_catalog.text,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+
+-- name: label_builders_sample_13
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (14,false,'abc'::pg_catalog.text,NULL,'x'::pg_catalog.text,'ab'::pg_catalog.text,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'xc'::pg_catalog.text,2);
+
+-- name: label_builders_sample_14
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (15,false,'abc'::pg_catalog.text,3,'x'::pg_catalog.text,NULL,'abc'::pg_catalog.text,3,'abc'::pg_catalog.text,3,'abcabcabc'::pg_catalog.text,9,'abc'::pg_catalog.text,3,'abc'::pg_catalog.text,3,NULL,NULL);
+
+-- name: label_builders_sample_15
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (16,false,'abc'::pg_catalog.text,3,NULL,'ab'::pg_catalog.text,'abc'::pg_catalog.text,3,NULL,NULL,'abcabcabc'::pg_catalog.text,9,'abc'::pg_catalog.text,3,NULL,NULL,NULL,NULL);
+
+-- name: label_builders_sample_16
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (17,false,'😊'::pg_catalog.text,268435455,'x'::pg_catalog.text,'a'::pg_catalog.text,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,'😊'::pg_catalog.text,4);
+
+-- name: label_builders_sample_17
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (18,false,'😊'::pg_catalog.text,2147483647,'x'::pg_catalog.text,'a'::pg_catalog.text,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,''::pg_catalog.text,0,'😊'::pg_catalog.text,4);
+
+-- name: label_builders_sample_18
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (19,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc!'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_19
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (20,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc!'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_20
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (21,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc!'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_21
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (22,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     !'::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_22
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (23,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊!'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_23
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (24,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c!'::pg_catalog.text,5);
+
+-- name: label_builders_sample_24
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (25,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,-1,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_25
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (26,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,-1,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_26
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (27,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,-1,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_27
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (28,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,-1,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_28
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (29,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,-1,'😊c'::pg_catalog.text,5);
+
+-- name: label_builders_sample_29
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (30,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,-1);
+
+-- name: label_builders_skipped_error
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (31,true,'abc'::pg_catalog.text,2147483647,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);

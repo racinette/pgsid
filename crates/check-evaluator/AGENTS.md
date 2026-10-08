@@ -35,7 +35,7 @@ import them. Keep schema-only helpers with their callables.
   `pnpm check-rust:check` from the repository root.
 - Text equality and hashing accept deterministic collations; bpchar hashes remove trailing spaces.
   Ordering requires C and follows UTF8 byte order after resolving collation identity and overrides.
-  Lengths, trims, slicing, pattern and index comparisons ignore collation; explicit conflicts defer.
+  Lengths, trims, slicing, padding, repeats, translation, pattern and index comparisons ignore collation; explicit conflicts defer.
   C lower/upper/casefold use ASCII casing; initcap treats only ASCII letters/digits as word characters.
 - Varchar values share owned text; binary relabels preserve their contents.
   Char comparisons use the same wrapper and ignore only trailing ASCII spaces.

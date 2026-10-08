@@ -23,3 +23,6 @@ VALUES ('1', false, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '533
 
 INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
 VALUES ('1', false, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'alp', 'bet', 'tebahpla', 'true');
+
+INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
+VALUES (100000,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);

@@ -1476,6 +1476,7 @@ describe('world CHECK INSERT parity', () => {
       ['label_casing_records', 4],
       ['label_fingerprints', 6],
       ['label_previews', 8],
+      ['label_builder_records', 12],
     ] as const) {
       const prefix = `world_013_label_registry.${table}.`
       const constraints = [...coverage.values()].filter((item) =>
@@ -1486,6 +1487,12 @@ describe('world CHECK INSERT parity', () => {
         for (const kind of ['true', 'false', 'null'] as const)
           expect(measured[kind], measured.constraint).toBeGreaterThan(0)
         expect(measured.unknown, measured.constraint).toBe(0)
+      }
+    }
+    for (const name of ['lpad_2', 'lpad_3', 'rpad_2', 'rpad_3', 'repeat_2']) {
+      for (const output of ['value', 'octets']) {
+        const identity = `world_013_label_registry.label_builder_records.${name}_${output}`
+        expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
       }
     }
     for (const [table, count] of [

@@ -198,3 +198,36 @@ CREATE TABLE label_previews (
   CONSTRAINT label_reverse_preview CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.reverse(label) = recorded_reverse END),
   CONSTRAINT label_active_preview CHECK (CASE WHEN suppress_invalid THEN true ELSE active::text = recorded_active END)
 );
+
+CREATE TABLE label_builder_records (
+ id integer PRIMARY KEY,
+ suppress_invalid boolean NOT NULL DEFAULT false,
+ arg0_text pg_catalog.text,
+ arg1_int4 pg_catalog.int4,
+ arg2_text pg_catalog.text,
+ arg1_text pg_catalog.text,
+ recorded_lpad_2 pg_catalog.text,
+ recorded_lpad_2_octets pg_catalog.int4,
+ recorded_lpad_3 pg_catalog.text,
+ recorded_lpad_3_octets pg_catalog.int4,
+ recorded_repeat_2 pg_catalog.text,
+ recorded_repeat_2_octets pg_catalog.int4,
+ recorded_rpad_2 pg_catalog.text,
+ recorded_rpad_2_octets pg_catalog.int4,
+ recorded_rpad_3 pg_catalog.text,
+ recorded_rpad_3_octets pg_catalog.int4,
+ recorded_translate_3 pg_catalog.text,
+ recorded_translate_3_octets pg_catalog.int4,
+ CONSTRAINT lpad_2_value CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.lpad(arg0_text,arg1_int4) = recorded_lpad_2 END),
+ CONSTRAINT lpad_2_octets CHECK (CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.lpad(arg0_text,arg1_int4)) = recorded_lpad_2_octets END),
+ CONSTRAINT lpad_3_value CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.lpad(arg0_text,arg1_int4,arg2_text) = recorded_lpad_3 END),
+ CONSTRAINT lpad_3_octets CHECK (CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.lpad(arg0_text,arg1_int4,arg2_text)) = recorded_lpad_3_octets END),
+ CONSTRAINT repeat_2_value CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.repeat(arg0_text,arg1_int4) = recorded_repeat_2 END),
+ CONSTRAINT repeat_2_octets CHECK (CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.repeat(arg0_text,arg1_int4)) = recorded_repeat_2_octets END),
+ CONSTRAINT rpad_2_value CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.rpad(arg0_text,arg1_int4) = recorded_rpad_2 END),
+ CONSTRAINT rpad_2_octets CHECK (CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.rpad(arg0_text,arg1_int4)) = recorded_rpad_2_octets END),
+ CONSTRAINT rpad_3_value CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.rpad(arg0_text,arg1_int4,arg2_text) = recorded_rpad_3 END),
+ CONSTRAINT rpad_3_octets CHECK (CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.rpad(arg0_text,arg1_int4,arg2_text)) = recorded_rpad_3_octets END),
+ CONSTRAINT translate_3_value CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.translate(arg0_text,arg1_text,arg2_text) = recorded_translate_3 END),
+ CONSTRAINT translate_3_octets CHECK (CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.translate(arg0_text,arg1_text,arg2_text)) = recorded_translate_3_octets END)
+);
