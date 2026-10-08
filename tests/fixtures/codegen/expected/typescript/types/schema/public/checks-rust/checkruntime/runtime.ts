@@ -3151,3 +3151,17 @@ export function caseGuardStops(value: CheckOutcome): boolean {
 export function caseGuardTakes(value: CheckOutcome): boolean {
     return equalCheckOutcome(value, { kind: "True" });
 }
+export function constantFinish(left: CheckOutcome, right: CheckOutcome): CheckOutcome {
+    if (left.kind === "Error") {
+        const error: SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCheckOutcome(left, { kind: "Unknown" }) || equalCheckOutcome(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "True" };
+}

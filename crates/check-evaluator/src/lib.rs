@@ -13,6 +13,25 @@ pub mod checkruntime {
     include!("timestamp.rs");
     include!("timestamptz.rs");
     include!("logic.rs");
+    include!("constants.rs");
+
+    #[cfg(test)]
+    mod constant_tests {
+        use super::*;
+
+        #[test]
+        fn preparation_preserves_errors_before_unknown_and_ignores_known_values() {
+            let first = CheckOutcome::Error(make_sql_error(3452547));
+            let second = CheckOutcome::Error(make_sql_error(3452582));
+            assert!(constant_finish(CheckOutcome::False, CheckOutcome::Null) == CheckOutcome::True);
+            assert!(
+                constant_finish(CheckOutcome::Unknown, CheckOutcome::True) == CheckOutcome::Unknown
+            );
+            assert!(constant_finish(CheckOutcome::Unknown, first) == first);
+            assert!(constant_finish(first, CheckOutcome::Unknown) == first);
+            assert!(constant_finish(first, second) == first);
+        }
+    }
 }
 
 pub use checkruntime::*;
