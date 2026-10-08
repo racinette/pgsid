@@ -508,3 +508,17 @@ CREATE TABLE label_default_ascii_exports (
     CASE WHEN suppress_invalid THEN true ELSE pg_catalog.to_ascii(label) COLLATE "C" = ascii_label END
   )
 );
+
+CREATE TABLE label_unicode_escapes (
+  id integer PRIMARY KEY,
+  escaped_label text,
+  printed_label text COLLATE "C",
+  printed_octets integer,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  CONSTRAINT unicode_escape_label CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE pg_catalog.unistr(escaped_label) COLLATE "C" = printed_label END
+  ),
+  CONSTRAINT unicode_escape_octets CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.unistr(escaped_label)) = printed_octets END
+  )
+);

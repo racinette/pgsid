@@ -2229,3 +2229,54 @@ INSERT INTO label_default_ascii_exports (id, label, ascii_label, suppress_invali
 INSERT INTO label_default_ascii_exports (id, label, ascii_label, suppress_invalid) VALUES (2, '', '', false);
 -- name: ascii_default_skips_conversion
 INSERT INTO label_default_ascii_exports (id, label, ascii_label, suppress_invalid) VALUES (2, 'é😊', 'ignored', true);
+
+-- name: unicode_escape_plain_four_digits
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\0041', 'A', 1, false);
+-- name: unicode_escape_lowercase_prefix
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\u00e9', 'é', 2, false);
+-- name: unicode_escape_six_digits
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\+01F60A', '😊', 4, false);
+-- name: unicode_escape_eight_digits
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\U0001F60A', '😊', 4, false);
+-- name: unicode_escape_mixed_surrogate_pair
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\D83D\U0000DE0A', '😊', 4, false);
+-- name: unicode_escape_last_scalar
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\DBFF\DFFF', '􏿿', 4, false);
+-- name: unicode_escape_doubled_backslash
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, 'path\\file', 'path\file', 9, false);
+-- name: unicode_escape_literal_backslash_prefix
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\\u0041', '\u0041', 6, false);
+-- name: unicode_escape_plain_multibyte_text
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '日\u0041😊', '日A😊', 8, false);
+-- name: unicode_escape_empty_label
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '', '', 0, false);
+-- name: unicode_escape_preserves_decomposition
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\u0041\u0301', 'Á', 3, false);
+-- name: unicode_escape_rejects_different_label
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\u0041', 'B', 1, false);
+-- name: unicode_escape_rejects_different_octets
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\u00E9', 'é', 1, false);
+-- name: unicode_escape_rejects_normalized_label
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\u0041\u0301', 'Á', 3, false);
+-- name: unicode_escape_short_digits
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\u123', NULL, NULL, false);
+-- name: unicode_escape_missing_second_surrogate
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\D800', NULL, NULL, false);
+-- name: unicode_escape_unpaired_low_surrogate
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\DC00', NULL, NULL, false);
+-- name: unicode_escape_null_code_point
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\u0000', NULL, NULL, false);
+-- name: unicode_escape_exceeds_scalar_range
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\U00110000', NULL, NULL, false);
+-- name: unicode_escape_full_unsigned_range
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\UFFFFFFFF', NULL, NULL, false);
+-- name: unicode_escape_nonhex_after_large_digits
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\UFFFFFFFG', NULL, NULL, false);
+-- name: unicode_escape_pending_surrogate_null_code_point
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\D800\u0000', NULL, NULL, false);
+-- name: unicode_escape_null_input
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, NULL, 'ignored', 9, false);
+-- name: unicode_escape_skip_syntax_error
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\D800', 'ignored', 0, true);
+-- name: unicode_escape_skip_code_point_error
+INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\UFFFFFFFF', 'ignored', 0, true);

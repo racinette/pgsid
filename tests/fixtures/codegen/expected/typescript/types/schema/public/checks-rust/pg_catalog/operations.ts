@@ -15338,6 +15338,103 @@ export function rtrimT07s(value: checkruntime.TextValue): checkruntime.TextValue
 export function rtrimG9ee(value: checkruntime.TextValue, set: checkruntime.TextValue): checkruntime.TextValue {
     return textTrimValue(value, set, false, true);
 }
+const unistrSyntaxError = 6819553;
+const unistrInvalidCodePoint = 3452619;
+export function unistrN58m(input: checkruntime.TextValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let output: string = "";
+        let index: number = 0;
+        let firstSurrogate: number = 0;
+        while (index < characters.length) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+            if (!(character === "\\")) {
+                if (!(firstSurrogate === 0)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(unistrSyntaxError) };
+                }
+                output = output + langruntime.checkedChar(character);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else if (langruntime.checkedAdd(index, 1) < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))) === "\\") {
+                if (!(firstSurrogate === 0)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(unistrSyntaxError) };
+                }
+                output = output + langruntime.checkedChar("\\");
+                index = langruntime.checkedAdd(index, 2);
+            }
+            else {
+                let offset: number = 1;
+                let width: number = 4;
+                if (langruntime.checkedAdd(index, 1) < characters.length) {
+                    const prefix: string = langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)));
+                    if (prefix === "u") {
+                        offset = langruntime.checkedIndex(2);
+                    }
+                    else if (prefix === "+") {
+                        offset = langruntime.checkedIndex(2);
+                        width = langruntime.checkedIndex(6);
+                    }
+                    else if (prefix === "U") {
+                        offset = langruntime.checkedIndex(2);
+                        width = langruntime.checkedIndex(8);
+                    }
+                }
+                if (langruntime.checkedAdd(langruntime.checkedAdd(index, offset), width) > characters.length) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(unistrSyntaxError) };
+                }
+                let decoded: bigint = 0n;
+                let position: number = 0;
+                while (position < width) {
+                    const digit: number = checkruntime.hexDigit(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(langruntime.checkedAdd(index, offset), position))));
+                    if (digit > 15) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(unistrSyntaxError) };
+                    }
+                    const widenedDigit: bigint = BigInt(langruntime.checkedI32(digit));
+                    decoded = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(decoded, 16n), widenedDigit));
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                if (decoded === 0n || decoded > 1114111n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(unistrInvalidCodePoint) };
+                }
+                let code: number = Number(BigInt.asIntN(32, langruntime.checkedI64(decoded)));
+                if (!(firstSurrogate === 0)) {
+                    if (code < 56320 || code > 57343) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(unistrSyntaxError) };
+                    }
+                    code = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(65536, langruntime.checkedSignedMultiply((langruntime.checkedSignedSubtract(firstSurrogate, 55296)), 1024)), code), 56320));
+                    firstSurrogate = langruntime.checkedI32(0);
+                }
+                else if (code >= 56320 && code <= 57343) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(unistrSyntaxError) };
+                }
+                if (code >= 55296 && code <= 56319) {
+                    firstSurrogate = langruntime.checkedI32(code);
+                }
+                else {
+                    const scalar: string = langruntime.characterFromI32(code, " ");
+                    output = output + langruntime.checkedChar(scalar);
+                }
+                index = langruntime.checkedIndex(langruntime.checkedAdd(langruntime.checkedAdd(index, offset), width));
+            }
+        }
+        if (!(firstSurrogate === 0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(unistrSyntaxError) };
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 const textWidthTruncationError = 3452545;
 const textWidthAllocationError = 56966976;
 function textWidthValue(input: checkruntime.TextValue, modifier: checkruntime.Int4Value, explicit: checkruntime.BoolValue, fixed: boolean): checkruntime.TextValue {
