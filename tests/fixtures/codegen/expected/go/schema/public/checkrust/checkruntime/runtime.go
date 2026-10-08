@@ -3044,3 +3044,17 @@ func CaseGuardStops(value CheckOutcome) bool {
 func CaseGuardTakes(value CheckOutcome) bool {
 	return value == (CheckOutcome{Kind: CheckOutcomeTrue})
 }
+func ConstantFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
+	if left.Kind == CheckOutcomeError {
+		error := left.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if right.Kind == CheckOutcomeError {
+		error := right.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if left == (CheckOutcome{Kind: CheckOutcomeUnknown}) || right == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return CheckOutcome{Kind: CheckOutcomeUnknown}
+	}
+	return CheckOutcome{Kind: CheckOutcomeTrue}
+}

@@ -5,6 +5,12 @@ import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
 import { rustStringLiteral } from './rust-literals.js'
 import {
+  constantCheckExpression,
+  constantScalarExpression,
+  strictNullPreparation,
+  type ConstantPreparation,
+} from './check-rust-constants.js'
+import {
   enumType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
@@ -61,6 +67,55 @@ export function emitCheckRustEvaluator(
   const entryName = identity ? checkRustEntryName(identity) : 'evaluate_check'
   const fresh = (prefix: string): string => `${prefix}_${next++}`
   const indent = (lines: readonly string[]): string[] => lines.map((line) => `    ${line}`)
+  const constantDeclarations: string[] = []
+  const constantLines: string[] = []
+  let preparationLines = constantLines
+  const preparationState = 'constant_preparation'
+  let preparationDepth = 0
+  const capturePreparation = <T>(emit: () => T): { value: T; lines: string[] } => {
+    const outer = preparationLines
+    const lines: string[] = []
+    preparationLines = lines
+    try {
+      return { value: emit(), lines }
+    } finally {
+      preparationLines = outer
+    }
+  }
+  const preparedGuard = (lines: readonly string[], name: string): string => {
+    const guard = fresh('prepared_guard')
+    constantDeclarations.push(`let mut ${guard}: CheckOutcome = check_unknown();`)
+    preparationLines.push(
+      ...lines,
+      `${guard} = ${name};`,
+      `${preparationState} = constant_finish(${preparationState}, ${guard});`,
+    )
+    return guard
+  }
+  const prepareBranches = (
+    constant: boolean,
+    lines: readonly string[],
+    guardName: string,
+    selected: readonly string[],
+    otherwise: readonly string[],
+  ): string | null => {
+    if (!selected.length && !otherwise.length) return null
+    if (!constant) {
+      preparationLines.push(...selected, ...otherwise)
+      return null
+    }
+    const guard = preparedGuard(lines, guardName)
+    preparationLines.push(
+      `if case_guard_stops(${guard}) == false {`,
+      `    if case_guard_takes(${guard}) {`,
+      ...indent(indent(selected)),
+      '    } else {',
+      ...indent(indent(otherwise)),
+      '    };',
+      '};',
+    )
+    return guard
+  }
   const input = (
     name: string,
     type: string,
@@ -112,6 +167,24 @@ export function emitCheckRustEvaluator(
     bindings: string[],
     used: Set<string>,
   ): { name: string; type: string } => {
+    const value = emitScalarInner(node, bindings, used)
+    if (preparationDepth > 0) {
+      const prefix = rustType(value.type).slice(0, -'Value'.length).toLowerCase()
+      const nullness = fresh('prepared_value_nullness')
+      const state = fresh('prepared_value_state')
+      bindings.push(
+        `let ${nullness} = ${prefix}_is_null(${ownedOperand(value)});`,
+        `let ${state} = check_from_bool(${nullness});`,
+        `${preparationState} = constant_finish(${preparationState}, ${state});`,
+      )
+    }
+    return value
+  }
+  const emitScalarInner = (
+    node: EvalExpression,
+    bindings: string[],
+    used: Set<string>,
+  ): { name: string; type: string } => {
     const bind = (call: string): string => {
       const name = fresh('value')
       bindings.push(`let ${name} = ${call};`)
@@ -121,6 +194,7 @@ export function emitCheckRustEvaluator(
       call: Extract<EvalExpression, { kind: 'call' }>['call'],
       operands: readonly { name: string; type: string }[],
       destination = bindings,
+      folded?: { name: string; type: string },
     ): { name: string; type: string } => {
       if (call.kind === 'cast' && call.signature === null) {
         if (
@@ -135,7 +209,7 @@ export function emitCheckRustEvaluator(
             ))
         )
           throw new UnsupportedCheckRustExpression('Invalid Rust CHECK relabel cast')
-        return { ...operands[0]!, type: call.type }
+        return folded ?? { ...operands[0]!, type: call.type }
       }
       if (call.signature === null)
         throw new UnsupportedCheckRustExpression('Unsupported Rust CHECK callable kind')
@@ -191,6 +265,7 @@ export function emitCheckRustEvaluator(
           `Unsupported Rust CHECK callable arguments: ${call.signature}`,
         )
       for (const operand of operands) rustType(operand.type)
+      if (folded) return folded
       callables.add(implementation.rustName)
       const name = fresh('value')
       destination.push(
@@ -457,11 +532,91 @@ export function emitCheckRustEvaluator(
         type: 'pg_catalog.bool',
       }
     }
-    if (node.kind === 'call')
+    if (node.kind === 'call') {
+      const preparation = strictNullPreparation(node)
+      if (preparation) {
+        const kind = rustType(node.call.type)
+        const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+        const guard = fresh('constant_guard')
+        const initial = fresh('constant_start')
+        preparationLines.push(`let ${initial} = make_bool_value(true);`)
+        preparationLines.push(`let mut ${guard}: CheckOutcome = check_from_bool(${initial});`)
+        const prepareExpression = (step: ConstantPreparation): void => {
+          let value: { name: string; type: string }
+          preparationDepth++
+          try {
+            value = emitScalar(step.expression, preparationLines, used)
+          } finally {
+            preparationDepth--
+          }
+          const operandPrefix = rustType(value.type).slice(0, -'Value'.length).toLowerCase()
+          const state = fresh('constant_state')
+          if (step.kind === 'value' || step.test === 'null') {
+            const nullness = fresh('constant_nullness')
+            preparationLines.push(
+              `let ${nullness} = ${operandPrefix}_is_null(${ownedOperand(value)});`,
+              `let ${state} = check_from_bool(${nullness});`,
+            )
+          } else {
+            if (value.type !== 'pg_catalog.bool')
+              throw new UnsupportedCheckRustExpression(
+                'Constant preparation guard must return bool',
+              )
+            preparationLines.push(`let ${state} = check_from_bool(${value.name});`)
+          }
+          preparationLines.push(`${guard} = constant_finish(${guard}, ${state});`)
+          if (step.kind === 'guard') {
+            const selected = capturePreparation(() => step.selected.forEach(prepareExpression))
+            const otherwise = capturePreparation(() => step.otherwise.forEach(prepareExpression))
+            const condition =
+              step.test === 'and'
+                ? `and_stops(${state}) == false`
+                : step.test === 'or'
+                  ? `or_stops(${state}) == false`
+                  : `case_guard_takes(${state})`
+            preparationLines.push(
+              `if case_guard_stops(${state}) == false {`,
+              `    if ${condition} {`,
+              ...indent(indent(selected.lines)),
+              '    } else {',
+              ...indent(indent(otherwise.lines)),
+              '    };',
+              '};',
+            )
+          }
+        }
+        preparation.forEach(prepareExpression)
+        const name = fresh('constant_null')
+        constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
+        preparationLines.push(
+          `${name} = ${prefix}_null();`,
+          `if case_guard_stops(${guard}) {`,
+          `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${guard});`,
+          '};',
+          `${preparationState} = constant_finish(${preparationState}, ${guard});`,
+        )
+        return emitCall(
+          node.call,
+          node.operands.map((operand) => ({
+            name: 'constant_operand',
+            type:
+              operand.kind === 'certain'
+                ? operand.expression.type
+                : operand.kind === 'call'
+                  ? operand.call.type
+                  : operand.kind === 'regex-count'
+                    ? 'pg_catalog.int4'
+                    : operand.type,
+          })),
+          bindings,
+          { name, type: node.call.type },
+        )
+      }
       return emitCall(
         node.call,
         node.operands.map((operand) => emitScalar(operand, bindings, used)),
       )
+    }
     if (node.kind === 'boolean-logic') {
       const outcome = emit({
         kind: 'eval-boolean-logic',
@@ -516,25 +671,53 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression('Expected a COALESCE argument')
       const kind = rustType(node.type)
       const prefix = kind.slice(0, -'Value'.length).toLowerCase()
-      const first = emitScalar(node.operands[0]!, bindings, used)
-      if (first.type !== node.type)
-        throw new UnsupportedCheckRustExpression('COALESCE argument type mismatch')
+      const operands = node.operands.map((operand) => {
+        const lines: string[] = []
+        const prepared = capturePreparation(() => emitScalar(operand, lines, used))
+        if (prepared.value.type !== node.type)
+          throw new UnsupportedCheckRustExpression('COALESCE argument type mismatch')
+        return { value: prepared.value, lines, preparation: prepared.lines }
+      })
+      const prepareOperand = (position: number): string[] => {
+        if (position === operands.length) return []
+        const operand = operands[position]!
+        const rest = prepareOperand(position + 1)
+        if (!rest.length || !constantScalarExpression(node.operands[position]!))
+          return [...operand.preparation, ...rest]
+        const name = fresh('prepared_coalesce')
+        constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
+        const nullness = fresh('prepared_nullness')
+        const guard = fresh('prepared_null_guard')
+        const lines = [
+          ...operand.preparation,
+          ...operand.lines,
+          `${name} = ${ownedOperand(operand.value)};`,
+          `let ${nullness} = ${prefix}_is_null(${ownedOperand({ name, type: node.type })});`,
+          `let ${guard} = check_from_bool(${nullness});`,
+          `${preparationState} = constant_finish(${preparationState}, ${guard});`,
+          `if case_guard_takes(${guard}) {`,
+          ...indent(rest),
+          '};',
+        ]
+        operand.value = { name, type: node.type }
+        operand.lines = []
+        return lines
+      }
+      preparationLines.push(...prepareOperand(0))
+      const first = operands[0]!.value
+      bindings.push(...operands[0]!.lines)
       if (node.operands.length === 1) return first
       const name = fresh('coalesce_result')
       bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
-      for (const operand of node.operands.slice(1)) {
+      for (const operand of operands.slice(1)) {
         const nullness = bind(
           `${prefix}_is_null(${['TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(kind) ? `${name}.clone()` : name})`,
         )
         const guard = bind(`check_from_bool(${nullness})`)
-        const lines: string[] = []
-        const selected = emitScalar(operand, lines, used)
-        if (selected.type !== node.type)
-          throw new UnsupportedCheckRustExpression('COALESCE argument type mismatch')
         bindings.push(
           `if case_guard_takes(${guard}) {`,
-          ...indent(lines),
-          `    ${name} = ${ownedOperand(selected)};`,
+          ...indent(operand.lines),
+          `    ${name} = ${ownedOperand(operand.value)};`,
           '}',
         )
       }
@@ -544,8 +727,9 @@ export function emitCheckRustEvaluator(
       if (!node.branches.length) throw new UnsupportedCheckRustExpression('Expected a CASE branch')
       const kind = rustType(node.type)
       const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const scrutineeLines: string[] = []
       const scrutinee = node.scrutinee
-        ? emitScalar(node.scrutinee.expression, bindings, used)
+        ? emitScalar(node.scrutinee.expression, scrutineeLines, used)
         : null
       const name = fresh('case_result')
       bindings.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
@@ -569,22 +753,44 @@ export function emitCheckRustEvaluator(
         const guard = fresh('case_guard')
         lines.push(`let ${guard} = check_from_bool(${condition.name});`)
         const selectedLines: string[] = []
-        const selected = emitScalar(branch.then, selectedLines, used)
+        const selectedPreparation = capturePreparation(() =>
+          emitScalar(branch.then, selectedLines, used),
+        )
+        const selected = selectedPreparation.value
         if (selected.type !== node.type)
           throw new UnsupportedCheckRustExpression('CASE result type mismatch')
+        const otherwise = capturePreparation(() => branchLines(position + 1))
+        const prepared = prepareBranches(
+          constantScalarExpression(branch.when) &&
+            (!node.scrutinee || constantScalarExpression(node.scrutinee.expression)),
+          lines,
+          guard,
+          selectedPreparation.lines,
+          otherwise.lines,
+        )
+        const conditionGuard = prepared ?? guard
         return [
-          ...lines,
-          `if case_guard_stops(${guard}) {`,
-          `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${guard});`,
-          `} else if case_guard_takes(${guard}) {`,
+          ...(prepared ? [] : lines),
+          `if case_guard_stops(${conditionGuard}) {`,
+          `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${conditionGuard});`,
+          `} else if case_guard_takes(${conditionGuard}) {`,
           ...indent(selectedLines),
           `    ${name} = ${ownedOperand(selected)};`,
           '} else {',
-          ...indent(branchLines(position + 1)),
+          ...indent(otherwise.value),
           '};',
         ]
       }
-      bindings.push(...branchLines(0))
+      const branches = capturePreparation(() => branchLines(0))
+      if (
+        branches.lines.length &&
+        node.scrutinee &&
+        constantScalarExpression(node.scrutinee.expression)
+      )
+        preparationLines.push(...scrutineeLines)
+      else bindings.push(...scrutineeLines)
+      preparationLines.push(...branches.lines)
+      bindings.push(...branches.value)
       return { name, type: node.type }
     }
     throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK scalar: ${node.kind}`)
@@ -608,16 +814,30 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression('Expected binary Boolean operation')
       const left = emit(node.operands[0]!)
       const name = fresh(node.operation === 'and' ? 'and_result' : 'or_result')
-      const right = emit(node.operands[1]!)
+      const rightPreparation = capturePreparation(() => emit(node.operands[1]!))
+      const right = rightPreparation.value
       const stop = node.operation === 'and' ? 'and_stops' : 'or_stops'
       const finish = node.operation === 'and' ? 'and_finish' : 'or_finish'
+      let leftName = left.name
+      let leftLines = left.lines
+      if (rightPreparation.lines.length && constantCheckExpression(node.operands[0]!)) {
+        leftName = preparedGuard(left.lines, left.name)
+        leftLines = []
+        preparationLines.push(
+          `if case_guard_stops(${leftName}) == false {`,
+          `    if ${stop}(${leftName}) == false {`,
+          ...indent(indent(rightPreparation.lines)),
+          '    };',
+          '};',
+        )
+      } else preparationLines.push(...rightPreparation.lines)
       return {
         lines: [
-          ...left.lines,
-          `let mut ${name}: CheckOutcome = ${left.name};`,
-          `if ${stop}(${left.name}) == false {`,
+          ...leftLines,
+          `let mut ${name}: CheckOutcome = ${leftName};`,
+          `if ${stop}(${leftName}) == false {`,
           ...indent(right.lines),
-          `    ${name} = ${finish}(${left.name}, ${right.name});`,
+          `    ${name} = ${finish}(${leftName}, ${right.name});`,
           '}',
         ],
         name,
@@ -637,18 +857,28 @@ export function emitCheckRustEvaluator(
         }
         const branch = node.branches[position]!
         const condition = emit(branch.when)
-        const selected = emit(branch.then)
+        const selectedPreparation = capturePreparation(() => emit(branch.then))
+        const selected = selectedPreparation.value
+        const otherwise = capturePreparation(() => branchLines(position + 1))
         for (const input of condition.inputs) used.add(input)
         for (const input of selected.inputs) used.add(input)
+        const prepared = prepareBranches(
+          constantCheckExpression(branch.when),
+          condition.lines,
+          condition.name,
+          selectedPreparation.lines,
+          otherwise.lines,
+        )
+        const guard = prepared ?? condition.name
         return [
-          ...condition.lines,
-          `if case_guard_stops(${condition.name}) {`,
-          `    ${name} = ${condition.name};`,
-          `} else if case_guard_takes(${condition.name}) {`,
+          ...(prepared ? [] : condition.lines),
+          `if case_guard_stops(${guard}) {`,
+          `    ${name} = ${guard};`,
+          `} else if case_guard_takes(${guard}) {`,
           ...indent(selected.lines),
           `    ${name} = ${selected.name};`,
           '} else {',
-          ...indent(branchLines(position + 1)),
+          ...indent(otherwise.value),
           '};',
         ]
       }
@@ -731,8 +961,25 @@ export function emitCheckRustEvaluator(
   }
 
   const entry = emit(expression)
+  let lines = entry.lines
+  let resultName = entry.name
+  if (constantLines.length) {
+    const start = fresh('preparation_start')
+    resultName = fresh('prepared_result')
+    lines = [
+      ...constantDeclarations,
+      `let ${start} = make_bool_value(true);`,
+      `let mut ${preparationState}: CheckOutcome = check_from_bool(${start});`,
+      ...constantLines,
+      `let mut ${resultName}: CheckOutcome = ${preparationState};`,
+      `if case_guard_stops(${preparationState}) == false {`,
+      ...indent(entry.lines),
+      `    ${resultName} = ${entry.name};`,
+      '}',
+    ]
+  }
   return {
-    source: `pub fn ${entryName}(${parameters(entry.inputs)}) -> CheckOutcome {\n${indent(entry.lines).join('\n')}\n    ${entry.name}\n}\n`,
+    source: `pub fn ${entryName}(${parameters(entry.inputs)}) -> CheckOutcome {\n${indent(lines).join('\n')}\n    ${resultName}\n}\n`,
     entryName,
     inputs: ordered(entry.inputs),
     callables: [...callables],
