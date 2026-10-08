@@ -394,6 +394,7 @@ const sqlErrorInvalidParameter = 3452619
 const sqlErrorInvalidEscape = 3452621
 const sqlErrorInvalidTextRepresentation = 3484946
 const sqlErrorUndefinedObject = 6820852
+const sqlErrorSyntax = 6819553
 const sqlErrorStringLengthMismatch = 3452622
 const sqlErrorStringRightTruncation = 3452545
 const sqlErrorArraySubscript = 3452630
@@ -402,6 +403,9 @@ const sqlErrorProgramLimit = 8584704
 const sqlErrorInternal = 56966976
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorSyntax {
+		return SqlErrorDescription{Message: "syntax error"}
+	}
 	if error.State == sqlErrorUndefinedObject {
 		return SqlErrorDescription{Message: "undefined object"}
 	}
