@@ -195,7 +195,7 @@ export function indexStatic<T>(values: Readonly<ArrayLike<T>>, index: number): T
         throw new RangeError('static table index out of bounds');
     return values[index]!;
 }
-function checkedF64(value: number): number {
+export function checkedF64(value: number): number {
     if (typeof value !== 'number')
         throw new TypeError('expected an f64');
     return value;
@@ -203,28 +203,28 @@ function checkedF64(value: number): number {
 function f64Negate(value: number): number {
     return -checkedF64(value);
 }
-function f64Add(left: number, right: number): number {
+export function f64Add(left: number, right: number): number {
     return checkedF64(left) + checkedF64(right);
 }
 function f64Subtract(left: number, right: number): number {
     return checkedF64(left) - checkedF64(right);
 }
-function f64Multiply(left: number, right: number): number {
+export function f64Multiply(left: number, right: number): number {
     return checkedF64(left) * checkedF64(right);
 }
-function f64Divide(left: number, right: number): number {
+export function f64Divide(left: number, right: number): number {
     return checkedF64(left) / checkedF64(right);
 }
-function f64Abs(value: number): number {
+export function f64Abs(value: number): number {
     return Math.abs(checkedF64(value));
 }
-function f64Ln(value: number): number {
+export function f64Ln(value: number): number {
     return Math.log(checkedF64(value));
 }
-function f64Log10(value: number): number {
+export function f64Log10(value: number): number {
     return Math.log10(checkedF64(value));
 }
-function f64ToI32(value: number): number {
+export function f64ToI32(value: number): number {
     checkedF64(value);
     if (Number.isNaN(value))
         return 0;
@@ -233,4 +233,15 @@ function f64ToI32(value: number): number {
     if (value <= -2147483648)
         return -2147483648;
     return Math.trunc(value) || 0;
+}
+export function f64FromText(value: string, fallback: number): number {
+    checkedString(value);
+    checkedF64(fallback);
+    if (/^[+-]?nan$/iu.test(value))
+        return NaN;
+    if (/^[+-]?inf(?:inity)?$/iu.test(value))
+        return value.startsWith('-') ? -Infinity : Infinity;
+    if (!/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/u.test(value))
+        return fallback;
+    return Number(value);
 }

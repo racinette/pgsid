@@ -76,6 +76,10 @@ change to the regex transpiler unless the regex engine itself changes.
   arithmetic, comparisons, negation, and `abs` / `ln` / `log10`. Widen only `i32`
   to `f64`; narrowing to `i32` truncates and saturates like Rust, with NaN becoming
   zero. Preserve signed zero and rounded intermediate products in both targets.
+  Exponential CHECKs such as `exp(amount) > 0` also need borrowed decimal text
+  converted with `parse::<f64>().unwrap_or(f64_fallback)`. Preserve Rust parsing,
+  signed zero, infinities and eager fallback evaluation; reject other parse types
+  and general Result handling.
   Floating-point fields, enum payloads, tables, remainder and other methods remain
   rejected. Public SQL numeric values retain their decimal string representation.
 - Decimal iteration may replace a mutable Clone record binding as a whole.

@@ -2,6 +2,8 @@ package langruntime
 
 import (
 	"math"
+	"strconv"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -226,14 +228,14 @@ func CheckedStructs[T any](value []T, copyValue func(T) T) []T {
 }
 
 func f64Negate(value float64) float64                 { return -value }
-func f64Add(left float64, right float64) float64      { return float64(left + right) }
+func F64Add(left float64, right float64) float64      { return float64(left + right) }
 func f64Subtract(left float64, right float64) float64 { return float64(left - right) }
-func f64Multiply(left float64, right float64) float64 { return float64(left * right) }
-func f64Divide(left float64, right float64) float64   { return float64(left / right) }
-func f64Abs(value float64) float64                    { return math.Abs(value) }
-func f64Ln(value float64) float64                     { return math.Log(value) }
-func f64Log10(value float64) float64                  { return math.Log10(value) }
-func f64ToI32(value float64) int {
+func F64Multiply(left float64, right float64) float64 { return float64(left * right) }
+func F64Divide(left float64, right float64) float64   { return float64(left / right) }
+func F64Abs(value float64) float64                    { return math.Abs(value) }
+func F64Ln(value float64) float64                     { return math.Log(value) }
+func F64Log10(value float64) float64                  { return math.Log10(value) }
+func F64ToI32(value float64) int {
 	if math.IsNaN(value) {
 		return 0
 	}
@@ -244,4 +246,25 @@ func f64ToI32(value float64) int {
 		return -2147483648
 	}
 	return int(math.Trunc(value))
+}
+
+func F64FromText(value string, fallback float64) float64 {
+	unsigned := value
+	if len(unsigned) > 0 && (unsigned[0] == '+' || unsigned[0] == '-') {
+		unsigned = unsigned[1:]
+	}
+	if strings.EqualFold(unsigned, "nan") {
+		return math.NaN()
+	}
+	if strings.ContainsAny(value, "_xXpP") {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err == nil {
+		return parsed
+	}
+	if problem, ok := err.(*strconv.NumError); ok && problem.Err == strconv.ErrRange {
+		return parsed
+	}
+	return fallback
 }

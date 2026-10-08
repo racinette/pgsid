@@ -247,3 +247,12 @@ function f64ToI32(value: number): number {
   if (value <= -2147483648) return -2147483648
   return Math.trunc(value) || 0
 }
+
+function f64FromText(value: string, fallback: number): number {
+  checkedString(value)
+  checkedF64(fallback)
+  if (/^[+-]?nan$/iu.test(value)) return NaN
+  if (/^[+-]?inf(?:inity)?$/iu.test(value)) return value.startsWith('-') ? -Infinity : Infinity
+  if (!/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/u.test(value)) return fallback
+  return Number(value)
+}

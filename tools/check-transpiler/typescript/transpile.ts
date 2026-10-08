@@ -10,6 +10,7 @@ type Expr =
   | { kind: 'array'; elements: Expr[] }
   | { kind: 'path'; segments: string[] }
   | { kind: 'float'; digits: string }
+  | { kind: 'float-from-text'; value: Expr; fallback: Expr }
   | { kind: 'integer'; digits: string; integerType?: 'i64' }
   | { kind: 'character'; scalar: string }
   | { kind: 'character-from-codepoint'; value: Expr; fallback: Expr }
@@ -278,6 +279,7 @@ class Transpiler {
           locals.get(value.segments.join('::')) ?? this.constants.get(value.segments.join('::'))
         )
       case 'float':
+      case 'float-from-text':
         return 'f64'
       case 'integer':
         return value.integerType ?? 'usize'
@@ -380,6 +382,12 @@ class Transpiler {
           throw new Error(`unknown unit variant ${value.segments.join('::')}`)
         return object([['kind', f.createStringLiteral(variant!)]])
       }
+      case 'float-from-text':
+        return call(
+          'f64FromText',
+          this.expression(value.value, locals),
+          this.expression(value.fallback, locals),
+        )
       case 'float': {
         const literal = f.createNumericLiteral(value.digits.replace(/^-/, ''))
         return value.digits.startsWith('-')

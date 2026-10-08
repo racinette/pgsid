@@ -564,6 +564,15 @@ fn infer_expr_type(
                 .map(Some)
                 .ok_or_else(|| "indexing is supported only on shared vectors".into())
         }
+        Expr::MethodCall(call) if crate::syntax::float_from_text(call).is_some() => {
+            let (value, fallback) = crate::syntax::float_from_text(call).unwrap();
+            if infer_expr_type(value, locals, semantics)?.as_deref() != Some("&str")
+                || infer_expr_type(fallback, locals, semantics)?.as_deref() != Some("f64")
+            {
+                return Err("float text conversion requires &str and an f64 fallback".into());
+            }
+            Ok(Some("f64".into()))
+        }
         Expr::MethodCall(call) if crate::syntax::character_from_codepoint(call).is_some() => {
             let (value, fallback) = crate::syntax::character_from_codepoint(call).unwrap();
             if infer_expr_type(value, locals, semantics)?.as_deref() != Some("i32")

@@ -2,6 +2,8 @@ package generated
 
 import (
 	"math"
+	"strconv"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -244,4 +246,25 @@ func f64ToI32(value float64) int {
 		return -2147483648
 	}
 	return int(math.Trunc(value))
+}
+
+func f64FromText(value string, fallback float64) float64 {
+	unsigned := value
+	if len(unsigned) > 0 && (unsigned[0] == '+' || unsigned[0] == '-') {
+		unsigned = unsigned[1:]
+	}
+	if strings.EqualFold(unsigned, "nan") {
+		return math.NaN()
+	}
+	if strings.ContainsAny(value, "_xXpP") {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err == nil {
+		return parsed
+	}
+	if problem, ok := err.(*strconv.NumError); ok && problem.Err == strconv.ErrRange {
+		return parsed
+	}
+	return fallback
 }
