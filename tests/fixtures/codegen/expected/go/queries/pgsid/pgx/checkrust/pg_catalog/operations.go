@@ -10352,7 +10352,7 @@ func temporalTruncateTimestamp(value int64, code int) checkruntime.TimestampValu
 		if langruntime.CheckedI64Remainder(value, scale) < int64(0) {
 			result = langruntime.CheckedI64Subtract(result, scale)
 		}
-		return checkruntime.MakeTimestampValue(result)
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: result}
 	}
 	day := langruntime.CheckedI64Divide(value, int64(86400000000))
 	if langruntime.CheckedI64Remainder(value, int64(86400000000)) < int64(0) {
@@ -10360,7 +10360,11 @@ func temporalTruncateTimestamp(value int64, code int) checkruntime.TimestampValu
 	}
 	julian := langruntime.CheckedI64Add(day, int64(2451545))
 	if code == 7 {
-		return checkruntime.MakeTimestampValue(langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(day, langruntime.CheckedI64Remainder(julian, int64(7)))), int64(86400000000)))
+		weekday := langruntime.CheckedI64Remainder(julian, int64(7))
+		if weekday < int64(0) {
+			weekday = langruntime.CheckedI64Add(weekday, int64(7))
+		}
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(day, weekday)), int64(86400000000))}
 	}
 	calendar := temporalCalendarFromJulian(julian)
 	year := calendar.year
@@ -10392,10 +10396,8 @@ func temporalTruncateTimestamp(value int64, code int) checkruntime.TimestampValu
 			year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(0, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(999, (langruntime.CheckedSignedSubtract(year, 1)))), 1000)), 1000)), 1))
 		}
 	}
-	if year <= 0 {
-		year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(year, 1))
-	}
-	return checkruntime.TimestampFromCalendar(year, month, 1, 0, 0, 0, 0)
+	truncatedJulian := temporalJulianFromCalendar(year, month, 1)
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(truncatedJulian, int64(2451545))), int64(86400000000))}
 }
 func DateTrunc3i0u(units checkruntime.TextValue, input checkruntime.TimestampValue) checkruntime.TimestampValue {
 	if units.Kind == checkruntime.TextValueError {
@@ -10416,7 +10418,12 @@ func DateTrunc3i0u(units checkruntime.TextValue, input checkruntime.TimestampVal
 		unit := langruntime.CheckedString(units.Value)
 		if input.Kind == checkruntime.TimestampValueValue {
 			value := input.Value
-			return temporalTruncateTimestamp(value, temporalUnitCode(unit))
+			truncated := temporalTruncateTimestamp(value, temporalUnitCode(unit))
+			if truncated.Kind == checkruntime.TimestampValueValue {
+				result := truncated.Value
+				return checkruntime.MakeTimestampValue(result)
+			}
+			return truncated
 		}
 	}
 	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
@@ -10916,6 +10923,196 @@ func TimestamptzSmallerLbk9(left checkruntime.TimestamptzValue, right checkrunti
 	}
 	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
 }
+func temporalDecimalParts(whole int64, fraction int64, scale int, negativeZero bool) string {
+	scale = langruntime.CheckedI32(scale)
+	output := ""
+	if negativeZero {
+		output = output + string(langruntime.CheckedChar('-'))
+	}
+	integer := checkruntime.TextSignedNumber(whole)
+	output = output + integer
+	if scale > 0 {
+		output = output + string(langruntime.CheckedChar('.'))
+		divisor := int64(1)
+		index := 1
+		for index < scale {
+			divisor = langruntime.CheckedI64Multiply(divisor, int64(10))
+			index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+		}
+		remaining := fraction
+		for divisor > int64(0) {
+			digit := langruntime.CheckedI64Divide(remaining, divisor)
+			code := int(int32(digit))
+			character := langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(code, 48)), '0')
+			output = output + string(langruntime.CheckedChar(character))
+			remaining = langruntime.CheckedI64Remainder(remaining, divisor)
+			divisor = langruntime.CheckedI64Divide(divisor, int64(10))
+		}
+	}
+	return output
+}
+func temporalScaledNumber(value int64, scale int) checkruntime.NumericValue {
+	scale = langruntime.CheckedI32(scale)
+	divisor := int64(1)
+	index := 0
+	for index < scale {
+		divisor = langruntime.CheckedI64Multiply(divisor, int64(10))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	whole := langruntime.CheckedI64Divide(value, divisor)
+	fraction := langruntime.CheckedI64Remainder(value, divisor)
+	if fraction < int64(0) {
+		fraction = langruntime.CheckedI64Subtract(int64(0), fraction)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: temporalDecimalParts(whole, fraction, scale, value < int64(0) && whole == int64(0))}
+}
+func temporalTimestampEpoch(value int64) checkruntime.NumericValue {
+	whole := langruntime.CheckedI64Add(langruntime.CheckedI64Divide(value, int64(1000000)), int64(946684800))
+	fraction := langruntime.CheckedI64Remainder(value, int64(1000000))
+	if fraction < int64(0) {
+		whole = langruntime.CheckedI64Subtract(whole, int64(1))
+		fraction = langruntime.CheckedI64Add(fraction, int64(1000000))
+	}
+	if value >= int64(9222425352054775807) {
+		fraction = langruntime.CheckedI64Multiply((langruntime.CheckedI64Divide((langruntime.CheckedI64Add(fraction, int64(50))), int64(100))), int64(100))
+		if fraction == int64(1000000) {
+			whole = langruntime.CheckedI64Add(whole, int64(1))
+			fraction = int64(0)
+		}
+	}
+	negative := whole < int64(0)
+	if negative && fraction != int64(0) {
+		whole = langruntime.CheckedI64Add(whole, int64(1))
+		fraction = langruntime.CheckedI64Subtract(int64(1000000), fraction)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: temporalDecimalParts(whole, fraction, 6, negative && whole == int64(0))}
+}
+func temporalTimestampJulian(julian int64, clock int64) checkruntime.NumericValue {
+	weight := 0
+	first := clock
+	if clock >= int64(100000000) {
+		weight = langruntime.CheckedI32(2)
+		first = langruntime.CheckedI64Divide(clock, int64(100000000))
+	} else if clock >= int64(10000) {
+		weight = langruntime.CheckedI32(1)
+		first = langruntime.CheckedI64Divide(clock, int64(10000))
+	}
+	quotientWeight := langruntime.CheckedSignedSubtract(weight, 2)
+	if first <= int64(864) {
+		quotientWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(quotientWeight, 1))
+	}
+	scale := langruntime.CheckedSignedSubtract(16, langruntime.CheckedSignedMultiply(quotientWeight, 4))
+	denominator := int64(86400000000)
+	remainder := clock
+	fraction := []rune{}
+	index := 0
+	for index < scale {
+		remainder = langruntime.CheckedI64Multiply(remainder, int64(10))
+		digit := int(int32((langruntime.CheckedI64Divide(remainder, denominator))))
+		langruntime.CheckedAdd(len(fraction), 1)
+		fraction = append(fraction, langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(digit, 48)), '0')))
+		remainder = langruntime.CheckedI64Remainder(remainder, denominator)
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	carry := langruntime.CheckedI64Multiply(remainder, int64(2)) >= denominator
+	cursor := len(fraction)
+	for carry && cursor > 0 {
+		cursor = langruntime.CheckedIndex(langruntime.CheckedSubtract(cursor, 1))
+		code := int(langruntime.CheckedChar(fraction[cursor]))
+		if code == 57 {
+			fraction[cursor] = langruntime.CheckedChar('0')
+		} else {
+			fraction[cursor] = langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(code, 1)), '0'))
+			carry = false
+		}
+	}
+	whole := julian
+	if carry {
+		whole = langruntime.CheckedI64Add(whole, int64(1))
+	}
+	output := checkruntime.TextSignedNumber(whole)
+	output = output + string(langruntime.CheckedChar('.'))
+	cursor = langruntime.CheckedIndex(0)
+	for cursor < len(fraction) {
+		output = output + string(langruntime.CheckedChar(fraction[cursor]))
+		cursor = langruntime.CheckedAdd(cursor, 1)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: output}
+}
+func temporalExtractTimestamp(value int64, unit string) checkruntime.NumericValue {
+	unit = langruntime.CheckedString(unit)
+	code := temporalExtractCode(unit)
+	if code == 0 || code == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnitError)}
+	}
+	if value == int64(-9223372036854775808) || value == int64(9223372036854775807) {
+		if (code >= 1 && code <= 9) || code == 16 || code == 17 || code == 18 || temporalUnitCode(unit) == langruntime.CheckedSignedNegate(1) {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+		}
+		if code >= 10 && code <= 19 {
+			if value < int64(0) {
+				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-Infinity"}
+			}
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
+	}
+	if code == langruntime.CheckedSignedNegate(1) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
+	}
+	day := langruntime.CheckedI64Divide(value, int64(86400000000))
+	clock := langruntime.CheckedI64Remainder(value, int64(86400000000))
+	if clock < int64(0) {
+		day = langruntime.CheckedI64Subtract(day, int64(1))
+		clock = langruntime.CheckedI64Add(clock, int64(86400000000))
+	}
+	if code == 1 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(langruntime.CheckedI64Remainder(clock, int64(60000000)))}
+	}
+	if code == 2 {
+		return temporalScaledNumber(langruntime.CheckedI64Remainder(clock, int64(60000000)), 3)
+	}
+	if code == 3 {
+		return temporalScaledNumber(langruntime.CheckedI64Remainder(clock, int64(60000000)), 6)
+	}
+	if code == 4 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(clock, int64(60000000)), int64(60)))}
+	}
+	if code == 5 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(langruntime.CheckedI64Divide(clock, int64(3600000000)))}
+	}
+	if code == 14 {
+		return temporalTimestampJulian(langruntime.CheckedI64Add(day, int64(2451545)), clock)
+	}
+	if code == 19 {
+		return temporalTimestampEpoch(value)
+	}
+	return temporalExtractDate(int(int32(day)), code)
+}
+func ExtractF4l3(units checkruntime.TextValue, input checkruntime.TimestampValue) checkruntime.NumericValue {
+	if units.Kind == checkruntime.TextValueError {
+		error := units.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if units.Kind == checkruntime.TextValueValue {
+		unit := langruntime.CheckedString(units.Value)
+		if input.Kind == checkruntime.TimestampValueValue {
+			value := input.Value
+			return temporalExtractTimestamp(value, unit)
+		}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
 func textHasPrefix(text string, prefix string) bool {
 	text = langruntime.CheckedString(text)
 	prefix = langruntime.CheckedString(prefix)
@@ -11168,6 +11365,26 @@ func Ascii7m47(input checkruntime.TextValue) checkruntime.Int4Value {
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
+func TextVuvi(input checkruntime.BoolValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.BoolValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.BoolValueValue {
+		value := input.Value
+		if value {
+			return checkruntime.MakeTextValue("true")
+		}
+		return checkruntime.MakeTextValue("false")
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func textCaseValue(input checkruntime.TextValue, mode int) checkruntime.TextValue {
 	mode = langruntime.CheckedI32(mode)
 	if input.Kind == checkruntime.TextValueError {
@@ -11217,6 +11434,69 @@ func LowerHcg0(input checkruntime.TextValue) checkruntime.TextValue {
 }
 func UpperValc(input checkruntime.TextValue) checkruntime.TextValue {
 	return textCaseValue(input, 1)
+}
+func textHashValue(input checkruntime.TextValue, trimSpaces bool) checkruntime.Int4Value {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		hex := textBinaryHex(value, trimSpaces)
+		bytes := byteaHashBytes(hex)
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: checkruntime.HashBytes32(bytes)}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func textHashExtended(input checkruntime.TextValue, seed checkruntime.Int8Value, trimSpaces bool) checkruntime.Int8Value {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if seed.Kind == checkruntime.Int8ValueValue {
+			salt := seed.Value
+			hex := textBinaryHex(value, trimSpaces)
+			bytes := byteaHashBytes(hex)
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: checkruntime.HashBytes64(bytes, salt)}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func HashtextCnj7(input checkruntime.TextValue) checkruntime.Int4Value {
+	return textHashValue(input, false)
+}
+func HashbpcharEeeo(input checkruntime.TextValue) checkruntime.Int4Value {
+	return textHashValue(input, true)
+}
+func HashtextextendedDns6(input checkruntime.TextValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	return textHashExtended(input, seed, false)
+}
+func HashbpcharextendedCa1t(input checkruntime.TextValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	return textHashExtended(input, seed, true)
+}
+func GinCmpTslexeme1b7b(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
+	return textBinaryCompare(left, right, false)
+}
+func GinCompareJsonbIzgy(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
+	return textBinaryCompare(left, right, false)
 }
 func BitLengthBpcw(value checkruntime.TextValue) checkruntime.Int4Value {
 	return textMeasureValue(value, false, 2)
@@ -11482,6 +11762,160 @@ func TextSmallerT2nd(left checkruntime.TextValue, right checkruntime.TextValue) 
 			return left
 		}
 		return right
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
+const textSubstringError = 3452581
+
+func textSubstringValue(input checkruntime.TextValue, position checkruntime.Int4Value, length checkruntime.Int4Value, hasLength bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if position.Kind == checkruntime.Int4ValueError {
+		error := position.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if length.Kind == checkruntime.Int4ValueError {
+		error := length.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if position.Kind == checkruntime.Int4ValueValue {
+			start := langruntime.CheckedI32(position.Value)
+			if length.Kind == checkruntime.Int4ValueValue {
+				count := langruntime.CheckedI32(length.Value)
+				if hasLength && count < 0 {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textSubstringError)}
+				}
+				first := int64(langruntime.CheckedI32(start))
+				end := int64(2147483648)
+				if hasLength && start <= langruntime.CheckedSignedSubtract(2147483647, count) {
+					stop := langruntime.CheckedSignedAdd(start, count)
+					end = int64(langruntime.CheckedI32(stop))
+				}
+				characters := []rune(text)
+				output := ""
+				index := 0
+				current := int64(1)
+				for index < len(characters) && current < end {
+					if current >= first {
+						output = output + string(langruntime.CheckedChar(characters[index]))
+					}
+					index = langruntime.CheckedAdd(index, 1)
+					current = langruntime.CheckedI64Add(current, int64(1))
+				}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+			}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func textSideValue(input checkruntime.TextValue, length checkruntime.Int4Value, fromRight bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if length.Kind == checkruntime.Int4ValueError {
+		error := length.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if length.Kind == checkruntime.Int4ValueValue {
+			count := langruntime.CheckedI32(length.Value)
+			characters := []rune(text)
+			total := int64(0)
+			index := 0
+			for index < len(characters) {
+				total = langruntime.CheckedI64Add(total, int64(1))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			requested := int64(langruntime.CheckedI32(count))
+			first := int64(0)
+			end := total
+			if fromRight {
+				if count < 0 {
+					first = langruntime.CheckedI64Subtract(int64(0), requested)
+					if count == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
+						first = int64(0)
+					}
+				} else {
+					first = langruntime.CheckedI64Subtract(total, requested)
+				}
+			} else if count < 0 {
+				end = langruntime.CheckedI64Add(total, requested)
+			} else {
+				end = requested
+			}
+			output := ""
+			index = langruntime.CheckedIndex(0)
+			current := int64(0)
+			for index < len(characters) && current < end {
+				if current >= first {
+					output = output + string(langruntime.CheckedChar(characters[index]))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+				current = langruntime.CheckedI64Add(current, int64(1))
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func SubstringEzt4(input checkruntime.TextValue, position checkruntime.Int4Value) checkruntime.TextValue {
+	return textSubstringValue(input, position, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}, false)
+}
+func SubstringDd1c(input checkruntime.TextValue, position checkruntime.Int4Value, length checkruntime.Int4Value) checkruntime.TextValue {
+	return textSubstringValue(input, position, length, true)
+}
+func Substr8v03(input checkruntime.TextValue, position checkruntime.Int4Value) checkruntime.TextValue {
+	return textSubstringValue(input, position, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}, false)
+}
+func SubstrZhiv(input checkruntime.TextValue, position checkruntime.Int4Value, length checkruntime.Int4Value) checkruntime.TextValue {
+	return textSubstringValue(input, position, length, true)
+}
+func Left8f3e(input checkruntime.TextValue, length checkruntime.Int4Value) checkruntime.TextValue {
+	return textSideValue(input, length, false)
+}
+func RightHbgt(input checkruntime.TextValue, length checkruntime.Int4Value) checkruntime.TextValue {
+	return textSideValue(input, length, true)
+}
+func Reverse5pr1(input checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		characters := []rune(text)
+		index := len(characters)
+		output := ""
+		for index > 0 {
+			index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+			output = output + string(langruntime.CheckedChar(characters[index]))
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }

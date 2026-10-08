@@ -161,3 +161,26 @@ CREATE TABLE arrival_calendar_fields (
   recorded_field numeric,
   CONSTRAINT arrival_calendar_field CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.extract(calendar_field, arrival_day) = recorded_field END)
 );
+
+CREATE TABLE arrival_calendar_zone_buckets (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  arrival timestamptz,
+  zone_name text,
+  unit_name text,
+  recorded_bucket timestamptz,
+  CONSTRAINT arrival_timezone_bucket CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.date_trunc(unit_name, arrival, zone_name) = recorded_bucket END)
+);
+
+CREATE TABLE arrival_calendar_clock_fields (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  local_time timestamp,
+  unit_name text,
+  recorded_amount numeric,
+  recorded_bytes bytea,
+  recorded_scale integer,
+  CONSTRAINT arrival_clock_field CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.extract(unit_name, local_time) = recorded_amount END),
+  CONSTRAINT arrival_clock_wire CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.numeric_send(pg_catalog.extract(unit_name, local_time)) = recorded_bytes END),
+  CONSTRAINT arrival_clock_scale CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.scale(pg_catalog.extract(unit_name, local_time)) = recorded_scale END)
+);

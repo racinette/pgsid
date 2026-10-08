@@ -281,3 +281,207 @@ VALUES (40, false, '   ', '   ', '   ', '   ', '   ');
 -- name: label_casing_records_null
 INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
 VALUES (41, false, NULL, NULL, NULL, NULL, NULL);
+
+-- name: fingerprint_empty
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('10', false, '', '', '', '0', '-1477818771', '-1477818771', '-6939563903564495251', '-6939563903564495251', '0', '0');
+
+-- name: fingerprint_ascii
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('11', false, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '5333970338675577285', '5333970338675577285', '-25', '-25');
+
+-- name: fingerprint_wrong_recorded_hash
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('12', false, 'alpha', 'alpha  ', 'z', '1', '0', '956903556', '5333970338675577285', '5333970338675577285', '-25', '-25');
+
+-- name: fingerprint_skipped_recorded_hash
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('13', true, 'alpha', 'alpha  ', 'z', '1', '0', '956903556', '5333970338675577285', '5333970338675577285', '-25', '-25');
+
+-- name: fingerprint_wrong_recorded_fixed_hash
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('14', false, 'alpha', 'alpha  ', 'z', '1', '956903556', '0', '5333970338675577285', '5333970338675577285', '-25', '-25');
+
+-- name: fingerprint_skipped_recorded_fixed_hash
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('15', true, 'alpha', 'alpha  ', 'z', '1', '956903556', '0', '5333970338675577285', '5333970338675577285', '-25', '-25');
+
+-- name: fingerprint_wrong_recorded_seeded_hash
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('16', false, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '0', '5333970338675577285', '-25', '-25');
+
+-- name: fingerprint_skipped_recorded_seeded_hash
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('17', true, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '0', '5333970338675577285', '-25', '-25');
+
+-- name: fingerprint_wrong_recorded_fixed_seeded_hash
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('18', false, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '5333970338675577285', '0', '-25', '-25');
+
+-- name: fingerprint_skipped_recorded_fixed_seeded_hash
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('19', true, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '5333970338675577285', '0', '-25', '-25');
+
+-- name: fingerprint_wrong_recorded_lexeme_order
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('20', false, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '5333970338675577285', '5333970338675577285', '0', '-25');
+
+-- name: fingerprint_skipped_recorded_lexeme_order
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('21', true, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '5333970338675577285', '5333970338675577285', '0', '-25');
+
+-- name: fingerprint_wrong_recorded_jsonb_order
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('22', false, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '5333970338675577285', '5333970338675577285', '-25', '0');
+
+-- name: fingerprint_skipped_recorded_jsonb_order
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('23', true, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '5333970338675577285', '5333970338675577285', '-25', '0');
+
+-- name: fingerprint_prefix
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('24', false, 'alphabet', 'alphabet   ', 'alpha', '-1', '-1132570125', '-1132570125', '8753196839503788723', '8753196839503788723', '1', '1');
+
+-- name: fingerprint_combining
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('25', false, 'é', 'é  ', 'é', '4294967296', '-1336232949', '-1336232949', '-5435963409899874817', '-5435963409899874817', '-94', '-94');
+
+-- name: fingerprint_unicode
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('26', false, 'é😊', 'é😊  ', 'ê', '9223372036854775807', '1791989009', '1791989009', '-3125482094749752454', '-3125482094749752454', '-1', '-1');
+
+-- name: fingerprint_minimum_seed
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('27', false, '😊ab', '😊ab  ', '😊a', '-9223372036854775808', '1929821232', '1929821232', '1905475529381073425', '1905475529381073425', '1', '1');
+
+-- name: fingerprint_whitespace
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('28', false, E' \t\n', E' \t\n  ', ' ', '4294967295', '1113247225', '1113247225', '-2798215134050698181', '-2798215134050698181', '1', '1');
+
+-- name: fingerprint_all_blanks
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('29', false, '   ', '   ', '', '-4294967296', '-825235592', '-1477818771', '7765410445177570315', '-4136984213874271125', '1', '1');
+
+-- name: fingerprint_equal
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('30', false, 'a', 'a  ', 'a', '2147483647', '1075015857', '1075015857', '-1241961749816775396', '-1241961749816775396', '0', '0');
+
+-- name: fingerprint_null_inputs
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('31', false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: fingerprint_null_seed
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('32', false, 'a', 'a  ', 'b', NULL, '1075015857', '1075015857', NULL, NULL, '-1', '-1');
+
+-- name: preview_ascii
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('10', false, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'alp', 'bet', 'tebahpla', 'true');
+
+-- name: preview_wrong_recorded_window
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('11', false, 'alphabet', '2', '3', true, 'incorrect', 'lphabet', 'alp', 'bet', 'tebahpla', 'true');
+
+-- name: preview_skipped_recorded_window
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('12', true, 'alphabet', '2', '3', true, 'incorrect', 'lphabet', 'alp', 'bet', 'tebahpla', 'true');
+
+-- name: preview_wrong_recorded_tail
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('13', false, 'alphabet', '2', '3', true, 'lph', 'incorrect', 'alp', 'bet', 'tebahpla', 'true');
+
+-- name: preview_skipped_recorded_tail
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('14', true, 'alphabet', '2', '3', true, 'lph', 'incorrect', 'alp', 'bet', 'tebahpla', 'true');
+
+-- name: preview_wrong_recorded_prefix
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('15', false, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'incorrect', 'bet', 'tebahpla', 'true');
+
+-- name: preview_skipped_recorded_prefix
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('16', true, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'incorrect', 'bet', 'tebahpla', 'true');
+
+-- name: preview_wrong_recorded_suffix
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('17', false, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'alp', 'incorrect', 'tebahpla', 'true');
+
+-- name: preview_skipped_recorded_suffix
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('18', true, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'alp', 'incorrect', 'tebahpla', 'true');
+
+-- name: preview_wrong_recorded_reverse
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('19', false, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'alp', 'bet', 'incorrect', 'true');
+
+-- name: preview_skipped_recorded_reverse
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('20', true, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'alp', 'bet', 'incorrect', 'true');
+
+-- name: preview_wrong_recorded_active
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('21', false, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'alp', 'bet', 'tebahpla', 'incorrect');
+
+-- name: preview_skipped_recorded_active
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('22', true, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'alp', 'bet', 'tebahpla', 'incorrect');
+
+-- name: preview_unicode
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('23', false, 'é😊α', '2', '2', false, '😊α', '😊α', 'é😊', '😊α', 'α😊é', 'false');
+
+-- name: preview_combining
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('24', false, 'é😊', '1', '2', true, 'é', 'é😊', 'é', '́😊', '😊́e', 'true');
+
+-- name: preview_empty
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('25', false, '', '1', '4', false, '', '', '', '', '', 'false');
+
+-- name: preview_zero_start
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('26', false, 'alphabet', '0', '4', true, 'alp', 'alphabet', 'alph', 'abet', 'tebahpla', 'true');
+
+-- name: preview_negative_start
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('27', false, 'alphabet', '-2', '4', true, 'a', 'alphabet', 'alph', 'abet', 'tebahpla', 'true');
+
+-- name: preview_end_overflow
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('28', false, 'alphabet', '2', '2147483647', true, 'lphabet', 'lphabet', 'alphabet', 'alphabet', 'tebahpla', 'true');
+
+-- name: preview_minimum_start
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('29', false, 'alphabet', '-2147483648', '2147483647', false, '', 'alphabet', 'alphabet', 'alphabet', 'tebahpla', 'false');
+
+-- name: preview_maximum_start
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('30', false, 'alphabet', '2147483647', '2147483647', false, '', '', 'alphabet', 'alphabet', 'tebahpla', 'false');
+
+-- name: preview_negative_width
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('31', false, 'alphabet', '2', '-2', true, '', 'lphabet', 'alphab', 'phabet', 'tebahpla', 'true');
+
+-- name: preview_skipped_negative_width
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('32', true, 'alphabet', '2', '-2', true, '', 'lphabet', 'alphab', 'phabet', 'tebahpla', 'true');
+
+-- name: preview_minimum_width
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('33', false, 'alphabet', '2', '-2147483648', true, '', 'lphabet', '', 'alphabet', 'tebahpla', 'true');
+
+-- name: preview_skipped_minimum_width
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('34', true, 'alphabet', '2', '-2147483648', true, '', 'lphabet', '', 'alphabet', 'tebahpla', 'true');
+
+-- name: preview_null_inputs
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('35', false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: preview_null_start
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('36', false, 'alphabet', NULL, '3', NULL, NULL, NULL, 'alp', 'bet', 'tebahpla', NULL);
+
+-- name: preview_null_width
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('37', false, 'alphabet', '2', NULL, true, NULL, 'lphabet', NULL, NULL, 'tebahpla', 'true');

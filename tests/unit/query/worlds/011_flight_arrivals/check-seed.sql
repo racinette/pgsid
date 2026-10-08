@@ -495,3 +495,331 @@ VALUES (35, false, '2024-02-29', 'year ', 0);
 -- name: arrival_field_skipped
 INSERT INTO arrival_calendar_fields (id, suppress_invalid, arrival_day, calendar_field, recorded_field)
 VALUES (36, true, '2024-02-29', 'bogus', 0);
+
+-- name: zoned_bucket_microseconds
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (10, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'microseconds', '2021-11-07 05:30:45.123456+00');
+
+-- name: zoned_bucket_milliseconds
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (11, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'milliseconds', '2021-11-07 05:30:45.123+00');
+
+-- name: zoned_bucket_second
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (12, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'second', '2021-11-07 05:30:45+00');
+
+-- name: zoned_bucket_minute
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (13, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'minute', '2021-11-07 05:30:00+00');
+
+-- name: zoned_bucket_hour
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (14, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'hour', '2021-11-07 05:00:00+00');
+
+-- name: zoned_bucket_day
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (15, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'day', '2021-11-07 04:00:00+00');
+
+-- name: zoned_bucket_week
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (16, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'week', '2021-11-01 04:00:00+00');
+
+-- name: zoned_bucket_month
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (17, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'month', '2021-11-01 04:00:00+00');
+
+-- name: zoned_bucket_quarter
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (18, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'quarter', '2021-10-01 04:00:00+00');
+
+-- name: zoned_bucket_year
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (19, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'year', '2021-01-01 05:00:00+00');
+
+-- name: zoned_bucket_decade
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (20, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'decade', '2020-01-01 05:00:00+00');
+
+-- name: zoned_bucket_century
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (21, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'century', '2001-01-01 05:00:00+00');
+
+-- name: zoned_bucket_millennium
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (22, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'millennium', '2001-01-01 05:00:00+00');
+
+-- name: zoned_bucket_fold_first
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (23, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'hour', '2021-11-07 05:00:00+00');
+
+-- name: zoned_bucket_fold_second
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (24, false, '2021-11-07 06:30:45.123456+00', 'America/New_York', 'hour', '2021-11-07 06:00:00+00');
+
+-- name: zoned_bucket_gap_before
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (25, false, '2021-03-14 06:59:59.999999+00', 'America/New_York', 'hour', '2021-03-14 06:00:00+00');
+
+-- name: zoned_bucket_gap_after
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (26, false, '2021-03-14 07:00:00+00', 'America/New_York', 'hour', '2021-03-14 07:00:00+00');
+
+-- name: zoned_bucket_half_hour_first
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (27, false, '2021-04-03 14:45:45.123456+00', 'Australia/Lord_Howe', 'hour', '2021-04-03 14:00:00+00');
+
+-- name: zoned_bucket_half_hour_second
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (28, false, '2021-04-03 15:15:45.123456+00', 'Australia/Lord_Howe', 'hour', '2021-04-03 14:30:00+00');
+
+-- name: zoned_bucket_future_rules
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (29, false, '2040-11-04 06:30:45.123456+00', 'America/New_York', 'year', '2040-01-01 05:00:00+00');
+
+-- name: zoned_bucket_fixed_seconds
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (30, false, '2000-02-29 12:34:56.789012+00', '-02:30:45', 'day', '2000-02-28 21:29:15+00');
+
+-- name: zoned_bucket_bc_century
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (31, false, '0001-03-01 12:34:56.789012+00 BC', 'UTC', 'century', '0100-01-01 00:00:00+00 BC');
+
+-- name: zoned_bucket_upper_boundary
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (32, false, '294276-12-31 23:59:59.999999+00', '-167:59:60', 'day', '294276-12-31 00:00:00+00');
+
+-- name: zoned_bucket_lower_boundary
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (33, false, '4714-11-24 00:00:00+00 BC', '+167:59:60', 'day', '4714-11-24 00:00:00+00 BC');
+
+-- name: zoned_bucket_negative_infinity
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (34, false, '-infinity', 'America/New_York', 'year', '-infinity');
+
+-- name: zoned_bucket_positive_infinity
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (35, false, 'infinity', 'America/New_York', 'year', 'infinity');
+
+-- name: zoned_bucket_null_time
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (36, false, NULL, 'UTC', 'day', NULL);
+
+-- name: zoned_bucket_null_zone
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (37, false, '2000-02-29 12:34:56.789012+00', NULL, 'day', NULL);
+
+-- name: zoned_bucket_null_unit
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (38, false, '2000-02-29 12:34:56.789012+00', 'UTC', NULL, NULL);
+
+-- name: zoned_bucket_unknown_unit
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (39, false, 'infinity', 'UTC', 'bogus', 'infinity');
+
+-- name: zoned_bucket_skipped_unknown_unit
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (40, true, 'infinity', 'UTC', 'bogus', 'infinity');
+
+-- name: zoned_bucket_unsupported_unit
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (41, false, 'infinity', 'UTC', 'timezone', 'infinity');
+
+-- name: zoned_bucket_skipped_unsupported_unit
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (42, true, 'infinity', 'UTC', 'timezone', 'infinity');
+
+-- name: zoned_bucket_invalid_zone
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (43, false, 'infinity', '+168', 'day', 'infinity');
+
+-- name: zoned_bucket_skipped_invalid_zone
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (44, true, 'infinity', '+168', 'day', 'infinity');
+
+-- name: zoned_bucket_empty_zone
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (45, false, 'infinity', '', 'day', 'infinity');
+
+-- name: zoned_bucket_skipped_empty_zone
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (46, true, 'infinity', '', 'day', 'infinity');
+
+-- name: zoned_bucket_wrong_record
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (47, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'hour', '2000-01-01 00:00:00+00');
+
+-- name: clock_field_microseconds
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (48, false, '2000-02-29 12:34:56.789012', 'microseconds', '56789012', '\x0002000100000000162e2334', 0);
+
+-- name: clock_field_milliseconds
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (49, false, '2000-02-29 12:34:56.789012', 'milliseconds', '56789.012', '\x000300010000000300051a850078', 3);
+
+-- name: clock_field_second
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (50, false, '2000-02-29 12:34:56.789012', 'second', '56.789012', '\x000300000000000600381ed204b0', 6);
+
+-- name: clock_field_wrong_records
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (51, false, '2000-02-29 12:34:56.789012', 'second', '0', '\x00', 0);
+
+-- name: clock_field_skipped_records
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (52, true, '2000-02-29 12:34:56.789012', 'second', '0', '\x00', 0);
+
+-- name: clock_field_minute
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (53, false, '2000-02-29 12:34:56.789012', 'minute', '34', '\x00010000000000000022', 0);
+
+-- name: clock_field_hour
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (54, false, '2000-02-29 12:34:56.789012', 'hour', '12', '\x0001000000000000000c', 0);
+
+-- name: clock_field_day
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (55, false, '2000-02-29 12:34:56.789012', 'day', '29', '\x0001000000000000001d', 0);
+
+-- name: clock_field_week
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (56, false, '2000-02-29 12:34:56.789012', 'week', '9', '\x00010000000000000009', 0);
+
+-- name: clock_field_month
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (57, false, '2000-02-29 12:34:56.789012', 'month', '2', '\x00010000000000000002', 0);
+
+-- name: clock_field_quarter
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (58, false, '2000-02-29 12:34:56.789012', 'quarter', '1', '\x00010000000000000001', 0);
+
+-- name: clock_field_year
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (59, false, '2000-02-29 12:34:56.789012', 'year', '2000', '\x000100000000000007d0', 0);
+
+-- name: clock_field_decade
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (60, false, '2000-02-29 12:34:56.789012', 'decade', '200', '\x000100000000000000c8', 0);
+
+-- name: clock_field_century
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (61, false, '2000-02-29 12:34:56.789012', 'century', '20', '\x00010000000000000014', 0);
+
+-- name: clock_field_millennium
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (62, false, '2000-02-29 12:34:56.789012', 'millennium', '2', '\x00010000000000000002', 0);
+
+-- name: clock_field_isoyear
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (63, false, '2000-02-29 12:34:56.789012', 'isoyear', '2000', '\x000100000000000007d0', 0);
+
+-- name: clock_field_dow
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (64, false, '2000-02-29 12:34:56.789012', 'dow', '2', '\x00010000000000000002', 0);
+
+-- name: clock_field_isodow
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (65, false, '2000-02-29 12:34:56.789012', 'isodow', '2', '\x00010000000000000002', 0);
+
+-- name: clock_field_doy
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (66, false, '2000-02-29 12:34:56.789012', 'doy', '60', '\x0001000000000000003c', 0);
+
+-- name: clock_field_julian
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (67, false, '2000-02-29 12:34:56.789012', 'julian', '2451604.52426839134259259259', '\x000700010000001400f50644147a1ab7053e1725242b', 20);
+
+-- name: clock_field_epoch
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (68, false, '2000-02-29 12:34:56.789012', 'epoch', '951827696.789012', '\x00050002000000060009143e1e101ed204b0', 6);
+
+-- name: clock_field_julian_zero
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (69, false, '2000-01-01 00:00:00', 'julian', '2451545.0000000000000000000000000000', '\x000200010000001c00f50609', 28);
+
+-- name: clock_field_julian_one_microsecond
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (70, false, '2000-01-01 00:00:00.000001', 'julian', '2451545.0000000000115740740740740741', '\x000900010000001c00f5060900000000000b166c1cef0fea02e5', 28);
+
+-- name: clock_field_julian_scale_boundary
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (71, false, '2000-01-01 00:00:00.000865', 'julian', '2451545.000000010011574074074074', '\x000800010000001800f5060900000001000b166c1cef0fea', 24);
+
+-- name: clock_field_julian_rounding
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (72, false, '2000-01-01 00:00:08.650000', 'julian', '2451545.00010011574074074074', '\x000700010000001400f506090001000b166c1cef0fea', 20);
+
+-- name: clock_field_epoch_before_zero
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (73, false, '1969-12-31 23:59:59.999999', 'epoch', '-0.000001', '\x0001fffe400000060064', 6);
+
+-- name: clock_field_epoch_zero
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (74, false, '1970-01-01 00:00:00', 'epoch', '0.000000', '\x0000000000000006', 6);
+
+-- name: clock_field_epoch_overflow_round_down
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (75, false, '294276-12-31 23:59:59.123449', 'epoch', '9224318015999.123400', '\x0005000300000006000908c30709176f04d2', 6);
+
+-- name: clock_field_epoch_overflow_round_half
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (76, false, '294276-12-31 23:59:59.123450', 'epoch', '9224318015999.123500', '\x0005000300000006000908c30709176f04d3', 6);
+
+-- name: clock_field_epoch_overflow_carry
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (77, false, '294276-12-31 23:59:59.999999', 'epoch', '9224318016000.000000', '\x0004000300000006000908c307091770', 6);
+
+-- name: clock_field_bc_year
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (78, false, '0001-03-01 12:34:56.789012 BC', 'year', '-1', '\x00010000400000000001', 0);
+
+-- name: clock_field_iso_year
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (79, false, '2021-01-01 12:34:56.789012', 'isoyear', '2020', '\x000100000000000007e4', 0);
+
+-- name: clock_field_null_time
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (80, false, NULL, 'second', NULL, NULL, NULL);
+
+-- name: clock_field_null_unit
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (81, false, '2000-01-01', NULL, NULL, NULL, NULL);
+
+-- name: clock_field_negative_infinity_epoch
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (82, false, '-infinity', 'epoch', '-Infinity', '\x00000000f0000020', NULL);
+
+-- name: clock_field_positive_infinity_julian
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (83, false, 'infinity', 'julian', 'Infinity', '\x00000000d0000020', NULL);
+
+-- name: clock_field_infinite_second
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (84, false, 'infinity', 'second', NULL, NULL, NULL);
+
+-- name: clock_field_infinite_timezone
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (85, false, 'infinity', 'timezone', NULL, NULL, NULL);
+
+-- name: clock_field_error_bogus
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (86, false, '2000-01-01', 'bogus', '0', '\x00', 0);
+
+-- name: clock_field_skipped_bogus
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (87, true, '2000-01-01', 'bogus', '0', '\x00', 0);
+
+-- name: clock_field_error_timezone
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (88, false, '2000-01-01', 'timezone', '0', '\x00', 0);
+
+-- name: clock_field_skipped_timezone
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (89, true, '2000-01-01', 'timezone', '0', '\x00', 0);
+
+-- name: clock_field_error_today
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (90, false, '2000-01-01', 'today', '0', '\x00', 0);
+
+-- name: clock_field_skipped_today
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (91, true, '2000-01-01', 'today', '0', '\x00', 0);

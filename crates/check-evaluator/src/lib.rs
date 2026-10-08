@@ -31,6 +31,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/temporal_precision.rs");
     include!("operations/pg_catalog/temporal_fields.rs");
     include!("operations/pg_catalog/temporal_extract.rs");
+    include!("operations/pg_catalog/temporal_timestamp_extract.rs");
+    include!("operations/pg_catalog/timezone_trunc.rs");
     include!("operations/pg_catalog/timezone.rs");
     include!("operations/pg_catalog/timezone_named.rs");
     include!("operations/pg_catalog/timezone_recurring.rs");
@@ -94,6 +96,10 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/text_order.rs");
     include!("operations/pg_catalog/text_trim.rs");
     include!("operations/pg_catalog/text_case.rs");
+    include!("operations/pg_catalog/text_hash.rs");
+    include!("operations/pg_catalog/text_index_compare.rs");
+    include!("operations/pg_catalog/text_slice.rs");
+    include!("operations/pg_catalog/text_bool.rs");
     include!("operations/pg_catalog/character.rs");
     include!("operations/pg_catalog/text_ascii.rs");
     include!("operations/pg_catalog/chr.rs");
