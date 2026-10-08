@@ -14682,6 +14682,131 @@ func SplitPartDoxr(input checkruntime.TextValue, separator checkruntime.TextValu
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 
+const similarEscapeError = 3452621
+const sqlstateSimilarQuotes = 3452556
+const similarAllocationError = 56966976
+
+func similarPatternCapacityFits(bytes int64) bool {
+	return langruntime.CheckedI64Add(int64(27), langruntime.CheckedI64Multiply(int64(3), bytes)) <= int64(1073741823)
+}
+func similarPatternValue(pattern checkruntime.TextValue, escape checkruntime.TextValue) checkruntime.TextValue {
+	if pattern.Kind == checkruntime.TextValueError {
+		error := pattern.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if escape.Kind == checkruntime.TextValueError {
+		error := escape.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || escape == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if pattern == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || escape == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if pattern.Kind == checkruntime.TextValueValue {
+		patternValue := langruntime.CheckedString(pattern.Value)
+		if escape.Kind == checkruntime.TextValueValue {
+			escapeValue := langruntime.CheckedString(escape.Value)
+			characters := []rune(patternValue)
+			escapes := []rune(escapeValue)
+			if len(escapes) > 1 {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(similarEscapeError)}
+			}
+			if similarPatternCapacityFits(textBuildOctets(patternValue)) == false {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(similarAllocationError)}
+			}
+			escaping := false
+			escapeCharacter := '\\'
+			if len(escapes) == 1 {
+				escaping = true
+				escapeCharacter = langruntime.CheckedChar(escapes[0])
+			}
+			escapeCode := int(langruntime.CheckedChar(escapeCharacter))
+			output := ""
+			output = output + "^(?:"
+			afterEscape := false
+			quotes := 0
+			bracketDepth := 0
+			classPosition := 0
+			index := 0
+			for index < len(characters) {
+				character := characters[index]
+				code := int(langruntime.CheckedChar(character))
+				if escaping && escapeCode > 127 && code > 127 {
+					if afterEscape {
+						output = output + string(langruntime.CheckedChar('\\'))
+						output = output + string(langruntime.CheckedChar(character))
+						afterEscape = false
+					} else if character == escapeCharacter {
+						afterEscape = true
+					} else {
+						output = output + string(langruntime.CheckedChar(character))
+					}
+				} else if afterEscape {
+					if character == '"' && bracketDepth < 1 {
+						if quotes == 0 {
+							output = output + "){1,1}?("
+						} else if quotes == 1 {
+							output = output + "){1,1}(?:"
+						} else {
+							return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateSimilarQuotes)}
+						}
+						quotes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(quotes, 1))
+					} else {
+						output = output + string(langruntime.CheckedChar('\\'))
+						output = output + string(langruntime.CheckedChar(character))
+						classPosition = langruntime.CheckedI32(3)
+					}
+					afterEscape = false
+				} else if escaping && character == escapeCharacter {
+					afterEscape = true
+				} else if bracketDepth > 0 {
+					if character == '\\' {
+						output = output + string(langruntime.CheckedChar('\\'))
+					}
+					output = output + string(langruntime.CheckedChar(character))
+					if character == ']' && classPosition > 2 {
+						bracketDepth = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(bracketDepth, 1))
+					} else if character == '[' {
+						bracketDepth = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bracketDepth, 1))
+						classPosition = langruntime.CheckedI32(3)
+					} else if character == '^' {
+						classPosition = langruntime.CheckedI32(langruntime.CheckedSignedAdd(classPosition, 1))
+					} else {
+						classPosition = langruntime.CheckedI32(3)
+					}
+				} else if character == '[' {
+					output = output + string(langruntime.CheckedChar(character))
+					bracketDepth = langruntime.CheckedI32(1)
+					classPosition = langruntime.CheckedI32(1)
+				} else if character == '%' {
+					output = output + ".*"
+				} else if character == '_' {
+					output = output + string(langruntime.CheckedChar('.'))
+				} else if character == '(' {
+					output = output + "(?:"
+				} else if character == '\\' || character == '.' || character == '^' || character == '$' {
+					output = output + string(langruntime.CheckedChar('\\'))
+					output = output + string(langruntime.CheckedChar(character))
+				} else {
+					output = output + string(langruntime.CheckedChar(character))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			output = output + ")$"
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func SimilarToEscape7txt(pattern checkruntime.TextValue) checkruntime.TextValue {
+	return similarPatternValue(pattern, checkruntime.MakeTextValue("\\"))
+}
+func SimilarToEscape9vor(pattern checkruntime.TextValue, escape checkruntime.TextValue) checkruntime.TextValue {
+	return similarPatternValue(pattern, escape)
+}
+
 const sizeBytesParameterError = 3452619
 const sizeBytesNumericSyntaxError = 3484946
 

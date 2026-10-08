@@ -117,6 +117,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/text_search.rs");
     include!("operations/pg_catalog/text_width.rs");
     include!("operations/pg_catalog/text_quote.rs");
+    include!("operations/pg_catalog/text_similar.rs");
     include!("operations/pg_catalog/text_size_bytes.rs");
     include!("operations/pg_catalog/text_like.rs");
     include!("operations/pg_catalog/text_bool.rs");
@@ -135,6 +136,20 @@ pub mod pg_catalog {
     #[cfg(test)]
     mod binary_limit_tests {
         use super::*;
+
+        #[test]
+        fn similar_pattern_estimates_check_the_postgres_allocation_limit() {
+            for bytes in [0i64, 1i64, 357913931i64, 357913932i64] {
+                assert!(similar_pattern_capacity_fits(bytes));
+            }
+            for bytes in [357913933i64, 1073741819i64, 2147483647i64] {
+                assert!(!similar_pattern_capacity_fits(bytes));
+            }
+            assert_eq!(
+                sql_error_message(make_sql_error(SIMILAR_ALLOCATION_ERROR)).message,
+                "internal error"
+            );
+        }
 
         #[test]
         fn concatenation_checks_lengths_before_adding_or_allocating() {

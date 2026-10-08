@@ -14736,6 +14736,147 @@ export function splitPartDoxr(input: checkruntime.TextValue, separator: checkrun
     }
     return { kind: "Unknown" };
 }
+const similarEscapeError = 3452621;
+const sqlstateSimilarQuotes = 3452556;
+const similarAllocationError = 56966976;
+function similarPatternCapacityFits(bytes: bigint): boolean {
+    bytes = langruntime.checkedI64(bytes);
+    return langruntime.checkedI64Add(27n, langruntime.checkedI64Multiply(3n, bytes)) <= 1073741823n;
+}
+function similarPatternValue(pattern: checkruntime.TextValue, escape: checkruntime.TextValue): checkruntime.TextValue {
+    if (pattern.kind === "Error") {
+        const error: checkruntime.SqlError = pattern.value;
+        return { kind: "Error", value: error };
+    }
+    if (escape.kind === "Error") {
+        const error: checkruntime.SqlError = escape.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(pattern, { kind: "Unknown" }) || checkruntime.equalTextValue(escape, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(pattern, { kind: "Null" }) || checkruntime.equalTextValue(escape, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (pattern.kind === "Value") {
+        const patternValue: string = langruntime.checkedString(pattern.value);
+        if (escape.kind === "Value") {
+            const escapeValue: string = langruntime.checkedString(escape.value);
+            const characters: string[] = Array.from(patternValue);
+            const escapes: string[] = Array.from(escapeValue);
+            if (escapes.length > 1) {
+                return { kind: "Error", value: checkruntime.makeSqlError(similarEscapeError) };
+            }
+            if (similarPatternCapacityFits(textBuildOctets(patternValue)) === false) {
+                return { kind: "Error", value: checkruntime.makeSqlError(similarAllocationError) };
+            }
+            let escaping: boolean = false;
+            let escapeCharacter: string = "\\";
+            if (escapes.length === 1) {
+                escaping = langruntime.checkedBool(true);
+                escapeCharacter = langruntime.checkedChar(langruntime.indexChar(escapes, langruntime.checkedIndex(0)));
+            }
+            const escapeCode: number = langruntime.checkedChar(escapeCharacter).codePointAt(0)!;
+            let output: string = "";
+            output = output + "^(?:";
+            let afterEscape: boolean = false;
+            let quotes: number = 0;
+            let bracketDepth: number = 0;
+            let classPosition: number = 0;
+            let index: number = 0;
+            while (index < characters.length) {
+                const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+                const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+                if (escaping && escapeCode > 127 && code > 127) {
+                    if (afterEscape) {
+                        output = output + langruntime.checkedChar("\\");
+                        output = output + langruntime.checkedChar(character);
+                        afterEscape = langruntime.checkedBool(false);
+                    }
+                    else if (character === escapeCharacter) {
+                        afterEscape = langruntime.checkedBool(true);
+                    }
+                    else {
+                        output = output + langruntime.checkedChar(character);
+                    }
+                }
+                else if (afterEscape) {
+                    if (character === "\"" && bracketDepth < 1) {
+                        if (quotes === 0) {
+                            output = output + "){1,1}?(";
+                        }
+                        else if (quotes === 1) {
+                            output = output + "){1,1}(?:";
+                        }
+                        else {
+                            return { kind: "Error", value: checkruntime.makeSqlError(sqlstateSimilarQuotes) };
+                        }
+                        quotes = langruntime.checkedI32(langruntime.checkedSignedAdd(quotes, 1));
+                    }
+                    else {
+                        output = output + langruntime.checkedChar("\\");
+                        output = output + langruntime.checkedChar(character);
+                        classPosition = langruntime.checkedI32(3);
+                    }
+                    afterEscape = langruntime.checkedBool(false);
+                }
+                else if (escaping && character === escapeCharacter) {
+                    afterEscape = langruntime.checkedBool(true);
+                }
+                else if (bracketDepth > 0) {
+                    if (character === "\\") {
+                        output = output + langruntime.checkedChar("\\");
+                    }
+                    output = output + langruntime.checkedChar(character);
+                    if (character === "]" && classPosition > 2) {
+                        bracketDepth = langruntime.checkedI32(langruntime.checkedSignedSubtract(bracketDepth, 1));
+                    }
+                    else if (character === "[") {
+                        bracketDepth = langruntime.checkedI32(langruntime.checkedSignedAdd(bracketDepth, 1));
+                        classPosition = langruntime.checkedI32(3);
+                    }
+                    else if (character === "^") {
+                        classPosition = langruntime.checkedI32(langruntime.checkedSignedAdd(classPosition, 1));
+                    }
+                    else {
+                        classPosition = langruntime.checkedI32(3);
+                    }
+                }
+                else if (character === "[") {
+                    output = output + langruntime.checkedChar(character);
+                    bracketDepth = langruntime.checkedI32(1);
+                    classPosition = langruntime.checkedI32(1);
+                }
+                else if (character === "%") {
+                    output = output + ".*";
+                }
+                else if (character === "_") {
+                    output = output + langruntime.checkedChar(".");
+                }
+                else if (character === "(") {
+                    output = output + "(?:";
+                }
+                else if (character === "\\" || character === "." || character === "^" || character === "$") {
+                    output = output + langruntime.checkedChar("\\");
+                    output = output + langruntime.checkedChar(character);
+                }
+                else {
+                    output = output + langruntime.checkedChar(character);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            output = output + ")$";
+            return { kind: "Value", value: output };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function similarToEscape7txt(pattern: checkruntime.TextValue): checkruntime.TextValue {
+    return similarPatternValue(pattern, checkruntime.makeTextValue("\\"));
+}
+export function similarToEscape9vor(pattern: checkruntime.TextValue, escape: checkruntime.TextValue): checkruntime.TextValue {
+    return similarPatternValue(pattern, escape);
+}
 const sizeBytesParameterError = 3452619;
 const sizeBytesNumericSyntaxError = 3484946;
 export function pgSizeBytesGgrt(input: checkruntime.TextValue): checkruntime.Int8Value {
