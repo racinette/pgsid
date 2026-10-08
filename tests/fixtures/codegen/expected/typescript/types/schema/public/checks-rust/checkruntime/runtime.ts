@@ -1080,7 +1080,7 @@ export function copyNumericLayout(value: NumericLayout): NumericLayout {
 function invalidNumericParts(): NumericLayout {
     return { valid: false, special: 1, sign: 0, weight: 0, first: 0, end: 0 };
 }
-function numericSpace(value: string): boolean {
+export function numericSpace(value: string): boolean {
     value = langruntime.checkedChar(value);
     return value === " " || value === "\t" || value === "\n" || value === "\r" || value === "\v" || value === "\f";
 }

@@ -1480,6 +1480,8 @@ describe('world CHECK INSERT parity', () => {
       ['label_edit_records', 13],
       ['label_format_records', 12],
       ['label_literal_records', 2],
+      ['label_storage_records', 2],
+      ['label_pattern_records', 14],
     ] as const) {
       const prefix = `world_013_label_registry.${table}.`
       const constraints = [...coverage.values()].filter((item) =>
@@ -1491,6 +1493,22 @@ describe('world CHECK INSERT parity', () => {
           expect(measured[kind], measured.constraint).toBeGreaterThan(0)
         expect(measured.unknown, measured.constraint).toBe(0)
       }
+    }
+    for (const name of ['label_size_bytes', 'label_size_limit']) {
+      const identity = `world_013_label_registry.label_storage_records.${name}`
+      expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+      const states = new Set(
+        caseResults.flatMap((row) =>
+          row.name.startsWith('013_label_registry/')
+            ? row.checks
+                .filter(
+                  (check) => check.constraint === name && typeof check.result.error === 'string',
+                )
+                .map((check) => check.result.error)
+            : [],
+        ),
+      )
+      expect(states, identity).toEqual(new Set(['22003', '22023', '22P02']))
     }
     for (const name of ['lpad_2', 'lpad_3', 'rpad_2', 'rpad_3', 'repeat_2']) {
       for (const output of ['value', 'octets']) {

@@ -1000,7 +1000,7 @@ func copyNumericLayout(value NumericLayout) NumericLayout {
 func invalidNumericParts() NumericLayout {
 	return NumericLayout{Valid: false, Special: 1, Sign: 0, Weight: 0, First: 0, End: 0}
 }
-func numericSpace(value rune) bool {
+func NumericSpace(value rune) bool {
 	value = langruntime.CheckedChar(value)
 	return value == ' ' || value == '\t' || value == '\n' || value == '\r' || value == '\v' || value == '\f'
 }
@@ -1046,10 +1046,10 @@ func NumericParts(value string) NumericLayout {
 	}
 	begin := 0
 	end := len(chars)
-	for begin < end && numericSpace(chars[begin]) {
+	for begin < end && NumericSpace(chars[begin]) {
 		begin = langruntime.CheckedAdd(begin, 1)
 	}
-	for end > begin && numericSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+	for end > begin && NumericSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
 		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 	}
 	if begin == end {
