@@ -2280,3 +2280,54 @@ INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_oct
 INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\D800', 'ignored', 0, true);
 -- name: unicode_escape_skip_code_point_error
 INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets, suppress_invalid) VALUES (2, '\UFFFFFFFF', 'ignored', 0, true);
+
+-- name: normalization_composed_accent
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFC', 'Café', 'Café', false, false, true, '16.0', '16.0', false);
+-- name: normalization_decomposed_accent
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFD', 'Café', 'Café', false, true, true, '16.0', '16.0', false);
+-- name: normalization_compatibility_ligature
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'ﬁ', 'NFKC', 'fi', 'ﬁ', false, true, true, '16.0', '16.0', false);
+-- name: normalization_compatibility_digits
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, '²', 'nfkd', '2', '²', false, true, true, '16.0', '16.0', false);
+-- name: normalization_hangul
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, '각', 'NFC', '각', '각', false, false, true, '16.0', '16.0', false);
+-- name: normalization_combining_order
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'À̕', 'NFD', 'À̕', 'À̕', false, false, true, '16.0', '16.0', false);
+-- name: normalization_unassigned
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, '͸', 'NFC', '͸', '͸', true, true, false, '16.0', '16.0', false);
+-- name: normalization_noncharacter
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, '﷐', 'NFC', '﷐', '﷐', true, true, false, '16.0', '16.0', false);
+-- name: normalization_private_use
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, '', 'NFC', '', '', true, true, true, '16.0', '16.0', false);
+-- name: normalization_astral
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, '😊', 'NFC', '😊', '😊', true, true, true, '16.0', '16.0', false);
+-- name: normalization_empty
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, '', 'NFC', '', '', true, true, true, '16.0', '16.0', false);
+-- name: normalization_wrong_text
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFC', 'Cafe', 'Café', false, false, true, '16.0', '16.0', false);
+-- name: normalization_wrong_default_text
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFC', 'Café', 'Café', false, false, true, '16.0', '16.0', false);
+-- name: normalization_wrong_state
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFC', 'Café', 'Café', true, false, true, '16.0', '16.0', false);
+-- name: normalization_wrong_default_state
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFC', 'Café', 'Café', false, true, true, '16.0', '16.0', false);
+-- name: normalization_wrong_assignment
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFC', 'Café', 'Café', false, false, false, '16.0', '16.0', false);
+-- name: normalization_wrong_database_version
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFC', 'Café', 'Café', false, false, true, 'incorrect', '16.0', false);
+-- name: normalization_wrong_icu_version
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFC', 'Café', 'Café', false, false, true, '16.0', 'incorrect', false);
+-- name: normalization_null_label
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, NULL, 'NFC', 'ignored', 'ignored', true, true, true, '16.0', '16.0', false);
+-- name: normalization_null_form
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', NULL, 'ignored', 'Café', true, false, true, '16.0', '16.0', false);
+-- name: normalization_null_expectations
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, false);
+-- name: normalization_invalid_form
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'invalid', NULL, 'Café', NULL, false, true, '16.0', '16.0', false);
+-- name: normalization_space_in_form
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'NFC ', NULL, 'Café', NULL, false, true, '16.0', '16.0', false);
+-- name: normalization_null_skips_invalid_form
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, NULL, 'invalid', 'ignored', 'ignored', false, false, true, '16.0', '16.0', false);
+-- name: normalization_lazy_invalid_form
+INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'invalid', 'ignored', 'ignored', false, false, true, 'ignored', 'ignored', true);
