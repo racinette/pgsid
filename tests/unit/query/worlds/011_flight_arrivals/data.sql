@@ -26,3 +26,9 @@ INSERT INTO arrival_calendar_buckets (id, arrival_time, unit_name, bucket_time, 
 VALUES (1, '2020-01-01 12:34:56.123456', 'day', '2020-01-01', false);
 
 INSERT INTO arrival_calendar_fields (id, suppress_invalid, arrival_day, calendar_field, recorded_field) VALUES (1, false, '2024-02-29', 'doy', 60);
+
+INSERT INTO arrival_calendar_zone_buckets (id, suppress_invalid, arrival, zone_name, unit_name, recorded_bucket)
+VALUES (1, false, '2021-11-07 05:30:45.123456+00', 'America/New_York', 'hour', '2021-11-07 05:00:00+00');
+
+INSERT INTO arrival_calendar_clock_fields (id, suppress_invalid, local_time, unit_name, recorded_amount, recorded_bytes, recorded_scale)
+VALUES (1, false, '2000-02-29 12:34:56.789012', 'second', '56.789012', '\x000300000000000600381ed204b0', 6);

@@ -17,3 +17,9 @@ VALUES (1, false, '  😊parcel😊  ', '😊 ', '😊parcel😊', 'parcel', '�
 
 INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
 VALUES (1, false, 'élÈVE STRAẞE İß Σσς', 'élÈve straẞe İß Σσς', 'éLÈVe StraẞE İß Σσς', 'élÈve straẞe İß Σσς', 'éLÈVE STRAẞE İß Σσς');
+
+INSERT INTO label_fingerprints (id, suppress_invalid, label, fixed_label, peer, seed, recorded_hash, recorded_fixed_hash, recorded_seeded_hash, recorded_fixed_seeded_hash, recorded_lexeme_order, recorded_jsonb_order)
+VALUES ('1', false, 'alpha', 'alpha  ', 'z', '1', '956903556', '956903556', '5333970338675577285', '5333970338675577285', '-25', '-25');
+
+INSERT INTO label_previews (id, suppress_invalid, label, starting, width, active, recorded_window, recorded_tail, recorded_prefix, recorded_suffix, recorded_reverse, recorded_active)
+VALUES ('1', false, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'alp', 'bet', 'tebahpla', 'true');

@@ -553,6 +553,8 @@ describe('world CHECK INSERT parity', () => {
       ['013_label_registry', 'unicode_labels', 3],
       ['011_flight_arrivals', 'arrival_calendar_buckets', 1],
       ['011_flight_arrivals', 'arrival_calendar_fields', 1],
+      ['011_flight_arrivals', 'arrival_calendar_zone_buckets', 1],
+      ['011_flight_arrivals', 'arrival_calendar_clock_fields', 3],
       ['014_shipment_defaults', 'shipment_fee_small_units', 2],
       ['014_shipment_defaults', 'shipment_fee_regular_units', 2],
       ['014_shipment_defaults', 'shipment_fee_bulk_units', 2],
@@ -1472,6 +1474,8 @@ describe('world CHECK INSERT parity', () => {
       ['label_binary_order', 18],
       ['cleaned_label_records', 6],
       ['label_casing_records', 4],
+      ['label_fingerprints', 6],
+      ['label_previews', 8],
     ] as const) {
       const prefix = `world_013_label_registry.${table}.`
       const constraints = [...coverage.values()].filter((item) =>

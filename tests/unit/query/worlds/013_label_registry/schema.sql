@@ -154,3 +154,47 @@ CREATE TABLE label_casing_records (
   CONSTRAINT lower_text_1 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.lower(label) = recorded_lower_text_1 END),
   CONSTRAINT upper_text_1 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.upper(label) = recorded_upper_text_1 END)
 );
+
+CREATE TABLE label_fingerprints (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  label text COLLATE "C",
+  fixed_label bpchar COLLATE "C",
+  peer text COLLATE "C",
+  seed bigint,
+  recorded_hash integer,
+  recorded_fixed_hash integer,
+  recorded_seeded_hash bigint,
+  recorded_fixed_seeded_hash bigint,
+  recorded_lexeme_order integer,
+  recorded_jsonb_order integer,
+  CONSTRAINT label_hash CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.hashtext(label) = recorded_hash END),
+  CONSTRAINT label_fixed_hash CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.hashbpchar(fixed_label) = recorded_fixed_hash END),
+  CONSTRAINT label_seeded_hash CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.hashtextextended(label, seed) = recorded_seeded_hash END),
+  CONSTRAINT label_fixed_seeded_hash CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.hashbpcharextended(fixed_label, seed) = recorded_fixed_seeded_hash END),
+  CONSTRAINT label_lexeme_order CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.gin_cmp_tslexeme(label, peer) = recorded_lexeme_order END),
+  CONSTRAINT label_jsonb_order CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.gin_compare_jsonb(label, peer) = recorded_jsonb_order END)
+);
+
+CREATE TABLE label_previews (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  label text COLLATE "C",
+  starting integer,
+  width integer,
+  active boolean,
+  recorded_window text COLLATE "C",
+  recorded_tail text COLLATE "C",
+  recorded_prefix text COLLATE "C",
+  recorded_suffix text COLLATE "C",
+  recorded_reverse text COLLATE "C",
+  recorded_active text COLLATE "C",
+  CONSTRAINT label_substring_window CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.substring(label,starting,width) = recorded_window END),
+  CONSTRAINT label_substr_window CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.substr(label,starting,width) = recorded_window END),
+  CONSTRAINT label_substring_tail CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.substring(label,starting) = recorded_tail END),
+  CONSTRAINT label_substr_tail CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.substr(label,starting) = recorded_tail END),
+  CONSTRAINT label_left_preview CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.left(label,width) = recorded_prefix END),
+  CONSTRAINT label_right_preview CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.right(label,width) = recorded_suffix END),
+  CONSTRAINT label_reverse_preview CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.reverse(label) = recorded_reverse END),
+  CONSTRAINT label_active_preview CHECK (CASE WHEN suppress_invalid THEN true ELSE active::text = recorded_active END)
+);

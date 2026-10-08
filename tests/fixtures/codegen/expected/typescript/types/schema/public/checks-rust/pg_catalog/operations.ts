@@ -10396,7 +10396,7 @@ function temporalTruncateTimestamp(value: bigint, code: number): checkruntime.Ti
         if (langruntime.checkedI64Remainder(value, scale) < 0n) {
             result = langruntime.checkedI64(langruntime.checkedI64Subtract(result, scale));
         }
-        return checkruntime.makeTimestampValue(result);
+        return { kind: "Value", value: result };
     }
     let day: bigint = langruntime.checkedI64Divide(value, 86400000000n);
     if (langruntime.checkedI64Remainder(value, 86400000000n) < 0n) {
@@ -10404,7 +10404,11 @@ function temporalTruncateTimestamp(value: bigint, code: number): checkruntime.Ti
     }
     const julian: bigint = langruntime.checkedI64Add(day, 2451545n);
     if (code === 7) {
-        return checkruntime.makeTimestampValue(langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(day, langruntime.checkedI64Remainder(julian, 7n))), 86400000000n));
+        let weekday: bigint = langruntime.checkedI64Remainder(julian, 7n);
+        if (weekday < 0n) {
+            weekday = langruntime.checkedI64(langruntime.checkedI64Add(weekday, 7n));
+        }
+        return { kind: "Value", value: langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(day, weekday)), 86400000000n) };
     }
     const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(julian));
     let year: number = calendar.year;
@@ -10439,10 +10443,8 @@ function temporalTruncateTimestamp(value: bigint, code: number): checkruntime.Ti
             year = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(0, langruntime.checkedSignedMultiply((langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(999, (langruntime.checkedSignedSubtract(year, 1)))), 1000)), 1000)), 1));
         }
     }
-    if (year <= 0) {
-        year = langruntime.checkedI32(langruntime.checkedSignedSubtract(year, 1));
-    }
-    return checkruntime.timestampFromCalendar(year, month, 1, 0, 0, 0, 0);
+    const truncatedJulian: bigint = temporalJulianFromCalendar(year, month, 1);
+    return { kind: "Value", value: langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(truncatedJulian, 2451545n)), 86400000000n) };
 }
 export function dateTrunc3i0u(units: checkruntime.TextValue, input: checkruntime.TimestampValue): checkruntime.TimestampValue {
     if (units.kind === "Error") {
@@ -10463,7 +10465,12 @@ export function dateTrunc3i0u(units: checkruntime.TextValue, input: checkruntime
         const unit: string = langruntime.checkedString(units.value);
         if (input.kind === "Value") {
             const value: bigint = langruntime.checkedI64(input.value);
-            return temporalTruncateTimestamp(value, temporalUnitCode(unit));
+            const truncated: checkruntime.TimestampValue = temporalTruncateTimestamp(value, temporalUnitCode(unit));
+            if (truncated.kind === "Value") {
+                const result: bigint = langruntime.checkedI64(truncated.value);
+                return checkruntime.makeTimestampValue(result);
+            }
+            return truncated;
         }
     }
     return { kind: "Unknown" };
@@ -10962,6 +10969,205 @@ export function timestamptzSmallerLbk9(left: checkruntime.TimestamptzValue, righ
     }
     return { kind: "Unknown" };
 }
+function temporalDecimalParts(whole: bigint, fraction: bigint, scale: number, negativeZero: boolean): string {
+    whole = langruntime.checkedI64(whole);
+    fraction = langruntime.checkedI64(fraction);
+    scale = langruntime.checkedI32(scale);
+    negativeZero = langruntime.checkedBool(negativeZero);
+    let output: string = "";
+    if (negativeZero) {
+        output = output + langruntime.checkedChar("-");
+    }
+    const integer: string = checkruntime.textSignedNumber(whole);
+    output = output + integer;
+    if (scale > 0) {
+        output = output + langruntime.checkedChar(".");
+        let divisor: bigint = 1n;
+        let index: number = 1;
+        while (index < scale) {
+            divisor = langruntime.checkedI64(langruntime.checkedI64Multiply(divisor, 10n));
+            index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+        }
+        let remaining: bigint = fraction;
+        while (divisor > 0n) {
+            const digit: bigint = langruntime.checkedI64Divide(remaining, divisor);
+            const code: number = Number(BigInt.asIntN(32, langruntime.checkedI64(digit)));
+            const character: string = langruntime.characterFromI32((langruntime.checkedSignedAdd(code, 48)), "0");
+            output = output + langruntime.checkedChar(character);
+            remaining = langruntime.checkedI64(langruntime.checkedI64Remainder(remaining, divisor));
+            divisor = langruntime.checkedI64(langruntime.checkedI64Divide(divisor, 10n));
+        }
+    }
+    return output;
+}
+function temporalScaledNumber(value: bigint, scale: number): checkruntime.NumericValue {
+    value = langruntime.checkedI64(value);
+    scale = langruntime.checkedI32(scale);
+    let divisor: bigint = 1n;
+    let index: number = 0;
+    while (index < scale) {
+        divisor = langruntime.checkedI64(langruntime.checkedI64Multiply(divisor, 10n));
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    const whole: bigint = langruntime.checkedI64Divide(value, divisor);
+    let fraction: bigint = langruntime.checkedI64Remainder(value, divisor);
+    if (fraction < 0n) {
+        fraction = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, fraction));
+    }
+    return { kind: "Value", value: temporalDecimalParts(whole, fraction, scale, value < 0n && whole === 0n) };
+}
+function temporalTimestampEpoch(value: bigint): checkruntime.NumericValue {
+    value = langruntime.checkedI64(value);
+    let whole: bigint = langruntime.checkedI64Add(langruntime.checkedI64Divide(value, 1000000n), 946684800n);
+    let fraction: bigint = langruntime.checkedI64Remainder(value, 1000000n);
+    if (fraction < 0n) {
+        whole = langruntime.checkedI64(langruntime.checkedI64Subtract(whole, 1n));
+        fraction = langruntime.checkedI64(langruntime.checkedI64Add(fraction, 1000000n));
+    }
+    if (value >= 9222425352054775807n) {
+        fraction = langruntime.checkedI64(langruntime.checkedI64Multiply((langruntime.checkedI64Divide((langruntime.checkedI64Add(fraction, 50n)), 100n)), 100n));
+        if (fraction === 1000000n) {
+            whole = langruntime.checkedI64(langruntime.checkedI64Add(whole, 1n));
+            fraction = langruntime.checkedI64(0n);
+        }
+    }
+    const negative: boolean = whole < 0n;
+    if (negative && !(fraction === 0n)) {
+        whole = langruntime.checkedI64(langruntime.checkedI64Add(whole, 1n));
+        fraction = langruntime.checkedI64(langruntime.checkedI64Subtract(1000000n, fraction));
+    }
+    return { kind: "Value", value: temporalDecimalParts(whole, fraction, 6, negative && whole === 0n) };
+}
+function temporalTimestampJulian(julian: bigint, clock: bigint): checkruntime.NumericValue {
+    julian = langruntime.checkedI64(julian);
+    clock = langruntime.checkedI64(clock);
+    let weight: number = 0;
+    let first: bigint = clock;
+    if (clock >= 100000000n) {
+        weight = langruntime.checkedI32(2);
+        first = langruntime.checkedI64(langruntime.checkedI64Divide(clock, 100000000n));
+    }
+    else if (clock >= 10000n) {
+        weight = langruntime.checkedI32(1);
+        first = langruntime.checkedI64(langruntime.checkedI64Divide(clock, 10000n));
+    }
+    let quotientWeight: number = langruntime.checkedSignedSubtract(weight, 2);
+    if (first <= 864n) {
+        quotientWeight = langruntime.checkedI32(langruntime.checkedSignedSubtract(quotientWeight, 1));
+    }
+    const scale: number = langruntime.checkedSignedSubtract(16, langruntime.checkedSignedMultiply(quotientWeight, 4));
+    const denominator: bigint = 86400000000n;
+    let remainder: bigint = clock;
+    let fraction: string[] = [];
+    let index: number = 0;
+    while (index < scale) {
+        remainder = langruntime.checkedI64(langruntime.checkedI64Multiply(remainder, 10n));
+        const digit: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(remainder, denominator)))));
+        langruntime.pushChar(fraction, langruntime.characterFromI32((langruntime.checkedSignedAdd(digit, 48)), "0"));
+        remainder = langruntime.checkedI64(langruntime.checkedI64Remainder(remainder, denominator));
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    let carry: boolean = langruntime.checkedI64Multiply(remainder, 2n) >= denominator;
+    let cursor: number = fraction.length;
+    while (carry && cursor > 0) {
+        cursor = langruntime.checkedIndex(langruntime.checkedSubtract(cursor, 1));
+        const code: number = langruntime.checkedChar(langruntime.indexChar(fraction, langruntime.checkedIndex(cursor))).codePointAt(0)!;
+        if (code === 57) {
+            fraction[langruntime.checkedIndexIn(fraction, cursor)] = langruntime.checkedChar("0");
+        }
+        else {
+            fraction[langruntime.checkedIndexIn(fraction, cursor)] = langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(code, 1)), "0"));
+            carry = langruntime.checkedBool(false);
+        }
+    }
+    let whole: bigint = julian;
+    if (carry) {
+        whole = langruntime.checkedI64(langruntime.checkedI64Add(whole, 1n));
+    }
+    let output: string = checkruntime.textSignedNumber(whole);
+    output = output + langruntime.checkedChar(".");
+    cursor = langruntime.checkedIndex(0);
+    while (cursor < fraction.length) {
+        output = output + langruntime.checkedChar(langruntime.indexChar(fraction, langruntime.checkedIndex(cursor)));
+        cursor = langruntime.checkedAdd(cursor, 1);
+    }
+    return { kind: "Value", value: output };
+}
+function temporalExtractTimestamp(value: bigint, unit: string): checkruntime.NumericValue {
+    value = langruntime.checkedI64(value);
+    unit = langruntime.checkedString(unit);
+    const code: number = temporalExtractCode(unit);
+    if (code === 0 || code === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnitError) };
+    }
+    if (value === -9223372036854775808n || value === 9223372036854775807n) {
+        if ((code >= 1 && code <= 9) || code === 16 || code === 17 || code === 18 || temporalUnitCode(unit) === langruntime.checkedSignedNegate(1)) {
+            return { kind: "Null" };
+        }
+        if (code >= 10 && code <= 19) {
+            if (value < 0n) {
+                return { kind: "Value", value: "-Infinity" };
+            }
+            return { kind: "Value", value: "Infinity" };
+        }
+        return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnsupportedError) };
+    }
+    if (code === langruntime.checkedSignedNegate(1)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnsupportedError) };
+    }
+    let day: bigint = langruntime.checkedI64Divide(value, 86400000000n);
+    let clock: bigint = langruntime.checkedI64Remainder(value, 86400000000n);
+    if (clock < 0n) {
+        day = langruntime.checkedI64(langruntime.checkedI64Subtract(day, 1n));
+        clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
+    }
+    if (code === 1) {
+        return { kind: "Value", value: checkruntime.textSignedNumber(langruntime.checkedI64Remainder(clock, 60000000n)) };
+    }
+    if (code === 2) {
+        return temporalScaledNumber(langruntime.checkedI64Remainder(clock, 60000000n), 3);
+    }
+    if (code === 3) {
+        return temporalScaledNumber(langruntime.checkedI64Remainder(clock, 60000000n), 6);
+    }
+    if (code === 4) {
+        return { kind: "Value", value: checkruntime.textSignedNumber(langruntime.checkedI64Remainder(langruntime.checkedI64Divide(clock, 60000000n), 60n)) };
+    }
+    if (code === 5) {
+        return { kind: "Value", value: checkruntime.textSignedNumber(langruntime.checkedI64Divide(clock, 3600000000n)) };
+    }
+    if (code === 14) {
+        return temporalTimestampJulian(langruntime.checkedI64Add(day, 2451545n), clock);
+    }
+    if (code === 19) {
+        return temporalTimestampEpoch(value);
+    }
+    return temporalExtractDate(Number(BigInt.asIntN(32, langruntime.checkedI64(day))), code);
+}
+export function extractF4l3(units: checkruntime.TextValue, input: checkruntime.TimestampValue): checkruntime.NumericValue {
+    if (units.kind === "Error") {
+        const error: checkruntime.SqlError = units.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalTimestampValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(units, { kind: "Null" }) || checkruntime.equalTimestampValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (units.kind === "Value") {
+        const unit: string = langruntime.checkedString(units.value);
+        if (input.kind === "Value") {
+            const value: bigint = langruntime.checkedI64(input.value);
+            return temporalExtractTimestamp(value, unit);
+        }
+    }
+    return { kind: "Unknown" };
+}
 function textHasPrefix(text: string, prefix: string): boolean {
     text = langruntime.checkedString(text);
     prefix = langruntime.checkedString(prefix);
@@ -11214,6 +11420,26 @@ export function ascii7m47(input: checkruntime.TextValue): checkruntime.Int4Value
     }
     return { kind: "Unknown" };
 }
+export function textVuvi(input: checkruntime.BoolValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoolValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: boolean = langruntime.checkedBool(input.value);
+        if (value) {
+            return checkruntime.makeTextValue("true");
+        }
+        return checkruntime.makeTextValue("false");
+    }
+    return { kind: "Unknown" };
+}
 function textCaseValue(input: checkruntime.TextValue, mode: number): checkruntime.TextValue {
     mode = langruntime.checkedI32(mode);
     if (input.kind === "Error") {
@@ -11263,6 +11489,71 @@ export function lowerHcg0(input: checkruntime.TextValue): checkruntime.TextValue
 }
 export function upperValc(input: checkruntime.TextValue): checkruntime.TextValue {
     return textCaseValue(input, 1);
+}
+function textHashValue(input: checkruntime.TextValue, trimSpaces: boolean): checkruntime.Int4Value {
+    trimSpaces = langruntime.checkedBool(trimSpaces);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const hex: string = textBinaryHex(value, trimSpaces);
+        const bytes: checkruntime.HashByte[] = byteaHashBytes(hex);
+        return { kind: "Value", value: checkruntime.hashBytes32(bytes) };
+    }
+    return { kind: "Unknown" };
+}
+function textHashExtended(input: checkruntime.TextValue, seed: checkruntime.Int8Value, trimSpaces: boolean): checkruntime.Int8Value {
+    trimSpaces = langruntime.checkedBool(trimSpaces);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (seed.kind === "Error") {
+        const error: checkruntime.SqlError = seed.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt8Value(seed, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (seed.kind === "Value") {
+            const salt: bigint = langruntime.checkedI64(seed.value);
+            const hex: string = textBinaryHex(value, trimSpaces);
+            const bytes: checkruntime.HashByte[] = byteaHashBytes(hex);
+            return { kind: "Value", value: checkruntime.hashBytes64(bytes, salt) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function hashtextCnj7(input: checkruntime.TextValue): checkruntime.Int4Value {
+    return textHashValue(input, false);
+}
+export function hashbpcharEeeo(input: checkruntime.TextValue): checkruntime.Int4Value {
+    return textHashValue(input, true);
+}
+export function hashtextextendedDns6(input: checkruntime.TextValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+    return textHashExtended(input, seed, false);
+}
+export function hashbpcharextendedCa1t(input: checkruntime.TextValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+    return textHashExtended(input, seed, true);
+}
+export function ginCmpTslexeme1b7b(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
+    return textBinaryCompare(left, right, false);
+}
+export function ginCompareJsonbIzgy(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
+    return textBinaryCompare(left, right, false);
 }
 export function bitLengthBpcw(value: checkruntime.TextValue): checkruntime.Int4Value {
     return textMeasureValue(value, false, 2);
@@ -11528,6 +11819,163 @@ export function textSmallerT2nd(left: checkruntime.TextValue, right: checkruntim
             return left;
         }
         return right;
+    }
+    return { kind: "Unknown" };
+}
+const textSubstringError = 3452581;
+function textSubstringValue(input: checkruntime.TextValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value, hasLength: boolean): checkruntime.TextValue {
+    hasLength = langruntime.checkedBool(hasLength);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (position.kind === "Error") {
+        const error: checkruntime.SqlError = position.value;
+        return { kind: "Error", value: error };
+    }
+    if (length.kind === "Error") {
+        const error: checkruntime.SqlError = length.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(position, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(position, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        if (position.kind === "Value") {
+            const start: number = langruntime.checkedI32(position.value);
+            if (length.kind === "Value") {
+                const count: number = langruntime.checkedI32(length.value);
+                if (hasLength && count < 0) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(textSubstringError) };
+                }
+                const first: bigint = BigInt(langruntime.checkedI32(start));
+                let end: bigint = 2147483648n;
+                if (hasLength && start <= langruntime.checkedSignedSubtract(2147483647, count)) {
+                    const stop: number = langruntime.checkedSignedAdd(start, count);
+                    end = langruntime.checkedI64(BigInt(langruntime.checkedI32(stop)));
+                }
+                const characters: string[] = Array.from(text);
+                let output: string = "";
+                let index: number = 0;
+                let current: bigint = 1n;
+                while (index < characters.length && current < end) {
+                    if (current >= first) {
+                        output = output + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                    current = langruntime.checkedI64(langruntime.checkedI64Add(current, 1n));
+                }
+                return { kind: "Value", value: output };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+function textSideValue(input: checkruntime.TextValue, length: checkruntime.Int4Value, fromRight: boolean): checkruntime.TextValue {
+    fromRight = langruntime.checkedBool(fromRight);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (length.kind === "Error") {
+        const error: checkruntime.SqlError = length.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        if (length.kind === "Value") {
+            const count: number = langruntime.checkedI32(length.value);
+            const characters: string[] = Array.from(text);
+            let total: bigint = 0n;
+            let index: number = 0;
+            while (index < characters.length) {
+                total = langruntime.checkedI64(langruntime.checkedI64Add(total, 1n));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            const requested: bigint = BigInt(langruntime.checkedI32(count));
+            let first: bigint = 0n;
+            let end: bigint = total;
+            if (fromRight) {
+                if (count < 0) {
+                    first = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, requested));
+                    if (count === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
+                        first = langruntime.checkedI64(0n);
+                    }
+                }
+                else {
+                    first = langruntime.checkedI64(langruntime.checkedI64Subtract(total, requested));
+                }
+            }
+            else if (count < 0) {
+                end = langruntime.checkedI64(langruntime.checkedI64Add(total, requested));
+            }
+            else {
+                end = langruntime.checkedI64(requested);
+            }
+            let output: string = "";
+            index = langruntime.checkedIndex(0);
+            let current: bigint = 0n;
+            while (index < characters.length && current < end) {
+                if (current >= first) {
+                    output = output + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+                }
+                index = langruntime.checkedAdd(index, 1);
+                current = langruntime.checkedI64(langruntime.checkedI64Add(current, 1n));
+            }
+            return { kind: "Value", value: output };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function substringEzt4(input: checkruntime.TextValue, position: checkruntime.Int4Value): checkruntime.TextValue {
+    return textSubstringValue(input, position, { kind: "Value", value: 0 }, false);
+}
+export function substringDd1c(input: checkruntime.TextValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value): checkruntime.TextValue {
+    return textSubstringValue(input, position, length, true);
+}
+export function substr8v03(input: checkruntime.TextValue, position: checkruntime.Int4Value): checkruntime.TextValue {
+    return textSubstringValue(input, position, { kind: "Value", value: 0 }, false);
+}
+export function substrZhiv(input: checkruntime.TextValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value): checkruntime.TextValue {
+    return textSubstringValue(input, position, length, true);
+}
+export function left8f3e(input: checkruntime.TextValue, length: checkruntime.Int4Value): checkruntime.TextValue {
+    return textSideValue(input, length, false);
+}
+export function rightHbgt(input: checkruntime.TextValue, length: checkruntime.Int4Value): checkruntime.TextValue {
+    return textSideValue(input, length, true);
+}
+export function reverse5pr1(input: checkruntime.TextValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(text);
+        let index: number = characters.length;
+        let output: string = "";
+        while (index > 0) {
+            index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+            output = output + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+        }
+        return { kind: "Value", value: output };
     }
     return { kind: "Unknown" };
 }
