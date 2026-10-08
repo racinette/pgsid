@@ -20,6 +20,9 @@ import {
 } from '../../tools/check-rust/parity.js'
 
 const expressions: Record<string, string> = {
+  char_regex: 'fixed COLLATE pg_catalog."C" ~ \'^a *$\'',
+  char_to_text_regex: '(fixed::text) COLLATE pg_catalog."C" ~ \'^a$\'',
+
   varchar_equal: 'v = w',
   varchar_unequal: 'v <> w',
   varchar_order: 'v < w',
@@ -69,8 +72,6 @@ for (const op of comparisons) {
   expressions['op_' + fn.name] = `fixed ${op.name} other`
 }
 const unsupported = {
-  char_regex: 'fixed COLLATE pg_catalog."C" ~ \'^a *$\'',
-  char_to_text_regex: '(fixed::text) COLLATE pg_catalog."C" ~ \'^a$\'',
   varchar_nondeterministic: "ci_v::text = 'a'",
   char_nondeterministic: "ci_c = 'a'",
   char_conflicting_collation: 'det_c = other_det_c',

@@ -520,9 +520,12 @@ assert.deepEqual(
   evaluator.inputs.map((input) => input.name),
   ['amount', 'flag', 'note'],
 )
-assert.equal(evaluator.requiresRegex, true)
 await writeFile(directory + '/evaluator.rs', evaluator.source)
 const source = assembleCheckRust(evaluator)
+assert.equal(
+  source.modules.some((module) => module.name === 'regex_engine'),
+  true,
+)
 const generated = transpileCheckRust(source)
 writeCheckRustSources(directory + '/check.rs', source)
 await writeFile(directory + '/check.ts', generated.typescript)

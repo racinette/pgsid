@@ -474,13 +474,20 @@ func TestMixedChecks(t *testing.T) {
     expect(plans.get('with_unknown')?.expression).toMatchObject({
       kind: 'eval-boolean-logic',
       operation: 'and',
-      operands: [{ kind: 'eval-regex' }, { kind: 'eval-scalar' }],
+      operands: [
+        { kind: 'eval-scalar', expression: { kind: 'call', call: { kind: 'operator' } } },
+        { kind: 'eval-scalar' },
+      ],
     })
     const domain = catalog.domains.find((item) => item.name === 'handle')!
     expect(domain.collationIsC).toBe(true)
     expect(lowerDomainCheck(domain, domain.checks[0]!)?.expression).toMatchObject({
-      kind: 'eval-regex',
-      subject: { kind: 'input', name: 'value' },
+      kind: 'eval-scalar',
+      expression: {
+        kind: 'call',
+        call: { kind: 'operator' },
+        operands: [{ kind: 'input', name: 'value' }, { kind: 'certain' }],
+      },
     })
     const nested = catalog.domains.find((item) => item.name === 'short_handle')!
     const group = catalogCheckGroups([], catalog.domains, [nested])[0]!
