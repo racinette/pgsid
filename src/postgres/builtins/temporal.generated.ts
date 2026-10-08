@@ -1620,6 +1620,7 @@ export const PG18_TEMPORAL = {
       returnsSet: false,
       variadic: null,
       numArgDefaults: 7,
+      defaultArguments: '0, 0, 0, 0, 0, 0, 0.0',
       aggKind: null,
       numDirectArgs: null,
     },

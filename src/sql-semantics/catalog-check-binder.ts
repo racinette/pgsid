@@ -2,6 +2,7 @@ import { parseSync } from 'libpg-query'
 import type { ColumnInfo, DomainInfo, EnumInfo } from '../catalog/types.js'
 import { PG18_BUILTIN_GROUPS } from '../postgres/builtins/groups.generated.js'
 import { builtinCast, builtinMetadata } from '../postgres/builtins/inventory.js'
+import { builtinDefaultArguments } from '../postgres/builtins/default-arguments.js'
 import type { BuiltinCallable } from '../postgres/builtins/taxonomy.js'
 import type { EvalExpression } from './eval-expressions.js'
 import type { EvalBoolExpression } from './check-expressions.js'
@@ -457,20 +458,32 @@ const candidate = (
   kind: 'operator' | 'function',
   name: string,
   args: readonly Bound[],
+  bindDefault?: (node: unknown) => Bound,
 ): ResolvedCallable | null => {
   const integer = integerCandidate(kind, name, args)
   if (integer !== undefined) return integer
-  const collation = combineCollations(args.map((arg) => arg.collation))
-  if (collation?.explicit && collation.identity === 'conflict') return null
   const matches = callables.flatMap(({ signature, item }) => {
     if (
       item.kind !== kind ||
       item.schema !== 'pg_catalog' ||
       item.name !== name ||
-      item.args.length !== args.length ||
+      item.args.length < args.length ||
       !catalogScalarType(item.result.slice('pg_catalog.'.length).replaceAll('"', ''))
     )
       return []
+    let fullArgs = args
+    if (item.args.length > args.length) {
+      if (item.kind !== 'function' || !bindDefault) return []
+      const missing = item.args.length - args.length
+      if (missing > item.numArgDefaults) return []
+      const defaults = builtinDefaultArguments(item)
+      if (!defaults) return []
+      const expanded = defaults.slice(defaults.length - missing).map((node) => bindDefault(node))
+      if (expanded.some((arg) => !arg.value && !arg.literal)) return []
+      fullArgs = [...args, ...expanded]
+    }
+    const collation = combineCollations(fullArgs.map((arg) => arg.collation))
+    if (collation?.explicit && collation.identity === 'conflict') return []
     if (
       item.args.some((type) =>
         ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type),
@@ -478,10 +491,10 @@ const candidate = (
       !supportsTextCallableCollation(signature, collation?.kind)
     )
       return []
-    const definition = args.find((arg) => arg.enum)?.enum
+    const definition = fullArgs.find((arg) => arg.enum)?.enum
     const enumCall = item.args.includes('pg_catalog.anyenum')
     if (enumCall && (!definition || !enumEqualityOperation(signature))) return []
-    const operands = args.map((arg, index) =>
+    const operands = fullArgs.map((arg, index) =>
       isIntegerType(item.args[index]!)
         ? materializeInteger(arg, item.args[index]! as ScalarType)
         : materialize(
@@ -498,7 +511,7 @@ const candidate = (
   })
   const types = args.map(boundType)
   const exact = matches.filter(({ item }) =>
-    item.args.every((type, index) => type === types[index]),
+    item.args.slice(0, args.length).every((type, index) => type === types[index]),
   )
   if (exact.length === 1) return exact[0]!
   if (kind === 'operator' && args.length === 2) {
@@ -1486,7 +1499,7 @@ export function bindCatalogCheck(
           operand: args[0]!.value,
         },
       }
-    const resolved = candidate(kind, name, args)
+    const resolved = candidate(kind, name, args, bind)
     if (!resolved) {
       if (
         kind === 'function' &&

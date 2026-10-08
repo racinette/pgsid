@@ -341,6 +341,7 @@ export const PG18_GENERIC = {
     returnsSet: false,
     variadic: null,
     numArgDefaults: 1,
+    defaultArguments: 'true',
     aggKind: null,
     numDirectArgs: null,
   },
