@@ -47,8 +47,16 @@ change to the regex transpiler unless the regex engine itself changes.
   reject general Option handling and integer-to-u32 casts. Validate both operands eagerly.
   Never append through a wrapper field. The network host and binary-send CHECKs
   exercise builders, and `check-owned-text.test.ts` covers Unicode and rejection.
-- Payload enum tests accept a single immutable identifier binding or `_`.
-  A wildcard tests only the variant and emits no payload access or local binding.
+- Enum tests accept unit variants or a payload with one immutable identifier
+  binding or `_`. A wildcard tests the variant without accessing the payload.
+  Owned payloads may contain supported vectors of scalars or Copy records;
+  extraction retains aggregate copying. Borrowed mutable aggregates and Clone
+  records with vector fields remain rejected.
+- Regex starts use `usize::try_from(i32_value).unwrap_or(usize_fallback)`.
+  Validate both operands eagerly; negative values select the fallback. Shared
+  indices range through the signed int4 maximum and may widen back with `as i32`.
+  General Result handling, unchecked signed-to-index casts and other conversions
+  remain rejected.
 - When adding syntax, first show a CHECK expression that needs it, then add a
   focused parser acceptance test and target behavior in Go and TypeScript.
 - Bigint CHECKs use `i64` payloads with explicit decimal `i64` literals and

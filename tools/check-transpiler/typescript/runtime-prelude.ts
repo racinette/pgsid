@@ -6,6 +6,12 @@ function checkedIndex(value: number): number {
   return value
 }
 
+function indexFromI32(value: number, fallback: number): number {
+  checkedI32(value)
+  checkedIndex(fallback)
+  return value < 0 ? fallback : value
+}
+
 function checkedI32(value: number): number {
   if (!Number.isInteger(value) || value < -2147483648 || value > MAX_SHARED_INDEX)
     throw new RangeError('signed integer outside shared numeric range')

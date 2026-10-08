@@ -80,6 +80,15 @@ func CheckedIndex(value int) int {
 	return value
 }
 
+func indexFromI32(value int, fallback int) int {
+	CheckedI32(value)
+	CheckedIndex(fallback)
+	if value < 0 {
+		return fallback
+	}
+	return value
+}
+
 func CheckedI32(value int) int {
 	if value < -2147483648 || value > maxSharedIndex {
 		panic("signed integer outside shared numeric range")
