@@ -148,3 +148,108 @@ CREATE TABLE shipment_fee_bulk_units (
   CONSTRAINT fee_bulk_rounded CHECK (CASE WHEN suppress_invalid THEN true ELSE CAST(amount AS bigint) = recorded_units END),
   CONSTRAINT fee_bulk_numeric CHECK (CASE WHEN suppress_invalid THEN true ELSE CAST(recorded_units AS numeric) = recorded_amount END)
 );
+
+CREATE TABLE shipment_fee_totals (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL,
+  amount numeric,
+  adjustment numeric,
+  sum_record numeric NOT NULL,
+  difference_record numeric NOT NULL,
+  product_record numeric NOT NULL,
+  next_record numeric NOT NULL,
+  sum_scale integer NOT NULL,
+  product_scale integer NOT NULL,
+  product_wire bytea,
+  CONSTRAINT fee_sum CHECK (CASE WHEN skip THEN true ELSE amount + adjustment = sum_record END),
+  CONSTRAINT fee_difference CHECK (CASE WHEN skip THEN true ELSE amount - adjustment = difference_record END),
+  CONSTRAINT fee_product CHECK (CASE WHEN skip THEN true ELSE amount * adjustment = product_record END),
+  CONSTRAINT fee_next CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_inc(amount) = next_record END),
+  CONSTRAINT fee_sum_scale CHECK (CASE WHEN skip THEN true ELSE scale(amount + adjustment) = sum_scale END),
+  CONSTRAINT fee_product_scale CHECK (CASE WHEN skip THEN true ELSE scale(amount * adjustment) = product_scale END),
+  CONSTRAINT fee_product_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(amount * adjustment) = product_wire END)
+);
+
+CREATE TABLE shipment_fee_fingerprints (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL,
+  amount numeric,
+  seed bigint,
+  hash_record integer NOT NULL,
+  seeded_hash_record bigint NOT NULL,
+  CONSTRAINT fee_hash CHECK (CASE WHEN skip THEN true ELSE pg_catalog.hash_numeric(amount) = hash_record END),
+  CONSTRAINT fee_seeded_hash CHECK (CASE WHEN skip THEN true ELSE pg_catalog.hash_numeric_extended(amount, seed) = seeded_hash_record END)
+);
+
+CREATE TABLE shipment_fee_window (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL,
+  amount numeric,
+  baseline numeric,
+  tolerance numeric,
+  subtract boolean,
+  less boolean,
+  range_record boolean NOT NULL,
+  CONSTRAINT fee_range CHECK (CASE WHEN skip THEN true ELSE pg_catalog.in_range(amount, baseline, tolerance, subtract, less) = range_record END)
+);
+
+CREATE TABLE shipment_fee_bounds (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL,
+  amount numeric,
+  modifier integer,
+  rounded_record numeric NOT NULL,
+  scale_record integer NOT NULL,
+  wire_record bytea,
+  CONSTRAINT fee_bounded CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric(amount, modifier) = rounded_record END),
+  CONSTRAINT fee_bounded_scale CHECK (CASE WHEN skip THEN true ELSE scale(pg_catalog.numeric(amount, modifier)) = scale_record END),
+  CONSTRAINT fee_bounded_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(pg_catalog.numeric(amount, modifier)) = wire_record END)
+);
+
+CREATE TABLE shipment_fee_quotients (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL,
+  amount numeric,
+  divisor numeric,
+  quotient_record numeric NOT NULL,
+  whole_record numeric NOT NULL,
+  remainder_record numeric NOT NULL,
+  quotient_scale integer NOT NULL,
+  remainder_scale integer NOT NULL,
+  quotient_wire bytea,
+  CONSTRAINT fee_quotient CHECK (CASE WHEN skip THEN true ELSE amount / divisor = quotient_record END),
+  CONSTRAINT fee_named_quotient CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_div(amount, divisor) = quotient_record END),
+  CONSTRAINT fee_whole_quotient CHECK (CASE WHEN skip THEN true ELSE pg_catalog.div(amount, divisor) = whole_record END),
+  CONSTRAINT fee_named_whole_quotient CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_div_trunc(amount, divisor) = whole_record END),
+  CONSTRAINT fee_remainder CHECK (CASE WHEN skip THEN true ELSE amount % divisor = remainder_record END),
+  CONSTRAINT fee_named_remainder CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_mod(amount, divisor) = remainder_record END),
+  CONSTRAINT fee_mod CHECK (CASE WHEN skip THEN true ELSE pg_catalog.mod(amount, divisor) = remainder_record END),
+  CONSTRAINT fee_quotient_scale CHECK (CASE WHEN skip THEN true ELSE scale(amount / divisor) = quotient_scale END),
+  CONSTRAINT fee_remainder_scale CHECK (CASE WHEN skip THEN true ELSE scale(amount % divisor) = remainder_scale END),
+  CONSTRAINT fee_quotient_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(amount / divisor) = quotient_wire END)
+);
+
+CREATE TABLE shipment_fee_common_units (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL,
+  amount numeric,
+  baseline numeric,
+  common_record numeric NOT NULL,
+  multiple_record numeric NOT NULL,
+  common_scale integer NOT NULL,
+  multiple_wire bytea,
+  CONSTRAINT fee_common CHECK (CASE WHEN skip THEN true ELSE pg_catalog.gcd(amount, baseline) = common_record END),
+  CONSTRAINT fee_multiple CHECK (CASE WHEN skip THEN true ELSE pg_catalog.lcm(amount, baseline) = multiple_record END),
+  CONSTRAINT fee_common_scale CHECK (CASE WHEN skip THEN true ELSE scale(pg_catalog.gcd(amount, baseline)) = common_scale END),
+  CONSTRAINT fee_multiple_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(pg_catalog.lcm(amount, baseline)) = multiple_wire END)
+);
+
+CREATE TABLE shipment_storage_sizes (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL,
+  bytes numeric,
+  size_record text NOT NULL,
+  octets_record integer NOT NULL,
+  CONSTRAINT storage_size_label CHECK (CASE WHEN skip THEN true ELSE pg_catalog.pg_size_pretty(bytes) = size_record END),
+  CONSTRAINT storage_size_label_octets CHECK (CASE WHEN skip THEN true ELSE octet_length(pg_catalog.pg_size_pretty(bytes)) = octets_record END)
+);

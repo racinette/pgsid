@@ -98,16 +98,16 @@ import them. Keep schema-only helpers with their callables.
   for zero and 22003 for minimum divided by negative one; SQL remainder returns
   zero for a divisor of negative one, bypassing the Rust primitive. Narrow with
   `as i32` only after checking the SQL range.
-- Numeric payloads own exact decimal strings in `NumericValue`; Go uses
-  strings and TypeScript accepts strings or the readonly wrapper. Inputs represent
-  already-coerced SQL values. Reject target numeric objects and floating-point
-  numbers at this boundary. Shared Rust validates decimal notation, exponents,
-  digit separators, ASCII whitespace, and special values. Invalid or unsupported
-  representations defer. Comparisons ignore display scale and signed zero;
-  PostgreSQL orders negative infinity, finite values, positive infinity, then NaN,
-  and equates NaNs. Integer casts round signed halves away from zero, reject
-  special values with 0A000 and overflow with 22003. Binary send retains base-10000
-  words, weight, sign and scale; run `tests/sql-semantics/check-numeric*.test.ts` against PGlite.
+- Numeric payloads own exact decimal strings in `NumericValue`; targets use
+  strings or readonly wrappers for already-coerced SQL values. Reject floating
+  point inputs; malformed or unsupported representations defer. Rust validates
+  syntax and owns decimal arithmetic, scale selection, rounding and formatting.
+  Comparisons ignore scale and signed zero; NaNs compare equal above infinities.
+  Integer casts round halves away from zero; special values return 0A000 and range
+  failures 22003. Named precision modifiers round before checking digit limits.
+  Hashes ignore sign/scale; binary send retains weight, sign and display scale.
+  Quotients and range comparisons preserve results beyond packed storage limits;
+  run `tests/sql-semantics/check-numeric*.test.ts` and shipment INSERT parity.
 - Inet and cidr share an immutable address payload with a family, prefix length,
   and sixteen-bit address words. Public row inputs use already SQL-coerced
   strings; the shared Rust parser handles IPv4, compressed IPv6, and embedded
