@@ -391,3 +391,84 @@ CREATE TABLE label_regex_records (
   CONSTRAINT recorded_bpchar_operator_not_folded CHECK (CASE WHEN suppress_invalid THEN true ELSE (fixed_label !~* pattern) = (NOT recorded_insensitive) END),
   CONSTRAINT recorded_nested_regex CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_like(label || '', reverse(reverse(pattern)), flags) = recorded_flagged END)
 );
+
+CREATE TABLE label_count_records (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  label text COLLATE "C",
+  pattern text COLLATE "C",
+  starting integer,
+  flags text COLLATE "C",
+  recorded_count_2 integer,
+  recorded_count_3 integer,
+  recorded_count_4 integer,
+  CONSTRAINT label_count_2 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_count(label, pattern) = recorded_count_2 END),
+  CONSTRAINT label_count_3 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_count(label, pattern, starting) = recorded_count_3 END),
+  CONSTRAINT label_count_4 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_count(label, pattern, starting, flags) = recorded_count_4 END)
+);
+
+CREATE TABLE label_position_records (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  label text COLLATE "C",
+  pattern text COLLATE "C",
+  starting integer,
+  occurrence integer,
+  end_option integer,
+  flags text COLLATE "C",
+  subexpression integer,
+  recorded_position_2 integer,
+  recorded_position_3 integer,
+  recorded_position_4 integer,
+  recorded_position_5 integer,
+  recorded_position_6 integer,
+  recorded_position_7 integer,
+  CONSTRAINT label_position_2 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_instr(label, pattern) = recorded_position_2 END),
+  CONSTRAINT label_position_3 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_instr(label, pattern, starting) = recorded_position_3 END),
+  CONSTRAINT label_position_4 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_instr(label, pattern, starting, occurrence) = recorded_position_4 END),
+  CONSTRAINT label_position_5 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_instr(label, pattern, starting, occurrence, end_option) = recorded_position_5 END),
+  CONSTRAINT label_position_6 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_instr(label, pattern, starting, occurrence, end_option, flags) = recorded_position_6 END),
+  CONSTRAINT label_position_7 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_instr(label, pattern, starting, occurrence, end_option, flags, subexpression) = recorded_position_7 END)
+);
+
+CREATE TABLE label_extract_records (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  label text COLLATE "C",
+  pattern text COLLATE "C",
+  starting integer,
+  occurrence integer,
+  flags text COLLATE "C",
+  subexpression integer,
+  recorded_extract_2 text COLLATE "C",
+  recorded_extract_3 text COLLATE "C",
+  recorded_extract_4 text COLLATE "C",
+  recorded_extract_5 text COLLATE "C",
+  recorded_extract_6 text COLLATE "C",
+  CONSTRAINT label_extract_2 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_substr(label, pattern) = recorded_extract_2 END),
+  CONSTRAINT label_extract_3 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_substr(label, pattern, starting) = recorded_extract_3 END),
+  CONSTRAINT label_extract_4 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_substr(label, pattern, starting, occurrence) = recorded_extract_4 END),
+  CONSTRAINT label_extract_5 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_substr(label, pattern, starting, occurrence, flags) = recorded_extract_5 END),
+  CONSTRAINT label_extract_6 CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_substr(label, pattern, starting, occurrence, flags, subexpression) = recorded_extract_6 END)
+);
+
+CREATE TABLE label_replacement_records (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  label text COLLATE "C",
+  pattern text COLLATE "C",
+  replacement text COLLATE "C",
+  starting integer,
+  occurrence integer,
+  flags text COLLATE "C",
+  recorded_regexp_replace_q5ba text COLLATE "C",
+  recorded_regexp_replace_7z9g text COLLATE "C",
+  recorded_regexp_replace_ohuj text COLLATE "C",
+  recorded_regexp_replace_j9on text COLLATE "C",
+  recorded_regexp_replace_3spp text COLLATE "C",
+  CONSTRAINT label_regexp_replace_q5ba CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_replace(label, pattern, replacement) = recorded_regexp_replace_q5ba END),
+  CONSTRAINT label_regexp_replace_7z9g CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_replace(label, pattern, replacement, starting) = recorded_regexp_replace_7z9g END),
+  CONSTRAINT label_regexp_replace_ohuj CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_replace(label, pattern, replacement, starting, occurrence) = recorded_regexp_replace_ohuj END),
+  CONSTRAINT label_regexp_replace_j9on CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_replace(label, pattern, replacement, starting, occurrence, flags) = recorded_regexp_replace_j9on END),
+  CONSTRAINT label_regexp_replace_3spp CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_replace(label, pattern, replacement, flags) = recorded_regexp_replace_3spp END)
+);
