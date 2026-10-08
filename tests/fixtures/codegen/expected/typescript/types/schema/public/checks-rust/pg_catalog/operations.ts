@@ -13918,6 +13918,217 @@ export function textSmallerT2nd(left: checkruntime.TextValue, right: checkruntim
     }
     return { kind: "Unknown" };
 }
+const textBuildLimitError = 8584704;
+function textBuildOctets(value: string): bigint {
+    value = langruntime.checkedString(value);
+    const characters: string[] = Array.from(value);
+    let size: bigint = 0n;
+    let index: number = 0;
+    while (index < characters.length) {
+        const code: number = langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index))).codePointAt(0)!;
+        let width: bigint = 1n;
+        if (code >= 128) {
+            width = langruntime.checkedI64(2n);
+        }
+        if (code >= 2048) {
+            width = langruntime.checkedI64(3n);
+        }
+        if (code >= 65536) {
+            width = langruntime.checkedI64(4n);
+        }
+        size = langruntime.checkedI64(langruntime.checkedI64Add(size, width));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return size;
+}
+function textPadding(input: checkruntime.TextValue, length: checkruntime.Int4Value, fill: checkruntime.TextValue, right: boolean): checkruntime.TextValue {
+    right = langruntime.checkedBool(right);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (length.kind === "Error") {
+        const error: checkruntime.SqlError = length.value;
+        return { kind: "Error", value: error };
+    }
+    if (fill.kind === "Error") {
+        const error: checkruntime.SqlError = fill.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" }) || checkruntime.equalTextValue(fill, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" }) || checkruntime.equalTextValue(fill, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        if (length.kind === "Value") {
+            const requested: number = langruntime.checkedI32(length.value);
+            if (fill.kind === "Value") {
+                const padding: string = langruntime.checkedString(fill.value);
+                const characters: string[] = Array.from(text);
+                const members: string[] = Array.from(padding);
+                let count: number = requested;
+                if (count < 0) {
+                    count = langruntime.checkedI32(0);
+                }
+                let end: number = 0;
+                let kept: number = 0;
+                while (end < characters.length && kept < count) {
+                    end = langruntime.checkedAdd(end, 1);
+                    kept = langruntime.checkedI32(langruntime.checkedSignedAdd(kept, 1));
+                }
+                if (members.length === 0) {
+                    count = langruntime.checkedI32(kept);
+                }
+                if (count >= 268435455) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(textBuildLimitError) };
+                }
+                let paddingCount: number = langruntime.checkedSignedSubtract(count, kept);
+                let output: string = "";
+                let index: number = 0;
+                if (right) {
+                    while (index < end) {
+                        output = output + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                }
+                index = langruntime.checkedIndex(0);
+                while (paddingCount > 0) {
+                    output = output + langruntime.checkedChar(langruntime.indexChar(members, langruntime.checkedIndex(index)));
+                    index = langruntime.checkedAdd(index, 1);
+                    if (index === members.length) {
+                        index = langruntime.checkedIndex(0);
+                    }
+                    paddingCount = langruntime.checkedI32(langruntime.checkedSignedSubtract(paddingCount, 1));
+                }
+                if (right === false) {
+                    index = langruntime.checkedIndex(0);
+                    while (index < end) {
+                        output = output + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                }
+                return { kind: "Value", value: output };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function lpadEzhf(input: checkruntime.TextValue, length: checkruntime.Int4Value, fill: checkruntime.TextValue): checkruntime.TextValue {
+    return textPadding(input, length, fill, false);
+}
+export function lpadLqi7(input: checkruntime.TextValue, length: checkruntime.Int4Value): checkruntime.TextValue {
+    return textPadding(input, length, { kind: "Value", value: " " }, false);
+}
+export function rpadBw5z(input: checkruntime.TextValue, length: checkruntime.Int4Value, fill: checkruntime.TextValue): checkruntime.TextValue {
+    return textPadding(input, length, fill, true);
+}
+export function rpad53f6(input: checkruntime.TextValue, length: checkruntime.Int4Value): checkruntime.TextValue {
+    return textPadding(input, length, { kind: "Value", value: " " }, true);
+}
+export function repeatF0fb(input: checkruntime.TextValue, length: checkruntime.Int4Value): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (length.kind === "Error") {
+        const error: checkruntime.SqlError = length.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        if (length.kind === "Value") {
+            const requested: number = langruntime.checkedI32(length.value);
+            if (requested <= 0) {
+                return { kind: "Value", value: "" };
+            }
+            const size: bigint = textBuildOctets(text);
+            if (size === 0n) {
+                return { kind: "Value", value: "" };
+            }
+            if (langruntime.checkedI64Multiply(size, BigInt(langruntime.checkedI32(requested))) > 1073741819n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(textBuildLimitError) };
+            }
+            let count: number = requested;
+            let block: string = text;
+            let output: string = "";
+            while (count > 0) {
+                if (langruntime.checkedSignedRemainder(count, 2) === 1) {
+                    output = output + block;
+                }
+                count = langruntime.checkedI32(langruntime.checkedSignedDivide(count, 2));
+                if (count > 0) {
+                    const copy: string = langruntime.checkedString(block);
+                    block = block + copy;
+                }
+            }
+            return { kind: "Value", value: output };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function translateTxpt(input: checkruntime.TextValue, from: checkruntime.TextValue, to: checkruntime.TextValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (from.kind === "Error") {
+        const error: checkruntime.SqlError = from.value;
+        return { kind: "Error", value: error };
+    }
+    if (to.kind === "Error") {
+        const error: checkruntime.SqlError = to.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" }) || checkruntime.equalTextValue(from, { kind: "Unknown" }) || checkruntime.equalTextValue(to, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalTextValue(from, { kind: "Null" }) || checkruntime.equalTextValue(to, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        if (from.kind === "Value") {
+            const source: string = langruntime.checkedString(from.value);
+            if (to.kind === "Value") {
+                const target: string = langruntime.checkedString(to.value);
+                if (textBuildOctets(text) > 268435454n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(textBuildLimitError) };
+                }
+                const characters: string[] = Array.from(text);
+                const before: string[] = Array.from(source);
+                const after: string[] = Array.from(target);
+                let output: string = "";
+                let index: number = 0;
+                while (index < characters.length) {
+                    let member: number = 0;
+                    while (member < before.length && !(langruntime.indexChar(before, langruntime.checkedIndex(member)) === langruntime.indexChar(characters, langruntime.checkedIndex(index)))) {
+                        member = langruntime.checkedAdd(member, 1);
+                    }
+                    if (member < before.length) {
+                        if (member < after.length) {
+                            output = output + langruntime.checkedChar(langruntime.indexChar(after, langruntime.checkedIndex(member)));
+                        }
+                    }
+                    else {
+                        output = output + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                return { kind: "Value", value: output };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 const textSubstringError = 3452581;
 function textSubstringValue(input: checkruntime.TextValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value, hasLength: boolean): checkruntime.TextValue {
     hasLength = langruntime.checkedBool(hasLength);

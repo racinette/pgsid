@@ -117,6 +117,25 @@ export function supportsTextCallableCollation(signature: string, collation?: str
       (implementation.args.length === 1 &&
         implementation.args[0] === 'pg_catalog.bool' &&
         implementation.name === 'text'))
+  const textBuilder =
+    implementation.kind === 'function' &&
+    implementation.schema === 'pg_catalog' &&
+    implementation.strict &&
+    implementation.volatility === 'i' &&
+    !implementation.returnsSet &&
+    implementation.result === 'pg_catalog.text' &&
+    ((['lpad', 'rpad'].includes(implementation.name) &&
+      [2, 3].includes(implementation.args.length) &&
+      implementation.args[0] === 'pg_catalog.text' &&
+      implementation.args[1] === 'pg_catalog.int4' &&
+      (implementation.args.length === 2 || implementation.args[2] === 'pg_catalog.text')) ||
+      (implementation.name === 'repeat' &&
+        implementation.args.length === 2 &&
+        implementation.args[0] === 'pg_catalog.text' &&
+        implementation.args[1] === 'pg_catalog.int4') ||
+      (implementation.name === 'translate' &&
+        implementation.args.length === 3 &&
+        implementation.args.every((type) => type === 'pg_catalog.text')))
   const textIntrinsic =
     implementation.kind === 'function' &&
     implementation.schema === 'pg_catalog' &&
@@ -158,6 +177,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
                 implementation.result === 'pg_catalog.int4'))))))
   return (
     textIntrinsic ||
+    textBuilder ||
     textSlice ||
     temporalField ||
     characterCode ||
