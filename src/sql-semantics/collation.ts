@@ -34,6 +34,14 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     metadata.result === 'pg_catalog.int4'
   const characterText =
     builtinCast('pg_catalog.bpchar', 'pg_catalog.text')?.implementation === signature
+  const asciiConversion =
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    metadata.name === 'to_ascii' &&
+    metadata.result === 'pg_catalog.text' &&
+    metadata.args[0] === 'pg_catalog.text' &&
+    (metadata.args.length === 1 ||
+      (metadata.args.length === 2 && metadata.args[1] === 'pg_catalog.int4'))
   const byteCodec =
     metadata.kind === 'function' &&
     metadata.schema === 'pg_catalog' &&
@@ -259,6 +267,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     textSlice ||
     temporalField ||
     characterCode ||
+    asciiConversion ||
     characterText ||
     byteCodec ||
     textDigest ||

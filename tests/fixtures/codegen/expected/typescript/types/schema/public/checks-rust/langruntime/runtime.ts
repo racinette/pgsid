@@ -5,7 +5,7 @@ export function checkedIndex(value: number): number {
         throw new RangeError('index outside shared numeric range');
     return value;
 }
-function indexFromI32(value: number, fallback: number): number {
+export function indexFromI32(value: number, fallback: number): number {
     checkedI32(value);
     checkedIndex(fallback);
     return value < 0 ? fallback : value;

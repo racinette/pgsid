@@ -15212,6 +15212,114 @@ export function reverse5pr1(input: checkruntime.TextValue): checkruntime.TextVal
     }
     return { kind: "Unknown" };
 }
+const asciiUndefinedEncoding = 6820852;
+const asciiUnsupportedEncoding = 466560;
+const asciiLatin1: ReadonlyArray<number> = [32, 32, 99, 76, 32, 89, 32, 32, 34, 67, 97, 32, 32, 45, 82, 32, 32, 32, 32, 32, 39, 117, 32, 46, 44, 32, 32, 32, 32, 32, 32, 63, 65, 65, 65, 65, 65, 65, 65, 67, 69, 69, 69, 69, 73, 73, 73, 73, 32, 78, 79, 79, 79, 79, 79, 120, 79, 85, 85, 85, 85, 89, 84, 66, 97, 97, 97, 97, 97, 97, 97, 99, 101, 101, 101, 101, 105, 105, 105, 105, 32, 110, 111, 111, 111, 111, 111, 47, 111, 117, 117, 117, 117, 121, 116, 121];
+const asciiLatin2: ReadonlyArray<number> = [32, 65, 32, 76, 32, 76, 83, 32, 34, 83, 83, 84, 90, 45, 90, 90, 32, 97, 44, 108, 39, 108, 115, 32, 44, 115, 115, 116, 122, 34, 122, 122, 82, 65, 65, 65, 65, 76, 67, 67, 67, 69, 69, 69, 69, 73, 73, 68, 68, 78, 78, 79, 79, 79, 79, 120, 82, 85, 85, 85, 85, 89, 84, 66, 114, 97, 97, 97, 97, 108, 99, 99, 99, 101, 101, 101, 101, 105, 105, 100, 100, 110, 110, 111, 111, 111, 111, 47, 114, 117, 117, 117, 117, 121, 116, 46];
+const asciiLatin9: ReadonlyArray<number> = [32, 32, 99, 76, 32, 89, 83, 32, 115, 67, 97, 32, 32, 45, 82, 32, 32, 32, 32, 32, 90, 117, 32, 46, 122, 32, 32, 32, 69, 101, 89, 63, 65, 65, 65, 65, 65, 65, 65, 67, 69, 69, 69, 69, 73, 73, 73, 73, 32, 78, 79, 79, 79, 79, 79, 120, 79, 85, 85, 85, 85, 89, 84, 66, 97, 97, 97, 97, 97, 97, 97, 99, 101, 101, 101, 101, 105, 105, 105, 105, 32, 110, 111, 111, 111, 111, 111, 47, 111, 117, 117, 117, 117, 121, 116, 121];
+const asciiWin1250: ReadonlyArray<number> = [32, 32, 39, 32, 34, 32, 32, 32, 32, 37, 83, 60, 83, 84, 90, 90, 32, 96, 39, 34, 34, 46, 45, 45, 32, 32, 115, 62, 115, 116, 122, 122, 32, 32, 32, 76, 32, 65, 32, 32, 34, 67, 83, 32, 32, 45, 82, 90, 32, 32, 44, 108, 39, 117, 32, 46, 44, 97, 115, 32, 76, 34, 108, 122, 82, 65, 65, 65, 65, 76, 67, 67, 67, 69, 69, 69, 69, 73, 73, 68, 68, 78, 78, 79, 79, 79, 79, 120, 82, 85, 85, 85, 85, 89, 84, 66, 114, 97, 97, 97, 97, 108, 99, 99, 99, 101, 101, 101, 101, 105, 105, 100, 100, 110, 110, 111, 111, 111, 111, 47, 114, 117, 117, 117, 117, 121, 116, 32];
+function asciiEncodingOctet(octet: number, encoding: number): string {
+    octet = langruntime.checkedI32(octet);
+    encoding = langruntime.checkedI32(encoding);
+    if (octet < 128) {
+        return langruntime.characterFromI32(octet, " ");
+    }
+    let start: number = 160;
+    if (encoding === 29) {
+        start = langruntime.checkedI32(128);
+    }
+    if (octet < start) {
+        return " ";
+    }
+    const index: number = langruntime.indexFromI32(langruntime.checkedSignedSubtract(octet, start), 0);
+    let mapped: number = 0;
+    if (encoding === 8) {
+        mapped = langruntime.checkedI32(langruntime.indexStatic(asciiLatin1, langruntime.checkedIndex(index)));
+    }
+    else if (encoding === 9) {
+        mapped = langruntime.checkedI32(langruntime.indexStatic(asciiLatin2, langruntime.checkedIndex(index)));
+    }
+    else if (encoding === 16) {
+        mapped = langruntime.checkedI32(langruntime.indexStatic(asciiLatin9, langruntime.checkedIndex(index)));
+    }
+    else {
+        mapped = langruntime.checkedI32(langruntime.indexStatic(asciiWin1250, langruntime.checkedIndex(index)));
+    }
+    return langruntime.characterFromI32(mapped, " ");
+}
+function asciiEncodingText(value: string, encoding: number): string {
+    value = langruntime.checkedString(value);
+    encoding = langruntime.checkedI32(encoding);
+    const characters: string[] = Array.from(value);
+    let output: string = "";
+    let index: number = 0;
+    while (index < characters.length) {
+        const code: number = langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (code < 128) {
+            output = output + langruntime.checkedChar(asciiEncodingOctet(code, encoding));
+        }
+        else if (code < 2048) {
+            output = output + langruntime.checkedChar(asciiEncodingOctet(langruntime.checkedSignedAdd(192, langruntime.checkedSignedDivide(code, 64)), encoding));
+            output = output + langruntime.checkedChar(asciiEncodingOctet(langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(code, 64)), encoding));
+        }
+        else if (code < 65536) {
+            output = output + langruntime.checkedChar(asciiEncodingOctet(langruntime.checkedSignedAdd(224, langruntime.checkedSignedDivide(code, 4096)), encoding));
+            output = output + langruntime.checkedChar(asciiEncodingOctet(langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(code, 64), 64)), encoding));
+            output = output + langruntime.checkedChar(asciiEncodingOctet(langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(code, 64)), encoding));
+        }
+        else {
+            output = output + langruntime.checkedChar(asciiEncodingOctet(langruntime.checkedSignedAdd(240, langruntime.checkedSignedDivide(code, 262144)), encoding));
+            output = output + langruntime.checkedChar(asciiEncodingOctet(langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(code, 4096), 64)), encoding));
+            output = output + langruntime.checkedChar(asciiEncodingOctet(langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(code, 64), 64)), encoding));
+            output = output + langruntime.checkedChar(asciiEncodingOctet(langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(code, 64)), encoding));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
+export function toAsciiCulg(value: checkruntime.TextValue): checkruntime.TextValue {
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(value, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Error", value: checkruntime.makeSqlError(asciiUnsupportedEncoding) };
+}
+export function toAsciiUqov(value: checkruntime.TextValue, encoding: checkruntime.Int4Value): checkruntime.TextValue {
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (encoding.kind === "Error") {
+        const error: checkruntime.SqlError = encoding.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalInt4Value(encoding, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(value, { kind: "Null" }) || checkruntime.equalInt4Value(encoding, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const text: string = langruntime.checkedString(value.value);
+        if (encoding.kind === "Value") {
+            const code: number = langruntime.checkedI32(encoding.value);
+            if (code < 0 || code > 41) {
+                return { kind: "Error", value: checkruntime.makeSqlError(asciiUndefinedEncoding) };
+            }
+            if (!(code === 8) && !(code === 9) && !(code === 16) && !(code === 29)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(asciiUnsupportedEncoding) };
+            }
+            return { kind: "Value", value: asciiEncodingText(text, code) };
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function btrim2rb3(value: checkruntime.TextValue): checkruntime.TextValue {
     return textTrimValue(value, checkruntime.makeTextValue(" "), true, true);
 }

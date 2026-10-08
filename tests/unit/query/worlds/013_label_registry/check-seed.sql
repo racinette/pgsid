@@ -2186,3 +2186,46 @@ VALUES (122, false, '%a%', NULL, '^(?:.*a.*)$', NULL);
 -- name: LabelPatternConversionSkippedErrors
 INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
 VALUES (123, true, '\"a\"b\"', 'ab', NULL, NULL);
+
+-- name: ascii_latin1_utf8_bytes
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'é😊', 8, 'AC    ', 6, false);
+-- name: ascii_latin2_utf8_bytes
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'é😊', 9, 'ASd   ', 6, false);
+-- name: ascii_latin9_utf8_bytes
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'é😊', 16, 'AC    ', 6, false);
+-- name: ascii_win1250_utf8_bytes
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'é😊', 29, 'ACdz S', 6, false);
+-- name: ascii_preserves_printable_bytes
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'Export 123', 8, 'Export 123', 10, false);
+-- name: ascii_empty_text
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, '', 29, '', 0, false);
+-- name: ascii_rejects_transliteration
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'é', 8, 'e', 2, false);
+-- name: ascii_rejects_wrong_byte_count
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'é😊', 8, 'AC    ', 5, false);
+-- name: ascii_rejects_different_table_result
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'é😊', 9, 'AC    ', 6, false);
+-- name: ascii_invalid_negative_encoding
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'Export', -1, 'Export', 6, false);
+-- name: ascii_invalid_high_encoding
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'Export', 42, 'Export', 6, false);
+-- name: ascii_unsupported_utf8_encoding
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'Export', 6, 'Export', 6, false);
+-- name: ascii_unsupported_sql_ascii_encoding
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, '', 0, '', 0, false);
+-- name: ascii_null_label_bypasses_invalid_encoding
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, NULL, -1, 'ignored', 9, false);
+-- name: ascii_null_encoding
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'é😊', NULL, 'ignored', 9, false);
+-- name: ascii_skips_invalid_encoding
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'é😊', -1, 'ignored', 0, true);
+-- name: ascii_skips_unsupported_encoding
+INSERT INTO label_ascii_exports (id, label, encoding, ascii_label, ascii_octets, suppress_invalid) VALUES (2, 'é😊', 6, 'ignored', 0, true);
+-- name: ascii_default_null
+INSERT INTO label_default_ascii_exports (id, label, ascii_label, suppress_invalid) VALUES (2, NULL, 'ignored', false);
+-- name: ascii_default_utf8_unsupported
+INSERT INTO label_default_ascii_exports (id, label, ascii_label, suppress_invalid) VALUES (2, 'Export', 'Export', false);
+-- name: ascii_default_empty_utf8_unsupported
+INSERT INTO label_default_ascii_exports (id, label, ascii_label, suppress_invalid) VALUES (2, '', '', false);
+-- name: ascii_default_skips_conversion
+INSERT INTO label_default_ascii_exports (id, label, ascii_label, suppress_invalid) VALUES (2, 'é😊', 'ignored', true);
