@@ -18,11 +18,7 @@ import {
 } from '../../tools/check-rust/parity.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
-import {
-  builtinCallables,
-  builtinCast,
-  builtinMetadata,
-} from '../../src/postgres/builtins/inventory.js'
+import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 
 const expressions: Record<string, string> = {
   equal: 'a = b',
@@ -319,26 +315,42 @@ describe('portable Rust CHECK numeric comparisons', () => {
       catalog.domains,
     )!
     expect(cast.expression.kind).toBe('eval-scalar')
-    const conversion = builtinCast('pg_catalog."numeric"', 'pg_catalog.int4')!
-    const implementation = builtinMetadata(conversion.implementation!)
-    if (implementation.kind !== 'function')
-      throw new Error('Cast implementation must be a function')
-    expect(
-      prepareCheckRustGroup([
-        {
-          expression: cast.expression,
-          identity: {
-            schema: domainTable.schema,
-            kind: 'table',
-            owner: domainTable.name,
-            constraint: cast.name,
-          },
+    const castGroup = prepareCheckRustGroup([
+      {
+        expression: cast.expression,
+        identity: {
+          schema: domainTable.schema,
+          kind: 'table',
+          owner: domainTable.name,
+          constraint: cast.name,
         },
-      ]).checks[0],
-    ).toEqual({
-      kind: 'unsupported',
-      reason: `Rust CHECK callable has no implementation: ${implementation.rustName}`,
-    })
+      },
+    ])
+    expect(castGroup.checks[0]!.kind).toBe('supported')
+    const castFixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const source of [null, '-1.5', '-0.5', '-0.001', '0', '0.001', '0.5', '1.5', 'NaN']) {
+      const candidate = (
+        await pg.query<{ a: string | null }>('SELECT ($1::measured_amount)::text AS a', [source])
+      ).rows[0]!
+      let expected: Outcome
+      try {
+        const result = (
+          await pg.query<{ value: boolean | null }>(
+            'SELECT ($1::measured_amount)::int4 = 0 AS value',
+            [source],
+          )
+        ).rows[0]!.value
+        expected = outcome(result)
+      } catch (error) {
+        const code = (error as { code: string }).code
+        expect(code).toBe('0A000')
+        expected = { kind: 'Error', value: { state: parseInt(code, 36) } }
+      }
+      castFixtures.push({ name: cast.name, row: { a: value(candidate.a) }, expected })
+    }
+    const castDirectory = join(directory, 'domain-cast')
+    await mkdir(castDirectory)
+    await runCheckParity(castDirectory, 'numericdomaincast', castGroup, [cast.name], castFixtures)
     await expect(pg.query("SELECT '-0.001'::measured_amount::exact_amount")).rejects.toThrow()
   }, 120_000)
 
@@ -415,13 +427,8 @@ describe('portable Rust CHECK numeric comparisons', () => {
       })
   })
 
-  it('keeps precision coercion, runtime casts, and arithmetic outside the comparison slice', () => {
-    for (const sql of [
-      'a::numeric(10,2) = b',
-      '(a + b) > 0',
-      '(a::int4) > 0',
-      "('1.234'::numeric(3,1)) = a",
-    ])
+  it('keeps unsupported precision coercion and arithmetic outside generated numeric comparisons', () => {
+    for (const sql of ['a::numeric(10,2) = b', '(a + b) > 0', "('1.234'::numeric(3,1)) = a"])
       expect(
         prepareCheckRustGroup([
           {

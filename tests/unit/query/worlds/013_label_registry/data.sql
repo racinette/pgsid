@@ -2,3 +2,18 @@ INSERT INTO label_pairs (id, short_label, reference_label) VALUES (1, 'alpha', '
 INSERT INTO fixed_codes (id, received_code, expected_code) VALUES (1, 'A', 'A');
 INSERT INTO code_bands (id, code, first_code, last_code) VALUES (1, 'M', 'A', 'Z');
 INSERT INTO default_labels (id, label, reference_label, fixed_label, fixed_reference) VALUES (1, 'alpha', 'alpha', 'A', 'A');
+
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (1, 233, 233, 'é', 233, false);
+
+INSERT INTO label_character_sizes (id, suppress_invalid, label, padded_label, recorded_bit_length_text_1, recorded_char_length_padded_1, recorded_char_length_text_1, recorded_character_length_padded_1, recorded_character_length_text_1, recorded_length_padded_1, recorded_octet_length_padded_1, recorded_octet_length_text_1, recorded_textlen_text_1)
+VALUES (1, false, 'é😊  ', 'é😊  ', 64, 2, 4, 2, 4, 2, 8, 8, 4);
+
+INSERT INTO label_binary_order (id, suppress_invalid, label, other_label, padded_label, other_padded_label, recorded_bpchar_larger_padded_2, recorded_bpchar_larger_padded_2_octets, recorded_bpchar_pattern_ge_padded_2, recorded_bpchar_pattern_gt_padded_2, recorded_bpchar_pattern_le_padded_2, recorded_bpchar_pattern_lt_padded_2, recorded_bpchar_smaller_padded_2, recorded_bpchar_smaller_padded_2_octets, recorded_bpcharcmp_padded_2, recorded_btbpchar_pattern_cmp_padded_2, recorded_bttext_pattern_cmp_text_2, recorded_bttextcmp_text_2, recorded_text_larger_text_2, recorded_text_pattern_ge_text_2, recorded_text_pattern_gt_text_2, recorded_text_pattern_le_text_2, recorded_text_pattern_lt_text_2, recorded_text_smaller_text_2)
+VALUES (1, false, 'é😊 ', 'αβ', 'é😊  ', 'αβ ', 'αβ ', 5, false, false, true, true, 'é😊  ', 8, -11, -11, -11, -11, 'αβ', false, false, true, true, 'é😊 ');
+
+INSERT INTO cleaned_label_records (id, suppress_invalid, label, trim_characters, recorded_btrim_text_1, recorded_btrim_text_2, recorded_ltrim_text_1, recorded_ltrim_text_2, recorded_rtrim_text_1, recorded_rtrim_text_2)
+VALUES (1, false, '  😊parcel😊  ', '😊 ', '😊parcel😊', 'parcel', '😊parcel😊  ', 'parcel😊  ', '  😊parcel😊', '  😊parcel');
+
+INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
+VALUES (1, false, 'élÈVE STRAẞE İß Σσς', 'élÈve straẞe İß Σσς', 'éLÈVe StraẞE İß Σσς', 'élÈve straẞe İß Σσς', 'éLÈVE STRAẞE İß Σσς');

@@ -4640,6 +4640,36 @@ func TextVc4r(input checkruntime.TextValue) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+
+const chrInvalidParameter = 3452619
+const chrProgramLimit = 8584704
+
+func Chr23bn(input checkruntime.Int4Value) checkruntime.TextValue {
+	if input.Kind == checkruntime.Int4ValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		if value < 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(chrInvalidParameter)}
+		}
+		if value == 0 || value > 1114111 || (value >= 55296 && value <= 57343) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(chrProgramLimit)}
+		}
+		character := langruntime.CharacterFromI32(value, '\x00')
+		output := ""
+		output = output + string(langruntime.CheckedChar(character))
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func MakeDateZ9pv(year checkruntime.Int4Value, month checkruntime.Int4Value, day checkruntime.Int4Value) checkruntime.DateValue {
 	if year.Kind == checkruntime.Int4ValueError {
 		error := year.Error
@@ -8401,6 +8431,596 @@ func NumericNeGyip(left checkruntime.NumericValue, right checkruntime.NumericVal
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func AbsM5ih(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		special := work.special
+		sign := work.sign
+		outputScale := work.scale
+		if sign < 0 {
+			sign = langruntime.CheckedI32(1)
+		}
+		if special == 0 {
+			special = langruntime.CheckedI32(2)
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits})}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func MinScaleB8o1(input checkruntime.NumericValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+		if work.special != 1 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: numericWorkMinScale(work)}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func NumericAbs6g5e(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		special := work.special
+		sign := work.sign
+		outputScale := work.scale
+		if sign < 0 {
+			sign = langruntime.CheckedI32(1)
+		}
+		if special == 0 {
+			special = langruntime.CheckedI32(2)
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits})}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func NumericCmp6h4s(input checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
+	result := numericCompare(input, right)
+	return result
+}
+func NumericLarger4j2h(input checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	result := numericCompare(input, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		if order > 0 {
+			return input
+		}
+		return right
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func NumericSmallerB9i1(input checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	result := numericCompare(input, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		if order < 0 {
+			return input
+		}
+		return right
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func NumericUminusWcmy(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		special := work.special
+		sign := work.sign
+		outputScale := work.scale
+		sign = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, sign))
+		if special == 0 {
+			special = langruntime.CheckedI32(2)
+		} else if special == 2 {
+			special = langruntime.CheckedI32(0)
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits})}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func NumericUplus2a0z(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		special := work.special
+		sign := work.sign
+		outputScale := work.scale
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits})}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func ScaleSvql(input checkruntime.NumericValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+		if work.special != 1 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: work.scale}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Sign2rsu(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		if work.special == 3 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+		}
+		if work.special == 0 || work.sign < 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-1"}
+		}
+		if work.special == 2 || work.sign > 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "1"}
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func TrimScale3rbp(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		special := work.special
+		sign := work.sign
+		outputScale := numericWorkMinScale(copynumericWork(work))
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits})}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+
+const numericIntegerRangeError = 3452547
+const numericIntegerSpecialError = 466560
+
+func numericIntegerValue(input checkruntime.NumericValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		text := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(text)
+		if work.valid == false {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+		}
+		if work.special != 1 {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerSpecialError)}
+		}
+		if work.sign != 0 && work.weight > 18 {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+		}
+		rounded := numericWorkRound(work, 0, 1)
+		if rounded.Kind == checkruntime.NumericValueError {
+			error := rounded.Error
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+		}
+		if rounded.Kind == checkruntime.NumericValueValue {
+			value := langruntime.CheckedString(rounded.Value)
+			parts := checkruntime.NumericParts(value)
+			if parts.Sign == 0 {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(0)}
+			}
+			if parts.Weight > 18 {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+			}
+			characters := []rune(value)
+			result := int64(0)
+			index := parts.First
+			position := 0
+			for position <= parts.Weight {
+				digit := int64(0)
+				if index < parts.End {
+					digit = int64(langruntime.CheckedI32(numericWireDecimalDigit(characters[index])))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				if result < int64(-922337203685477580) || (result == int64(-922337203685477580) && digit > int64(8)) {
+					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+				}
+				result = langruntime.CheckedI64Subtract(langruntime.CheckedI64Multiply(result, int64(10)), digit)
+				position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+			}
+			if parts.Sign < 0 {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: result}
+			}
+			if result == int64(-9223372036854775808) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+			}
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Subtract(int64(0), result)}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Int2Zpjn(input checkruntime.NumericValue) checkruntime.Int2Value {
+	converted := numericIntegerValue(input)
+	if converted.Kind == checkruntime.Int8ValueError {
+		error := converted.Error
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueError, Error: error}
+	}
+	if converted == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}
+	}
+	if converted == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueNull}
+	}
+	if converted.Kind == checkruntime.Int8ValueValue {
+		value := converted.Value
+		if value < int64(-32768) || value > int64(32767) {
+			return checkruntime.Int2Value{Kind: checkruntime.Int2ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+		}
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueValue, Value: int(int32(value))}
+	}
+	return checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}
+}
+func Int4Z4rh(input checkruntime.NumericValue) checkruntime.Int4Value {
+	converted := numericIntegerValue(input)
+	if converted.Kind == checkruntime.Int8ValueError {
+		error := converted.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if converted == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if converted == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if converted.Kind == checkruntime.Int8ValueValue {
+		value := converted.Value
+		if value < int64(-2147483648) || value > int64(2147483647) {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(value))}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Int8Xy54(input checkruntime.NumericValue) checkruntime.Int8Value {
+	return numericIntegerValue(input)
+}
+func NumericItt9(input checkruntime.Int2Value) checkruntime.NumericValue {
+	if input.Kind == checkruntime.Int2ValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.Int2Value{Kind: checkruntime.Int2ValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.Int2ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		integer := int64(langruntime.CheckedI32(value))
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(integer)}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func NumericNcrk(input checkruntime.Int4Value) checkruntime.NumericValue {
+	if input.Kind == checkruntime.Int4ValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		integer := int64(langruntime.CheckedI32(value))
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(integer)}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func Numeric11bc(input checkruntime.Int8Value) checkruntime.NumericValue {
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		value := input.Value
+		integer := value
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(integer)}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func Ceil8geh(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		return numericWorkRound(work, 0, 2)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func CeilingPr5v(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		return numericWorkRound(work, 0, 2)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func FloorX7mh(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		return numericWorkRound(work, 0, 3)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func RoundMmpo(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		return numericWorkRound(work, 0, 1)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func RoundOtcq(input checkruntime.NumericValue, scale checkruntime.Int4Value) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if scale.Kind == checkruntime.Int4ValueError {
+		error := scale.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		if scale.Kind == checkruntime.Int4ValueValue {
+			precision := langruntime.CheckedI32(scale.Value)
+			return numericWorkRound(work, precision, 1)
+		}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func TruncDghz(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		return numericWorkRound(work, 0, 0)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func TruncHay3(input checkruntime.NumericValue, scale checkruntime.Int4Value) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if scale.Kind == checkruntime.Int4ValueError {
+		error := scale.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || scale == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		if scale.Kind == checkruntime.Int4ValueValue {
+			precision := langruntime.CheckedI32(scale.Value)
+			return numericWorkRound(work, precision, 0)
+		}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
 
 type numericWireDigit struct {
 	value int
@@ -8545,6 +9165,195 @@ func NumericSend3mnb(input checkruntime.NumericValue) checkruntime.ByteaValue {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+
+const numericSupportRangeError = 3452547
+
+type numericWork struct {
+	valid   bool
+	special int
+	sign    int
+	weight  int
+	scale   int
+	digits  string
+}
+
+func copynumericWork(value numericWork) numericWork {
+	return numericWork{valid: value.valid, special: langruntime.CheckedI32(value.special), sign: langruntime.CheckedI32(value.sign), weight: langruntime.CheckedI32(value.weight), scale: langruntime.CheckedI32(value.scale), digits: langruntime.CheckedString(value.digits)}
+}
+func numericWorkFromValue(value string) numericWork {
+	value = langruntime.CheckedString(value)
+	layout := checkruntime.NumericParts(value)
+	digits := ""
+	scale := 0
+	if layout.Valid && layout.Special == 1 {
+		scale = langruntime.CheckedI32(numericWireScale(value))
+		characters := []rune(value)
+		index := layout.First
+		for index < layout.End {
+			character := characters[index]
+			if numericWireDecimalDigit(character) >= 0 {
+				digits = digits + string(langruntime.CheckedChar(character))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	return numericWork{valid: layout.Valid, special: layout.Special, sign: layout.Sign, weight: layout.Weight, scale: scale, digits: digits}
+}
+func numericWorkText(work numericWork) string {
+	work = copynumericWork(work)
+	if work.special == 0 {
+		return "-Infinity"
+	}
+	if work.special == 2 {
+		return "Infinity"
+	}
+	if work.special == 3 {
+		return "NaN"
+	}
+	digits := []rune(work.digits)
+	output := ""
+	if work.sign < 0 {
+		output = output + string(langruntime.CheckedChar('-'))
+	}
+	position := work.weight
+	if position < 0 || work.sign == 0 {
+		position = langruntime.CheckedI32(0)
+	}
+	index := 0
+	for position >= langruntime.CheckedSignedSubtract(0, work.scale) {
+		if position == langruntime.CheckedSignedNegate(1) {
+			output = output + string(langruntime.CheckedChar('.'))
+		}
+		if work.sign != 0 && position <= work.weight && index < len(digits) {
+			output = output + string(langruntime.CheckedChar(digits[index]))
+			index = langruntime.CheckedAdd(index, 1)
+		} else {
+			output = output + string(langruntime.CheckedChar('0'))
+		}
+		position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
+	}
+	return output
+}
+func numericWorkMinScale(work numericWork) int {
+	work = copynumericWork(work)
+	if work.sign == 0 {
+		return 0
+	}
+	digits := []rune(work.digits)
+	position := work.weight
+	index := 0
+	for index < len(digits) {
+		position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	scale := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, position), 1)
+	if scale < 0 {
+		return 0
+	}
+	return scale
+}
+func numericWorkRound(work numericWork, requested int, mode int) checkruntime.NumericValue {
+	work = copynumericWork(work)
+	requested = langruntime.CheckedI32(requested)
+	mode = langruntime.CheckedI32(mode)
+	if work.valid == false {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if work.special != 1 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
+	}
+	scale := requested
+	minimum := langruntime.CheckedSignedNegate(131072)
+	if mode == 1 {
+		minimum = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(minimum, 1))
+	}
+	if scale < minimum {
+		scale = langruntime.CheckedI32(minimum)
+	}
+	if scale > 16383 {
+		scale = langruntime.CheckedI32(16383)
+	}
+	original := []rune(work.digits)
+	boundary := langruntime.CheckedSignedSubtract(0, scale)
+	digits := []rune{}
+	position := work.weight
+	index := 0
+	for index < len(original) && position >= boundary {
+		langruntime.CheckedAdd(len(digits), 1)
+		digits = append(digits, langruntime.CheckedChar(original[index]))
+		index = langruntime.CheckedAdd(index, 1)
+		position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
+	}
+	increase := false
+	if index < len(original) {
+		if mode == 1 && position == langruntime.CheckedSignedSubtract(boundary, 1) && numericWireDecimalDigit(original[index]) >= 5 {
+			increase = true
+		}
+		if mode == 2 && work.sign > 0 {
+			increase = true
+		}
+		if mode == 3 && work.sign < 0 {
+			increase = true
+		}
+	}
+	weight := work.weight
+	leadingCarry := false
+	if increase {
+		if len(digits) == 0 {
+			langruntime.CheckedAdd(len(digits), 1)
+			digits = append(digits, langruntime.CheckedChar('1'))
+			weight = langruntime.CheckedI32(boundary)
+		} else {
+			carry := true
+			cursor := len(digits)
+			symbols := []rune("0123456789")
+			for cursor > 0 && carry {
+				cursor = langruntime.CheckedIndex(langruntime.CheckedSubtract(cursor, 1))
+				if digits[cursor] == '9' {
+					digits[cursor] = langruntime.CheckedChar('0')
+				} else {
+					symbol := 0
+					for symbols[symbol] != digits[cursor] {
+						symbol = langruntime.CheckedAdd(symbol, 1)
+					}
+					digits[cursor] = langruntime.CheckedChar(symbols[langruntime.CheckedAdd(symbol, 1)])
+					carry = false
+				}
+			}
+			if carry {
+				leadingCarry = true
+				weight = langruntime.CheckedI32(langruntime.CheckedSignedAdd(weight, 1))
+			}
+		}
+	}
+	end := len(digits)
+	for end > 0 && digits[langruntime.CheckedSubtract(end, 1)] == '0' {
+		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+	}
+	coefficient := ""
+	cursor := 0
+	if leadingCarry {
+		coefficient = coefficient + string(langruntime.CheckedChar('1'))
+	} else {
+		for cursor < end {
+			coefficient = coefficient + string(langruntime.CheckedChar(digits[cursor]))
+			cursor = langruntime.CheckedAdd(cursor, 1)
+		}
+	}
+	sign := work.sign
+	if end == 0 && leadingCarry == false {
+		sign = langruntime.CheckedI32(0)
+		weight = langruntime.CheckedI32(0)
+	}
+	if weight > 131071 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+	}
+	outputScale := scale
+	if outputScale < 0 {
+		outputScale = langruntime.CheckedI32(0)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: outputScale, digits: coefficient})}
 }
 func Int24eqCfkl(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	leftWide := checkruntime.Int2ToInt4(left)
@@ -9309,6 +10118,310 @@ func TimestampNeDateBxi2(left checkruntime.TimestampValue, right checkruntime.Da
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 
+var temporalExtractKeys = []string{"+infinity", "-infinity", "allballs", "dow", "doy", "epoch", "infinity", "isodow", "isoyear", "j", "jd", "julian", "mm", "now", "today", "tomorrow", "yesterday"}
+var temporalExtractCodes = []int{-1, -1, -1, 16, 18, 19, -1, 17, 15, 14, 14, 14, 4, -1, -1, -1, -1}
+
+func temporalExtractCode(value string) int {
+	value = langruntime.CheckedString(value)
+	unit := temporalUnitCode(value)
+	if unit != 0 {
+		return unit
+	}
+	characters := []rune(value)
+	key := ""
+	index := 0
+	for index < len(characters) && index < 10 {
+		key = key + string(langruntime.CheckedChar(langruntime.AsciiLowercase(characters[index])))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	entry := 0
+	for entry < len(temporalExtractKeys) {
+		if key == temporalExtractKeys[entry] {
+			return temporalExtractCodes[entry]
+		}
+		entry = langruntime.CheckedAdd(entry, 1)
+	}
+	return 0
+}
+func temporalJulianFromCalendar(year int, month int, day int) int64 {
+	year = langruntime.CheckedI32(year)
+	month = langruntime.CheckedI32(month)
+	day = langruntime.CheckedI32(day)
+	y := int64(langruntime.CheckedI32(year))
+	m := int64(langruntime.CheckedI32(month))
+	if month > 2 {
+		m = langruntime.CheckedI64Add(m, int64(1))
+		y = langruntime.CheckedI64Add(y, int64(4800))
+	} else {
+		m = langruntime.CheckedI64Add(m, int64(13))
+		y = langruntime.CheckedI64Add(y, int64(4799))
+	}
+	century := langruntime.CheckedI64Divide(y, int64(100))
+	d := int64(langruntime.CheckedI32(day))
+	return langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(langruntime.CheckedI64Multiply(y, int64(365)), int64(32167)), langruntime.CheckedI64Divide(y, int64(4))), century), langruntime.CheckedI64Divide(century, int64(4))), langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(int64(7834), m), int64(256))), d)
+}
+func temporalExtractDate(value int, code int) checkruntime.NumericValue {
+	value = langruntime.CheckedI32(value)
+	code = langruntime.CheckedI32(code)
+	if code == 0 || code == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnitError)}
+	}
+	if code == langruntime.CheckedSignedNegate(1) || code < 6 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
+	}
+	if value == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) || value == 2147483647 {
+		if code == 6 || code == 7 || code == 8 || code == 9 || code == 16 || code == 17 || code == 18 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+		}
+		if value < 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-Infinity"}
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+	}
+	date := int64(langruntime.CheckedI32(value))
+	if code == 19 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(langruntime.CheckedI64Multiply((langruntime.CheckedI64Add(date, int64(10957))), int64(86400)))}
+	}
+	julian := langruntime.CheckedI64Add(date, int64(2451545))
+	if code == 14 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(julian)}
+	}
+	calendar := temporalCalendarFromJulian(julian)
+	result := int64(0)
+	if code == 6 {
+		result = int64(langruntime.CheckedI32(calendar.day))
+	}
+	if code == 8 {
+		result = int64(langruntime.CheckedI32(calendar.month))
+	}
+	if code == 9 {
+		result = int64(langruntime.CheckedI32((langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(calendar.month, 1)), 3), 1))))
+	}
+	if code == 10 {
+		result = int64(langruntime.CheckedI32(calendar.year))
+		if result <= int64(0) {
+			result = langruntime.CheckedI64Subtract(result, int64(1))
+		}
+	}
+	if code == 11 {
+		if calendar.year >= 0 {
+			result = int64(langruntime.CheckedI32((langruntime.CheckedSignedDivide(calendar.year, 10))))
+		} else {
+			result = int64(langruntime.CheckedI32((langruntime.CheckedSignedSubtract(0, (langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(8, (langruntime.CheckedSignedSubtract(calendar.year, 1)))), 10))))))
+		}
+	}
+	if code == 12 {
+		if calendar.year > 0 {
+			result = int64(langruntime.CheckedI32((langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(calendar.year, 99)), 100))))
+		} else {
+			result = int64(langruntime.CheckedI32((langruntime.CheckedSignedSubtract(0, (langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(99, (langruntime.CheckedSignedSubtract(calendar.year, 1)))), 100))))))
+		}
+	}
+	if code == 13 {
+		if calendar.year > 0 {
+			result = int64(langruntime.CheckedI32((langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(calendar.year, 999)), 1000))))
+		} else {
+			result = int64(langruntime.CheckedI32((langruntime.CheckedSignedSubtract(0, (langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(999, (langruntime.CheckedSignedSubtract(calendar.year, 1)))), 1000))))))
+		}
+	}
+	if code == 7 || code == 15 {
+		thursday := langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(julian, int64(3)), langruntime.CheckedI64Remainder(julian, int64(7)))
+		iso := temporalCalendarFromJulian(thursday)
+		if code == 7 {
+			result = langruntime.CheckedI64Add(langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(thursday, temporalJulianFromCalendar(iso.year, 1, 1))), int64(7)), int64(1))
+		} else {
+			result = int64(langruntime.CheckedI32(iso.year))
+			if result <= int64(0) {
+				result = langruntime.CheckedI64Subtract(result, int64(1))
+			}
+		}
+	}
+	if code == 16 || code == 17 {
+		result = langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(1))), int64(7))
+		if code == 17 && result == int64(0) {
+			result = int64(7)
+		}
+	}
+	if code == 18 {
+		result = langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(julian, temporalJulianFromCalendar(calendar.year, 1, 1)), int64(1))
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(result)}
+}
+func ExtractQjml(units checkruntime.TextValue, input checkruntime.DateValue) checkruntime.NumericValue {
+	if units.Kind == checkruntime.TextValueError {
+		error := units.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input.Kind == checkruntime.DateValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || input == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if units.Kind == checkruntime.TextValueValue {
+		unit := langruntime.CheckedString(units.Value)
+		if input.Kind == checkruntime.DateValueValue {
+			value := langruntime.CheckedI32(input.Value)
+			return temporalExtractDate(value, temporalExtractCode(unit))
+		}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+
+const temporalFieldUnitError = 3452619
+const temporalFieldUnsupportedError = 466560
+
+var temporalUnitKeys = []string{"@", "ago", "c", "cent", "centuries", "century", "d", "day", "days", "dec", "decade", "decades", "decs", "h", "hour", "hours", "hr", "hrs", "m", "microsecon", "mil", "millennia", "millennium", "millisecon", "mils", "min", "mins", "minute", "minutes", "mon", "mons", "month", "months", "ms", "msec", "msecond", "mseconds", "msecs", "qtr", "quarter", "s", "sec", "second", "seconds", "secs", "timezone", "timezone_h", "timezone_m", "us", "usec", "usecond", "useconds", "usecs", "w", "week", "weeks", "y", "year", "years", "yr", "yrs"}
+var temporalUnitCodes = []int{-2, -2, 12, 12, 12, 12, 6, 6, 6, 11, 11, 11, 11, 5, 5, 5, 5, 5, 4, 1, 13, 13, 13, 2, 13, 4, 4, 4, 4, 8, 8, 8, 8, 2, 2, 2, 2, 2, 9, 9, 3, 3, 3, 3, 3, -1, -1, -1, 1, 1, 1, 1, 1, 7, 7, 7, 10, 10, 10, 10, 10}
+
+func temporalUnitCode(value string) int {
+	value = langruntime.CheckedString(value)
+	characters := []rune(value)
+	key := ""
+	index := 0
+	for index < len(characters) && index < 10 {
+		key = key + string(langruntime.CheckedChar(langruntime.AsciiLowercase(characters[index])))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	entry := 0
+	for entry < len(temporalUnitKeys) {
+		if key == temporalUnitKeys[entry] {
+			return temporalUnitCodes[entry]
+		}
+		entry = langruntime.CheckedAdd(entry, 1)
+	}
+	return 0
+}
+
+type temporalCalendarFields struct {
+	year  int
+	month int
+	day   int
+}
+
+func copytemporalCalendarFields(value temporalCalendarFields) temporalCalendarFields {
+	return temporalCalendarFields{year: langruntime.CheckedI32(value.year), month: langruntime.CheckedI32(value.month), day: langruntime.CheckedI32(value.day)}
+}
+func temporalCalendarFromJulian(day int64) temporalCalendarFields {
+	julian := langruntime.CheckedI64Add(day, int64(32044))
+	quad := langruntime.CheckedI64Divide(julian, int64(146097))
+	extra := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(julian, langruntime.CheckedI64Multiply(quad, int64(146097)))), int64(4)), int64(3))
+	julian = langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(julian, int64(60)), langruntime.CheckedI64Multiply(quad, int64(3))), langruntime.CheckedI64Divide(extra, int64(146097)))
+	quad = langruntime.CheckedI64Divide(julian, int64(1461))
+	julian = langruntime.CheckedI64Subtract(julian, langruntime.CheckedI64Multiply(quad, int64(1461)))
+	year := langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(julian, int64(4)), int64(1461))
+	if year != int64(0) {
+		julian = langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(305))), int64(365)), int64(123))
+	} else {
+		julian = langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(306))), int64(366)), int64(123))
+	}
+	year = langruntime.CheckedI64Add(year, langruntime.CheckedI64Multiply(quad, int64(4)))
+	quad = langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(julian, int64(2141)), int64(65536))
+	return temporalCalendarFields{year: int(int32((langruntime.CheckedI64Subtract(year, int64(4800))))), month: int(int32((langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(quad, int64(10))), int64(12)), int64(1))))), day: int(int32((langruntime.CheckedI64Subtract(julian, langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(int64(7834), quad), int64(256))))))}
+}
+func temporalTruncateTimestamp(value int64, code int) checkruntime.TimestampValue {
+	code = langruntime.CheckedI32(code)
+	if code <= 0 {
+		if code == langruntime.CheckedSignedNegate(1) {
+			return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
+		}
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(temporalFieldUnitError)}
+	}
+	if value == int64(-9223372036854775808) || value == int64(9223372036854775807) || code == 1 {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: value}
+	}
+	scale := int64(86400000000)
+	if code == 2 {
+		scale = int64(1000)
+	}
+	if code == 3 {
+		scale = int64(1000000)
+	}
+	if code == 4 {
+		scale = int64(60000000)
+	}
+	if code == 5 {
+		scale = int64(3600000000)
+	}
+	if code <= 6 {
+		result := langruntime.CheckedI64Multiply((langruntime.CheckedI64Divide(value, scale)), scale)
+		if langruntime.CheckedI64Remainder(value, scale) < int64(0) {
+			result = langruntime.CheckedI64Subtract(result, scale)
+		}
+		return checkruntime.MakeTimestampValue(result)
+	}
+	day := langruntime.CheckedI64Divide(value, int64(86400000000))
+	if langruntime.CheckedI64Remainder(value, int64(86400000000)) < int64(0) {
+		day = langruntime.CheckedI64Subtract(day, int64(1))
+	}
+	julian := langruntime.CheckedI64Add(day, int64(2451545))
+	if code == 7 {
+		return checkruntime.MakeTimestampValue(langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(day, langruntime.CheckedI64Remainder(julian, int64(7)))), int64(86400000000)))
+	}
+	calendar := temporalCalendarFromJulian(julian)
+	year := calendar.year
+	month := calendar.month
+	if code == 9 {
+		month = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(month, 1)), 3)), 3), 1))
+	}
+	if code >= 10 {
+		month = langruntime.CheckedI32(1)
+	}
+	if code == 11 {
+		if year > 0 {
+			year = langruntime.CheckedI32(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide(year, 10)), 10))
+		} else {
+			year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(8, (langruntime.CheckedSignedSubtract(year, 1)))), 10)), 10)))
+		}
+	}
+	if code == 12 {
+		if year > 0 {
+			year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(year, 99)), 100)), 100), 99))
+		} else {
+			year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(0, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(99, (langruntime.CheckedSignedSubtract(year, 1)))), 100)), 100)), 1))
+		}
+	}
+	if code == 13 {
+		if year > 0 {
+			year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(year, 999)), 1000)), 1000), 999))
+		} else {
+			year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(0, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(999, (langruntime.CheckedSignedSubtract(year, 1)))), 1000)), 1000)), 1))
+		}
+	}
+	if year <= 0 {
+		year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(year, 1))
+	}
+	return checkruntime.TimestampFromCalendar(year, month, 1, 0, 0, 0, 0)
+}
+func DateTrunc3i0u(units checkruntime.TextValue, input checkruntime.TimestampValue) checkruntime.TimestampValue {
+	if units.Kind == checkruntime.TextValueError {
+		error := units.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if units.Kind == checkruntime.TextValueValue {
+		unit := langruntime.CheckedString(units.Value)
+		if input.Kind == checkruntime.TimestampValueValue {
+			value := input.Value
+			return temporalTruncateTimestamp(value, temporalUnitCode(unit))
+		}
+	}
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
+
 const temporalPrecisionError = 3452619
 
 func temporalAdjustPrecision(value int64, precision int) checkruntime.Int8Value {
@@ -10054,6 +11167,503 @@ func Ascii7m47(input checkruntime.TextValue) checkruntime.Int4Value {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: code}
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func textCaseValue(input checkruntime.TextValue, mode int) checkruntime.TextValue {
+	mode = langruntime.CheckedI32(mode)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		output := ""
+		previousAlphanumeric := false
+		index := 0
+		for index < len(characters) {
+			original := characters[index]
+			code := int(langruntime.CheckedChar(original))
+			uppercase := mode == 1 || (mode == 2 && previousAlphanumeric == false)
+			character := langruntime.AsciiLowercase(original)
+			if uppercase {
+				character = langruntime.CheckedChar(original)
+				if code >= 97 && code <= 122 {
+					upperCode := langruntime.CheckedSignedSubtract(code, 32)
+					character = langruntime.CheckedChar(langruntime.CharacterFromI32(upperCode, original))
+				}
+			}
+			output = output + string(langruntime.CheckedChar(character))
+			previousAlphanumeric = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 48 && code <= 57)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func CasefoldBgkh(input checkruntime.TextValue) checkruntime.TextValue {
+	return textCaseValue(input, 0)
+}
+func InitcapFyn6(input checkruntime.TextValue) checkruntime.TextValue {
+	return textCaseValue(input, 2)
+}
+func LowerHcg0(input checkruntime.TextValue) checkruntime.TextValue {
+	return textCaseValue(input, 0)
+}
+func UpperValc(input checkruntime.TextValue) checkruntime.TextValue {
+	return textCaseValue(input, 1)
+}
+func BitLengthBpcw(value checkruntime.TextValue) checkruntime.Int4Value {
+	return textMeasureValue(value, false, 2)
+}
+func CharLengthZjgv(value checkruntime.TextValue) checkruntime.Int4Value {
+	return textMeasureValue(value, true, 0)
+}
+func CharLengthO1qu(value checkruntime.TextValue) checkruntime.Int4Value {
+	return textMeasureValue(value, false, 0)
+}
+func CharacterLengthMqtx(value checkruntime.TextValue) checkruntime.Int4Value {
+	return textMeasureValue(value, true, 0)
+}
+func CharacterLengthB3q2(value checkruntime.TextValue) checkruntime.Int4Value {
+	return textMeasureValue(value, false, 0)
+}
+func LengthUhru(value checkruntime.TextValue) checkruntime.Int4Value {
+	return textMeasureValue(value, true, 0)
+}
+func OctetLength12ga(value checkruntime.TextValue) checkruntime.Int4Value {
+	return textMeasureValue(value, false, 1)
+}
+func OctetLength9hmr(value checkruntime.TextValue) checkruntime.Int4Value {
+	return textMeasureValue(value, false, 1)
+}
+func Textlen2bvv(value checkruntime.TextValue) checkruntime.Int4Value {
+	return textMeasureValue(value, false, 0)
+}
+func BpcharLargerClri(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.TextValue {
+	compared := textBinaryCompare(left, right, true)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		if order >= 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func BpcharPatternGeDv6p(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	compared := textBinaryCompare(left, right, true)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order >= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BpcharPatternGtTnmi(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	compared := textBinaryCompare(left, right, true)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order > 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BpcharPatternLe5vh3(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	compared := textBinaryCompare(left, right, true)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order <= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BpcharPatternLt5798(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	compared := textBinaryCompare(left, right, true)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order < 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BpcharSmaller0mnx(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.TextValue {
+	compared := textBinaryCompare(left, right, true)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		if order <= 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func BpcharcmpB8vl(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
+	return textBinaryCompare(left, right, true)
+}
+func BtbpcharPatternCmpJjb6(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
+	return textBinaryCompare(left, right, true)
+}
+func BttextPatternCmpJgxm(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
+	return textBinaryCompare(left, right, false)
+}
+func BttextcmpPuxw(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
+	return textBinaryCompare(left, right, false)
+}
+func TextLargerSsmm(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.TextValue {
+	compared := textBinaryCompare(left, right, false)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		if order > 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func TextPatternGeV6bi(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	compared := textBinaryCompare(left, right, false)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order >= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TextPatternGt99dz(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	compared := textBinaryCompare(left, right, false)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order > 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TextPatternLeDpvx(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	compared := textBinaryCompare(left, right, false)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order <= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TextPatternLtQftf(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	compared := textBinaryCompare(left, right, false)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order < 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TextSmallerT2nd(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.TextValue {
+	compared := textBinaryCompare(left, right, false)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		if order < 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func Btrim2rb3(value checkruntime.TextValue) checkruntime.TextValue {
+	return textTrimValue(value, checkruntime.MakeTextValue(" "), true, true)
+}
+func BtrimFwtx(value checkruntime.TextValue, set checkruntime.TextValue) checkruntime.TextValue {
+	return textTrimValue(value, set, true, true)
+}
+func LtrimNnx9(value checkruntime.TextValue) checkruntime.TextValue {
+	return textTrimValue(value, checkruntime.MakeTextValue(" "), true, false)
+}
+func LtrimQ5x0(value checkruntime.TextValue, set checkruntime.TextValue) checkruntime.TextValue {
+	return textTrimValue(value, set, true, false)
+}
+func RtrimT07s(value checkruntime.TextValue) checkruntime.TextValue {
+	return textTrimValue(value, checkruntime.MakeTextValue(" "), false, true)
+}
+func RtrimG9ee(value checkruntime.TextValue, set checkruntime.TextValue) checkruntime.TextValue {
+	return textTrimValue(value, set, false, true)
+}
+
+const textLengthRangeError = 3452547
+
+func textBinaryHex(value string, trimSpaces bool) string {
+	value = langruntime.CheckedString(value)
+	characters := []rune(value)
+	end := len(characters)
+	if trimSpaces {
+		for end > 0 && characters[langruntime.CheckedSubtract(end, 1)] == ' ' {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+	}
+	output := ""
+	index := 0
+	for index < end {
+		output = langruntime.CheckedString(byteaUtf8Character(output, characters[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return output
+}
+func textBinaryCompare(left checkruntime.TextValue, right checkruntime.TextValue, trimSpaces bool) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		a := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			b := langruntime.CheckedString(right.Value)
+			first := textBinaryHex(a, trimSpaces)
+			second := textBinaryHex(b, trimSpaces)
+			return byteaCompare(checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: first}, checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: second})
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func textMeasureValue(value checkruntime.TextValue, trimSpaces bool, mode int) checkruntime.Int4Value {
+	mode = langruntime.CheckedI32(mode)
+	if value.Kind == checkruntime.TextValueError {
+		error := value.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if value.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(value.Value)
+		characters := []rune(text)
+		end := len(characters)
+		if trimSpaces {
+			for end > 0 && characters[langruntime.CheckedSubtract(end, 1)] == ' ' {
+				end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+			}
+		}
+		length := int64(0)
+		index := 0
+		for index < end {
+			width := int64(1)
+			if mode != 0 {
+				code := int(langruntime.CheckedChar(characters[index]))
+				if code >= 128 {
+					width = int64(2)
+				}
+				if code >= 2048 {
+					width = int64(3)
+				}
+				if code >= 65536 {
+					width = int64(4)
+				}
+			}
+			length = langruntime.CheckedI64Add(length, width)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if mode == 2 {
+			length = langruntime.CheckedI64Multiply(length, int64(8))
+		}
+		if length > int64(2147483647) {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(textLengthRangeError)}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(length))}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func textTrimValue(value checkruntime.TextValue, set checkruntime.TextValue, trimLeft bool, trimRight bool) checkruntime.TextValue {
+	if value.Kind == checkruntime.TextValueError {
+		error := value.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if set.Kind == checkruntime.TextValueError {
+		error := set.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || set == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || set == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if value.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(value.Value)
+		if set.Kind == checkruntime.TextValueValue {
+			trimSet := langruntime.CheckedString(set.Value)
+			characters := []rune(text)
+			members := []rune(trimSet)
+			start := 0
+			end := len(characters)
+			if trimLeft {
+				for start < end {
+					member := 0
+					matched := false
+					for member < len(members) {
+						if characters[start] == members[member] {
+							matched = true
+						}
+						member = langruntime.CheckedAdd(member, 1)
+					}
+					if matched == false {
+						break
+					}
+					start = langruntime.CheckedAdd(start, 1)
+				}
+			}
+			if trimRight {
+				for start < end {
+					member := 0
+					matched := false
+					for member < len(members) {
+						if characters[langruntime.CheckedSubtract(end, 1)] == members[member] {
+							matched = true
+						}
+						member = langruntime.CheckedAdd(member, 1)
+					}
+					if matched == false {
+						break
+					}
+					end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+				}
+			}
+			output := ""
+			index := start
+			for index < end {
+				output = output + string(langruntime.CheckedChar(characters[index]))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 func TimestampEqJd79(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.TimestampValueError {

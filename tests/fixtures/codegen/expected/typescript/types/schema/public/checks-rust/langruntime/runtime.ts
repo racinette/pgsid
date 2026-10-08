@@ -110,7 +110,7 @@ export function checkedChar(value: string): string {
         throw new RangeError('invalid Unicode scalar');
     return value;
 }
-function characterFromI32(value: number, fallback: string): string {
+export function characterFromI32(value: number, fallback: string): string {
     checkedI32(value);
     checkedChar(fallback);
     return value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff)

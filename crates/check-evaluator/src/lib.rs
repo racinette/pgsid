@@ -29,11 +29,17 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/temporal_comparison.rs");
     include!("operations/pg_catalog/temporal_arithmetic.rs");
     include!("operations/pg_catalog/temporal_precision.rs");
+    include!("operations/pg_catalog/temporal_fields.rs");
+    include!("operations/pg_catalog/temporal_extract.rs");
     include!("operations/pg_catalog/timezone.rs");
     include!("operations/pg_catalog/timezone_named.rs");
     include!("operations/pg_catalog/timezone_recurring.rs");
     include!(concat!(env!("OUT_DIR"), "/timezone-tables.rs"));
     include!("operations/pg_catalog/numeric.rs");
+    include!("operations/pg_catalog/numeric_work.rs");
+    include!("operations/pg_catalog/numeric_inspection.rs");
+    include!("operations/pg_catalog/numeric_round.rs");
+    include!("operations/pg_catalog/numeric_integer.rs");
     include!("operations/pg_catalog/address_bits.rs");
     include!("operations/pg_catalog/network.rs");
     include!("operations/pg_catalog/mac.rs");
@@ -83,8 +89,14 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/bigint.rs");
     include!("operations/pg_catalog/bigint_arithmetic.rs");
     include!("operations/pg_catalog/text.rs");
+    include!("operations/pg_catalog/text_work.rs");
+    include!("operations/pg_catalog/text_measure.rs");
+    include!("operations/pg_catalog/text_order.rs");
+    include!("operations/pg_catalog/text_trim.rs");
+    include!("operations/pg_catalog/text_case.rs");
     include!("operations/pg_catalog/character.rs");
     include!("operations/pg_catalog/text_ascii.rs");
+    include!("operations/pg_catalog/chr.rs");
     include!("operations/pg_catalog/character_text.rs");
     include!("operations/pg_catalog/regex.rs");
 

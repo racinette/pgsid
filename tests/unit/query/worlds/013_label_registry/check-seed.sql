@@ -79,3 +79,205 @@ INSERT INTO default_labels (id, label, reference_label, fixed_label, fixed_refer
 INSERT INTO default_labels (id, label, reference_label, fixed_label, fixed_reference) VALUES (2, 'alpha', 'alpha', NULL, NULL);
 -- name: defaults_all_null
 INSERT INTO default_labels (id, label, reference_label, fixed_label, fixed_reference) VALUES (2, NULL, NULL, NULL, NULL);
+
+
+-- name: unicode_label_ascii
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 65, 65, 'A', 65, false);
+-- name: unicode_label_accent
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 233, 65, 'é', 233, false);
+-- name: unicode_label_astral
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 128512, 65, '😀', 128512, false);
+-- name: unicode_label_last_scalar
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 1114111, 65, '􏿿', 1114111, false);
+-- name: unicode_label_before_surrogate
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 55295, 65, '퟿', 55295, false);
+-- name: unicode_label_after_surrogate
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 57344, 65, '', 57344, false);
+-- name: unicode_label_wrong_text
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 233, 65, 'A', 233, false);
+-- name: unicode_label_wrong_ordinal
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 233, 65, 'é', 65, false);
+-- name: unicode_label_decomposed_text
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 233, 65, 'é', 233, false);
+-- name: unicode_label_fallback
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, NULL, 233, 'é', 233, false);
+-- name: unicode_label_wrong_fallback
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, NULL, 65, 'é', 233, false);
+-- name: unicode_label_null_text
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 233, 65, NULL, 233, false);
+-- name: unicode_label_null_ordinal
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 233, 65, 'é', NULL, false);
+-- name: unicode_label_all_null
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, NULL, NULL, NULL, NULL, false);
+-- name: unicode_label_negative
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, -1, 65, 'A', -1, false);
+-- name: unicode_label_negative_limit
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, -2147483648, 65, 'A', -2147483648, false);
+-- name: unicode_label_zero
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 0, 65, 'A', 0, false);
+-- name: unicode_label_first_surrogate
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 55296, 65, 'A', 55296, false);
+-- name: unicode_label_last_surrogate
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 57343, 65, 'A', 57343, false);
+-- name: unicode_label_above_unicode
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 1114112, 65, 'A', 1114112, false);
+-- name: unicode_label_integer_limit
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 2147483647, 65, 'A', 2147483647, false);
+-- name: unicode_label_lazy_negative
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, -1, 0, 'A', -1, true);
+-- name: unicode_label_lazy_surrogate
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 55296, 0, 'A', 55296, true);
+-- name: unicode_label_unused_bad_fallback
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 65, -1, 'A', 65, false);
+
+-- name: label_character_sizes_unicode
+INSERT INTO label_character_sizes (id, suppress_invalid, label, padded_label, recorded_bit_length_text_1, recorded_char_length_padded_1, recorded_char_length_text_1, recorded_character_length_padded_1, recorded_character_length_text_1, recorded_length_padded_1, recorded_octet_length_padded_1, recorded_octet_length_text_1, recorded_textlen_text_1)
+VALUES (10, false, 'é😊  ', 'é😊  ', 64, 2, 4, 2, 4, 2, 8, 8, 4);
+
+-- name: label_character_sizes_wrong_records
+INSERT INTO label_character_sizes (id, suppress_invalid, label, padded_label, recorded_bit_length_text_1, recorded_char_length_padded_1, recorded_char_length_text_1, recorded_character_length_padded_1, recorded_character_length_text_1, recorded_length_padded_1, recorded_octet_length_padded_1, recorded_octet_length_text_1, recorded_textlen_text_1)
+VALUES (11, false, 'é😊  ', 'é😊  ', 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+-- name: label_character_sizes_skipped_records
+INSERT INTO label_character_sizes (id, suppress_invalid, label, padded_label, recorded_bit_length_text_1, recorded_char_length_padded_1, recorded_char_length_text_1, recorded_character_length_padded_1, recorded_character_length_text_1, recorded_length_padded_1, recorded_octet_length_padded_1, recorded_octet_length_text_1, recorded_textlen_text_1)
+VALUES (12, true, 'é😊  ', 'é😊  ', 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+-- name: label_character_sizes_ascii
+INSERT INTO label_character_sizes (id, suppress_invalid, label, padded_label, recorded_bit_length_text_1, recorded_char_length_padded_1, recorded_char_length_text_1, recorded_character_length_padded_1, recorded_character_length_text_1, recorded_length_padded_1, recorded_octet_length_padded_1, recorded_octet_length_text_1, recorded_textlen_text_1)
+VALUES (13, false, 'abc', 'abc  ', 24, 3, 3, 3, 3, 3, 5, 3, 3);
+
+-- name: label_character_sizes_combining
+INSERT INTO label_character_sizes (id, suppress_invalid, label, padded_label, recorded_bit_length_text_1, recorded_char_length_padded_1, recorded_char_length_text_1, recorded_character_length_padded_1, recorded_character_length_text_1, recorded_length_padded_1, recorded_octet_length_padded_1, recorded_octet_length_text_1, recorded_textlen_text_1)
+VALUES (14, false, 'é', 'é  ', 24, 2, 2, 2, 2, 2, 5, 3, 2);
+
+-- name: label_character_sizes_empty
+INSERT INTO label_character_sizes (id, suppress_invalid, label, padded_label, recorded_bit_length_text_1, recorded_char_length_padded_1, recorded_char_length_text_1, recorded_character_length_padded_1, recorded_character_length_text_1, recorded_length_padded_1, recorded_octet_length_padded_1, recorded_octet_length_text_1, recorded_textlen_text_1)
+VALUES (15, false, '', '', 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+-- name: label_character_sizes_spaces
+INSERT INTO label_character_sizes (id, suppress_invalid, label, padded_label, recorded_bit_length_text_1, recorded_char_length_padded_1, recorded_char_length_text_1, recorded_character_length_padded_1, recorded_character_length_text_1, recorded_length_padded_1, recorded_octet_length_padded_1, recorded_octet_length_text_1, recorded_textlen_text_1)
+VALUES (16, false, '   ', '   ', 24, 0, 3, 0, 3, 0, 3, 3, 3);
+
+-- name: label_character_sizes_null
+INSERT INTO label_character_sizes (id, suppress_invalid, label, padded_label, recorded_bit_length_text_1, recorded_char_length_padded_1, recorded_char_length_text_1, recorded_character_length_padded_1, recorded_character_length_text_1, recorded_length_padded_1, recorded_octet_length_padded_1, recorded_octet_length_text_1, recorded_textlen_text_1)
+VALUES (17, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: label_binary_order_unicode
+INSERT INTO label_binary_order (id, suppress_invalid, label, other_label, padded_label, other_padded_label, recorded_bpchar_larger_padded_2, recorded_bpchar_larger_padded_2_octets, recorded_bpchar_pattern_ge_padded_2, recorded_bpchar_pattern_gt_padded_2, recorded_bpchar_pattern_le_padded_2, recorded_bpchar_pattern_lt_padded_2, recorded_bpchar_smaller_padded_2, recorded_bpchar_smaller_padded_2_octets, recorded_bpcharcmp_padded_2, recorded_btbpchar_pattern_cmp_padded_2, recorded_bttext_pattern_cmp_text_2, recorded_bttextcmp_text_2, recorded_text_larger_text_2, recorded_text_pattern_ge_text_2, recorded_text_pattern_gt_text_2, recorded_text_pattern_le_text_2, recorded_text_pattern_lt_text_2, recorded_text_smaller_text_2)
+VALUES (18, false, 'é😊 ', 'αβ', 'é😊  ', 'αβ ', 'αβ ', 5, false, false, true, true, 'é😊  ', 8, -11, -11, -11, -11, 'αβ', false, false, true, true, 'é😊 ');
+
+-- name: label_binary_order_wrong_records
+INSERT INTO label_binary_order (id, suppress_invalid, label, other_label, padded_label, other_padded_label, recorded_bpchar_larger_padded_2, recorded_bpchar_larger_padded_2_octets, recorded_bpchar_pattern_ge_padded_2, recorded_bpchar_pattern_gt_padded_2, recorded_bpchar_pattern_le_padded_2, recorded_bpchar_pattern_lt_padded_2, recorded_bpchar_smaller_padded_2, recorded_bpchar_smaller_padded_2_octets, recorded_bpcharcmp_padded_2, recorded_btbpchar_pattern_cmp_padded_2, recorded_bttext_pattern_cmp_text_2, recorded_bttextcmp_text_2, recorded_text_larger_text_2, recorded_text_pattern_ge_text_2, recorded_text_pattern_gt_text_2, recorded_text_pattern_le_text_2, recorded_text_pattern_lt_text_2, recorded_text_smaller_text_2)
+VALUES (19, false, 'é😊 ', 'αβ', 'é😊  ', 'αβ ', 'αβ !', 0, true, true, false, false, 'é😊  !', 0, 0, 0, 0, 0, 'αβ!', true, true, false, false, 'é😊 !');
+
+-- name: label_binary_order_skipped_records
+INSERT INTO label_binary_order (id, suppress_invalid, label, other_label, padded_label, other_padded_label, recorded_bpchar_larger_padded_2, recorded_bpchar_larger_padded_2_octets, recorded_bpchar_pattern_ge_padded_2, recorded_bpchar_pattern_gt_padded_2, recorded_bpchar_pattern_le_padded_2, recorded_bpchar_pattern_lt_padded_2, recorded_bpchar_smaller_padded_2, recorded_bpchar_smaller_padded_2_octets, recorded_bpcharcmp_padded_2, recorded_btbpchar_pattern_cmp_padded_2, recorded_bttext_pattern_cmp_text_2, recorded_bttextcmp_text_2, recorded_text_larger_text_2, recorded_text_pattern_ge_text_2, recorded_text_pattern_gt_text_2, recorded_text_pattern_le_text_2, recorded_text_pattern_lt_text_2, recorded_text_smaller_text_2)
+VALUES (20, true, 'é😊 ', 'αβ', 'é😊  ', 'αβ ', 'αβ !', 0, true, true, false, false, 'é😊  !', 0, 0, 0, 0, 0, 'αβ!', true, true, false, false, 'é😊 !');
+
+-- name: label_binary_order_ascii
+INSERT INTO label_binary_order (id, suppress_invalid, label, other_label, padded_label, other_padded_label, recorded_bpchar_larger_padded_2, recorded_bpchar_larger_padded_2_octets, recorded_bpchar_pattern_ge_padded_2, recorded_bpchar_pattern_gt_padded_2, recorded_bpchar_pattern_le_padded_2, recorded_bpchar_pattern_lt_padded_2, recorded_bpchar_smaller_padded_2, recorded_bpchar_smaller_padded_2_octets, recorded_bpcharcmp_padded_2, recorded_btbpchar_pattern_cmp_padded_2, recorded_bttext_pattern_cmp_text_2, recorded_bttextcmp_text_2, recorded_text_larger_text_2, recorded_text_pattern_ge_text_2, recorded_text_pattern_gt_text_2, recorded_text_pattern_le_text_2, recorded_text_pattern_lt_text_2, recorded_text_smaller_text_2)
+VALUES (21, false, 'a ', 'z', 'a  ', 'z ', 'z ', 2, false, false, true, true, 'a  ', 3, -25, -25, -25, -25, 'z', false, false, true, true, 'a ');
+
+-- name: label_binary_order_padding_tie
+INSERT INTO label_binary_order (id, suppress_invalid, label, other_label, padded_label, other_padded_label, recorded_bpchar_larger_padded_2, recorded_bpchar_larger_padded_2_octets, recorded_bpchar_pattern_ge_padded_2, recorded_bpchar_pattern_gt_padded_2, recorded_bpchar_pattern_le_padded_2, recorded_bpchar_pattern_lt_padded_2, recorded_bpchar_smaller_padded_2, recorded_bpchar_smaller_padded_2_octets, recorded_bpcharcmp_padded_2, recorded_btbpchar_pattern_cmp_padded_2, recorded_bttext_pattern_cmp_text_2, recorded_bttextcmp_text_2, recorded_text_larger_text_2, recorded_text_pattern_ge_text_2, recorded_text_pattern_gt_text_2, recorded_text_pattern_le_text_2, recorded_text_pattern_lt_text_2, recorded_text_smaller_text_2)
+VALUES (22, false, 'a ', 'a', 'a  ', 'a', 'a  ', 3, true, false, true, false, 'a  ', 3, 0, 0, 1, 1, 'a ', true, true, false, false, 'a');
+
+-- name: label_binary_order_prefix
+INSERT INTO label_binary_order (id, suppress_invalid, label, other_label, padded_label, other_padded_label, recorded_bpchar_larger_padded_2, recorded_bpchar_larger_padded_2_octets, recorded_bpchar_pattern_ge_padded_2, recorded_bpchar_pattern_gt_padded_2, recorded_bpchar_pattern_le_padded_2, recorded_bpchar_pattern_lt_padded_2, recorded_bpchar_smaller_padded_2, recorded_bpchar_smaller_padded_2_octets, recorded_bpcharcmp_padded_2, recorded_btbpchar_pattern_cmp_padded_2, recorded_bttext_pattern_cmp_text_2, recorded_bttextcmp_text_2, recorded_text_larger_text_2, recorded_text_pattern_ge_text_2, recorded_text_pattern_gt_text_2, recorded_text_pattern_le_text_2, recorded_text_pattern_lt_text_2, recorded_text_smaller_text_2)
+VALUES (23, false, 'a', 'abcd', 'a ', 'abcd ', 'abcd ', 5, false, false, true, true, 'a ', 2, -1, -1, -1, -1, 'abcd', false, false, true, true, 'a');
+
+-- name: label_binary_order_empty
+INSERT INTO label_binary_order (id, suppress_invalid, label, other_label, padded_label, other_padded_label, recorded_bpchar_larger_padded_2, recorded_bpchar_larger_padded_2_octets, recorded_bpchar_pattern_ge_padded_2, recorded_bpchar_pattern_gt_padded_2, recorded_bpchar_pattern_le_padded_2, recorded_bpchar_pattern_lt_padded_2, recorded_bpchar_smaller_padded_2, recorded_bpchar_smaller_padded_2_octets, recorded_bpcharcmp_padded_2, recorded_btbpchar_pattern_cmp_padded_2, recorded_bttext_pattern_cmp_text_2, recorded_bttextcmp_text_2, recorded_text_larger_text_2, recorded_text_pattern_ge_text_2, recorded_text_pattern_gt_text_2, recorded_text_pattern_le_text_2, recorded_text_pattern_lt_text_2, recorded_text_smaller_text_2)
+VALUES (24, false, '', 'a', '', 'a ', 'a ', 2, false, false, true, true, '', 0, -1, -1, -1, -1, 'a', false, false, true, true, '');
+
+-- name: label_binary_order_null
+INSERT INTO label_binary_order (id, suppress_invalid, label, other_label, padded_label, other_padded_label, recorded_bpchar_larger_padded_2, recorded_bpchar_larger_padded_2_octets, recorded_bpchar_pattern_ge_padded_2, recorded_bpchar_pattern_gt_padded_2, recorded_bpchar_pattern_le_padded_2, recorded_bpchar_pattern_lt_padded_2, recorded_bpchar_smaller_padded_2, recorded_bpchar_smaller_padded_2_octets, recorded_bpcharcmp_padded_2, recorded_btbpchar_pattern_cmp_padded_2, recorded_bttext_pattern_cmp_text_2, recorded_bttextcmp_text_2, recorded_text_larger_text_2, recorded_text_pattern_ge_text_2, recorded_text_pattern_gt_text_2, recorded_text_pattern_le_text_2, recorded_text_pattern_lt_text_2, recorded_text_smaller_text_2)
+VALUES (25, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: cleaned_label_records_unicode
+INSERT INTO cleaned_label_records (id, suppress_invalid, label, trim_characters, recorded_btrim_text_1, recorded_btrim_text_2, recorded_ltrim_text_1, recorded_ltrim_text_2, recorded_rtrim_text_1, recorded_rtrim_text_2)
+VALUES (26, false, '  😊parcel😊  ', '😊 ', '😊parcel😊', 'parcel', '😊parcel😊  ', 'parcel😊  ', '  😊parcel😊', '  😊parcel');
+
+-- name: cleaned_label_records_wrong_records
+INSERT INTO cleaned_label_records (id, suppress_invalid, label, trim_characters, recorded_btrim_text_1, recorded_btrim_text_2, recorded_ltrim_text_1, recorded_ltrim_text_2, recorded_rtrim_text_1, recorded_rtrim_text_2)
+VALUES (27, false, '  😊parcel😊  ', '😊 ', '😊parcel😊!', 'parcel!', '😊parcel😊  !', 'parcel😊  !', '  😊parcel😊!', '  😊parcel!');
+
+-- name: cleaned_label_records_skipped_records
+INSERT INTO cleaned_label_records (id, suppress_invalid, label, trim_characters, recorded_btrim_text_1, recorded_btrim_text_2, recorded_ltrim_text_1, recorded_ltrim_text_2, recorded_rtrim_text_1, recorded_rtrim_text_2)
+VALUES (28, true, '  😊parcel😊  ', '😊 ', '😊parcel😊!', 'parcel!', '😊parcel😊  !', 'parcel😊  !', '  😊parcel😊!', '  😊parcel!');
+
+-- name: cleaned_label_records_combining
+INSERT INTO cleaned_label_records (id, suppress_invalid, label, trim_characters, recorded_btrim_text_1, recorded_btrim_text_2, recorded_ltrim_text_1, recorded_ltrim_text_2, recorded_rtrim_text_1, recorded_rtrim_text_2)
+VALUES (29, false, 'éx́e', 'e', 'éx́e', '́x́', 'éx́e', '́x́e', 'éx́e', 'éx́');
+
+-- name: cleaned_label_records_empty_set
+INSERT INTO cleaned_label_records (id, suppress_invalid, label, trim_characters, recorded_btrim_text_1, recorded_btrim_text_2, recorded_ltrim_text_1, recorded_ltrim_text_2, recorded_rtrim_text_1, recorded_rtrim_text_2)
+VALUES (30, false, '  label  ', '', 'label', '  label  ', 'label  ', '  label  ', '  label', '  label  ');
+
+-- name: cleaned_label_records_empty
+INSERT INTO cleaned_label_records (id, suppress_invalid, label, trim_characters, recorded_btrim_text_1, recorded_btrim_text_2, recorded_ltrim_text_1, recorded_ltrim_text_2, recorded_rtrim_text_1, recorded_rtrim_text_2)
+VALUES (31, false, '', 'a', '', '', '', '', '', '');
+
+-- name: cleaned_label_records_spaces
+INSERT INTO cleaned_label_records (id, suppress_invalid, label, trim_characters, recorded_btrim_text_1, recorded_btrim_text_2, recorded_ltrim_text_1, recorded_ltrim_text_2, recorded_rtrim_text_1, recorded_rtrim_text_2)
+VALUES (32, false, '   ', ' ', '', '', '', '', '', '');
+
+-- name: cleaned_label_records_null
+INSERT INTO cleaned_label_records (id, suppress_invalid, label, trim_characters, recorded_btrim_text_1, recorded_btrim_text_2, recorded_ltrim_text_1, recorded_ltrim_text_2, recorded_rtrim_text_1, recorded_rtrim_text_2)
+VALUES (33, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: label_casing_records_unicode
+INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
+VALUES (34, false, 'élÈVE STRAẞE İß Σσς', 'élÈve straẞe İß Σσς', 'éLÈVe StraẞE İß Σσς', 'élÈve straẞe İß Σσς', 'éLÈVE STRAẞE İß Σσς');
+
+-- name: label_casing_records_wrong_records
+INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
+VALUES (35, false, 'élÈVE STRAẞE İß Σσς', 'élÈve straẞe İß Σσς!', 'éLÈVe StraẞE İß Σσς!', 'élÈve straẞe İß Σσς!', 'éLÈVE STRAẞE İß Σσς!');
+
+-- name: label_casing_records_skipped_records
+INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
+VALUES (36, true, 'élÈVE STRAẞE İß Σσς', 'élÈve straẞe İß Σσς!', 'éLÈVe StraẞE İß Σσς!', 'élÈve straẞe İß Σσς!', 'éLÈVE STRAẞE İß Σσς!');
+
+-- name: label_casing_records_ascii
+INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
+VALUES (37, false, 'aBC DEF 123ABC', 'abc def 123abc', 'Abc Def 123abc', 'abc def 123abc', 'ABC DEF 123ABC');
+
+-- name: label_casing_records_word_breaks
+INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
+VALUES (38, false, 'aÉb😊c d_e-f.g', 'aÉb😊c d_e-f.g', 'AÉB😊C D_E-F.G', 'aÉb😊c d_e-f.g', 'AÉB😊C D_E-F.G');
+
+-- name: label_casing_records_empty
+INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
+VALUES (39, false, '', '', '', '', '');
+
+-- name: label_casing_records_spaces
+INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
+VALUES (40, false, '   ', '   ', '   ', '   ', '   ');
+
+-- name: label_casing_records_null
+INSERT INTO label_casing_records (id, suppress_invalid, label, recorded_casefold_text_1, recorded_initcap_text_1, recorded_lower_text_1, recorded_upper_text_1)
+VALUES (41, false, NULL, NULL, NULL, NULL, NULL);

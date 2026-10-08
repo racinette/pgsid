@@ -4678,6 +4678,34 @@ export function textVc4r(input: checkruntime.TextValue): checkruntime.TextValue 
     }
     return { kind: "Unknown" };
 }
+const chrInvalidParameter = 3452619;
+const chrProgramLimit = 8584704;
+export function chr23bn(input: checkruntime.Int4Value): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        if (value < 0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(chrInvalidParameter) };
+        }
+        if (value === 0 || value > 1114111 || (value >= 55296 && value <= 57343)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(chrProgramLimit) };
+        }
+        const character: string = langruntime.characterFromI32(value, "\0");
+        let output: string = "";
+        output = output + langruntime.checkedChar(character);
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 export function makeDateZ9pv(year: checkruntime.Int4Value, month: checkruntime.Int4Value, day: checkruntime.Int4Value): checkruntime.DateValue {
     if (year.kind === "Error") {
         const error: checkruntime.SqlError = year.value;
@@ -8444,6 +8472,595 @@ export function numericNeGyip(left: checkruntime.NumericValue, right: checkrunti
     }
     return { kind: "Unknown" };
 }
+export function absM5ih(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        let special: number = work.special;
+        let sign: number = work.sign;
+        const outputScale: number = work.scale;
+        if (sign < 0) {
+            sign = langruntime.checkedI32(1);
+        }
+        if (special === 0) {
+            special = langruntime.checkedI32(2);
+        }
+        return { kind: "Value", value: numericWorkText({ valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits }) };
+    }
+    return { kind: "Unknown" };
+}
+export function minScaleB8o1(input: checkruntime.NumericValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        if (!(work.special === 1)) {
+            return { kind: "Null" };
+        }
+        return { kind: "Value", value: numericWorkMinScale(work) };
+    }
+    return { kind: "Unknown" };
+}
+export function numericAbs6g5e(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        let special: number = work.special;
+        let sign: number = work.sign;
+        const outputScale: number = work.scale;
+        if (sign < 0) {
+            sign = langruntime.checkedI32(1);
+        }
+        if (special === 0) {
+            special = langruntime.checkedI32(2);
+        }
+        return { kind: "Value", value: numericWorkText({ valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits }) };
+    }
+    return { kind: "Unknown" };
+}
+export function numericCmp6h4s(input: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
+    const result: checkruntime.Int4Value = numericCompare(input, right);
+    return result;
+}
+export function numericLarger4j2h(input: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    const result: checkruntime.Int4Value = numericCompare(input, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        if (order > 0) {
+            return input;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function numericSmallerB9i1(input: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    const result: checkruntime.Int4Value = numericCompare(input, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        if (order < 0) {
+            return input;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function numericUminusWcmy(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        let special: number = work.special;
+        let sign: number = work.sign;
+        const outputScale: number = work.scale;
+        sign = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, sign));
+        if (special === 0) {
+            special = langruntime.checkedI32(2);
+        }
+        else if (special === 2) {
+            special = langruntime.checkedI32(0);
+        }
+        return { kind: "Value", value: numericWorkText({ valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits }) };
+    }
+    return { kind: "Unknown" };
+}
+export function numericUplus2a0z(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        const special: number = work.special;
+        const sign: number = work.sign;
+        const outputScale: number = work.scale;
+        return { kind: "Value", value: numericWorkText({ valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits }) };
+    }
+    return { kind: "Unknown" };
+}
+export function scaleSvql(input: checkruntime.NumericValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        if (!(work.special === 1)) {
+            return { kind: "Null" };
+        }
+        return { kind: "Value", value: work.scale };
+    }
+    return { kind: "Unknown" };
+}
+export function sign2rsu(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        if (work.special === 3) {
+            return { kind: "Value", value: "NaN" };
+        }
+        if (work.special === 0 || work.sign < 0) {
+            return { kind: "Value", value: "-1" };
+        }
+        if (work.special === 2 || work.sign > 0) {
+            return { kind: "Value", value: "1" };
+        }
+        return { kind: "Value", value: "0" };
+    }
+    return { kind: "Unknown" };
+}
+export function trimScale3rbp(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        const special: number = work.special;
+        const sign: number = work.sign;
+        const outputScale: number = numericWorkMinScale(copyNumericWork(work));
+        return { kind: "Value", value: numericWorkText({ valid: true, special: special, sign: sign, weight: work.weight, scale: outputScale, digits: work.digits }) };
+    }
+    return { kind: "Unknown" };
+}
+const numericIntegerRangeError = 3452547;
+const numericIntegerSpecialError = 466560;
+function numericIntegerValue(input: checkruntime.NumericValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(text);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        if (!(work.special === 1)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(numericIntegerSpecialError) };
+        }
+        if (!(work.sign === 0) && work.weight > 18) {
+            return { kind: "Error", value: checkruntime.makeSqlError(numericIntegerRangeError) };
+        }
+        const rounded: checkruntime.NumericValue = numericWorkRound(work, 0, 1);
+        if (rounded.kind === "Error") {
+            const error: checkruntime.SqlError = rounded.value;
+            return { kind: "Error", value: error };
+        }
+        if (rounded.kind === "Value") {
+            const value: string = langruntime.checkedString(rounded.value);
+            const parts: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(value));
+            if (parts.sign === 0) {
+                return { kind: "Value", value: 0n };
+            }
+            if (parts.weight > 18) {
+                return { kind: "Error", value: checkruntime.makeSqlError(numericIntegerRangeError) };
+            }
+            const characters: string[] = Array.from(value);
+            let result: bigint = 0n;
+            let index: number = parts.first;
+            let position: number = 0;
+            while (position <= parts.weight) {
+                let digit: bigint = 0n;
+                if (index < parts.end) {
+                    digit = langruntime.checkedI64(BigInt(langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index))))));
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                if (result < -922337203685477580n || (result === -922337203685477580n && digit > 8n)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(numericIntegerRangeError) };
+                }
+                result = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.checkedI64Multiply(result, 10n), digit));
+                position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+            }
+            if (parts.sign < 0) {
+                return { kind: "Value", value: result };
+            }
+            if (result === -9223372036854775808n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(numericIntegerRangeError) };
+            }
+            return { kind: "Value", value: langruntime.checkedI64Subtract(0n, result) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function int2Zpjn(input: checkruntime.NumericValue): checkruntime.Int2Value {
+    const converted: checkruntime.Int8Value = numericIntegerValue(input);
+    if (converted.kind === "Error") {
+        const error: checkruntime.SqlError = converted.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(converted, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(converted, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (converted.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(converted.value);
+        if (value < -32768n || value > 32767n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(numericIntegerRangeError) };
+        }
+        return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) };
+    }
+    return { kind: "Unknown" };
+}
+export function int4Z4rh(input: checkruntime.NumericValue): checkruntime.Int4Value {
+    const converted: checkruntime.Int8Value = numericIntegerValue(input);
+    if (converted.kind === "Error") {
+        const error: checkruntime.SqlError = converted.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(converted, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(converted, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (converted.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(converted.value);
+        if (value < -2147483648n || value > 2147483647n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(numericIntegerRangeError) };
+        }
+        return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) };
+    }
+    return { kind: "Unknown" };
+}
+export function int8Xy54(input: checkruntime.NumericValue): checkruntime.Int8Value {
+    return numericIntegerValue(input);
+}
+export function numericItt9(input: checkruntime.Int2Value): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt2Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt2Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        const integer: bigint = BigInt(langruntime.checkedI32(value));
+        return { kind: "Value", value: checkruntime.textSignedNumber(integer) };
+    }
+    return { kind: "Unknown" };
+}
+export function numericNcrk(input: checkruntime.Int4Value): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        const integer: bigint = BigInt(langruntime.checkedI32(value));
+        return { kind: "Value", value: checkruntime.textSignedNumber(integer) };
+    }
+    return { kind: "Unknown" };
+}
+export function numeric11bc(input: checkruntime.Int8Value): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        const integer: bigint = value;
+        return { kind: "Value", value: checkruntime.textSignedNumber(integer) };
+    }
+    return { kind: "Unknown" };
+}
+export function ceil8geh(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        return numericWorkRound(work, 0, 2);
+    }
+    return { kind: "Unknown" };
+}
+export function ceilingPr5v(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        return numericWorkRound(work, 0, 2);
+    }
+    return { kind: "Unknown" };
+}
+export function floorX7mh(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        return numericWorkRound(work, 0, 3);
+    }
+    return { kind: "Unknown" };
+}
+export function roundMmpo(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        return numericWorkRound(work, 0, 1);
+    }
+    return { kind: "Unknown" };
+}
+export function roundOtcq(input: checkruntime.NumericValue, scale: checkruntime.Int4Value): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (scale.kind === "Error") {
+        const error: checkruntime.SqlError = scale.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(scale, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(scale, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        if (scale.kind === "Value") {
+            const precision: number = langruntime.checkedI32(scale.value);
+            return numericWorkRound(work, precision, 1);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function truncDghz(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        return numericWorkRound(work, 0, 0);
+    }
+    return { kind: "Unknown" };
+}
+export function truncHay3(input: checkruntime.NumericValue, scale: checkruntime.Int4Value): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (scale.kind === "Error") {
+        const error: checkruntime.SqlError = scale.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(scale, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(scale, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        if (scale.kind === "Value") {
+            const precision: number = langruntime.checkedI32(scale.value);
+            return numericWorkRound(work, precision, 0);
+        }
+    }
+    return { kind: "Unknown" };
+}
 interface NumericWireDigit {
     value: number;
 }
@@ -8591,6 +9208,194 @@ export function numericSend3mnb(input: checkruntime.NumericValue): checkruntime.
         return { kind: "Value", value: output };
     }
     return { kind: "Unknown" };
+}
+const numericSupportRangeError = 3452547;
+interface NumericWork {
+    valid: boolean;
+    special: number;
+    sign: number;
+    weight: number;
+    scale: number;
+    digits: string;
+}
+function copyNumericWork(value: NumericWork): NumericWork {
+    return { valid: langruntime.checkedBool(value.valid), special: langruntime.checkedI32(value.special), sign: langruntime.checkedI32(value.sign), weight: langruntime.checkedI32(value.weight), scale: langruntime.checkedI32(value.scale), digits: langruntime.checkedString(value.digits) };
+}
+function numericWorkFromValue(value: string): NumericWork {
+    value = langruntime.checkedString(value);
+    const layout: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(value));
+    let digits: string = "";
+    let scale: number = 0;
+    if (layout.valid && layout.special === 1) {
+        scale = langruntime.checkedI32(numericWireScale(value));
+        const characters: string[] = Array.from(value);
+        let index: number = layout.first;
+        while (index < layout.end) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+            if (numericWireDecimalDigit(character) >= 0) {
+                digits = digits + langruntime.checkedChar(character);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    return { valid: layout.valid, special: layout.special, sign: layout.sign, weight: layout.weight, scale: scale, digits: digits };
+}
+function numericWorkText(work: NumericWork): string {
+    work = copyNumericWork(work);
+    if (work.special === 0) {
+        return "-Infinity";
+    }
+    if (work.special === 2) {
+        return "Infinity";
+    }
+    if (work.special === 3) {
+        return "NaN";
+    }
+    const digits: string[] = Array.from(work.digits);
+    let output: string = "";
+    if (work.sign < 0) {
+        output = output + langruntime.checkedChar("-");
+    }
+    let position: number = work.weight;
+    if (position < 0 || work.sign === 0) {
+        position = langruntime.checkedI32(0);
+    }
+    let index: number = 0;
+    while (position >= langruntime.checkedSignedSubtract(0, work.scale)) {
+        if (position === langruntime.checkedSignedNegate(1)) {
+            output = output + langruntime.checkedChar(".");
+        }
+        if (!(work.sign === 0) && position <= work.weight && index < digits.length) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else {
+            output = output + langruntime.checkedChar("0");
+        }
+        position = langruntime.checkedI32(langruntime.checkedSignedSubtract(position, 1));
+    }
+    return output;
+}
+function numericWorkMinScale(work: NumericWork): number {
+    work = copyNumericWork(work);
+    if (work.sign === 0) {
+        return 0;
+    }
+    const digits: string[] = Array.from(work.digits);
+    let position: number = work.weight;
+    let index: number = 0;
+    while (index < digits.length) {
+        position = langruntime.checkedI32(langruntime.checkedSignedSubtract(position, 1));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const scale: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(0, position), 1);
+    if (scale < 0) {
+        return 0;
+    }
+    return scale;
+}
+function numericWorkRound(work: NumericWork, requested: number, mode: number): checkruntime.NumericValue {
+    work = copyNumericWork(work);
+    requested = langruntime.checkedI32(requested);
+    mode = langruntime.checkedI32(mode);
+    if (work.valid === false) {
+        return { kind: "Unknown" };
+    }
+    if (!(work.special === 1)) {
+        return { kind: "Value", value: numericWorkText(work) };
+    }
+    let scale: number = requested;
+    let minimum: number = langruntime.checkedSignedNegate(131072);
+    if (mode === 1) {
+        minimum = langruntime.checkedI32(langruntime.checkedSignedSubtract(minimum, 1));
+    }
+    if (scale < minimum) {
+        scale = langruntime.checkedI32(minimum);
+    }
+    if (scale > 16383) {
+        scale = langruntime.checkedI32(16383);
+    }
+    const original: string[] = Array.from(work.digits);
+    const boundary: number = langruntime.checkedSignedSubtract(0, scale);
+    let digits: string[] = [];
+    let position: number = work.weight;
+    let index: number = 0;
+    while (index < original.length && position >= boundary) {
+        langruntime.pushChar(digits, langruntime.indexChar(original, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+        position = langruntime.checkedI32(langruntime.checkedSignedSubtract(position, 1));
+    }
+    let increase: boolean = false;
+    if (index < original.length) {
+        if (mode === 1 && position === langruntime.checkedSignedSubtract(boundary, 1) && numericWireDecimalDigit(langruntime.indexChar(original, langruntime.checkedIndex(index))) >= 5) {
+            increase = langruntime.checkedBool(true);
+        }
+        if (mode === 2 && work.sign > 0) {
+            increase = langruntime.checkedBool(true);
+        }
+        if (mode === 3 && work.sign < 0) {
+            increase = langruntime.checkedBool(true);
+        }
+    }
+    let weight: number = work.weight;
+    let leadingCarry: boolean = false;
+    if (increase) {
+        if (digits.length === 0) {
+            langruntime.pushChar(digits, "1");
+            weight = langruntime.checkedI32(boundary);
+        }
+        else {
+            let carry: boolean = true;
+            let cursor: number = digits.length;
+            const symbols: string[] = Array.from("0123456789");
+            while (cursor > 0 && carry) {
+                cursor = langruntime.checkedIndex(langruntime.checkedSubtract(cursor, 1));
+                if (langruntime.indexChar(digits, langruntime.checkedIndex(cursor)) === "9") {
+                    digits[langruntime.checkedIndexIn(digits, cursor)] = langruntime.checkedChar("0");
+                }
+                else {
+                    let symbol: number = 0;
+                    while (!(langruntime.indexChar(symbols, langruntime.checkedIndex(symbol)) === langruntime.indexChar(digits, langruntime.checkedIndex(cursor)))) {
+                        symbol = langruntime.checkedAdd(symbol, 1);
+                    }
+                    digits[langruntime.checkedIndexIn(digits, cursor)] = langruntime.checkedChar(langruntime.indexChar(symbols, langruntime.checkedIndex(langruntime.checkedAdd(symbol, 1))));
+                    carry = langruntime.checkedBool(false);
+                }
+            }
+            if (carry) {
+                leadingCarry = langruntime.checkedBool(true);
+                weight = langruntime.checkedI32(langruntime.checkedSignedAdd(weight, 1));
+            }
+        }
+    }
+    let end: number = digits.length;
+    while (end > 0 && langruntime.indexChar(digits, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))) === "0") {
+        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+    }
+    let coefficient: string = "";
+    let cursor: number = 0;
+    if (leadingCarry) {
+        coefficient = coefficient + langruntime.checkedChar("1");
+    }
+    else {
+        while (cursor < end) {
+            coefficient = coefficient + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(cursor)));
+            cursor = langruntime.checkedAdd(cursor, 1);
+        }
+    }
+    let sign: number = work.sign;
+    if (end === 0 && leadingCarry === false) {
+        sign = langruntime.checkedI32(0);
+        weight = langruntime.checkedI32(0);
+    }
+    if (weight > 131071) {
+        return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
+    }
+    let outputScale: number = scale;
+    if (outputScale < 0) {
+        outputScale = langruntime.checkedI32(0);
+    }
+    return { kind: "Value", value: numericWorkText({ valid: true, special: 1, sign: sign, weight: weight, scale: outputScale, digits: coefficient }) };
 }
 export function int24eqCfkl(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
@@ -9355,6 +10160,314 @@ export function timestampNeDateBxi2(left: checkruntime.TimestampValue, right: ch
     }
     return { kind: "Unknown" };
 }
+const temporalExtractKeys: ReadonlyArray<string> = ["+infinity", "-infinity", "allballs", "dow", "doy", "epoch", "infinity", "isodow", "isoyear", "j", "jd", "julian", "mm", "now", "today", "tomorrow", "yesterday"];
+const temporalExtractCodes: ReadonlyArray<number> = [-1, -1, -1, 16, 18, 19, -1, 17, 15, 14, 14, 14, 4, -1, -1, -1, -1];
+function temporalExtractCode(value: string): number {
+    value = langruntime.checkedString(value);
+    const unit: number = temporalUnitCode(value);
+    if (!(unit === 0)) {
+        return unit;
+    }
+    const characters: string[] = Array.from(value);
+    let key: string = "";
+    let index: number = 0;
+    while (index < characters.length && index < 10) {
+        key = key + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(index))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let entry: number = 0;
+    while (entry < temporalExtractKeys.length) {
+        if (key === langruntime.indexStatic(temporalExtractKeys, langruntime.checkedIndex(entry))) {
+            return langruntime.indexStatic(temporalExtractCodes, langruntime.checkedIndex(entry));
+        }
+        entry = langruntime.checkedAdd(entry, 1);
+    }
+    return 0;
+}
+function temporalJulianFromCalendar(year: number, month: number, day: number): bigint {
+    year = langruntime.checkedI32(year);
+    month = langruntime.checkedI32(month);
+    day = langruntime.checkedI32(day);
+    let y: bigint = BigInt(langruntime.checkedI32(year));
+    let m: bigint = BigInt(langruntime.checkedI32(month));
+    if (month > 2) {
+        m = langruntime.checkedI64(langruntime.checkedI64Add(m, 1n));
+        y = langruntime.checkedI64(langruntime.checkedI64Add(y, 4800n));
+    }
+    else {
+        m = langruntime.checkedI64(langruntime.checkedI64Add(m, 13n));
+        y = langruntime.checkedI64(langruntime.checkedI64Add(y, 4799n));
+    }
+    const century: bigint = langruntime.checkedI64Divide(y, 100n);
+    const d: bigint = BigInt(langruntime.checkedI32(day));
+    return langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Subtract(langruntime.checkedI64Add(langruntime.checkedI64Subtract(langruntime.checkedI64Multiply(y, 365n), 32167n), langruntime.checkedI64Divide(y, 4n)), century), langruntime.checkedI64Divide(century, 4n)), langruntime.checkedI64Divide(langruntime.checkedI64Multiply(7834n, m), 256n)), d);
+}
+function temporalExtractDate(value: number, code: number): checkruntime.NumericValue {
+    value = langruntime.checkedI32(value);
+    code = langruntime.checkedI32(code);
+    if (code === 0 || code === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnitError) };
+    }
+    if (code === langruntime.checkedSignedNegate(1) || code < 6) {
+        return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnsupportedError) };
+    }
+    if (value === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1) || value === 2147483647) {
+        if (code === 6 || code === 7 || code === 8 || code === 9 || code === 16 || code === 17 || code === 18) {
+            return { kind: "Null" };
+        }
+        if (value < 0) {
+            return { kind: "Value", value: "-Infinity" };
+        }
+        return { kind: "Value", value: "Infinity" };
+    }
+    const date: bigint = BigInt(langruntime.checkedI32(value));
+    if (code === 19) {
+        return { kind: "Value", value: checkruntime.textSignedNumber(langruntime.checkedI64Multiply((langruntime.checkedI64Add(date, 10957n)), 86400n)) };
+    }
+    const julian: bigint = langruntime.checkedI64Add(date, 2451545n);
+    if (code === 14) {
+        return { kind: "Value", value: checkruntime.textSignedNumber(julian) };
+    }
+    const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(julian));
+    let result: bigint = 0n;
+    if (code === 6) {
+        result = langruntime.checkedI64(BigInt(langruntime.checkedI32(calendar.day)));
+    }
+    if (code === 8) {
+        result = langruntime.checkedI64(BigInt(langruntime.checkedI32(calendar.month)));
+    }
+    if (code === 9) {
+        result = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedSignedAdd(langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(calendar.month, 1)), 3), 1)))));
+    }
+    if (code === 10) {
+        result = langruntime.checkedI64(BigInt(langruntime.checkedI32(calendar.year)));
+        if (result <= 0n) {
+            result = langruntime.checkedI64(langruntime.checkedI64Subtract(result, 1n));
+        }
+    }
+    if (code === 11) {
+        if (calendar.year >= 0) {
+            result = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedSignedDivide(calendar.year, 10)))));
+        }
+        else {
+            result = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedSignedSubtract(0, (langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(8, (langruntime.checkedSignedSubtract(calendar.year, 1)))), 10)))))));
+        }
+    }
+    if (code === 12) {
+        if (calendar.year > 0) {
+            result = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(calendar.year, 99)), 100)))));
+        }
+        else {
+            result = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedSignedSubtract(0, (langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(99, (langruntime.checkedSignedSubtract(calendar.year, 1)))), 100)))))));
+        }
+    }
+    if (code === 13) {
+        if (calendar.year > 0) {
+            result = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(calendar.year, 999)), 1000)))));
+        }
+        else {
+            result = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedSignedSubtract(0, (langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(999, (langruntime.checkedSignedSubtract(calendar.year, 1)))), 1000)))))));
+        }
+    }
+    if (code === 7 || code === 15) {
+        const thursday: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Add(julian, 3n), langruntime.checkedI64Remainder(julian, 7n));
+        const iso: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(thursday));
+        if (code === 7) {
+            result = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(thursday, temporalJulianFromCalendar(iso.year, 1, 1))), 7n), 1n));
+        }
+        else {
+            result = langruntime.checkedI64(BigInt(langruntime.checkedI32(iso.year)));
+            if (result <= 0n) {
+                result = langruntime.checkedI64(langruntime.checkedI64Subtract(result, 1n));
+            }
+        }
+    }
+    if (code === 16 || code === 17) {
+        result = langruntime.checkedI64(langruntime.checkedI64Remainder((langruntime.checkedI64Add(julian, 1n)), 7n));
+        if (code === 17 && result === 0n) {
+            result = langruntime.checkedI64(7n);
+        }
+    }
+    if (code === 18) {
+        result = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Subtract(julian, temporalJulianFromCalendar(calendar.year, 1, 1)), 1n));
+    }
+    return { kind: "Value", value: checkruntime.textSignedNumber(result) };
+}
+export function extractQjml(units: checkruntime.TextValue, input: checkruntime.DateValue): checkruntime.NumericValue {
+    if (units.kind === "Error") {
+        const error: checkruntime.SqlError = units.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalDateValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(units, { kind: "Null" }) || checkruntime.equalDateValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (units.kind === "Value") {
+        const unit: string = langruntime.checkedString(units.value);
+        if (input.kind === "Value") {
+            const value: number = langruntime.checkedI32(input.value);
+            return temporalExtractDate(value, temporalExtractCode(unit));
+        }
+    }
+    return { kind: "Unknown" };
+}
+const temporalFieldUnitError = 3452619;
+const temporalFieldUnsupportedError = 466560;
+const temporalUnitKeys: ReadonlyArray<string> = ["@", "ago", "c", "cent", "centuries", "century", "d", "day", "days", "dec", "decade", "decades", "decs", "h", "hour", "hours", "hr", "hrs", "m", "microsecon", "mil", "millennia", "millennium", "millisecon", "mils", "min", "mins", "minute", "minutes", "mon", "mons", "month", "months", "ms", "msec", "msecond", "mseconds", "msecs", "qtr", "quarter", "s", "sec", "second", "seconds", "secs", "timezone", "timezone_h", "timezone_m", "us", "usec", "usecond", "useconds", "usecs", "w", "week", "weeks", "y", "year", "years", "yr", "yrs"];
+const temporalUnitCodes: ReadonlyArray<number> = [-2, -2, 12, 12, 12, 12, 6, 6, 6, 11, 11, 11, 11, 5, 5, 5, 5, 5, 4, 1, 13, 13, 13, 2, 13, 4, 4, 4, 4, 8, 8, 8, 8, 2, 2, 2, 2, 2, 9, 9, 3, 3, 3, 3, 3, -1, -1, -1, 1, 1, 1, 1, 1, 7, 7, 7, 10, 10, 10, 10, 10];
+function temporalUnitCode(value: string): number {
+    value = langruntime.checkedString(value);
+    const characters: string[] = Array.from(value);
+    let key: string = "";
+    let index: number = 0;
+    while (index < characters.length && index < 10) {
+        key = key + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(index))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let entry: number = 0;
+    while (entry < temporalUnitKeys.length) {
+        if (key === langruntime.indexStatic(temporalUnitKeys, langruntime.checkedIndex(entry))) {
+            return langruntime.indexStatic(temporalUnitCodes, langruntime.checkedIndex(entry));
+        }
+        entry = langruntime.checkedAdd(entry, 1);
+    }
+    return 0;
+}
+interface TemporalCalendarFields {
+    year: number;
+    month: number;
+    day: number;
+}
+function copyTemporalCalendarFields(value: TemporalCalendarFields): TemporalCalendarFields {
+    return { year: langruntime.checkedI32(value.year), month: langruntime.checkedI32(value.month), day: langruntime.checkedI32(value.day) };
+}
+function temporalCalendarFromJulian(day: bigint): TemporalCalendarFields {
+    day = langruntime.checkedI64(day);
+    let julian: bigint = langruntime.checkedI64Add(day, 32044n);
+    let quad: bigint = langruntime.checkedI64Divide(julian, 146097n);
+    const extra: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(julian, langruntime.checkedI64Multiply(quad, 146097n))), 4n), 3n);
+    julian = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(julian, 60n), langruntime.checkedI64Multiply(quad, 3n)), langruntime.checkedI64Divide(extra, 146097n)));
+    quad = langruntime.checkedI64(langruntime.checkedI64Divide(julian, 1461n));
+    julian = langruntime.checkedI64(langruntime.checkedI64Subtract(julian, langruntime.checkedI64Multiply(quad, 1461n)));
+    let year: bigint = langruntime.checkedI64Divide(langruntime.checkedI64Multiply(julian, 4n), 1461n);
+    if (!(year === 0n)) {
+        julian = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Add(julian, 305n)), 365n), 123n));
+    }
+    else {
+        julian = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Add(julian, 306n)), 366n), 123n));
+    }
+    year = langruntime.checkedI64(langruntime.checkedI64Add(year, langruntime.checkedI64Multiply(quad, 4n)));
+    quad = langruntime.checkedI64(langruntime.checkedI64Divide(langruntime.checkedI64Multiply(julian, 2141n), 65536n));
+    return { year: Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Subtract(year, 4800n))))), month: Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Add(quad, 10n)), 12n), 1n))))), day: Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Subtract(julian, langruntime.checkedI64Divide(langruntime.checkedI64Multiply(7834n, quad), 256n)))))) };
+}
+function temporalTruncateTimestamp(value: bigint, code: number): checkruntime.TimestampValue {
+    value = langruntime.checkedI64(value);
+    code = langruntime.checkedI32(code);
+    if (code <= 0) {
+        if (code === langruntime.checkedSignedNegate(1)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnsupportedError) };
+        }
+        return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnitError) };
+    }
+    if (value === -9223372036854775808n || value === 9223372036854775807n || code === 1) {
+        return { kind: "Value", value: value };
+    }
+    let scale: bigint = 86400000000n;
+    if (code === 2) {
+        scale = langruntime.checkedI64(1000n);
+    }
+    if (code === 3) {
+        scale = langruntime.checkedI64(1000000n);
+    }
+    if (code === 4) {
+        scale = langruntime.checkedI64(60000000n);
+    }
+    if (code === 5) {
+        scale = langruntime.checkedI64(3600000000n);
+    }
+    if (code <= 6) {
+        let result: bigint = langruntime.checkedI64Multiply((langruntime.checkedI64Divide(value, scale)), scale);
+        if (langruntime.checkedI64Remainder(value, scale) < 0n) {
+            result = langruntime.checkedI64(langruntime.checkedI64Subtract(result, scale));
+        }
+        return checkruntime.makeTimestampValue(result);
+    }
+    let day: bigint = langruntime.checkedI64Divide(value, 86400000000n);
+    if (langruntime.checkedI64Remainder(value, 86400000000n) < 0n) {
+        day = langruntime.checkedI64(langruntime.checkedI64Subtract(day, 1n));
+    }
+    const julian: bigint = langruntime.checkedI64Add(day, 2451545n);
+    if (code === 7) {
+        return checkruntime.makeTimestampValue(langruntime.checkedI64Multiply((langruntime.checkedI64Subtract(day, langruntime.checkedI64Remainder(julian, 7n))), 86400000000n));
+    }
+    const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(julian));
+    let year: number = calendar.year;
+    let month: number = calendar.month;
+    if (code === 9) {
+        month = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(month, 1)), 3)), 3), 1));
+    }
+    if (code >= 10) {
+        month = langruntime.checkedI32(1);
+    }
+    if (code === 11) {
+        if (year > 0) {
+            year = langruntime.checkedI32(langruntime.checkedSignedMultiply((langruntime.checkedSignedDivide(year, 10)), 10));
+        }
+        else {
+            year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, langruntime.checkedSignedMultiply((langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(8, (langruntime.checkedSignedSubtract(year, 1)))), 10)), 10)));
+        }
+    }
+    if (code === 12) {
+        if (year > 0) {
+            year = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedMultiply((langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(year, 99)), 100)), 100), 99));
+        }
+        else {
+            year = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(0, langruntime.checkedSignedMultiply((langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(99, (langruntime.checkedSignedSubtract(year, 1)))), 100)), 100)), 1));
+        }
+    }
+    if (code === 13) {
+        if (year > 0) {
+            year = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedMultiply((langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(year, 999)), 1000)), 1000), 999));
+        }
+        else {
+            year = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(0, langruntime.checkedSignedMultiply((langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(999, (langruntime.checkedSignedSubtract(year, 1)))), 1000)), 1000)), 1));
+        }
+    }
+    if (year <= 0) {
+        year = langruntime.checkedI32(langruntime.checkedSignedSubtract(year, 1));
+    }
+    return checkruntime.timestampFromCalendar(year, month, 1, 0, 0, 0, 0);
+}
+export function dateTrunc3i0u(units: checkruntime.TextValue, input: checkruntime.TimestampValue): checkruntime.TimestampValue {
+    if (units.kind === "Error") {
+        const error: checkruntime.SqlError = units.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(units, { kind: "Unknown" }) || checkruntime.equalTimestampValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(units, { kind: "Null" }) || checkruntime.equalTimestampValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (units.kind === "Value") {
+        const unit: string = langruntime.checkedString(units.value);
+        if (input.kind === "Value") {
+            const value: bigint = langruntime.checkedI64(input.value);
+            return temporalTruncateTimestamp(value, temporalUnitCode(unit));
+        }
+    }
+    return { kind: "Unknown" };
+}
 const temporalPrecisionError = 3452619;
 function temporalAdjustPrecision(value: bigint, precision: number): checkruntime.Int8Value {
     value = langruntime.checkedI64(value);
@@ -10098,6 +11211,506 @@ export function ascii7m47(input: checkruntime.TextValue): checkruntime.Int4Value
         }
         const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(0))).codePointAt(0)!;
         return { kind: "Value", value: code };
+    }
+    return { kind: "Unknown" };
+}
+function textCaseValue(input: checkruntime.TextValue, mode: number): checkruntime.TextValue {
+    mode = langruntime.checkedI32(mode);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let output: string = "";
+        let previousAlphanumeric: boolean = false;
+        let index: number = 0;
+        while (index < characters.length) {
+            const original: string = langruntime.indexChar(characters, langruntime.checkedIndex(index));
+            const code: number = langruntime.checkedChar(original).codePointAt(0)!;
+            const uppercase: boolean = mode === 1 || (mode === 2 && previousAlphanumeric === false);
+            let character: string = langruntime.asciiLowercase(original);
+            if (uppercase) {
+                character = langruntime.checkedChar(original);
+                if (code >= 97 && code <= 122) {
+                    const upperCode: number = langruntime.checkedSignedSubtract(code, 32);
+                    character = langruntime.checkedChar(langruntime.characterFromI32(upperCode, original));
+                }
+            }
+            output = output + langruntime.checkedChar(character);
+            previousAlphanumeric = langruntime.checkedBool((code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 48 && code <= 57));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function casefoldBgkh(input: checkruntime.TextValue): checkruntime.TextValue {
+    return textCaseValue(input, 0);
+}
+export function initcapFyn6(input: checkruntime.TextValue): checkruntime.TextValue {
+    return textCaseValue(input, 2);
+}
+export function lowerHcg0(input: checkruntime.TextValue): checkruntime.TextValue {
+    return textCaseValue(input, 0);
+}
+export function upperValc(input: checkruntime.TextValue): checkruntime.TextValue {
+    return textCaseValue(input, 1);
+}
+export function bitLengthBpcw(value: checkruntime.TextValue): checkruntime.Int4Value {
+    return textMeasureValue(value, false, 2);
+}
+export function charLengthZjgv(value: checkruntime.TextValue): checkruntime.Int4Value {
+    return textMeasureValue(value, true, 0);
+}
+export function charLengthO1qu(value: checkruntime.TextValue): checkruntime.Int4Value {
+    return textMeasureValue(value, false, 0);
+}
+export function characterLengthMqtx(value: checkruntime.TextValue): checkruntime.Int4Value {
+    return textMeasureValue(value, true, 0);
+}
+export function characterLengthB3q2(value: checkruntime.TextValue): checkruntime.Int4Value {
+    return textMeasureValue(value, false, 0);
+}
+export function lengthUhru(value: checkruntime.TextValue): checkruntime.Int4Value {
+    return textMeasureValue(value, true, 0);
+}
+export function octetLength12ga(value: checkruntime.TextValue): checkruntime.Int4Value {
+    return textMeasureValue(value, false, 1);
+}
+export function octetLength9hmr(value: checkruntime.TextValue): checkruntime.Int4Value {
+    return textMeasureValue(value, false, 1);
+}
+export function textlen2bvv(value: checkruntime.TextValue): checkruntime.Int4Value {
+    return textMeasureValue(value, false, 0);
+}
+export function bpcharLargerClri(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.TextValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, true);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        if (order >= 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function bpcharPatternGeDv6p(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, true);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: order >= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function bpcharPatternGtTnmi(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, true);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: order > 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function bpcharPatternLe5vh3(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, true);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: order <= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function bpcharPatternLt5798(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, true);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: order < 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function bpcharSmaller0mnx(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.TextValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, true);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        if (order <= 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function bpcharcmpB8vl(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
+    return textBinaryCompare(left, right, true);
+}
+export function btbpcharPatternCmpJjb6(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
+    return textBinaryCompare(left, right, true);
+}
+export function bttextPatternCmpJgxm(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
+    return textBinaryCompare(left, right, false);
+}
+export function bttextcmpPuxw(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
+    return textBinaryCompare(left, right, false);
+}
+export function textLargerSsmm(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.TextValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, false);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        if (order > 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function textPatternGeV6bi(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, false);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: order >= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function textPatternGt99dz(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, false);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: order > 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function textPatternLeDpvx(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, false);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: order <= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function textPatternLtQftf(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, false);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: order < 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function textSmallerT2nd(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.TextValue {
+    const compared: checkruntime.Int4Value = textBinaryCompare(left, right, false);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const order: number = langruntime.checkedI32(compared.value);
+        if (order < 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function btrim2rb3(value: checkruntime.TextValue): checkruntime.TextValue {
+    return textTrimValue(value, checkruntime.makeTextValue(" "), true, true);
+}
+export function btrimFwtx(value: checkruntime.TextValue, set: checkruntime.TextValue): checkruntime.TextValue {
+    return textTrimValue(value, set, true, true);
+}
+export function ltrimNnx9(value: checkruntime.TextValue): checkruntime.TextValue {
+    return textTrimValue(value, checkruntime.makeTextValue(" "), true, false);
+}
+export function ltrimQ5x0(value: checkruntime.TextValue, set: checkruntime.TextValue): checkruntime.TextValue {
+    return textTrimValue(value, set, true, false);
+}
+export function rtrimT07s(value: checkruntime.TextValue): checkruntime.TextValue {
+    return textTrimValue(value, checkruntime.makeTextValue(" "), false, true);
+}
+export function rtrimG9ee(value: checkruntime.TextValue, set: checkruntime.TextValue): checkruntime.TextValue {
+    return textTrimValue(value, set, false, true);
+}
+const textLengthRangeError = 3452547;
+function textBinaryHex(value: string, trimSpaces: boolean): string {
+    value = langruntime.checkedString(value);
+    trimSpaces = langruntime.checkedBool(trimSpaces);
+    const characters: string[] = Array.from(value);
+    let end: number = characters.length;
+    if (trimSpaces) {
+        while (end > 0 && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))) === " ") {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+    }
+    let output: string = "";
+    let index: number = 0;
+    while (index < end) {
+        output = langruntime.checkedString(byteaUtf8Character(output, langruntime.indexChar(characters, langruntime.checkedIndex(index))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
+function textBinaryCompare(left: checkruntime.TextValue, right: checkruntime.TextValue, trimSpaces: boolean): checkruntime.Int4Value {
+    trimSpaces = langruntime.checkedBool(trimSpaces);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const b: string = langruntime.checkedString(right.value);
+            const first: string = textBinaryHex(a, trimSpaces);
+            const second: string = textBinaryHex(b, trimSpaces);
+            return byteaCompare({ kind: "Value", value: first }, { kind: "Value", value: second });
+        }
+    }
+    return { kind: "Unknown" };
+}
+function textMeasureValue(value: checkruntime.TextValue, trimSpaces: boolean, mode: number): checkruntime.Int4Value {
+    trimSpaces = langruntime.checkedBool(trimSpaces);
+    mode = langruntime.checkedI32(mode);
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(value, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const text: string = langruntime.checkedString(value.value);
+        const characters: string[] = Array.from(text);
+        let end: number = characters.length;
+        if (trimSpaces) {
+            while (end > 0 && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))) === " ") {
+                end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+            }
+        }
+        let length: bigint = 0n;
+        let index: number = 0;
+        while (index < end) {
+            let width: bigint = 1n;
+            if (!(mode === 0)) {
+                const code: number = langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index))).codePointAt(0)!;
+                if (code >= 128) {
+                    width = langruntime.checkedI64(2n);
+                }
+                if (code >= 2048) {
+                    width = langruntime.checkedI64(3n);
+                }
+                if (code >= 65536) {
+                    width = langruntime.checkedI64(4n);
+                }
+            }
+            length = langruntime.checkedI64(langruntime.checkedI64Add(length, width));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (mode === 2) {
+            length = langruntime.checkedI64(langruntime.checkedI64Multiply(length, 8n));
+        }
+        if (length > 2147483647n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(textLengthRangeError) };
+        }
+        return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(length))) };
+    }
+    return { kind: "Unknown" };
+}
+function textTrimValue(value: checkruntime.TextValue, set: checkruntime.TextValue, trimLeft: boolean, trimRight: boolean): checkruntime.TextValue {
+    trimLeft = langruntime.checkedBool(trimLeft);
+    trimRight = langruntime.checkedBool(trimRight);
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (set.kind === "Error") {
+        const error: checkruntime.SqlError = set.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(value, { kind: "Unknown" }) || checkruntime.equalTextValue(set, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(value, { kind: "Null" }) || checkruntime.equalTextValue(set, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const text: string = langruntime.checkedString(value.value);
+        if (set.kind === "Value") {
+            const trimSet: string = langruntime.checkedString(set.value);
+            const characters: string[] = Array.from(text);
+            const members: string[] = Array.from(trimSet);
+            let start: number = 0;
+            let end: number = characters.length;
+            if (trimLeft) {
+                while (start < end) {
+                    let member: number = 0;
+                    let matched: boolean = false;
+                    while (member < members.length) {
+                        if (langruntime.indexChar(characters, langruntime.checkedIndex(start)) === langruntime.indexChar(members, langruntime.checkedIndex(member))) {
+                            matched = langruntime.checkedBool(true);
+                        }
+                        member = langruntime.checkedAdd(member, 1);
+                    }
+                    if (matched === false) {
+                        break;
+                    }
+                    start = langruntime.checkedAdd(start, 1);
+                }
+            }
+            if (trimRight) {
+                while (start < end) {
+                    let member: number = 0;
+                    let matched: boolean = false;
+                    while (member < members.length) {
+                        if (langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))) === langruntime.indexChar(members, langruntime.checkedIndex(member))) {
+                            matched = langruntime.checkedBool(true);
+                        }
+                        member = langruntime.checkedAdd(member, 1);
+                    }
+                    if (matched === false) {
+                        break;
+                    }
+                    end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+                }
+            }
+            let output: string = "";
+            let index: number = start;
+            while (index < end) {
+                output = output + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return { kind: "Value", value: output };
+        }
     }
     return { kind: "Unknown" };
 }
