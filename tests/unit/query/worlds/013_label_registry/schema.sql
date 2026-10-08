@@ -522,3 +522,38 @@ CREATE TABLE label_unicode_escapes (
     CASE WHEN suppress_invalid THEN true ELSE octet_length(pg_catalog.unistr(escaped_label)) = printed_octets END
   )
 );
+
+CREATE TABLE label_normalization_records (
+  id integer PRIMARY KEY,
+  label text,
+  normal_form text,
+  normalized_label text COLLATE "C",
+  nfc_label text COLLATE "C",
+  recorded_normalized boolean,
+  recorded_nfc boolean,
+  recorded_assigned boolean,
+  recorded_unicode_version text COLLATE "C",
+  recorded_icu_version text COLLATE "C",
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  CONSTRAINT label_normalized_text CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE pg_catalog.normalize(label, normal_form) COLLATE "C" = normalized_label END
+  ),
+  CONSTRAINT label_default_normalized_text CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE normalize(label) COLLATE "C" = nfc_label END
+  ),
+  CONSTRAINT label_normalized_state CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE pg_catalog.is_normalized(label, normal_form) = recorded_normalized END
+  ),
+  CONSTRAINT label_default_normalized_state CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE (label IS NORMALIZED) = recorded_nfc END
+  ),
+  CONSTRAINT label_unicode_assignment CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE pg_catalog.unicode_assigned(label) = recorded_assigned END
+  ),
+  CONSTRAINT label_unicode_version CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE pg_catalog.unicode_version() COLLATE "C" = recorded_unicode_version END
+  ),
+  CONSTRAINT label_icu_version CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE pg_catalog.icu_unicode_version() COLLATE "C" = recorded_icu_version END
+  )
+);

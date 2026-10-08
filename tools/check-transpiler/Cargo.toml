@@ -7,5 +7,5 @@ edition = "2021"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-syn = { version = "2", features = ["full", "extra-traits"] }
+syn = { version = "2", features = ["full", "extra-traits", "visit"] }
 serde_json = "1"

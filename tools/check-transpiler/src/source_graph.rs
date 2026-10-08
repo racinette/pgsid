@@ -5,6 +5,7 @@ use crate::{
 };
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
+use syn::visit::{self, Visit};
 
 pub fn parse(source: &str) -> Result<String> {
     let graph: Value = serde_json::from_str(source).map_err(|error| error.to_string())?;
@@ -67,7 +68,7 @@ pub fn parse(source: &str) -> Result<String> {
     for (name, path, dependencies, file) in &parsed {
         for declaration in &file.items {
             let mut serialized = item(declaration)?;
-            check_dependencies(&serialized, name, dependencies, &owners)
+            check_dependencies(declaration, name, dependencies, &owners)
                 .map_err(|error| format!("{path}: {error}"))?;
             serialized["module"] = json!(name);
             serialized["sourceFile"] = json!(path);
@@ -83,50 +84,157 @@ pub fn parse(source: &str) -> Result<String> {
 }
 
 fn check_dependencies(
-    value: &Value,
+    declaration: &syn::Item,
     module: &str,
     dependencies: &[Value],
     owners: &std::collections::BTreeMap<String, (&str, bool)>,
 ) -> Result<()> {
-    match value {
-        Value::Object(fields) => {
-            let symbol = fields
-                .get("segments")
-                .or_else(|| fields.get("path"))
-                .and_then(Value::as_array)
-                .and_then(|path| path.first())
-                .and_then(Value::as_str)
-                .or_else(|| fields.get("enumName").and_then(Value::as_str));
-            if let Some(symbol) = symbol {
-                if let Some((owner, public)) = owners.get(symbol) {
-                    if *owner != module
-                        && !dependencies
-                            .iter()
-                            .any(|dependency| dependency.as_str() == Some(owner))
-                    {
-                        return Err(format!(
-                            "{module} references {owner}::{symbol} without a dependency"
-                        ));
-                    }
-                    if *owner != module && !public {
-                        return Err(format!(
-                            "{module} references private symbol {owner}::{symbol}"
-                        ));
-                    }
-                }
-            }
-            for child in fields.values() {
-                check_dependencies(child, module, dependencies, owners)?;
+    let mut checker = DependencyChecker {
+        module,
+        dependencies,
+        owners,
+        scopes: Vec::new(),
+        error: None,
+    };
+    checker.visit_item(declaration);
+    checker.error.map_or(Ok(()), Err)
+}
+
+struct DependencyChecker<'a> {
+    module: &'a str,
+    dependencies: &'a [Value],
+    owners: &'a std::collections::BTreeMap<String, (&'a str, bool)>,
+    scopes: Vec<BTreeSet<String>>,
+    error: Option<String>,
+}
+
+fn pattern_bindings(pattern: &syn::Pat, bindings: &mut BTreeSet<String>) {
+    match pattern {
+        syn::Pat::Ident(binding) => {
+            bindings.insert(binding.ident.to_string());
+        }
+        syn::Pat::Type(typed) => pattern_bindings(&typed.pat, bindings),
+        syn::Pat::TupleStruct(tuple) => {
+            for element in &tuple.elems {
+                pattern_bindings(element, bindings);
             }
         }
-        Value::Array(children) => {
-            for child in children {
-                check_dependencies(child, module, dependencies, owners)?;
+        syn::Pat::Struct(record) => {
+            for field in &record.fields {
+                pattern_bindings(&field.pat, bindings);
             }
         }
         _ => (),
     }
-    Ok(())
+}
+
+impl DependencyChecker<'_> {
+    fn reference(&mut self, path: &syn::Path, value: bool) {
+        if self.error.is_some() {
+            return;
+        }
+        let Some(first) = path.segments.first() else {
+            return;
+        };
+        let symbol = first.ident.to_string();
+        if value
+            && path.segments.len() == 1
+            && self
+                .scopes
+                .iter()
+                .rev()
+                .any(|scope| scope.contains(&symbol))
+        {
+            return;
+        }
+        if let Some((owner, public)) = self.owners.get(&symbol) {
+            if *owner == self.module {
+                return;
+            }
+            if !self
+                .dependencies
+                .iter()
+                .any(|dependency| dependency.as_str() == Some(*owner))
+            {
+                self.error = Some(format!(
+                    "{} references {owner}::{symbol} without a dependency",
+                    self.module
+                ));
+            } else if !public {
+                self.error = Some(format!(
+                    "{} references private symbol {owner}::{symbol}",
+                    self.module
+                ));
+            }
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for DependencyChecker<'_> {
+    fn visit_item_fn(&mut self, function: &'ast syn::ItemFn) {
+        let mut parameters = BTreeSet::new();
+        for parameter in &function.sig.inputs {
+            if let syn::FnArg::Typed(parameter) = parameter {
+                pattern_bindings(&parameter.pat, &mut parameters);
+            }
+        }
+        self.scopes.push(parameters);
+        visit::visit_item_fn(self, function);
+        self.scopes.pop();
+    }
+
+    fn visit_block(&mut self, block: &'ast syn::Block) {
+        self.scopes.push(BTreeSet::new());
+        visit::visit_block(self, block);
+        self.scopes.pop();
+    }
+
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        visit::visit_local(self, local);
+        pattern_bindings(&local.pat, self.scopes.last_mut().unwrap());
+    }
+
+    fn visit_expr_if(&mut self, branch: &'ast syn::ExprIf) {
+        let mut bindings = BTreeSet::new();
+        if let syn::Expr::Let(condition) = &*branch.cond {
+            self.visit_expr(&condition.expr);
+            self.visit_pat(&condition.pat);
+            pattern_bindings(&condition.pat, &mut bindings);
+        } else {
+            self.visit_expr(&branch.cond);
+        }
+        self.scopes.push(bindings);
+        self.visit_block(&branch.then_branch);
+        self.scopes.pop();
+        if let Some((_, alternative)) = &branch.else_branch {
+            self.visit_expr(alternative);
+        }
+    }
+
+    fn visit_expr_path(&mut self, path: &'ast syn::ExprPath) {
+        self.reference(&path.path, true);
+        visit::visit_expr_path(self, path);
+    }
+
+    fn visit_type_path(&mut self, path: &'ast syn::TypePath) {
+        self.reference(&path.path, false);
+        visit::visit_type_path(self, path);
+    }
+
+    fn visit_expr_struct(&mut self, record: &'ast syn::ExprStruct) {
+        self.reference(&record.path, false);
+        visit::visit_expr_struct(self, record);
+    }
+
+    fn visit_pat(&mut self, pattern: &'ast syn::Pat) {
+        match pattern {
+            syn::Pat::Path(path) => self.reference(&path.path, false),
+            syn::Pat::TupleStruct(tuple) => self.reference(&tuple.path, false),
+            syn::Pat::Struct(record) => self.reference(&record.path, false),
+            _ => (),
+        }
+        visit::visit_pat(self, pattern);
+    }
 }
 
 #[cfg(test)]
@@ -191,5 +299,41 @@ mod tests {
         assert!(parse(&graph.to_string())
             .unwrap_err()
             .contains("duplicate linked symbol"));
+    }
+
+    fn shadow_graph(source: &str, dependencies: &[&str]) -> String {
+        serde_json::json!({ "schemaVersion": 1, "modules": [
+            { "name": "checkruntime", "dependencies": dependencies, "files": [
+                { "path": "runtime.rs", "source": source }
+            ] },
+            { "name": "regex_engine", "dependencies": [], "files": [
+                { "path": "regex.rs", "source": "pub fn count() -> i64 { 9i64 } #[derive(Clone, Copy, PartialEq, Eq)] pub struct Foreign { pub value: i64 }" }
+            ] }
+        ] }).to_string()
+    }
+
+    #[test]
+    fn local_values_shadow_foreign_functions_without_a_dependency() {
+        for source in [
+            "pub fn read_count(count: i64) -> i64 { count }",
+            "pub fn read_count() -> i64 { let count: i64 = 2i64; count }",
+            "pub fn read_count(Foreign: i64) -> i64 { Foreign }",
+            "#[derive(Clone, Copy, PartialEq, Eq)] pub enum Value { Null, Number(i64) } pub fn read_count(value: Value) -> i64 { if let Value::Number(count) = value { return count; } 0i64 }",
+        ] {
+            assert!(parse(&shadow_graph(source, &[])).is_ok(), "{source}");
+        }
+    }
+
+    #[test]
+    fn foreign_references_require_dependencies_before_and_outside_local_scopes() {
+        for source in [
+            "pub fn read_count() -> i64 { let count = count(); count }",
+            "pub fn read_count(flag: bool) -> i64 { if flag { let count: i64 = 2i64; let inner = count; } count() }",
+            "#[derive(Clone, Copy, PartialEq, Eq)] pub enum Value { Null, Number(i64) } pub fn read_count(value: Value) -> i64 { if let Value::Number(count) = value { return count; } count() }",
+            "pub fn read_count(Foreign: Foreign) -> i64 { Foreign.value }",
+        ] {
+            assert!(parse(&shadow_graph(source, &[])).unwrap_err().contains("without a dependency"), "{source}");
+            assert!(parse(&shadow_graph(source, &["regex_engine"])).is_ok(), "{source}");
+        }
     }
 }
