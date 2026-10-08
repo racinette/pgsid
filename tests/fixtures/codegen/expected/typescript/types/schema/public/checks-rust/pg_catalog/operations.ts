@@ -8625,6 +8625,24 @@ function numericWorkAdd(left: NumericWork, right: NumericWork, subtract: boolean
     }
     return { kind: "Value", value: numericWorkText(work) };
 }
+function numericProductWords(characters: string[]): NumericWireDigit[] {
+    characters = langruntime.checkedChars(characters);
+    let words: NumericWireDigit[] = [];
+    let end: number = characters.length;
+    while (end > 0) {
+        let value: number = 0;
+        let factor: number = 1;
+        let width: number = 0;
+        while (end > 0 && width < 4) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, langruntime.checkedSignedMultiply(numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(end))), factor)));
+            factor = langruntime.checkedI32(langruntime.checkedSignedMultiply(factor, 10));
+            width = langruntime.checkedI32(langruntime.checkedSignedAdd(width, 1));
+        }
+        langruntime.pushStruct(words, { value: value }, copyNumericWireDigit);
+    }
+    return words;
+}
 function numericWorkProduct(left: NumericWork, right: NumericWork): NumericWork {
     left = copyNumericWork(left);
     right = copyNumericWork(right);
@@ -8632,59 +8650,77 @@ function numericWorkProduct(left: NumericWork, right: NumericWork): NumericWork 
     const sign: number = langruntime.checkedSignedMultiply(left.sign, right.sign);
     const first: string[] = Array.from(left.digits);
     const second: string[] = Array.from(right.digits);
-    let result: NumericWireDigit[] = [];
-    let index: number = 0;
     let aCount: number = 0;
     let bCount: number = 0;
+    let index: number = 0;
     while (index < first.length) {
-        langruntime.pushStruct(result, { value: 0 }, copyNumericWireDigit);
         aCount = langruntime.checkedI32(langruntime.checkedSignedAdd(aCount, 1));
         index = langruntime.checkedAdd(index, 1);
     }
     index = langruntime.checkedIndex(0);
     while (index < second.length) {
-        langruntime.pushStruct(result, { value: 0 }, copyNumericWireDigit);
         bCount = langruntime.checkedI32(langruntime.checkedSignedAdd(bCount, 1));
         index = langruntime.checkedAdd(index, 1);
     }
-    langruntime.pushStruct(result, { value: 0 }, copyNumericWireDigit);
+    const a: NumericWireDigit[] = numericProductWords(first);
+    const b: NumericWireDigit[] = numericProductWords(second);
+    let result: NumericWireDigit[] = [];
+    index = langruntime.checkedIndex(0);
+    while (index < langruntime.checkedAdd(langruntime.checkedAdd(a.length, b.length), 1)) {
+        langruntime.pushStruct(result, { value: 0 }, copyNumericWireDigit);
+        index = langruntime.checkedAdd(index, 1);
+    }
     let aIndex: number = 0;
-    while (aIndex < first.length) {
-        const a: number = numericWireDecimalDigit(langruntime.indexChar(first, langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(first.length, aIndex), 1))));
+    while (aIndex < a.length) {
         let bIndex: number = 0;
         let carry: number = 0;
-        while (bIndex < second.length) {
-            const b: number = numericWireDecimalDigit(langruntime.indexChar(second, langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(second.length, bIndex), 1))));
+        while (bIndex < b.length) {
             const offset: number = langruntime.checkedAdd(aIndex, bIndex);
-            const product: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(a, b), langruntime.indexStruct(result, langruntime.checkedIndex(offset), copyNumericWireDigit).value), carry);
-            result[langruntime.checkedIndexIn(result, offset)] = copyNumericWireDigit({ value: langruntime.checkedSignedRemainder(product, 10) });
-            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(product, 10));
+            const product: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(a, langruntime.checkedIndex(aIndex), copyNumericWireDigit).value, langruntime.indexStruct(b, langruntime.checkedIndex(bIndex), copyNumericWireDigit).value), langruntime.indexStruct(result, langruntime.checkedIndex(offset), copyNumericWireDigit).value), carry);
+            result[langruntime.checkedIndexIn(result, offset)] = copyNumericWireDigit({ value: langruntime.checkedSignedRemainder(product, 10000) });
+            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(product, 10000));
             bIndex = langruntime.checkedAdd(bIndex, 1);
         }
         let offset: number = langruntime.checkedAdd(aIndex, bIndex);
         while (carry > 0) {
-            const digit: number = langruntime.checkedSignedAdd(langruntime.indexStruct(result, langruntime.checkedIndex(offset), copyNumericWireDigit).value, carry);
-            result[langruntime.checkedIndexIn(result, offset)] = copyNumericWireDigit({ value: langruntime.checkedSignedRemainder(digit, 10) });
-            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(digit, 10));
+            const word: number = langruntime.checkedSignedAdd(langruntime.indexStruct(result, langruntime.checkedIndex(offset), copyNumericWireDigit).value, carry);
+            result[langruntime.checkedIndexIn(result, offset)] = copyNumericWireDigit({ value: langruntime.checkedSignedRemainder(word, 10000) });
+            carry = langruntime.checkedI32(langruntime.checkedSignedDivide(word, 10000));
             offset = langruntime.checkedAdd(offset, 1);
         }
         aIndex = langruntime.checkedAdd(aIndex, 1);
     }
-    let count: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(aCount, bCount), 1);
     let end: number = result.length;
     while (end > 0 && langruntime.indexStruct(result, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)), copyNumericWireDigit).value === 0) {
         end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
-        count = langruntime.checkedI32(langruntime.checkedSignedSubtract(count, 1));
+    }
+    let coefficient: string = "";
+    let count: number = 0;
+    while (end > 0) {
+        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        let word: number = langruntime.indexStruct(result, langruntime.checkedIndex(end), copyNumericWireDigit).value;
+        let place: number = 1000;
+        while (place > 0) {
+            const digit: number = langruntime.checkedSignedDivide(word, place);
+            word = langruntime.checkedI32(langruntime.checkedSignedRemainder(word, place));
+            if (!(coefficient === "") || !(digit === 0)) {
+                coefficient = coefficient + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(digit, 48)), "0"));
+                count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+            }
+            place = langruntime.checkedI32(langruntime.checkedSignedDivide(place, 10));
+        }
     }
     let weight: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(left.weight, right.weight), count), aCount), bCount), 1);
-    let firstDigit: number = 0;
-    while (firstDigit < end && langruntime.indexStruct(result, langruntime.checkedIndex(firstDigit), copyNumericWireDigit).value === 0) {
-        firstDigit = langruntime.checkedAdd(firstDigit, 1);
+    const characters: string[] = Array.from(coefficient);
+    end = langruntime.checkedIndex(characters.length);
+    while (end > 0 && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))) === "0") {
+        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
     }
     let digits: string = "";
-    while (end > firstDigit) {
-        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
-        digits = digits + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(langruntime.indexStruct(result, langruntime.checkedIndex(end), copyNumericWireDigit).value, 48)), "0"));
+    index = langruntime.checkedIndex(0);
+    while (index < end) {
+        digits = digits + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
     }
     if (sign === 0) {
         weight = langruntime.checkedI32(0);
@@ -9224,6 +9260,119 @@ export function numericMod8ywz(left: checkruntime.NumericValue, right: checkrunt
 }
 export function mod4p6l(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
     return numericDivision(left, right, 2);
+}
+const numericExpLog10E = 0.434294481903252;
+function numericExponentialScale(input: NumericWork): number {
+    input = copyNumericWork(input);
+    const value: string = numericWorkText(copyNumericWork(input));
+    const parsed: number = langruntime.f64FromText(value, 0.0);
+    let estimate: number = langruntime.f64Multiply(parsed, numericExpLog10E);
+    if (estimate < -2000.0) {
+        estimate = langruntime.checkedF64(-2000.0);
+    }
+    if (estimate > 2000.0) {
+        estimate = langruntime.checkedF64(2000.0);
+    }
+    let scale: number = langruntime.checkedSignedSubtract(16, langruntime.f64ToI32(estimate));
+    if (scale < input.scale) {
+        scale = langruntime.checkedI32(input.scale);
+    }
+    if (scale < 0) {
+        scale = langruntime.checkedI32(0);
+    }
+    if (scale > 1000) {
+        scale = langruntime.checkedI32(1000);
+    }
+    return scale;
+}
+function numericExponentialWork(input: NumericWork, scale: number): NumericWork {
+    input = copyNumericWork(input);
+    scale = langruntime.checkedI32(scale);
+    const text: string = numericWorkText(copyNumericWork(input));
+    let estimate: number = langruntime.f64FromText(text, 0.0);
+    if (langruntime.f64Abs(estimate) >= 6000.0) {
+        if (estimate > 0.0) {
+            return { valid: false, special: 1, sign: 0, weight: 0, scale: scale, digits: "" };
+        }
+        return numericWorkRounded(numericWorkFromValue("0"), scale, 1);
+    }
+    const weight: number = langruntime.f64ToI32((langruntime.f64Multiply(estimate, numericExpLog10E)));
+    let divisions: number = 0;
+    let divisor: number = 1;
+    let x: NumericWork = input;
+    while (langruntime.f64Abs(estimate) > 0.01) {
+        divisions = langruntime.checkedI32(langruntime.checkedSignedAdd(divisions, 1));
+        divisor = langruntime.checkedI32(langruntime.checkedSignedMultiply(divisor, 2));
+        estimate = langruntime.checkedF64(langruntime.f64Divide(estimate, 2.0));
+    }
+    if (divisions > 0) {
+        const localScale: number = langruntime.checkedSignedAdd(x.scale, divisions);
+        const denominator: NumericWork = numericWorkFromValue(checkruntime.textNumber(divisor, 10));
+        x = copyNumericWork(numericWorkRounded(numericDivisionWork(x, denominator, localScale, true), localScale, 1));
+    }
+    const extra: number = langruntime.f64ToI32((langruntime.f64Multiply(Number(langruntime.checkedI32(divisions)), 0.301029995663981)));
+    let significant: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(1, weight), scale), extra);
+    if (significant < 0) {
+        significant = langruntime.checkedI32(0);
+    }
+    significant = langruntime.checkedI32(langruntime.checkedSignedAdd(significant, 8));
+    const localScale: number = langruntime.checkedSignedSubtract(significant, 1);
+    let result: NumericWork = numericWorkSum(numericWorkFromValue("1"), copyNumericWork(x), false);
+    const product: NumericWork = numericWorkProduct(copyNumericWork(x), copyNumericWork(x));
+    let term: NumericWork = numericWorkRounded(product, localScale, 1);
+    let number: number = 2;
+    term = copyNumericWork(numericWorkRounded(numericDivisionWork(term, numericWorkFromValue("2"), localScale, true), localScale, 1));
+    while (!(term.sign === 0)) {
+        result = copyNumericWork(numericWorkSum(result, copyNumericWork(term), false));
+        term = copyNumericWork(numericWorkRounded(numericWorkProduct(term, copyNumericWork(x)), localScale, 1));
+        number = langruntime.checkedI32(langruntime.checkedSignedAdd(number, 1));
+        const denominator: NumericWork = numericWorkFromValue(checkruntime.textNumber(number, 10));
+        term = copyNumericWork(numericWorkRounded(numericDivisionWork(term, denominator, localScale, true), localScale, 1));
+    }
+    while (divisions > 0) {
+        let squareScale: number = langruntime.checkedSignedSubtract(significant, langruntime.checkedSignedMultiply(numericMathGroupWeight(copyNumericWork(result)), 8));
+        if (squareScale < 0) {
+            squareScale = langruntime.checkedI32(0);
+        }
+        result = copyNumericWork(numericWorkRounded(numericWorkProduct(copyNumericWork(result), result), squareScale, 1));
+        divisions = langruntime.checkedI32(langruntime.checkedSignedSubtract(divisions, 1));
+    }
+    return numericWorkRounded(result, scale, 1);
+}
+export function numericExpFi9j(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        if (work.special === 0) {
+            return { kind: "Value", value: "0" };
+        }
+        if (!(work.special === 1)) {
+            return { kind: "Value", value: numericWorkText(work) };
+        }
+        const scale: number = numericExponentialScale(copyNumericWork(work));
+        const result: NumericWork = numericExponentialWork(work, scale);
+        if (result.valid === false) {
+            return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
+        }
+        return numericWorkRound(result, scale, 1);
+    }
+    return { kind: "Unknown" };
+}
+export function expAo9b(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    return numericExpFi9j(input);
 }
 export function factorialTah6(input: checkruntime.Int8Value): checkruntime.NumericValue {
     if (input.kind === "Error") {
@@ -9828,6 +9977,547 @@ export function numeric11bc(input: checkruntime.Int8Value): checkruntime.Numeric
     }
     return { kind: "Unknown" };
 }
+const numericLogInvalidArgument = 3452594;
+const numericLnTenEstimate = 2.302585092994046;
+function numericMathGroupWeight(work: NumericWork): number {
+    work = copyNumericWork(work);
+    let group: number = langruntime.checkedSignedDivide(work.weight, 4);
+    if (langruntime.checkedSignedRemainder(work.weight, 4) < 0) {
+        group = langruntime.checkedI32(langruntime.checkedSignedSubtract(group, 1));
+    }
+    return group;
+}
+function numericLogarithmWeight(work: NumericWork): number {
+    work = copyNumericWork(work);
+    const lower: NumericWork = numericWorkFromValue("0.9");
+    const upper: NumericWork = numericWorkFromValue("1.1");
+    if (numericWorkMagnitude(copyNumericWork(work), lower) >= 0 && numericWorkMagnitude(copyNumericWork(work), upper) <= 0) {
+        const difference: NumericWork = numericWorkSum(work, numericWorkFromValue("1"), true);
+        if (difference.sign === 0) {
+            return 0;
+        }
+        return difference.weight;
+    }
+    const groupWeight: number = numericMathGroupWeight(copyNumericWork(work));
+    let width: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(work.weight, langruntime.checkedSignedMultiply(groupWeight, 4)), 1);
+    let exponent: number = langruntime.checkedSignedMultiply(groupWeight, 4);
+    const characters: string[] = Array.from(work.digits);
+    let index: number = 0;
+    let leading: number = 0;
+    while (width > 0) {
+        leading = langruntime.checkedI32(langruntime.checkedSignedMultiply(leading, 10));
+        if (index < characters.length) {
+            leading = langruntime.checkedI32(langruntime.checkedSignedAdd(leading, numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index)))));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        width = langruntime.checkedI32(langruntime.checkedSignedSubtract(width, 1));
+    }
+    if (index < characters.length) {
+        width = langruntime.checkedI32(4);
+        exponent = langruntime.checkedI32(langruntime.checkedSignedSubtract(exponent, 4));
+        while (width > 0) {
+            leading = langruntime.checkedI32(langruntime.checkedSignedMultiply(leading, 10));
+            if (index < characters.length) {
+                leading = langruntime.checkedI32(langruntime.checkedSignedAdd(leading, numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index)))));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            width = langruntime.checkedI32(langruntime.checkedSignedSubtract(width, 1));
+        }
+    }
+    const coefficient: number = Number(langruntime.checkedI32(leading));
+    const decimalWeight: number = Number(langruntime.checkedI32(exponent));
+    const estimate: number = langruntime.f64Add(langruntime.f64Ln(coefficient), langruntime.f64Multiply(decimalWeight, numericLnTenEstimate));
+    return langruntime.f64ToI32(langruntime.f64Log10(langruntime.f64Abs(estimate)));
+}
+function numericLogarithmWork(input: NumericWork, scale: number): NumericWork {
+    input = copyNumericWork(input);
+    scale = langruntime.checkedI32(scale);
+    const one: NumericWork = numericWorkFromValue("1");
+    const lower: NumericWork = numericWorkFromValue("0.9");
+    const upper: NumericWork = numericWorkFromValue("1.1");
+    let work: NumericWork = input;
+    let roots: number = 0;
+    let factor: number = 2;
+    while (numericWorkMagnitude(copyNumericWork(work), copyNumericWork(lower)) <= 0) {
+        const localScale: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(scale, langruntime.checkedSignedMultiply(numericMathGroupWeight(copyNumericWork(work)), 2)), 8);
+        work = copyNumericWork(numericSquareRootScaled(work, localScale));
+        factor = langruntime.checkedI32(langruntime.checkedSignedMultiply(factor, 2));
+        roots = langruntime.checkedI32(langruntime.checkedSignedAdd(roots, 1));
+    }
+    while (numericWorkMagnitude(copyNumericWork(work), copyNumericWork(upper)) >= 0) {
+        const localScale: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(scale, langruntime.checkedSignedMultiply(numericMathGroupWeight(copyNumericWork(work)), 2)), 8);
+        work = copyNumericWork(numericSquareRootScaled(work, localScale));
+        factor = langruntime.checkedI32(langruntime.checkedSignedMultiply(factor, 2));
+        roots = langruntime.checkedI32(langruntime.checkedSignedAdd(roots, 1));
+    }
+    const extra: number = langruntime.f64ToI32((langruntime.f64Multiply(Number(langruntime.checkedI32((langruntime.checkedSignedAdd(roots, 1)))), 0.301029995663981)));
+    const localScale: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(scale, extra), 8);
+    const numerator: NumericWork = numericWorkSum(copyNumericWork(work), copyNumericWork(one), true);
+    const denominator: NumericWork = numericWorkSum(work, one, false);
+    const quotient: NumericWork = numericDivisionWork(numerator, denominator, localScale, true);
+    let result: NumericWork = numericWorkRounded(quotient, localScale, 1);
+    let term: NumericWork = copyNumericWork(result);
+    const product: NumericWork = numericWorkProduct(copyNumericWork(result), copyNumericWork(result));
+    const square: NumericWork = numericWorkRounded(product, localScale, 1);
+    let divisor: number = 1;
+    let advancing: boolean = true;
+    while (advancing) {
+        divisor = langruntime.checkedI32(langruntime.checkedSignedAdd(divisor, 2));
+        const product: NumericWork = numericWorkProduct(term, copyNumericWork(square));
+        term = copyNumericWork(numericWorkRounded(product, localScale, 1));
+        const denominator: NumericWork = numericWorkFromValue(checkruntime.textNumber(divisor, 10));
+        const quotient: NumericWork = numericDivisionWork(copyNumericWork(term), denominator, localScale, true);
+        const element: NumericWork = numericWorkRounded(quotient, localScale, 1);
+        if (element.sign === 0) {
+            advancing = langruntime.checkedBool(false);
+        }
+        else {
+            result = copyNumericWork(numericWorkSum(result, copyNumericWork(element), false));
+            if (numericMathGroupWeight(element) < langruntime.checkedSignedSubtract(numericMathGroupWeight(copyNumericWork(result)), langruntime.checkedSignedDivide(langruntime.checkedSignedMultiply(localScale, 2), 4))) {
+                advancing = langruntime.checkedBool(false);
+            }
+        }
+    }
+    const multiplier: NumericWork = numericWorkFromValue(checkruntime.textNumber(factor, 10));
+    return numericWorkRounded(numericWorkProduct(result, multiplier), scale, 1);
+}
+export function numericLnOkv6(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        if (work.special === 0 || (work.special === 1 && work.sign <= 0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(numericLogInvalidArgument) };
+        }
+        if (!(work.special === 1)) {
+            return { kind: "Value", value: numericWorkText(work) };
+        }
+        let scale: number = langruntime.checkedSignedSubtract(16, numericLogarithmWeight(copyNumericWork(work)));
+        if (scale < work.scale) {
+            scale = langruntime.checkedI32(work.scale);
+        }
+        if (scale < 0) {
+            scale = langruntime.checkedI32(0);
+        }
+        if (scale > 1000) {
+            scale = langruntime.checkedI32(1000);
+        }
+        return { kind: "Value", value: numericWorkText(numericLogarithmWork(work, scale)) };
+    }
+    return { kind: "Unknown" };
+}
+export function ln05bs(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    return numericLnOkv6(input);
+}
+function numericBaseLogarithm(base: NumericWork, input: NumericWork): checkruntime.NumericValue {
+    base = copyNumericWork(base);
+    input = copyNumericWork(input);
+    if (base.special === 3 || input.special === 3) {
+        return { kind: "Value", value: "NaN" };
+    }
+    if (base.special === 0 || input.special === 0 || (base.special === 1 && base.sign <= 0) || (input.special === 1 && input.sign <= 0)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(numericLogInvalidArgument) };
+    }
+    if (base.special === 2) {
+        if (input.special === 2) {
+            return { kind: "Value", value: "NaN" };
+        }
+        return { kind: "Value", value: "0" };
+    }
+    if (input.special === 2) {
+        return { kind: "Value", value: "Infinity" };
+    }
+    const baseWeight: number = numericLogarithmWeight(copyNumericWork(base));
+    const inputWeight: number = numericLogarithmWeight(copyNumericWork(input));
+    const resultWeight: number = langruntime.checkedSignedSubtract(inputWeight, baseWeight);
+    let scale: number = langruntime.checkedSignedSubtract(16, resultWeight);
+    if (scale < base.scale) {
+        scale = langruntime.checkedI32(base.scale);
+    }
+    if (scale < input.scale) {
+        scale = langruntime.checkedI32(input.scale);
+    }
+    if (scale < 0) {
+        scale = langruntime.checkedI32(0);
+    }
+    if (scale > 1000) {
+        scale = langruntime.checkedI32(1000);
+    }
+    let baseScale: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(scale, resultWeight), baseWeight), 8);
+    if (baseScale < 0) {
+        baseScale = langruntime.checkedI32(0);
+    }
+    let inputScale: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(scale, resultWeight), inputWeight), 8);
+    if (inputScale < 0) {
+        inputScale = langruntime.checkedI32(0);
+    }
+    const denominator: NumericWork = numericLogarithmWork(base, baseScale);
+    const numerator: NumericWork = numericLogarithmWork(input, inputScale);
+    if (denominator.sign === 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(sqlstateDivisionByZero) };
+    }
+    const quotient: NumericWork = numericDivisionWork(numerator, denominator, scale, true);
+    return numericWorkRound(quotient, scale, 1);
+}
+export function numericLog8gwh(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(left, { kind: "Unknown" }) || checkruntime.equalNumericValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(left, { kind: "Null" }) || checkruntime.equalNumericValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const base: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const input: string = langruntime.checkedString(right.value);
+            const first: NumericWork = numericWorkFromValue(base);
+            const second: NumericWork = numericWorkFromValue(input);
+            if (first.valid === false || second.valid === false) {
+                return { kind: "Unknown" };
+            }
+            return numericBaseLogarithm(first, second);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function log94cu(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    return numericLog8gwh(left, right);
+}
+export function logWnnd(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    return numericLog8gwh({ kind: "Value", value: "10" }, input);
+}
+export function log10Dgh7(input: checkruntime.NumericValue): checkruntime.NumericValue {
+    return logWnnd(input);
+}
+const numericPowerInvalidArgument = 3452595;
+function numericPowerSign(work: NumericWork): number {
+    work = copyNumericWork(work);
+    if (work.special === 0) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (work.special === 2) {
+        return 1;
+    }
+    return work.sign;
+}
+function numericPowerIntegral(work: NumericWork): boolean {
+    work = copyNumericWork(work);
+    if (work.special === 3) {
+        return false;
+    }
+    if (!(work.special === 1)) {
+        return true;
+    }
+    return numericWorkMinScale(work) === 0;
+}
+function numericPowerOdd(work: NumericWork): boolean {
+    work = copyNumericWork(work);
+    const characters: string[] = Array.from(work.digits);
+    let position: number = work.weight;
+    let index: number = 0;
+    while (index < characters.length) {
+        if (position === 0) {
+            return !(langruntime.checkedSignedRemainder(numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index))), 2) === 0);
+        }
+        index = langruntime.checkedAdd(index, 1);
+        position = langruntime.checkedI32(langruntime.checkedSignedSubtract(position, 1));
+    }
+    return false;
+}
+function numericPowerPositive(work: NumericWork): NumericWork {
+    work = copyNumericWork(work);
+    let sign: number = work.sign;
+    if (sign < 0) {
+        sign = langruntime.checkedI32(1);
+    }
+    return { valid: work.valid, special: work.special, sign: sign, weight: work.weight, scale: work.scale, digits: work.digits };
+}
+function numericPowerDecimalEstimate(work: NumericWork): number {
+    work = copyNumericWork(work);
+    if (work.sign === 0) {
+        return 0.0;
+    }
+    const characters: string[] = Array.from(work.digits);
+    const groupWeight: number = numericMathGroupWeight(copyNumericWork(work));
+    let exponent: number = langruntime.checkedSignedMultiply(groupWeight, 4);
+    let width: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(work.weight, exponent), 1);
+    let index: number = 0;
+    let leading: number = 0.0;
+    let groups: number = 0;
+    let advancing: boolean = true;
+    while (advancing) {
+        let digit: number = 0;
+        while (width > 0) {
+            digit = langruntime.checkedI32(langruntime.checkedSignedMultiply(digit, 10));
+            if (index < characters.length) {
+                digit = langruntime.checkedI32(langruntime.checkedSignedAdd(digit, numericWireDecimalDigit(langruntime.indexChar(characters, langruntime.checkedIndex(index)))));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            width = langruntime.checkedI32(langruntime.checkedSignedSubtract(width, 1));
+        }
+        leading = langruntime.checkedF64(langruntime.f64Add(langruntime.f64Multiply(leading, 10000.0), Number(langruntime.checkedI32(digit))));
+        groups = langruntime.checkedI32(langruntime.checkedSignedAdd(groups, 1));
+        if (index < characters.length && groups < 4) {
+            width = langruntime.checkedI32(4);
+            exponent = langruntime.checkedI32(langruntime.checkedSignedSubtract(exponent, 4));
+        }
+        else {
+            advancing = langruntime.checkedBool(false);
+        }
+    }
+    return langruntime.f64Add(langruntime.f64Log10(leading), Number(langruntime.checkedI32(exponent)));
+}
+function numericPowerScale(estimate: number, baseScale: number, exponentScale: number): number {
+    estimate = langruntime.checkedF64(estimate);
+    baseScale = langruntime.checkedI32(baseScale);
+    exponentScale = langruntime.checkedI32(exponentScale);
+    let scale: number = langruntime.checkedSignedSubtract(16, langruntime.f64ToI32(estimate));
+    if (scale < baseScale) {
+        scale = langruntime.checkedI32(baseScale);
+    }
+    if (scale < exponentScale) {
+        scale = langruntime.checkedI32(exponentScale);
+    }
+    if (scale < 0) {
+        scale = langruntime.checkedI32(0);
+    }
+    if (scale > 1000) {
+        scale = langruntime.checkedI32(1000);
+    }
+    return scale;
+}
+function numericPowerInteger(base: NumericWork, exponent: number, exponentScale: number): checkruntime.NumericValue {
+    base = copyNumericWork(base);
+    exponent = langruntime.checkedI32(exponent);
+    exponentScale = langruntime.checkedI32(exponentScale);
+    const estimate: number = langruntime.f64Multiply(Number(langruntime.checkedI32(exponent)), numericPowerDecimalEstimate(copyNumericWork(base)));
+    if (estimate > 131072.0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
+    }
+    if (langruntime.f64Add(estimate, 1.0) < -1000.0) {
+        return { kind: "Value", value: numericWorkText(numericWorkRounded(numericWorkFromValue("0"), 1000, 1)) };
+    }
+    const scale: number = numericPowerScale(estimate, base.scale, exponentScale);
+    if (exponent === 0) {
+        return numericWorkRound(numericWorkFromValue("1"), scale, 1);
+    }
+    if (exponent === 1) {
+        return numericWorkRound(base, scale, 1);
+    }
+    if (exponent === langruntime.checkedSignedNegate(1)) {
+        return numericWorkRound(numericDivisionWork(numericWorkFromValue("1"), base, scale, true), scale, 1);
+    }
+    if (exponent === 2) {
+        return numericWorkRound(numericWorkProduct(copyNumericWork(base), base), scale, 1);
+    }
+    if (base.sign === 0) {
+        return numericWorkRound(base, scale, 1);
+    }
+    let significant: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(1, scale), langruntime.f64ToI32(estimate));
+    significant = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(significant, langruntime.f64ToI32((langruntime.f64Ln(langruntime.f64Abs((Number(langruntime.checkedI32(exponent)))))))), 8));
+    let negative: boolean = exponent < 0;
+    let mask: bigint = BigInt(langruntime.checkedI32(exponent));
+    if (negative) {
+        mask = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, mask));
+    }
+    let product: NumericWork = copyNumericWork(base);
+    let result: NumericWork = numericWorkFromValue("1");
+    if (!(langruntime.checkedI64Remainder(mask, 2n) === 0n)) {
+        result = copyNumericWork(base);
+    }
+    mask = langruntime.checkedI64(langruntime.checkedI64Divide(mask, 2n));
+    while (mask > 0n) {
+        let localScale: number = langruntime.checkedSignedSubtract(significant, langruntime.checkedSignedMultiply(numericMathGroupWeight(copyNumericWork(product)), 8));
+        if (localScale > langruntime.checkedSignedMultiply(product.scale, 2)) {
+            localScale = langruntime.checkedI32(langruntime.checkedSignedMultiply(product.scale, 2));
+        }
+        if (localScale < 0) {
+            localScale = langruntime.checkedI32(0);
+        }
+        product = copyNumericWork(numericWorkRounded(numericWorkProduct(copyNumericWork(product), product), localScale, 1));
+        if (!(langruntime.checkedI64Remainder(mask, 2n) === 0n)) {
+            localScale = langruntime.checkedI32(langruntime.checkedSignedSubtract(significant, langruntime.checkedSignedMultiply((langruntime.checkedSignedAdd(numericMathGroupWeight(copyNumericWork(product)), numericMathGroupWeight(copyNumericWork(result)))), 4)));
+            if (localScale > langruntime.checkedSignedAdd(product.scale, result.scale)) {
+                localScale = langruntime.checkedI32(langruntime.checkedSignedAdd(product.scale, result.scale));
+            }
+            if (localScale < 0) {
+                localScale = langruntime.checkedI32(0);
+            }
+            result = copyNumericWork(numericWorkRounded(numericWorkProduct(copyNumericWork(product), result), localScale, 1));
+        }
+        if (numericMathGroupWeight(copyNumericWork(product)) > 32767 || numericMathGroupWeight(copyNumericWork(result)) > 32767) {
+            if (negative === false) {
+                return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
+            }
+            result = copyNumericWork(numericWorkFromValue("0"));
+            negative = langruntime.checkedBool(false);
+            mask = langruntime.checkedI64(0n);
+        }
+        mask = langruntime.checkedI64(langruntime.checkedI64Divide(mask, 2n));
+    }
+    if (negative) {
+        return numericWorkRound(numericDivisionWork(numericWorkFromValue("1"), result, scale, true), scale, 1);
+    }
+    return numericWorkRound(result, scale, 1);
+}
+function numericPowerFractional(base: NumericWork, exponent: NumericWork): checkruntime.NumericValue {
+    base = copyNumericWork(base);
+    exponent = copyNumericWork(exponent);
+    if (base.sign === 0) {
+        return numericWorkRound(base, 16, 1);
+    }
+    const negative: boolean = base.sign < 0 && numericPowerOdd(copyNumericWork(exponent));
+    const positive: NumericWork = numericPowerPositive(base);
+    const logarithmWeight: number = numericLogarithmWeight(copyNumericWork(positive));
+    let localScale: number = langruntime.checkedSignedSubtract(8, logarithmWeight);
+    if (localScale < 0) {
+        localScale = langruntime.checkedI32(0);
+    }
+    const preliminaryLogarithm: NumericWork = numericLogarithmWork(copyNumericWork(positive), localScale);
+    const preliminary: NumericWork = numericWorkRounded(numericWorkProduct(preliminaryLogarithm, copyNumericWork(exponent)), localScale, 1);
+    const text: string = numericWorkText(preliminary);
+    let estimate: number = langruntime.f64FromText(text, 0.0);
+    if (langruntime.f64Abs(estimate) > 6020.0) {
+        if (estimate > 0.0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
+        }
+        return numericWorkRound(numericWorkFromValue("0"), 1000, 1);
+    }
+    estimate = langruntime.checkedF64(langruntime.f64Multiply(estimate, numericExpLog10E));
+    const scale: number = numericPowerScale(estimate, positive.scale, exponent.scale);
+    let significant: number = langruntime.checkedSignedAdd(scale, langruntime.f64ToI32(estimate));
+    if (significant < 0) {
+        significant = langruntime.checkedI32(0);
+    }
+    localScale = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(significant, logarithmWeight), 8));
+    if (localScale < 0) {
+        localScale = langruntime.checkedI32(0);
+    }
+    const logarithm: NumericWork = numericLogarithmWork(positive, localScale);
+    const argument: NumericWork = numericWorkRounded(numericWorkProduct(logarithm, exponent), localScale, 1);
+    const result: NumericWork = numericExponentialWork(argument, scale);
+    if (result.valid === false) {
+        return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
+    }
+    let sign: number = result.sign;
+    if (negative && !(sign === 0)) {
+        sign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+    }
+    const signed: NumericWork = { valid: true, special: 1, sign: sign, weight: result.weight, scale: result.scale, digits: result.digits };
+    return numericWorkRound(signed, scale, 1);
+}
+function numericPowerValues(base: NumericWork, exponent: NumericWork): checkruntime.NumericValue {
+    base = copyNumericWork(base);
+    exponent = copyNumericWork(exponent);
+    const one: NumericWork = numericWorkFromValue("1");
+    if (base.special === 3) {
+        if (exponent.special === 1 && exponent.sign === 0) {
+            return { kind: "Value", value: "1" };
+        }
+        return { kind: "Value", value: "NaN" };
+    }
+    if (exponent.special === 3) {
+        if (base.special === 1 && base.sign === 1 && numericWorkMagnitude(copyNumericWork(base), copyNumericWork(one)) === 0) {
+            return { kind: "Value", value: "1" };
+        }
+        return { kind: "Value", value: "NaN" };
+    }
+    const baseSign: number = numericPowerSign(copyNumericWork(base));
+    const exponentSign: number = numericPowerSign(copyNumericWork(exponent));
+    if ((baseSign === 0 && exponentSign < 0) || (baseSign < 0 && numericPowerIntegral(copyNumericWork(exponent)) === false)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(numericPowerInvalidArgument) };
+    }
+    if (!(base.special === 1) || !(exponent.special === 1)) {
+        if ((base.special === 1 && baseSign === 1 && numericWorkMagnitude(copyNumericWork(base), copyNumericWork(one)) === 0) || exponentSign === 0) {
+            return { kind: "Value", value: "1" };
+        }
+        if (baseSign === 0 && exponentSign > 0) {
+            return { kind: "Value", value: "0" };
+        }
+        if (!(exponent.special === 1)) {
+            if (base.special === 1 && numericWorkMagnitude(copyNumericWork(base), copyNumericWork(one)) === 0) {
+                return { kind: "Value", value: "1" };
+            }
+            const greater: boolean = !(base.special === 1) || numericWorkMagnitude(base, one) > 0;
+            if (greater === (exponentSign > 0)) {
+                return { kind: "Value", value: "Infinity" };
+            }
+            return { kind: "Value", value: "0" };
+        }
+        if (exponentSign < 0) {
+            return { kind: "Value", value: "0" };
+        }
+        if (base.special === 0 && numericPowerOdd(exponent)) {
+            return { kind: "Value", value: "-Infinity" };
+        }
+        return { kind: "Value", value: "Infinity" };
+    }
+    if (numericPowerIntegral(copyNumericWork(exponent)) && (exponent.sign === 0 || exponent.weight <= 9)) {
+        const converted: checkruntime.Int8Value = numericIntegerValue({ kind: "Value", value: numericWorkText(copyNumericWork(exponent)) });
+        if (converted.kind === "Value") {
+            const value: bigint = langruntime.checkedI64(converted.value);
+            if (value >= -2147483648n && value <= 2147483647n) {
+                return numericPowerInteger(base, Number(BigInt.asIntN(32, langruntime.checkedI64(value))), exponent.scale);
+            }
+        }
+    }
+    return numericPowerFractional(base, exponent);
+}
+export function numericPowerN7g8(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(left, { kind: "Unknown" }) || checkruntime.equalNumericValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(left, { kind: "Null" }) || checkruntime.equalNumericValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const base: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const exponent: string = langruntime.checkedString(right.value);
+            const first: NumericWork = numericWorkFromValue(base);
+            const second: NumericWork = numericWorkFromValue(exponent);
+            if (first.valid === false || second.valid === false) {
+                return { kind: "Unknown" };
+            }
+            return numericPowerValues(first, second);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function powerJfdf(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    return numericPowerN7g8(left, right);
+}
+export function pow8fdt(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.NumericValue {
+    return numericPowerN7g8(left, right);
+}
 function numericRangeValues(value: string, base: string, offset: string, subtract: boolean, less: boolean): checkruntime.BoolValue {
     value = langruntime.checkedString(value);
     base = langruntime.checkedString(base);
@@ -10329,22 +11019,9 @@ export function pgSizePrettyAxtn(input: checkruntime.NumericValue): checkruntime
     return { kind: "Unknown" };
 }
 const numericSqrtInvalidArgument = 3452595;
-function numericSquareRoot(work: NumericWork): checkruntime.NumericValue {
+function numericSquareRootScaled(work: NumericWork, scale: number): NumericWork {
     work = copyNumericWork(work);
-    let groupWeight: number = langruntime.checkedSignedDivide(work.weight, 4);
-    if (langruntime.checkedSignedRemainder(work.weight, 4) < 0) {
-        groupWeight = langruntime.checkedI32(langruntime.checkedSignedSubtract(groupWeight, 1));
-    }
-    let scale: number = langruntime.checkedSignedSubtract(15, langruntime.checkedSignedMultiply(groupWeight, 2));
-    if (scale < work.scale) {
-        scale = langruntime.checkedI32(work.scale);
-    }
-    if (scale < 0) {
-        scale = langruntime.checkedI32(0);
-    }
-    if (scale > 1000) {
-        scale = langruntime.checkedI32(1000);
-    }
+    scale = langruntime.checkedI32(scale);
     let weight: number = langruntime.checkedSignedDivide(work.weight, 2);
     if (langruntime.checkedSignedRemainder(work.weight, 2) < 0) {
         weight = langruntime.checkedI32(langruntime.checkedSignedSubtract(weight, 1));
@@ -10471,7 +11148,26 @@ function numericSquareRoot(work: NumericWork): checkruntime.NumericValue {
         sign = langruntime.checkedI32(0);
         weight = langruntime.checkedI32(0);
     }
-    return numericWorkRound({ valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: coefficient }, scale, 1);
+    return numericWorkRounded({ valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: coefficient }, scale, 1);
+}
+function numericSquareRoot(work: NumericWork): checkruntime.NumericValue {
+    work = copyNumericWork(work);
+    let groupWeight: number = langruntime.checkedSignedDivide(work.weight, 4);
+    if (langruntime.checkedSignedRemainder(work.weight, 4) < 0) {
+        groupWeight = langruntime.checkedI32(langruntime.checkedSignedSubtract(groupWeight, 1));
+    }
+    let scale: number = langruntime.checkedSignedSubtract(15, langruntime.checkedSignedMultiply(groupWeight, 2));
+    if (scale < work.scale) {
+        scale = langruntime.checkedI32(work.scale);
+    }
+    if (scale < 0) {
+        scale = langruntime.checkedI32(0);
+    }
+    if (scale > 1000) {
+        scale = langruntime.checkedI32(1000);
+    }
+    const rounded: NumericWork = numericSquareRootScaled(work, scale);
+    return { kind: "Value", value: numericWorkText(rounded) };
 }
 export function numericSqrtT0uy(input: checkruntime.NumericValue): checkruntime.NumericValue {
     if (input.kind === "Error") {
@@ -10687,27 +11383,10 @@ function numericWorkMinScale(work: NumericWork): number {
     }
     return scale;
 }
-function numericWorkRound(work: NumericWork, requested: number, mode: number): checkruntime.NumericValue {
+function numericWorkRounded(work: NumericWork, scale: number, mode: number): NumericWork {
     work = copyNumericWork(work);
-    requested = langruntime.checkedI32(requested);
+    scale = langruntime.checkedI32(scale);
     mode = langruntime.checkedI32(mode);
-    if (work.valid === false) {
-        return { kind: "Unknown" };
-    }
-    if (!(work.special === 1)) {
-        return { kind: "Value", value: numericWorkText(work) };
-    }
-    let scale: number = requested;
-    let minimum: number = langruntime.checkedSignedNegate(131072);
-    if (mode === 1) {
-        minimum = langruntime.checkedI32(langruntime.checkedSignedSubtract(minimum, 1));
-    }
-    if (scale < minimum) {
-        scale = langruntime.checkedI32(minimum);
-    }
-    if (scale > 16383) {
-        scale = langruntime.checkedI32(16383);
-    }
     const original: string[] = Array.from(work.digits);
     const boundary: number = langruntime.checkedSignedSubtract(0, scale);
     let digits: string[] = [];
@@ -10781,14 +11460,38 @@ function numericWorkRound(work: NumericWork, requested: number, mode: number): c
         sign = langruntime.checkedI32(0);
         weight = langruntime.checkedI32(0);
     }
-    if (weight > 131071) {
-        return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
-    }
     let outputScale: number = scale;
     if (outputScale < 0) {
         outputScale = langruntime.checkedI32(0);
     }
-    return { kind: "Value", value: numericWorkText({ valid: true, special: 1, sign: sign, weight: weight, scale: outputScale, digits: coefficient }) };
+    return { valid: true, special: 1, sign: sign, weight: weight, scale: outputScale, digits: coefficient };
+}
+function numericWorkRound(work: NumericWork, requested: number, mode: number): checkruntime.NumericValue {
+    work = copyNumericWork(work);
+    requested = langruntime.checkedI32(requested);
+    mode = langruntime.checkedI32(mode);
+    if (work.valid === false) {
+        return { kind: "Unknown" };
+    }
+    if (!(work.special === 1)) {
+        return { kind: "Value", value: numericWorkText(work) };
+    }
+    let scale: number = requested;
+    let minimum: number = langruntime.checkedSignedNegate(131072);
+    if (mode === 1) {
+        minimum = langruntime.checkedI32(langruntime.checkedSignedSubtract(minimum, 1));
+    }
+    if (scale < minimum) {
+        scale = langruntime.checkedI32(minimum);
+    }
+    if (scale > 16383) {
+        scale = langruntime.checkedI32(16383);
+    }
+    const rounded: NumericWork = numericWorkRounded(work, scale, mode);
+    if (rounded.weight > 131071) {
+        return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
+    }
+    return { kind: "Value", value: numericWorkText(rounded) };
 }
 export function int24eqCfkl(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);

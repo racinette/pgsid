@@ -49,6 +49,10 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/numeric_bucket.rs");
     include!("operations/pg_catalog/numeric_factorial.rs");
     include!("operations/pg_catalog/numeric_sqrt.rs");
+    include!("operations/pg_catalog/numeric_logarithm.rs");
+    include!("operations/pg_catalog/numeric_logarithm_base.rs");
+    include!("operations/pg_catalog/numeric_exponential.rs");
+    include!("operations/pg_catalog/numeric_power.rs");
     include!("operations/pg_catalog/numeric_inspection.rs");
     include!("operations/pg_catalog/numeric_round.rs");
     include!("operations/pg_catalog/numeric_integer.rs");

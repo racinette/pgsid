@@ -152,66 +152,104 @@ fn numeric_work_add(left: NumericWork, right: NumericWork, subtract: bool) -> Nu
     NumericValue::Value(numeric_work_text(work))
 }
 
+fn numeric_product_words(characters: Vec<char>) -> Vec<NumericWireDigit> {
+    let mut words: Vec<NumericWireDigit> = Vec::new();
+    let mut end = characters.len();
+    while end > 0 {
+        let mut value: i32 = 0;
+        let mut factor: i32 = 1;
+        let mut width: i32 = 0;
+        while end > 0 && width < 4 {
+            end = end - 1;
+            value = value + numeric_wire_decimal_digit(characters[end]) * factor;
+            factor = factor * 10;
+            width = width + 1;
+        }
+        words.push(NumericWireDigit { value: value });
+    }
+    words
+}
+
 fn numeric_work_product(left: NumericWork, right: NumericWork) -> NumericWork {
     let scale = left.scale + right.scale;
     let sign = left.sign * right.sign;
     let first: Vec<char> = left.digits.chars().collect();
     let second: Vec<char> = right.digits.chars().collect();
-    let mut result: Vec<NumericWireDigit> = Vec::new();
-    let mut index: usize = 0;
     let mut a_count: i32 = 0;
     let mut b_count: i32 = 0;
+    let mut index: usize = 0;
     while index < first.len() {
-        result.push(NumericWireDigit { value: 0 });
         a_count = a_count + 1;
         index += 1;
     }
     index = 0;
     while index < second.len() {
-        result.push(NumericWireDigit { value: 0 });
         b_count = b_count + 1;
         index += 1;
     }
-    result.push(NumericWireDigit { value: 0 });
+    let a = numeric_product_words(first);
+    let b = numeric_product_words(second);
+    let mut result: Vec<NumericWireDigit> = Vec::new();
+    index = 0;
+    while index < a.len() + b.len() + 1 {
+        result.push(NumericWireDigit { value: 0 });
+        index += 1;
+    }
     let mut a_index: usize = 0;
-    while a_index < first.len() {
-        let a = numeric_wire_decimal_digit(first[first.len() - a_index - 1]);
+    while a_index < a.len() {
         let mut b_index: usize = 0;
         let mut carry: i32 = 0;
-        while b_index < second.len() {
-            let b = numeric_wire_decimal_digit(second[second.len() - b_index - 1]);
+        while b_index < b.len() {
             let offset = a_index + b_index;
-            let product = a * b + result[offset].value + carry;
+            let product = a[a_index].value * b[b_index].value + result[offset].value + carry;
             result[offset] = NumericWireDigit {
-                value: product % 10,
+                value: product % 10000,
             };
-            carry = product / 10;
+            carry = product / 10000;
             b_index += 1;
         }
         let mut offset = a_index + b_index;
         while carry > 0 {
-            let digit = result[offset].value + carry;
-            result[offset] = NumericWireDigit { value: digit % 10 };
-            carry = digit / 10;
+            let word = result[offset].value + carry;
+            result[offset] = NumericWireDigit {
+                value: word % 10000,
+            };
+            carry = word / 10000;
             offset += 1;
         }
         a_index += 1;
     }
-    let mut count = a_count + b_count + 1;
     let mut end = result.len();
     while end > 0 && result[end - 1].value == 0 {
         end = end - 1;
-        count = count - 1;
+    }
+    let mut coefficient = String::new();
+    let mut count: i32 = 0;
+    while end > 0 {
+        end = end - 1;
+        let mut word = result[end].value;
+        let mut place: i32 = 1000;
+        while place > 0 {
+            let digit = word / place;
+            word = word % place;
+            if coefficient != String::new() || digit != 0 {
+                coefficient.push(char::from_u32((digit + 48) as u32).unwrap_or('0'));
+                count = count + 1;
+            }
+            place = place / 10;
+        }
     }
     let mut weight = left.weight + right.weight + count - a_count - b_count + 1;
-    let mut first_digit: usize = 0;
-    while first_digit < end && result[first_digit].value == 0 {
-        first_digit += 1;
+    let characters: Vec<char> = coefficient.chars().collect();
+    end = characters.len();
+    while end > 0 && characters[end - 1] == '0' {
+        end = end - 1;
     }
     let mut digits = String::new();
-    while end > first_digit {
-        end = end - 1;
-        digits.push(char::from_u32((result[end].value + 48) as u32).unwrap_or('0'));
+    index = 0;
+    while index < end {
+        digits.push(characters[index]);
+        index += 1;
     }
     if sign == 0 {
         weight = 0;

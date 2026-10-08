@@ -103,11 +103,11 @@ import them. Keep schema-only helpers with their callables.
   point inputs; malformed or unsupported representations defer. Rust validates
   syntax and owns decimal arithmetic, scale selection, rounding and formatting.
   Comparisons ignore scale and signed zero; NaNs compare equal above infinities.
-  Integer casts round halves away from zero; special values return 0A000 and range
-  failures 22003. Named precision modifiers round before checking digit limits.
+  Integer casts round halves away from zero; special values return 0A000, range failures 22003. Named precision modifiers round before checking digit limits.
   Hashes ignore sign/scale; binary send retains weight, sign and display scale.
-  Private arithmetic may exceed stored limits; square roots retain selected scales.
-  Factorials have zero scale. Run numeric operation suites and shipment INSERT parity.
+  Private arithmetic may exceed stored limits; roots and logarithms retain selected scales.
+  Transcendentals use decimal series with private float estimates; integer powers use repeated squaring.
+  Products use bounded base-10000 limbs. Run numeric operation suites and shipment INSERT parity.
 - Inet and cidr share an immutable address payload with a family, prefix length,
   and sixteen-bit address words. Public row inputs use already SQL-coerced
   strings; the shared Rust parser handles IPv4, compressed IPv6, and embedded

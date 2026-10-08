@@ -51,3 +51,13 @@ VALUES ('1'::integer, false, '2'::bigint, '2'::numeric, '0'::integer, '\x0001000
 
 INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
 VALUES ('1'::integer, false, '2'::numeric, '1.414213562373095'::numeric, '15'::integer, '\x000500000000000f0001102e054c094503b6'::bytea);
+
+INSERT INTO shipment_fee_logarithms (id, fee, logarithm_record, scale_record, wire_record) VALUES (100000, '1', '0.0000000000000000', 16, '\x0000000000000010');
+
+INSERT INTO shipment_fee_log_bases (id, base, fee, logarithm_record, scale_record, wire_record) VALUES (100000, '2', '8', '3.0000000000000000', 16, '\x00010000000000100003');
+
+INSERT INTO shipment_fee_decimal_logs (id, fee, logarithm_record, scale_record, wire_record) VALUES (100000, '10', '1.0000000000000000', 16, '\x00010000000000100001');
+
+INSERT INTO shipment_fee_exponentials (id, fee, exponential_record, scale_record, wire_record) VALUES (100000, '0', '1.0000000000000000', 16, '\x00010000000000100001');
+
+INSERT INTO shipment_fee_powers (id, fee, exponent, power_record, scale_record, wire_record) VALUES (100000, '2', '3', '8.0000000000000000', 16, '\x00010000000000100008');

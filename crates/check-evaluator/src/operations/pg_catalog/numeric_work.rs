@@ -138,24 +138,7 @@ fn numeric_work_min_scale(work: NumericWork) -> i32 {
     scale
 }
 
-fn numeric_work_round(work: NumericWork, requested: i32, mode: i32) -> NumericValue {
-    if work.valid == false {
-        return NumericValue::Unknown;
-    }
-    if work.special != 1 {
-        return NumericValue::Value(numeric_work_text(work));
-    }
-    let mut scale = requested;
-    let mut minimum: i32 = -131072;
-    if mode == 1 {
-        minimum = minimum - 1;
-    }
-    if scale < minimum {
-        scale = minimum;
-    }
-    if scale > 16383 {
-        scale = 16383;
-    }
+fn numeric_work_rounded(work: NumericWork, scale: i32, mode: i32) -> NumericWork {
     let original: Vec<char> = work.digits.chars().collect();
     let boundary = 0 - scale;
     let mut digits: Vec<char> = Vec::new();
@@ -227,19 +210,41 @@ fn numeric_work_round(work: NumericWork, requested: i32, mode: i32) -> NumericVa
         sign = 0;
         weight = 0;
     }
-    if weight > 131071 {
-        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
-    }
     let mut output_scale = scale;
     if output_scale < 0 {
         output_scale = 0;
     }
-    NumericValue::Value(numeric_work_text(NumericWork {
+    NumericWork {
         valid: true,
         special: 1,
         sign: sign,
         weight: weight,
         scale: output_scale,
         digits: coefficient,
-    }))
+    }
+}
+
+fn numeric_work_round(work: NumericWork, requested: i32, mode: i32) -> NumericValue {
+    if work.valid == false {
+        return NumericValue::Unknown;
+    }
+    if work.special != 1 {
+        return NumericValue::Value(numeric_work_text(work));
+    }
+    let mut scale = requested;
+    let mut minimum: i32 = -131072;
+    if mode == 1 {
+        minimum = minimum - 1;
+    }
+    if scale < minimum {
+        scale = minimum;
+    }
+    if scale > 16383 {
+        scale = 16383;
+    }
+    let rounded = numeric_work_rounded(work, scale, mode);
+    if rounded.weight > 131071 {
+        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
+    }
+    NumericValue::Value(numeric_work_text(rounded))
 }
