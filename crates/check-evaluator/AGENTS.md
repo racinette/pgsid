@@ -106,8 +106,8 @@ import them. Keep schema-only helpers with their callables.
   Integer casts round halves away from zero; special values return 0A000 and range
   failures 22003. Named precision modifiers round before checking digit limits.
   Hashes ignore sign/scale; binary send retains weight, sign and display scale.
-  Quotients and range comparisons preserve results beyond packed storage limits;
-  run `tests/sql-semantics/check-numeric*.test.ts` and shipment INSERT parity.
+  Private arithmetic may exceed stored limits; square roots retain selected scales.
+  Factorials have zero scale. Run numeric operation suites and shipment INSERT parity.
 - Inet and cidr share an immutable address payload with a family, prefix length,
   and sixteen-bit address words. Public row inputs use already SQL-coerced
   strings; the shared Rust parser handles IPv4, compressed IPv6, and embedded
