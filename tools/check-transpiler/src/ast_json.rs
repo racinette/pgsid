@@ -450,6 +450,10 @@ fn expr(value: &Expr) -> Result<Value> {
             "base": expr(&node.expr)?,
             "index": expr(&node.index)?,
         })),
+        Expr::MethodCall(node) if crate::syntax::float_from_text(node).is_some() => {
+            let (value, fallback) = crate::syntax::float_from_text(node).unwrap();
+            Ok(json!({"kind":"float-from-text","value":expr(value)?,"fallback":expr(fallback)?}))
+        }
         Expr::MethodCall(node) if crate::syntax::character_from_codepoint(node).is_some() => {
             let (value, fallback) = crate::syntax::character_from_codepoint(node).unwrap();
             Ok(
@@ -1299,5 +1303,29 @@ mod immutable_record_rebinding_tests {
             "#[derive(Clone)] struct Work { value:String } pub fn f(input:Work)->Work { let mut work=input; work.value=String::new(); work }",
             "#[derive(Clone)] struct Work { value:String } pub fn f(input:Work)->Work { let work=input; work=Work {value:String::new()}; work }",
         ] { assert!(parse(source).is_err(), "{source}"); }
+    }
+}
+
+#[cfg(test)]
+mod float_from_text_tests {
+    use super::parse;
+    #[test]
+    fn requires_the_exact_scalar_conversion_shape() {
+        assert!(
+            parse("pub fn f(value:&str)->f64 {value.parse::<f64>().unwrap_or(0.0f64)}").is_ok()
+        );
+        for source in [
+            "pub fn f(value:&str)->f64 {value.parse::<f64>()}",
+            "pub fn f(value:&str)->f64 {value.parse::<f64>().unwrap()}",
+            "pub fn f(value:&str)->f64 {value.parse::<f32>().unwrap_or(0.0f64)}",
+            "pub fn f(value:&str)->f64 {value.parse::<i32>().unwrap_or(0.0f64)}",
+            "pub fn f(value:i32)->f64 {value.parse::<f64>().unwrap_or(0.0f64)}",
+            "pub fn f(value:&str)->f64 {value.parse::<f64>().unwrap_or(0)}",
+            "pub fn f(value:&str)->f64 {value.parse::<f64>(1).unwrap_or(0.0f64)}",
+            "pub fn f(value:&str)->f64 {value.parse::<f64,f64>().unwrap_or(0.0f64)}",
+            "pub fn f(value:&str)->f64 {value.parse::<f64>().unwrap_or::<f64>(0.0f64)}",
+        ] {
+            assert!(parse(source).is_err(), "{source}");
+        }
     }
 }

@@ -178,6 +178,8 @@ func (g *generator) goExpression(value *node) ast.Expr {
 			}
 		}
 		reject("unknown path " + strings.Join(value.Segments, "::"))
+	case "float-from-text":
+		return goCall("f64FromText", g.goExpression(value.Value), g.goExpression(value.Fallback))
 	case "float":
 		parsed, err := strconv.ParseFloat(value.Digits, 64)
 		if err != nil {

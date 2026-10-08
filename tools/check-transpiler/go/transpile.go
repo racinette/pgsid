@@ -309,7 +309,7 @@ func (g *generator) inferType(value *node) *node {
 				}
 			}
 		}
-	case "float":
+	case "float", "float-from-text":
 		return namedType("f64")
 	case "integer":
 		if value.IntegerType == "i64" {

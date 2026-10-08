@@ -61,6 +61,34 @@ pub(crate) fn character_from_codepoint(call: &syn::ExprMethodCall) -> Option<(&E
     Some((&cast.expr, &call.args[0]))
 }
 
+pub(crate) fn float_from_text(call: &syn::ExprMethodCall) -> Option<(&Expr, &Expr)> {
+    if !call.attrs.is_empty()
+        || call.turbofish.is_some()
+        || call.method != "unwrap_or"
+        || call.args.len() != 1
+    {
+        return None;
+    }
+    let Expr::MethodCall(parser) = &*call.receiver else {
+        return None;
+    };
+    let Some(arguments) = &parser.turbofish else {
+        return None;
+    };
+    if !parser.attrs.is_empty()
+        || parser.method != "parse"
+        || !parser.args.is_empty()
+        || arguments.args.len() != 1
+    {
+        return None;
+    }
+    if !matches!(&arguments.args[0], syn::GenericArgument::Type(Type::Path(name)) if name.qself.is_none() && name.path.is_ident("f64"))
+    {
+        return None;
+    }
+    Some((&parser.receiver, &call.args[0]))
+}
+
 fn ty(ty: &Type) -> Result {
     match ty {
         Type::Reference(reference) if reference.mutability.is_none() => self::ty(&reference.elem),
@@ -219,6 +247,10 @@ fn expr(expr: &Expr) -> Result {
             self::expr(&node.index)
         }
         Expr::MethodCall(node) if node.attrs.is_empty() && node.turbofish.is_none() => {
+            if let Some((value, fallback)) = float_from_text(node) {
+                self::expr(value)?;
+                return self::expr(fallback);
+            }
             if let Some((value, fallback)) = character_from_codepoint(node) {
                 self::expr(value)?;
                 return self::expr(fallback);
