@@ -49,3 +49,6 @@ INSERT INTO label_count_records (id, suppress_invalid, label, pattern, starting,
 INSERT INTO label_position_records (id, suppress_invalid, label, pattern, starting, occurrence, end_option, flags, subexpression, recorded_position_2, recorded_position_3, recorded_position_4, recorded_position_5, recorded_position_6, recorded_position_7) VALUES (1, false, 'abc abc', 'a', 1, 1, 0, '', 0, 1, 1, 1, 1, 1, 1);
 INSERT INTO label_extract_records (id, suppress_invalid, label, pattern, starting, occurrence, flags, subexpression, recorded_extract_2, recorded_extract_3, recorded_extract_4, recorded_extract_5, recorded_extract_6) VALUES (1, false, 'abc abc', 'a', 1, 1, '', 0, 'a', 'a', 'a', 'a', 'a');
 INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp) VALUES (1, false, 'abc abc', 'a', 'X', 1, 1, '', 'Xbc abc', 'Xbc abc', 'Xbc abc', 'Xbc abc', 'Xbc abc');
+
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (1, false, 'abc', '\', '^(?:abc)$', '^(?:abc)$');

@@ -2090,3 +2090,99 @@ VALUES (142, false, 'abc abc', 'a', 'X', 1, 1, NULL, 'Xbc abc', 'Xbc abc', 'Xbc 
 -- name: LabelRegexreplacementSkippedErrors
 INSERT INTO label_replacement_records (id, suppress_invalid, label, pattern, replacement, starting, occurrence, flags, recorded_regexp_replace_q5ba, recorded_regexp_replace_7z9g, recorded_regexp_replace_ohuj, recorded_regexp_replace_j9on, recorded_regexp_replace_3spp)
 VALUES (143, true, 'abc abc', '(', 'X', 0, -1, 'invalid', NULL, NULL, NULL, NULL, NULL);
+
+-- name: LabelPatternConversionOrdinary
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (100, false, 'abc', '\', '^(?:abc)$', '^(?:abc)$');
+
+-- name: LabelPatternConversionWrongDefault
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (101, false, 'abc', '\', '^(?:abc)$!', '^(?:abc)$');
+
+-- name: LabelPatternConversionWrongEscaped
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (102, false, 'abc', '\', '^(?:abc)$', '^(?:abc)$!');
+
+-- name: LabelPatternConversionNullRecorded
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (103, false, 'abc', '\', NULL, NULL);
+
+-- name: LabelPatternConversionWildcards
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (104, false, '%a_c%', '\', '^(?:.*a.c.*)$', '^(?:.*a.c.*)$');
+
+-- name: LabelPatternConversionAlternatives
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (105, false, '(a|b)%', '\', '^(?:(?:a|b).*)$', '^(?:(?:a|b).*)$');
+
+-- name: LabelPatternConversionLiteralMetacharacters
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (106, false, '^a.b$', '\', '^(?:\^a\.b\$)$', '^(?:\^a\.b\$)$');
+
+-- name: LabelPatternConversionBackslashMiddle
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (107, false, '%\"a%\"%', '\', '^(?:.*){1,1}?(a.*){1,1}(?:.*)$', '^(?:.*){1,1}?(a.*){1,1}(?:.*)$');
+
+-- name: LabelPatternConversionQuotedMiddle
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (108, false, '%#"a%#"%', '#', '^(?:.*#"a.*#".*)$', '^(?:.*){1,1}?(a.*){1,1}(?:.*)$');
+
+-- name: LabelPatternConversionUnicodeMiddle
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (109, false, '%😊"a%😊"%', '😊', '^(?:.*😊"a.*😊".*)$', '^(?:.*){1,1}?(a.*){1,1}(?:.*)$');
+
+-- name: LabelPatternConversionNoEscape
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (110, false, 'a.b\%', '', '^(?:a\.b\%)$', '^(?:a\.b\\.*)$');
+
+-- name: LabelPatternConversionLeadingBracket
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (111, false, '[]a]%', '\', '^(?:[]a].*)$', '^(?:[]a].*)$');
+
+-- name: LabelPatternConversionNegatedBracket
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (112, false, '[^]a]%', '\', '^(?:[^]a].*)$', '^(?:[^]a].*)$');
+
+-- name: LabelPatternConversionCharacterClass
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (113, false, '[[:alpha:]]%', '\', '^(?:[[:alpha:]].*)$', '^(?:[[:alpha:]].*)$');
+
+-- name: LabelPatternConversionQuotedBracket
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (114, false, '[\"]%', '\', '^(?:[\"].*)$', '^(?:[\"].*)$');
+
+-- name: LabelPatternConversionMultibyteBracket
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (115, false, '[é😊]%', 'é', '^(?:[é😊].*)$', '^(?:[\😊]%)$');
+
+-- name: LabelPatternConversionEmptyPattern
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (116, false, '', '\', '^(?:)$', '^(?:)$');
+
+-- name: LabelPatternConversionTrailingEscape
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (117, false, 'abc\', '\', '^(?:abc)$', '^(?:abc)$');
+
+-- name: LabelPatternConversionInvalidEscape
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (118, false, 'abc', 'ab', '^(?:abc)$', NULL);
+
+-- name: LabelPatternConversionInvalidUnicodeEscape
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (119, false, 'abc', 'é😊', '^(?:abc)$', NULL);
+
+-- name: LabelPatternConversionTooManyQuotes
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (120, false, '\"a\"b\"', '\', NULL, NULL);
+
+-- name: LabelPatternConversionNullPattern
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (121, false, NULL, 'ab', NULL, NULL);
+
+-- name: LabelPatternConversionNullEscape
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (122, false, '%a%', NULL, '^(?:.*a.*)$', NULL);
+
+-- name: LabelPatternConversionSkippedErrors
+INSERT INTO label_pattern_conversions (id, suppress_invalid, pattern, escape, recorded_default, recorded_escaped)
+VALUES (123, true, '\"a\"b\"', 'ab', NULL, NULL);

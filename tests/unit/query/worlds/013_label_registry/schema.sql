@@ -472,3 +472,14 @@ CREATE TABLE label_replacement_records (
   CONSTRAINT label_regexp_replace_j9on CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_replace(label, pattern, replacement, starting, occurrence, flags) = recorded_regexp_replace_j9on END),
   CONSTRAINT label_regexp_replace_3spp CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.regexp_replace(label, pattern, replacement, flags) = recorded_regexp_replace_3spp END)
 );
+
+CREATE TABLE label_pattern_conversions (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  pattern text,
+  escape text,
+  recorded_default text COLLATE "C",
+  recorded_escaped text COLLATE "C",
+  CONSTRAINT label_default_pattern CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.similar_to_escape(pattern) COLLATE "C" = recorded_default END),
+  CONSTRAINT label_escaped_pattern CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.similar_to_escape(pattern, escape) COLLATE "C" = recorded_escaped END)
+);

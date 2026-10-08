@@ -228,7 +228,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
       ([1, 2].includes(implementation.args.length) &&
         implementation.args.every((type) => type === 'pg_catalog.text') &&
         implementation.result === 'pg_catalog.text' &&
-        ['btrim', 'ltrim', 'rtrim'].includes(implementation.name)) ||
+        ['btrim', 'ltrim', 'rtrim', 'similar_to_escape'].includes(implementation.name)) ||
       (implementation.args.length === 2 &&
         implementation.args.every((type) => type === implementation.args[0]) &&
         ((implementation.args[0] === 'pg_catalog.text' &&

@@ -1487,6 +1487,7 @@ describe('world CHECK INSERT parity', () => {
       ['label_position_records', 6],
       ['label_extract_records', 5],
       ['label_replacement_records', 5],
+      ['label_pattern_conversions', 2],
     ] as const) {
       const prefix = `world_013_label_registry.${table}.`
       const constraints = [...coverage.values()].filter((item) =>
