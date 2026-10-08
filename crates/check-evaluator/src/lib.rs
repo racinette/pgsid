@@ -114,6 +114,9 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/text_index_compare.rs");
     include!("operations/pg_catalog/text_slice.rs");
     include!("operations/pg_catalog/text_padding.rs");
+    include!("operations/pg_catalog/text_search.rs");
+    include!("operations/pg_catalog/text_width.rs");
+    include!("operations/pg_catalog/text_quote.rs");
     include!("operations/pg_catalog/text_bool.rs");
     include!("operations/pg_catalog/character.rs");
     include!("operations/pg_catalog/text_ascii.rs");

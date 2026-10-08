@@ -609,3 +609,373 @@ VALUES (30,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catal
 -- name: label_builders_skipped_error
 INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
 VALUES (31,true,'abc'::pg_catalog.text,2147483647,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+-- name: label_edits_sample_0
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (1,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'',0);
+
+-- name: label_edits_sample_1
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (2,false,'é😊α😊','🙂','😊','😊',2,1,-1,'é😊α😊🙂',16,2,2,'é🙂α😊',12,'é🙂α😊',12,'é🙂α🙂',12,'',0);
+
+-- name: label_edits_sample_2
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (3,false,'abc','XY','missing','-',1,0,1,'abcXY',5,0,0,'XYc',3,'XYabc',5,'abc',3,'abc',3);
+
+-- name: label_edits_sample_3
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (4,false,'abc','','','',3,2,-1,'abc',3,1,1,'abc',3,'ab',2,'abc',3,'abc',3);
+
+-- name: label_edits_sample_4
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (5,false,'','','','',1,0,1,'',0,1,1,'',0,'',0,'',0,'',0);
+
+-- name: label_edits_sample_5
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (6,false,'aaaaa','Z','aa','aa',2,-2,2,'aaaaaZ',6,1,1,'aZaaa',5,'aZaaaaa',7,'ZZa',3,'',0);
+
+-- name: label_edits_sample_6
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (7,false,'abc','XY','a','b',10,2,2,'abcXY',5,1,1,'abcXY',5,'abcXY',5,'XYbc',4,'c',1);
+
+-- name: label_edits_sample_7
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (8,false,'abc','X','bc','c',1,0,-2,'abcX',4,2,2,'Xbc',3,'Xabc',4,'aX',2,'ab',2);
+
+-- name: label_edits_sample_8
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (9,false,'a,,b,','X',',',',',2,1,-1,'a,,b,X',6,2,2,'aX,b,',5,'aX,b,',5,'aXXbX',5,'',0);
+
+-- name: label_edits_sample_9
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (10,false,'abc','X','bc','',2,1,2,'abcX',4,2,2,'aXc',3,'aXc',3,'aX',2,'',0);
+
+-- name: label_edits_sample_10
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (11,false,'abc','X','bc','b',2,1,-2147483648,'abcX',4,2,2,'aXc',3,'aXc',3,'aX',2,'',0);
+
+-- name: label_edits_sample_11
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (12,false,'é😊','α','́','😊',2,1,1,'é😊α',9,2,2,'eα😊',7,'eα😊',7,'eα😊',7,'é',3);
+
+-- name: label_edits_sample_12
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (13,false,NULL,'X','a','b',2,1,1,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+
+-- name: label_edits_sample_13
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (14,false,'abc',NULL,'a','b',2,1,1,NULL,NULL,1,1,NULL,NULL,NULL,NULL,NULL,NULL,'a',1);
+
+-- name: label_edits_sample_14
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (15,false,'abc','X',NULL,'b',2,1,1,'abcX',4,NULL,NULL,'aXc',3,'aXc',3,NULL,NULL,'a',1);
+
+-- name: label_edits_sample_15
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (16,false,'abc','X','a',NULL,2,1,1,'abcX',4,1,1,'aXc',3,'aXc',3,'Xbc',3,NULL,NULL);
+
+-- name: label_edits_sample_16
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (17,false,'abc','X','a','b',NULL,1,1,'abcX',4,1,1,NULL,NULL,NULL,NULL,'Xbc',3,'a',1);
+
+-- name: label_edits_sample_17
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (18,false,'abc','X','a','b',2,NULL,1,'abcX',4,1,1,'aXc',3,NULL,NULL,'Xbc',3,'a',1);
+
+-- name: label_edits_sample_18
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (19,false,'abc','X','a','b',2,1,NULL,'abcX',4,1,1,'aXc',3,'aXc',3,'Xbc',3,NULL,NULL);
+
+-- name: label_edits_sample_19
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (20,false,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+
+-- name: label_edits_sample_20
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (21,false,'abc','X','a','b',0,1,1,'abcX',4,1,1,'',0,'',0,'Xbc',3,'a',1);
+
+-- name: label_edits_sample_21
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (22,false,'abc','X','a','b',-2147483648,1,1,'abcX',4,1,1,'',0,'',0,'Xbc',3,'a',1);
+
+-- name: label_edits_sample_22
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (23,false,'abc','X','a','b',2147483647,1,1,'abcX',4,1,1,'',0,'',0,'Xbc',3,'a',1);
+
+-- name: label_edits_sample_23
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (24,false,'abc','X','a','b',2,2147483647,1,'abcX',4,1,1,'aXc',3,'',0,'Xbc',3,'a',1);
+
+-- name: label_edits_sample_24
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (25,false,'abc','X','a','b',2,1,0,'abcX',4,1,1,'aXc',3,'aXc',3,'Xbc',3,'',0);
+
+-- name: label_edits_wrong_joined
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (26,false,'aababa','😊','ab','ab',2,2,2,'aababa😊!',10,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'',0);
+
+-- name: label_edits_wrong_joined_octets
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (27,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',-99,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'',0);
+
+-- name: label_edits_wrong_needle_position
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (28,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,-99,2,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'',0);
+
+-- name: label_edits_wrong_alternate_position
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (29,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,-99,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'',0);
+
+-- name: label_edits_wrong_inserted
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (30,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,2,'a😊baba!',9,'a😊aba',8,'a😊😊a',10,'',0);
+
+-- name: label_edits_wrong_inserted_octets
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (31,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,2,'a😊baba',-99,'a😊aba',8,'a😊😊a',10,'',0);
+
+-- name: label_edits_wrong_overwritten
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (32,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,2,'a😊baba',9,'a😊aba!',8,'a😊😊a',10,'',0);
+
+-- name: label_edits_wrong_overwritten_octets
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (33,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,2,'a😊baba',9,'a😊aba',-99,'a😊😊a',10,'',0);
+
+-- name: label_edits_wrong_replaced
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (34,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a!',10,'',0);
+
+-- name: label_edits_wrong_replaced_octets
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (35,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a',-99,'',0);
+
+-- name: label_edits_wrong_selected_field
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (36,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'!',0);
+
+-- name: label_edits_wrong_selected_field_octets
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (37,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'',-99);
+
+-- name: label_edits_skipped_start_error
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (38,true,'aababa','😊','ab','ab',0,2,2,'aababa😊',10,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'',0);
+
+-- name: label_edits_skipped_field_error
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (39,true,'aababa','😊','ab','ab',2,2,0,'aababa😊',10,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'',0);
+
+-- name: label_edits_skipped_end_overflow
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (40,true,'aababa','😊','ab','ab',2147483647,1,2,'aababa😊',10,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'',0);
+
+-- name: label_formats_sample_0
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (1,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_sample_1
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (2,false,'é😊a','é😊a','é😊a',6,true,'é😊',6,'é😊',6,'é😊a',7,'é😊a',7,'é😊a',7,'é😊a',7);
+
+-- name: label_formats_sample_2
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (3,false,'a','a','a',9,true,'a',5,'a',1,'a',3,'a',1,'a',1,'a',3);
+
+-- name: label_formats_sample_3
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (4,false,'','','',4,true,'',0,'',0,'',3,'',0,'',0,'',3);
+
+-- name: label_formats_sample_4
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (5,false,'a  ','a  ','a  ',5,false,'a',1,'a',1,'a',3,'a  ',3,'a',1,'a',3);
+
+-- name: label_formats_sample_5
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (6,false,'abc','abc','abc',5,false,'',0,'',0,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_sample_6
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (7,false,'abc','abc','abc',4,false,'',0,'',0,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_sample_7
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (8,false,'é😊a','é😊a','é😊a',6,false,'',0,'',0,'é😊a',7,'é😊a',7,'é😊a',7,'é😊a',7);
+
+-- name: label_formats_sample_8
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (9,false,'é😊','é😊','é😊',5,true,'e',1,'e',1,'é😊',7,'é😊',7,'é😊',7,'é😊',7);
+
+-- name: label_formats_sample_9
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (10,false,'  a','  a','  a',5,true,'',1,' ',1,'  a',3,'  a',3,'  a',3,'  a',3);
+
+-- name: label_formats_sample_10
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (11,false,'abc','abc','abc',0,false,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_sample_11
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (12,false,'abc','abc','abc',-2147483648,false,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_sample_12
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (13,false,'abc','abc','abc',2147483647,true,'',0,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_sample_13
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (14,false,NULL,'abc','abc',5,true,'a',1,'a',1,NULL,NULL,NULL,NULL,'abc',3,'abc',3);
+
+-- name: label_formats_sample_14
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (15,false,'abc',NULL,'abc',5,true,NULL,NULL,'a',1,'abc',3,'abc',3,NULL,NULL,'abc',3);
+
+-- name: label_formats_sample_15
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (16,false,'abc','abc',NULL,5,true,'a',1,NULL,NULL,'abc',3,'abc',3,'abc',3,NULL,NULL);
+
+-- name: label_formats_sample_16
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (17,false,'abc','abc','abc',NULL,true,NULL,NULL,NULL,NULL,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_sample_17
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (18,false,'abc','abc','abc',5,NULL,NULL,NULL,NULL,NULL,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_sample_18
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (19,false,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+
+-- name: label_formats_wrong_adjusted_fixed
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (20,false,'abc','abc','abc',7,true,'abc!',3,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_wrong_adjusted_fixed_octets
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (21,false,'abc','abc','abc',7,true,'abc',-1,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_wrong_adjusted_variable
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (22,false,'abc','abc','abc',7,true,'abc',3,'abc!',3,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_wrong_adjusted_variable_octets
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (23,false,'abc','abc','abc',7,true,'abc',3,'abc',-1,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_wrong_fixed_preview
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (24,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc!',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_wrong_fixed_preview_octets
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (25,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc',-1,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_wrong_variable_preview
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (26,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc',3,'abc!',3,'abc',3,'abc',3);
+
+-- name: label_formats_wrong_variable_preview_octets
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (27,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc',3,'abc',-1,'abc',3,'abc',3);
+
+-- name: label_formats_wrong_unpadded_preview
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (28,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc',3,'abc',3,'abc!',3,'abc',3);
+
+-- name: label_formats_wrong_unpadded_preview_octets
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (29,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc',3,'abc',3,'abc',-1,'abc',3);
+
+-- name: label_formats_wrong_padded_preview
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (30,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3,'abc!',3);
+
+-- name: label_formats_wrong_padded_preview_octets
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (31,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3,'abc',-1);
+
+-- name: label_formats_skipped_truncation
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (32,true,'abc','abc','abc',5,false,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_formats_skipped_allocation
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (33,true,'abc','abc','abc',2147483647,true,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3);
+
+-- name: label_literals_sample_0
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (1,false,'ordinary','''ordinary''',10);
+
+-- name: label_literals_sample_1
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (2,false,'O''Reilly','''O''''Reilly''',11);
+
+-- name: label_literals_sample_2
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (3,false,'','''''',2);
+
+-- name: label_literals_sample_3
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (4,false,'''','''''''''',4);
+
+-- name: label_literals_sample_4
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (5,false,'''''','''''''''''''',6);
+
+-- name: label_literals_sample_5
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (6,false,'\','E''\\''',5);
+
+-- name: label_literals_sample_6
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (7,false,'''\','E''''''\\''',7);
+
+-- name: label_literals_sample_7
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (8,false,'C:\labels\é😊','E''C:\\labels\\é😊''',21);
+
+-- name: label_literals_sample_8
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (9,false,'a
+β','''a
+β''',6);
+
+-- name: label_literals_sample_9
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (10,false,'a	b','''a	b''',5);
+
+-- name: label_literals_sample_10
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (11,false,'é😊','''é😊''',8);
+
+-- name: label_literals_sample_11
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (12,false,'é','''é''',5);
+
+-- name: label_literals_sample_12
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (13,false,'select','''select''',8);
+
+-- name: label_literals_sample_13
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (14,false,'"identifier"','''"identifier"''',14);
+
+-- name: label_literals_sample_14
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (15,false,NULL,NULL,NULL);
+
+-- name: label_literals_wrong_value
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (16,false,'ordinary','wrong',10);
+
+-- name: label_literals_wrong_octets
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (17,false,'ordinary','''ordinary''',-1);
+
+-- name: label_literals_null_recorded
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (18,false,'ordinary',NULL,NULL);
+
+-- name: label_literals_skipped_mismatch
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (19,true,'ordinary','wrong',-1);

@@ -759,14 +759,94 @@ export function bindCatalogCheck(
       if (
         (type === 'pg_catalog.timestamptz' ||
           type === 'pg_catalog."timestamp"' ||
-          type === 'pg_catalog."numeric"' ||
-          type === 'pg_catalog."varchar"' ||
-          type === 'pg_catalog.bpchar') &&
+          type === 'pg_catalog."numeric"') &&
         Array.isArray(castType?.['typmods']) &&
         castType['typmods'].length
       )
         return unknown
       const operand = bind(cast['arg'])
+      if (type === 'pg_catalog."varchar"' || type === 'pg_catalog.bpchar') {
+        const modifiers = castType?.['typmods']
+        let width: number | null = null
+        if (Array.isArray(modifiers) && modifiers.length) {
+          if (modifiers.length !== 1) return unknown
+          const constant = fields(fields(modifiers[0])?.['A_Const'])
+          const length = fields(constant?.['ival'])?.['ival']
+          if (
+            typeof length !== 'number' ||
+            !Number.isInteger(length) ||
+            length <= 0 ||
+            length > 10485760
+          )
+            return unknown
+          width = length
+        }
+        let value = materialize(operand, type)
+        const source = operand.type
+        if (
+          !value &&
+          source &&
+          operand.value &&
+          ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(source)
+        ) {
+          const conversion = builtinCast(source, type)
+          if (conversion?.method === 'b')
+            value = {
+              kind: 'call',
+              call: { kind: 'cast', signature: null, type },
+              operands: [operand.value],
+            }
+          else if (conversion?.method === 'f' && conversion.implementation) {
+            const implementation = builtinMetadata(conversion.implementation)
+            if (
+              implementation.kind !== 'function' ||
+              implementation.args.length !== 1 ||
+              implementation.args[0] !== source ||
+              implementation.volatility !== 'i'
+            )
+              return unknown
+            const result = implementation.result as ScalarType
+            value = {
+              kind: 'call',
+              call: { kind: 'function', signature: conversion.implementation, type: result },
+              operands: [operand.value],
+            }
+            if (result !== type) {
+              if (!isBinaryTextRelabel(result, type) || builtinCast(result, type)?.method !== 'b')
+                return unknown
+              value = {
+                kind: 'call',
+                call: { kind: 'cast', signature: null, type },
+                operands: [value],
+              }
+            }
+          }
+        }
+        if (!value) return unknown
+        const collation = operand.collation ?? defaultCollation
+        if (width === null) return { type, value, collation }
+        const conversion = builtinCast(type, type)
+        if (conversion?.method !== 'f' || !conversion.implementation) return unknown
+        return {
+          type,
+          collation,
+          value: {
+            kind: 'call',
+            call: { kind: 'function', signature: conversion.implementation, type },
+            operands: [
+              value,
+              {
+                kind: 'certain',
+                expression: { kind: 'integer', type: 'pg_catalog.int4', value: String(width + 4) },
+              },
+              {
+                kind: 'certain',
+                expression: { kind: 'boolean', type: 'pg_catalog.bool', value: true },
+              },
+            ],
+          },
+        }
+      }
       if (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') {
         const modifiers = castType?.['typmods']
         let width = -1

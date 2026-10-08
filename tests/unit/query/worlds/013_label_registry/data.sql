@@ -26,3 +26,12 @@ VALUES ('1', false, 'alphabet', '2', '3', true, 'lph', 'lphabet', 'alp', 'bet', 
 
 INSERT INTO label_builder_records (id,suppress_invalid,arg0_text,arg1_int4,arg2_text,arg1_text,recorded_lpad_2,recorded_lpad_2_octets,recorded_lpad_3,recorded_lpad_3_octets,recorded_repeat_2,recorded_repeat_2_octets,recorded_rpad_2,recorded_rpad_2_octets,recorded_rpad_3,recorded_rpad_3_octets,recorded_translate_3,recorded_translate_3_octets)
 VALUES (100000,false,'abc'::pg_catalog.text,8,'😊'::pg_catalog.text,'ab'::pg_catalog.text,'     abc'::pg_catalog.text,8,'😊😊😊😊😊abc'::pg_catalog.text,23,'abcabcabcabcabcabcabcabc'::pg_catalog.text,24,'abc     '::pg_catalog.text,8,'abc😊😊😊😊😊'::pg_catalog.text,23,'😊c'::pg_catalog.text,5);
+
+INSERT INTO label_edit_records (id,suppress_invalid,label,replacement,needle,delimiter,starting,removed,field_number,joined,joined_octets,needle_position,alternate_position,inserted,inserted_octets,overwritten,overwritten_octets,replaced,replaced_octets,selected_field,selected_field_octets)
+VALUES (100000,false,'aababa','😊','ab','ab',2,2,2,'aababa😊',10,2,2,'a😊baba',9,'a😊aba',8,'a😊😊a',10,'',0);
+
+INSERT INTO label_format_records (id,suppress_invalid,label,fixed_label,variable_label,type_modifier,is_explicit,adjusted_fixed,adjusted_fixed_octets,adjusted_variable,adjusted_variable_octets,fixed_preview,fixed_preview_octets,variable_preview,variable_preview_octets,unpadded_preview,unpadded_preview_octets,padded_preview,padded_preview_octets)
+VALUES (100000,false,'abc','abc','abc',7,true,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3,'abc',3);
+
+INSERT INTO label_literal_records (id,suppress_invalid,label,recorded_literal,recorded_octets)
+VALUES (100000,false,'ordinary','''ordinary''',10);
