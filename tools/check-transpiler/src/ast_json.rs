@@ -337,6 +337,12 @@ fn operator(value: &BinOp) -> Result<&'static str> {
 
 fn if_expr(node: &syn::ExprIf) -> Result<Value> {
     if let Expr::Let(binding) = &*node.cond {
+        if let Pat::Path(pattern) = &*binding.pat {
+            let names = segments(&pattern.path);
+            return Ok(
+                json!({"kind":"if-let", "enumName":names[0], "variant":names[1], "payloadBinding":null, "source":expr(&binding.expr)?, "body":block(&node.then_branch)?}),
+            );
+        }
         let Pat::TupleStruct(pattern) = &*binding.pat else {
             return Err("if-let needs a payload enum variant".into());
         };
@@ -450,6 +456,10 @@ fn expr(value: &Expr) -> Result<Value> {
             "base": expr(&node.expr)?,
             "index": expr(&node.index)?,
         })),
+        Expr::MethodCall(node) if crate::syntax::index_from_signed(node).is_some() => {
+            let (value, fallback) = crate::syntax::index_from_signed(node).unwrap();
+            Ok(json!({"kind":"index-from-signed","value":expr(value)?,"fallback":expr(fallback)?}))
+        }
         Expr::MethodCall(node) if crate::syntax::float_from_text(node).is_some() => {
             let (value, fallback) = crate::syntax::float_from_text(node).unwrap();
             Ok(json!({"kind":"float-from-text","value":expr(value)?,"fallback":expr(fallback)?}))
@@ -839,7 +849,7 @@ mod tests {
     }
 
     #[test]
-    fn bigint_narrowing_accepts_only_i64_to_i32() {
+    fn bigint_narrowing_preserves_i64_to_i32_contract() {
         let tree: serde_json::Value =
             serde_json::from_str(&parse("pub fn f(value: i64) -> i32 { value as i32 }").unwrap())
                 .unwrap();
@@ -848,7 +858,6 @@ mod tests {
             "pub fn f(value: i32) -> i32 { value as i32 }",
             "pub fn f(value: u32) -> i32 { value as i32 }",
             "pub fn f(value: u16) -> i32 { value as i32 }",
-            "pub fn f(value: usize) -> i32 { value as i32 }",
             "pub fn f(value: i64) -> i16 { value as i16 }",
         ] {
             assert!(parse(source).is_err(), "accepted {source}");
@@ -961,7 +970,7 @@ mod tests {
         assert!(parse(
             "enum Words { Value(Vec<char>) } pub fn f(value: Words) -> bool { if let Words::Value(chars) = value { return chars.len() > 0; } false }"
         )
-        .is_err());
+        .is_ok());
     }
 
     #[test]
@@ -1327,5 +1336,81 @@ mod float_from_text_tests {
         ] {
             assert!(parse(source).is_err(), "{source}");
         }
+    }
+}
+#[cfg(test)]
+mod index_conversion_tests {
+    use super::parse;
+    #[test]
+    fn accepts_checked_signed_start_and_bounded_match_count() {
+        let ast=parse("pub fn f(value:i32,fallback:usize)->i32 { let position:usize=usize::try_from(value).unwrap_or(fallback); position as i32 }").unwrap();
+        let ast: serde_json::Value = serde_json::from_str(&ast).unwrap();
+        assert_eq!(
+            ast["items"][0]["body"][0]["initializer"]["kind"],
+            "index-from-signed"
+        );
+    }
+    #[test]
+    fn rejects_unchecked_and_general_result_conversions() {
+        for source in [
+            "pub fn f(value:i32)->usize {value as usize}",
+            "pub fn f(value:i32)->usize {usize::try_from(value)}",
+            "pub fn f(value:i32)->usize {usize::try_from(value).unwrap()}",
+            "pub fn f(value:i64)->usize {usize::try_from(value).unwrap_or(0)}",
+            "pub fn f(value:usize)->usize {usize::try_from(value).unwrap_or(0)}",
+            "pub fn f(value:i32,fallback:i32)->usize {usize::try_from(value).unwrap_or(fallback)}",
+            "pub fn f(value:i32)->usize {usize::try_from(value,0).unwrap_or(0)}",
+            "pub fn f(value:i32)->usize {usize::try_from(value).unwrap_or::<usize>(0)}",
+            "pub fn f(value:i32)->usize {usize::try_from::<i32>(value).unwrap_or(0)}",
+            "pub fn f(value:i32)->i64 {i64::try_from(value).unwrap_or(0i64)}",
+            "pub fn f(value:usize)->i64 {value as i64}",
+        ] {
+            assert!(parse(source).is_err(), "{source}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod unit_variant_tests {
+    use super::parse;
+    const DECLARATIONS: &str = "pub enum Outcome { Count(usize), InvalidPattern, Uncertain }";
+    #[test]
+    fn tests_units_without_equality_or_payload_binding() {
+        let source=format!("{DECLARATIONS} pub fn state(outcome:Outcome)->i32 {{ if let Outcome::InvalidPattern=outcome {{return -1;}} if let Outcome::Count(value)=outcome {{return value as i32;}} 0 }}");
+        let ast: serde_json::Value = serde_json::from_str(&parse(&source).unwrap()).unwrap();
+        assert_eq!(ast["items"][1]["body"][0]["value"]["kind"], "if-let");
+        assert_eq!(
+            ast["items"][1]["body"][0]["value"]["payloadBinding"],
+            serde_json::Value::Null
+        );
+    }
+    #[test]
+    fn rejects_missing_variants_and_incorrect_source_or_pattern_shapes() {
+        for body in [
+            "pub fn f(outcome:Outcome)->i32 {if let Outcome::Missing=outcome {return 1;} 0}",
+            "pub fn f(outcome:Outcome)->i32 {if let Outcome::Count=outcome {return 1;} 0}",
+            "pub fn f(outcome:Outcome)->i32 {if let Outcome::InvalidPattern(_)=outcome {return 1;} 0}",
+            "pub fn f(outcome:i32)->i32 {if let Outcome::InvalidPattern=outcome {return 1;} 0}",
+            "pub fn f(outcome:Outcome)->i32 {if let InvalidPattern=outcome {return 1;} 0}",
+            "pub fn f(outcome:Outcome)->i32 {if let Outcome::InvalidPattern=outcome {return 1;} else {return 2;} }",
+        ] { assert!(parse(&format!("{DECLARATIONS} {body}")).is_err(),"{body}"); }
+    }
+}
+
+#[cfg(test)]
+mod owned_enum_payload_tests {
+    use super::parse;
+    #[test]
+    fn accepts_owned_capture_batches_with_copy_vector_elements() {
+        assert!(parse("#[derive(Clone,Copy)] struct Span {start:usize} struct Batch{groups:Vec<Span>} enum Found{Matches(Batch),Invalid} pub fn f(outcome:Found)->usize{if let Found::Matches(batch)=outcome{return batch.groups.len();} 0}").is_ok());
+        assert!(parse("enum Found{Matches(Vec<usize>),Invalid} pub fn f(outcome:Found)->usize{if let Found::Matches(groups)=outcome{return groups.len();} 0}").is_ok());
+    }
+    #[test]
+    fn rejects_unlowered_or_borrowed_mutable_payloads() {
+        for source in [
+            "struct Batch{groups:Vec<String>} enum Found{Matches(Batch)} pub fn f(outcome:Found)->usize{if let Found::Matches(batch)=outcome{return 1;} 0}",
+            "struct Item{text:String} struct Batch{groups:Vec<Item>} enum Found{Matches(Batch)} pub fn f(outcome:Found)->usize{if let Found::Matches(batch)=outcome{return 1;} 0}",
+            "struct Batch{groups:&[usize]} enum Found{Matches(Batch)} pub fn f(outcome:Found)->usize{if let Found::Matches(batch)=outcome{return 1;} 0}",
+        ] { assert!(parse(source).is_err(),"{source}"); }
     }
 }

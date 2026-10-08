@@ -10,6 +10,7 @@ type Expr =
   | { kind: 'array'; elements: Expr[] }
   | { kind: 'path'; segments: string[] }
   | { kind: 'float'; digits: string }
+  | { kind: 'index-from-signed'; value: Expr; fallback: Expr }
   | { kind: 'float-from-text'; value: Expr; fallback: Expr }
   | { kind: 'integer'; digits: string; integerType?: 'i64' }
   | { kind: 'character'; scalar: string }
@@ -278,6 +279,8 @@ class Transpiler {
         return (
           locals.get(value.segments.join('::')) ?? this.constants.get(value.segments.join('::'))
         )
+      case 'index-from-signed':
+        return 'usize'
       case 'float':
       case 'float-from-text':
         return 'f64'
@@ -382,6 +385,12 @@ class Transpiler {
           throw new Error(`unknown unit variant ${value.segments.join('::')}`)
         return object([['kind', f.createStringLiteral(variant!)]])
       }
+      case 'index-from-signed':
+        return call(
+          'indexFromI32',
+          this.expression(value.value, locals),
+          this.expression(value.fallback, locals),
+        )
       case 'float-from-text':
         return call(
           'f64FromText',
@@ -440,6 +449,8 @@ class Transpiler {
               [f.createNumericLiteral(0)],
             ),
           )
+        if (this.path(value.targetType) === 'i32' && this.infer(value.value, locals) === 'usize')
+          return call('checkedI32', call('checkedIndex', this.expression(value.value, locals)))
         if (this.path(value.targetType) === 'i32')
           return call(
             'Number',
@@ -713,15 +724,21 @@ class Transpiler {
       } else if (value.kind === 'if-let') {
         if (value.source.kind !== 'path' || value.source.segments.length !== 1)
           throw new Error('if-let source must be an identifier')
-        const payload = this.enums
+        const variant = this.enums
           .get(value.enumName)
-          ?.variants.find((variant) => variant.name === value.variant)?.payload
-        if (!payload || this.infer(value.source, locals) !== value.enumName)
+          ?.variants.find((variant) => variant.name === value.variant)
+        const payload = variant?.payload
+        if (
+          !variant ||
+          (!payload && value.payloadBinding !== null) ||
+          this.infer(value.source, locals) !== value.enumName
+        )
           throw new Error('if-let pattern is not a matching payload enum variant')
         const source = this.expression(value.source, locals)
         const branchLocals = new Map(locals)
         const bindings: ts.Statement[] = []
         if (value.payloadBinding !== null) {
+          if (!payload) throw new Error('unit variant has no payload')
           if (typeof value.payloadBinding !== 'string' || !value.payloadBinding.length)
             throw new Error('if-let payload binding must be a name or null')
           const bound = camelCase(value.payloadBinding)

@@ -61,6 +61,34 @@ pub(crate) fn character_from_codepoint(call: &syn::ExprMethodCall) -> Option<(&E
     Some((&cast.expr, &call.args[0]))
 }
 
+pub(crate) fn index_from_signed(call: &syn::ExprMethodCall) -> Option<(&Expr, &Expr)> {
+    if !call.attrs.is_empty()
+        || call.turbofish.is_some()
+        || call.method != "unwrap_or"
+        || call.args.len() != 1
+    {
+        return None;
+    }
+    let Expr::Call(constructor) = &*call.receiver else {
+        return None;
+    };
+    let Expr::Path(callee) = &*constructor.func else {
+        return None;
+    };
+    if !constructor.attrs.is_empty()
+        || constructor.args.len() != 1
+        || !callee.attrs.is_empty()
+        || callee.qself.is_some()
+        || path(&callee.path, 2).is_err()
+        || callee.path.segments.len() != 2
+        || callee.path.segments[0].ident != "usize"
+        || callee.path.segments[1].ident != "try_from"
+    {
+        return None;
+    }
+    Some((&constructor.args[0], &call.args[0]))
+}
+
 pub(crate) fn float_from_text(call: &syn::ExprMethodCall) -> Option<(&Expr, &Expr)> {
     if !call.attrs.is_empty()
         || call.turbofish.is_some()
@@ -247,6 +275,10 @@ fn expr(expr: &Expr) -> Result {
             self::expr(&node.index)
         }
         Expr::MethodCall(node) if node.attrs.is_empty() && node.turbofish.is_none() => {
+            if let Some((value, fallback)) = index_from_signed(node) {
+                self::expr(value)?;
+                return self::expr(fallback);
+            }
             if let Some((value, fallback)) = float_from_text(node) {
                 self::expr(value)?;
                 return self::expr(fallback);
@@ -353,30 +385,41 @@ fn if_statement(branch: &syn::ExprIf) -> Result {
         if !binding.attrs.is_empty() || branch.else_branch.is_some() {
             return Err("if-let attributes and else branches are outside the subset".into());
         }
-        let Pat::TupleStruct(pattern) = &*binding.pat else {
-            return Err("if-let needs a payload enum variant".into());
-        };
-        no_attrs(&pattern.attrs)?;
-        path(&pattern.path, 2)?;
-        if pattern.path.segments.len() != 2 || pattern.elems.len() != 1 {
-            return Err("if-let needs one payload binding".into());
-        }
-        let name = match &pattern.elems[0] {
-            Pat::Ident(name) => {
-                if !name.attrs.is_empty()
-                    || name.by_ref.is_some()
-                    || name.mutability.is_some()
-                    || name.subpat.is_some()
-                {
-                    return Err("if-let payload binding must be immutable".into());
+        let name = if let Pat::TupleStruct(pattern) = &*binding.pat {
+            no_attrs(&pattern.attrs)?;
+            path(&pattern.path, 2)?;
+            if pattern.path.segments.len() != 2 || pattern.elems.len() != 1 {
+                return Err("if-let needs one payload binding".into());
+            }
+            match &pattern.elems[0] {
+                Pat::Ident(name) => {
+                    if !name.attrs.is_empty()
+                        || name.by_ref.is_some()
+                        || name.mutability.is_some()
+                        || name.subpat.is_some()
+                    {
+                        return Err("if-let payload binding must be immutable".into());
+                    }
+                    Some(name)
                 }
-                Some(name)
+                Pat::Wild(wildcard) => {
+                    no_attrs(&wildcard.attrs)?;
+                    None
+                }
+                _ => return Err("if-let payload must be an identifier or wildcard".into()),
             }
-            Pat::Wild(wildcard) => {
-                no_attrs(&wildcard.attrs)?;
-                None
+        } else if let Pat::Path(pattern) = &*binding.pat {
+            no_attrs(&pattern.attrs)?;
+            if pattern.qself.is_some() {
+                return Err("if-let unit pattern must name an enum variant".into());
             }
-            _ => return Err("if-let payload must be an identifier or wildcard".into()),
+            path(&pattern.path, 2)?;
+            if pattern.path.segments.len() != 2 {
+                return Err("if-let unit pattern must name an enum variant".into());
+            }
+            None
+        } else {
+            return Err("if-let needs an enum variant".into());
         };
         let Expr::Path(source) = &*binding.expr else {
             return Err("if-let source must be an identifier".into());

@@ -278,8 +278,43 @@ fn checked_arithmetic(name: &str) -> bool {
     matches!(name, "usize" | "u32")
 }
 
+fn shared_owned_payload(
+    name: &str,
+    semantics: &Semantics,
+    visiting: &mut BTreeSet<String>,
+) -> bool {
+    if scalar(name) || semantics.copy.contains(name) {
+        return true;
+    }
+    if name.starts_with("Vec<") && shared_vector_element(name, semantics).is_some() {
+        return true;
+    }
+    let Some(fields) = semantics.fields.get(name) else {
+        return false;
+    };
+    if !visiting.insert(name.to_string()) {
+        return false;
+    }
+    let valid = fields
+        .values()
+        .all(|field| shared_owned_payload(field, semantics, visiting));
+    visiting.remove(name);
+    valid
+}
+
 fn check_if_methods(branch: &syn::ExprIf, locals: &Bindings, semantics: &Semantics) -> Result<()> {
     if let Expr::Let(binding) = &*branch.cond {
+        if let Pat::Path(pattern) = &*binding.pat {
+            let name = pattern.path.segments[0].ident.to_string();
+            let variant = pattern.path.segments[1].ident.to_string();
+            if semantics.variants.get(&(name.clone(), variant)) != Some(&None) {
+                return Err("if-let unit pattern must name a declared unit variant".into());
+            }
+            if infer_expr_type(&binding.expr, locals, semantics)?.as_deref() != Some(&name) {
+                return Err("if-let source type differs from its enum pattern".into());
+            }
+            return check_body_methods(&branch.then_branch, &mut locals.clone(), semantics);
+        }
         let Pat::TupleStruct(pattern) = &*binding.pat else {
             return Err("if-let needs a payload enum variant".into());
         };
@@ -290,7 +325,7 @@ fn check_if_methods(branch: &syn::ExprIf, locals: &Bindings, semantics: &Semanti
             .get(&(name.clone(), variant))
             .and_then(Clone::clone)
             .ok_or("if-let pattern is not a payload enum variant")?;
-        if !scalar(&payload) && !semantics.copy.contains(&payload) {
+        if !shared_owned_payload(&payload, semantics, &mut BTreeSet::new()) {
             return Err("if-let payload needs shared value semantics".into());
         }
         if infer_expr_type(&binding.expr, locals, semantics)?.as_deref() != Some(&name) {
@@ -407,7 +442,7 @@ fn infer_expr_type(
             if (matches!(target.as_str(), "u32" | "i32") && source.as_deref() == Some("char"))
                 || (target == "usize" && matches!(source.as_deref(), Some("u16" | "u32")))
                 || (target == "i64" && source.as_deref() == Some("i32"))
-                || (target == "i32" && source.as_deref() == Some("i64"))
+                || (target == "i32" && matches!(source.as_deref(), Some("i64" | "usize")))
                 || (target == "f64" && source.as_deref() == Some("i32"))
                 || (target == "i32" && source.as_deref() == Some("f64"))
             {
@@ -563,6 +598,15 @@ fn infer_expr_type(
                 .and_then(|name| shared_vector_element(name, semantics))
                 .map(Some)
                 .ok_or_else(|| "indexing is supported only on shared vectors".into())
+        }
+        Expr::MethodCall(call) if crate::syntax::index_from_signed(call).is_some() => {
+            let (value, fallback) = crate::syntax::index_from_signed(call).unwrap();
+            if infer_expr_type(value, locals, semantics)?.as_deref() != Some("i32")
+                || infer_expr_type(fallback, locals, semantics)?.as_deref() != Some("usize")
+            {
+                return Err("index conversion requires i32 and a usize fallback".into());
+            }
+            Ok(Some("usize".into()))
         }
         Expr::MethodCall(call) if crate::syntax::float_from_text(call).is_some() => {
             let (value, fallback) = crate::syntax::float_from_text(call).unwrap();

@@ -237,21 +237,23 @@ export async function runCheckParity(
     await writeFile(path, source)
   }
   await writeFile(join(directory, 'go/go.mod'), `module ${moduleName}\n\ngo 1.25\n`)
-  await writeFile(
-    join(directory, 'go/checks_test.go'),
-    printGoFile({
-      package: 'generated',
-      imports: [{ path: 'testing' }, { path: moduleName + '/checkruntime' }],
-      declarations: Array.from({ length: Math.ceil(goAssertions.length / 250) }, (_, index) =>
-        go.function(
-          'TestChecks' + index,
-          [{ names: ['t'], type: go.pointer(go.selector(go.ident('testing'), 'T')) }],
-          [],
-          goAssertions.slice(index * 250, (index + 1) * 250),
-        ),
-      ),
-    }),
-  )
+  for (let index = 0; index < Math.ceil(goAssertions.length / 250); index++) {
+    await writeFile(
+      join(directory, `go/checks_${index}_test.go`),
+      printGoFile({
+        package: 'generated',
+        imports: [{ path: 'testing' }, { path: moduleName + '/checkruntime' }],
+        declarations: [
+          go.function(
+            'TestChecks' + index,
+            [{ names: ['t'], type: go.pointer(go.selector(go.ident('testing'), 'T')) }],
+            [],
+            goAssertions.slice(index * 250, (index + 1) * 250),
+          ),
+        ],
+      }),
+    )
+  }
   await run('go', ['test', './...'], {
     cwd: join(directory, 'go'),
     env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },

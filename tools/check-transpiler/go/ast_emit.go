@@ -178,6 +178,8 @@ func (g *generator) goExpression(value *node) ast.Expr {
 			}
 		}
 		reject("unknown path " + strings.Join(value.Segments, "::"))
+	case "index-from-signed":
+		return goCall("indexFromI32", g.goExpression(value.Value), g.goExpression(value.Fallback))
 	case "float-from-text":
 		return goCall("f64FromText", g.goExpression(value.Value), g.goExpression(value.Fallback))
 	case "float":
@@ -436,12 +438,14 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 				reject("if-let source or else branch is outside the AST contract")
 			}
 			var payload *node
+			variantFound := false
 			for _, variant := range g.enums[value.EnumName] {
 				if variant.Name == value.Variant {
+					variantFound = true
 					payload = variant.Payload
 				}
 			}
-			if payload == nil || (value.PayloadBinding != nil && *value.PayloadBinding == "") || path(g.inferType(value.Source)) != value.EnumName {
+			if !variantFound || (payload == nil && value.PayloadBinding != nil) || (value.PayloadBinding != nil && *value.PayloadBinding == "") || path(g.inferType(value.Source)) != value.EnumName {
 				reject("if-let pattern is not a matching payload enum variant")
 			}
 			source := g.goExpression(value.Source)

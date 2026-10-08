@@ -309,6 +309,8 @@ func (g *generator) inferType(value *node) *node {
 				}
 			}
 		}
+	case "index-from-signed":
+		return namedType("usize")
 	case "float", "float-from-text":
 		return namedType("f64")
 	case "integer":

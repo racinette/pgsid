@@ -194,12 +194,12 @@ export const go = {
 export function printGoFile(file: GoFile): string {
   const runtime = bridge ?? (bridge = loadBridge())
   const input = Buffer.from(JSON.stringify(file))
-  const pointer = runtime.alloc(input.length)
+  const pointer = runtime.alloc(input.length) >>> 0
   try {
     new Uint8Array(runtime.memory.buffer, pointer, input.length).set(input)
     const status = runtime.render()
     const output = Buffer.from(
-      new Uint8Array(runtime.memory.buffer, runtime.output_ptr(), runtime.output_len()),
+      new Uint8Array(runtime.memory.buffer, runtime.output_ptr() >>> 0, runtime.output_len() >>> 0),
     ).toString('utf8')
     if (status !== 0) throw new Error(output)
     const notices = file.source?.match(/^(?:\s*\/\*[\s\S]*?\*\/\s*)+/)?.[0] ?? ''
