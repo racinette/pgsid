@@ -26,7 +26,7 @@ pub fn type_name(ty: &Type) -> Result<String> {
                 syn::PathArguments::AngleBracketed(arguments) if name != "Vec" => {
                     if !matches!(
                         name.as_str(),
-                        "usize" | "u16" | "u32" | "i32" | "i64" | "bool" | "char" | "str"
+                        "usize" | "u16" | "u32" | "i32" | "i64" | "f64" | "bool" | "char" | "str"
                     ) && arguments.args.len() == 1
                         && matches!(&arguments.args[0], syn::GenericArgument::Lifetime(_))
                     {
@@ -90,7 +90,7 @@ fn derives(attrs: &[syn::Attribute]) -> Result<BTreeSet<String>> {
 fn scalar(name: &str) -> bool {
     matches!(
         name,
-        "usize" | "u32" | "i32" | "i64" | "bool" | "char" | "&str" | "String"
+        "usize" | "u32" | "i32" | "i64" | "f64" | "bool" | "char" | "&str" | "String"
     )
 }
 
@@ -271,7 +271,7 @@ fn is_new_index_vector(value: &Expr) -> bool {
 }
 
 fn numeric(name: &str) -> bool {
-    matches!(name, "usize" | "u32" | "i32" | "i64")
+    matches!(name, "usize" | "u32" | "i32" | "i64" | "f64")
 }
 
 fn checked_arithmetic(name: &str) -> bool {
@@ -355,6 +355,10 @@ fn infer_expr_type(
             .into(),
         )),
         Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Float(_),
+            ..
+        }) => Ok(Some("f64".into())),
+        Expr::Lit(syn::ExprLit {
             lit: syn::Lit::Char(_),
             ..
         }) => Ok(Some("char".into())),
@@ -377,6 +381,9 @@ fn infer_expr_type(
                     ..
                 })
             );
+            if source.as_deref() == Some("f64") {
+                return Ok(Some("f64".into()));
+            }
             if literal && source.as_deref() == Some("i64") {
                 return Ok(Some("i64".into()));
             }
@@ -401,6 +408,8 @@ fn infer_expr_type(
                 || (target == "usize" && matches!(source.as_deref(), Some("u16" | "u32")))
                 || (target == "i64" && source.as_deref() == Some("i32"))
                 || (target == "i32" && source.as_deref() == Some("i64"))
+                || (target == "f64" && source.as_deref() == Some("i32"))
+                || (target == "i32" && source.as_deref() == Some("f64"))
             {
                 return Ok(Some(target));
             }
@@ -421,6 +430,26 @@ fn infer_expr_type(
                 && left != right
             {
                 return Err("i64 comparisons require i64 operands".into());
+            }
+            if left.as_deref() == Some("f64") || right.as_deref() == Some("f64") {
+                if left != right {
+                    return Err("f64 operations require explicitly typed f64 operands".into());
+                }
+                if !matches!(
+                    binary.op,
+                    syn::BinOp::Eq(_)
+                        | syn::BinOp::Ne(_)
+                        | syn::BinOp::Lt(_)
+                        | syn::BinOp::Le(_)
+                        | syn::BinOp::Gt(_)
+                        | syn::BinOp::Ge(_)
+                        | syn::BinOp::Add(_)
+                        | syn::BinOp::Sub(_)
+                        | syn::BinOp::Mul(_)
+                        | syn::BinOp::Div(_)
+                ) {
+                    return Err("f64 operator is outside the subset".into());
+                }
             }
             match binary.op {
                 syn::BinOp::Eq(_) | syn::BinOp::Ne(_) => {
@@ -456,6 +485,12 @@ fn infer_expr_type(
                                 })
                             )
                     };
+                    if left.as_deref() == Some("f64") && right.as_deref() == Some("f64") {
+                        if matches!(binary.op, syn::BinOp::Rem(_)) {
+                            return Err("f64 remainder is outside the subset".into());
+                        }
+                        return Ok(Some("f64".into()));
+                    }
                     if left.as_deref() == Some("i64") || right.as_deref() == Some("i64") {
                         if left.as_deref() != Some("i64") || right.as_deref() != Some("i64") {
                             return Err("i64 arithmetic requires i64 operands".into());
@@ -537,6 +572,14 @@ fn infer_expr_type(
                 return Err("character construction requires i32 and a char fallback".into());
             }
             Ok(Some("char".into()))
+        }
+        Expr::MethodCall(call)
+            if matches!(call.method.to_string().as_str(), "abs" | "ln" | "log10") =>
+        {
+            if infer_expr_type(&call.receiver, locals, semantics)?.as_deref() != Some("f64") {
+                return Err("float methods require f64".into());
+            }
+            Ok(Some("f64".into()))
         }
         Expr::MethodCall(call) if call.method == "len" => {
             let receiver = infer_expr_type(&call.receiver, locals, semantics)?;
@@ -715,21 +758,20 @@ fn infer_expr_type(
                 Expr::Path(_)
                     if scalar(&destination)
                         || (semantics.clone.contains(&destination)
-                            && semantics
-                                .variants
-                                .keys()
-                                .any(|(name, _)| name == &destination)) => {}
+                            && (semantics.fields.contains_key(&destination)
+                                || semantics
+                                    .variants
+                                    .keys()
+                                    .any(|(name, _)| name == &destination))) => {}
                 Expr::Index(_)
                     if destination == "usize"
                         || destination == "char"
                         || (semantics.fields.contains_key(&destination)
                             && semantics.copy.contains(&destination)) => {}
-                _ => {
-                    return Err(
-                        "assignment target must be a scalar or Copy enum binding or vector element"
-                            .into(),
-                    )
-                }
+                _ => return Err(
+                    "assignment target must be a scalar, immutable value binding or vector element"
+                        .into(),
+                ),
             }
             if destination != source
                 && !(matches!(
@@ -761,10 +803,12 @@ fn infer_expr_type(
         Expr::Return(ret) => {
             if let Some(value) = &ret.expr {
                 let actual = infer_expr_type(value, locals, semantics)?;
-                if semantics.return_type.as_deref() == Some("i64")
-                    && actual.as_deref() != Some("i64")
-                {
-                    return Err("i64 returns require explicitly typed values".into());
+                if let Some(expected) = semantics.return_type.as_deref() {
+                    if matches!(expected, "i64" | "f64") && actual.as_deref() != Some(expected) {
+                        return Err(format!(
+                            "{expected} returns require explicitly typed values"
+                        ));
+                    }
                 }
             }
             Ok(None)
@@ -802,8 +846,12 @@ fn check_body_methods(
                     let inferred = infer_expr_type(initializer, locals, semantics)?;
                     if let Pat::Type(typed) = &local.pat {
                         let declared = type_name(&typed.ty)?;
-                        if declared == "i64" && inferred.as_deref() != Some("i64") {
-                            return Err("i64 locals require explicitly typed values".into());
+                        if matches!(declared.as_str(), "i64" | "f64")
+                            && inferred.as_deref() != Some(declared.as_str())
+                        {
+                            return Err(format!(
+                                "{declared} locals require explicitly typed values"
+                            ));
                         }
                         declared
                     } else {
@@ -965,11 +1013,26 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
                     }
                 }
             }
-            if type_name(&constant.ty)? == "i64"
+            let expected = type_name(&constant.ty)?;
+            if matches!(expected.as_str(), "i64" | "f64")
                 && infer_expr_type(&constant.expr, &constants, &semantics)?.as_deref()
-                    != Some("i64")
+                    != Some(expected.as_str())
             {
-                return Err("i64 constants require explicitly typed values".into());
+                return Err(format!(
+                    "{expected} constants require explicitly typed values"
+                ));
+            }
+            if expected == "f64"
+                && !matches!(
+                    &*constant.expr,
+                    Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Float(_),
+                        ..
+                    })
+                )
+                && !matches!(&*constant.expr, Expr::Unary(unary) if matches!(&*unary.expr, Expr::Lit(syn::ExprLit { lit: syn::Lit::Float(_), .. })))
+            {
+                return Err("f64 constants require literal values".into());
             }
         }
         if let Item::Fn(function) = item {
@@ -992,12 +1055,17 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
                 );
             }
             check_body_methods(&function.block, &mut locals, &semantics)?;
-            if semantics.return_type.as_deref() == Some("i64") {
-                if let Some(Stmt::Expr(tail, None)) = function.block.stmts.last() {
-                    if !matches!(tail, Expr::Return(_))
-                        && infer_expr_type(tail, &locals, &semantics)?.as_deref() != Some("i64")
-                    {
-                        return Err("i64 returns require explicitly typed values".into());
+            if let Some(expected) = semantics.return_type.as_deref() {
+                if matches!(expected, "i64" | "f64") {
+                    if let Some(Stmt::Expr(tail, None)) = function.block.stmts.last() {
+                        if !matches!(tail, Expr::Return(_))
+                            && infer_expr_type(tail, &locals, &semantics)?.as_deref()
+                                != Some(expected)
+                        {
+                            return Err(format!(
+                                "{expected} returns require explicitly typed values"
+                            ));
+                        }
                     }
                 }
             }

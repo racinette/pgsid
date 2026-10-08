@@ -9,6 +9,7 @@ type TypeNode =
 type Expr =
   | { kind: 'array'; elements: Expr[] }
   | { kind: 'path'; segments: string[] }
+  | { kind: 'float'; digits: string }
   | { kind: 'integer'; digits: string; integerType?: 'i64' }
   | { kind: 'character'; scalar: string }
   | { kind: 'character-from-codepoint'; value: Expr; fallback: Expr }
@@ -95,6 +96,7 @@ function camelCase(name: string): string {
   return result[0]!.toLowerCase() + result.slice(1)
 }
 
+const f64Methods: Record<string, string> = { abs: 'f64Abs', ln: 'f64Ln', log10: 'f64Log10' }
 const f = ts.factory
 const identifier = (name: string): ts.Identifier => f.createIdentifier(name)
 const call = (name: string, ...args: ts.Expression[]): ts.Expression =>
@@ -182,7 +184,7 @@ class Transpiler {
   private immutableField(type: TypeNode): boolean {
     const name = this.path(type)
     return (
-      ['usize', 'u32', 'i32', 'i64', 'bool', 'char', '&str', 'String'].includes(name) ||
+      ['usize', 'u32', 'i32', 'i64', 'f64', 'bool', 'char', '&str', 'String'].includes(name) ||
       this.immutableValues.has(name)
     )
   }
@@ -209,7 +211,7 @@ class Transpiler {
       return f.createTypeReferenceNode('Readonly', [f.createTypeReferenceNode('Uint16Array')])
     if (name.startsWith('&[') && name.endsWith(']'))
       return f.createTypeReferenceNode('ReadonlyArray', [this.typeName(name.slice(2, -1))])
-    if (['usize', 'u16', 'u32', 'i32'].includes(name))
+    if (['usize', 'u16', 'u32', 'i32', 'f64'].includes(name))
       return f.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword)
     if (name === 'i64') return f.createKeywordTypeNode(ts.SyntaxKind.BigIntKeyword)
     if (name === 'bool') return f.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword)
@@ -239,6 +241,7 @@ class Transpiler {
     if (name === 'usize' || name === 'u32') return call('checkedIndex', value)
     if (name === 'i32') return call('checkedI32', value)
     if (name === 'i64') return call('checkedI64', value)
+    if (name === 'f64') return call('checkedF64', value)
     if (name === 'bool') return call('checkedBool', value)
     if (name === 'char') return call('checkedChar', value)
     if (name === '&str' || name === 'String') return call('checkedString', value)
@@ -274,6 +277,8 @@ class Transpiler {
         return (
           locals.get(value.segments.join('::')) ?? this.constants.get(value.segments.join('::'))
         )
+      case 'float':
+        return 'f64'
       case 'integer':
         return value.integerType ?? 'usize'
       case 'character':
@@ -290,7 +295,7 @@ class Transpiler {
         return inner ? `&${inner}` : undefined
       }
       case 'unary':
-        return 'i32'
+        return this.infer(value.value, locals) === 'f64' ? 'f64' : 'i32'
       case 'cast':
         return this.path(value.targetType)
       case 'binary':
@@ -320,6 +325,7 @@ class Transpiler {
       case 'struct-literal':
         return value.path.join('::')
       case 'method-call':
+        if (['abs', 'ln', 'log10'].includes(value.method)) return 'f64'
         if (value.method === 'clone') return this.infer(value.receiver, locals)
         if (value.method === 'to_owned') return 'String'
         if (value.method === 'as_str') return '&str'
@@ -374,6 +380,12 @@ class Transpiler {
           throw new Error(`unknown unit variant ${value.segments.join('::')}`)
         return object([['kind', f.createStringLiteral(variant!)]])
       }
+      case 'float': {
+        const literal = f.createNumericLiteral(value.digits.replace(/^-/, ''))
+        return value.digits.startsWith('-')
+          ? f.createPrefixUnaryExpression(ts.SyntaxKind.MinusToken, literal)
+          : literal
+      }
       case 'integer':
         if (value.integerType === 'i64') {
           const literal = f.createBigIntLiteral(`${value.digits.replace(/^-/, '')}n`)
@@ -400,8 +412,15 @@ class Transpiler {
         return this.expression(value.value, locals)
       case 'unary':
         if (value.operator !== 'negate') throw new Error('unsupported unary operator')
-        return call('checkedSignedNegate', this.expression(value.value, locals))
+        return call(
+          this.infer(value.value, locals) === 'f64' ? 'f64Negate' : 'checkedSignedNegate',
+          this.expression(value.value, locals),
+        )
       case 'cast':
+        if (this.path(value.targetType) === 'f64')
+          return call('Number', call('checkedI32', this.expression(value.value, locals)))
+        if (this.path(value.targetType) === 'i32' && this.infer(value.value, locals) === 'f64')
+          return call('f64ToI32', this.expression(value.value, locals))
         if (
           this.path(value.targetType) === 'u32' ||
           (this.path(value.targetType) === 'i32' && this.infer(value.value, locals) === 'char')
@@ -429,6 +448,16 @@ class Transpiler {
       case 'binary': {
         const left = this.expression(value.left, locals)
         const right = this.expression(value.right, locals)
+        if (this.infer(value.left, locals) === 'f64') {
+          const helpers: Record<string, string> = {
+            add: 'f64Add',
+            subtract: 'f64Subtract',
+            multiply: 'f64Multiply',
+            divide: 'f64Divide',
+          }
+          const helper = helpers[value.operator]
+          if (helper) return call(helper, left, right)
+        }
         const signed =
           this.infer(value.left, locals) === 'i32' || this.infer(value.right, locals) === 'i32'
         if (this.infer(value.left, locals) === 'i64') {
@@ -486,6 +515,8 @@ class Transpiler {
         return call(element === 'usize' ? 'indexNumber' : 'indexChar', values, index)
       }
       case 'method-call':
+        if (['abs', 'ln', 'log10'].includes(value.method) && value.arguments.length === 0)
+          return call(f64Methods[value.method]!, this.expression(value.receiver, locals))
         if (value.method === 'clone')
           return this.detach(
             this.expression(value.receiver, locals),

@@ -70,6 +70,18 @@ change to the regex transpiler unless the regex engine itself changes.
   `[]uint16` and TypeScript `Readonly<Uint16Array>`. Reads may widen with `as usize`
   for dictionary indexing. U16 arithmetic, narrowing casts, public parameters,
   return types, and struct fields remain outside the subset.
+- Numeric logarithm CHECKs such as `ln(amount) > 0` need private floating-point
+  precision estimates while decimal arithmetic determines the SQL result. Accept
+  explicitly suffixed finite `f64` literals, scalar locals/returns, literal constants,
+  arithmetic, comparisons, negation, and `abs` / `ln` / `log10`. Widen only `i32`
+  to `f64`; narrowing to `i32` truncates and saturates like Rust, with NaN becoming
+  zero. Preserve signed zero and rounded intermediate products in both targets.
+  Floating-point fields, enum payloads, tables, remainder and other methods remain
+  rejected. Public SQL numeric values retain their decimal string representation.
+- Decimal iteration may replace a mutable Clone record binding as a whole.
+  Its fields must remain scalar or Copy payloads; field mutation and assignment
+  to immutable bindings remain rejected. Record replacement must preserve prior
+  snapshots and inputs in both targets.
 - Calendar constructors use signed `i32` multiplication, division, and remainder.
   Division truncates toward zero. Both division and remainder reject zero
   divisors and the signed minimum with a divisor of negative one. Multiplication
