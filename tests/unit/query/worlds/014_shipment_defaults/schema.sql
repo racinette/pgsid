@@ -289,3 +289,72 @@ CREATE TABLE shipment_package_dimensions (
   CONSTRAINT package_dimension_scale CHECK (CASE WHEN skip THEN true ELSE scale(pg_catalog.sqrt(squared_dimension)) = scale_record END),
   CONSTRAINT package_dimension_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(pg_catalog.sqrt(squared_dimension)) = wire_record END)
 );
+
+CREATE TABLE shipment_fee_logarithms (
+    id integer PRIMARY KEY,
+    skip boolean NOT NULL DEFAULT false,
+    fee numeric,
+    logarithm_record numeric,
+    scale_record integer,
+    wire_record bytea,
+    CONSTRAINT shipment_fee_ln_value CHECK (CASE WHEN skip THEN true ELSE ln(fee) = logarithm_record END),
+    CONSTRAINT shipment_fee_numeric_ln_value CHECK (CASE WHEN skip THEN true ELSE numeric_ln(fee) = logarithm_record END),
+    CONSTRAINT shipment_fee_ln_scale CHECK (CASE WHEN skip THEN true ELSE scale(ln(fee)) = scale_record END),
+    CONSTRAINT shipment_fee_ln_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(ln(fee)) = wire_record END)
+);
+
+CREATE TABLE shipment_fee_log_bases (
+    id integer PRIMARY KEY,
+    skip boolean NOT NULL DEFAULT false,
+    base numeric,
+    fee numeric,
+    logarithm_record numeric,
+    scale_record integer,
+    wire_record bytea,
+    CONSTRAINT shipment_fee_log_bases_value CHECK (CASE WHEN skip THEN true ELSE log(base, fee) = logarithm_record END),
+    CONSTRAINT shipment_fee_log_bases_alias CHECK (CASE WHEN skip THEN true ELSE numeric_log(base, fee) = logarithm_record END),
+    CONSTRAINT shipment_fee_log_bases_scale CHECK (CASE WHEN skip THEN true ELSE scale(log(base, fee)) = scale_record END),
+    CONSTRAINT shipment_fee_log_bases_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(log(base, fee)) = wire_record END)
+);
+
+CREATE TABLE shipment_fee_decimal_logs (
+    id integer PRIMARY KEY,
+    skip boolean NOT NULL DEFAULT false,
+    fee numeric,
+    logarithm_record numeric,
+    scale_record integer,
+    wire_record bytea,
+    CONSTRAINT shipment_fee_decimal_logs_value CHECK (CASE WHEN skip THEN true ELSE log(fee) = logarithm_record END),
+    CONSTRAINT shipment_fee_decimal_logs_alias CHECK (CASE WHEN skip THEN true ELSE log10(fee) = logarithm_record END),
+    CONSTRAINT shipment_fee_decimal_logs_scale CHECK (CASE WHEN skip THEN true ELSE scale(log(fee)) = scale_record END),
+    CONSTRAINT shipment_fee_decimal_logs_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(log(fee)) = wire_record END)
+);
+
+CREATE TABLE shipment_fee_exponentials (
+    id integer PRIMARY KEY,
+    skip boolean NOT NULL DEFAULT false,
+    fee numeric,
+    exponential_record numeric,
+    scale_record integer,
+    wire_record bytea,
+    CONSTRAINT shipment_fee_exp_value CHECK (CASE WHEN skip THEN true ELSE exp(fee) = exponential_record END),
+    CONSTRAINT shipment_fee_numeric_exp_value CHECK (CASE WHEN skip THEN true ELSE numeric_exp(fee) = exponential_record END),
+    CONSTRAINT shipment_fee_exp_scale CHECK (CASE WHEN skip THEN true ELSE scale(exp(fee)) = scale_record END),
+    CONSTRAINT shipment_fee_exp_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(exp(fee)) = wire_record END)
+);
+
+CREATE TABLE shipment_fee_powers (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL DEFAULT false,
+  fee numeric,
+  exponent numeric,
+  power_record numeric,
+  scale_record integer,
+  wire_record bytea,
+  CONSTRAINT shipment_fee_power_value CHECK (CASE WHEN skip THEN true ELSE power(fee, exponent) = power_record END),
+  CONSTRAINT shipment_fee_pow_value CHECK (CASE WHEN skip THEN true ELSE pow(fee, exponent) = power_record END),
+  CONSTRAINT shipment_fee_numeric_power_value CHECK (CASE WHEN skip THEN true ELSE numeric_power(fee, exponent) = power_record END),
+  CONSTRAINT shipment_fee_power_operator CHECK (CASE WHEN skip THEN true ELSE fee ^ exponent = power_record END),
+  CONSTRAINT shipment_fee_power_scale CHECK (CASE WHEN skip THEN true ELSE scale(power(fee, exponent)) = scale_record END),
+  CONSTRAINT shipment_fee_power_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(power(fee, exponent)) = wire_record END)
+);

@@ -1499,6 +1499,11 @@ describe('world CHECK INSERT parity', () => {
       ['shipment_fee_histograms', 1],
       ['shipment_package_permutations', 3],
       ['shipment_package_dimensions', 4],
+      ['shipment_fee_logarithms', 4],
+      ['shipment_fee_log_bases', 4],
+      ['shipment_fee_decimal_logs', 4],
+      ['shipment_fee_exponentials', 4],
+      ['shipment_fee_powers', 6],
     ] as const) {
       const checks = [...coverage].filter(([identity]) =>
         identity.startsWith(`world_014_shipment_defaults.${table}.`),
@@ -1515,6 +1520,11 @@ describe('world CHECK INSERT parity', () => {
           table === 'shipment_fee_histograms' ||
           table === 'shipment_package_permutations' ||
           table === 'shipment_package_dimensions' ||
+          table === 'shipment_fee_logarithms' ||
+          table === 'shipment_fee_log_bases' ||
+          table === 'shipment_fee_decimal_logs' ||
+          table === 'shipment_fee_exponentials' ||
+          table === 'shipment_fee_powers' ||
           [
             'fee_sum',
             'fee_product',

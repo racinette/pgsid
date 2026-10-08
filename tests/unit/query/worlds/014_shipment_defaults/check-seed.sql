@@ -1211,3 +1211,539 @@ VALUES ('26'::integer, false, NULL, '0'::numeric, '0'::integer, '\x'::bytea);
 -- name: shipment_package_dimensions_skipped
 INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
 VALUES ('27'::integer, true, '-1'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_logarithms_sample_0
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (1, false, '1'::numeric, '0.0000000000000000'::numeric, '16'::integer, '\x0000000000000010'::bytea);
+
+-- name: shipment_fee_logarithms_sample_1
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (2, false, '1.0000'::numeric, '0.0000000000000000'::numeric, '16'::integer, '\x0000000000000010'::bytea);
+
+-- name: shipment_fee_logarithms_sample_2
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (3, false, '2'::numeric, '0.6931471805599453'::numeric, '16'::integer, '\x0004ffff000000101b13126e022f24ed'::bytea);
+
+-- name: shipment_fee_logarithms_wrong_value
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (4, false, '2'::numeric, '0'::numeric, '16'::integer, '\x0004ffff000000101b13126e022f24ed'::bytea);
+
+-- name: shipment_fee_logarithms_wrong_scale
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (5, false, '2'::numeric, '0.6931471805599453'::numeric, '0'::integer, '\x0004ffff000000101b13126e022f24ed'::bytea);
+
+-- name: shipment_fee_logarithms_wrong_wire
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (6, false, '2'::numeric, '0.6931471805599453'::numeric, '16'::integer, '\x00'::bytea);
+
+-- name: shipment_fee_logarithms_sample_3
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (7, false, '3'::numeric, '1.0986122886681097'::numeric, '16'::integer, '\x0005000000000010000103da04cc21dc0449'::bytea);
+
+-- name: shipment_fee_logarithms_sample_4
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (8, false, '10'::numeric, '2.3025850929940457'::numeric, '16'::integer, '\x000500000000001000020bd1213d0bb201c9'::bytea);
+
+-- name: shipment_fee_logarithms_sample_5
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (9, false, '0.1'::numeric, '-2.3025850929940457'::numeric, '16'::integer, '\x000500004000001000020bd1213d0bb201c9'::bytea);
+
+-- name: shipment_fee_logarithms_sample_6
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (10, false, '0.9'::numeric, '-0.10536051565782630'::numeric, '17'::integer, '\x0004ffff40000011041d17a316192047'::bytea);
+
+-- name: shipment_fee_logarithms_sample_7
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (11, false, '1.1'::numeric, '0.09531017980432486'::numeric, '17'::integer, '\x0005ffff0000001103b903f9264c0cb01770'::bytea);
+
+-- name: shipment_fee_logarithms_sample_8
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (12, false, '0.99999999'::numeric, '-0.000000010000000050000000'::numeric, '24'::integer, '\x0004fffe400000180001000000001388'::bytea);
+
+-- name: shipment_fee_logarithms_sample_9
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (13, false, '1.00000001'::numeric, '0.000000009999999950000000'::numeric, '24'::integer, '\x0003fffd00000018270f270f1388'::bytea);
+
+-- name: shipment_fee_logarithms_sample_10
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (14, false, '1.2345678901234567890123456789'::numeric, '0.2107210223156525610550017105'::numeric, '28'::integer, '\x0007ffff0000001c083b0836090b197d17d913891bc1'::bytea);
+
+-- name: shipment_fee_logarithms_sample_11
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (15, false, '1e-100'::numeric, '-230.2585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298342'::numeric, '100'::integer, '\x001a00004000006400e60a1903a124bc163400b323b9124c0e3a02f8044d13160b3d0ba0014d0ae603c7165e03c71cb812c20e0f1c25037f26652096'::bytea);
+
+-- name: shipment_fee_logarithms_sample_12
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (16, false, '1e100'::numeric, '230.25850929940457'::numeric, '14'::integer, '\x000500000000000e00e60a1903a124bc1644'::bytea);
+
+-- name: shipment_fee_logarithms_sample_13
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (17, false, 'NaN'::numeric, 'NaN'::numeric, NULL, '\x00000000c0000000'::bytea);
+
+-- name: shipment_fee_logarithms_sample_14
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (18, false, 'Infinity'::numeric, 'Infinity'::numeric, NULL, '\x00000000d0000020'::bytea);
+
+-- name: shipment_fee_logarithms_null
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (19, false, NULL, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_logarithms_zero_error
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (20, false, '0'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_logarithms_negative_error
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (21, false, '-1'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_logarithms_infinity_error
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (22, false, '-Infinity'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_logarithms_skipped_error
+INSERT INTO shipment_fee_logarithms (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (23, true, '-1'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_log_bases_sample_0
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (1, false, '2'::numeric, '8'::numeric, '3.0000000000000000'::numeric, '16'::integer, '\x00010000000000100003'::bytea);
+
+-- name: shipment_fee_log_bases_wrong_value
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (2, false, '2'::numeric, '8'::numeric, 'NaN'::numeric, '16'::integer, '\x00010000000000100003'::bytea);
+
+-- name: shipment_fee_log_bases_wrong_scale
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (3, false, '2'::numeric, '8'::numeric, '3.0000000000000000'::numeric, '0'::integer, '\x00010000000000100003'::bytea);
+
+-- name: shipment_fee_log_bases_wrong_wire
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (4, false, '2'::numeric, '8'::numeric, '3.0000000000000000'::numeric, '16'::integer, '\x00'::bytea);
+
+-- name: shipment_fee_log_bases_sample_1
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (5, false, '4'::numeric, '16'::numeric, '2.0000000000000000'::numeric, '16'::integer, '\x00010000000000100002'::bytea);
+
+-- name: shipment_fee_log_bases_sample_2
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (6, false, '0.5'::numeric, '4'::numeric, '-2.0000000000000000'::numeric, '16'::integer, '\x00010000400000100002'::bytea);
+
+-- name: shipment_fee_log_bases_sample_3
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (7, false, '10'::numeric, '0.01'::numeric, '-2.0000000000000000'::numeric, '16'::integer, '\x00010000400000100002'::bytea);
+
+-- name: shipment_fee_log_bases_sample_4
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (8, false, '2'::numeric, '1'::numeric, '0.0000000000000000'::numeric, '16'::integer, '\x0000000000000010'::bytea);
+
+-- name: shipment_fee_log_bases_sample_5
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (9, false, '1.00000001'::numeric, '2'::numeric, '69314718.40256812'::numeric, '8'::integer, '\x00040001000000081b13126e0fb91a9c'::bytea);
+
+-- name: shipment_fee_log_bases_sample_6
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (10, false, '0.99999999'::numeric, '2'::numeric, '-69314717.70942094'::numeric, '8'::integer, '\x00040001400000081b13126d1bb6082e'::bytea);
+
+-- name: shipment_fee_log_bases_sample_7
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (11, false, '10'::numeric, '1e-100'::numeric, '-100.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'::numeric, '100'::integer, '\x00010000400000640064'::bytea);
+
+-- name: shipment_fee_log_bases_sample_8
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (12, false, 'NaN'::numeric, '-1'::numeric, 'NaN'::numeric, NULL, '\x00000000c0000000'::bytea);
+
+-- name: shipment_fee_log_bases_sample_9
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (13, false, '-1'::numeric, 'NaN'::numeric, 'NaN'::numeric, NULL, '\x00000000c0000000'::bytea);
+
+-- name: shipment_fee_log_bases_sample_10
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (14, false, 'Infinity'::numeric, '2'::numeric, '0'::numeric, '0'::integer, '\x0000000000000000'::bytea);
+
+-- name: shipment_fee_log_bases_sample_11
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (15, false, 'Infinity'::numeric, 'Infinity'::numeric, 'NaN'::numeric, NULL, '\x00000000c0000000'::bytea);
+
+-- name: shipment_fee_log_bases_sample_12
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (16, false, '0.5'::numeric, 'Infinity'::numeric, 'Infinity'::numeric, NULL, '\x00000000d0000020'::bytea);
+
+-- name: shipment_fee_log_bases_sample_13
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (17, false, '1'::numeric, 'Infinity'::numeric, 'Infinity'::numeric, NULL, '\x00000000d0000020'::bytea);
+
+-- name: shipment_fee_log_bases_sample_14
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (18, false, NULL, '1'::numeric, NULL, NULL, NULL);
+
+-- name: shipment_fee_log_bases_sample_15
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (19, false, '2'::numeric, NULL, NULL, NULL, NULL);
+
+-- name: shipment_fee_log_bases_sample_16
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (20, false, '1'::numeric, '2'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_log_bases_sample_17
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (21, false, '0'::numeric, '2'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_log_bases_sample_18
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (22, false, '2'::numeric, '0'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_log_bases_sample_19
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (23, false, '-1'::numeric, '2'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_log_bases_sample_20
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (24, false, '2'::numeric, '-1'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_log_bases_sample_21
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (25, false, '-Infinity'::numeric, '2'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_log_bases_skipped_error
+INSERT INTO shipment_fee_log_bases (id, skip, base, fee, logarithm_record, scale_record, wire_record)
+VALUES (26, true, '1'::numeric, '-1'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_0
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (1, false, '1'::numeric, '0.0000000000000000'::numeric, '16'::integer, '\x0000000000000010'::bytea);
+
+-- name: shipment_fee_decimal_logs_wrong_value
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (2, false, '1'::numeric, 'NaN'::numeric, '16'::integer, '\x0000000000000010'::bytea);
+
+-- name: shipment_fee_decimal_logs_wrong_scale
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (3, false, '1'::numeric, '0.0000000000000000'::numeric, '0'::integer, '\x0000000000000010'::bytea);
+
+-- name: shipment_fee_decimal_logs_wrong_wire
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (4, false, '1'::numeric, '0.0000000000000000'::numeric, '16'::integer, '\x00'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_1
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (5, false, '1.0000'::numeric, '0.0000000000000000'::numeric, '16'::integer, '\x0000000000000010'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_2
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (6, false, '2'::numeric, '0.3010299956639812'::numeric, '16'::integer, '\x0004ffff000000100bc20bb7161f2654'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_3
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (7, false, '10'::numeric, '1.0000000000000000'::numeric, '16'::integer, '\x00010000000000100001'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_4
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (8, false, '0.1'::numeric, '-1.0000000000000000'::numeric, '16'::integer, '\x00010000400000100001'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_5
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (9, false, '0.99999999'::numeric, '-0.000000004342944840747243'::numeric, '24'::integer, '\x0004fffd4000001810f624e80fea1c4b'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_6
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (10, false, '1.00000001'::numeric, '0.000000004342944797317794'::numeric, '24'::integer, '\x0004fffd0000001810f624e726031e72'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_7
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (11, false, '1e-100'::numeric, '-100.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'::numeric, '100'::integer, '\x00010000400000640064'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_8
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (12, false, '1e100'::numeric, '100.00000000000000'::numeric, '14'::integer, '\x000100000000000e0064'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_9
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (13, false, 'NaN'::numeric, 'NaN'::numeric, NULL, '\x00000000c0000000'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_10
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (14, false, 'Infinity'::numeric, 'Infinity'::numeric, NULL, '\x00000000d0000020'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_11
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (15, false, NULL, NULL, NULL, NULL);
+
+-- name: shipment_fee_decimal_logs_sample_12
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (16, false, '0'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_13
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (17, false, '-1'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_decimal_logs_sample_14
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (18, false, '-Infinity'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_decimal_logs_skipped_error
+INSERT INTO shipment_fee_decimal_logs (id, skip, fee, logarithm_record, scale_record, wire_record)
+VALUES (19, true, '-1'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_exponentials_sample_0
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (1, false, '0'::numeric, '1.0000000000000000'::numeric, '16'::integer, '\x00010000000000100001'::bytea);
+
+-- name: shipment_fee_exponentials_sample_1
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (2, false, '0.0000'::numeric, '1.0000000000000000'::numeric, '16'::integer, '\x00010000000000100001'::bytea);
+
+-- name: shipment_fee_exponentials_sample_2
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (3, false, '1'::numeric, '2.7182818284590452'::numeric, '16'::integer, '\x000500000000001000021c0e1ff6210b01c4'::bytea);
+
+-- name: shipment_fee_exponentials_sample_3
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (4, false, '-1'::numeric, '0.3678794411714423'::numeric, '16'::integer, '\x0004ffff000000100e5e1f0804931147'::bytea);
+
+-- name: shipment_fee_exponentials_sample_4
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (5, false, '2'::numeric, '7.3890560989306502'::numeric, '16'::integer, '\x000500000000001000070f3215e922e21966'::bytea);
+
+-- name: shipment_fee_exponentials_wrong_value
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (6, false, '2'::numeric, '0'::numeric, '16'::integer, '\x000500000000001000070f3215e922e21966'::bytea);
+
+-- name: shipment_fee_exponentials_wrong_scale
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (7, false, '2'::numeric, '7.3890560989306502'::numeric, '0'::integer, '\x000500000000001000070f3215e922e21966'::bytea);
+
+-- name: shipment_fee_exponentials_wrong_wire
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (8, false, '2'::numeric, '7.3890560989306502'::numeric, '16'::integer, '\x00'::bytea);
+
+-- name: shipment_fee_exponentials_sample_5
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (9, false, '-2'::numeric, '0.1353352832366127'::numeric, '16'::integer, '\x0004ffff0000001005490dc80ca417ef'::bytea);
+
+-- name: shipment_fee_exponentials_sample_6
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (10, false, '10'::numeric, '22026.465794806717'::numeric, '12'::integer, '\x000500010000000c000207ea123125081a3d'::bytea);
+
+-- name: shipment_fee_exponentials_sample_7
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (11, false, '-10'::numeric, '0.00004539992976248485'::numeric, '20'::integer, '\x0004fffe0000001411bb26c91dc82125'::bytea);
+
+-- name: shipment_fee_exponentials_sample_8
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (12, false, '0.01'::numeric, '1.0100501670841681'::numeric, '16'::integer, '\x00050000000000100001006413981bac0691'::bytea);
+
+-- name: shipment_fee_exponentials_sample_9
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (13, false, '-0.01'::numeric, '0.9900498337491681'::numeric, '16'::integer, '\x0004ffff0000001026ac13770ea50691'::bytea);
+
+-- name: shipment_fee_exponentials_sample_10
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (14, false, '22.5'::numeric, '5910522063.0232906'::numeric, '7'::integer, '\x0005000200000007003b041c080f00e82364'::bytea);
+
+-- name: shipment_fee_exponentials_sample_11
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (15, false, '100.0000'::numeric, '26881171418161354484126255515800135873611118.7737'::numeric, '4'::integer, '\x000c000a000000040a800493105517f7118404ee15af16a8054e1cc1045e1e39'::bytea);
+
+-- name: shipment_fee_exponentials_sample_12
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (16, false, '-100'::numeric, '0.00000000000000000000000000000000000000000003720075976020836'::numeric, '59'::integer, '\x0005fff50000003b00031c201dad178420a8'::bytea);
+
+-- name: shipment_fee_exponentials_sample_13
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (17, false, '1000'::numeric, '197007111401704699388887935224332312531693798532384578995280299138506385078244119347497807656302688993096381798752022693598298173054461289923262783660152825232320535169584566756192271567602788071422466826314006855168508653497941660316045367817938092905299728580132869945856470286534375900456564355589156220422320260518826112288638358372248724725214506150418881937494100871264232248436315760560377439930623959705844189509050047074217568'::numeric, '0'::integer, '\x006d006c0000000000c50047047406a81b5122b81eff08c30c9f09e31b19267d0950169d2538012b0569027e13d60989078e1d491f8c15fe0a8026ca25a607061d6008dd0e0e0ba51c89116d0b5309160adf19c914a214700c850dbc2570162315f308df162c01161f8710801a1a18aa0044158c213c19862642067c0c5811b81e8924a4244a14b31c751f4d0b3524f2160f011e14df1da601c8160b15b623c4089c08b8010414440a3308f018ef16cd08c81c4f09d9119a05e007600791134d005704f0091212eb18ab1db517951d0f245a095b25e920f922f6235a01d61cfd1d90'::bytea);
+
+-- name: shipment_fee_exponentials_sample_14
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (18, false, '-1000'::numeric, '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005075958897549457'::numeric, '450'::integer, '\x0005ff93000001c200321dab22c115761644'::bytea);
+
+-- name: shipment_fee_exponentials_sample_15
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (19, false, '-2000'::numeric, '0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002576535872961150'::numeric, '884'::integer, '\x0004ff26000003740a1014ee1c80047e'::bytea);
+
+-- name: shipment_fee_exponentials_sample_16
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (20, false, '1e-100'::numeric, '1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001'::numeric, '100'::integer, '\x001a00000000006400010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001'::bytea);
+
+-- name: shipment_fee_exponentials_sample_17
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (21, false, 'NaN'::numeric, 'NaN'::numeric, NULL, '\x00000000c0000000'::bytea);
+
+-- name: shipment_fee_exponentials_sample_18
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (22, false, 'Infinity'::numeric, 'Infinity'::numeric, NULL, '\x00000000d0000020'::bytea);
+
+-- name: shipment_fee_exponentials_sample_19
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (23, false, '-Infinity'::numeric, '0'::numeric, '0'::integer, '\x0000000000000000'::bytea);
+
+-- name: shipment_fee_exponentials_null
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (24, false, NULL, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_exponentials_overflow_boundary
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (25, false, '6000'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_exponentials_overflow_large
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (26, false, '1e100'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_exponentials_underflow
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (27, false, '-6000'::numeric, '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'::numeric, '1000'::integer, '\x00000000000003e8'::bytea);
+
+-- name: shipment_fee_exponentials_skipped_error
+INSERT INTO shipment_fee_exponentials (id, skip, fee, exponential_record, scale_record, wire_record)
+VALUES (28, true, '6000'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_powers_sample_0
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (1, false, '0'::numeric, '0'::numeric, '1.0000000000000000'::numeric, '16'::integer, '\x00010000000000100001'::bytea);
+
+-- name: shipment_fee_powers_sample_1
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (2, false, '0'::numeric, '0.5'::numeric, '0.0000000000000000'::numeric, '16'::integer, '\x0000000000000010'::bytea);
+
+-- name: shipment_fee_powers_sample_2
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (3, false, '0'::numeric, '-1'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_powers_sample_3
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (4, false, '2'::numeric, '3'::numeric, '8.0000000000000000'::numeric, '16'::integer, '\x00010000000000100008'::bytea);
+
+-- name: shipment_fee_powers_wrong_value
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (5, false, '2'::numeric, '3'::numeric, 'NaN'::numeric, '16'::integer, '\x00010000000000100008'::bytea);
+
+-- name: shipment_fee_powers_wrong_scale
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (6, false, '2'::numeric, '3'::numeric, '8.0000000000000000'::numeric, '0'::integer, '\x00010000000000100008'::bytea);
+
+-- name: shipment_fee_powers_wrong_wire
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (7, false, '2'::numeric, '3'::numeric, '8.0000000000000000'::numeric, '16'::integer, '\x00'::bytea);
+
+-- name: shipment_fee_powers_sample_4
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (8, false, '2'::numeric, '-3'::numeric, '0.1250000000000000'::numeric, '16'::integer, '\x0001ffff0000001004e2'::bytea);
+
+-- name: shipment_fee_powers_sample_5
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (9, false, '2'::numeric, '0.5'::numeric, '1.4142135623730950'::numeric, '16'::integer, '\x00050000000000100001102e054c094503b6'::bytea);
+
+-- name: shipment_fee_powers_sample_6
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (10, false, '4'::numeric, '0.5'::numeric, '2.0000000000000000'::numeric, '16'::integer, '\x00010000000000100002'::bytea);
+
+-- name: shipment_fee_powers_sample_7
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (11, false, '0.1'::numeric, '-2'::numeric, '100.00000000000000'::numeric, '14'::integer, '\x000100000000000e0064'::bytea);
+
+-- name: shipment_fee_powers_sample_8
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (12, false, '-2'::numeric, '3'::numeric, '-8.0000000000000000'::numeric, '16'::integer, '\x00010000400000100008'::bytea);
+
+-- name: shipment_fee_powers_sample_9
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (13, false, '-2'::numeric, '-3'::numeric, '-0.1250000000000000'::numeric, '16'::integer, '\x0001ffff4000001004e2'::bytea);
+
+-- name: shipment_fee_powers_sample_10
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (14, false, '-2'::numeric, '0.5'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_powers_sample_11
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (15, false, '1.0000'::numeric, '2.0000'::numeric, '1.0000000000000000'::numeric, '16'::integer, '\x00010000000000100001'::bytea);
+
+-- name: shipment_fee_powers_sample_12
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (16, false, '0.99999999'::numeric, '2147483647'::numeric, '0.0000000004716251699123178'::numeric, '25'::integer, '\x0005fffd0000001901d7186b1b4f090d1f40'::bytea);
+
+-- name: shipment_fee_powers_sample_13
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (17, false, '1.00000001'::numeric, '2147483647'::numeric, '2120327431.71356483'::numeric, '8'::integer, '\x0005000200000008001507f01d071bdf1953'::bytea);
+
+-- name: shipment_fee_powers_sample_14
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (18, false, '-1'::numeric, '2147483649'::numeric, '-1.0000000000000000'::numeric, '16'::integer, '\x00010000400000100001'::bytea);
+
+-- name: shipment_fee_powers_sample_15
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (19, false, '2'::numeric, '2147483648'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_powers_sample_16
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (20, false, '2'::numeric, '-2147483648'::numeric, '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'::numeric, '1000'::integer, '\x00000000000003e8'::bytea);
+
+-- name: shipment_fee_powers_sample_17
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (21, false, '1e100'::numeric, '0.5'::numeric, '100000000000000000000000000000000000000000000000000.0'::numeric, '1'::integer, '\x0001000c000000010064'::bytea);
+
+-- name: shipment_fee_powers_sample_18
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (22, false, '1e-100'::numeric, '0.5'::numeric, '0.0000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000'::numeric, '100'::integer, '\x0001fff3000000640064'::bytea);
+
+-- name: shipment_fee_powers_sample_19
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (23, false, 'NaN'::numeric, '0'::numeric, '1'::numeric, '0'::integer, '\x00010000000000000001'::bytea);
+
+-- name: shipment_fee_powers_sample_20
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (24, false, 'NaN'::numeric, '1'::numeric, 'NaN'::numeric, NULL, '\x00000000c0000000'::bytea);
+
+-- name: shipment_fee_powers_sample_21
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (25, false, '1'::numeric, 'NaN'::numeric, '1'::numeric, '0'::integer, '\x00010000000000000001'::bytea);
+
+-- name: shipment_fee_powers_sample_22
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (26, false, '-1'::numeric, 'NaN'::numeric, 'NaN'::numeric, NULL, '\x00000000c0000000'::bytea);
+
+-- name: shipment_fee_powers_sample_23
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (27, false, 'Infinity'::numeric, '2'::numeric, 'Infinity'::numeric, NULL, '\x00000000d0000020'::bytea);
+
+-- name: shipment_fee_powers_sample_24
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (28, false, '-Infinity'::numeric, '3'::numeric, '-Infinity'::numeric, NULL, '\x00000000f0000020'::bytea);
+
+-- name: shipment_fee_powers_sample_25
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (29, false, '-Infinity'::numeric, '2'::numeric, 'Infinity'::numeric, NULL, '\x00000000d0000020'::bytea);
+
+-- name: shipment_fee_powers_sample_26
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (30, false, '-Infinity'::numeric, '-3'::numeric, '0'::numeric, '0'::integer, '\x0000000000000000'::bytea);
+
+-- name: shipment_fee_powers_sample_27
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (31, false, '-Infinity'::numeric, '0.5'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_powers_sample_28
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (32, false, '0.5'::numeric, 'Infinity'::numeric, '0'::numeric, '0'::integer, '\x0000000000000000'::bytea);
+
+-- name: shipment_fee_powers_sample_29
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (33, false, '0.5'::numeric, '-Infinity'::numeric, 'Infinity'::numeric, NULL, '\x00000000d0000020'::bytea);
+
+-- name: shipment_fee_powers_sample_30
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (34, false, '-1'::numeric, 'Infinity'::numeric, '1'::numeric, '0'::integer, '\x00010000000000000001'::bytea);
+
+-- name: shipment_fee_powers_sample_31
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (35, false, '0'::numeric, '-Infinity'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_fee_powers_sample_32
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (36, false, NULL, '3'::numeric, NULL, NULL, NULL);
+
+-- name: shipment_fee_powers_sample_33
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (37, false, '2'::numeric, NULL, NULL, NULL, NULL);
+
+-- name: shipment_fee_powers_skipped_error
+INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
+VALUES (38, true, '-2'::numeric, '0.5'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);

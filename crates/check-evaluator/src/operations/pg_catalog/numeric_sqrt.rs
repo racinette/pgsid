@@ -1,20 +1,6 @@
 const NUMERIC_SQRT_INVALID_ARGUMENT: u32 = 3452595;
 
-fn numeric_square_root(work: NumericWork) -> NumericValue {
-    let mut group_weight = work.weight / 4;
-    if work.weight % 4 < 0 {
-        group_weight = group_weight - 1;
-    }
-    let mut scale = 15 - group_weight * 2;
-    if scale < work.scale {
-        scale = work.scale;
-    }
-    if scale < 0 {
-        scale = 0;
-    }
-    if scale > 1000 {
-        scale = 1000;
-    }
+fn numeric_square_root_scaled(work: NumericWork, scale: i32) -> NumericWork {
     let mut weight = work.weight / 2;
     if work.weight % 2 < 0 {
         weight = weight - 1;
@@ -145,7 +131,7 @@ fn numeric_square_root(work: NumericWork) -> NumericValue {
         sign = 0;
         weight = 0;
     }
-    numeric_work_round(
+    numeric_work_rounded(
         NumericWork {
             valid: true,
             special: 1,
@@ -157,6 +143,25 @@ fn numeric_square_root(work: NumericWork) -> NumericValue {
         scale,
         1,
     )
+}
+
+fn numeric_square_root(work: NumericWork) -> NumericValue {
+    let mut group_weight = work.weight / 4;
+    if work.weight % 4 < 0 {
+        group_weight = group_weight - 1;
+    }
+    let mut scale = 15 - group_weight * 2;
+    if scale < work.scale {
+        scale = work.scale;
+    }
+    if scale < 0 {
+        scale = 0;
+    }
+    if scale > 1000 {
+        scale = 1000;
+    }
+    let rounded = numeric_square_root_scaled(work, scale);
+    NumericValue::Value(numeric_work_text(rounded))
 }
 
 pub fn sql__pg_catalog__numeric_sqrt__t0uy(input: NumericValue) -> NumericValue {

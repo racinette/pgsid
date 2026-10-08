@@ -8584,6 +8584,25 @@ func numericWorkAdd(left numericWork, right numericWork, subtract bool) checkrun
 	}
 	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
 }
+func numericProductWords(characters []rune) []numericWireDigit {
+	characters = langruntime.CheckedChars(characters)
+	words := []numericWireDigit{}
+	end := len(characters)
+	for end > 0 {
+		value := 0
+		factor := 1
+		width := 0
+		for end > 0 && width < 4 {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+			value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, langruntime.CheckedSignedMultiply(numericWireDecimalDigit(characters[end]), factor)))
+			factor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(factor, 10))
+			width = langruntime.CheckedI32(langruntime.CheckedSignedAdd(width, 1))
+		}
+		langruntime.CheckedAdd(len(words), 1)
+		words = append(words, copynumericWireDigit(numericWireDigit{value: value}))
+	}
+	return words
+}
 func numericWorkProduct(left numericWork, right numericWork) numericWork {
 	left = copynumericWork(left)
 	right = copynumericWork(right)
@@ -8591,62 +8610,78 @@ func numericWorkProduct(left numericWork, right numericWork) numericWork {
 	sign := langruntime.CheckedSignedMultiply(left.sign, right.sign)
 	first := []rune(left.digits)
 	second := []rune(right.digits)
-	result := []numericWireDigit{}
-	index := 0
 	aCount := 0
 	bCount := 0
+	index := 0
 	for index < len(first) {
-		langruntime.CheckedAdd(len(result), 1)
-		result = append(result, copynumericWireDigit(numericWireDigit{value: 0}))
 		aCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(aCount, 1))
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	index = langruntime.CheckedIndex(0)
 	for index < len(second) {
-		langruntime.CheckedAdd(len(result), 1)
-		result = append(result, copynumericWireDigit(numericWireDigit{value: 0}))
 		bCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bCount, 1))
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	langruntime.CheckedAdd(len(result), 1)
-	result = append(result, copynumericWireDigit(numericWireDigit{value: 0}))
+	a := numericProductWords(first)
+	b := numericProductWords(second)
+	result := []numericWireDigit{}
+	index = langruntime.CheckedIndex(0)
+	for index < langruntime.CheckedAdd(langruntime.CheckedAdd(len(a), len(b)), 1) {
+		langruntime.CheckedAdd(len(result), 1)
+		result = append(result, copynumericWireDigit(numericWireDigit{value: 0}))
+		index = langruntime.CheckedAdd(index, 1)
+	}
 	aIndex := 0
-	for aIndex < len(first) {
-		a := numericWireDecimalDigit(first[langruntime.CheckedSubtract(langruntime.CheckedSubtract(len(first), aIndex), 1)])
+	for aIndex < len(a) {
 		bIndex := 0
 		carry := 0
-		for bIndex < len(second) {
-			b := numericWireDecimalDigit(second[langruntime.CheckedSubtract(langruntime.CheckedSubtract(len(second), bIndex), 1)])
+		for bIndex < len(b) {
 			offset := langruntime.CheckedAdd(aIndex, bIndex)
-			product := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(a, b), result[offset].value), carry)
-			result[offset] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(product, 10)})
-			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(product, 10))
+			product := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(a[aIndex].value, b[bIndex].value), result[offset].value), carry)
+			result[offset] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(product, 10000)})
+			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(product, 10000))
 			bIndex = langruntime.CheckedAdd(bIndex, 1)
 		}
 		offset := langruntime.CheckedAdd(aIndex, bIndex)
 		for carry > 0 {
-			digit := langruntime.CheckedSignedAdd(result[offset].value, carry)
-			result[offset] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(digit, 10)})
-			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(digit, 10))
+			word := langruntime.CheckedSignedAdd(result[offset].value, carry)
+			result[offset] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(word, 10000)})
+			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(word, 10000))
 			offset = langruntime.CheckedAdd(offset, 1)
 		}
 		aIndex = langruntime.CheckedAdd(aIndex, 1)
 	}
-	count := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(aCount, bCount), 1)
 	end := len(result)
 	for end > 0 && result[langruntime.CheckedSubtract(end, 1)].value == 0 {
 		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
-		count = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(count, 1))
+	}
+	coefficient := ""
+	count := 0
+	for end > 0 {
+		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		word := result[end].value
+		place := 1000
+		for place > 0 {
+			digit := langruntime.CheckedSignedDivide(word, place)
+			word = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(word, place))
+			if coefficient != "" || digit != 0 {
+				coefficient = coefficient + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(digit, 48)), '0')))
+				count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+			}
+			place = langruntime.CheckedI32(langruntime.CheckedSignedDivide(place, 10))
+		}
 	}
 	weight := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(left.weight, right.weight), count), aCount), bCount), 1)
-	firstDigit := 0
-	for firstDigit < end && result[firstDigit].value == 0 {
-		firstDigit = langruntime.CheckedAdd(firstDigit, 1)
+	characters := []rune(coefficient)
+	end = langruntime.CheckedIndex(len(characters))
+	for end > 0 && characters[langruntime.CheckedSubtract(end, 1)] == '0' {
+		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 	}
 	digits := ""
-	for end > firstDigit {
-		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
-		digits = digits + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(result[end].value, 48)), '0')))
+	index = langruntime.CheckedIndex(0)
+	for index < end {
+		digits = digits + string(langruntime.CheckedChar(characters[index]))
+		index = langruntime.CheckedAdd(index, 1)
 	}
 	if sign == 0 {
 		weight = langruntime.CheckedI32(0)
@@ -9187,6 +9222,121 @@ func NumericMod8ywz(left checkruntime.NumericValue, right checkruntime.NumericVa
 }
 func Mod4p6l(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
 	return numericDivision(left, right, 2)
+}
+
+var numericExpLog10E = float64(0.434294481903252)
+
+func numericExponentialScale(input numericWork) int {
+	input = copynumericWork(input)
+	value := numericWorkText(copynumericWork(input))
+	parsed := langruntime.F64FromText(value, float64(0.0))
+	estimate := langruntime.F64Multiply(parsed, numericExpLog10E)
+	if estimate < float64(-2000.0) {
+		estimate = float64(-2000.0)
+	}
+	if estimate > float64(2000.0) {
+		estimate = float64(2000.0)
+	}
+	scale := langruntime.CheckedSignedSubtract(16, langruntime.F64ToI32(estimate))
+	if scale < input.scale {
+		scale = langruntime.CheckedI32(input.scale)
+	}
+	if scale < 0 {
+		scale = langruntime.CheckedI32(0)
+	}
+	if scale > 1000 {
+		scale = langruntime.CheckedI32(1000)
+	}
+	return scale
+}
+func numericExponentialWork(input numericWork, scale int) numericWork {
+	input = copynumericWork(input)
+	scale = langruntime.CheckedI32(scale)
+	text := numericWorkText(copynumericWork(input))
+	estimate := langruntime.F64FromText(text, float64(0.0))
+	if langruntime.F64Abs(estimate) >= float64(6000.0) {
+		if estimate > float64(0.0) {
+			return numericWork{valid: false, special: 1, sign: 0, weight: 0, scale: scale, digits: ""}
+		}
+		return numericWorkRounded(numericWorkFromValue("0"), scale, 1)
+	}
+	weight := langruntime.F64ToI32((langruntime.F64Multiply(estimate, numericExpLog10E)))
+	divisions := 0
+	divisor := 1
+	x := input
+	for langruntime.F64Abs(estimate) > float64(0.01) {
+		divisions = langruntime.CheckedI32(langruntime.CheckedSignedAdd(divisions, 1))
+		divisor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(divisor, 2))
+		estimate = langruntime.F64Divide(estimate, float64(2.0))
+	}
+	if divisions > 0 {
+		localScale := langruntime.CheckedSignedAdd(x.scale, divisions)
+		denominator := numericWorkFromValue(checkruntime.TextNumber(divisor, 10))
+		x = copynumericWork(numericWorkRounded(numericDivisionWork(x, denominator, localScale, true), localScale, 1))
+	}
+	extra := langruntime.F64ToI32((langruntime.F64Multiply(float64(divisions), float64(0.301029995663981))))
+	significant := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(1, weight), scale), extra)
+	if significant < 0 {
+		significant = langruntime.CheckedI32(0)
+	}
+	significant = langruntime.CheckedI32(langruntime.CheckedSignedAdd(significant, 8))
+	localScale := langruntime.CheckedSignedSubtract(significant, 1)
+	result := numericWorkSum(numericWorkFromValue("1"), copynumericWork(x), false)
+	product := numericWorkProduct(copynumericWork(x), copynumericWork(x))
+	term := numericWorkRounded(product, localScale, 1)
+	number := 2
+	term = copynumericWork(numericWorkRounded(numericDivisionWork(term, numericWorkFromValue("2"), localScale, true), localScale, 1))
+	for term.sign != 0 {
+		result = copynumericWork(numericWorkSum(result, copynumericWork(term), false))
+		term = copynumericWork(numericWorkRounded(numericWorkProduct(term, copynumericWork(x)), localScale, 1))
+		number = langruntime.CheckedI32(langruntime.CheckedSignedAdd(number, 1))
+		denominator := numericWorkFromValue(checkruntime.TextNumber(number, 10))
+		term = copynumericWork(numericWorkRounded(numericDivisionWork(term, denominator, localScale, true), localScale, 1))
+	}
+	for divisions > 0 {
+		squareScale := langruntime.CheckedSignedSubtract(significant, langruntime.CheckedSignedMultiply(numericMathGroupWeight(copynumericWork(result)), 8))
+		if squareScale < 0 {
+			squareScale = langruntime.CheckedI32(0)
+		}
+		result = copynumericWork(numericWorkRounded(numericWorkProduct(copynumericWork(result), result), squareScale, 1))
+		divisions = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(divisions, 1))
+	}
+	return numericWorkRounded(result, scale, 1)
+}
+func NumericExpFi9j(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		if work.special == 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+		}
+		if work.special != 1 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
+		}
+		scale := numericExponentialScale(copynumericWork(work))
+		result := numericExponentialWork(work, scale)
+		if result.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+		}
+		return numericWorkRound(result, scale, 1)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func ExpAo9b(input checkruntime.NumericValue) checkruntime.NumericValue {
+	return NumericExpFi9j(input)
 }
 func FactorialTah6(input checkruntime.Int8Value) checkruntime.NumericValue {
 	if input.Kind == checkruntime.Int8ValueError {
@@ -9797,6 +9947,549 @@ func Numeric11bc(input checkruntime.Int8Value) checkruntime.NumericValue {
 	}
 	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
 }
+
+const numericLogInvalidArgument = 3452594
+
+var numericLnTenEstimate = float64(2.302585092994046)
+
+func numericMathGroupWeight(work numericWork) int {
+	work = copynumericWork(work)
+	group := langruntime.CheckedSignedDivide(work.weight, 4)
+	if langruntime.CheckedSignedRemainder(work.weight, 4) < 0 {
+		group = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(group, 1))
+	}
+	return group
+}
+func numericLogarithmWeight(work numericWork) int {
+	work = copynumericWork(work)
+	lower := numericWorkFromValue("0.9")
+	upper := numericWorkFromValue("1.1")
+	if numericWorkMagnitude(copynumericWork(work), lower) >= 0 && numericWorkMagnitude(copynumericWork(work), upper) <= 0 {
+		difference := numericWorkSum(work, numericWorkFromValue("1"), true)
+		if difference.sign == 0 {
+			return 0
+		}
+		return difference.weight
+	}
+	groupWeight := numericMathGroupWeight(copynumericWork(work))
+	width := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(work.weight, langruntime.CheckedSignedMultiply(groupWeight, 4)), 1)
+	exponent := langruntime.CheckedSignedMultiply(groupWeight, 4)
+	characters := []rune(work.digits)
+	index := 0
+	leading := 0
+	for width > 0 {
+		leading = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(leading, 10))
+		if index < len(characters) {
+			leading = langruntime.CheckedI32(langruntime.CheckedSignedAdd(leading, numericWireDecimalDigit(characters[index])))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		width = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(width, 1))
+	}
+	if index < len(characters) {
+		width = langruntime.CheckedI32(4)
+		exponent = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(exponent, 4))
+		for width > 0 {
+			leading = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(leading, 10))
+			if index < len(characters) {
+				leading = langruntime.CheckedI32(langruntime.CheckedSignedAdd(leading, numericWireDecimalDigit(characters[index])))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			width = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(width, 1))
+		}
+	}
+	coefficient := float64(leading)
+	decimalWeight := float64(exponent)
+	estimate := langruntime.F64Add(langruntime.F64Ln(coefficient), langruntime.F64Multiply(decimalWeight, numericLnTenEstimate))
+	return langruntime.F64ToI32(langruntime.F64Log10(langruntime.F64Abs(estimate)))
+}
+func numericLogarithmWork(input numericWork, scale int) numericWork {
+	input = copynumericWork(input)
+	scale = langruntime.CheckedI32(scale)
+	one := numericWorkFromValue("1")
+	lower := numericWorkFromValue("0.9")
+	upper := numericWorkFromValue("1.1")
+	work := input
+	roots := 0
+	factor := 2
+	for numericWorkMagnitude(copynumericWork(work), copynumericWork(lower)) <= 0 {
+		localScale := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(scale, langruntime.CheckedSignedMultiply(numericMathGroupWeight(copynumericWork(work)), 2)), 8)
+		work = copynumericWork(numericSquareRootScaled(work, localScale))
+		factor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(factor, 2))
+		roots = langruntime.CheckedI32(langruntime.CheckedSignedAdd(roots, 1))
+	}
+	for numericWorkMagnitude(copynumericWork(work), copynumericWork(upper)) >= 0 {
+		localScale := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(scale, langruntime.CheckedSignedMultiply(numericMathGroupWeight(copynumericWork(work)), 2)), 8)
+		work = copynumericWork(numericSquareRootScaled(work, localScale))
+		factor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(factor, 2))
+		roots = langruntime.CheckedI32(langruntime.CheckedSignedAdd(roots, 1))
+	}
+	extra := langruntime.F64ToI32((langruntime.F64Multiply(float64((langruntime.CheckedSignedAdd(roots, 1))), float64(0.301029995663981))))
+	localScale := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(scale, extra), 8)
+	numerator := numericWorkSum(copynumericWork(work), copynumericWork(one), true)
+	denominator := numericWorkSum(work, one, false)
+	quotient := numericDivisionWork(numerator, denominator, localScale, true)
+	result := numericWorkRounded(quotient, localScale, 1)
+	term := copynumericWork(result)
+	product := numericWorkProduct(copynumericWork(result), copynumericWork(result))
+	square := numericWorkRounded(product, localScale, 1)
+	divisor := 1
+	advancing := true
+	for advancing {
+		divisor = langruntime.CheckedI32(langruntime.CheckedSignedAdd(divisor, 2))
+		product := numericWorkProduct(term, copynumericWork(square))
+		term = copynumericWork(numericWorkRounded(product, localScale, 1))
+		denominator := numericWorkFromValue(checkruntime.TextNumber(divisor, 10))
+		quotient := numericDivisionWork(copynumericWork(term), denominator, localScale, true)
+		element := numericWorkRounded(quotient, localScale, 1)
+		if element.sign == 0 {
+			advancing = false
+		} else {
+			result = copynumericWork(numericWorkSum(result, copynumericWork(element), false))
+			if numericMathGroupWeight(element) < langruntime.CheckedSignedSubtract(numericMathGroupWeight(copynumericWork(result)), langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(localScale, 2), 4)) {
+				advancing = false
+			}
+		}
+	}
+	multiplier := numericWorkFromValue(checkruntime.TextNumber(factor, 10))
+	return numericWorkRounded(numericWorkProduct(result, multiplier), scale, 1)
+}
+func NumericLnOkv6(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		if work.special == 0 || (work.special == 1 && work.sign <= 0) {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericLogInvalidArgument)}
+		}
+		if work.special != 1 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
+		}
+		scale := langruntime.CheckedSignedSubtract(16, numericLogarithmWeight(copynumericWork(work)))
+		if scale < work.scale {
+			scale = langruntime.CheckedI32(work.scale)
+		}
+		if scale < 0 {
+			scale = langruntime.CheckedI32(0)
+		}
+		if scale > 1000 {
+			scale = langruntime.CheckedI32(1000)
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericLogarithmWork(work, scale))}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func Ln05bs(input checkruntime.NumericValue) checkruntime.NumericValue {
+	return NumericLnOkv6(input)
+}
+func numericBaseLogarithm(base numericWork, input numericWork) checkruntime.NumericValue {
+	base = copynumericWork(base)
+	input = copynumericWork(input)
+	if base.special == 3 || input.special == 3 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+	}
+	if base.special == 0 || input.special == 0 || (base.special == 1 && base.sign <= 0) || (input.special == 1 && input.sign <= 0) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericLogInvalidArgument)}
+	}
+	if base.special == 2 {
+		if input.special == 2 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+	}
+	if input.special == 2 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+	}
+	baseWeight := numericLogarithmWeight(copynumericWork(base))
+	inputWeight := numericLogarithmWeight(copynumericWork(input))
+	resultWeight := langruntime.CheckedSignedSubtract(inputWeight, baseWeight)
+	scale := langruntime.CheckedSignedSubtract(16, resultWeight)
+	if scale < base.scale {
+		scale = langruntime.CheckedI32(base.scale)
+	}
+	if scale < input.scale {
+		scale = langruntime.CheckedI32(input.scale)
+	}
+	if scale < 0 {
+		scale = langruntime.CheckedI32(0)
+	}
+	if scale > 1000 {
+		scale = langruntime.CheckedI32(1000)
+	}
+	baseScale := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(scale, resultWeight), baseWeight), 8)
+	if baseScale < 0 {
+		baseScale = langruntime.CheckedI32(0)
+	}
+	inputScale := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(scale, resultWeight), inputWeight), 8)
+	if inputScale < 0 {
+		inputScale = langruntime.CheckedI32(0)
+	}
+	denominator := numericLogarithmWork(base, baseScale)
+	numerator := numericLogarithmWork(input, inputScale)
+	if denominator.sign == 0 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(sqlstateDivisionByZero)}
+	}
+	quotient := numericDivisionWork(numerator, denominator, scale, true)
+	return numericWorkRound(quotient, scale, 1)
+}
+func NumericLog8gwh(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	if left.Kind == checkruntime.NumericValueError {
+		error := left.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if right.Kind == checkruntime.NumericValueError {
+		error := right.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if left.Kind == checkruntime.NumericValueValue {
+		base := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.NumericValueValue {
+			input := langruntime.CheckedString(right.Value)
+			first := numericWorkFromValue(base)
+			second := numericWorkFromValue(input)
+			if first.valid == false || second.valid == false {
+				return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+			}
+			return numericBaseLogarithm(first, second)
+		}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func Log94cu(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	return NumericLog8gwh(left, right)
+}
+func LogWnnd(input checkruntime.NumericValue) checkruntime.NumericValue {
+	return NumericLog8gwh(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "10"}, input)
+}
+func Log10Dgh7(input checkruntime.NumericValue) checkruntime.NumericValue {
+	return LogWnnd(input)
+}
+
+const numericPowerInvalidArgument = 3452595
+
+func numericPowerSign(work numericWork) int {
+	work = copynumericWork(work)
+	if work.special == 0 {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if work.special == 2 {
+		return 1
+	}
+	return work.sign
+}
+func numericPowerIntegral(work numericWork) bool {
+	work = copynumericWork(work)
+	if work.special == 3 {
+		return false
+	}
+	if work.special != 1 {
+		return true
+	}
+	return numericWorkMinScale(work) == 0
+}
+func numericPowerOdd(work numericWork) bool {
+	work = copynumericWork(work)
+	characters := []rune(work.digits)
+	position := work.weight
+	index := 0
+	for index < len(characters) {
+		if position == 0 {
+			return langruntime.CheckedSignedRemainder(numericWireDecimalDigit(characters[index]), 2) != 0
+		}
+		index = langruntime.CheckedAdd(index, 1)
+		position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
+	}
+	return false
+}
+func numericPowerPositive(work numericWork) numericWork {
+	work = copynumericWork(work)
+	sign := work.sign
+	if sign < 0 {
+		sign = langruntime.CheckedI32(1)
+	}
+	return numericWork{valid: work.valid, special: work.special, sign: sign, weight: work.weight, scale: work.scale, digits: work.digits}
+}
+func numericPowerDecimalEstimate(work numericWork) float64 {
+	work = copynumericWork(work)
+	if work.sign == 0 {
+		return float64(0.0)
+	}
+	characters := []rune(work.digits)
+	groupWeight := numericMathGroupWeight(copynumericWork(work))
+	exponent := langruntime.CheckedSignedMultiply(groupWeight, 4)
+	width := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(work.weight, exponent), 1)
+	index := 0
+	leading := float64(0.0)
+	groups := 0
+	advancing := true
+	for advancing {
+		digit := 0
+		for width > 0 {
+			digit = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(digit, 10))
+			if index < len(characters) {
+				digit = langruntime.CheckedI32(langruntime.CheckedSignedAdd(digit, numericWireDecimalDigit(characters[index])))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			width = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(width, 1))
+		}
+		leading = langruntime.F64Add(langruntime.F64Multiply(leading, float64(10000.0)), float64(digit))
+		groups = langruntime.CheckedI32(langruntime.CheckedSignedAdd(groups, 1))
+		if index < len(characters) && groups < 4 {
+			width = langruntime.CheckedI32(4)
+			exponent = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(exponent, 4))
+		} else {
+			advancing = false
+		}
+	}
+	return langruntime.F64Add(langruntime.F64Log10(leading), float64(exponent))
+}
+func numericPowerScale(estimate float64, baseScale int, exponentScale int) int {
+	baseScale = langruntime.CheckedI32(baseScale)
+	exponentScale = langruntime.CheckedI32(exponentScale)
+	scale := langruntime.CheckedSignedSubtract(16, langruntime.F64ToI32(estimate))
+	if scale < baseScale {
+		scale = langruntime.CheckedI32(baseScale)
+	}
+	if scale < exponentScale {
+		scale = langruntime.CheckedI32(exponentScale)
+	}
+	if scale < 0 {
+		scale = langruntime.CheckedI32(0)
+	}
+	if scale > 1000 {
+		scale = langruntime.CheckedI32(1000)
+	}
+	return scale
+}
+func numericPowerInteger(base numericWork, exponent int, exponentScale int) checkruntime.NumericValue {
+	base = copynumericWork(base)
+	exponent = langruntime.CheckedI32(exponent)
+	exponentScale = langruntime.CheckedI32(exponentScale)
+	estimate := langruntime.F64Multiply(float64(exponent), numericPowerDecimalEstimate(copynumericWork(base)))
+	if estimate > float64(131072.0) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+	}
+	if langruntime.F64Add(estimate, float64(1.0)) < float64(-1000.0) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWorkRounded(numericWorkFromValue("0"), 1000, 1))}
+	}
+	scale := numericPowerScale(estimate, base.scale, exponentScale)
+	if exponent == 0 {
+		return numericWorkRound(numericWorkFromValue("1"), scale, 1)
+	}
+	if exponent == 1 {
+		return numericWorkRound(base, scale, 1)
+	}
+	if exponent == langruntime.CheckedSignedNegate(1) {
+		return numericWorkRound(numericDivisionWork(numericWorkFromValue("1"), base, scale, true), scale, 1)
+	}
+	if exponent == 2 {
+		return numericWorkRound(numericWorkProduct(copynumericWork(base), base), scale, 1)
+	}
+	if base.sign == 0 {
+		return numericWorkRound(base, scale, 1)
+	}
+	significant := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(1, scale), langruntime.F64ToI32(estimate))
+	significant = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(significant, langruntime.F64ToI32((langruntime.F64Ln(langruntime.F64Abs((float64(exponent))))))), 8))
+	negative := exponent < 0
+	mask := int64(langruntime.CheckedI32(exponent))
+	if negative {
+		mask = langruntime.CheckedI64Subtract(int64(0), mask)
+	}
+	product := copynumericWork(base)
+	result := numericWorkFromValue("1")
+	if langruntime.CheckedI64Remainder(mask, int64(2)) != int64(0) {
+		result = copynumericWork(base)
+	}
+	mask = langruntime.CheckedI64Divide(mask, int64(2))
+	for mask > int64(0) {
+		localScale := langruntime.CheckedSignedSubtract(significant, langruntime.CheckedSignedMultiply(numericMathGroupWeight(copynumericWork(product)), 8))
+		if localScale > langruntime.CheckedSignedMultiply(product.scale, 2) {
+			localScale = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(product.scale, 2))
+		}
+		if localScale < 0 {
+			localScale = langruntime.CheckedI32(0)
+		}
+		product = copynumericWork(numericWorkRounded(numericWorkProduct(copynumericWork(product), product), localScale, 1))
+		if langruntime.CheckedI64Remainder(mask, int64(2)) != int64(0) {
+			localScale = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(significant, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(numericMathGroupWeight(copynumericWork(product)), numericMathGroupWeight(copynumericWork(result)))), 4)))
+			if localScale > langruntime.CheckedSignedAdd(product.scale, result.scale) {
+				localScale = langruntime.CheckedI32(langruntime.CheckedSignedAdd(product.scale, result.scale))
+			}
+			if localScale < 0 {
+				localScale = langruntime.CheckedI32(0)
+			}
+			result = copynumericWork(numericWorkRounded(numericWorkProduct(copynumericWork(product), result), localScale, 1))
+		}
+		if numericMathGroupWeight(copynumericWork(product)) > 32767 || numericMathGroupWeight(copynumericWork(result)) > 32767 {
+			if negative == false {
+				return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+			}
+			result = copynumericWork(numericWorkFromValue("0"))
+			negative = false
+			mask = int64(0)
+		}
+		mask = langruntime.CheckedI64Divide(mask, int64(2))
+	}
+	if negative {
+		return numericWorkRound(numericDivisionWork(numericWorkFromValue("1"), result, scale, true), scale, 1)
+	}
+	return numericWorkRound(result, scale, 1)
+}
+func numericPowerFractional(base numericWork, exponent numericWork) checkruntime.NumericValue {
+	base = copynumericWork(base)
+	exponent = copynumericWork(exponent)
+	if base.sign == 0 {
+		return numericWorkRound(base, 16, 1)
+	}
+	negative := base.sign < 0 && numericPowerOdd(copynumericWork(exponent))
+	positive := numericPowerPositive(base)
+	logarithmWeight := numericLogarithmWeight(copynumericWork(positive))
+	localScale := langruntime.CheckedSignedSubtract(8, logarithmWeight)
+	if localScale < 0 {
+		localScale = langruntime.CheckedI32(0)
+	}
+	preliminaryLogarithm := numericLogarithmWork(copynumericWork(positive), localScale)
+	preliminary := numericWorkRounded(numericWorkProduct(preliminaryLogarithm, copynumericWork(exponent)), localScale, 1)
+	text := numericWorkText(preliminary)
+	estimate := langruntime.F64FromText(text, float64(0.0))
+	if langruntime.F64Abs(estimate) > float64(6020.0) {
+		if estimate > float64(0.0) {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+		}
+		return numericWorkRound(numericWorkFromValue("0"), 1000, 1)
+	}
+	estimate = langruntime.F64Multiply(estimate, numericExpLog10E)
+	scale := numericPowerScale(estimate, positive.scale, exponent.scale)
+	significant := langruntime.CheckedSignedAdd(scale, langruntime.F64ToI32(estimate))
+	if significant < 0 {
+		significant = langruntime.CheckedI32(0)
+	}
+	localScale = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(significant, logarithmWeight), 8))
+	if localScale < 0 {
+		localScale = langruntime.CheckedI32(0)
+	}
+	logarithm := numericLogarithmWork(positive, localScale)
+	argument := numericWorkRounded(numericWorkProduct(logarithm, exponent), localScale, 1)
+	result := numericExponentialWork(argument, scale)
+	if result.valid == false {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+	}
+	sign := result.sign
+	if negative && sign != 0 {
+		sign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+	}
+	signed := numericWork{valid: true, special: 1, sign: sign, weight: result.weight, scale: result.scale, digits: result.digits}
+	return numericWorkRound(signed, scale, 1)
+}
+func numericPowerValues(base numericWork, exponent numericWork) checkruntime.NumericValue {
+	base = copynumericWork(base)
+	exponent = copynumericWork(exponent)
+	one := numericWorkFromValue("1")
+	if base.special == 3 {
+		if exponent.special == 1 && exponent.sign == 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "1"}
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+	}
+	if exponent.special == 3 {
+		if base.special == 1 && base.sign == 1 && numericWorkMagnitude(copynumericWork(base), copynumericWork(one)) == 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "1"}
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+	}
+	baseSign := numericPowerSign(copynumericWork(base))
+	exponentSign := numericPowerSign(copynumericWork(exponent))
+	if (baseSign == 0 && exponentSign < 0) || (baseSign < 0 && numericPowerIntegral(copynumericWork(exponent)) == false) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericPowerInvalidArgument)}
+	}
+	if base.special != 1 || exponent.special != 1 {
+		if (base.special == 1 && baseSign == 1 && numericWorkMagnitude(copynumericWork(base), copynumericWork(one)) == 0) || exponentSign == 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "1"}
+		}
+		if baseSign == 0 && exponentSign > 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+		}
+		if exponent.special != 1 {
+			if base.special == 1 && numericWorkMagnitude(copynumericWork(base), copynumericWork(one)) == 0 {
+				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "1"}
+			}
+			greater := base.special != 1 || numericWorkMagnitude(base, one) > 0
+			if greater == (exponentSign > 0) {
+				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+			}
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+		}
+		if exponentSign < 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "0"}
+		}
+		if base.special == 0 && numericPowerOdd(exponent) {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-Infinity"}
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+	}
+	if numericPowerIntegral(copynumericWork(exponent)) && (exponent.sign == 0 || exponent.weight <= 9) {
+		converted := numericIntegerValue(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(copynumericWork(exponent))})
+		if converted.Kind == checkruntime.Int8ValueValue {
+			value := converted.Value
+			if value >= int64(-2147483648) && value <= int64(2147483647) {
+				return numericPowerInteger(base, int(int32(value)), exponent.scale)
+			}
+		}
+	}
+	return numericPowerFractional(base, exponent)
+}
+func NumericPowerN7g8(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	if left.Kind == checkruntime.NumericValueError {
+		error := left.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if right.Kind == checkruntime.NumericValueError {
+		error := right.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if left.Kind == checkruntime.NumericValueValue {
+		base := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.NumericValueValue {
+			exponent := langruntime.CheckedString(right.Value)
+			first := numericWorkFromValue(base)
+			second := numericWorkFromValue(exponent)
+			if first.valid == false || second.valid == false {
+				return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+			}
+			return numericPowerValues(first, second)
+		}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func PowerJfdf(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	return NumericPowerN7g8(left, right)
+}
+func Pow8fdt(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	return NumericPowerN7g8(left, right)
+}
 func numericRangeValues(value string, base string, offset string, subtract bool, less bool) checkruntime.BoolValue {
 	value = langruntime.CheckedString(value)
 	base = langruntime.CheckedString(base)
@@ -10294,22 +10987,9 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 
 const numericSqrtInvalidArgument = 3452595
 
-func numericSquareRoot(work numericWork) checkruntime.NumericValue {
+func numericSquareRootScaled(work numericWork, scale int) numericWork {
 	work = copynumericWork(work)
-	groupWeight := langruntime.CheckedSignedDivide(work.weight, 4)
-	if langruntime.CheckedSignedRemainder(work.weight, 4) < 0 {
-		groupWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(groupWeight, 1))
-	}
-	scale := langruntime.CheckedSignedSubtract(15, langruntime.CheckedSignedMultiply(groupWeight, 2))
-	if scale < work.scale {
-		scale = langruntime.CheckedI32(work.scale)
-	}
-	if scale < 0 {
-		scale = langruntime.CheckedI32(0)
-	}
-	if scale > 1000 {
-		scale = langruntime.CheckedI32(1000)
-	}
+	scale = langruntime.CheckedI32(scale)
 	weight := langruntime.CheckedSignedDivide(work.weight, 2)
 	if langruntime.CheckedSignedRemainder(work.weight, 2) < 0 {
 		weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
@@ -10440,7 +11120,26 @@ func numericSquareRoot(work numericWork) checkruntime.NumericValue {
 		sign = langruntime.CheckedI32(0)
 		weight = langruntime.CheckedI32(0)
 	}
-	return numericWorkRound(numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: coefficient}, scale, 1)
+	return numericWorkRounded(numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: coefficient}, scale, 1)
+}
+func numericSquareRoot(work numericWork) checkruntime.NumericValue {
+	work = copynumericWork(work)
+	groupWeight := langruntime.CheckedSignedDivide(work.weight, 4)
+	if langruntime.CheckedSignedRemainder(work.weight, 4) < 0 {
+		groupWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(groupWeight, 1))
+	}
+	scale := langruntime.CheckedSignedSubtract(15, langruntime.CheckedSignedMultiply(groupWeight, 2))
+	if scale < work.scale {
+		scale = langruntime.CheckedI32(work.scale)
+	}
+	if scale < 0 {
+		scale = langruntime.CheckedI32(0)
+	}
+	if scale > 1000 {
+		scale = langruntime.CheckedI32(1000)
+	}
+	rounded := numericSquareRootScaled(work, scale)
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(rounded)}
 }
 func NumericSqrtT0uy(input checkruntime.NumericValue) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueError {
@@ -10657,27 +11356,10 @@ func numericWorkMinScale(work numericWork) int {
 	}
 	return scale
 }
-func numericWorkRound(work numericWork, requested int, mode int) checkruntime.NumericValue {
+func numericWorkRounded(work numericWork, scale int, mode int) numericWork {
 	work = copynumericWork(work)
-	requested = langruntime.CheckedI32(requested)
+	scale = langruntime.CheckedI32(scale)
 	mode = langruntime.CheckedI32(mode)
-	if work.valid == false {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
-	}
-	if work.special != 1 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
-	}
-	scale := requested
-	minimum := langruntime.CheckedSignedNegate(131072)
-	if mode == 1 {
-		minimum = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(minimum, 1))
-	}
-	if scale < minimum {
-		scale = langruntime.CheckedI32(minimum)
-	}
-	if scale > 16383 {
-		scale = langruntime.CheckedI32(16383)
-	}
 	original := []rune(work.digits)
 	boundary := langruntime.CheckedSignedSubtract(0, scale)
 	digits := []rune{}
@@ -10750,14 +11432,38 @@ func numericWorkRound(work numericWork, requested int, mode int) checkruntime.Nu
 		sign = langruntime.CheckedI32(0)
 		weight = langruntime.CheckedI32(0)
 	}
-	if weight > 131071 {
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
-	}
 	outputScale := scale
 	if outputScale < 0 {
 		outputScale = langruntime.CheckedI32(0)
 	}
-	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: outputScale, digits: coefficient})}
+	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: outputScale, digits: coefficient}
+}
+func numericWorkRound(work numericWork, requested int, mode int) checkruntime.NumericValue {
+	work = copynumericWork(work)
+	requested = langruntime.CheckedI32(requested)
+	mode = langruntime.CheckedI32(mode)
+	if work.valid == false {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if work.special != 1 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
+	}
+	scale := requested
+	minimum := langruntime.CheckedSignedNegate(131072)
+	if mode == 1 {
+		minimum = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(minimum, 1))
+	}
+	if scale < minimum {
+		scale = langruntime.CheckedI32(minimum)
+	}
+	if scale > 16383 {
+		scale = langruntime.CheckedI32(16383)
+	}
+	rounded := numericWorkRounded(work, scale, mode)
+	if rounded.weight > 131071 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(rounded)}
 }
 func Int24eqCfkl(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	leftWide := checkruntime.Int2ToInt4(left)
