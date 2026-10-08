@@ -348,6 +348,7 @@ const SQL_ERROR_INVALID_WIDTH_BUCKET: u32 = 3452596;
 const SQL_ERROR_INVALID_PARAMETER: u32 = 3452619;
 const SQL_ERROR_INVALID_ESCAPE: u32 = 3452621;
 const SQL_ERROR_INVALID_TEXT_REPRESENTATION: u32 = 3484946;
+const SQL_ERROR_UNDEFINED_OBJECT: u32 = 6820852;
 const SQL_ERROR_STRING_LENGTH_MISMATCH: u32 = 3452622;
 const SQL_ERROR_STRING_RIGHT_TRUNCATION: u32 = 3452545;
 const SQL_ERROR_ARRAY_SUBSCRIPT: u32 = 3452630;
@@ -356,6 +357,11 @@ const SQL_ERROR_PROGRAM_LIMIT: u32 = 8584704;
 const SQL_ERROR_INTERNAL: u32 = 56966976;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_UNDEFINED_OBJECT {
+        return SqlErrorDescription {
+            message: "undefined object",
+        };
+    }
     if error.state == SQL_ERROR_FEATURE_NOT_SUPPORTED {
         return SqlErrorDescription {
             message: "feature not supported",

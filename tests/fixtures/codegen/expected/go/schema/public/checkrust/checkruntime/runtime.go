@@ -393,6 +393,7 @@ const sqlErrorInvalidWidthBucket = 3452596
 const sqlErrorInvalidParameter = 3452619
 const sqlErrorInvalidEscape = 3452621
 const sqlErrorInvalidTextRepresentation = 3484946
+const sqlErrorUndefinedObject = 6820852
 const sqlErrorStringLengthMismatch = 3452622
 const sqlErrorStringRightTruncation = 3452545
 const sqlErrorArraySubscript = 3452630
@@ -401,6 +402,9 @@ const sqlErrorProgramLimit = 8584704
 const sqlErrorInternal = 56966976
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorUndefinedObject {
+		return SqlErrorDescription{Message: "undefined object"}
+	}
 	if error.State == sqlErrorFeatureNotSupported {
 		return SqlErrorDescription{Message: "feature not supported"}
 	}
