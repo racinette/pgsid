@@ -37,7 +37,7 @@ fn numeric_work_magnitude(left: NumericWork, right: NumericWork) -> i32 {
     0
 }
 
-fn numeric_work_add(left: NumericWork, right: NumericWork, subtract: bool) -> NumericValue {
+fn numeric_work_sum(left: NumericWork, right: NumericWork, subtract: bool) -> NumericWork {
     let mut scale = left.scale;
     if right.scale > scale {
         scale = right.scale;
@@ -134,20 +134,25 @@ fn numeric_work_add(left: NumericWork, right: NumericWork, subtract: bool) -> Nu
         sign = 0;
         weight = 0;
     }
-    if weight > 131071 {
-        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
-    }
-    NumericValue::Value(numeric_work_text(NumericWork {
+    NumericWork {
         valid: true,
         special: 1,
         sign: sign,
         weight: weight,
         scale: scale,
         digits: digits,
-    }))
+    }
 }
 
-fn numeric_work_multiply(left: NumericWork, right: NumericWork) -> NumericValue {
+fn numeric_work_add(left: NumericWork, right: NumericWork, subtract: bool) -> NumericValue {
+    let work = numeric_work_sum(left, right, subtract);
+    if work.weight > 131071 {
+        return NumericValue::Error(make_sql_error(NUMERIC_SUPPORT_RANGE_ERROR));
+    }
+    NumericValue::Value(numeric_work_text(work))
+}
+
+fn numeric_work_product(left: NumericWork, right: NumericWork) -> NumericWork {
     let scale = left.scale + right.scale;
     let sign = left.sign * right.sign;
     let first: Vec<char> = left.digits.chars().collect();
@@ -211,18 +216,20 @@ fn numeric_work_multiply(left: NumericWork, right: NumericWork) -> NumericValue 
     if sign == 0 {
         weight = 0;
     }
-    numeric_work_round(
-        NumericWork {
-            valid: true,
-            special: 1,
-            sign: sign,
-            weight: weight,
-            scale: scale,
-            digits: digits,
-        },
-        scale,
-        1,
-    )
+    NumericWork {
+        valid: true,
+        special: 1,
+        sign: sign,
+        weight: weight,
+        scale: scale,
+        digits: digits,
+    }
+}
+
+fn numeric_work_multiply(left: NumericWork, right: NumericWork) -> NumericValue {
+    let work = numeric_work_product(left, right);
+    let scale = work.scale;
+    numeric_work_round(work, scale, 1)
 }
 
 fn numeric_arithmetic(left: NumericValue, right: NumericValue, mode: i32) -> NumericValue {

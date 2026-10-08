@@ -8471,7 +8471,7 @@ func numericWorkMagnitude(left numericWork, right numericWork) int {
 	}
 	return 0
 }
-func numericWorkAdd(left numericWork, right numericWork, subtract bool) checkruntime.NumericValue {
+func numericWorkSum(left numericWork, right numericWork, subtract bool) numericWork {
 	left = copynumericWork(left)
 	right = copynumericWork(right)
 	scale := left.scale
@@ -8573,12 +8573,18 @@ func numericWorkAdd(left numericWork, right numericWork, subtract bool) checkrun
 		sign = langruntime.CheckedI32(0)
 		weight = langruntime.CheckedI32(0)
 	}
-	if weight > 131071 {
+	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: digits}
+}
+func numericWorkAdd(left numericWork, right numericWork, subtract bool) checkruntime.NumericValue {
+	left = copynumericWork(left)
+	right = copynumericWork(right)
+	work := numericWorkSum(left, right, subtract)
+	if work.weight > 131071 {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
 	}
-	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: digits})}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
 }
-func numericWorkMultiply(left numericWork, right numericWork) checkruntime.NumericValue {
+func numericWorkProduct(left numericWork, right numericWork) numericWork {
 	left = copynumericWork(left)
 	right = copynumericWork(right)
 	scale := langruntime.CheckedSignedAdd(left.scale, right.scale)
@@ -8645,7 +8651,14 @@ func numericWorkMultiply(left numericWork, right numericWork) checkruntime.Numer
 	if sign == 0 {
 		weight = langruntime.CheckedI32(0)
 	}
-	return numericWorkRound(numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: digits}, scale, 1)
+	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: digits}
+}
+func numericWorkMultiply(left numericWork, right numericWork) checkruntime.NumericValue {
+	left = copynumericWork(left)
+	right = copynumericWork(right)
+	work := numericWorkProduct(left, right)
+	scale := work.scale
+	return numericWorkRound(work, scale, 1)
 }
 func numericArithmetic(left checkruntime.NumericValue, right checkruntime.NumericValue, mode int) checkruntime.NumericValue {
 	mode = langruntime.CheckedI32(mode)
@@ -8728,6 +8741,117 @@ func NumericMulBj4l(left checkruntime.NumericValue, right checkruntime.NumericVa
 }
 func NumericInc6dcf(input checkruntime.NumericValue) checkruntime.NumericValue {
 	return NumericAddO3d7(input, checkruntime.MakeNumericValue("1"))
+}
+
+const numericBucketInvalidArgument = 3452596
+
+func numericBucketOrder(left numericWork, right numericWork) int {
+	left = copynumericWork(left)
+	right = copynumericWork(right)
+	if left.special == 0 {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if left.special == 2 {
+		return 1
+	}
+	if left.sign < right.sign {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if left.sign > right.sign {
+		return 1
+	}
+	order := numericWorkMagnitude(copynumericWork(left), right)
+	if left.sign < 0 {
+		return langruntime.CheckedSignedSubtract(0, order)
+	}
+	return order
+}
+func numericBucket(value string, lower string, upper string, count int) checkruntime.Int4Value {
+	value = langruntime.CheckedString(value)
+	lower = langruntime.CheckedString(lower)
+	upper = langruntime.CheckedString(upper)
+	count = langruntime.CheckedI32(count)
+	operand := numericWorkFromValue(value)
+	first := numericWorkFromValue(lower)
+	last := numericWorkFromValue(upper)
+	if operand.valid == false || first.valid == false || last.valid == false {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if count <= 0 || operand.special == 3 || first.special != 1 || last.special != 1 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(numericBucketInvalidArgument)}
+	}
+	direction := numericBucketOrder(copynumericWork(first), copynumericWork(last))
+	if direction == 0 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(numericBucketInvalidArgument)}
+	}
+	start := numericBucketOrder(copynumericWork(operand), copynumericWork(first))
+	end := numericBucketOrder(copynumericWork(operand), copynumericWork(last))
+	if (direction < 0 && start < 0) || (direction > 0 && start > 0) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+	}
+	if (direction < 0 && end >= 0) || (direction > 0 && end <= 0) {
+		if count == 2147483647 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(count, 1)}
+	}
+	distance := numericWorkSum(operand, copynumericWork(first), true)
+	span := numericWorkSum(last, first, true)
+	multiplier := numericWorkFromValue(checkruntime.TextNumber(count, 10))
+	scaled := numericWorkProduct(distance, multiplier)
+	quotient := numericDivisionWork(scaled, span, 0, false)
+	integer := numericIntegerValue(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(quotient)})
+	if integer.Kind == checkruntime.Int8ValueError {
+		error := integer.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if integer.Kind == checkruntime.Int8ValueValue {
+		number := integer.Value
+		if number < int64(0) || number >= int64(2147483647) {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+		}
+		bucket := int(int32(number))
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(bucket, 1)}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func WidthBucketMx75(value checkruntime.NumericValue, lower checkruntime.NumericValue, upper checkruntime.NumericValue, count checkruntime.Int4Value) checkruntime.Int4Value {
+	if value.Kind == checkruntime.NumericValueError {
+		error := value.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if lower.Kind == checkruntime.NumericValueError {
+		error := lower.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if upper.Kind == checkruntime.NumericValueError {
+		error := upper.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if count.Kind == checkruntime.Int4ValueError {
+		error := count.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if value == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || lower == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || upper == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if value == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || lower == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || upper == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if value.Kind == checkruntime.NumericValueValue {
+		input := langruntime.CheckedString(value.Value)
+		if lower.Kind == checkruntime.NumericValueValue {
+			first := langruntime.CheckedString(lower.Value)
+			if upper.Kind == checkruntime.NumericValueValue {
+				last := langruntime.CheckedString(upper.Value)
+				if count.Kind == checkruntime.Int4ValueValue {
+					buckets := langruntime.CheckedI32(count.Value)
+					return numericBucket(input, first, last, buckets)
+				}
+			}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func numericCommonWork(work numericWork, scale int) numericWork {
 	work = copynumericWork(work)
@@ -9063,6 +9187,65 @@ func NumericMod8ywz(left checkruntime.NumericValue, right checkruntime.NumericVa
 }
 func Mod4p6l(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
 	return numericDivision(left, right, 2)
+}
+func FactorialTah6(input checkruntime.Int8Value) checkruntime.NumericValue {
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		value := input.Value
+		if value < int64(0) || value > int64(32177) {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
+		}
+		limit := int(int32(value))
+		words := []numericWireDigit{}
+		langruntime.CheckedAdd(len(words), 1)
+		words = append(words, copynumericWireDigit(numericWireDigit{value: 1}))
+		factor := 2
+		for factor <= limit {
+			carry := 0
+			index := 0
+			for index < len(words) {
+				product := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(words[index].value, factor), carry)
+				words[index] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(product, 10000)})
+				carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(product, 10000))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			for carry > 0 {
+				langruntime.CheckedAdd(len(words), 1)
+				words = append(words, copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(carry, 10000)}))
+				carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(carry, 10000))
+			}
+			factor = langruntime.CheckedI32(langruntime.CheckedSignedAdd(factor, 1))
+		}
+		index := len(words)
+		output := ""
+		for index > 0 {
+			index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+			word := words[index].value
+			if langruntime.CheckedAdd(index, 1) == len(words) {
+				output = output + checkruntime.TextNumber(word, 10)
+			} else {
+				thousands := langruntime.CheckedSignedDivide(word, 1000)
+				hundreds := langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(word, 100)), 10)
+				tens := langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(word, 10)), 10)
+				ones := langruntime.CheckedSignedRemainder(word, 10)
+				output = output + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(thousands, 48)), '0')))
+				output = output + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(hundreds, 48)), '0')))
+				output = output + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(tens, 48)), '0')))
+				output = output + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(ones, 48)), '0')))
+			}
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: output}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
 }
 func numericHashDigits(value string) []checkruntime.HashByte {
 	value = langruntime.CheckedString(value)
@@ -10107,6 +10290,187 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: amount}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
+const numericSqrtInvalidArgument = 3452595
+
+func numericSquareRoot(work numericWork) checkruntime.NumericValue {
+	work = copynumericWork(work)
+	groupWeight := langruntime.CheckedSignedDivide(work.weight, 4)
+	if langruntime.CheckedSignedRemainder(work.weight, 4) < 0 {
+		groupWeight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(groupWeight, 1))
+	}
+	scale := langruntime.CheckedSignedSubtract(15, langruntime.CheckedSignedMultiply(groupWeight, 2))
+	if scale < work.scale {
+		scale = langruntime.CheckedI32(work.scale)
+	}
+	if scale < 0 {
+		scale = langruntime.CheckedI32(0)
+	}
+	if scale > 1000 {
+		scale = langruntime.CheckedI32(1000)
+	}
+	weight := langruntime.CheckedSignedDivide(work.weight, 2)
+	if langruntime.CheckedSignedRemainder(work.weight, 2) < 0 {
+		weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
+	}
+	characters := []rune(work.digits)
+	inputIndex := 0
+	root := []numericWireDigit{}
+	langruntime.CheckedAdd(len(root), 1)
+	root = append(root, copynumericWireDigit(numericWireDigit{value: 0}))
+	remainder := []numericWireDigit{}
+	langruntime.CheckedAdd(len(remainder), 1)
+	remainder = append(remainder, copynumericWireDigit(numericWireDigit{value: 0}))
+	remainderLength := 1
+	coefficient := ""
+	position := weight
+	for position >= langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, scale), 1) && work.sign != 0 {
+		pair := 0
+		sourcePosition := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(position, 2), 1)
+		step := 0
+		for step < 2 {
+			pair = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(pair, 10))
+			if sourcePosition <= work.weight && inputIndex < len(characters) {
+				pair = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pair, numericWireDecimalDigit(characters[inputIndex])))
+				inputIndex = langruntime.CheckedAdd(inputIndex, 1)
+			}
+			sourcePosition = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(sourcePosition, 1))
+			step = langruntime.CheckedI32(langruntime.CheckedSignedAdd(step, 1))
+		}
+		carry := pair
+		cursor := 0
+		for cursor < remainderLength {
+			word := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(remainder[cursor].value, 100), carry)
+			remainder[cursor] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(word, 10000)})
+			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(word, 10000))
+			cursor = langruntime.CheckedAdd(cursor, 1)
+		}
+		if carry > 0 {
+			if remainderLength == len(remainder) {
+				langruntime.CheckedAdd(len(remainder), 1)
+				remainder = append(remainder, copynumericWireDigit(numericWireDigit{value: carry}))
+			} else {
+				remainder[remainderLength] = copynumericWireDigit(numericWireDigit{value: carry})
+			}
+			remainderLength = langruntime.CheckedAdd(remainderLength, 1)
+		}
+		digit := 9
+		searching := true
+		for searching {
+			candidate := []numericWireDigit{}
+			carry = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(digit, digit))
+			cursor = langruntime.CheckedIndex(0)
+			for cursor < len(root) {
+				word := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(root[cursor].value, (langruntime.CheckedSignedMultiply(20, digit))), carry)
+				langruntime.CheckedAdd(len(candidate), 1)
+				candidate = append(candidate, copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(word, 10000)}))
+				carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(word, 10000))
+				cursor = langruntime.CheckedAdd(cursor, 1)
+			}
+			if carry > 0 {
+				langruntime.CheckedAdd(len(candidate), 1)
+				candidate = append(candidate, copynumericWireDigit(numericWireDigit{value: carry}))
+			}
+			candidateLength := len(candidate)
+			for candidateLength > 1 && candidate[langruntime.CheckedSubtract(candidateLength, 1)].value == 0 {
+				candidateLength = langruntime.CheckedIndex(langruntime.CheckedSubtract(candidateLength, 1))
+			}
+			order := 0
+			if remainderLength < candidateLength {
+				order = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+			}
+			if remainderLength > candidateLength {
+				order = langruntime.CheckedI32(1)
+			}
+			cursor = langruntime.CheckedIndex(candidateLength)
+			for order == 0 && cursor > 0 {
+				cursor = langruntime.CheckedIndex(langruntime.CheckedSubtract(cursor, 1))
+				if remainder[cursor].value < candidate[cursor].value {
+					order = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+				}
+				if remainder[cursor].value > candidate[cursor].value {
+					order = langruntime.CheckedI32(1)
+				}
+			}
+			if order >= 0 {
+				borrow := 0
+				cursor = langruntime.CheckedIndex(0)
+				for cursor < remainderLength {
+					word := langruntime.CheckedSignedSubtract(remainder[cursor].value, borrow)
+					if cursor < candidateLength {
+						word = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(word, candidate[cursor].value))
+					}
+					borrow = langruntime.CheckedI32(0)
+					if word < 0 {
+						word = langruntime.CheckedI32(langruntime.CheckedSignedAdd(word, 10000))
+						borrow = langruntime.CheckedI32(1)
+					}
+					remainder[cursor] = copynumericWireDigit(numericWireDigit{value: word})
+					cursor = langruntime.CheckedAdd(cursor, 1)
+				}
+				for remainderLength > 1 && remainder[langruntime.CheckedSubtract(remainderLength, 1)].value == 0 {
+					remainderLength = langruntime.CheckedIndex(langruntime.CheckedSubtract(remainderLength, 1))
+				}
+				searching = false
+			} else {
+				digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(digit, 1))
+			}
+		}
+		carry = langruntime.CheckedI32(digit)
+		cursor = langruntime.CheckedIndex(0)
+		for cursor < len(root) {
+			word := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(root[cursor].value, 10), carry)
+			root[cursor] = copynumericWireDigit(numericWireDigit{value: langruntime.CheckedSignedRemainder(word, 10000)})
+			carry = langruntime.CheckedI32(langruntime.CheckedSignedDivide(word, 10000))
+			cursor = langruntime.CheckedAdd(cursor, 1)
+		}
+		if carry > 0 {
+			langruntime.CheckedAdd(len(root), 1)
+			root = append(root, copynumericWireDigit(numericWireDigit{value: carry}))
+		}
+		coefficient = coefficient + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(digit, 48)), '0')))
+		if inputIndex >= len(characters) && remainderLength == 1 && remainder[0].value == 0 {
+			position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, scale), 1))
+		}
+		position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
+	}
+	sign := 1
+	if coefficient == "" {
+		sign = langruntime.CheckedI32(0)
+		weight = langruntime.CheckedI32(0)
+	}
+	return numericWorkRound(numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: coefficient}, scale, 1)
+}
+func NumericSqrtT0uy(input checkruntime.NumericValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		if work.special == 0 || (work.special == 1 && work.sign < 0) {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSqrtInvalidArgument)}
+		}
+		if work.special != 1 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(work)}
+		}
+		return numericSquareRoot(work)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func Sqrt2lic(input checkruntime.NumericValue) checkruntime.NumericValue {
+	return NumericSqrtT0uy(input)
 }
 func Numeric879l(input checkruntime.NumericValue, modifier checkruntime.Int4Value) checkruntime.NumericValue {
 	if input.Kind == checkruntime.NumericValueError {

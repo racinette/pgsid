@@ -253,3 +253,39 @@ CREATE TABLE shipment_storage_sizes (
   CONSTRAINT storage_size_label CHECK (CASE WHEN skip THEN true ELSE pg_catalog.pg_size_pretty(bytes) = size_record END),
   CONSTRAINT storage_size_label_octets CHECK (CASE WHEN skip THEN true ELSE octet_length(pg_catalog.pg_size_pretty(bytes)) = octets_record END)
 );
+
+CREATE TABLE shipment_fee_histograms (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL,
+  amount numeric,
+  lower_bound numeric,
+  upper_bound numeric,
+  bucket_count integer,
+  bucket_record integer NOT NULL,
+  CONSTRAINT fee_histogram CHECK (CASE WHEN skip THEN true ELSE pg_catalog.width_bucket(amount, lower_bound, upper_bound, bucket_count) = bucket_record END)
+);
+
+CREATE TABLE shipment_package_permutations (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL,
+  package_count bigint,
+  permutations_record numeric NOT NULL,
+  scale_record integer NOT NULL,
+  wire_record bytea,
+  CONSTRAINT package_permutations CHECK (CASE WHEN skip THEN true ELSE pg_catalog.factorial(package_count) = permutations_record END),
+  CONSTRAINT package_permutations_scale CHECK (CASE WHEN skip THEN true ELSE scale(pg_catalog.factorial(package_count)) = scale_record END),
+  CONSTRAINT package_permutations_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(pg_catalog.factorial(package_count)) = wire_record END)
+);
+
+CREATE TABLE shipment_package_dimensions (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL,
+  squared_dimension numeric,
+  dimension_record numeric NOT NULL,
+  scale_record integer NOT NULL,
+  wire_record bytea,
+  CONSTRAINT package_dimension CHECK (CASE WHEN skip THEN true ELSE pg_catalog.sqrt(squared_dimension) = dimension_record END),
+  CONSTRAINT package_named_dimension CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_sqrt(squared_dimension) = dimension_record END),
+  CONSTRAINT package_dimension_scale CHECK (CASE WHEN skip THEN true ELSE scale(pg_catalog.sqrt(squared_dimension)) = scale_record END),
+  CONSTRAINT package_dimension_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(pg_catalog.sqrt(squared_dimension)) = wire_record END)
+);

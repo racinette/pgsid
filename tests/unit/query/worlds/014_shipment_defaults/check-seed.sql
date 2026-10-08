@@ -1003,3 +1003,211 @@ VALUES (28, false, NULL, '0'::text, '0'::integer);
 -- name: shipment_storage_sizes_skipped
 INSERT INTO shipment_storage_sizes (id, skip, bytes, size_record, octets_record)
 VALUES (29, true, 'Infinity'::numeric, 'Infinity PB'::text, '11'::integer);
+
+-- name: shipment_fee_histograms_ascending
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('10'::integer, false, '1'::numeric, '0'::numeric, '10'::numeric, '10'::integer, '2'::integer);
+
+-- name: shipment_fee_histograms_wrong_bucket
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('11'::integer, false, '1'::numeric, '0'::numeric, '10'::numeric, '10'::integer, '3'::integer);
+
+-- name: shipment_fee_histograms_descending
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('12'::integer, false, '9'::numeric, '10'::numeric, '0'::numeric, '10'::integer, '2'::integer);
+
+-- name: shipment_fee_histograms_below
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('13'::integer, false, '-1'::numeric, '0'::numeric, '10'::numeric, '10'::integer, '0'::integer);
+
+-- name: shipment_fee_histograms_above
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('14'::integer, false, '10'::numeric, '0'::numeric, '10'::numeric, '10'::integer, '11'::integer);
+
+-- name: shipment_fee_histograms_fraction
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('15'::integer, false, '0.3333333333333333333334'::numeric, '0'::numeric, '1'::numeric, '3'::integer, '2'::integer);
+
+-- name: shipment_fee_histograms_tiny
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('16'::integer, false, '2e-16383'::numeric, '1e-16383'::numeric, '3e-16383'::numeric, '10'::integer, '6'::integer);
+
+-- name: shipment_fee_histograms_wide
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('17'::integer, false, '0'::numeric, '-9e131071'::numeric, '9e131071'::numeric, '10'::integer, '6'::integer);
+
+-- name: shipment_fee_histograms_infinity
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('18'::integer, false, 'Infinity'::numeric, '0'::numeric, '10'::numeric, '10'::integer, '11'::integer);
+
+-- name: shipment_fee_histograms_null_amount
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('19'::integer, false, NULL, '0'::numeric, '10'::numeric, '10'::integer, '0'::integer);
+
+-- name: shipment_fee_histograms_null_lower
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('20'::integer, false, '1'::numeric, NULL, '10'::numeric, '10'::integer, '0'::integer);
+
+-- name: shipment_fee_histograms_null_count
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('21'::integer, false, '1'::numeric, '0'::numeric, '10'::numeric, NULL, '0'::integer);
+
+-- name: shipment_fee_histograms_invalid_count
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('22'::integer, false, '1'::numeric, '0'::numeric, '10'::numeric, '0'::integer, '0'::integer);
+
+-- name: shipment_fee_histograms_negative_count
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('23'::integer, false, '1'::numeric, '0'::numeric, '10'::numeric, '-1'::integer, '0'::integer);
+
+-- name: shipment_fee_histograms_nan
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('24'::integer, false, 'NaN'::numeric, '0'::numeric, '10'::numeric, '10'::integer, '0'::integer);
+
+-- name: shipment_fee_histograms_infinite_bound
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('25'::integer, false, '1'::numeric, '0'::numeric, 'Infinity'::numeric, '10'::integer, '0'::integer);
+
+-- name: shipment_fee_histograms_equal_bounds
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('26'::integer, false, '1'::numeric, '0'::numeric, '0'::numeric, '10'::integer, '0'::integer);
+
+-- name: shipment_fee_histograms_overflow
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('27'::integer, false, '10'::numeric, '0'::numeric, '10'::numeric, '2147483647'::integer, '0'::integer);
+
+-- name: shipment_fee_histograms_skipped
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('28'::integer, true, 'NaN'::numeric, '0'::numeric, '0'::numeric, '0'::integer, '0'::integer);
+
+-- name: shipment_package_permutations_sample_0
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('10'::integer, false, '0'::bigint, '1'::numeric, '0'::integer, '\x00010000000000000001'::bytea);
+
+-- name: shipment_package_permutations_sample_1
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('11'::integer, false, '1'::bigint, '1'::numeric, '0'::integer, '\x00010000000000000001'::bytea);
+
+-- name: shipment_package_permutations_sample_2
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('12'::integer, false, '2'::bigint, '2'::numeric, '0'::integer, '\x00010000000000000002'::bytea);
+
+-- name: shipment_package_permutations_wrong_value
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('13'::integer, false, '2'::bigint, '0'::numeric, '0'::integer, '\x00010000000000000002'::bytea);
+
+-- name: shipment_package_permutations_wrong_scale
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('14'::integer, false, '2'::bigint, '2'::numeric, '1'::integer, '\x00010000000000000002'::bytea);
+
+-- name: shipment_package_permutations_wrong_wire
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('15'::integer, false, '2'::bigint, '2'::numeric, '0'::integer, '\x00'::bytea);
+
+-- name: shipment_package_permutations_sample_3
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('16'::integer, false, '5'::bigint, '120'::numeric, '0'::integer, '\x00010000000000000078'::bytea);
+
+-- name: shipment_package_permutations_sample_4
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('17'::integer, false, '20'::bigint, '2432902008176640000'::numeric, '0'::integer, '\x000400040000000000f30b5600511df0'::bytea);
+
+-- name: shipment_package_permutations_sample_5
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('18'::integer, false, '100'::bigint, '93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000'::numeric, '0'::integer, '\x0022002700000000005d0cbe06080f6805f61fe9241621721a0e01ea1bf71aaa111d18461acb0b9322f806df270908fb061822ed121f1dbf19760b2e14f91ef020500947203b073c04431ad0'::bytea);
+
+-- name: shipment_package_permutations_sample_6
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('19'::integer, false, '1000'::bigint, '402387260077093773543702433923003985719374864210714632543799910429938512398629020592044208486969404800479988610197196058631666872994808558901323829669944590997424504087073759918823627727188732519779505950995276120874975462497043601418278094646496291056393887437886487337119181045825783647849977012476632889835955735432513185323958463075557409114262417474349347553428646576611667797396668820291207379143853719588249808126867838374559731746136085379534524221586593201928090878297308431392844403281231558611036976801357304216168747609675871348312025478589320767169132448426236131412508780208000261683151027341827977704784635868170164365024153691398281264810213092761244896359928705114964975419909342221566832572080821333186116811553615836546984046708975602900950537616475847728421889679646244945160765353408198901385442487984959953319101723355556602139450399736280750137837615307127761926849034352625200015888535147331611702103968175921510907788019393178114194545257223865541461062892187960223838971476088506276862967146674697562911234082439208160153780889893964518263243671616762179168909779911903754031274622289988005195444414282012187361745992642956581746628302955570299024324153181617210465832036786906117260158783520751516284225540265170483304226143974286933061690897968482590125458327168226458066526769958652682272807075781391858178889652208164348344825993266043367660176999612831860788386150279465955131156552036093988180612138558600301435694527224206344631797460594682573103790084024432438465657245014402821885252470935190620929023136493273497565513958720559654228749774011413346962715422845862377387538230483865688976461927383814900140767310446640259899490222221765904339901886018566526485061799702356193897017860040811889729918311021171229845901641921068884387121855646124960798722908519296819372388642614839657382291123125024186649353143970137428531926649875337218940694281434118520158014123344828015051399694290153483077644569099073152433278288269864602789864321139083506217095002597389863554277196742822248757586765752344220207573630569498825087968928162753848863396909959826280956121450994871701244516461260379029309120889086942028510640182154399457156805941872748998094254742173582401063677404595741785160829230135358081840096996372524230560855903700624271243416909004153690105933983835777939410970027753472000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'::numeric, '0'::integer, '\x02440281000000000fb72216004d03a91cba0e7610f308fc0f911c191d3e10721bea0cb60ed723900bb121400f920b56025001ba03501b390fd0002f270417d525f717aa18ac1a1f0bb21f951702052b20681b5211ee26f609920ff702e11767227718850a9e221c144d1f0e173e26e01dbc036a261a18691b83177e07231f9e1940259d04200f6222271ece13090e7f23dd01ca0a120e3f21331e1509ac18b8231717431cba0cb30c710ca716d60c0315c6038f10a6104e1d0a2483159e0b3019b017e41a7b1ce41a2007ed04b70ecf11210e8716fa13741fbe21e60efd11cf1c95120517c50ed30d7c107d16e924680788038c1e951c8c10d9244411330afc0c5321a301711e00054d0be20650222b17d01da305440c3009f3218d0c871a3c23ac11840a3f17f3101d036e00d0000218180c4f011110561f291b87210f16ec06a5192413a0060023b320590a5803fd0c141dbc118918d7244701ff1364261a07c6247e08a71a1b0a0c032808550c72049004830e1f20ad125a0fce1bb11d880b5425210eb1194b211d0b1a07611a8c12101351064719870d5007c5008a1542130f212f26e10c7700ac0d1b15be00d524ea0f9d0e2c02ee05620eb114bb04fd18301ac10157148e1450009e2295141b0cf40492083725d11da805e62375226124b106f5058b11c10a0c095215a512021891088b2582094f230b12982292188421b51a3a1a121b3f189304d203380f501fe006011f9826a525ad07220cab1a3c068c0883069903d126b7234d151b04fa184e23261f4507a2115910ba0079222006d126c610c719b51d2a0b0e0b8b164626ae10e405fb1fe11c2a12320c831a82236506be009e1e9b081b05ec0b1a09fa010906a8208a1082059f1d041b15026823811f2012d9233415520cc71aa6193a02990a7426e6197e20230af702f51fcb074206fc230508a0066b12e212d926cc19cc0d2719c91e13258c207e17be20c205de1f0a1743051f161707f403ab22720264056916e4012d110424ec1c38080f116f070511fd24fc0a0d040d23300fb810e40f061619099205a00b052294147f03a70772082c233f0554246f0da916170573221015dc152e222d1e3c04750d12259b06060b1d21af1e3a1d72090020c21638262418301cd71fd5000e02ff0c20123801032322233e08ad1deb01b126ad229c0740197e12f2182325e60de924ad1b6921980ff107611c83072703fd06b00ba8170d1913083a22b40f1f0889160e04e117bf2212237d07891aa30e8b22a00a3620cc166a08f304cf09c6105a195d14c20f82055e0b25078619621d6d1c3224be24d4059a04a107df1f4e04d111821f4f020126f110c205fe20731ddc163a26b30c5010ec1e94204d21c6011626880c8b0f440db2087a251c0a250f3a18d310b507af10ba08c81d9721e416780d7207e41d9518a11b252279036f1aec1fe21d7213160d44238b175e18882559086103e2220d007c11a41204179523450c130828237e24cc0b230280071d153f24f10620025207501d412651109e1cfd1cbe0961027c1e3c11f31cf92144033d08fd0dcf1f9120d025e318e4147a0bf00357234d003e10af0982069a232c06002332172d266e0df91f03100d1b5a1e491270'::bytea);
+
+-- name: shipment_package_permutations_sample_7
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('20'::integer, false, '-1'::bigint, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_package_permutations_sample_8
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('21'::integer, false, '32178'::bigint, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_package_permutations_sample_9
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('22'::integer, false, '9223372036854775807'::bigint, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_package_permutations_sample_10
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('23'::integer, false, NULL, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_package_permutations_skipped
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('24'::integer, true, '-1'::bigint, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_package_dimensions_sample_0
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('10'::integer, false, '0'::numeric, '0.000000000000000'::numeric, '15'::integer, '\x000000000000000f'::bytea);
+
+-- name: shipment_package_dimensions_sample_1
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('11'::integer, false, '-0.0000'::numeric, '0.000000000000000'::numeric, '15'::integer, '\x000000000000000f'::bytea);
+
+-- name: shipment_package_dimensions_sample_2
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('12'::integer, false, '1'::numeric, '1.000000000000000'::numeric, '15'::integer, '\x000100000000000f0001'::bytea);
+
+-- name: shipment_package_dimensions_sample_3
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('13'::integer, false, '2'::numeric, '1.414213562373095'::numeric, '15'::integer, '\x000500000000000f0001102e054c094503b6'::bytea);
+
+-- name: shipment_package_dimensions_wrong_value
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('14'::integer, false, '2'::numeric, '0'::numeric, '15'::integer, '\x000500000000000f0001102e054c094503b6'::bytea);
+
+-- name: shipment_package_dimensions_wrong_scale
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('15'::integer, false, '2'::numeric, '1.414213562373095'::numeric, '16'::integer, '\x000500000000000f0001102e054c094503b6'::bytea);
+
+-- name: shipment_package_dimensions_wrong_wire
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('16'::integer, false, '2'::numeric, '1.414213562373095'::numeric, '15'::integer, '\x00'::bytea);
+
+-- name: shipment_package_dimensions_sample_4
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('17'::integer, false, '3'::numeric, '1.732050807568877'::numeric, '15'::integer, '\x000500000000000f00011c9813d81d902242'::bytea);
+
+-- name: shipment_package_dimensions_sample_5
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('18'::integer, false, '9'::numeric, '3.000000000000000'::numeric, '15'::integer, '\x000100000000000f0003'::bytea);
+
+-- name: shipment_package_dimensions_sample_6
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('19'::integer, false, '0.00001'::numeric, '0.0031622776601683793'::numeric, '19'::integer, '\x0005ffff00000013001f18531dec06931efa'::bytea);
+
+-- name: shipment_package_dimensions_sample_7
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('20'::integer, false, '1e-2000'::numeric, '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001'::numeric, '1000'::integer, '\x0001ff06000003e80001'::bytea);
+
+-- name: shipment_package_dimensions_sample_8
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('21'::integer, false, '1e100'::numeric, '100000000000000000000000000000000000000000000000000'::numeric, '0'::integer, '\x0001000c000000000064'::bytea);
+
+-- name: shipment_package_dimensions_sample_9
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('22'::integer, false, 'NaN'::numeric, 'NaN'::numeric, '0'::integer, '\x00000000c0000000'::bytea);
+
+-- name: shipment_package_dimensions_sample_10
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('23'::integer, false, 'Infinity'::numeric, 'Infinity'::numeric, '0'::integer, '\x00000000d0000020'::bytea);
+
+-- name: shipment_package_dimensions_sample_11
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('24'::integer, false, '-Infinity'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_package_dimensions_sample_12
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('25'::integer, false, '-1'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_package_dimensions_sample_13
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('26'::integer, false, NULL, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: shipment_package_dimensions_skipped
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('27'::integer, true, '-1'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);

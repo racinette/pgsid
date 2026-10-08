@@ -42,3 +42,12 @@ VALUES (1, false, '12.3400'::numeric, '0.660'::numeric, '0.0200'::numeric, '407.
 
 INSERT INTO shipment_storage_sizes (id, skip, bytes, size_record, octets_record)
 VALUES (1, false, '12.3400'::numeric, '12.3400 bytes'::text, '13'::integer);
+
+INSERT INTO shipment_fee_histograms (id, skip, amount, lower_bound, upper_bound, bucket_count, bucket_record)
+VALUES ('1'::integer, false, '1'::numeric, '0'::numeric, '10'::numeric, '10'::integer, '2'::integer);
+
+INSERT INTO shipment_package_permutations (id, skip, package_count, permutations_record, scale_record, wire_record)
+VALUES ('1'::integer, false, '2'::bigint, '2'::numeric, '0'::integer, '\x00010000000000000002'::bytea);
+
+INSERT INTO shipment_package_dimensions (id, skip, squared_dimension, dimension_record, scale_record, wire_record)
+VALUES ('1'::integer, false, '2'::numeric, '1.414213562373095'::numeric, '15'::integer, '\x000500000000000f0001102e054c094503b6'::bytea);
