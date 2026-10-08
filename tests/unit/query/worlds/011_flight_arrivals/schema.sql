@@ -139,3 +139,25 @@ CREATE TABLE flight_precision (
   CONSTRAINT flight_precision_local CHECK (CASE WHEN skip THEN true ELSE pg_catalog.timestamp(local_value, precision) = local_record END),
   CONSTRAINT flight_precision_instant CHECK (CASE WHEN skip THEN true ELSE pg_catalog.timestamptz(instant_value, precision) = instant_record END)
 );
+
+
+CREATE TABLE arrival_calendar_buckets (
+  id integer PRIMARY KEY,
+  arrival_time timestamp,
+  unit_name text,
+  bucket_time timestamp,
+  accept_unbucketed boolean NOT NULL,
+  CONSTRAINT arrival_calendar_bucket CHECK (
+    CASE WHEN accept_unbucketed THEN true
+    ELSE date_trunc(unit_name, arrival_time) = bucket_time END
+  )
+);
+
+CREATE TABLE arrival_calendar_fields (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  arrival_day date,
+  calendar_field text,
+  recorded_field numeric,
+  CONSTRAINT arrival_calendar_field CHECK (CASE WHEN suppress_invalid THEN true ELSE pg_catalog.extract(calendar_field, arrival_day) = recorded_field END)
+);

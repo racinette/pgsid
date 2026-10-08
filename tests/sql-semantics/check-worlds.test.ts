@@ -11,7 +11,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
 import { getStatements, parseSql } from '../../src/ast.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
-import type { CatalogSnapshot } from '../../src/catalog/types.js'
+import type { CatalogSnapshot, ColumnInfo } from '../../src/catalog/types.js'
 import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
 import {
   catalogDateType,
@@ -130,6 +130,13 @@ describe('world CHECK INSERT parity', () => {
   let directory: string
   let catalog: CatalogSnapshot
   let generated: Record<string, (row: Record<string, unknown>) => Result[]>
+  const collationNames = new Map<number, string>()
+  const oracleCollation = (column: Pick<ColumnInfo, 'collationOid'>): string => {
+    if (!column.collationOid) return ''
+    const name = collationNames.get(column.collationOid)
+    if (!name) throw new Error(`missing oracle collation ${column.collationOid}`)
+    return ` COLLATE ${name}`
+  }
   const inputs = new Map<string, Record<string, unknown>>()
   const typescriptResults = new Map<string, Result[]>()
   const goCases = new Map<string, GoCheckCase[]>()
@@ -173,6 +180,13 @@ describe('world CHECK INSERT parity', () => {
         )
     }
     catalog = await snapshotCatalog(pg)
+    const collations = await pg.query<{ oid: number; schema: string; name: string }>(`
+      SELECT c.oid::int AS oid, n.nspname AS schema, c.collname AS name
+      FROM pg_catalog.pg_collation c
+      JOIN pg_catalog.pg_namespace n ON n.oid = c.collnamespace
+    `)
+    for (const collation of collations.rows)
+      collationNames.set(collation.oid, `${quote(collation.schema)}.${quote(collation.name)}`)
     expect(catalog.tables.filter((table) => table.schema === 'public')).toEqual([])
     expect(
       catalog.tables
@@ -251,7 +265,7 @@ describe('world CHECK INSERT parity', () => {
           const value = item.values.get(column.name)
           if (!value && column.hasDefault)
             throw new Error(`${item.name}: omitted default needs row materialization`)
-          return `CAST(${value ? deparseSync(value) : 'NULL'} AS ${column.typeName}) AS ${quote(column.name)}`
+          return `CAST(${value ? deparseSync(value) : 'NULL'} AS ${column.typeName})${oracleCollation(column)} AS ${quote(column.name)}`
         })
       await pg.exec(`SET search_path = ${quote(item.schema)}, public`)
       const row = (await pg.query<Record<string, unknown>>(`SELECT ${expressions.join(',')}`))
@@ -385,14 +399,14 @@ describe('world CHECK INSERT parity', () => {
       .filter((column) => Object.hasOwn(row, column.name))
       .map(
         (column) =>
-          `CAST(${item.values.has(column.name) ? deparseSync(item.values.get(column.name)!) : 'NULL'} AS ${column.typeName}) AS ${quote(column.name)}`,
+          `CAST(${item.values.has(column.name) ? deparseSync(item.values.get(column.name)!) : 'NULL'} AS ${column.typeName})${oracleCollation(column)} AS ${quote(column.name)}`,
       )
       .join(',')
     const generatedColumns = table.columns
       .filter((column) => column.generated !== 'none')
       .map((column) => {
         if (!column.defaultExpr) throw new Error(`${item.name}: missing generated expression`)
-        return `(${column.defaultExpr}) AS ${quote(column.name)}`
+        return `(${column.defaultExpr})${oracleCollation(column)} AS ${quote(column.name)}`
       })
     const candidate = generatedColumns.length
       ? `SELECT inputs.*, ${generatedColumns.join(',')} FROM (SELECT ${select}) AS inputs`
@@ -516,7 +530,48 @@ describe('world CHECK INSERT parity', () => {
     expect(definite).toBeGreaterThan(0)
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
+    let numericFunctionConstraints = 0
+    for (const table of [
+      'shipment_fee_sign',
+      'shipment_fee_scale',
+      'shipment_fee_whole',
+      'shipment_fee_precision',
+    ]) {
+      const checks = [...coverage].filter(([identity]) =>
+        identity.startsWith(`world_014_shipment_defaults.${table}.`),
+      )
+      expect(checks.length, table).toBeGreaterThan(0)
+      for (const [identity, measured] of checks) {
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(0)
+        numericFunctionConstraints++
+      }
+    }
+    expect(numericFunctionConstraints).toBe(18)
+    for (const [world, table, count] of [
+      ['013_label_registry', 'unicode_labels', 3],
+      ['011_flight_arrivals', 'arrival_calendar_buckets', 1],
+      ['011_flight_arrivals', 'arrival_calendar_fields', 1],
+      ['014_shipment_defaults', 'shipment_fee_small_units', 2],
+      ['014_shipment_defaults', 'shipment_fee_regular_units', 2],
+      ['014_shipment_defaults', 'shipment_fee_bulk_units', 2],
+    ] as const) {
+      const checks = [...coverage].filter(([identity]) =>
+        identity.startsWith(`world_${world}.${table}.`),
+      )
+      expect(checks).toHaveLength(count)
+      for (const [identity, measured] of checks) {
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(0)
+      }
+    }
     for (const identity of [
+      'world_014_shipment_defaults.shipment_fee_small_units.fee_small_rounded',
+      'world_014_shipment_defaults.shipment_fee_regular_units.fee_regular_rounded',
+      'world_014_shipment_defaults.shipment_fee_bulk_units.fee_bulk_rounded',
+      'world_011_flight_arrivals.arrival_calendar_fields.arrival_calendar_field',
       'world_011_flight_arrivals.flight_arrivals.arrival_interpretation',
       'world_011_flight_arrivals.arrival_displays.displayed_arrival',
       'world_012_package_capacity.package_capacity.area_limit',
@@ -1412,6 +1467,23 @@ describe('world CHECK INSERT parity', () => {
     expect(recognizedMask.false).toBeGreaterThan(0)
     expect(recognizedMask.null).toBe(0)
     expect(recognizedMask.unknown).toBe(0)
+    for (const [table, count] of [
+      ['label_character_sizes', 9],
+      ['label_binary_order', 18],
+      ['cleaned_label_records', 6],
+      ['label_casing_records', 4],
+    ] as const) {
+      const prefix = `world_013_label_registry.${table}.`
+      const constraints = [...coverage.values()].filter((item) =>
+        item.constraint.startsWith(prefix),
+      )
+      expect(constraints, table).toHaveLength(count)
+      for (const measured of constraints) {
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], measured.constraint).toBeGreaterThan(0)
+        expect(measured.unknown, measured.constraint).toBe(0)
+      }
+    }
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),
     )

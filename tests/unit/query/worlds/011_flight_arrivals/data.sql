@@ -21,3 +21,8 @@ VALUES (1, false, '2000-01-01', '2000-01-01', 0, '2000-01-01', 0, '2000-01-01', 
 
 INSERT INTO flight_precision (id, skip, local_value, instant_value, precision, local_record, instant_record)
 VALUES (1, false, '2000-01-01 00:00:00.500000', '2000-01-01 00:00:00.500000+00', 0, '2000-01-01 00:00:01', '2000-01-01 00:00:01+00');
+
+INSERT INTO arrival_calendar_buckets (id, arrival_time, unit_name, bucket_time, accept_unbucketed)
+VALUES (1, '2020-01-01 12:34:56.123456', 'day', '2020-01-01', false);
+
+INSERT INTO arrival_calendar_fields (id, suppress_invalid, arrival_day, calendar_field, recorded_field) VALUES (1, false, '2024-02-29', 'doy', 60);

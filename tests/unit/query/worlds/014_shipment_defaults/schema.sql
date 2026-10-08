@@ -58,3 +58,93 @@ CREATE TABLE shipment_labels (
   CONSTRAINT fallback_fee CHECK (COALESCE(fee, backup_fee, 0) = recorded_fee),
   CONSTRAINT fallback_stage CHECK (COALESCE(stage, backup_stage, 'ready') = recorded_stage)
 );
+
+CREATE TABLE shipment_fee_sign (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL DEFAULT false,
+  amount numeric,
+  other_amount numeric,
+  comparison_record integer,
+  larger_record numeric,
+  smaller_record numeric,
+  absolute_record numeric,
+  negated_record numeric,
+  original_record numeric,
+  sign_record numeric,
+  CONSTRAINT fee_order CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_cmp(amount, other_amount) = comparison_record END),
+  CONSTRAINT fee_larger CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_larger(amount, other_amount) = larger_record END),
+  CONSTRAINT fee_smaller CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_smaller(amount, other_amount) = smaller_record END),
+  CONSTRAINT fee_absolute CHECK (CASE WHEN skip THEN true ELSE pg_catalog.abs(amount) = absolute_record END),
+  CONSTRAINT fee_numeric_absolute CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_abs(amount) = absolute_record END),
+  CONSTRAINT fee_negated CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_uminus(amount) = negated_record END),
+  CONSTRAINT fee_original CHECK (CASE WHEN skip THEN true ELSE pg_catalog.numeric_uplus(amount) = original_record END),
+  CONSTRAINT fee_sign CHECK (CASE WHEN skip THEN true ELSE pg_catalog.sign(amount) = sign_record END)
+);
+
+CREATE TABLE shipment_fee_scale (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL DEFAULT false,
+  amount numeric,
+  display_scale integer,
+  minimum_scale integer,
+  trimmed_record numeric,
+  CONSTRAINT fee_display_scale CHECK (CASE WHEN skip THEN true ELSE pg_catalog.scale(amount) = display_scale END),
+  CONSTRAINT fee_minimum_scale CHECK (CASE WHEN skip THEN true ELSE pg_catalog.min_scale(amount) = minimum_scale END),
+  CONSTRAINT fee_trimmed CHECK (CASE WHEN skip THEN true ELSE pg_catalog.trim_scale(amount) = trimmed_record END)
+);
+
+CREATE TABLE shipment_fee_whole (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL DEFAULT false,
+  amount numeric,
+  ceiling_record numeric,
+  floor_record numeric,
+  CONSTRAINT fee_ceil CHECK (CASE WHEN skip THEN true ELSE pg_catalog.ceil(amount) = ceiling_record END),
+  CONSTRAINT fee_ceiling CHECK (CASE WHEN skip THEN true ELSE pg_catalog.ceiling(amount) = ceiling_record END),
+  CONSTRAINT fee_floor CHECK (CASE WHEN skip THEN true ELSE pg_catalog.floor(amount) = floor_record END)
+);
+
+CREATE TABLE shipment_fee_precision (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL DEFAULT false,
+  amount numeric,
+  places integer,
+  rounded_record numeric,
+  whole_rounded_record numeric,
+  truncated_record numeric,
+  whole_truncated_record numeric,
+  CONSTRAINT fee_round_places CHECK (CASE WHEN skip THEN true ELSE pg_catalog.round(amount, places) = rounded_record END),
+  CONSTRAINT fee_round_whole CHECK (CASE WHEN skip THEN true ELSE pg_catalog.round(amount) = whole_rounded_record END),
+  CONSTRAINT fee_trunc_places CHECK (CASE WHEN skip THEN true ELSE pg_catalog.trunc(amount, places) = truncated_record END),
+  CONSTRAINT fee_trunc_whole CHECK (CASE WHEN skip THEN true ELSE pg_catalog.trunc(amount) = whole_truncated_record END)
+);
+
+CREATE TABLE shipment_fee_small_units (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  amount numeric,
+  recorded_units smallint,
+  recorded_amount numeric,
+  CONSTRAINT fee_small_rounded CHECK (CASE WHEN suppress_invalid THEN true ELSE CAST(amount AS smallint) = recorded_units END),
+  CONSTRAINT fee_small_numeric CHECK (CASE WHEN suppress_invalid THEN true ELSE CAST(recorded_units AS numeric) = recorded_amount END)
+);
+
+CREATE TABLE shipment_fee_regular_units (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  amount numeric,
+  recorded_units integer,
+  recorded_amount numeric,
+  CONSTRAINT fee_regular_rounded CHECK (CASE WHEN suppress_invalid THEN true ELSE CAST(amount AS integer) = recorded_units END),
+  CONSTRAINT fee_regular_numeric CHECK (CASE WHEN suppress_invalid THEN true ELSE CAST(recorded_units AS numeric) = recorded_amount END)
+);
+
+CREATE TABLE shipment_fee_bulk_units (
+  id integer PRIMARY KEY,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  amount numeric,
+  recorded_units bigint,
+  recorded_amount numeric,
+  CONSTRAINT fee_bulk_rounded CHECK (CASE WHEN suppress_invalid THEN true ELSE CAST(amount AS bigint) = recorded_units END),
+  CONSTRAINT fee_bulk_numeric CHECK (CASE WHEN suppress_invalid THEN true ELSE CAST(recorded_units AS numeric) = recorded_amount END)
+);

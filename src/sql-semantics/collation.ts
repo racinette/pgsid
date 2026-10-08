@@ -79,7 +79,47 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         metadata.args.length === 2 &&
         ['pg_catalog.date', 'pg_catalog."timestamp"'].includes(metadata.args[1]!) &&
         metadata.result === 'pg_catalog."numeric"'))
+  const implementation =
+    metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+  const textIntrinsic =
+    implementation.kind === 'function' &&
+    implementation.schema === 'pg_catalog' &&
+    implementation.strict &&
+    implementation.volatility === 'i' &&
+    !implementation.returnsSet &&
+    ((implementation.args.length === 1 &&
+      ['pg_catalog.text', 'pg_catalog.bpchar'].includes(implementation.args[0]!) &&
+      implementation.result === 'pg_catalog.int4' &&
+      (['char_length', 'character_length', 'length', 'octet_length'].includes(
+        implementation.name,
+      ) ||
+        (implementation.args[0] === 'pg_catalog.text' &&
+          ['textlen', 'bit_length'].includes(implementation.name)))) ||
+      ([1, 2].includes(implementation.args.length) &&
+        implementation.args.every((type) => type === 'pg_catalog.text') &&
+        implementation.result === 'pg_catalog.text' &&
+        ['btrim', 'ltrim', 'rtrim'].includes(implementation.name)) ||
+      (implementation.args.length === 2 &&
+        implementation.args.every((type) => type === implementation.args[0]) &&
+        ((implementation.args[0] === 'pg_catalog.text' &&
+          ((['text_pattern_lt', 'text_pattern_le', 'text_pattern_gt', 'text_pattern_ge'].includes(
+            implementation.name,
+          ) &&
+            implementation.result === 'pg_catalog.bool') ||
+            (implementation.name === 'bttext_pattern_cmp' &&
+              implementation.result === 'pg_catalog.int4'))) ||
+          (implementation.args[0] === 'pg_catalog.bpchar' &&
+            (([
+              'bpchar_pattern_lt',
+              'bpchar_pattern_le',
+              'bpchar_pattern_gt',
+              'bpchar_pattern_ge',
+            ].includes(implementation.name) &&
+              implementation.result === 'pg_catalog.bool') ||
+              (implementation.name === 'btbpchar_pattern_cmp' &&
+                implementation.result === 'pg_catalog.int4'))))))
   return (
+    textIntrinsic ||
     temporalField ||
     characterCode ||
     characterText ||

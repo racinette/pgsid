@@ -34,9 +34,9 @@ import them. Keep schema-only helpers with their callables.
   same cases in Rust, generated Go, and generated TypeScript. Run
   `pnpm check-rust:check` from the repository root.
 - Text equality and inequality accept deterministic collations after the
-  binder resolves identity and explicit overrides. Ordering and other
-  collation-sensitive operations require C. Text ordering compares Unicode
-  scalars. Keep nondeterministic and conflicting collations unknown.
+  binder resolves identity and explicit overrides. Ordering requires C and follows UTF8 byte order.
+  Lengths, trims and pattern comparisons ignore collation; explicit conflicts still defer.
+  C lower/upper/casefold use ASCII casing; initcap treats only ASCII letters/digits as word characters.
 - Varchar values share owned text; binary relabels preserve their contents.
   Char comparisons use the same wrapper and ignore only trailing ASCII spaces.
   Equality accepts deterministic collations; ordering requires C. Inputs are
@@ -105,9 +105,9 @@ import them. Keep schema-only helpers with their callables.
   digit separators, ASCII whitespace, and special values. Invalid or unsupported
   representations defer. Comparisons ignore display scale and signed zero;
   PostgreSQL orders negative infinity, finite values, positive infinity, then NaN,
-  and equates NaNs. Numeric arithmetic, runtime casts, and precision coercion
-  require separate slices. Binary send retains base-10000 words, weight, sign and
-  display scale; run `check-numeric.test.ts` and `check-numeric-send.test.ts` against PGlite.
+  and equates NaNs. Integer casts round signed halves away from zero, reject
+  special values with 0A000 and overflow with 22003. Binary send retains base-10000
+  words, weight, sign and scale; run `tests/sql-semantics/check-numeric*.test.ts` against PGlite.
 - Inet and cidr share an immutable address payload with a family, prefix length,
   and sixteen-bit address words. Public row inputs use already SQL-coerced
   strings; the shared Rust parser handles IPv4, compressed IPv6, and embedded

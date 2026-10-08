@@ -58,6 +58,7 @@ Object.assign(expressions, {
   enum_equal: "COALESCE(stage, 'ready') = 'ready'",
   date_equal: "COALESCE(day, DATE '2000-01-01') = DATE '2000-01-01'",
   decimal_equal: 'COALESCE(amount, 0) = 0',
+  decimal_abs: 'COALESCE(abs(amount), abs(1.5)) >= 0',
   integer_context: 'COALESCE(small, 0) + 2147483647 = big',
   coalesce_guard: 'CASE WHEN COALESCE(flag, false) THEN true ELSE wide / small > 0 END',
 })
@@ -186,7 +187,7 @@ describe('COALESCE CHECK control flow', () => {
     }
     const unavailable = prepareCheckRustGroup([
       {
-        expression: lower('COALESCE(abs(1.5), amount) IS NULL'),
+        expression: lower('COALESCE(abs(1.5::float8), 0::float8) IS NULL'),
         identity: { schema: 'public', kind: 'table', owner: 'probe', constraint: 'unavailable' },
       },
     ])
@@ -290,13 +291,14 @@ describe('COALESCE CHECK control flow', () => {
         'big',
         'note',
         'decimal',
+        'decimal_abs',
         'day',
         'clock',
         'instant',
         'stage',
         'flag',
       ]) {
-        const input = name === 'decimal' ? 'amount' : name
+        const input = name.startsWith('decimal') ? 'amount' : name
         for (const state of [{ kind: 'Unknown' }, incoming] as Input[])
           fixtures.push({
             name: `${prefix}_${name}`,
