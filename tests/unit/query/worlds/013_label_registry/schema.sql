@@ -557,3 +557,36 @@ CREATE TABLE label_normalization_records (
     CASE WHEN suppress_invalid THEN true ELSE pg_catalog.icu_unicode_version() COLLATE "C" = recorded_icu_version END
   )
 );
+
+CREATE TABLE label_pattern_extractions (
+  id integer PRIMARY KEY,
+  label text COLLATE "C",
+  regular_pattern text COLLATE "C",
+  similar_pattern text COLLATE "C",
+  escape text COLLATE "C",
+  regular_fragment text COLLATE "C",
+  regular_octets integer,
+  regular_missing boolean,
+  similar_fragment text COLLATE "C",
+  similar_octets integer,
+  similar_missing boolean,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  CONSTRAINT regular_extracted_fragment CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE substring(label FROM regular_pattern) = regular_fragment END
+  ),
+  CONSTRAINT regular_extracted_octets CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE octet_length(substring(label FROM regular_pattern)) = regular_octets END
+  ),
+  CONSTRAINT regular_extracted_missing CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE (substring(label FROM regular_pattern) IS NULL) = regular_missing END
+  ),
+  CONSTRAINT similar_extracted_fragment CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE substring(label FROM similar_pattern FOR escape) = similar_fragment END
+  ),
+  CONSTRAINT similar_extracted_octets CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE octet_length(substring(label FROM similar_pattern FOR escape)) = similar_octets END
+  ),
+  CONSTRAINT similar_extracted_missing CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE (substring(label FROM similar_pattern FOR escape) IS NULL) = similar_missing END
+  )
+);

@@ -187,6 +187,12 @@ import them. Keep schema-only helpers with their callables.
   Unicode escapes decode four, six or eight hexadecimal digits, combine mixed-form
   UTF16 surrogate pairs, and preserve plain text without normalization. Malformed
   escapes or pairs return 42601; zero or out-of-range code points return 22023.
+  Regular-expression substring returns the first capture when one exists, the
+  whole match otherwise, and SQL NULL for an absent or nonparticipating capture.
+  SQL-pattern substring translates its pattern and escape through the maintained
+  SIMILAR translator before using the same capture path. Both require C collation
+  and return owned text. Run `tests/sql-semantics/check-regex-substring.test.ts`
+  and the label registry world.
 - Bytea payloads own canonical lowercase hexadecimal strings without a prefix.
   Public adapters convert byte arrays and nested domains; Rust validates hex input.
   Comparison preserves unsigned octet differences and signed-unit prefix order.
