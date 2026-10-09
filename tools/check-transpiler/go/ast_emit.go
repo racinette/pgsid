@@ -603,6 +603,9 @@ func (g *generator) goItem(value *node) []ast.Decl {
 			parameters = append(parameters, &ast.Field{Names: []*ast.Ident{goIdent(name)}, Type: g.goType(parameter.Type)})
 		}
 		for _, parameter := range value.Parameters {
+			if value.Visibility != "public" && parameter.Type.Kind == "reference" && g.types[path(parameter.Type.Inner)] {
+				continue
+			}
 			name := g.locals[parameter.Name]
 			checked := g.goDetach(goIdent(name), parameter.Type)
 			if _, same := checked.(*ast.Ident); !same {

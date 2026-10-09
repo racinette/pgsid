@@ -1642,7 +1642,6 @@ func macSpace(ch rune) bool {
 	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f'
 }
 func macScanHex(text *macText, start int, width int) macScanned {
-	text = langruntime.CheckedBorrowed(text, copymacText)
 	start = langruntime.CheckedIndex(start)
 	width = langruntime.CheckedIndex(width)
 	index := start
@@ -1686,7 +1685,6 @@ func macScanHex(text *macText, start int, width int) macScanned {
 	return macScanned{valid: digits, value: int(int32(value)), end: index}
 }
 func macaddrFormat(text *macText, format int) macParsed {
-	text = langruntime.CheckedBorrowed(text, copymacText)
 	format = langruntime.CheckedIndex(format)
 	index := 0
 	byteIndex := 0
@@ -1743,7 +1741,6 @@ func macaddrFormat(text *macText, format int) macParsed {
 	return macParsed{valid: true, state: 0, address: MacAddress{Word0: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[0].value, 256), bytes[1].value), Word1: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[2].value, 256), bytes[3].value), Word2: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[4].value, 256), bytes[5].value), Word3: 0}}
 }
 func macaddrParse(text *macText) macParsed {
-	text = langruntime.CheckedBorrowed(text, copymacText)
 	format := 0
 	for format < 7 {
 		parsed := macaddrFormat(text, format)
@@ -1755,7 +1752,6 @@ func macaddrParse(text *macText) macParsed {
 	return macInvalid()
 }
 func macaddr8Parse(text *macText) macParsed {
-	text = langruntime.CheckedBorrowed(text, copymacText)
 	index := 0
 	separator := '\x00'
 	bytes := []macByte{}
@@ -2656,7 +2652,6 @@ func copytimestampNumber(value timestampNumber) timestampNumber {
 	return timestampNumber{next: langruntime.CheckedIndex(value.next), digits: langruntime.CheckedIndex(value.digits), value: langruntime.CheckedI32(value.value), overflow: value.overflow}
 }
 func readTimestampNumber(text *timestampText, start int, end int) timestampNumber {
-	text = langruntime.CheckedBorrowed(text, copytimestampText)
 	start = langruntime.CheckedIndex(start)
 	end = langruntime.CheckedIndex(end)
 	index := start

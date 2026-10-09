@@ -14,7 +14,7 @@ func checkedOpaqueBorrow[T any](value *T) *T {
 	return value
 }
 
-func CheckedBorrowed[T any](value *T, copyValue func(T) T) *T {
+func checkedBorrowed[T any](value *T, copyValue func(T) T) *T {
 	if value == nil {
 		panic("nil borrowed value")
 	}

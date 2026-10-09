@@ -14563,7 +14563,6 @@ function copyTextSearchState(value: TextSearchState): TextSearchState {
     return { characters: langruntime.checkedChars(value.characters), pattern: langruntime.checkedChars(value.pattern) };
 }
 function textSearchAt(search: TextSearchState, from: number): boolean {
-    search = copyTextSearchState(search);
     from = langruntime.checkedIndex(from);
     if (search.pattern.length > langruntime.checkedSubtract(search.characters.length, from)) {
         return false;
@@ -14578,7 +14577,6 @@ function textSearchAt(search: TextSearchState, from: number): boolean {
     return true;
 }
 function textSearchRange(search: TextSearchState, from: number, end: number): string {
-    search = copyTextSearchState(search);
     from = langruntime.checkedIndex(from);
     end = langruntime.checkedIndex(end);
     let output: string = "";

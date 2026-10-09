@@ -14513,7 +14513,6 @@ func copytextSearchState(value textSearchState) textSearchState {
 	return textSearchState{characters: langruntime.CheckedChars(value.characters), pattern: langruntime.CheckedChars(value.pattern)}
 }
 func textSearchAt(search *textSearchState, from int) bool {
-	search = langruntime.CheckedBorrowed(search, copytextSearchState)
 	from = langruntime.CheckedIndex(from)
 	if len(search.pattern) > langruntime.CheckedSubtract(len(search.characters), from) {
 		return false
@@ -14528,7 +14527,6 @@ func textSearchAt(search *textSearchState, from int) bool {
 	return true
 }
 func textSearchRange(search *textSearchState, from int, end int) string {
-	search = langruntime.CheckedBorrowed(search, copytextSearchState)
 	from = langruntime.CheckedIndex(from)
 	end = langruntime.CheckedIndex(end)
 	output := ""

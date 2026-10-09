@@ -1724,7 +1724,6 @@ function macSpace(ch: string): boolean {
     return ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\v" || ch === "\f";
 }
 function macScanHex(text: MacText, start: number, width: number): MacScanned {
-    text = copyMacText(text);
     start = langruntime.checkedIndex(start);
     width = langruntime.checkedIndex(width);
     let index: number = start;
@@ -1769,7 +1768,6 @@ function macScanHex(text: MacText, start: number, width: number): MacScanned {
     return { valid: digits, value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))), end: index };
 }
 function macaddrFormat(text: MacText, format: number): MacParsed {
-    text = copyMacText(text);
     format = langruntime.checkedIndex(format);
     let index: number = 0;
     let byteIndex: number = 0;
@@ -1830,7 +1828,6 @@ function macaddrFormat(text: MacText, format: number): MacParsed {
     return { valid: true, state: 0, address: { word0: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(0), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(1), copyMacByte).value), word1: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(2), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(3), copyMacByte).value), word2: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(4), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(5), copyMacByte).value), word3: 0 } };
 }
 function macaddrParse(text: MacText): MacParsed {
-    text = copyMacText(text);
     let format: number = 0;
     while (format < 7) {
         const parsed: MacParsed = copyMacParsed(macaddrFormat(text, format));
@@ -1842,7 +1839,6 @@ function macaddrParse(text: MacText): MacParsed {
     return macInvalid();
 }
 function macaddr8Parse(text: MacText): MacParsed {
-    text = copyMacText(text);
     let index: number = 0;
     let separator: string = "\0";
     let bytes: MacByte[] = [];
@@ -2756,7 +2752,6 @@ function copyTimestampNumber(value: TimestampNumber): TimestampNumber {
     return { next: langruntime.checkedIndex(value.next), digits: langruntime.checkedIndex(value.digits), value: langruntime.checkedI32(value.value), overflow: langruntime.checkedBool(value.overflow) };
 }
 function readTimestampNumber(text: TimestampText, start: number, end: number): TimestampNumber {
-    text = copyTimestampText(text);
     start = langruntime.checkedIndex(start);
     end = langruntime.checkedIndex(end);
     let index: number = start;

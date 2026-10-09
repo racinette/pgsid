@@ -16,7 +16,12 @@ change to the regex transpiler unless the regex engine itself changes.
 - Public CHECK value wrappers contain only scalar or other immutable value
   fields. Go passes these values by value; TypeScript emits readonly fields.
   A caller that mutates a public input after passing it violates the CHECK
-  API contract. Keep copying for vectors and other mutable aggregates.
+  API contract. Keep copying for vectors and other mutable aggregates at
+  ownership transfers and explicit clones. Private helpers borrow declared records
+  without copying their storage; Rust forbids mutation or moving fields through
+  those shared references. Public parameters retain boundary validation. XML scans
+  need these borrows to inspect a name-sized buffer without copying it per character.
+  Run `check-borrowed-state.test.ts` for bounded scanning and ownership after a borrow.
 - Source groups and generated files must have explicit ownership. PostgreSQL
   operations remain maintained Rust, with catalog schemas represented as Rust
   modules. Regex support is a dependency module and a separate target package.
