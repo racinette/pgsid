@@ -198,6 +198,10 @@ func asciiLowercase(value rune) rune {
 	return value
 }
 
+func newTextBuffer(value string) []byte {
+	return []byte(value)
+}
+
 func checkedString(value string) string {
 	if len(value) > maxSharedIndex || !utf8.ValidString(value) {
 		panic("invalid or oversized string")

@@ -81,6 +81,80 @@ func TestOwned(t *testing.T) {
       await rm(directory, { recursive: true, force: true })
     }
   })
+  it('buffers large XML-sized strings and preserves snapshots, reassignment and scoped builders', async () => {
+    const buffered = `
+fn append_owned(mut input: String) -> String {
+    input.push('😊');
+    input
+}
+pub fn evaluate_check_many(byte: usize) -> String {
+    let mut output = String::new();
+    let mut index: usize = 0;
+    while index < byte { output.push('a'); index += 1; }
+    output
+}
+pub fn evaluate_check_snapshots(reset: bool) -> bool {
+    let mut text = "a".to_owned();
+    let original = text.clone();
+    text.push('é');
+    let second = text.clone();
+    text.push_str("😊");
+    if reset {
+        let mut text = "inner".to_owned();
+        text.push('é');
+        if text != "inneré" { return false; }
+    }
+    let expanded = append_owned(text.clone());
+    text = "replaced".to_owned();
+    text.push('!');
+    original == "a" && second == "aé" && expanded == "aé😊😊" && text == "replaced!"
+}
+`
+    const generated = transpileCheckRust(buffered)
+    const context = createContext({ exports: {} })
+    runInContext(
+      ts.transpileModule(generated.typescript, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+      }).outputText,
+      context,
+    )
+    const functions = context.exports as {
+      evaluateCheckMany(count: number): string
+      evaluateCheckSnapshots(reset: boolean): boolean
+    }
+    expect(functions.evaluateCheckMany(1500000)).toBe('a'.repeat(1500000))
+    expect(functions.evaluateCheckSnapshots(true)).toBe(true)
+    expect(functions.evaluateCheckSnapshots(false)).toBe(true)
+    const directory = await mkdtemp(join(tmpdir(), 'pgsid-text-buffer-'))
+    const run = promisify(execFile)
+    try {
+      await writeFile(join(directory, 'runtime.go'), generated.go)
+      await writeFile(join(directory, 'go.mod'), 'module textbuffer\n\ngo 1.25\n')
+      await writeFile(
+        join(directory, 'runtime_test.go'),
+        `package generated
+import ("strings"; "testing")
+func TestTextBuffer(t *testing.T) {
+ if EvaluateCheckMany(1500000) != strings.Repeat("a", 1500000) { t.Fatal("large XML text") }
+ if !EvaluateCheckSnapshots(true) || !EvaluateCheckSnapshots(false) { t.Fatal("string snapshots") }
+}`,
+      )
+      await writeFile(
+        join(directory, 'text.rs'),
+        buffered +
+          `
+#[test] fn buffer() {
+ assert_eq!(evaluate_check_many(1500000), "a".repeat(1500000));
+ assert!(evaluate_check_snapshots(true)); assert!(evaluate_check_snapshots(false));
+}`,
+      )
+      await run('rustc', ['--test', join(directory, 'text.rs'), '-o', join(directory, 'text')])
+      await run(join(directory, 'text'), [])
+      await run('go', ['test', '-timeout', '15s', './...'], { cwd: directory, timeout: 25000 })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  }, 40000)
   it('rejects mutable aggregates and unsupported string methods', () => {
     for (const rejected of [
       "pub fn f() -> String { let x = String::new(); x.push('a'); x }",
