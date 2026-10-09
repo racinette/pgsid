@@ -1414,3 +1414,25 @@ mod owned_enum_payload_tests {
         ] { assert!(parse(source).is_err(),"{source}"); }
     }
 }
+
+#[cfg(test)]
+mod private_owned_state_tests {
+    use super::parse;
+
+    #[test]
+    fn accepts_private_entity_arena_snapshots_and_whole_record_replacement() {
+        assert!(parse("#[derive(Clone,Copy)] struct Span{start:usize} #[derive(Clone)] struct Arena{characters:Vec<char>,entries:Vec<Span>} pub fn f(input:Arena)->usize{let saved=input.clone();let mut current=input;current=saved.clone();current.characters.len()}").is_ok());
+    }
+
+    #[test]
+    fn rejects_public_vectors_unsupported_elements_and_field_builders() {
+        for source in [
+            "#[derive(Clone)] pub struct Arena{characters:Vec<char>}",
+            "#[derive(Clone)] struct Arena{characters:Vec<String>}",
+            "#[derive(Clone)] struct Entry{value:String} #[derive(Clone)] struct Arena{entries:Vec<Entry>}",
+            "#[derive(Clone)] struct Arena{characters:Vec<char>} pub fn f(mut input:Arena)->Arena{input.characters.push('a');input}",
+        ] {
+            assert!(parse(source).is_err(), "{source}");
+        }
+    }
+}
