@@ -2331,3 +2331,46 @@ INSERT INTO label_normalization_records (id, label, normal_form, normalized_labe
 INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, NULL, 'invalid', 'ignored', 'ignored', false, false, true, '16.0', '16.0', false);
 -- name: normalization_lazy_invalid_form
 INSERT INTO label_normalization_records (id, label, normal_form, normalized_label, nfc_label, recorded_normalized, recorded_nfc, recorded_assigned, recorded_unicode_version, recorded_icu_version, suppress_invalid) VALUES (2, 'Café', 'invalid', 'ignored', 'ignored', false, false, true, 'ignored', 'ignored', true);
+
+-- name: extraction_first_capture
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(b)', '%#"b#"%', '#', 'b', 1, false, 'b', 1, false, false);
+-- name: extraction_unicode_capture
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'a😊bc', '(😊b)', '%#"😊b#"%', '#', '😊b', 5, false, '😊b', 5, false, false);
+-- name: extraction_unmatched_optional_capture
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'foo', 'foo(bar)?', '%#"bar#"%', '#', NULL, NULL, true, NULL, NULL, true, false);
+-- name: extraction_optional_capture_present
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'foobar', 'foo(bar)?', '%#"bar#"%', '#', 'bar', 3, false, 'bar', 3, false, false);
+-- name: extraction_whole_match_without_capture
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', 'ab', 'a%', '#', 'ab', 2, false, 'abc', 3, false, false);
+-- name: extraction_empty_capture_is_present
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '', '%#"#"%', '#', '', 0, false, '', 0, false, false);
+-- name: extraction_first_alternative_did_not_participate
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'b', '(a)|(b)', '%#"(a|b)#"%', '#', NULL, NULL, true, 'b', 1, false, false);
+-- name: extraction_no_match
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'xyz', 'a', '%#"a#"%', '#', NULL, NULL, true, NULL, NULL, true, false);
+-- name: extraction_wrong_regular_fragment
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(b)', '%#"b#"%', '#', 'x', 1, false, 'b', 1, false, false);
+-- name: extraction_wrong_similar_fragment
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(b)', '%#"b#"%', '#', 'b', 1, false, 'x', 1, false, false);
+-- name: extraction_wrong_regular_octets
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'a😊bc', '(😊b)', '%#"😊b#"%', '#', '😊b', 4, false, '😊b', 5, false, false);
+-- name: extraction_wrong_similar_octets
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'a😊bc', '(😊b)', '%#"😊b#"%', '#', '😊b', 5, false, '😊b', 4, false, false);
+-- name: extraction_wrong_missing_record
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'foo', 'foo(bar)?', '%#"bar#"%', '#', NULL, NULL, false, NULL, NULL, true, false);
+-- name: extraction_null_label
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, NULL, '(', '[', '#', NULL, NULL, true, NULL, NULL, true, false);
+-- name: extraction_null_patterns
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', NULL, NULL, '#', NULL, NULL, true, NULL, NULL, true, false);
+-- name: extraction_null_escape
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(b)', '%#"b#"%', NULL, 'b', 1, false, NULL, NULL, true, false);
+-- name: extraction_null_records
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(b)', '%#"b#"%', '#', NULL, NULL, NULL, NULL, NULL, NULL, false);
+-- name: extraction_invalid_regular_pattern
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(', '%', '#', NULL, NULL, true, 'abc', 3, false, false);
+-- name: extraction_too_many_similar_separators
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(b)', '%#"a#"%#"b#"%', '#', 'b', 1, false, NULL, NULL, true, false);
+-- name: extraction_invalid_escape
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(b)', '%', 'ab', 'b', 1, false, NULL, NULL, true, false);
+-- name: extraction_lazy_invalid_patterns
+INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(', '%#"a#"%#"b#"%', 'ab', 'ignored', 0, false, 'ignored', 0, false, true);

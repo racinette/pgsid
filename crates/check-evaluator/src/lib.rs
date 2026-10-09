@@ -155,6 +155,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/regex_count.rs");
     include!("operations/pg_catalog/regex_instr.rs");
     include!("operations/pg_catalog/regex_substr.rs");
+    include!("operations/pg_catalog/regex_substring.rs");
     include!("operations/pg_catalog/regex_replace.rs");
 
     #[cfg(test)]
