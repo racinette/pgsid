@@ -273,6 +273,9 @@ describe('catalog enum CHECKs', () => {
     const operations = await import(
       pathToFileURL(join(directory, 'js/checks-rust/pg_catalog/operations.js')).href
     )
+    const runtime = await import(
+      pathToFileURL(join(directory, 'js/checks-rust/checkruntime/runtime.js')).href
+    )
     const fixtures: OperationCase[] = []
     for (const fn of builtinCallables().filter(
       (item) => item.kind === 'function' && enumEqualityOperation(callableIdentity(item)) !== null,
@@ -322,7 +325,9 @@ describe('catalog enum CHECKs', () => {
       const name = item.name
         .replace('sql__pg_catalog__', '')
         .replace(/_+([a-z0-9])/gu, (_, part: string) => part.toUpperCase())
-      expect(operations[name](targetState(item.left), targetState(item.right))).toEqual(
+      const enumInput = (state: State) =>
+        state.kind === 'Value' ? runtime.makeEnumValue(state.value) : targetState(state)
+      expect(operations[name](enumInput(item.left), enumInput(item.right))).toEqual(
         targetState(item.expected),
       )
     }

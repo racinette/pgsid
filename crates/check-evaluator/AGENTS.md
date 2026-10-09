@@ -252,8 +252,10 @@ import them. Keep schema-only helpers with their callables.
   SQLSTATE 22008; empty text and a missing final day return 22007. Other forms
   and text longer than PostgreSQL's date input buffer remain unknown. Do not
   parse dates with a target's native date library or assume a session DateStyle.
-- Enum payloads are label ordinals within one concrete enum. Keep schema and
-  type identity in bound expressions, and encode inputs against that enum's
+- Enum payloads carry label ordinals and optional catalog label OIDs within one
+  concrete enum. A zero OID denotes unavailable metadata; retain ordinal-only
+  inputs for comparisons. Catalog OIDs span the unsigned 32-bit range in i64.
+  Keep schema and type identity in bound expressions, and encode inputs against that enum's
   catalog label list. Equality requires the same concrete type on both sides.
   Unrecognized input labels remain unknown. The CHECK gate also runs the enum
   catalog and operation parity tests.

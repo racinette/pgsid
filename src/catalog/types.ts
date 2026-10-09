@@ -540,6 +540,8 @@ export interface EnumInfo {
   /** Catalog identity used to resolve columns independently of the search path. */
   oid?: number
   values: string[]
+  /** pg_enum label identities, aligned with values in catalog sort order. */
+  valueOids?: number[]
 }
 
 export interface DomainInfo {

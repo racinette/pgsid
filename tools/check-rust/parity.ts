@@ -11,6 +11,7 @@ import {
 } from '../../src/codegen/shared/check-rust-transpile.js'
 import { writeCheckRustSources } from './sources.js'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
+import { enumLabelOid, type EnumDefinition } from '../../src/sql-semantics/expressions.js'
 import { go, printGoFile, type GoExpression, type GoStatement } from '../../src/codegen/go/ast.js'
 
 export type Input =
@@ -91,12 +92,16 @@ export async function runCheckParity(
                                 : type === 'pg_catalog.bool'
                                   ? 'bool'
                                   : 'text'
-  const inputCode = (input: Input, type: string): string => {
+  const inputCode = (input: Input, type: string, definition?: EnumDefinition): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
       return `${prefix}_${input.kind.toLowerCase()}()`
     if (input.kind === 'Error')
       return `${pascal(prefix)}Value::Error(make_sql_error(${input.value.state}))`
+    if (prefix === 'enum' && definition) {
+      const oid = enumLabelOid(definition, input.value as number)
+      if (oid !== null) return `make_catalog_enum_value(${input.value}, ${oid}i64)`
+    }
     const literal =
       typeof input.value === 'string'
         ? rustStringLiteral(input.value)
@@ -109,7 +114,7 @@ export async function runCheckParity(
     if (!nullness || input.kind === 'Unknown' || input.kind === 'Error') return input
     return { kind: 'Value', value: input.kind === 'Null' }
   }
-  const goInput = (input: Input, type: string): GoExpression => {
+  const goInput = (input: Input, type: string, definition?: EnumDefinition): GoExpression => {
     const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
     const prefix = pascal(prefixOf(type))
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -122,6 +127,14 @@ export async function runCheckParity(
           go.composite(runtime('SqlError'), [go.keyValue('State', go.number(input.value.state))]),
         ),
       ])
+    if (prefix === 'Enum' && definition) {
+      const oid = enumLabelOid(definition, input.value as number)
+      if (oid !== null)
+        return go.call(runtime('MakeCatalogEnumValue'), [
+          go.number(input.value as number),
+          go.number(oid),
+        ])
+    }
     const value =
       typeof input.value === 'string'
         ? go.string(input.value)
@@ -139,6 +152,7 @@ export async function runCheckParity(
         inputCode(
           projectedInput(fixture.row[input.name]!, input.nullness),
           input.nullness ? 'pg_catalog.bool' : input.type,
+          input.enum,
         ),
       )
       .join(', ')
@@ -185,6 +199,7 @@ export async function runCheckParity(
                 goInput(
                   projectedInput(fixture.row[input.name]!, input.nullness),
                   input.nullness ? 'pg_catalog.bool' : input.type,
+                  input.enum,
                 ),
               ),
             ),
@@ -282,6 +297,12 @@ export async function runCheckParity(
       ...check.inputs.map((input) => {
         const value = projectedInput(fixture.row[input.name]!, input.nullness)
         if (input.nullness) return value
+        if (input.type.startsWith('enum:') && value.kind === 'Value') {
+          const oid = input.enum ? enumLabelOid(input.enum, value.value as number) : null
+          return oid === null
+            ? generated.makeEnumValue(value.value)
+            : generated.makeCatalogEnumValue(value.value, BigInt(oid))
+        }
         if (
           (input.type === 'pg_catalog.inet' || input.type === 'pg_catalog.cidr') &&
           value.kind === 'Value'

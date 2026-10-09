@@ -215,6 +215,7 @@ interface EnumTypeRow {
 }
 
 interface EnumValueRow {
+  oid: number
   enumtypid: number
   enumlabel: string
   enumsortorder: number
@@ -979,16 +980,21 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
 
   // --- Enums. ---
   const enumValuesByType = new Map<number, string[]>()
+  const enumOidsByType = new Map<number, number[]>()
   for (const ev of enumValueRows) {
     const arr = enumValuesByType.get(ev.enumtypid)
     if (arr) arr.push(ev.enumlabel)
     else enumValuesByType.set(ev.enumtypid, [ev.enumlabel])
+    const oids = enumOidsByType.get(ev.enumtypid)
+    if (oids) oids.push(ev.oid)
+    else enumOidsByType.set(ev.enumtypid, [ev.oid])
   }
   const enums: EnumInfo[] = enumTypeRows
     .map((e) => ({
       schema: e.schema,
       name: e.name,
       values: enumValuesByType.get(e.oid) ?? [],
+      valueOids: enumOidsByType.get(e.oid) ?? [],
       oid: e.oid,
     }))
     .sort(bySchemaName)
@@ -1878,7 +1884,7 @@ async function queryEnumTypes(pg: PGlite): Promise<EnumTypeRow[]> {
 async function queryEnumValues(pg: PGlite): Promise<EnumValueRow[]> {
   // All enum values (filtered to user enums at assembly time via the type map).
   const res = await pg.query<EnumValueRow>(
-    `SELECT e.enumtypid, e.enumlabel, e.enumsortorder
+    `SELECT e.oid, e.enumtypid, e.enumlabel, e.enumsortorder
      FROM pg_enum e
      ORDER BY e.enumtypid, e.enumsortorder;`,
   )

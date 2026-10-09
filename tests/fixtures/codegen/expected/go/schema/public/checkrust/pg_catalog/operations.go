@@ -4861,10 +4861,10 @@ func EnumEqW63e(left checkruntime.EnumValue, right checkruntime.EnumValue) check
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 	}
 	if left.Kind == checkruntime.EnumValueValue {
-		leftValue := langruntime.CheckedI32(left.Value)
+		leftValue := left.Value
 		if right.Kind == checkruntime.EnumValueValue {
-			rightValue := langruntime.CheckedI32(right.Value)
-			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue == rightValue}
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue.Ordinal == rightValue.Ordinal}
 		}
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
@@ -4885,10 +4885,10 @@ func EnumNeTph2(left checkruntime.EnumValue, right checkruntime.EnumValue) check
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 	}
 	if left.Kind == checkruntime.EnumValueValue {
-		leftValue := langruntime.CheckedI32(left.Value)
+		leftValue := left.Value
 		if right.Kind == checkruntime.EnumValueValue {
-			rightValue := langruntime.CheckedI32(right.Value)
-			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue != rightValue}
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue.Ordinal != rightValue.Ordinal}
 		}
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}

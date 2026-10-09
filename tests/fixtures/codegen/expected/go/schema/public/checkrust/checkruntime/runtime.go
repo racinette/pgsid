@@ -202,6 +202,10 @@ func TimestamptzFromCaseGuard(value CheckOutcome) TimestamptzValue {
 	return TimestamptzValue{Kind: TimestamptzValueUnknown}
 }
 
+type EnumPayload struct {
+	Ordinal  int
+	LabelOid int64
+}
 type EnumValueKind uint8
 
 const (
@@ -213,7 +217,7 @@ const (
 
 type EnumValue struct {
 	Kind  EnumValueKind
-	Value int
+	Value EnumPayload
 	Error SqlError
 }
 
@@ -225,7 +229,14 @@ func EnumNull() EnumValue {
 }
 func MakeEnumValue(value int) EnumValue {
 	value = langruntime.CheckedI32(value)
-	return EnumValue{Kind: EnumValueValue, Value: value}
+	return EnumValue{Kind: EnumValueValue, Value: EnumPayload{Ordinal: value, LabelOid: int64(0)}}
+}
+func MakeCatalogEnumValue(ordinal int, labelOid int64) EnumValue {
+	ordinal = langruntime.CheckedI32(ordinal)
+	if ordinal < 0 || labelOid < int64(1) || labelOid > int64(4294967295) {
+		return EnumValue{Kind: EnumValueUnknown}
+	}
+	return EnumValue{Kind: EnumValueValue, Value: EnumPayload{Ordinal: ordinal, LabelOid: labelOid}}
 }
 func EnumIsNull(value EnumValue) BoolValue {
 	if value.Kind == EnumValueError {

@@ -56,12 +56,19 @@ export type ScalarType =
   | ArrayType
 export type SyntaxKind = 'and' | 'or' | 'not' | 'is-null' | 'is-not-null' | 'case' | 'coalesce'
 
-export type EnumDefinition = Readonly<Omit<EnumInfo, 'values'>> & {
+export type EnumDefinition = Readonly<Omit<EnumInfo, 'values' | 'valueOids'>> & {
   readonly values: readonly string[]
+  readonly valueOids?: readonly number[]
 }
 
 export function enumType(definition: Pick<EnumDefinition, 'schema' | 'name'>): EnumType {
   return `enum:${JSON.stringify([definition.schema, definition.name])}`
+}
+
+export function enumLabelOid(definition: EnumDefinition, ordinal: number): number | null {
+  if (definition.valueOids?.length !== definition.values.length) return null
+  const oid = definition.valueOids[ordinal]
+  return oid !== undefined && Number.isInteger(oid) && oid > 0 && oid <= 4294967295 ? oid : null
 }
 
 export function enumEqualityOperation(signature: string): '=' | '<>' | null {

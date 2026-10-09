@@ -456,6 +456,16 @@ describe('diffCatalogs: enums', () => {
     const after = snapshot({ enums: [{ schema: 'public', name: 'status', values: ['b', 'a'] }] })
     expect(diffCatalogs(before, after).modified.map((m) => m.entityId)).toEqual(['public.status'])
   })
+
+  it('catalog label OIDs do not change the enum schema contract', () => {
+    const before = snapshot({
+      enums: [{ schema: 'public', name: 'status', values: ['a', 'b'], valueOids: [16386, 16388] }],
+    })
+    const after = snapshot({
+      enums: [{ schema: 'public', name: 'status', values: ['a', 'b'], valueOids: [18002, 18004] }],
+    })
+    expect(diffCatalogs(before, after).modified).toEqual([])
+  })
 })
 
 describe('diffCatalogs: domains', () => {

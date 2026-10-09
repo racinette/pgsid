@@ -1,6 +1,6 @@
 import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo } from '../../../catalog/types.js'
-import { enumType } from '../../../sql-semantics/expressions.js'
+import { enumLabelOid, enumType } from '../../../sql-semantics/expressions.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import {
   catalogTemporalType,
@@ -211,6 +211,11 @@ export function renderTypescriptSchemaCheckArtifacts(
               ? [
                   factory.createArrayLiteralExpression(
                     item.enum.values.map((label) => factory.createStringLiteral(label)),
+                  ),
+                  factory.createArrayLiteralExpression(
+                    item.enum.values.map((_, ordinal) =>
+                      factory.createBigIntLiteral(`${enumLabelOid(item.enum!, ordinal) ?? 0}n`),
+                    ),
                   ),
                 ]
               : []),
@@ -631,12 +636,14 @@ function checkRustNullness(row: object, name: string): _checkRust.BoolValue {
   const input = checkInputNullness(row, name)
   return input.certain ? _checkRust.makeBoolValue(input.value!) : _checkRust.boolUnknown()
 }
-function checkRustEnum(row: object, name: string, labels: readonly string[]): _checkRust.EnumValue {
+function checkRustEnum(row: object, name: string, labels: readonly string[], oids: readonly bigint[]): _checkRust.EnumValue {
   const input = checkInputText(row, name)
   if (!input.certain) return _checkRust.enumUnknown()
   if (input.value === null) return _checkRust.enumNull()
   const order = labels.indexOf(input.value)
-  return order < 0 ? _checkRust.enumUnknown() : _checkRust.makeEnumValue(order)
+  if (order < 0) return _checkRust.enumUnknown()
+  const oid = oids[order] ?? 0n
+  return oid === 0n ? _checkRust.makeEnumValue(order) : _checkRust.makeCatalogEnumValue(order, oid)
 }
 function checkRustOutcome(value: _checkRust.CheckOutcome): CheckResult {
   switch (value.kind) {

@@ -4897,10 +4897,10 @@ export function enumEqW63e(left: checkruntime.EnumValue, right: checkruntime.Enu
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const leftValue: number = langruntime.checkedI32(left.value);
+        const leftValue: checkruntime.EnumPayload = left.value;
         if (right.kind === "Value") {
-            const rightValue: number = langruntime.checkedI32(right.value);
-            return { kind: "Value", value: leftValue === rightValue };
+            const rightValue: checkruntime.EnumPayload = right.value;
+            return { kind: "Value", value: leftValue.ordinal === rightValue.ordinal };
         }
     }
     return { kind: "Unknown" };
@@ -4921,10 +4921,10 @@ export function enumNeTph2(left: checkruntime.EnumValue, right: checkruntime.Enu
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const leftValue: number = langruntime.checkedI32(left.value);
+        const leftValue: checkruntime.EnumPayload = left.value;
         if (right.kind === "Value") {
-            const rightValue: number = langruntime.checkedI32(right.value);
-            return { kind: "Value", value: !(leftValue === rightValue) };
+            const rightValue: checkruntime.EnumPayload = right.value;
+            return { kind: "Value", value: !(leftValue.ordinal === rightValue.ordinal) };
         }
     }
     return { kind: "Unknown" };
