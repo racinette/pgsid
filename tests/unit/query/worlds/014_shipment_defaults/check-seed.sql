@@ -1747,3 +1747,83 @@ VALUES (37, false, '2'::numeric, NULL, NULL, NULL, NULL);
 -- name: shipment_fee_powers_skipped_error
 INSERT INTO shipment_fee_powers (id, skip, fee, exponent, power_record, scale_record, wire_record)
 VALUES (38, true, '-2'::numeric, '0.5'::numeric, '0'::numeric, '0'::integer, '\x'::bytea);
+
+-- name: stage_ready_tie
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (1, false, 'ready', 'ready', 0, 'ready', 'ready', false, true, false, true, 0);
+
+-- name: stage_ready_before_inserted_label
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (2, false, 'ready', 'held', -1, 'held', 'ready', true, true, false, false, 1);
+
+-- name: stage_ready_before_dispatched
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (3, false, 'ready', 'dispatched', -1, 'dispatched', 'ready', true, true, false, false, -1);
+
+-- name: stage_inserted_label_after_ready_minimum_seed
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (4, false, 'held', 'ready', 1, 'held', 'ready', false, false, true, true, '-9223372036854775808'::bigint);
+
+-- name: stage_inserted_label_tie_maximum_seed
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (5, false, 'held', 'held', 0, 'held', 'held', false, true, false, true, '9223372036854775807'::bigint);
+
+-- name: stage_inserted_label_before_dispatched
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (6, false, 'held', 'dispatched', -1, 'dispatched', 'held', true, true, false, false, '9007199254740993'::bigint);
+
+-- name: stage_dispatched_after_ready
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (7, false, 'dispatched', 'ready', 1, 'dispatched', 'ready', false, false, true, true, '4294967296'::bigint);
+
+-- name: stage_dispatched_after_inserted_label
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (8, false, 'dispatched', 'held', 1, 'dispatched', 'held', false, false, true, true, '-4294967296'::bigint);
+
+-- name: stage_dispatched_tie_null_seed
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (9, false, 'dispatched', 'dispatched', 0, 'dispatched', 'dispatched', false, true, false, true, NULL);
+
+-- name: stage_wrong_comparison
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (10, false, 'ready', 'held', 0, 'held', 'ready', true, true, false, false, 0);
+
+-- name: stage_wrong_larger_selection
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (11, false, 'ready', 'held', -1, 'ready', 'ready', true, true, false, false, 0);
+
+-- name: stage_wrong_smaller_selection
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (12, false, 'ready', 'held', -1, 'held', 'held', true, true, false, false, 0);
+
+-- name: stage_wrong_less_predicate
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (13, false, 'ready', 'held', -1, 'held', 'ready', false, true, false, false, 0);
+
+-- name: stage_wrong_not_after_predicate
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (14, false, 'ready', 'held', -1, 'held', 'ready', true, false, false, false, 0);
+
+-- name: stage_wrong_greater_predicate
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (15, false, 'ready', 'held', -1, 'held', 'ready', true, true, true, false, 0);
+
+-- name: stage_wrong_not_before_predicate
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (16, false, 'ready', 'held', -1, 'held', 'ready', true, true, false, true, 0);
+
+-- name: stage_null_left_operand
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (17, false, NULL, 'held', 0, 'held', 'ready', true, true, false, false, 0);
+
+-- name: stage_null_right_operand
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (18, false, 'held', NULL, 0, 'held', 'ready', true, true, false, false, 0);
+
+-- name: stage_null_recorded_results
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (19, false, 'ready', 'held', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0);
+
+-- name: stage_skipped_mismatched_records
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (20, true, 'ready', 'held', 1, 'ready', 'held', false, false, true, true, 0);

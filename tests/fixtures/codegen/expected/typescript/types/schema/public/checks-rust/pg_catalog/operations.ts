@@ -4929,6 +4929,134 @@ export function enumNeTph2(left: checkruntime.EnumValue, right: checkruntime.Enu
     }
     return { kind: "Unknown" };
 }
+export function enumCmpHjt6(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalEnumValue(left, { kind: "Unknown" }) || checkruntime.equalEnumValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalEnumValue(left, { kind: "Null" }) || checkruntime.equalEnumValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: checkruntime.EnumPayload = left.value;
+        if (right.kind === "Value") {
+            const rightValue: checkruntime.EnumPayload = right.value;
+            if (leftValue.ordinal < rightValue.ordinal) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (leftValue.ordinal > rightValue.ordinal) {
+                return { kind: "Value", value: 1 };
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function enumLt5af2(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.BoolValue {
+    const comparison: checkruntime.Int4Value = enumCmpHjt6(left, right);
+    return int4lt9gej(comparison, checkruntime.makeInt4Value(0));
+}
+export function enumLeXl1v(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.BoolValue {
+    const comparison: checkruntime.Int4Value = enumCmpHjt6(left, right);
+    return int4le9wb6(comparison, checkruntime.makeInt4Value(0));
+}
+export function enumGt1jsh(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.BoolValue {
+    const comparison: checkruntime.Int4Value = enumCmpHjt6(left, right);
+    return int4gt5vlv(comparison, checkruntime.makeInt4Value(0));
+}
+export function enumGe0b8h(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.BoolValue {
+    const comparison: checkruntime.Int4Value = enumCmpHjt6(left, right);
+    return int4ge2xvk(comparison, checkruntime.makeInt4Value(0));
+}
+export function enumLargerEm2s(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.EnumValue {
+    const comparison: checkruntime.Int4Value = enumCmpHjt6(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const value: number = langruntime.checkedI32(comparison.value);
+        if (value > 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function enumSmallerWhhx(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.EnumValue {
+    const comparison: checkruntime.Int4Value = enumCmpHjt6(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const value: number = langruntime.checkedI32(comparison.value);
+        if (value < 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function hashenumZ4zk(input: checkruntime.EnumValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalEnumValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalEnumValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.EnumPayload = input.value;
+        if (value.labelOid === 0n) {
+            return { kind: "Unknown" };
+        }
+        const word: number = Number(BigInt.asIntN(32, langruntime.checkedI64(value.labelOid)));
+        return hashint4Zr00(checkruntime.makeInt4Value(word));
+    }
+    return { kind: "Unknown" };
+}
+export function hashenumextended18hh(input: checkruntime.EnumValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (seed.kind === "Error") {
+        const error: checkruntime.SqlError = seed.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalEnumValue(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalEnumValue(input, { kind: "Null" }) || checkruntime.equalInt8Value(seed, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.EnumPayload = input.value;
+        if (value.labelOid === 0n) {
+            return { kind: "Unknown" };
+        }
+        const word: number = Number(BigInt.asIntN(32, langruntime.checkedI64(value.labelOid)));
+        return hashint4extendedXf6v(checkruntime.makeInt4Value(word), seed);
+    }
+    return { kind: "Unknown" };
+}
 export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
