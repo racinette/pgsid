@@ -39,7 +39,7 @@ change to the regex transpiler unless the regex engine itself changes.
   `String::new`, borrowed `to_owned`, owned `as_str`, Unicode `chars().collect`,
   and local mutable string `push(char)` / `push_str(&str)`. String length methods
   remain rejected because target string lengths measure different units.
-  Clone-only wrappers require scalar or Copy payloads. Explicit `clone()` on
+  Clone-only public wrappers require scalar or Copy payloads. Explicit `clone()` on
   immutable text/wrappers has value semantics; keep aggregate vector copying.
   Unicode scalars cast to `u32` or `i32` without truncation. Other character casts
   remain rejected. The ASCII CHECK and code-point suite exercise signed conversion.
@@ -50,8 +50,14 @@ change to the regex transpiler unless the regex engine itself changes.
 - Enum tests accept unit variants or a payload with one immutable identifier
   binding or `_`. A wildcard tests the variant without accessing the payload.
   Owned payloads may contain supported vectors of scalars or Copy records;
-  extraction retains aggregate copying. Borrowed mutable aggregates and Clone
-  records with vector fields remain rejected.
+  extraction retains aggregate copying. Private Clone records may own vectors
+  of chars, indices or Copy records. XML well-formedness CHECKs need this state
+  to extend an entity character arena while retaining earlier table snapshots.
+  Explicit clones copy vector storage and records in both targets. Whole record
+  replacement is allowed; builders require local bindings. Public Clone records
+  with vectors, owned vector elements, borrowed mutable aggregates, and direct
+  vector cloning remain rejected. Run `check-owned-state.test.ts` for snapshots
+  and adjacent rejection cases.
 - Regex starts use `usize::try_from(i32_value).unwrap_or(usize_fallback)`.
   Validate both operands eagerly; negative values select the fallback. Shared
   indices range through the signed int4 maximum and may widen back with `as i32`.

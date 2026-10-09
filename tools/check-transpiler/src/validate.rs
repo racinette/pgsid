@@ -666,8 +666,11 @@ fn infer_expr_type(
         Expr::MethodCall(call) if call.method == "push" || call.method == "push_str" => {
             let receiver = infer_expr_type(&call.receiver, locals, semantics)?;
             let value = infer_expr_type(&call.args[0], locals, semantics)?;
-            if receiver.as_deref() == Some("String") && !matches!(&*call.receiver, Expr::Path(_)) {
-                return Err("String builders require a local binding".into());
+            if (receiver.as_deref() == Some("String")
+                || receiver.as_deref().is_some_and(|ty| ty.starts_with("Vec<")))
+                && !matches!(&*call.receiver, Expr::Path(_))
+            {
+                return Err("builders require a local binding".into());
             }
             let expected = if receiver.as_deref() == Some("String") {
                 Some(
@@ -1007,14 +1010,21 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
     }
     for name in &semantics.clone {
         let supported = |ty: &String| scalar(ty) || semantics.copy.contains(ty);
-        if semantics
-            .fields
-            .get(name)
-            .is_some_and(|fields| fields.values().any(|ty| !supported(ty)))
-            || semantics.variants.iter().any(|((owner, _), payload)| {
-                owner == name && payload.as_ref().is_some_and(|ty| !supported(ty))
+        let private_owned_record = file.items.iter().any(|item| {
+            matches!(item, Item::Struct(structure)
+                if structure.ident == name.as_str()
+                    && matches!(structure.vis, syn::Visibility::Inherited))
+        });
+        if semantics.fields.get(name).is_some_and(|fields| {
+            fields.values().any(|ty| {
+                !supported(ty)
+                    && !(private_owned_record
+                        && ty.starts_with("Vec<")
+                        && shared_vector_element(ty, &semantics).is_some())
             })
-        {
+        }) || semantics.variants.iter().any(|((owner, _), payload)| {
+            owner == name && payload.as_ref().is_some_and(|ty| !supported(ty))
+        }) {
             return Err(format!(
                 "Clone type {name} requires immutable scalar or Copy fields"
             ));
