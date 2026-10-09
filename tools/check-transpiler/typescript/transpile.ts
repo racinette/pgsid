@@ -1033,7 +1033,7 @@ class Transpiler {
             if (
               item.visibility !== 'public' &&
               parameter.type.kind === 'reference' &&
-              this.opaque.has(this.path(parameter.type.inner))
+              this.structs.has(this.path(parameter.type.inner))
             )
               continue
             const detached = this.detach(identifier(name), parameter.type)
