@@ -15,6 +15,7 @@ import {
   isBinaryTextRelabel,
   isBinaryBitRelabel,
   enumEqualityOperation,
+  enumLabelOid,
   type EnumDefinition,
 } from '../../sql-semantics/expressions.js'
 
@@ -389,7 +390,15 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression(
             `Unsupported Rust CHECK enum label: ${value.value}`,
           )
-        return { name: bind(`make_enum_value(${order})`), type: value.type }
+        const oid = enumLabelOid(value.enum, order)
+        return {
+          name: bind(
+            oid === null
+              ? `make_enum_value(${order})`
+              : `make_catalog_enum_value(${order}, ${oid}i64)`,
+          ),
+          type: value.type,
+        }
       }
       if (value.kind === 'boolean') {
         const helper =

@@ -783,6 +783,21 @@ describe('snapshotCatalog: enums, domains, composite types, sequences', () => {
     expect(e?.values).toEqual(['sad', 'ok', 'happy'])
   })
 
+  it('keeps label OIDs aligned with sort order after inserting an enum label', async () => {
+    await pg.exec("CREATE TYPE public.mood AS ENUM ('sad', 'ok', 'happy');")
+    await pg.exec("ALTER TYPE public.mood ADD VALUE 'meh' BEFORE 'ok';")
+    const catalog = await snapshotCatalog(pg)
+    const definition = catalog.enums.find((item) => item.name === 'mood')!
+    expect(definition.values).toEqual(['sad', 'meh', 'ok', 'happy'])
+    const oracle = await pg.query<{ label: string; oid: number }>(
+      `SELECT enumlabel AS label, oid FROM pg_enum
+       WHERE enumtypid = 'public.mood'::regtype ORDER BY enumsortorder`,
+    )
+    expect(definition.values).toEqual(oracle.rows.map((row) => row.label))
+    expect(definition.valueOids).toEqual(oracle.rows.map((row) => row.oid))
+    expect(definition.valueOids![1]).toBeGreaterThan(definition.valueOids![2]!)
+  })
+
   it('captures domain base type, NOT NULL, default, check', async () => {
     await pg.exec('CREATE DOMAIN public.posint AS integer CHECK (value > 0);')
     await pg.exec("CREATE DOMAIN public.tagged AS text NOT NULL DEFAULT 'unknown';")

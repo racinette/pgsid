@@ -5,7 +5,7 @@ import {
   catalogTemporalType,
   catalogNumericType,
 } from '../../../sql-semantics/catalog-check-binder.js'
-import { enumType } from '../../../sql-semantics/expressions.js'
+import { enumLabelOid, enumType } from '../../../sql-semantics/expressions.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
@@ -316,6 +316,12 @@ export function renderGoSchemaCheckArtifacts(
                   go.composite(
                     go.slice(go.ident('string')),
                     item.enum.values.map((label) => go.string(label)),
+                  ),
+                  go.composite(
+                    go.slice(go.ident('int64')),
+                    item.enum.values.map((_, ordinal) =>
+                      go.number(enumLabelOid(item.enum!, ordinal) ?? 0),
+                    ),
                   ),
                 ]
               : []),
@@ -659,12 +665,15 @@ func checkRustNullness[T any](field CheckOptional[T]) checkruntime.BoolValue {
   if !input.Certain { return checkruntime.BoolUnknown() }
   return checkruntime.MakeBoolValue(input.Value.Value)
 }
-func checkRustEnum[T any](field CheckOptional[T], labels []string) checkruntime.EnumValue {
+func checkRustEnum[T any](field CheckOptional[T], labels []string, oids []int64) checkruntime.EnumValue {
   input := checkInputText(field)
   if !input.Certain { return checkruntime.EnumUnknown() }
   if !input.Value.Valid { return checkruntime.EnumNull() }
   for order, label := range labels {
-    if label == input.Value.Value { return checkruntime.MakeEnumValue(order) }
+    if label == input.Value.Value {
+      if order < len(oids) && oids[order] != 0 { return checkruntime.MakeCatalogEnumValue(order, oids[order]) }
+      return checkruntime.MakeEnumValue(order)
+    }
   }
   return checkruntime.EnumUnknown()
 }

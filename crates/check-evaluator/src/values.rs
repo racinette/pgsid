@@ -174,10 +174,16 @@ pub fn timestamptz_from_case_guard(value: CheckOutcome) -> TimestamptzValue {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub struct EnumPayload {
+    pub ordinal: i32,
+    pub label_oid: i64,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum EnumValue {
     Unknown,
     Null,
-    Value(i32),
+    Value(EnumPayload),
     Error(SqlError),
 }
 
@@ -190,7 +196,17 @@ pub fn enum_null() -> EnumValue {
 }
 
 pub fn make_enum_value(value: i32) -> EnumValue {
-    EnumValue::Value(value)
+    EnumValue::Value(EnumPayload {
+        ordinal: value,
+        label_oid: 0i64,
+    })
+}
+
+pub fn make_catalog_enum_value(ordinal: i32, label_oid: i64) -> EnumValue {
+    if ordinal < 0 || label_oid < 1i64 || label_oid > 4294967295i64 {
+        return EnumValue::Unknown;
+    }
+    EnumValue::Value(EnumPayload { ordinal, label_oid })
 }
 
 pub fn enum_is_null(value: EnumValue) -> BoolValue {

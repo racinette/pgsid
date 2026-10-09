@@ -223,13 +223,20 @@ export function timestamptzFromCaseGuard(value: CheckOutcome): TimestamptzValue 
     }
     return { kind: "Unknown" };
 }
+export interface EnumPayload {
+    readonly ordinal: number;
+    readonly labelOid: bigint;
+}
+function equalEnumPayload(left: EnumPayload, right: EnumPayload): boolean {
+    return left.ordinal === right.ordinal && left.labelOid === right.labelOid;
+}
 export type EnumValue = {
     readonly kind: "Unknown";
 } | {
     readonly kind: "Null";
 } | {
     readonly kind: "Value";
-    readonly value: number;
+    readonly value: EnumPayload;
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
@@ -238,7 +245,7 @@ export function equalEnumValue(left: EnumValue, right: EnumValue): boolean {
     if (left.kind !== right.kind)
         return false;
     if (left.kind === "Value" && right.kind === "Value")
-        return left.value === right.value;
+        return equalEnumPayload(left.value, right.value);
     if (left.kind === "Error" && right.kind === "Error")
         return equalSqlError(left.value, right.value);
     return true;
@@ -251,7 +258,15 @@ export function enumNull(): EnumValue {
 }
 export function makeEnumValue(value: number): EnumValue {
     value = langruntime.checkedI32(value);
-    return { kind: "Value", value: value };
+    return { kind: "Value", value: { ordinal: value, labelOid: 0n } };
+}
+export function makeCatalogEnumValue(ordinal: number, labelOid: bigint): EnumValue {
+    ordinal = langruntime.checkedI32(ordinal);
+    labelOid = langruntime.checkedI64(labelOid);
+    if (ordinal < 0 || labelOid < 1n || labelOid > 4294967295n) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: { ordinal: ordinal, labelOid: labelOid } };
 }
 export function enumIsNull(value: EnumValue): BoolValue {
     if (value.kind === "Error") {
