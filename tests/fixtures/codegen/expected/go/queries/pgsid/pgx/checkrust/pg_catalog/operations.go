@@ -4893,6 +4893,134 @@ func EnumNeTph2(left checkruntime.EnumValue, right checkruntime.EnumValue) check
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func EnumCmpHjt6(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.EnumValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.EnumValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) || right == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}) || right == (checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.EnumValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.EnumValueValue {
+			rightValue := right.Value
+			if leftValue.Ordinal < rightValue.Ordinal {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if leftValue.Ordinal > rightValue.Ordinal {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func EnumLt5af2(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.BoolValue {
+	comparison := EnumCmpHjt6(left, right)
+	return Int4lt9gej(comparison, checkruntime.MakeInt4Value(0))
+}
+func EnumLeXl1v(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.BoolValue {
+	comparison := EnumCmpHjt6(left, right)
+	return Int4le9wb6(comparison, checkruntime.MakeInt4Value(0))
+}
+func EnumGt1jsh(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.BoolValue {
+	comparison := EnumCmpHjt6(left, right)
+	return Int4gt5vlv(comparison, checkruntime.MakeInt4Value(0))
+}
+func EnumGe0b8h(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.BoolValue {
+	comparison := EnumCmpHjt6(left, right)
+	return Int4ge2xvk(comparison, checkruntime.MakeInt4Value(0))
+}
+func EnumLargerEm2s(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.EnumValue {
+	comparison := EnumCmpHjt6(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.EnumValue{Kind: checkruntime.EnumValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(comparison.Value)
+		if value > 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}
+}
+func EnumSmallerWhhx(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.EnumValue {
+	comparison := EnumCmpHjt6(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.EnumValue{Kind: checkruntime.EnumValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(comparison.Value)
+		if value < 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}
+}
+func HashenumZ4zk(input checkruntime.EnumValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.EnumValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.EnumValueValue {
+		value := input.Value
+		if value.LabelOid == int64(0) {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+		word := int(int32(value.LabelOid))
+		return Hashint4Zr00(checkruntime.MakeInt4Value(word))
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Hashenumextended18hh(input checkruntime.EnumValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	if input.Kind == checkruntime.EnumValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input == (checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.EnumValueValue {
+		value := input.Value
+		if value.LabelOid == int64(0) {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+		}
+		word := int(int32(value.LabelOid))
+		return Hashint4extendedXf6v(checkruntime.MakeInt4Value(word), seed)
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
 func Int4gt5vlv(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error

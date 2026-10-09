@@ -192,7 +192,7 @@ describe('catalog enum CHECKs', () => {
     await expect(
       pg.query('SELECT NULL::enums_a.state = NULL::enums_b.state'),
     ).rejects.toMatchObject({ code: '42883' })
-    for (const sql of ['state < peer', "state = 'invalid'", "state = 'queued'::enums_b.state"])
+    for (const sql of ["state = 'invalid'", "state = 'queued'::enums_b.state"])
       expect(
         lowerTableCheck(
           table,

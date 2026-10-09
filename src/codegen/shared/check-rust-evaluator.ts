@@ -14,7 +14,6 @@ import {
   enumType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
-  enumEqualityOperation,
   enumLabelOid,
   type EnumDefinition,
 } from '../../sql-semantics/expressions.js'
@@ -222,10 +221,17 @@ export function emitCheckRustEvaluator(
       const metadata = builtinMetadata(call.signature)
       const implementation =
         metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+      const enumOperands = implementation.args.flatMap((type, index) =>
+        type === 'pg_catalog.anyenum' ? [operands[index]?.type] : [],
+      )
+      const enumCall = enumOperands.length > 0
+      const enumIdentity = enumOperands[0]
+      const resultType =
+        implementation.result === 'pg_catalog.anyenum' ? enumIdentity : implementation.result
       if (
         metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
-        implementation.result !== call.type ||
+        resultType !== call.type ||
         !implementation.strict ||
         implementation.volatility !== 'i' ||
         implementation.returnsSet ||
@@ -247,10 +253,9 @@ export function emitCheckRustEvaluator(
           `Unsupported Rust CHECK text collation: ${call.signature}`,
         )
       rustType(call.type)
-      const enumCall = enumEqualityOperation(call.signature) !== null
       if (
         enumCall &&
-        (operands[0]?.type !== operands[1]?.type || !operands[0]?.type.startsWith('enum:'))
+        (!enumIdentity?.startsWith('enum:') || enumOperands.some((type) => type !== enumIdentity))
       )
         throw new UnsupportedCheckRustExpression(
           `Rust CHECK enum identity mismatch: ${call.signature}`,

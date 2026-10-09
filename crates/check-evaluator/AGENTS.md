@@ -256,9 +256,13 @@ import them. Keep schema-only helpers with their callables.
   concrete enum. A zero OID denotes unavailable metadata; retain ordinal-only
   inputs for comparisons. Catalog OIDs span the unsigned 32-bit range in i64.
   Keep schema and type identity in bound expressions, and encode inputs against that enum's
-  catalog label list. Equality requires the same concrete type on both sides.
-  Unrecognized input labels remain unknown. The CHECK gate also runs the enum
-  catalog and operation parity tests.
+  catalog label list. Comparisons use ordinal order within the same concrete
+  type, including labels added between existing labels. Selection retains the
+  selected payload and chooses the second operand on ties. Hashes use the label
+  OID and defer when it is unavailable. Enum domains require a cast to the base
+  enum for polymorphic catalog calls; CASE and COALESCE preserve an identical
+  domain across every arm. Unrecognized input labels remain unknown. The CHECK
+  gate also runs the enum catalog and operation parity tests.
 - Timestamptz payloads are signed UTC microseconds from 2000-01-01, using
   Rust i64, Go int64, and TypeScript bigint. The signed minimum and maximum
   represent infinities. Rust validates finite payloads against PostgreSQL's

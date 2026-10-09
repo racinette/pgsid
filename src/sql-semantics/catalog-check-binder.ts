@@ -16,7 +16,6 @@ import {
   enumType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
-  enumEqualityOperation,
   type ScalarType,
   type SqlExpression,
 } from './expressions.js'
@@ -178,6 +177,12 @@ type Bound = {
   literal?: Literal
   collation?: BoundCollation
   enum?: EnumInfo
+  enumDomain?: number
+}
+
+const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
+  const domain = args[0]?.enumDomain
+  return domain !== undefined && args.every((arg) => arg.enumDomain === domain) ? domain : undefined
 }
 const unknown: Bound = { type: null, value: null }
 
@@ -344,6 +349,7 @@ type ResolvedCallable = {
   item: BuiltinCallable
   operands: EvalExpression[]
   collation?: BoundCollation
+  enum?: EnumInfo
 }
 const boundType = (arg: Bound): ScalarType | null =>
   arg.type ?? (arg.literal?.kind === 'integer' ? 'pg_catalog.int4' : null)
@@ -468,7 +474,7 @@ const candidate = (
       item.schema !== 'pg_catalog' ||
       item.name !== name ||
       item.args.length < args.length ||
-      !catalogScalarType(item.result.slice('pg_catalog.'.length).replaceAll('"', ''))
+      (!catalogScalarType(item.result) && item.result !== 'pg_catalog.anyenum')
     )
       return []
     let fullArgs = args
@@ -491,9 +497,22 @@ const candidate = (
       !supportsTextCallableCollation(signature, collation?.kind)
     )
       return []
-    const definition = fullArgs.find((arg) => arg.enum)?.enum
     const enumCall = item.args.includes('pg_catalog.anyenum')
-    if (enumCall && (!definition || !enumEqualityOperation(signature))) return []
+    const definition = fullArgs.find(
+      (arg, index) => item.args[index] === 'pg_catalog.anyenum' && arg.enum,
+    )?.enum
+    if (
+      (item.result === 'pg_catalog.anyenum' && !enumCall) ||
+      (enumCall &&
+        (!definition ||
+          !item.strict ||
+          item.volatility !== 'i' ||
+          fullArgs.some(
+            (arg, index) =>
+              item.args[index] === 'pg_catalog.anyenum' && arg.enumDomain !== undefined,
+          )))
+    )
+      return []
     const operands = fullArgs.map((arg, index) =>
       isIntegerType(item.args[index]!)
         ? materializeInteger(arg, item.args[index]! as ScalarType)
@@ -506,7 +525,7 @@ const candidate = (
           ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
-      ? [{ signature, item, operands: operands as EvalExpression[], collation }]
+      ? [{ signature, item, operands: operands as EvalExpression[], collation, enum: definition }]
       : []
   })
   const types = args.map(boundType)
@@ -617,6 +636,7 @@ export function bindCatalogCheck(
       return {
         type,
         ...(definition ? { enum: definition } : {}),
+        enumDomain: commonEnumDomain(args),
         ...(['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
           ? { collation: combineCollations(args.map((arg) => arg.collation)) }
           : {}),
@@ -707,6 +727,7 @@ export function bindCatalogCheck(
       return {
         type,
         ...(definition ? { enum: definition } : {}),
+        enumDomain: commonEnumDomain(arms),
         collation,
         value: {
           kind: 'case',
@@ -1225,6 +1246,7 @@ export function bindCatalogCheck(
         return {
           type,
           enum: definition,
+          enumDomain: domains.find((domain) => domain.oid === column.typeOid)?.oid,
           value: { kind: 'input', type, name: column.name, enum: definition },
         }
       }
@@ -1353,13 +1375,21 @@ export function bindCatalogCheck(
         ([subject, ...members].some((member) => member.literal?.kind === 'integer')
           ? 'pg_catalog.int4'
           : 'pg_catalog.text')
-      const value = materialize(subject, type)
+      const definition = subject.enum ?? members.find((member) => member.enum)?.enum
+      const value = materialize(subject, type, definition)
       if (!value) return unknown
       const collation = combineCollations([subject, ...members].map((member) => member.collation))
       const resolved = members.map((member) =>
         candidate('operator', name!, [
           { ...subject, type, value, literal: undefined, collation },
-          { ...member, type, value: materialize(member, type), literal: undefined, collation },
+          {
+            ...member,
+            type,
+            value: materialize(member, type, definition),
+            literal: undefined,
+            collation,
+            enum: member.enum ?? definition,
+          },
         ]),
       )
       if (resolved.some((member) => !member)) return unknown
@@ -1542,10 +1572,14 @@ export function bindCatalogCheck(
       }
       return unknown
     }
-    const type = resolved.item.result as ScalarType
+    const type =
+      resolved.item.result === 'pg_catalog.anyenum'
+        ? enumType(resolved.enum!)
+        : (resolved.item.result as ScalarType)
     const collation = resolved.collation
     return {
       type,
+      ...(resolved.item.result === 'pg_catalog.anyenum' ? { enum: resolved.enum } : {}),
       collation: ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
         ? (collation ?? defaultCollation)
         : undefined,

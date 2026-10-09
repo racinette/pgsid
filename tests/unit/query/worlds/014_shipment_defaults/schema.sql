@@ -2,7 +2,8 @@
 
 CREATE DOMAIN overflow_stock AS bigint;
 CREATE DOMAIN nested_overflow_stock AS overflow_stock;
-CREATE TYPE shipment_stage AS ENUM ('ready', 'held', 'dispatched');
+CREATE TYPE shipment_stage AS ENUM ('ready', 'dispatched');
+ALTER TYPE shipment_stage ADD VALUE 'held' BEFORE 'dispatched';
 
 CREATE TABLE replenishment_picks (
   id integer PRIMARY KEY,
@@ -357,4 +358,33 @@ CREATE TABLE shipment_fee_powers (
   CONSTRAINT shipment_fee_power_operator CHECK (CASE WHEN skip THEN true ELSE fee ^ exponent = power_record END),
   CONSTRAINT shipment_fee_power_scale CHECK (CASE WHEN skip THEN true ELSE scale(power(fee, exponent)) = scale_record END),
   CONSTRAINT shipment_fee_power_wire CHECK (CASE WHEN skip THEN true ELSE numeric_send(power(fee, exponent)) = wire_record END)
+);
+
+CREATE TABLE shipment_stage_decisions (
+  id integer PRIMARY KEY,
+  skip boolean NOT NULL DEFAULT false,
+  stage shipment_stage,
+  peer shipment_stage,
+  comparison_record integer,
+  larger_stage shipment_stage,
+  smaller_stage shipment_stage,
+  less_record boolean,
+  not_after_record boolean,
+  greater_record boolean,
+  not_before_record boolean,
+  seed bigint,
+  CONSTRAINT stage_compare CHECK (CASE WHEN skip THEN true ELSE enum_cmp(stage, peer) = comparison_record END),
+  CONSTRAINT stage_less_function CHECK (CASE WHEN skip THEN true ELSE enum_lt(stage, peer) = less_record END),
+  CONSTRAINT stage_not_after_function CHECK (CASE WHEN skip THEN true ELSE enum_le(stage, peer) = not_after_record END),
+  CONSTRAINT stage_greater_function CHECK (CASE WHEN skip THEN true ELSE enum_gt(stage, peer) = greater_record END),
+  CONSTRAINT stage_not_before_function CHECK (CASE WHEN skip THEN true ELSE enum_ge(stage, peer) = not_before_record END),
+  CONSTRAINT stage_larger CHECK (CASE WHEN skip THEN true ELSE enum_larger(stage, peer) = larger_stage END),
+  CONSTRAINT stage_smaller CHECK (CASE WHEN skip THEN true ELSE enum_smaller(stage, peer) = smaller_stage END),
+  CONSTRAINT stage_selected_hash CHECK (CASE WHEN skip THEN true ELSE hashenum(enum_larger(stage, peer)) = hashenum(larger_stage) END),
+  CONSTRAINT stage_selected_seeded_hash CHECK (CASE WHEN skip THEN true ELSE hashenumextended(enum_smaller(stage, peer), seed) = hashenumextended(smaller_stage, seed) END),
+  CONSTRAINT stage_less_operator CHECK (CASE WHEN skip THEN true ELSE (stage < peer) = less_record END),
+  CONSTRAINT stage_not_after_operator CHECK (CASE WHEN skip THEN true ELSE (stage <= peer) = not_after_record END),
+  CONSTRAINT stage_greater_operator CHECK (CASE WHEN skip THEN true ELSE (stage > peer) = greater_record END),
+  CONSTRAINT stage_not_before_operator CHECK (CASE WHEN skip THEN true ELSE (stage >= peer) = not_before_record END),
+  CONSTRAINT stage_selected_default CHECK (CASE WHEN skip THEN true ELSE COALESCE(enum_larger(stage, peer), larger_stage) = larger_stage END)
 );
