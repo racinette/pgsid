@@ -16330,3 +16330,2411 @@ func UuidExtractTimestampP52j(input checkruntime.UuidValue) checkruntime.Timesta
 	}
 	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
 }
+func xmlWellFormedValue(input checkruntime.TextValue, document bool) checkruntime.BoolValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: xmlWellFormed(value, document)}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func XmlIsWellFormedContent94vi(input checkruntime.TextValue) checkruntime.BoolValue {
+	return xmlWellFormedValue(input, false)
+}
+func XmlIsWellFormedDocument0whq(input checkruntime.TextValue) checkruntime.BoolValue {
+	return xmlWellFormedValue(input, true)
+}
+
+type xmlDeclaration struct {
+	next       int
+	valid      bool
+	standalone bool
+}
+
+func copyxmlDeclaration(value xmlDeclaration) xmlDeclaration {
+	return xmlDeclaration{next: langruntime.CheckedIndex(value.next), valid: value.valid, standalone: value.standalone}
+}
+
+type xmlQuoted struct {
+	value xmlSpan
+	next  int
+	valid bool
+}
+
+func copyxmlQuoted(value xmlQuoted) xmlQuoted {
+	return xmlQuoted{value: copyxmlSpan(value.value), next: langruntime.CheckedIndex(value.next), valid: value.valid}
+}
+func xmlParseQuoted(source *xmlSource, start int) xmlQuoted {
+	start = langruntime.CheckedIndex(start)
+	position := start
+	empty := xmlSpan{start: start, end: start}
+	if position >= len(source.characters) || (source.characters[position] != '"' && source.characters[position] != '\'') {
+		return xmlQuoted{value: empty, next: position, valid: false}
+	}
+	quote := source.characters[position]
+	position = langruntime.CheckedAdd(position, 1)
+	begin := position
+	for position < len(source.characters) && source.characters[position] != quote {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return xmlQuoted{value: xmlSpan{start: begin, end: position}, next: langruntime.CheckedAdd(position, 1), valid: position < len(source.characters)}
+}
+func xmlDeclarationValue(source *xmlSource, start int, keyword string) xmlQuoted {
+	start = langruntime.CheckedIndex(start)
+	keyword = langruntime.CheckedString(keyword)
+	characters := []rune(keyword)
+	position := start
+	empty := xmlSpan{start: start, end: start}
+	if xmlAt(source, position, keyword) == false {
+		return xmlQuoted{value: empty, next: position, valid: false}
+	}
+	position = langruntime.CheckedIndex(xmlSkipSpace(source, langruntime.CheckedAdd(position, len(characters))))
+	if position >= len(source.characters) || source.characters[position] != '=' {
+		return xmlQuoted{value: empty, next: position, valid: false}
+	}
+	return xmlParseQuoted(source, xmlSkipSpace(source, langruntime.CheckedAdd(position, 1)))
+}
+func xmlParseDeclaration(source *xmlSource, start int, document bool) xmlDeclaration {
+	start = langruntime.CheckedIndex(start)
+	absent := xmlDeclaration{next: start, valid: true, standalone: false}
+	if xmlAt(source, start, "<?xml") == false {
+		return absent
+	}
+	position := langruntime.CheckedAdd(start, 5)
+	if position < len(source.characters) && xmlNameCharacter(source.characters[position]) {
+		return absent
+	}
+	invalid := xmlDeclaration{next: start, valid: false, standalone: false}
+	if position >= len(source.characters) || xmlSpace(source.characters[position]) == false {
+		return invalid
+	}
+	position = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+	version := xmlDeclarationValue(source, position, "version")
+	if version.valid == false {
+		return invalid
+	}
+	if document {
+		if langruntime.CheckedSubtract(version.value.end, version.value.start) < 2 || xmlAt(source, version.value.start, "1.") == false {
+			return invalid
+		}
+		digit := langruntime.CheckedAdd(version.value.start, 2)
+		for digit < version.value.end {
+			code := int(langruntime.CheckedChar(source.characters[digit]))
+			if code < 48 || code > 57 {
+				return invalid
+			}
+			digit = langruntime.CheckedAdd(digit, 1)
+		}
+	}
+	position = langruntime.CheckedIndex(version.next)
+	encodingStart := xmlSkipSpace(source, position)
+	if xmlAt(source, encodingStart, "encoding") {
+		if encodingStart == position {
+			return invalid
+		}
+		encoding := xmlDeclarationValue(source, encodingStart, "encoding")
+		if encoding.valid == false {
+			return invalid
+		}
+		if document {
+			if encoding.value.start == encoding.value.end {
+				return invalid
+			}
+			first := int(langruntime.CheckedChar(source.characters[encoding.value.start]))
+			if (first < 65 || first > 90) && (first < 97 || first > 122) {
+				return invalid
+			}
+			index := langruntime.CheckedAdd(encoding.value.start, 1)
+			for index < encoding.value.end {
+				code := int(langruntime.CheckedChar(source.characters[index]))
+				if (code < 65 || code > 90) && (code < 97 || code > 122) && (code < 48 || code > 57) && code != 45 && code != 46 && code != 95 {
+					return invalid
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+		position = langruntime.CheckedIndex(encoding.next)
+	}
+	standaloneStart := xmlSkipSpace(source, position)
+	standalone := false
+	if xmlAt(source, standaloneStart, "standalone") {
+		if standaloneStart == position {
+			return invalid
+		}
+		declared := xmlDeclarationValue(source, standaloneStart, "standalone")
+		if declared.valid == false {
+			return invalid
+		}
+		if xmlSpanIs(source, declared.value, "yes") {
+			standalone = true
+		} else if xmlSpanIs(source, declared.value, "no") == false {
+			return invalid
+		}
+		position = langruntime.CheckedIndex(declared.next)
+	}
+	position = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+	if xmlAt(source, position, "?>") == false {
+		return invalid
+	}
+	position = langruntime.CheckedAdd(position, 2)
+	index := start
+	for index < position {
+		code := int(langruntime.CheckedChar(source.characters[index]))
+		if code > 127 {
+			return invalid
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return xmlDeclaration{next: position, valid: true, standalone: standalone}
+}
+
+type xmlDtdItem struct {
+	next     int
+	valid    bool
+	kind     int
+	name     xmlSpan
+	value    xmlSpan
+	external bool
+	unparsed bool
+}
+
+func copyxmlDtdItem(value xmlDtdItem) xmlDtdItem {
+	return xmlDtdItem{next: langruntime.CheckedIndex(value.next), valid: value.valid, kind: langruntime.CheckedI32(value.kind), name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), external: value.external, unparsed: value.unparsed}
+}
+
+type xmlDtdAttribute struct {
+	next       int
+	valid      bool
+	name       xmlSpan
+	value      xmlSpan
+	tokenized  bool
+	hasDefault bool
+}
+
+func copyxmlDtdAttribute(value xmlDtdAttribute) xmlDtdAttribute {
+	return xmlDtdAttribute{next: langruntime.CheckedIndex(value.next), valid: value.valid, name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), tokenized: value.tokenized, hasDefault: value.hasDefault}
+}
+func xmlParseDtdAttribute(source *xmlSource, start int) xmlDtdAttribute {
+	start = langruntime.CheckedIndex(start)
+	empty := xmlSpan{start: start, end: start}
+	invalid := xmlDtdAttribute{next: start, valid: false, name: empty, value: empty, tokenized: false, hasDefault: false}
+	name := xmlName(source, start)
+	if name.valid == false {
+		return invalid
+	}
+	declaredName := xmlSpan{start: start, end: name.next}
+	position := xmlSkipSpace(source, name.next)
+	if position == name.next {
+		return invalid
+	}
+	tokenized := true
+	if position < len(source.characters) && source.characters[position] == '(' {
+		enumeration := xmlDtdEnumeration(source, position, false)
+		if enumeration.valid == false {
+			return invalid
+		}
+		position = langruntime.CheckedIndex(enumeration.next)
+	} else {
+		attributeType := xmlName(source, position)
+		if attributeType.valid == false {
+			return invalid
+		}
+		typeName := xmlSpan{start: position, end: attributeType.next}
+		position = langruntime.CheckedIndex(attributeType.next)
+		if xmlSpanIs(source, typeName, "NOTATION") {
+			spaced := xmlSkipSpace(source, position)
+			if spaced == position {
+				return invalid
+			}
+			notation := xmlDtdEnumeration(source, spaced, true)
+			if notation.valid == false {
+				return invalid
+			}
+			position = langruntime.CheckedIndex(notation.next)
+		} else if xmlSpanIs(source, typeName, "CDATA") {
+			tokenized = false
+		} else if xmlSpanIs(source, typeName, "ID") == false && xmlSpanIs(source, typeName, "IDREF") == false && xmlSpanIs(source, typeName, "IDREFS") == false && xmlSpanIs(source, typeName, "ENTITY") == false && xmlSpanIs(source, typeName, "ENTITIES") == false && xmlSpanIs(source, typeName, "NMTOKEN") == false && xmlSpanIs(source, typeName, "NMTOKENS") == false {
+			return invalid
+		}
+	}
+	spaced := xmlSkipSpace(source, position)
+	if spaced == position {
+		return invalid
+	}
+	position = langruntime.CheckedIndex(spaced)
+	value := empty
+	hasDefault := false
+	if xmlAt(source, position, "#REQUIRED") {
+		position = langruntime.CheckedAdd(position, 9)
+	} else if xmlAt(source, position, "#IMPLIED") {
+		position = langruntime.CheckedAdd(position, 8)
+	} else {
+		hasDefault = true
+		if xmlAt(source, position, "#FIXED") {
+			position = langruntime.CheckedAdd(position, 6)
+			spaced = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+			if spaced == position {
+				return invalid
+			}
+			position = langruntime.CheckedIndex(spaced)
+		}
+		defaultValue := xmlDtdLiteral(source, position, false)
+		if defaultValue.valid == false {
+			return invalid
+		}
+		position = langruntime.CheckedIndex(defaultValue.next)
+		value = copyxmlSpan(defaultValue.value)
+	}
+	return xmlDtdAttribute{next: position, valid: true, name: declaredName, value: value, tokenized: tokenized, hasDefault: hasDefault}
+}
+func xmlDtdModel(source *xmlSource, start int, depth int, mixed bool) xmlScan {
+	start = langruntime.CheckedIndex(start)
+	depth = langruntime.CheckedIndex(depth)
+	invalid := xmlScan{next: start, valid: false}
+	if depth > 256 || start >= len(source.characters) || source.characters[start] != '(' {
+		return invalid
+	}
+	position := xmlSkipSpace(source, langruntime.CheckedAdd(start, 1))
+	if mixed && xmlAt(source, position, "#PCDATA") {
+		position = langruntime.CheckedIndex(xmlSkipSpace(source, langruntime.CheckedAdd(position, 7)))
+		names := 0
+		for position < len(source.characters) && source.characters[position] == '|' {
+			name := xmlName(source, xmlSkipSpace(source, langruntime.CheckedAdd(position, 1)))
+			if name.valid == false {
+				return invalid
+			}
+			names = langruntime.CheckedAdd(names, 1)
+			position = langruntime.CheckedIndex(xmlSkipSpace(source, name.next))
+		}
+		if position >= len(source.characters) || source.characters[position] != ')' {
+			return invalid
+		}
+		position = langruntime.CheckedAdd(position, 1)
+		if position < len(source.characters) && source.characters[position] == '*' {
+			position = langruntime.CheckedAdd(position, 1)
+		} else if names > 0 {
+			return invalid
+		}
+		return xmlScan{next: position, valid: true}
+	}
+	separator := ' '
+	ended := false
+	for ended == false {
+		if position < len(source.characters) && source.characters[position] == '(' {
+			group := xmlDtdModel(source, position, langruntime.CheckedAdd(depth, 1), false)
+			if group.valid == false {
+				return invalid
+			}
+			position = langruntime.CheckedIndex(group.next)
+		} else {
+			name := xmlName(source, position)
+			if name.valid == false {
+				return invalid
+			}
+			position = langruntime.CheckedIndex(name.next)
+			if position < len(source.characters) {
+				quantifier := source.characters[position]
+				if quantifier == '?' || quantifier == '*' || quantifier == '+' {
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			}
+		}
+		position = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+		if position >= len(source.characters) {
+			return invalid
+		}
+		character := source.characters[position]
+		if character == ')' {
+			position = langruntime.CheckedAdd(position, 1)
+			ended = true
+		} else if character == ',' || character == '|' {
+			if separator != ' ' && separator != character {
+				return invalid
+			}
+			separator = langruntime.CheckedChar(character)
+			position = langruntime.CheckedIndex(xmlSkipSpace(source, langruntime.CheckedAdd(position, 1)))
+		} else {
+			return invalid
+		}
+	}
+	if position < len(source.characters) {
+		quantifier := source.characters[position]
+		if quantifier == '?' || quantifier == '*' || quantifier == '+' {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	return xmlScan{next: position, valid: true}
+}
+func xmlPublicLiteral(source *xmlSource, start int) xmlQuoted {
+	start = langruntime.CheckedIndex(start)
+	quoted := xmlParseQuoted(source, start)
+	if quoted.valid == false {
+		return quoted
+	}
+	position := quoted.value.start
+	bytes := 0
+	for position < quoted.value.end {
+		character := source.characters[position]
+		code := int(langruntime.CheckedChar(character))
+		if (code < 65 || code > 90) && (code < 97 || code > 122) && (code < 48 || code > 57) && character != ' ' && character != '\r' && character != '\n' && character != '-' && character != '\'' && character != '(' && character != ')' && character != '+' && character != ',' && character != '.' && character != '/' && character != ':' && character != '=' && character != '?' && character != ';' && character != '!' && character != '*' && character != '#' && character != '@' && character != '$' && character != '_' && character != '%' {
+			return xmlQuoted{value: quoted.value, next: quoted.next, valid: false}
+		}
+		if bytes >= 49999 {
+			return xmlQuoted{value: quoted.value, next: quoted.next, valid: false}
+		}
+		bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, 1))
+		if character == '\r' && langruntime.CheckedAdd(position, 1) < quoted.value.end && source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return quoted
+}
+func xmlExternalId(source *xmlSource, start int, notation bool) xmlQuoted {
+	start = langruntime.CheckedIndex(start)
+	empty := xmlSpan{start: start, end: start}
+	invalid := xmlQuoted{value: empty, next: start, valid: false}
+	position := start
+	if xmlAt(source, position, "SYSTEM") {
+		position = langruntime.CheckedAdd(position, 6)
+		spaced := xmlSkipSpace(source, position)
+		if spaced == position {
+			return invalid
+		}
+		position = langruntime.CheckedIndex(spaced)
+	} else if xmlAt(source, position, "PUBLIC") {
+		position = langruntime.CheckedAdd(position, 6)
+		spaced := xmlSkipSpace(source, position)
+		if spaced == position {
+			return invalid
+		}
+		publicId := xmlPublicLiteral(source, spaced)
+		if publicId.valid == false {
+			return invalid
+		}
+		position = langruntime.CheckedIndex(xmlSkipSpace(source, publicId.next))
+		if notation && (position >= len(source.characters) || (source.characters[position] != '\'' && source.characters[position] != '"')) {
+			return xmlQuoted{value: empty, next: publicId.next, valid: true}
+		}
+		if position == publicId.next {
+			return invalid
+		}
+	} else {
+		return invalid
+	}
+	system := xmlParseQuoted(source, position)
+	if system.valid == false {
+		return invalid
+	}
+	position = langruntime.CheckedIndex(system.value.start)
+	bytes := 0
+	for position < system.value.end {
+		if xmlCharacter(source.characters[position]) == false {
+			return invalid
+		}
+		if bytes >= 49995 {
+			return invalid
+		}
+		bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, xmlCharacterOctets(source.characters[position])))
+		if source.characters[position] == '\r' && langruntime.CheckedAdd(position, 1) < system.value.end && source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return system
+}
+func xmlDtdLiteral(source *xmlSource, start int, entity bool) xmlQuoted {
+	start = langruntime.CheckedIndex(start)
+	quoted := xmlParseQuoted(source, start)
+	if quoted.valid == false {
+		return quoted
+	}
+	invalid := xmlQuoted{value: quoted.value, next: quoted.next, valid: false}
+	position := quoted.value.start
+	for position < quoted.value.end {
+		character := source.characters[position]
+		if entity == false && (xmlCharacter(character) == false || character == '<') {
+			return invalid
+		}
+		if entity == false && character == '&' {
+			reference := xmlReference(source, position)
+			if reference.valid == false || reference.next > quoted.value.end {
+				return invalid
+			}
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	return quoted
+}
+func xmlDtdEnumeration(source *xmlSource, start int, notation bool) xmlScan {
+	start = langruntime.CheckedIndex(start)
+	invalid := xmlScan{next: start, valid: false}
+	if start >= len(source.characters) || source.characters[start] != '(' {
+		return invalid
+	}
+	position := xmlSkipSpace(source, langruntime.CheckedAdd(start, 1))
+	ended := false
+	for ended == false {
+		begin := position
+		if notation {
+			name := xmlName(source, position)
+			if name.valid == false {
+				return invalid
+			}
+			position = langruntime.CheckedIndex(name.next)
+		} else {
+			for position < len(source.characters) && xmlNameCharacter(source.characters[position]) {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			if position == begin {
+				return invalid
+			}
+		}
+		position = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+		if position >= len(source.characters) {
+			return invalid
+		}
+		if source.characters[position] == ')' {
+			position = langruntime.CheckedAdd(position, 1)
+			ended = true
+		} else if source.characters[position] == '|' {
+			position = langruntime.CheckedIndex(xmlSkipSpace(source, langruntime.CheckedAdd(position, 1)))
+		} else {
+			return invalid
+		}
+	}
+	return xmlScan{next: position, valid: true}
+}
+func xmlParseDtdItem(source *xmlSource, start int) xmlDtdItem {
+	start = langruntime.CheckedIndex(start)
+	empty := xmlSpan{start: start, end: start}
+	invalid := xmlDtdItem{next: start, valid: false, kind: 0, name: empty, value: empty, external: false, unparsed: false}
+	position := start
+	kind := 0
+	if xmlAt(source, position, "<!ELEMENT") {
+		position = langruntime.CheckedAdd(position, 9)
+		kind = langruntime.CheckedI32(1)
+	} else if xmlAt(source, position, "<!ATTLIST") {
+		position = langruntime.CheckedAdd(position, 9)
+		kind = langruntime.CheckedI32(2)
+	} else if xmlAt(source, position, "<!ENTITY") {
+		position = langruntime.CheckedAdd(position, 8)
+		kind = langruntime.CheckedI32(3)
+	} else if xmlAt(source, position, "<!NOTATION") {
+		position = langruntime.CheckedAdd(position, 10)
+		kind = langruntime.CheckedI32(5)
+	} else {
+		return invalid
+	}
+	spaced := xmlSkipSpace(source, position)
+	if spaced == position {
+		return invalid
+	}
+	position = langruntime.CheckedIndex(spaced)
+	if kind == 3 && position < len(source.characters) && source.characters[position] == '%' {
+		kind = langruntime.CheckedI32(4)
+		position = langruntime.CheckedAdd(position, 1)
+		spaced = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+		if spaced == position {
+			return invalid
+		}
+		position = langruntime.CheckedIndex(spaced)
+	}
+	name := xmlName(source, position)
+	if name.valid == false {
+		return invalid
+	}
+	declaredName := xmlSpan{start: position, end: name.next}
+	position = langruntime.CheckedIndex(name.next)
+	spaced = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+	if kind != 2 && spaced == position {
+		return invalid
+	}
+	position = langruntime.CheckedIndex(spaced)
+	value := empty
+	external := false
+	unparsed := false
+	if kind == 1 {
+		if xmlAt(source, position, "EMPTY") {
+			position = langruntime.CheckedAdd(position, 5)
+		} else if xmlAt(source, position, "ANY") {
+			position = langruntime.CheckedAdd(position, 3)
+		} else {
+			model := xmlDtdModel(source, position, 0, true)
+			if model.valid == false {
+				return invalid
+			}
+			position = langruntime.CheckedIndex(model.next)
+		}
+	} else if kind == 2 {
+		ended := false
+		previous := name.next
+		for ended == false {
+			position = langruntime.CheckedIndex(xmlSkipSpace(source, previous))
+			if position < len(source.characters) && source.characters[position] == '>' {
+				ended = true
+			} else {
+				if position == previous {
+					return invalid
+				}
+				attribute := xmlParseDtdAttribute(source, position)
+				if attribute.valid == false {
+					return invalid
+				}
+				position = langruntime.CheckedIndex(attribute.next)
+				previous = langruntime.CheckedIndex(position)
+			}
+		}
+	} else if kind == 3 || kind == 4 {
+		if position < len(source.characters) && (source.characters[position] == '\'' || source.characters[position] == '"') {
+			literal := xmlDtdLiteral(source, position, true)
+			if literal.valid == false {
+				return invalid
+			}
+			value = copyxmlSpan(literal.value)
+			position = langruntime.CheckedIndex(literal.next)
+		} else {
+			external = true
+			identifier := xmlExternalId(source, position, false)
+			if identifier.valid == false {
+				return invalid
+			}
+			value = copyxmlSpan(identifier.value)
+			index := value.start
+			for index < value.end {
+				if source.characters[index] == '#' {
+					return invalid
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			position = langruntime.CheckedIndex(xmlSkipSpace(source, identifier.next))
+			if kind == 3 && position > identifier.next && xmlAt(source, position, "NDATA") {
+				unparsed = true
+				position = langruntime.CheckedAdd(position, 5)
+				spaced = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+				if spaced == position {
+					return invalid
+				}
+				notation := xmlName(source, spaced)
+				if notation.valid == false {
+					return invalid
+				}
+				position = langruntime.CheckedIndex(notation.next)
+			}
+		}
+	} else {
+		identifier := xmlExternalId(source, position, true)
+		if identifier.valid == false {
+			return invalid
+		}
+		position = langruntime.CheckedIndex(identifier.next)
+	}
+	position = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+	if position >= len(source.characters) || source.characters[position] != '>' {
+		return invalid
+	}
+	return xmlDtdItem{next: langruntime.CheckedAdd(position, 1), valid: true, kind: kind, name: declaredName, value: value, external: external, unparsed: unparsed}
+}
+
+type xmlDtdFlags struct {
+	valid         bool
+	external      bool
+	standalone    bool
+	parameterSeen bool
+}
+
+func copyxmlDtdFlags(value xmlDtdFlags) xmlDtdFlags {
+	return xmlDtdFlags{valid: value.valid, external: value.external, standalone: value.standalone, parameterSeen: value.parameterSeen}
+}
+
+type xmlEntityIndex struct {
+	name      xmlSpan
+	value     xmlSpan
+	parameter bool
+	external  bool
+	unparsed  bool
+}
+
+func copyxmlEntityIndex(value xmlEntityIndex) xmlEntityIndex {
+	return xmlEntityIndex{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), parameter: value.parameter, external: value.external, unparsed: value.unparsed}
+}
+
+type xmlDefaultIndex struct {
+	element    xmlSpan
+	name       xmlSpan
+	value      xmlSpan
+	tokenized  bool
+	hasDefault bool
+	cost       int64
+}
+
+func copyxmlDefaultIndex(value xmlDefaultIndex) xmlDefaultIndex {
+	return xmlDefaultIndex{element: copyxmlSpan(value.element), name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), tokenized: value.tokenized, hasDefault: value.hasDefault, cost: value.cost}
+}
+func xmlCollapseSpace(input string) string {
+	input = langruntime.CheckedString(input)
+	characters := []rune(input)
+	output := langruntime.NewTextBuffer("")
+	written := false
+	pending := false
+	position := 0
+	for position < len(characters) {
+		character := characters[position]
+		if character == ' ' {
+			pending = written
+		} else {
+			if pending {
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+			}
+			output = append(output, string(langruntime.CheckedChar(character))...)
+			written = true
+			pending = false
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return string(output)
+}
+func xmlRegisterAttributes(input xmlEntityArena, item xmlDtdItem, depth int, inputStart int) xmlEntityArena {
+	input = copyxmlEntityArena(input)
+	item = copyxmlDtdItem(item)
+	depth = langruntime.CheckedIndex(depth)
+	inputStart = langruntime.CheckedIndex(inputStart)
+	text := input.arena
+	source := xmlSource{characters: []rune(text)}
+	state := input
+	position := xmlSkipSpace(&source, item.name.end)
+	for position < langruntime.CheckedSubtract(item.next, 1) && state.flags.valid {
+		attribute := xmlParseDtdAttribute(&source, position)
+		if attribute.valid == false {
+			return xmlDtdInvalid(state)
+		}
+		position = langruntime.CheckedIndex(xmlSkipSpace(&source, attribute.next))
+		value := attribute.value
+		if attribute.hasDefault {
+			checked := xmlParseAttribute(&source, langruntime.CheckedSubtract(value.start, 1), &state, depth, state.cost, inputStart, false, true)
+			if checked.valid == false {
+				return xmlDtdInvalid(state)
+			}
+			state = copyxmlEntityArena(xmlArenaCost(state, checked.cost))
+			decoded := langruntime.NewTextBuffer(xmlAttributeText(&source, value, &state))
+			if attribute.tokenized {
+				decoded = langruntime.NewTextBuffer(xmlCollapseSpace(string(decoded)))
+			}
+			storage := langruntime.NewTextBuffer(state.arena)
+			storageCharacters := []rune(string(storage))
+			start := len(storageCharacters)
+			decodedCharacters := []rune(string(decoded))
+			value = copyxmlSpan(xmlSpan{start: start, end: langruntime.CheckedAdd(start, len(decodedCharacters))})
+			storage = append(storage, string(decoded)...)
+			state = copyxmlEntityArena(xmlEntityArena{arena: string(storage), entities: state.entities, defaults: state.defaults, flags: state.flags, cost: state.cost})
+		}
+		declared := false
+		index := 0
+		for index < len(state.defaults) {
+			previous := state.defaults[index]
+			if xmlSpanEqual(&source, previous.element, item.name) && xmlSpanEqual(&source, previous.name, attribute.name) {
+				declared = true
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if declared == false {
+			defaults := state.defaults
+			nameText := xmlSourceRange(&source, attribute.name)
+			prefix := xmlAttributePrefix(&source, attribute.name)
+			defaultCost := xmlOctets(nameText)
+			if prefix.end > prefix.start {
+				defaultCost = langruntime.CheckedI64Subtract(defaultCost, int64(1))
+			}
+			if attribute.hasDefault {
+				storedText := state.arena
+				storedSource := xmlSource{characters: []rune(storedText)}
+				storedValue := xmlSourceRange(&storedSource, value)
+				defaultCost = langruntime.CheckedI64Add(defaultCost, xmlOctets(storedValue))
+			}
+			langruntime.CheckedAdd(len(defaults), 1)
+			defaults = append(defaults, copyxmlDefaultIndex(xmlDefaultIndex{element: item.name, name: attribute.name, value: value, tokenized: attribute.tokenized, hasDefault: attribute.hasDefault, cost: defaultCost}))
+			state = copyxmlEntityArena(xmlEntityArena{arena: state.arena, entities: state.entities, defaults: defaults, flags: state.flags, cost: state.cost})
+		}
+	}
+	return state
+}
+
+type xmlEntityArena struct {
+	arena    string
+	entities []xmlEntityIndex
+	defaults []xmlDefaultIndex
+	flags    xmlDtdFlags
+	cost     int64
+}
+
+func copyxmlEntityArena(value xmlEntityArena) xmlEntityArena {
+	return xmlEntityArena{arena: langruntime.CheckedString(value.arena), entities: langruntime.CheckedStructs(value.entities, copyxmlEntityIndex), defaults: langruntime.CheckedStructs(value.defaults, copyxmlDefaultIndex), flags: copyxmlDtdFlags(value.flags), cost: value.cost}
+}
+
+type xmlExpansion struct {
+	text  string
+	valid bool
+	cost  int64
+}
+
+func copyxmlExpansion(value xmlExpansion) xmlExpansion {
+	return xmlExpansion{text: langruntime.CheckedString(value.text), valid: value.valid, cost: value.cost}
+}
+func xmlNewArena(input string, standalone bool) xmlEntityArena {
+	input = langruntime.CheckedString(input)
+	entities := []xmlEntityIndex{}
+	defaults := []xmlDefaultIndex{}
+	return xmlEntityArena{arena: input, entities: entities, defaults: defaults, flags: xmlDtdFlags{valid: true, external: false, standalone: standalone, parameterSeen: false}, cost: int64(0)}
+}
+func xmlDtdWithFlags(input xmlEntityArena, flags xmlDtdFlags) xmlEntityArena {
+	input = copyxmlEntityArena(input)
+	flags = copyxmlDtdFlags(flags)
+	return xmlEntityArena{arena: input.arena, entities: input.entities, defaults: input.defaults, flags: flags, cost: input.cost}
+}
+func xmlArenaCost(input xmlEntityArena, cost int64) xmlEntityArena {
+	input = copyxmlEntityArena(input)
+	return xmlEntityArena{arena: input.arena, entities: input.entities, defaults: input.defaults, flags: input.flags, cost: cost}
+}
+func xmlDtdInvalid(input xmlEntityArena) xmlEntityArena {
+	input = copyxmlEntityArena(input)
+	flags := input.flags
+	return xmlDtdWithFlags(input, xmlDtdFlags{valid: false, external: flags.external, standalone: flags.standalone, parameterSeen: flags.parameterSeen})
+}
+func xmlSourceRange(source *xmlSource, span xmlSpan) string {
+	span = copyxmlSpan(span)
+	output := langruntime.NewTextBuffer("")
+	position := span.start
+	for position < span.end {
+		output = append(output, string(langruntime.CheckedChar(source.characters[position]))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return string(output)
+}
+func xmlEntityLookup(arena *xmlEntityArena, name string, parameter bool) int {
+	name = langruntime.CheckedString(name)
+	text := arena.arena
+	source := xmlSource{characters: []rune(text)}
+	index := 0
+	for index < len(arena.entities) {
+		entity := arena.entities[index]
+		if entity.parameter == parameter && xmlSpanIs(&source, entity.name, name) {
+			return index
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return index
+}
+func xmlReferenceScalar(source *xmlSource, start int) rune {
+	start = langruntime.CheckedIndex(start)
+	if xmlAt(source, start, "&#") {
+		position := langruntime.CheckedAdd(start, 2)
+		radix := 10
+		if source.characters[position] == 'x' {
+			radix = langruntime.CheckedI32(16)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		code := 0
+		for position < len(source.characters) && source.characters[position] != ';' {
+			number := int(langruntime.CheckedChar(source.characters[position]))
+			digit := langruntime.CheckedSignedSubtract(number, 48)
+			if number >= 97 {
+				digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(number, 87))
+			} else if number >= 65 {
+				digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(number, 55))
+			}
+			code = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(code, radix), digit))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return langruntime.CharacterFromI32(code, ' ')
+	}
+	if xmlAt(source, start, "&amp;") {
+		return '&'
+	}
+	if xmlAt(source, start, "&lt;") {
+		return '<'
+	}
+	if xmlAt(source, start, "&gt;") {
+		return '>'
+	}
+	if xmlAt(source, start, "&quot;") {
+		return '"'
+	}
+	return '\''
+}
+
+type xmlEntityValue struct {
+	text          string
+	valid         bool
+	parameterSeen bool
+}
+
+func copyxmlEntityValue(value xmlEntityValue) xmlEntityValue {
+	return xmlEntityValue{text: langruntime.CheckedString(value.text), valid: value.valid, parameterSeen: value.parameterSeen}
+}
+func xmlDecodeEntityValue(source *xmlSource, arena *xmlEntityArena, value xmlSpan) xmlEntityValue {
+	value = copyxmlSpan(value)
+	invalid := xmlEntityValue{text: "", valid: false, parameterSeen: false}
+	output := langruntime.NewTextBuffer("")
+	position := value.start
+	bytes := int64(0)
+	for position < value.end {
+		character := source.characters[position]
+		if xmlCharacter(character) == false {
+			return invalid
+		}
+		if character == '&' && xmlAt(source, position, "&#") {
+			reference := xmlReference(source, position)
+			if reference.valid == false || reference.next > value.end {
+				return invalid
+			}
+			if bytes > int64(9999996) {
+				return invalid
+			}
+			scalar := xmlReferenceScalar(source, position)
+			width := xmlCharacterOctets(scalar)
+			bytes = langruntime.CheckedI64Add(bytes, int64(langruntime.CheckedI32(width)))
+			output = append(output, string(langruntime.CheckedChar(scalar))...)
+			position = langruntime.CheckedIndex(reference.next)
+		} else if character == '&' {
+			reference := xmlReference(source, position)
+			if reference.valid == false || reference.next > value.end {
+				return invalid
+			}
+			for position < reference.next {
+				width := xmlCharacterOctets(source.characters[position])
+				bytes = langruntime.CheckedI64Add(bytes, int64(langruntime.CheckedI32(width)))
+				if bytes > int64(10000000) {
+					return invalid
+				}
+				output = append(output, string(langruntime.CheckedChar(source.characters[position]))...)
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		} else if character == '%' {
+			name := xmlName(source, langruntime.CheckedAdd(position, 1))
+			if name.valid == false || name.next >= value.end || source.characters[name.next] != ';' {
+				return invalid
+			}
+			spelling := xmlSourceRange(source, xmlSpan{start: langruntime.CheckedAdd(position, 1), end: name.next})
+			entity := xmlEntityLookup(arena, spelling, true)
+			if entity < len(arena.entities) || arena.flags.standalone {
+				return invalid
+			}
+			return xmlEntityValue{text: string(output), valid: true, parameterSeen: true}
+		} else {
+			width := xmlCharacterOctets(character)
+			bytes = langruntime.CheckedI64Add(bytes, int64(langruntime.CheckedI32(width)))
+			if bytes > int64(10000000) {
+				return invalid
+			}
+			output = append(output, string(langruntime.CheckedChar(character))...)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	return xmlEntityValue{text: string(output), valid: true, parameterSeen: false}
+}
+func xmlRegisterEntity(input xmlEntityArena, item xmlDtdItem, depth int) xmlEntityArena {
+	input = copyxmlEntityArena(input)
+	item = copyxmlDtdItem(item)
+	depth = langruntime.CheckedIndex(depth)
+	text := input.arena
+	source := xmlSource{characters: []rune(text)}
+	name := xmlSourceRange(&source, item.name)
+	parameter := item.kind == 4
+	state := input
+	value := item.value
+	if item.external == false {
+		if depth >= 19 {
+			return xmlDtdInvalid(state)
+		}
+		decoded := xmlDecodeEntityValue(&source, &state, item.value)
+		if decoded.valid == false {
+			return xmlDtdInvalid(state)
+		}
+		if decoded.parameterSeen {
+			flags := state.flags
+			state = copyxmlEntityArena(xmlDtdWithFlags(state, xmlDtdFlags{valid: flags.valid, external: flags.external, standalone: flags.standalone, parameterSeen: true}))
+		}
+		storage := langruntime.NewTextBuffer(state.arena)
+		start := len(source.characters)
+		storage = append(storage, decoded.text...)
+		decodedCharacters := []rune(decoded.text)
+		value = copyxmlSpan(xmlSpan{start: start, end: langruntime.CheckedAdd(start, len(decodedCharacters))})
+		state = copyxmlEntityArena(xmlEntityArena{arena: string(storage), entities: state.entities, defaults: state.defaults, flags: state.flags, cost: state.cost})
+	}
+	if xmlEntityLookup(&state, name, parameter) < len(state.entities) {
+		return state
+	}
+	if item.external && xmlNormalizedOctets(&source, item.value.start, item.value.end) > int64(2000) {
+		if parameter == false && (name == "amp" || name == "lt" || name == "gt" || name == "apos" || name == "quot") {
+			return state
+		}
+		return xmlDtdInvalid(state)
+	}
+	entries := state.entities
+	langruntime.CheckedAdd(len(entries), 1)
+	entries = append(entries, copyxmlEntityIndex(xmlEntityIndex{name: item.name, value: value, parameter: parameter, external: item.external, unparsed: item.unparsed}))
+	return xmlEntityArena{arena: state.arena, entities: entries, defaults: state.defaults, flags: state.flags, cost: state.cost}
+}
+func xmlExpandEntity(arena *xmlEntityArena, name string, attribute bool, depth int, priorCost int64, consumed int64) xmlExpansion {
+	name = langruntime.CheckedString(name)
+	depth = langruntime.CheckedIndex(depth)
+	invalid := xmlExpansion{text: "", valid: false, cost: int64(0)}
+	if depth >= 19 {
+		return invalid
+	}
+	index := xmlEntityLookup(arena, name, false)
+	if index == len(arena.entities) {
+		if arena.flags.standalone || (arena.flags.external == false && arena.flags.parameterSeen == false) {
+			return invalid
+		}
+		return xmlExpansion{text: "", valid: true, cost: int64(0)}
+	}
+	entity := arena.entities[index]
+	if entity.unparsed || (attribute && entity.external) {
+		return invalid
+	}
+	if entity.external {
+		return xmlExpansion{text: "", valid: true, cost: int64(20)}
+	}
+	text := arena.arena
+	source := xmlSource{characters: []rune(text)}
+	if attribute == false {
+		value := xmlSourceRange(&source, entity.value)
+		cost := langruntime.CheckedI64Add(xmlOctets(value), int64(20))
+		return xmlExpansion{text: value, valid: true, cost: cost}
+	}
+	output := langruntime.NewTextBuffer("")
+	position := entity.value.start
+	raw := xmlSourceRange(&source, entity.value)
+	cost := langruntime.CheckedI64Add(xmlOctets(raw), int64(20))
+	if langruntime.CheckedI64Add(priorCost, cost) > int64(1000000) && langruntime.CheckedI64Divide((langruntime.CheckedI64Add(priorCost, cost)), int64(5)) > consumed {
+		return invalid
+	}
+	for position < entity.value.end {
+		character := source.characters[position]
+		if character == '&' {
+			reference := xmlReference(&source, position)
+			if reference.valid == false || reference.next > entity.value.end {
+				return invalid
+			}
+			if xmlPredefinedReference(&source, position) {
+				if attribute {
+					output = append(output, string(langruntime.CheckedChar(xmlReferenceScalar(&source, position)))...)
+				} else {
+					spelling := xmlSourceRange(&source, xmlSpan{start: position, end: reference.next})
+					output = append(output, spelling...)
+				}
+			} else {
+				spelling := xmlSourceRange(&source, xmlSpan{start: langruntime.CheckedAdd(position, 1), end: langruntime.CheckedSubtract(reference.next, 1)})
+				expanded := xmlExpandEntity(arena, spelling, attribute, langruntime.CheckedAdd(depth, 1), langruntime.CheckedI64Add(priorCost, cost), consumed)
+				if expanded.valid == false {
+					return invalid
+				}
+				output = append(output, expanded.text...)
+				cost = langruntime.CheckedI64Add(cost, expanded.cost)
+			}
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			if attribute && character == '<' {
+				return invalid
+			}
+			if attribute && xmlSpace(character) {
+				output = append(output, string(langruntime.CheckedChar(' '))...)
+				if character == '\r' && langruntime.CheckedAdd(position, 1) < entity.value.end && source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			} else {
+				output = append(output, string(langruntime.CheckedChar(character))...)
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if langruntime.CheckedI64Add(priorCost, cost) > int64(1000000) && langruntime.CheckedI64Divide((langruntime.CheckedI64Add(priorCost, cost)), int64(5)) > consumed {
+			return invalid
+		}
+	}
+	if langruntime.CheckedI64Add(priorCost, cost) > int64(1000000) && langruntime.CheckedI64Divide((langruntime.CheckedI64Add(priorCost, cost)), int64(5)) > consumed {
+		return invalid
+	}
+	return xmlExpansion{text: string(output), valid: true, cost: cost}
+}
+
+type xmlSource struct {
+	characters []rune
+}
+
+func copyxmlSource(value xmlSource) xmlSource {
+	return xmlSource{characters: langruntime.CheckedChars(value.characters)}
+}
+
+type xmlScan struct {
+	next  int
+	valid bool
+}
+
+func copyxmlScan(value xmlScan) xmlScan {
+	return xmlScan{next: langruntime.CheckedIndex(value.next), valid: value.valid}
+}
+
+type xmlSpan struct {
+	start int
+	end   int
+}
+
+func copyxmlSpan(value xmlSpan) xmlSpan {
+	return xmlSpan{start: langruntime.CheckedIndex(value.start), end: langruntime.CheckedIndex(value.end)}
+}
+
+type xmlAttribute struct {
+	name  xmlSpan
+	value xmlSpan
+	arena bool
+}
+
+func copyxmlAttribute(value xmlAttribute) xmlAttribute {
+	return xmlAttribute{name: copyxmlSpan(value.name), value: copyxmlSpan(value.value), arena: value.arena}
+}
+
+type xmlNamespace struct {
+	prefix xmlSpan
+	depth  int
+	arena  bool
+}
+
+func copyxmlNamespace(value xmlNamespace) xmlNamespace {
+	return xmlNamespace{prefix: copyxmlSpan(value.prefix), depth: langruntime.CheckedIndex(value.depth), arena: value.arena}
+}
+func xmlOriginSpan(source *xmlSource, arena *xmlEntityArena, span xmlSpan, inArena bool) string {
+	span = copyxmlSpan(span)
+	if inArena {
+		text := arena.arena
+		stored := xmlSource{characters: []rune(text)}
+		return xmlSourceRange(&stored, span)
+	}
+	return xmlSourceRange(source, span)
+}
+func xmlCharacter(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return code == 9 || code == 10 || code == 13 || (code >= 32 && code <= 55295) || (code >= 57344 && code <= 65533) || (code >= 65536 && code <= 1114111)
+}
+func xmlSpace(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == ' ' || character == '\t' || character == '\n' || character == '\r'
+}
+func xmlCharacterOctets(character rune) int {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	if code < 128 {
+		return 1
+	}
+	if code < 2048 {
+		return 2
+	}
+	if code < 65536 {
+		return 3
+	}
+	return 4
+}
+func xmlConsumed(source *xmlSource, start int, end int) int64 {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	consumed := int64(0)
+	index := start
+	for index < end {
+		bytes := xmlCharacterOctets(source.characters[index])
+		consumed = langruntime.CheckedI64Add(consumed, int64(langruntime.CheckedI32(bytes)))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return consumed
+}
+func xmlAmplified(source *xmlSource, end int, cost int64) bool {
+	end = langruntime.CheckedIndex(end)
+	return cost > int64(1000000) && langruntime.CheckedI64Divide(cost, int64(5)) > xmlConsumed(source, 0, end)
+}
+
+type xmlAttributeScan struct {
+	next  int
+	valid bool
+	cost  int64
+}
+
+func copyxmlAttributeScan(value xmlAttributeScan) xmlAttributeScan {
+	return xmlAttributeScan{next: langruntime.CheckedIndex(value.next), valid: value.valid, cost: value.cost}
+}
+
+type xmlParsedEntity struct {
+	index int
+	nodes xmlNodeList
+	cost  int64
+}
+
+func copyxmlParsedEntity(value xmlParsedEntity) xmlParsedEntity {
+	return xmlParsedEntity{index: langruntime.CheckedIndex(value.index), nodes: copyxmlNodeList(value.nodes), cost: value.cost}
+}
+
+type xmlEntityCache struct {
+	entries []xmlParsedEntity
+}
+
+func copyxmlEntityCache(value xmlEntityCache) xmlEntityCache {
+	return xmlEntityCache{entries: langruntime.CheckedStructs(value.entries, copyxmlParsedEntity)}
+}
+func xmlNewEntityCache() xmlEntityCache {
+	entries := []xmlParsedEntity{}
+	return xmlEntityCache{entries: entries}
+}
+
+type xmlMarkupResult struct {
+	valid bool
+	cost  int64
+	nodes xmlNodeList
+	cache []xmlParsedEntity
+}
+
+func copyxmlMarkupResult(value xmlMarkupResult) xmlMarkupResult {
+	return xmlMarkupResult{valid: value.valid, cost: value.cost, nodes: copyxmlNodeList(value.nodes), cache: langruntime.CheckedStructs(value.cache, copyxmlParsedEntity)}
+}
+func xmlMarkupInvalid() xmlMarkupResult {
+	return xmlMarkupResult{valid: false, cost: int64(0), nodes: xmlEmptyNodes(), cache: xmlNewEntityCache().entries}
+}
+func xmlOctets(input string) int64 {
+	input = langruntime.CheckedString(input)
+	characters := []rune(input)
+	bytes := int64(0)
+	index := 0
+	for index < len(characters) {
+		code := int(langruntime.CheckedChar(characters[index]))
+		if code < 128 {
+			bytes = langruntime.CheckedI64Add(bytes, int64(1))
+		} else if code < 2048 {
+			bytes = langruntime.CheckedI64Add(bytes, int64(2))
+		} else if code < 65536 {
+			bytes = langruntime.CheckedI64Add(bytes, int64(3))
+		} else {
+			bytes = langruntime.CheckedI64Add(bytes, int64(4))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return bytes
+}
+func xmlNameStart(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return character == ':' || character == '_' || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 192 && code <= 214) || (code >= 216 && code <= 246) || (code >= 248 && code <= 767) || (code >= 880 && code <= 893) || (code >= 895 && code <= 8191) || (code >= 8204 && code <= 8205) || (code >= 8304 && code <= 8591) || (code >= 11264 && code <= 12271) || (code >= 12289 && code <= 55295) || (code >= 63744 && code <= 64975) || (code >= 65008 && code <= 65533) || (code >= 65536 && code <= 983039)
+}
+func xmlNameCharacter(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return xmlNameStart(character) || character == '-' || character == '.' || (code >= 48 && code <= 57) || code == 183 || (code >= 768 && code <= 879) || (code >= 8255 && code <= 8256)
+}
+func xmlAt(source *xmlSource, position int, literal string) bool {
+	position = langruntime.CheckedIndex(position)
+	literal = langruntime.CheckedString(literal)
+	expected := []rune(literal)
+	if position > len(source.characters) || len(expected) > langruntime.CheckedSubtract(len(source.characters), position) {
+		return false
+	}
+	index := 0
+	for index < len(expected) {
+		if source.characters[langruntime.CheckedAdd(position, index)] != expected[index] {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func xmlSkipSpace(source *xmlSource, start int) int {
+	start = langruntime.CheckedIndex(start)
+	position := start
+	for position < len(source.characters) && xmlSpace(source.characters[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return position
+}
+func xmlName(source *xmlSource, start int) xmlScan {
+	start = langruntime.CheckedIndex(start)
+	position := start
+	if position >= len(source.characters) || xmlNameStart(source.characters[position]) == false {
+		return xmlScan{next: position, valid: false}
+	}
+	position = langruntime.CheckedAdd(position, 1)
+	for position < len(source.characters) && xmlNameCharacter(source.characters[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	bytes := 0
+	index := start
+	for index < position {
+		code := int(langruntime.CheckedChar(source.characters[index]))
+		if code < 128 {
+			bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, 1))
+		} else if code < 2048 {
+			bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, 2))
+		} else if code < 65536 {
+			bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, 3))
+		} else {
+			bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, 4))
+		}
+		if bytes > 50000 {
+			return xmlScan{next: position, valid: false}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return xmlScan{next: position, valid: true}
+}
+func xmlSpanEqual(source *xmlSource, left xmlSpan, right xmlSpan) bool {
+	left = copyxmlSpan(left)
+	right = copyxmlSpan(right)
+	if langruntime.CheckedSubtract(left.end, left.start) != langruntime.CheckedSubtract(right.end, right.start) {
+		return false
+	}
+	position := 0
+	for position < langruntime.CheckedSubtract(left.end, left.start) {
+		if source.characters[langruntime.CheckedAdd(left.start, position)] != source.characters[langruntime.CheckedAdd(right.start, position)] {
+			return false
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return true
+}
+func xmlSpanIs(source *xmlSource, span xmlSpan, literal string) bool {
+	span = copyxmlSpan(span)
+	literal = langruntime.CheckedString(literal)
+	characters := []rune(literal)
+	return langruntime.CheckedSubtract(span.end, span.start) == len(characters) && xmlAt(source, span.start, literal)
+}
+func xmlAttributePrefix(source *xmlSource, name xmlSpan) xmlSpan {
+	name = copyxmlSpan(name)
+	empty := xmlSpan{start: name.start, end: name.start}
+	colon := name.end
+	position := name.start
+	for position < name.end {
+		if source.characters[position] == ':' {
+			if colon != name.end {
+				return empty
+			}
+			colon = langruntime.CheckedIndex(position)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if colon == name.start || langruntime.CheckedAdd(colon, 1) >= name.end {
+		return empty
+	}
+	if xmlNameStart(source.characters[langruntime.CheckedAdd(colon, 1)]) == false {
+		return empty
+	}
+	return xmlSpan{start: name.start, end: colon}
+}
+func xmlAttributeText(source *xmlSource, value xmlSpan, arena *xmlEntityArena) string {
+	value = copyxmlSpan(value)
+	output := langruntime.NewTextBuffer("")
+	position := value.start
+	for position < value.end {
+		character := source.characters[position]
+		appendCharacter := true
+		if character == '&' {
+			reference := xmlReference(source, position)
+			if xmlPredefinedReference(source, position) == false {
+				name := xmlSourceRange(source, xmlSpan{start: langruntime.CheckedAdd(position, 1), end: langruntime.CheckedSubtract(reference.next, 1)})
+				expanded := xmlExpandEntity(arena, name, true, 0, int64(0), xmlOctets(arena.arena))
+				output = append(output, expanded.text...)
+				position = langruntime.CheckedIndex(reference.next)
+				appendCharacter = false
+			} else if xmlAt(source, position, "&#") {
+				position = langruntime.CheckedAdd(position, 2)
+				radix := 10
+				if source.characters[position] == 'x' {
+					radix = langruntime.CheckedI32(16)
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				code := 0
+				for langruntime.CheckedAdd(position, 1) < reference.next {
+					number := int(langruntime.CheckedChar(source.characters[position]))
+					digit := langruntime.CheckedSignedSubtract(number, 48)
+					if number >= 97 {
+						digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(number, 87))
+					} else if number >= 65 {
+						digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(number, 55))
+					}
+					code = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(code, radix), digit))
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				character = langruntime.CheckedChar(langruntime.CharacterFromI32(code, ' '))
+			} else if xmlAt(source, position, "&amp;") {
+				character = langruntime.CheckedChar('&')
+			} else if xmlAt(source, position, "&lt;") {
+				character = langruntime.CheckedChar('<')
+			} else if xmlAt(source, position, "&gt;") {
+				character = langruntime.CheckedChar('>')
+			} else if xmlAt(source, position, "&quot;") {
+				character = langruntime.CheckedChar('"')
+			} else {
+				character = langruntime.CheckedChar('\'')
+			}
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			if character == '\r' {
+				if langruntime.CheckedAdd(position, 1) < value.end && source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				character = langruntime.CheckedChar(' ')
+			} else if character == '\n' || character == '\t' {
+				character = langruntime.CheckedChar(' ')
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if appendCharacter {
+			output = append(output, string(langruntime.CheckedChar(character))...)
+		}
+	}
+	return string(output)
+}
+
+type xmlCommentBuffer struct {
+	bytes     int
+	capacity  int
+	allocated bool
+	valid     bool
+}
+
+func copyxmlCommentBuffer(value xmlCommentBuffer) xmlCommentBuffer {
+	return xmlCommentBuffer{bytes: langruntime.CheckedI32(value.bytes), capacity: langruntime.CheckedI32(value.capacity), allocated: value.allocated, valid: value.valid}
+}
+func xmlCommentFlush(buffer xmlCommentBuffer, pending int) xmlCommentBuffer {
+	buffer = copyxmlCommentBuffer(buffer)
+	pending = langruntime.CheckedI32(pending)
+	if pending == 0 {
+		return buffer
+	}
+	bytes := langruntime.CheckedSignedAdd(buffer.bytes, pending)
+	if bytes > 10000000 {
+		return xmlCommentBuffer{bytes: bytes, capacity: buffer.capacity, allocated: buffer.allocated, valid: false}
+	}
+	capacity := buffer.capacity
+	if buffer.allocated == false {
+		capacity = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pending, 4096))
+	} else if langruntime.CheckedSignedAdd(bytes, 1) >= capacity {
+		capacity = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(capacity, bytes), 4096))
+	}
+	return xmlCommentBuffer{bytes: bytes, capacity: capacity, allocated: true, valid: true}
+}
+func xmlCommentAppend(buffer xmlCommentBuffer, character rune) xmlCommentBuffer {
+	buffer = copyxmlCommentBuffer(buffer)
+	character = langruntime.CheckedChar(character)
+	capacity := buffer.capacity
+	if langruntime.CheckedSignedAdd(buffer.bytes, 5) >= capacity {
+		if capacity >= 10000000 {
+			return xmlCommentBuffer{bytes: buffer.bytes, capacity: capacity, allocated: true, valid: false}
+		}
+		capacity = langruntime.CheckedI32(langruntime.CheckedSignedAdd(capacity, langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(capacity, 1)), 2)))
+		if capacity > 10000000 {
+			capacity = langruntime.CheckedI32(10000000)
+		}
+	}
+	return xmlCommentBuffer{bytes: langruntime.CheckedSignedAdd(buffer.bytes, xmlCharacterOctets(character)), capacity: capacity, allocated: true, valid: true}
+}
+func xmlComment(source *xmlSource, start int) xmlScan {
+	start = langruntime.CheckedIndex(start)
+	position := langruntime.CheckedAdd(start, 4)
+	buffer := xmlCommentBuffer{bytes: 0, capacity: 4096, allocated: false, valid: true}
+	pending := 0
+	slow := false
+	for position < len(source.characters) {
+		if source.characters[position] == '-' && xmlAt(source, position, "--") {
+			if slow == false {
+				buffer = copyxmlCommentBuffer(xmlCommentFlush(buffer, pending))
+			}
+			return xmlScan{next: langruntime.CheckedAdd(position, 3), valid: buffer.valid && xmlAt(source, position, "-->")}
+		}
+		character := source.characters[position]
+		if xmlCharacter(character) == false {
+			return xmlScan{next: position, valid: false}
+		}
+		if slow == false && character == '-' {
+			buffer = copyxmlCommentBuffer(xmlCommentFlush(buffer, pending))
+			pending = langruntime.CheckedI32(0)
+		}
+		crlf := character == '\r' && langruntime.CheckedAdd(position, 1) < len(source.characters) && source.characters[langruntime.CheckedAdd(position, 1)] == '\n'
+		if slow == false && (int(langruntime.CheckedChar(character)) >= 128 || character == '\r') {
+			buffer = copyxmlCommentBuffer(xmlCommentFlush(buffer, pending))
+			pending = langruntime.CheckedI32(0)
+			if crlf == false {
+				slow = true
+			}
+		}
+		if slow {
+			buffer = copyxmlCommentBuffer(xmlCommentAppend(buffer, character))
+		} else {
+			pending = langruntime.CheckedI32(langruntime.CheckedSignedAdd(pending, 1))
+		}
+		if buffer.valid == false {
+			return xmlScan{next: position, valid: false}
+		}
+		if crlf {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return xmlScan{next: position, valid: false}
+}
+func xmlProcessingInstruction(source *xmlSource, start int) xmlScan {
+	start = langruntime.CheckedIndex(start)
+	target := xmlName(source, langruntime.CheckedAdd(start, 2))
+	if target.valid == false {
+		return target
+	}
+	position := target.next
+	if langruntime.CheckedSubtract(position, start) == 5 {
+		first := source.characters[langruntime.CheckedAdd(start, 2)]
+		second := source.characters[langruntime.CheckedAdd(start, 3)]
+		third := source.characters[langruntime.CheckedAdd(start, 4)]
+		if (first == 'x' || first == 'X') && (second == 'm' || second == 'M') && (third == 'l' || third == 'L') {
+			return xmlScan{next: position, valid: false}
+		}
+	}
+	if position < len(source.characters) && source.characters[position] == '?' && xmlAt(source, position, "?>") {
+		return xmlScan{next: langruntime.CheckedAdd(position, 2), valid: true}
+	}
+	if position >= len(source.characters) || xmlSpace(source.characters[position]) == false {
+		return xmlScan{next: position, valid: false}
+	}
+	position = langruntime.CheckedIndex(xmlSkipSpace(source, position))
+	bytes := 0
+	for position < len(source.characters) {
+		if position < len(source.characters) && source.characters[position] == '?' && xmlAt(source, position, "?>") {
+			return xmlScan{next: langruntime.CheckedAdd(position, 2), valid: true}
+		}
+		character := source.characters[position]
+		if xmlCharacter(character) == false {
+			return xmlScan{next: position, valid: false}
+		}
+		if bytes >= 9999995 {
+			return xmlScan{next: position, valid: false}
+		}
+		code := int(langruntime.CheckedChar(character))
+		if code < 128 {
+			bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, 1))
+		} else if code < 2048 {
+			bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, 2))
+		} else if code < 65536 {
+			bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, 3))
+		} else {
+			bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, 4))
+		}
+		if character == '\r' && langruntime.CheckedAdd(position, 1) < len(source.characters) && source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return xmlScan{next: position, valid: false}
+}
+func xmlCdata(source *xmlSource, start int) xmlScan {
+	start = langruntime.CheckedIndex(start)
+	position := langruntime.CheckedAdd(start, 9)
+	bytes := 0
+	for position < len(source.characters) {
+		if source.characters[position] == ']' && xmlAt(source, position, "]]>") {
+			return xmlScan{next: langruntime.CheckedAdd(position, 3), valid: true}
+		}
+		if xmlCharacter(source.characters[position]) == false {
+			return xmlScan{next: position, valid: false}
+		}
+		if bytes >= 9999995 {
+			return xmlScan{next: position, valid: false}
+		}
+		bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, xmlCharacterOctets(source.characters[position])))
+		if source.characters[position] == '\r' && langruntime.CheckedAdd(position, 1) < len(source.characters) && source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return xmlScan{next: position, valid: false}
+}
+func xmlReference(source *xmlSource, start int) xmlScan {
+	start = langruntime.CheckedIndex(start)
+	position := langruntime.CheckedAdd(start, 1)
+	if position < len(source.characters) && source.characters[position] == '#' {
+		position = langruntime.CheckedAdd(position, 1)
+		radix := 10
+		if position < len(source.characters) && source.characters[position] == 'x' {
+			radix = langruntime.CheckedI32(16)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		begin := position
+		code := 0
+		for position < len(source.characters) && source.characters[position] != ';' {
+			character := source.characters[position]
+			number := int(langruntime.CheckedChar(character))
+			digit := 16
+			if number >= 48 && number <= 57 {
+				digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(int(langruntime.CheckedChar(character)), 48))
+			} else if number >= 97 && number <= 102 {
+				digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(int(langruntime.CheckedChar(character)), 87))
+			} else if number >= 65 && number <= 70 {
+				digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(int(langruntime.CheckedChar(character)), 55))
+			}
+			if digit >= radix || code > langruntime.CheckedSignedDivide(1114111, radix) {
+				return xmlScan{next: position, valid: false}
+			}
+			code = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(code, radix), digit))
+			if code > 1114111 {
+				return xmlScan{next: position, valid: false}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position == begin || position >= len(source.characters) || (code >= 55296 && code <= 57343) || xmlCharacter(langruntime.CharacterFromI32(code, '\x00')) == false {
+			return xmlScan{next: position, valid: false}
+		}
+		return xmlScan{next: langruntime.CheckedAdd(position, 1), valid: true}
+	}
+	name := xmlName(source, position)
+	if name.valid == false || name.next >= len(source.characters) || source.characters[name.next] != ';' {
+		return xmlScan{next: name.next, valid: false}
+	}
+	return xmlScan{next: langruntime.CheckedAdd(name.next, 1), valid: true}
+}
+func xmlPredefinedReference(source *xmlSource, start int) bool {
+	start = langruntime.CheckedIndex(start)
+	return xmlAt(source, start, "&#") || xmlAt(source, start, "&amp;") || xmlAt(source, start, "&lt;") || xmlAt(source, start, "&gt;") || xmlAt(source, start, "&quot;") || xmlAt(source, start, "&apos;")
+}
+func xmlParseAttribute(source *xmlSource, start int, arena *xmlEntityArena, entityDepth int, priorCost int64, inputStart int, normalize bool, owned bool) xmlAttributeScan {
+	start = langruntime.CheckedIndex(start)
+	entityDepth = langruntime.CheckedIndex(entityDepth)
+	inputStart = langruntime.CheckedIndex(inputStart)
+	position := start
+	cost := priorCost
+	if position >= len(source.characters) || (source.characters[position] != '\'' && source.characters[position] != '"') {
+		return xmlAttributeScan{next: position, valid: false, cost: cost}
+	}
+	quote := source.characters[position]
+	position = langruntime.CheckedAdd(position, 1)
+	for position < len(source.characters) && source.characters[position] != quote {
+		character := source.characters[position]
+		if character == '<' || xmlCharacter(character) == false {
+			return xmlAttributeScan{next: position, valid: false, cost: cost}
+		}
+		if character == '&' {
+			reference := xmlReference(source, position)
+			if reference.valid == false {
+				return xmlAttributeScan{next: reference.next, valid: false, cost: cost}
+			}
+			if xmlPredefinedReference(source, position) == false {
+				name := xmlSourceRange(source, xmlSpan{start: langruntime.CheckedAdd(position, 1), end: langruntime.CheckedSubtract(reference.next, 1)})
+				consumed := xmlConsumed(source, inputStart, reference.next)
+				expanded := xmlExpandEntity(arena, name, true, entityDepth, cost, consumed)
+				cost = langruntime.CheckedI64Add(cost, expanded.cost)
+				if expanded.valid == false {
+					return xmlAttributeScan{next: reference.next, valid: false, cost: cost}
+				}
+			}
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	valid := position < len(source.characters)
+	bound := langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(xmlConsumed(source, langruntime.CheckedAdd(start, 1), position), cost), priorCost)
+	if valid && bound > int64(9999996) {
+		buffer := xmlWalkValue(source, xmlSpan{start: langruntime.CheckedAdd(start, 1), end: position}, xmlNewValue(owned), arena, normalize, 0, false)
+		valid = buffer.valid
+	}
+	return xmlAttributeScan{next: langruntime.CheckedAdd(position, 1), valid: valid, cost: cost}
+}
+func xmlMarkup(source *xmlSource, start int, document bool, arena *xmlEntityArena, baseDepth int, entityDepth int, inputCache xmlEntityCache) xmlMarkupResult {
+	start = langruntime.CheckedIndex(start)
+	baseDepth = langruntime.CheckedIndex(baseDepth)
+	entityDepth = langruntime.CheckedIndex(entityDepth)
+	inputCache = copyxmlEntityCache(inputCache)
+	if entityDepth >= 20 || baseDepth >= 256 {
+		return xmlMarkupInvalid()
+	}
+	position := start
+	stack := []xmlSpan{}
+	depth := 0
+	roots := 0
+	cost := int64(0)
+	if entityDepth == 0 {
+		cost = arena.cost
+	}
+	namespaces := []xmlNamespace{}
+	namespaceCount := 0
+	text := xmlNewText()
+	cache := inputCache
+	for position < len(source.characters) {
+		character := source.characters[position]
+		if xmlCharacter(character) == false {
+			return xmlMarkupInvalid()
+		}
+		if character == '<' {
+			if xmlAt(source, position, "<!--") {
+				comment := xmlComment(source, position)
+				if comment.valid == false {
+					return xmlMarkupInvalid()
+				}
+				position = langruntime.CheckedIndex(comment.next)
+				text = copyxmlTextState(xmlTextEvent(text, 0, int64(0), depth == 0))
+			} else if xmlAt(source, position, "<?") {
+				instruction := xmlProcessingInstruction(source, position)
+				if instruction.valid == false {
+					return xmlMarkupInvalid()
+				}
+				position = langruntime.CheckedIndex(instruction.next)
+				text = copyxmlTextState(xmlTextEvent(text, 0, int64(0), depth == 0))
+			} else if xmlAt(source, position, "<![CDATA[") {
+				if document && depth == 0 {
+					return xmlMarkupInvalid()
+				}
+				cdata := xmlCdata(source, position)
+				if cdata.valid == false {
+					return xmlMarkupInvalid()
+				}
+				bytes := xmlNormalizedOctets(source, langruntime.CheckedAdd(position, 9), langruntime.CheckedSubtract(cdata.next, 3))
+				text = copyxmlTextState(xmlTextEvent(text, 2, bytes, depth == 0))
+				position = langruntime.CheckedIndex(cdata.next)
+			} else if xmlAt(source, position, "</") {
+				begin := langruntime.CheckedAdd(position, 2)
+				name := xmlName(source, begin)
+				if name.valid == false || depth == 0 {
+					return xmlMarkupInvalid()
+				}
+				closing := xmlSpan{start: begin, end: name.next}
+				if xmlSpanEqual(source, stack[langruntime.CheckedSubtract(depth, 1)], closing) == false {
+					return xmlMarkupInvalid()
+				}
+				position = langruntime.CheckedIndex(xmlSkipSpace(source, name.next))
+				if position >= len(source.characters) || source.characters[position] != '>' {
+					return xmlMarkupInvalid()
+				}
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+				text = copyxmlTextState(xmlResetText(text))
+				for namespaceCount > 0 && namespaces[langruntime.CheckedSubtract(namespaceCount, 1)].depth > depth {
+					namespaceCount = langruntime.CheckedIndex(langruntime.CheckedSubtract(namespaceCount, 1))
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			} else {
+				begin := langruntime.CheckedAdd(position, 1)
+				name := xmlName(source, begin)
+				if name.valid == false || langruntime.CheckedAdd(depth, baseDepth) >= 256 || (document == false && langruntime.CheckedAdd(depth, baseDepth) >= 255) {
+					return xmlMarkupInvalid()
+				}
+				opening := xmlSpan{start: begin, end: name.next}
+				text = copyxmlTextState(xmlTextEvent(text, 0, int64(0), depth == 0))
+				if depth == 0 {
+					roots = langruntime.CheckedAdd(roots, 1)
+					if document && roots > 1 {
+						return xmlMarkupInvalid()
+					}
+				}
+				position = langruntime.CheckedIndex(name.next)
+				attributes := []xmlAttribute{}
+				ended := false
+				empty := false
+				for ended == false {
+					spaced := xmlSkipSpace(source, position)
+					if xmlAt(source, spaced, "/>") {
+						position = langruntime.CheckedIndex(langruntime.CheckedAdd(spaced, 2))
+						ended = true
+						empty = true
+					} else if spaced < len(source.characters) && source.characters[spaced] == '>' {
+						if depth < len(stack) {
+							stack[depth] = copyxmlSpan(opening)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyxmlSpan(opening))
+						}
+						depth = langruntime.CheckedAdd(depth, 1)
+						position = langruntime.CheckedIndex(langruntime.CheckedAdd(spaced, 1))
+						ended = true
+					} else {
+						if spaced == position {
+							return xmlMarkupInvalid()
+						}
+						attribute := xmlName(source, spaced)
+						if attribute.valid == false {
+							return xmlMarkupInvalid()
+						}
+						attributeName := xmlSpan{start: spaced, end: attribute.next}
+						equals := xmlSkipSpace(source, attribute.next)
+						if equals >= len(source.characters) || source.characters[equals] != '=' {
+							return xmlMarkupInvalid()
+						}
+						quoted := xmlSkipSpace(source, langruntime.CheckedAdd(equals, 1))
+						tokenized := xmlAttributeTokenized(source, arena, opening, attributeName)
+						value := xmlParseAttribute(source, quoted, arena, entityDepth, cost, 0, tokenized, false)
+						cost = value.cost
+						if value.valid == false {
+							return xmlMarkupInvalid()
+						}
+						position = langruntime.CheckedIndex(value.next)
+						langruntime.CheckedAdd(len(attributes), 1)
+						attributes = append(attributes, copyxmlAttribute(xmlAttribute{name: attributeName, value: xmlSpan{start: langruntime.CheckedAdd(quoted, 1), end: langruntime.CheckedSubtract(value.next, 1)}, arena: false}))
+					}
+				}
+				elementName := xmlSourceRange(source, opening)
+				defaultIndex := 0
+				for defaultIndex < len(arena.defaults) {
+					attribute := arena.defaults[defaultIndex]
+					element := xmlOriginSpan(source, arena, attribute.element, true)
+					if attribute.hasDefault && element == elementName {
+						defaultName := xmlOriginSpan(source, arena, attribute.name, true)
+						defaultSource := xmlSource{characters: []rune(defaultName)}
+						present := false
+						explicit := 0
+						for explicit < len(attributes) {
+							name := xmlOriginSpan(source, arena, attributes[explicit].name, attributes[explicit].arena)
+							if name == defaultName && xmlAt(&defaultSource, 0, "xmlns:") == false {
+								present = true
+							}
+							explicit = langruntime.CheckedAdd(explicit, 1)
+						}
+						if present == false {
+							cost = langruntime.CheckedI64Add(langruntime.CheckedI64Add(cost, attribute.cost), int64(20))
+							if xmlAmplified(source, position, cost) {
+								return xmlMarkupInvalid()
+							}
+							langruntime.CheckedAdd(len(attributes), 1)
+							attributes = append(attributes, copyxmlAttribute(xmlAttribute{name: attribute.name, value: attribute.value, arena: true}))
+						}
+					}
+					defaultIndex = langruntime.CheckedAdd(defaultIndex, 1)
+				}
+				previousNamespaces := namespaceCount
+				index := 0
+				bindingDepth := depth
+				if empty {
+					bindingDepth = langruntime.CheckedAdd(bindingDepth, 1)
+				}
+				for index < len(attributes) {
+					attribute := attributes[index]
+					attributeName := xmlOriginSpan(source, arena, attribute.name, attribute.arena)
+					attributeSource := xmlSource{characters: []rune(attributeName)}
+					prefix := xmlAttributePrefix(&attributeSource, xmlSpan{start: 0, end: len(attributeSource.characters)})
+					if xmlSpanIs(&attributeSource, prefix, "xmlns") {
+						declared := xmlSpan{start: langruntime.CheckedAdd(langruntime.CheckedAdd(attribute.name.start, prefix.end), 1), end: attribute.name.end}
+						declaredName := xmlOriginSpan(source, arena, declared, attribute.arena)
+						uri := langruntime.NewTextBuffer("")
+						if attribute.arena {
+							uri = langruntime.NewTextBuffer(xmlOriginSpan(source, arena, attribute.value, true))
+						} else {
+							uri = langruntime.NewTextBuffer(xmlAttributeText(source, attribute.value, arena))
+							declaration := 0
+							for declaration < len(arena.defaults) {
+								declared := arena.defaults[declaration]
+								if declared.tokenized {
+									owner := xmlOriginSpan(source, arena, declared.element, true)
+									declaredAttribute := xmlOriginSpan(source, arena, declared.name, true)
+									if owner == elementName && declaredAttribute == attributeName {
+										uri = langruntime.NewTextBuffer(xmlCollapseSpace(string(uri)))
+									}
+								}
+								declaration = langruntime.CheckedAdd(declaration, 1)
+							}
+						}
+						if declaredName != "xml" && (attribute.arena || (declaredName != "xmlns" && string(uri) != "" && string(uri) != "http://www.w3.org/XML/1998/namespace" && string(uri) != "http://www.w3.org/2000/xmlns/")) {
+							previous := previousNamespaces
+							present := false
+							for previous < namespaceCount {
+								previousName := xmlOriginSpan(source, arena, namespaces[previous].prefix, namespaces[previous].arena)
+								if previousName == declaredName {
+									if attribute.arena == false {
+										return xmlMarkupInvalid()
+									}
+									present = true
+								}
+								previous = langruntime.CheckedAdd(previous, 1)
+							}
+							if present == false {
+								binding := xmlNamespace{prefix: declared, depth: bindingDepth, arena: attribute.arena}
+								if namespaceCount < len(namespaces) {
+									namespaces[namespaceCount] = copyxmlNamespace(binding)
+								} else {
+									langruntime.CheckedAdd(len(namespaces), 1)
+									namespaces = append(namespaces, copyxmlNamespace(binding))
+								}
+								namespaceCount = langruntime.CheckedAdd(namespaceCount, 1)
+							}
+						}
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				index = langruntime.CheckedIndex(0)
+				for index < len(attributes) {
+					attribute := attributes[index]
+					name := xmlOriginSpan(source, arena, attribute.name, attribute.arena)
+					attributeSource := xmlSource{characters: []rune(name)}
+					prefix := xmlAttributePrefix(&attributeSource, xmlSpan{start: 0, end: len(attributeSource.characters)})
+					prefixName := xmlSourceRange(&attributeSource, prefix)
+					bound := prefix.start == prefix.end || prefixName == "xml"
+					namespace := 0
+					for namespace < namespaceCount {
+						namespaceName := xmlOriginSpan(source, arena, namespaces[namespace].prefix, namespaces[namespace].arena)
+						if namespaceName == prefixName {
+							bound = true
+						}
+						namespace = langruntime.CheckedAdd(namespace, 1)
+					}
+					if bound && prefixName != "xmlns" {
+						previous := 0
+						for previous < index {
+							previousName := xmlOriginSpan(source, arena, attributes[previous].name, attributes[previous].arena)
+							if previousName == name {
+								return xmlMarkupInvalid()
+							}
+							previous = langruntime.CheckedAdd(previous, 1)
+						}
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				if empty {
+					namespaceCount = langruntime.CheckedIndex(previousNamespaces)
+				}
+			}
+		} else if character == '&' {
+			if document && depth == 0 {
+				return xmlMarkupInvalid()
+			}
+			reference := xmlReference(source, position)
+			if reference.valid == false {
+				return xmlMarkupInvalid()
+			}
+			if xmlPredefinedReference(source, position) == false {
+				name := xmlSourceRange(source, xmlSpan{start: langruntime.CheckedAdd(position, 1), end: langruntime.CheckedSubtract(reference.next, 1)})
+				index := xmlEntityLookup(arena, name, false)
+				entry := 0
+				for entry < len(cache.entries) && cache.entries[entry].index != index {
+					entry = langruntime.CheckedAdd(entry, 1)
+				}
+				if entry < len(cache.entries) {
+					cached := cache.entries[entry]
+					text = copyxmlTextState(xmlTextEntity(text, cached.nodes, depth == 0))
+					cost = langruntime.CheckedI64Add(cost, cached.cost)
+				} else {
+					expanded := xmlExpandEntity(arena, name, false, entityDepth, int64(0), int64(0))
+					if expanded.valid == false {
+						return xmlMarkupInvalid()
+					}
+					content := expanded.text
+					fragment := xmlSource{characters: []rune(content)}
+					parentDepth := langruntime.CheckedAdd(baseDepth, depth)
+					if document == false {
+						parentDepth = langruntime.CheckedAdd(parentDepth, 1)
+					}
+					nested := xmlMarkup(&fragment, 0, false, arena, parentDepth, langruntime.CheckedAdd(entityDepth, 1), cache)
+					if nested.valid == false {
+						return xmlMarkupInvalid()
+					}
+					text = copyxmlTextState(xmlTextEntity(text, nested.nodes, depth == 0))
+					expansionCost := langruntime.CheckedI64Add(nested.cost, expanded.cost)
+					cost = langruntime.CheckedI64Add(cost, expansionCost)
+					entries := nested.cache
+					if nested.nodes.count > 0 && index < len(arena.entities) {
+						langruntime.CheckedAdd(len(entries), 1)
+						entries = append(entries, copyxmlParsedEntity(xmlParsedEntity{index: index, nodes: nested.nodes, cost: expansionCost}))
+					}
+					cache = copyxmlEntityCache(xmlEntityCache{entries: entries})
+				}
+				if xmlAmplified(source, reference.next, cost) {
+					return xmlMarkupInvalid()
+				}
+			} else {
+				scalar := xmlReferenceScalar(source, position)
+				width := xmlCharacterOctets(scalar)
+				text = copyxmlTextState(xmlTextEvent(text, 1, int64(langruntime.CheckedI32(width)), depth == 0))
+			}
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			if (character == ']' && xmlAt(source, position, "]]>")) || (document && depth == 0 && xmlSpace(character) == false) {
+				return xmlMarkupInvalid()
+			}
+			if document && depth == 0 {
+				position = langruntime.CheckedAdd(position, 1)
+			} else {
+				scanned := xmlTextPlain(source, position, text, depth == 0)
+				text = copyxmlTextState(scanned.state)
+				position = langruntime.CheckedIndex(scanned.next)
+			}
+		}
+		if text.valid == false {
+			return xmlMarkupInvalid()
+		}
+	}
+	return xmlMarkupResult{valid: depth == 0 && (document == false || roots == 1), cost: cost, nodes: text.nodes, cache: cache.entries}
+}
+func xmlSubsetOrigin(start int, internal bool) int {
+	start = langruntime.CheckedIndex(start)
+	if internal {
+		return 0
+	}
+	return start
+}
+
+type xmlSubsetResult struct {
+	state xmlEntityArena
+	next  int
+}
+
+func copyxmlSubsetResult(value xmlSubsetResult) xmlSubsetResult {
+	return xmlSubsetResult{state: copyxmlEntityArena(value.state), next: langruntime.CheckedIndex(value.next)}
+}
+func xmlSubset(input xmlEntityArena, start int, end int, depth int, internal bool) xmlSubsetResult {
+	input = copyxmlEntityArena(input)
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	depth = langruntime.CheckedIndex(depth)
+	state := input
+	position := start
+	if depth >= 20 {
+		return xmlSubsetResult{state: xmlDtdInvalid(state), next: position}
+	}
+	ended := false
+	for position < end && state.flags.valid && ended == false {
+		text := state.arena
+		source := xmlSource{characters: []rune(text)}
+		position = langruntime.CheckedIndex(xmlSkipSpace(&source, position))
+		if position >= end {
+			ended = true
+		} else if source.characters[position] == ']' && internal {
+			ended = true
+		} else if xmlAt(&source, position, "<!--") {
+			comment := xmlComment(&source, position)
+			if comment.valid == false || comment.next > end {
+				state = copyxmlEntityArena(xmlDtdInvalid(state))
+			} else {
+				position = langruntime.CheckedIndex(comment.next)
+			}
+		} else if xmlAt(&source, position, "<?") {
+			instruction := xmlProcessingInstruction(&source, position)
+			if instruction.valid == false || instruction.next > end {
+				state = copyxmlEntityArena(xmlDtdInvalid(state))
+			} else {
+				position = langruntime.CheckedIndex(instruction.next)
+			}
+		} else if source.characters[position] == '%' {
+			name := xmlName(&source, langruntime.CheckedAdd(position, 1))
+			if name.valid == false || name.next >= end || source.characters[name.next] != ';' {
+				state = copyxmlEntityArena(xmlDtdInvalid(state))
+			} else {
+				spelling := xmlSourceRange(&source, xmlSpan{start: langruntime.CheckedAdd(position, 1), end: name.next})
+				index := xmlEntityLookup(&state, spelling, true)
+				flags := state.flags
+				state = copyxmlEntityArena(xmlDtdWithFlags(state, xmlDtdFlags{valid: flags.valid, external: flags.external, standalone: flags.standalone, parameterSeen: true}))
+				position = langruntime.CheckedIndex(langruntime.CheckedAdd(name.next, 1))
+				if index == len(state.entities) {
+					if state.flags.standalone {
+						state = copyxmlEntityArena(xmlDtdInvalid(state))
+					} else {
+						flags := state.flags
+						state = copyxmlEntityArena(xmlDtdWithFlags(state, xmlDtdFlags{valid: flags.valid, external: flags.external, standalone: flags.standalone, parameterSeen: true}))
+					}
+				} else {
+					entity := state.entities[index]
+					if entity.external == false {
+						parentCost := state.cost
+						replacement := xmlSourceRange(&source, entity.value)
+						state = copyxmlEntityArena(xmlArenaCost(state, int64(0)))
+						nested := xmlSubset(state, entity.value.start, entity.value.end, langruntime.CheckedAdd(depth, 1), false)
+						state = copyxmlEntityArena(nested.state)
+						cost := langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(parentCost, state.cost), xmlOctets(replacement)), int64(20))
+						state = copyxmlEntityArena(xmlArenaCost(state, cost))
+						consumed := xmlConsumed(&source, xmlSubsetOrigin(start, internal), position)
+						if cost > int64(1000000) && langruntime.CheckedI64Divide(cost, int64(5)) > consumed {
+							state = copyxmlEntityArena(xmlDtdInvalid(state))
+						}
+						if nested.next != entity.value.end {
+							state = copyxmlEntityArena(xmlDtdInvalid(state))
+						}
+					} else {
+						cost := langruntime.CheckedI64Add(state.cost, int64(20))
+						state = copyxmlEntityArena(xmlArenaCost(state, cost))
+						consumed := xmlConsumed(&source, xmlSubsetOrigin(start, internal), position)
+						if cost > int64(1000000) && langruntime.CheckedI64Divide(cost, int64(5)) > consumed {
+							state = copyxmlEntityArena(xmlDtdInvalid(state))
+						}
+					}
+				}
+			}
+		} else {
+			item := xmlParseDtdItem(&source, position)
+			if item.valid == false || item.next > end {
+				state = copyxmlEntityArena(xmlDtdInvalid(state))
+			} else {
+				position = langruntime.CheckedIndex(item.next)
+				if item.kind == 3 || item.kind == 4 {
+					state = copyxmlEntityArena(xmlRegisterEntity(state, item, depth))
+				} else if item.kind == 2 {
+					state = copyxmlEntityArena(xmlRegisterAttributes(state, item, depth, xmlSubsetOrigin(start, internal)))
+				}
+			}
+		}
+	}
+	return xmlSubsetResult{state: state, next: position}
+}
+func xmlReadDoctype(input string, start int, standalone bool) xmlSubsetResult {
+	input = langruntime.CheckedString(input)
+	start = langruntime.CheckedIndex(start)
+	state := xmlNewArena(input, standalone)
+	source := xmlSource{characters: []rune(input)}
+	originalEnd := len(source.characters)
+	position := langruntime.CheckedAdd(start, 9)
+	spaced := xmlSkipSpace(&source, position)
+	if xmlAt(&source, start, "<!DOCTYPE") == false || spaced == position {
+		return xmlSubsetResult{state: xmlDtdInvalid(state), next: position}
+	}
+	name := xmlName(&source, spaced)
+	if name.valid == false {
+		return xmlSubsetResult{state: xmlDtdInvalid(state), next: position}
+	}
+	position = langruntime.CheckedIndex(name.next)
+	spaced = langruntime.CheckedIndex(xmlSkipSpace(&source, position))
+	if xmlAt(&source, spaced, "SYSTEM") || xmlAt(&source, spaced, "PUBLIC") {
+		if spaced == position {
+			return xmlSubsetResult{state: xmlDtdInvalid(state), next: position}
+		}
+		identifier := xmlExternalId(&source, spaced, false)
+		if identifier.valid == false || xmlNormalizedOctets(&source, identifier.value.start, identifier.value.end) > int64(2000) {
+			return xmlSubsetResult{state: xmlDtdInvalid(state), next: position}
+		}
+		position = langruntime.CheckedIndex(identifier.next)
+		flags := state.flags
+		state = copyxmlEntityArena(xmlDtdWithFlags(state, xmlDtdFlags{valid: flags.valid, external: true, standalone: flags.standalone, parameterSeen: flags.parameterSeen}))
+	}
+	position = langruntime.CheckedIndex(xmlSkipSpace(&source, position))
+	if position < originalEnd && source.characters[position] == '[' {
+		subset := xmlSubset(state, langruntime.CheckedAdd(position, 1), originalEnd, 0, true)
+		state = copyxmlEntityArena(subset.state)
+		position = langruntime.CheckedIndex(subset.next)
+		if state.flags.valid == false || position >= originalEnd || source.characters[position] != ']' {
+			return xmlSubsetResult{state: xmlDtdInvalid(state), next: position}
+		}
+		position = langruntime.CheckedIndex(xmlSkipSpace(&source, langruntime.CheckedAdd(position, 1)))
+	}
+	if position >= originalEnd || source.characters[position] != '>' {
+		return xmlSubsetResult{state: xmlDtdInvalid(state), next: position}
+	}
+	return xmlSubsetResult{state: state, next: langruntime.CheckedAdd(position, 1)}
+}
+
+type xmlNodeList struct {
+	count      int
+	firstKind  int
+	firstBytes int64
+	lastKind   int
+	lastBytes  int64
+}
+
+func copyxmlNodeList(value xmlNodeList) xmlNodeList {
+	return xmlNodeList{count: langruntime.CheckedIndex(value.count), firstKind: langruntime.CheckedI32(value.firstKind), firstBytes: value.firstBytes, lastKind: langruntime.CheckedI32(value.lastKind), lastBytes: value.lastBytes}
+}
+
+type xmlTextState struct {
+	kind  int
+	bytes int64
+	valid bool
+	nodes xmlNodeList
+}
+
+func copyxmlTextState(value xmlTextState) xmlTextState {
+	return xmlTextState{kind: langruntime.CheckedI32(value.kind), bytes: value.bytes, valid: value.valid, nodes: copyxmlNodeList(value.nodes)}
+}
+
+type xmlTextScan struct {
+	next  int
+	state xmlTextState
+}
+
+func copyxmlTextScan(value xmlTextScan) xmlTextScan {
+	return xmlTextScan{next: langruntime.CheckedIndex(value.next), state: copyxmlTextState(value.state)}
+}
+func xmlEmptyNodes() xmlNodeList {
+	return xmlNodeList{count: 0, firstKind: 0, firstBytes: int64(0), lastKind: 0, lastBytes: int64(0)}
+}
+func xmlNewText() xmlTextState {
+	return xmlTextState{kind: 0, bytes: int64(0), valid: true, nodes: xmlEmptyNodes()}
+}
+func xmlResetText(input xmlTextState) xmlTextState {
+	input = copyxmlTextState(input)
+	return xmlTextState{kind: 0, bytes: int64(0), valid: input.valid, nodes: input.nodes}
+}
+func xmlTextEvent(input xmlTextState, kind int, bytes int64, root bool) xmlTextState {
+	input = copyxmlTextState(input)
+	kind = langruntime.CheckedI32(kind)
+	length := bytes
+	valid := input.valid
+	if kind == 1 && input.kind == kind {
+		length = langruntime.CheckedI64Add(length, input.bytes)
+		if length > int64(10000000) {
+			valid = false
+		}
+	}
+	nodes := input.nodes
+	if root {
+		if nodes.count == 0 {
+			nodes = copyxmlNodeList(xmlNodeList{count: 1, firstKind: kind, firstBytes: bytes, lastKind: kind, lastBytes: bytes})
+		} else if kind == 1 && nodes.lastKind == kind {
+			total := langruntime.CheckedI64Add(nodes.lastBytes, bytes)
+			first := nodes.firstBytes
+			if nodes.count == 1 {
+				first = total
+			}
+			nodes = copyxmlNodeList(xmlNodeList{count: nodes.count, firstKind: nodes.firstKind, firstBytes: first, lastKind: kind, lastBytes: total})
+		} else {
+			count := nodes.count
+			if count < 3 {
+				count = langruntime.CheckedAdd(count, 1)
+			}
+			nodes = copyxmlNodeList(xmlNodeList{count: count, firstKind: nodes.firstKind, firstBytes: nodes.firstBytes, lastKind: kind, lastBytes: bytes})
+		}
+	}
+	return xmlTextState{kind: kind, bytes: length, valid: valid, nodes: nodes}
+}
+func xmlTextEntity(input xmlTextState, nodes xmlNodeList, root bool) xmlTextState {
+	input = copyxmlTextState(input)
+	nodes = copyxmlNodeList(nodes)
+	state := input
+	if nodes.count > 0 {
+		state = copyxmlTextState(xmlTextEvent(state, nodes.firstKind, nodes.firstBytes, root))
+		if nodes.count > 2 {
+			state = copyxmlTextState(xmlTextEvent(state, 0, int64(0), root))
+		}
+		if nodes.count > 1 {
+			state = copyxmlTextState(xmlTextEvent(state, nodes.lastKind, nodes.lastBytes, root))
+		}
+	}
+	return state
+}
+func xmlNormalizedOctets(source *xmlSource, start int, end int) int64 {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	position := start
+	bytes := int64(0)
+	for position < end {
+		character := source.characters[position]
+		width := xmlCharacterOctets(character)
+		bytes = langruntime.CheckedI64Add(bytes, int64(langruntime.CheckedI32(width)))
+		if character == '\r' && langruntime.CheckedAdd(position, 1) < end && source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return bytes
+}
+func xmlTextPlain(source *xmlSource, start int, input xmlTextState, root bool) xmlTextScan {
+	start = langruntime.CheckedIndex(start)
+	input = copyxmlTextState(input)
+	state := input
+	position := start
+	pending := int64(0)
+	slow := false
+	for position < len(source.characters) {
+		character := source.characters[position]
+		if character == '<' || character == '&' {
+			break
+		}
+		if xmlCharacter(character) == false || (character == ']' && xmlAt(source, position, "]]>")) {
+			state = copyxmlTextState(xmlTextState{kind: state.kind, bytes: state.bytes, valid: false, nodes: state.nodes})
+			return xmlTextScan{next: position, state: state}
+		}
+		crlf := character == '\r' && langruntime.CheckedAdd(position, 1) < len(source.characters) && source.characters[langruntime.CheckedAdd(position, 1)] == '\n'
+		if slow == false && (int(langruntime.CheckedChar(character)) >= 128 || character == '\r') {
+			if pending > int64(0) {
+				state = copyxmlTextState(xmlTextEvent(state, 1, pending, root))
+			}
+			pending = int64(0)
+			if crlf == false {
+				slow = true
+			}
+		}
+		width := xmlCharacterOctets(character)
+		pending = langruntime.CheckedI64Add(pending, int64(langruntime.CheckedI32(width)))
+		if slow && pending >= int64(300) {
+			state = copyxmlTextState(xmlTextEvent(state, 1, pending, root))
+			pending = int64(0)
+		}
+		if state.valid == false {
+			return xmlTextScan{next: position, state: state}
+		}
+		if crlf {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if pending > int64(0) {
+		state = copyxmlTextState(xmlTextEvent(state, 1, pending, root))
+	}
+	return xmlTextScan{next: position, state: state}
+}
+func xmlWellFormed(input string, document bool) bool {
+	input = langruntime.CheckedString(input)
+	source := xmlSource{characters: []rune(input)}
+	beginning := 0
+	if document && len(source.characters) > 0 && source.characters[0] == '\ufeff' {
+		beginning = langruntime.CheckedIndex(1)
+	}
+	declaration := xmlParseDeclaration(&source, beginning, document)
+	if declaration.valid == false {
+		return false
+	}
+	cursor := declaration.next
+	scanning := true
+	for scanning {
+		cursor = langruntime.CheckedIndex(xmlSkipSpace(&source, cursor))
+		if xmlAt(&source, cursor, "<!--") {
+			comment := xmlComment(&source, cursor)
+			if comment.valid == false {
+				return false
+			}
+			cursor = langruntime.CheckedIndex(comment.next)
+		} else if xmlAt(&source, cursor, "<?") {
+			instruction := xmlProcessingInstruction(&source, cursor)
+			if instruction.valid == false {
+				return false
+			}
+			cursor = langruntime.CheckedIndex(instruction.next)
+		} else {
+			scanning = false
+		}
+	}
+	arena := xmlNewArena(input, declaration.standalone)
+	mode := document
+	start := declaration.next
+	if xmlAt(&source, cursor, "<!DOCTYPE") {
+		if mode == false {
+			declaration = copyxmlDeclaration(xmlParseDeclaration(&source, beginning, true))
+			if declaration.valid == false {
+				return false
+			}
+		}
+		mode = true
+		doctype := xmlReadDoctype(input, cursor, declaration.standalone)
+		if doctype.state.flags.valid == false {
+			return false
+		}
+		arena = copyxmlEntityArena(doctype.state)
+		start = langruntime.CheckedIndex(doctype.next)
+	}
+	markup := xmlMarkup(&source, start, mode, &arena, 0, 0, xmlNewEntityCache())
+	return markup.valid
+}
+
+type xmlValueBuffer struct {
+	bytes     int64
+	pending   int64
+	allocated bool
+	inSpace   bool
+	valid     bool
+}
+
+func copyxmlValueBuffer(value xmlValueBuffer) xmlValueBuffer {
+	return xmlValueBuffer{bytes: value.bytes, pending: value.pending, allocated: value.allocated, inSpace: value.inSpace, valid: value.valid}
+}
+func xmlNewValue(owned bool) xmlValueBuffer {
+	return xmlValueBuffer{bytes: int64(0), pending: int64(0), allocated: owned, inSpace: true, valid: true}
+}
+func xmlFlushValue(input xmlValueBuffer) xmlValueBuffer {
+	input = copyxmlValueBuffer(input)
+	bytes := langruntime.CheckedI64Add(input.bytes, input.pending)
+	return xmlValueBuffer{bytes: bytes, pending: int64(0), allocated: input.allocated || input.pending > int64(0), inSpace: input.inSpace, valid: input.valid && bytes <= int64(10000000)}
+}
+func xmlValueCharacter(input xmlValueBuffer, character rune, direct bool, numeric bool, normalize bool) xmlValueBuffer {
+	input = copyxmlValueBuffer(input)
+	character = langruntime.CheckedChar(character)
+	state := input
+	whitespace := character == ' ' || (direct == false && xmlSpace(character))
+	if whitespace && normalize && state.inSpace {
+		if state.pending > int64(0) {
+			state = copyxmlValueBuffer(xmlFlushValue(state))
+		}
+		return state
+	}
+	scalar := character
+	if direct == false && whitespace {
+		scalar = langruntime.CheckedChar(' ')
+	}
+	width := xmlCharacterOctets(scalar)
+	bytes := state.bytes
+	pending := state.pending
+	allocated := state.allocated
+	valid := state.valid
+	if direct || (whitespace && character != ' ') {
+		state = copyxmlValueBuffer(xmlFlushValue(state))
+		reserve := width
+		if numeric && scalar != ' ' {
+			reserve = langruntime.CheckedI32(4)
+		}
+		needed := int64(langruntime.CheckedI32(reserve))
+		valid = state.valid && langruntime.CheckedI64Add(state.bytes, needed) <= int64(10000000)
+		bytes = langruntime.CheckedI64Add(state.bytes, int64(langruntime.CheckedI32(width)))
+		pending = int64(0)
+		allocated = true
+	} else {
+		pending = langruntime.CheckedI64Add(pending, int64(langruntime.CheckedI32(width)))
+	}
+	return xmlValueBuffer{bytes: bytes, pending: pending, allocated: allocated, inSpace: scalar == ' ', valid: valid}
+}
+func xmlWalkValue(source *xmlSource, value xmlSpan, input xmlValueBuffer, arena *xmlEntityArena, normalize bool, depth int, entity bool) xmlValueBuffer {
+	value = copyxmlSpan(value)
+	input = copyxmlValueBuffer(input)
+	depth = langruntime.CheckedIndex(depth)
+	state := input
+	position := value.start
+	for position < value.end && state.valid {
+		character := source.characters[position]
+		if character == '&' {
+			if state.pending > int64(0) {
+				state = copyxmlValueBuffer(xmlFlushValue(state))
+			}
+			reference := xmlReference(source, position)
+			if xmlPredefinedReference(source, position) {
+				scalar := xmlReferenceScalar(source, position)
+				state = copyxmlValueBuffer(xmlValueCharacter(state, scalar, true, xmlAt(source, position, "&#"), normalize))
+			} else {
+				name := xmlSourceRange(source, xmlSpan{start: langruntime.CheckedAdd(position, 1), end: langruntime.CheckedSubtract(reference.next, 1)})
+				index := xmlEntityLookup(arena, name, false)
+				if index < len(arena.entities) && depth < 19 {
+					definition := arena.entities[index]
+					if definition.external == false {
+						stored := xmlSource{characters: []rune(arena.arena)}
+						state = copyxmlValueBuffer(xmlWalkValue(&stored, definition.value, state, arena, normalize, langruntime.CheckedAdd(depth, 1), true))
+					}
+				}
+			}
+			position = langruntime.CheckedIndex(reference.next)
+		} else {
+			state = copyxmlValueBuffer(xmlValueCharacter(state, character, false, false, normalize))
+			if character == '\r' && langruntime.CheckedAdd(position, 1) < value.end && source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	if entity || state.allocated {
+		state = copyxmlValueBuffer(xmlFlushValue(state))
+	}
+	return state
+}
+func xmlAttributeTokenized(source *xmlSource, arena *xmlEntityArena, element xmlSpan, attribute xmlSpan) bool {
+	element = copyxmlSpan(element)
+	attribute = copyxmlSpan(attribute)
+	owner := xmlSourceRange(source, element)
+	name := xmlSourceRange(source, attribute)
+	position := 0
+	for position < len(arena.defaults) {
+		definition := arena.defaults[position]
+		if definition.tokenized {
+			expectedOwner := xmlOriginSpan(source, arena, definition.element, true)
+			expectedName := xmlOriginSpan(source, arena, definition.name, true)
+			if owner == expectedOwner && name == expectedName {
+				return true
+			}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return false
+}

@@ -147,6 +147,15 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/text_to_ascii.rs");
     include!("operations/pg_catalog/text_unistr.rs");
     include!("operations/pg_catalog/text_unicode.rs");
+    include!("operations/pg_catalog/xml_lexical.rs");
+    include!("operations/pg_catalog/xml_text.rs");
+    include!("operations/pg_catalog/xml_value.rs");
+    include!("operations/pg_catalog/xml_declaration.rs");
+    include!("operations/pg_catalog/xml_dtd.rs");
+    include!("operations/pg_catalog/xml_entities.rs");
+    include!("operations/pg_catalog/xml_subset.rs");
+    include!("operations/pg_catalog/xml_validation.rs");
+    include!("operations/pg_catalog/xml.rs");
     include!("operations/pg_catalog/chr.rs");
     include!("operations/pg_catalog/character_text.rs");
     include!("operations/pg_catalog/regex.rs");
