@@ -823,7 +823,7 @@ func MakeByteaValue(value string) ByteaValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
 	even := true
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	for index < len(chars) {
 		character := langruntime.AsciiLowercase(chars[index])
@@ -831,14 +831,14 @@ func MakeByteaValue(value string) ByteaValue {
 		if (code < 48 || code > 57) && (code < 97 || code > 102) {
 			return ByteaValue{Kind: ByteaValueUnknown}
 		}
-		output = output + string(langruntime.CheckedChar(character))
+		output = append(output, string(langruntime.CheckedChar(character))...)
 		even = even == false
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	if even == false {
 		return ByteaValue{Kind: ByteaValueUnknown}
 	}
-	return ByteaValue{Kind: ByteaValueValue, Value: output}
+	return ByteaValue{Kind: ByteaValueValue, Value: string(output)}
 }
 
 type MacAddress struct {
@@ -2007,7 +2007,7 @@ func BitFromLiteral(value string) BitValue {
 	if len(chars) > 536870910 {
 		return BitValue{Kind: BitValueUnknown}
 	}
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	for index < len(chars) {
 		ch := chars[index]
 		if hexadecimal {
@@ -2018,9 +2018,9 @@ func BitFromLiteral(value string) BitValue {
 			weight := 8
 			for weight > 0 {
 				if langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(digit, weight), 2) == 0 {
-					output = output + string(langruntime.CheckedChar('0'))
+					output = append(output, string(langruntime.CheckedChar('0'))...)
 				} else {
-					output = output + string(langruntime.CheckedChar('1'))
+					output = append(output, string(langruntime.CheckedChar('1'))...)
 				}
 				weight = langruntime.CheckedI32(langruntime.CheckedSignedDivide(weight, 2))
 			}
@@ -2028,11 +2028,11 @@ func BitFromLiteral(value string) BitValue {
 			if ch != '0' && ch != '1' {
 				return BitValue{Kind: BitValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
-			output = output + string(langruntime.CheckedChar(ch))
+			output = append(output, string(langruntime.CheckedChar(ch))...)
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return BitValue{Kind: BitValueValue, Value: output}
+	return BitValue{Kind: BitValueValue, Value: string(output)}
 }
 func BitPayloadLength(value string) int {
 	value = langruntime.CheckedString(value)
@@ -2306,13 +2306,13 @@ func TextNumber(value int, base int) string {
 		reversed = append(reversed, langruntime.CheckedChar(digits[index]))
 		remaining = langruntime.CheckedI32(langruntime.CheckedSignedDivide(remaining, base))
 	}
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	position := len(reversed)
 	for position > 0 {
 		position = langruntime.CheckedIndex(langruntime.CheckedSubtract(position, 1))
-		output = output + string(langruntime.CheckedChar(reversed[position]))
+		output = append(output, string(langruntime.CheckedChar(reversed[position]))...)
 	}
-	return output
+	return string(output)
 }
 func ByteaAppendByte(value string, byte int) string {
 	value = langruntime.CheckedString(value)
@@ -2330,10 +2330,10 @@ func ByteaAppendByte(value string, byte int) string {
 		lowIndex = langruntime.CheckedAdd(lowIndex, 1)
 		low = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(low, 1))
 	}
-	output := value
-	output = output + string(langruntime.CheckedChar(digits[highIndex]))
-	output = output + string(langruntime.CheckedChar(digits[lowIndex]))
-	return output
+	output := langruntime.NewTextBuffer(value)
+	output = append(output, string(langruntime.CheckedChar(digits[highIndex]))...)
+	output = append(output, string(langruntime.CheckedChar(digits[lowIndex]))...)
+	return string(output)
 }
 func HexDigit(ch rune) int {
 	ch = langruntime.CheckedChar(ch)
@@ -2410,16 +2410,16 @@ func TextSignedNumber(value int64) string {
 		reversed = append(reversed, langruntime.CheckedChar(digits[index]))
 		remaining = langruntime.CheckedI64Divide(remaining, int64(10))
 	}
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	if value < int64(0) {
-		output = output + string(langruntime.CheckedChar('-'))
+		output = append(output, string(langruntime.CheckedChar('-'))...)
 	}
 	position := len(reversed)
 	for position > 0 {
 		position = langruntime.CheckedIndex(langruntime.CheckedSubtract(position, 1))
-		output = output + string(langruntime.CheckedChar(reversed[position]))
+		output = append(output, string(langruntime.CheckedChar(reversed[position]))...)
 	}
-	return output
+	return string(output)
 }
 
 const dateFieldOverflow = 3452552

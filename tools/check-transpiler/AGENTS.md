@@ -42,7 +42,11 @@ change to the regex transpiler unless the regex engine itself changes.
   must retain their meanings when splitting files and adding namespaces.
 - Owned text uses Rust `String`, Go string, and TypeScript string. Accept only
   `String::new`, borrowed `to_owned`, owned `as_str`, Unicode `chars().collect`,
-  and local mutable string `push(char)` / `push_str(&str)`. String length methods
+  and local mutable string `push(char)` / `push_str(&str)`. Mutable Go string
+  bindings use byte buffers for appends; reads create immutable string snapshots.
+  Reassignment replaces the buffer. Large XML entity values exercise bounded
+  construction, clones, parameter builders and scoped bindings in `check-owned-text.test.ts`.
+  String length methods
   remain rejected because target string lengths measure different units.
   Clone-only public wrappers require scalar or Copy payloads. Explicit `clone()` on
   immutable text/wrappers has value semantics; keep aggregate vector copying.

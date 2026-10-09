@@ -17,6 +17,7 @@ import (
 )
 
 type node struct {
+	stringBuilder  bool
 	Kind           string      `json:"kind"`
 	Module         string      `json:"module,omitempty"`
 	SourceFile     string      `json:"sourceFile,omitempty"`

@@ -1113,7 +1113,7 @@ func bitCombine(left checkruntime.BitValue, right checkruntime.BitValue, operati
 			if len(first) != len(second) {
 				return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitStringLengthMismatch)}
 			}
-			output := ""
+			output := langruntime.NewTextBuffer("")
 			index := 0
 			for index < len(first) {
 				leftSet := first[index] == '1'
@@ -1126,13 +1126,13 @@ func bitCombine(left checkruntime.BitValue, right checkruntime.BitValue, operati
 					set = leftSet != rightSet
 				}
 				if set {
-					output = output + string(langruntime.CheckedChar('1'))
+					output = append(output, string(langruntime.CheckedChar('1'))...)
 				} else {
-					output = output + string(langruntime.CheckedChar('0'))
+					output = append(output, string(langruntime.CheckedChar('0'))...)
 				}
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
@@ -1172,7 +1172,7 @@ func bitShift(input checkruntime.BitValue, distance checkruntime.Int4Value, left
 				offset = langruntime.CheckedAdd(offset, 1)
 				counted = langruntime.CheckedI32(langruntime.CheckedSignedAdd(counted, 1))
 			}
-			output := ""
+			output := langruntime.NewTextBuffer("")
 			index := 0
 			for index < len(chars) {
 				ch := '0'
@@ -1183,10 +1183,10 @@ func bitShift(input checkruntime.BitValue, distance checkruntime.Int4Value, left
 				} else if index >= offset {
 					ch = langruntime.CheckedChar(chars[langruntime.CheckedSubtract(index, offset)])
 				}
-				output = output + string(langruntime.CheckedChar(ch))
+				output = append(output, string(langruntime.CheckedChar(ch))...)
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
@@ -1204,17 +1204,17 @@ func BitnotXgta(input checkruntime.BitValue) checkruntime.BitValue {
 	if input.Kind == checkruntime.BitValueValue {
 		value := langruntime.CheckedString(input.Value)
 		chars := []rune(value)
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		index := 0
 		for index < len(chars) {
 			if chars[index] == '1' {
-				output = output + string(langruntime.CheckedChar('0'))
+				output = append(output, string(langruntime.CheckedChar('0'))...)
 			} else {
-				output = output + string(langruntime.CheckedChar('1'))
+				output = append(output, string(langruntime.CheckedChar('1'))...)
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+		return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: string(output)}
 	}
 	return input
 }
@@ -1266,7 +1266,7 @@ func bitCoerce(input checkruntime.BitValue, width checkruntime.Int4Value, explic
 					return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitStringLengthMismatch)}
 				}
 				chars := []rune(value)
-				output := ""
+				output := langruntime.NewTextBuffer("")
 				index := 0
 				count := 0
 				for count < length {
@@ -1274,11 +1274,11 @@ func bitCoerce(input checkruntime.BitValue, width checkruntime.Int4Value, explic
 					if index < len(chars) {
 						ch = langruntime.CheckedChar(chars[index])
 					}
-					output = output + string(langruntime.CheckedChar(ch))
+					output = append(output, string(langruntime.CheckedChar(ch))...)
 					index = langruntime.CheckedAdd(index, 1)
 					count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
 				}
-				return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+				return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: string(output)}
 			}
 		}
 	}
@@ -1354,9 +1354,9 @@ func BitcatT5mn(left checkruntime.BitValue, right checkruntime.BitValue) checkru
 				error := length.Error
 				return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
 			}
-			output := a
-			output = output + b
-			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+			output := langruntime.NewTextBuffer(a)
+			output = append(output, b...)
+			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
@@ -1434,7 +1434,7 @@ func SetBit2mfa(input checkruntime.BitValue, position checkruntime.Int4Value, re
 					return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidParameterValue)}
 				}
 				chars := []rune(value)
-				output := ""
+				output := langruntime.NewTextBuffer("")
 				index := 0
 				current := 0
 				for index < len(chars) {
@@ -1445,11 +1445,11 @@ func SetBit2mfa(input checkruntime.BitValue, position checkruntime.Int4Value, re
 							ch = langruntime.CheckedChar('1')
 						}
 					}
-					output = output + string(langruntime.CheckedChar(ch))
+					output = append(output, string(langruntime.CheckedChar(ch))...)
 					index = langruntime.CheckedAdd(index, 1)
 					current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
 				}
-				return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+				return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: string(output)}
 			}
 		}
 	}
@@ -1462,14 +1462,14 @@ func bitIntegerEncode(input int64, requested int) string {
 		width = langruntime.CheckedI32(1)
 	}
 	remaining := input
-	reversed := ""
+	reversed := langruntime.NewTextBuffer("")
 	count := 0
 	for count < width {
 		odd := langruntime.CheckedI64Remainder(remaining, int64(2)) != int64(0)
 		if odd {
-			reversed = reversed + string(langruntime.CheckedChar('1'))
+			reversed = append(reversed, string(langruntime.CheckedChar('1'))...)
 		} else {
-			reversed = reversed + string(langruntime.CheckedChar('0'))
+			reversed = append(reversed, string(langruntime.CheckedChar('0'))...)
 		}
 		negative := remaining < int64(0)
 		remaining = langruntime.CheckedI64Divide(remaining, int64(2))
@@ -1478,14 +1478,14 @@ func bitIntegerEncode(input int64, requested int) string {
 		}
 		count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
 	}
-	chars := []rune(reversed)
+	chars := []rune(string(reversed))
 	index := len(chars)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	for index > 0 {
 		index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
-		output = output + string(langruntime.CheckedChar(chars[index]))
+		output = append(output, string(langruntime.CheckedChar(chars[index]))...)
 	}
-	return output
+	return string(output)
 }
 func bitIntegerDecode(input string, signedWidth int) int64 {
 	input = langruntime.CheckedString(input)
@@ -1615,11 +1615,11 @@ func VarbitSendYt0j(input checkruntime.BitValue) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.BitValueValue {
 		value := langruntime.CheckedString(input.Value)
 		length := checkruntime.BitPayloadLength(value)
-		output := ""
-		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedDivide(length, 16777216)))
-		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(length, 65536), 256)))
-		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(length, 256), 256)))
-		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(length, 256)))
+		output := langruntime.NewTextBuffer("")
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedDivide(length, 16777216)))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(length, 65536), 256)))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(length, 256), 256)))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(length, 256)))
 		chars := []rune(value)
 		index := 0
 		for index < len(chars) {
@@ -1635,9 +1635,9 @@ func VarbitSendYt0j(input checkruntime.BitValue) checkruntime.ByteaValue {
 				}
 				bit = langruntime.CheckedIndex(langruntime.CheckedAdd(bit, 1))
 			}
-			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, byte))
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), byte))
 		}
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
@@ -1791,21 +1791,21 @@ func bitSubstring(input checkruntime.BitValue, position checkruntime.Int4Value, 
 						end = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bitlen, 1))
 					}
 				}
-				output := ""
+				output := langruntime.NewTextBuffer("")
 				if first > bitlen || end <= first {
-					return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+					return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: string(output)}
 				}
 				chars := []rune(value)
 				index := 0
 				current := 1
 				for index < len(chars) && current < end {
 					if current >= first {
-						output = output + string(langruntime.CheckedChar(chars[index]))
+						output = append(output, string(langruntime.CheckedChar(chars[index]))...)
 					}
 					index = langruntime.CheckedAdd(index, 1)
 					current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
 				}
-				return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+				return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: string(output)}
 			}
 		}
 	}
@@ -2010,9 +2010,9 @@ func ByteacatZitv(left checkruntime.ByteaValue, right checkruntime.ByteaValue) c
 				error := length.Error
 				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
 			}
-			output := a
-			output = output + b
-			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+			output := langruntime.NewTextBuffer(a)
+			output = append(output, b...)
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
@@ -2259,13 +2259,13 @@ func ReverseW0od(input checkruntime.ByteaValue) checkruntime.ByteaValue {
 		value := langruntime.CheckedString(input.Value)
 		chars := []rune(value)
 		index := len(chars)
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		for index > 0 {
 			index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 2))
-			output = output + string(langruntime.CheckedChar(chars[index]))
-			output = output + string(langruntime.CheckedChar(chars[langruntime.CheckedAdd(index, 1)]))
+			output = append(output, string(langruntime.CheckedChar(chars[index]))...)
+			output = append(output, string(langruntime.CheckedChar(chars[langruntime.CheckedAdd(index, 1)]))...)
 		}
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
@@ -2307,18 +2307,18 @@ func byteaPatchByte(input string, position int, replacement int) string {
 	chars := []rune(input)
 	index := 0
 	current := 0
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	for index < len(chars) {
 		if current == position {
-			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, replacement))
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), replacement))
 		} else {
-			output = output + string(langruntime.CheckedChar(chars[index]))
-			output = output + string(langruntime.CheckedChar(chars[langruntime.CheckedAdd(index, 1)]))
+			output = append(output, string(langruntime.CheckedChar(chars[index]))...)
+			output = append(output, string(langruntime.CheckedChar(chars[langruntime.CheckedAdd(index, 1)]))...)
 		}
 		index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
 		current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
 	}
-	return output
+	return string(output)
 }
 func byteaBitMask(position int) int {
 	position = langruntime.CheckedI32(position)
@@ -2585,7 +2585,7 @@ func byteaBase64Character(value int) rune {
 func byteaBase64Encode(value string) string {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	packed := 0
 	count := 0
@@ -2602,15 +2602,15 @@ func byteaBase64Encode(value string) string {
 			b := byteaBase64Character(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 4096), 64))
 			c := byteaBase64Character(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 64), 64))
 			d := byteaBase64Character(langruntime.CheckedSignedRemainder(packed, 64))
-			output = output + string(langruntime.CheckedChar(a))
-			output = output + string(langruntime.CheckedChar(b))
-			output = output + string(langruntime.CheckedChar(c))
-			output = output + string(langruntime.CheckedChar(d))
+			output = append(output, string(langruntime.CheckedChar(a))...)
+			output = append(output, string(langruntime.CheckedChar(b))...)
+			output = append(output, string(langruntime.CheckedChar(c))...)
+			output = append(output, string(langruntime.CheckedChar(d))...)
 			packed = langruntime.CheckedI32(0)
 			count = langruntime.CheckedI32(0)
 			line = langruntime.CheckedI32(langruntime.CheckedSignedAdd(line, 4))
 			if line == 76 {
-				output = output + string(langruntime.CheckedChar('\n'))
+				output = append(output, string(langruntime.CheckedChar('\n'))...)
 				line = langruntime.CheckedI32(0)
 			}
 		}
@@ -2623,22 +2623,22 @@ func byteaBase64Encode(value string) string {
 		}
 		a := byteaBase64Character(langruntime.CheckedSignedDivide(packed, 262144))
 		b := byteaBase64Character(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 4096), 64))
-		output = output + string(langruntime.CheckedChar(a))
-		output = output + string(langruntime.CheckedChar(b))
+		output = append(output, string(langruntime.CheckedChar(a))...)
+		output = append(output, string(langruntime.CheckedChar(b))...)
 		if count == 2 {
 			c := byteaBase64Character(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 64), 64))
-			output = output + string(langruntime.CheckedChar(c))
+			output = append(output, string(langruntime.CheckedChar(c))...)
 		} else {
-			output = output + string(langruntime.CheckedChar('='))
+			output = append(output, string(langruntime.CheckedChar('='))...)
 		}
-		output = output + string(langruntime.CheckedChar('='))
+		output = append(output, string(langruntime.CheckedChar('='))...)
 	}
-	return output
+	return string(output)
 }
 func byteaBase64Decode(value string) checkruntime.ByteaValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	packed := 0
 	count := 0
@@ -2667,12 +2667,12 @@ func byteaBase64Decode(value string) checkruntime.ByteaValue {
 			packed = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(packed, 64), digit))
 			count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
 			if count == 4 {
-				output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 65536), 256)))
+				output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 65536), 256)))
 				if end == 0 || end > 1 {
-					output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 256), 256)))
+					output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 256), 256)))
 				}
 				if end == 0 || end > 2 {
-					output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(packed, 256)))
+					output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedRemainder(packed, 256)))
 				}
 				packed = langruntime.CheckedI32(0)
 				count = langruntime.CheckedI32(0)
@@ -2682,12 +2682,12 @@ func byteaBase64Decode(value string) checkruntime.ByteaValue {
 	if count != 0 {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaEncodingError)}
 	}
-	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 }
 func byteaHexDecode(value string) checkruntime.ByteaValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	for index < len(chars) {
 		if byteaCodecSpace(chars[index]) {
@@ -2703,10 +2703,10 @@ func byteaHexDecode(value string) checkruntime.ByteaValue {
 			if low > 15 {
 				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaEncodingError)}
 			}
-			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)))
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)))
 		}
 	}
-	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 }
 func byteaOctalDigit(value rune) int {
 	value = langruntime.CheckedChar(value)
@@ -2770,15 +2770,15 @@ func byteaEscapeDecodedLength(value string) checkruntime.Int8Value {
 func byteaEscapeDecode(value string) checkruntime.ByteaValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	for index < len(chars) {
 		character := chars[index]
 		index = langruntime.CheckedAdd(index, 1)
 		if character != '\\' {
-			output = langruntime.CheckedString(byteaUtf8Character(output, character))
+			output = langruntime.NewTextBuffer(byteaUtf8Character(string(output), character))
 		} else if index < len(chars) && chars[index] == '\\' {
-			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, 92))
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), 92))
 			index = langruntime.CheckedAdd(index, 1)
 		} else if langruntime.CheckedAdd(index, 2) < len(chars) {
 			a := byteaOctalDigit(chars[index])
@@ -2787,41 +2787,41 @@ func byteaEscapeDecode(value string) checkruntime.ByteaValue {
 			if a > 3 || b > 7 || c > 7 {
 				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaSyntaxError)}
 			}
-			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(a, 64), langruntime.CheckedSignedMultiply(b, 8)), c)))
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(a, 64), langruntime.CheckedSignedMultiply(b, 8)), c)))
 			index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 3))
 		} else {
 			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaSyntaxError)}
 		}
 	}
-	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 }
 func byteaEscapeEncode(value string) string {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	for index < len(chars) {
 		high := checkruntime.HexDigit(chars[index])
 		low := checkruntime.HexDigit(chars[langruntime.CheckedAdd(index, 1)])
 		byte := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)
 		if byte == 0 || byte >= 128 {
-			output = output + string(langruntime.CheckedChar('\\'))
+			output = append(output, string(langruntime.CheckedChar('\\'))...)
 			a := byteaAsciiCharacter(langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide(byte, 64), 48))
 			b := byteaAsciiCharacter(langruntime.CheckedSignedAdd(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(byte, 8), 8), 48))
 			c := byteaAsciiCharacter(langruntime.CheckedSignedAdd(langruntime.CheckedSignedRemainder(byte, 8), 48))
-			output = output + string(langruntime.CheckedChar(a))
-			output = output + string(langruntime.CheckedChar(b))
-			output = output + string(langruntime.CheckedChar(c))
+			output = append(output, string(langruntime.CheckedChar(a))...)
+			output = append(output, string(langruntime.CheckedChar(b))...)
+			output = append(output, string(langruntime.CheckedChar(c))...)
 		} else if byte == 92 {
-			output = output + string(langruntime.CheckedChar('\\'))
-			output = output + string(langruntime.CheckedChar('\\'))
+			output = append(output, string(langruntime.CheckedChar('\\'))...)
+			output = append(output, string(langruntime.CheckedChar('\\'))...)
 		} else {
 			character := byteaAsciiCharacter(byte)
-			output = output + string(langruntime.CheckedChar(character))
+			output = append(output, string(langruntime.CheckedChar(character))...)
 		}
 		index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
 	}
-	return output
+	return string(output)
 }
 func EncodeBvkp(input checkruntime.ByteaValue, format checkruntime.TextValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.ByteaValueError {
@@ -3048,13 +3048,13 @@ func ByteaFromText(input checkruntime.TextValue) checkruntime.ByteaValue {
 			if byteaCodecLengthFits(length) == false {
 				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaAllocationError)}
 			}
-			payload := ""
+			payload := langruntime.NewTextBuffer("")
 			index := 2
 			for index < len(chars) {
-				payload = payload + string(langruntime.CheckedChar(chars[index]))
+				payload = append(payload, string(langruntime.CheckedChar(chars[index]))...)
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			return byteaHexDecode(payload)
+			return byteaHexDecode(string(payload))
 		}
 		estimate := byteaEscapeDecodedLength(value)
 		if estimate.Kind == checkruntime.Int8ValueError {
@@ -3122,14 +3122,14 @@ func byteaIntegerSend(value int64, width int) string {
 		remaining = langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(remaining, wideByte)), int64(256))
 		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
 	}
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	position := len(bytes)
 	for position > 0 {
 		position = langruntime.CheckedIndex(langruntime.CheckedSubtract(position, 1))
 		byte := int(int32(bytes[position].Value))
-		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, byte))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), byte))
 	}
-	return output
+	return string(output)
 }
 func Int2Hj0w(input checkruntime.ByteaValue) checkruntime.Int2Value {
 	result := byteaIntegerValue(input, 2)
@@ -3511,7 +3511,7 @@ func LikeEscapeHk4j(input checkruntime.ByteaValue, escape checkruntime.ByteaValu
 			if len(escapeChars) == 2 && escapeChars[0] == '5' && escapeChars[1] == 'c' {
 				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: value}
 			}
-			output := ""
+			output := langruntime.NewTextBuffer("")
 			index := 0
 			afterEscape := false
 			for index < len(chars) {
@@ -3522,19 +3522,19 @@ func LikeEscapeHk4j(input checkruntime.ByteaValue, escape checkruntime.ByteaValu
 					isEscape = high == escapeChars[0] && low == escapeChars[1] && afterEscape == false
 				}
 				if isEscape {
-					output = output + "5c"
+					output = append(output, "5c"...)
 					afterEscape = true
 				} else {
 					if high == '5' && low == 'c' && afterEscape == false {
-						output = output + "5c"
+						output = append(output, "5c"...)
 					}
-					output = output + string(langruntime.CheckedChar(high))
-					output = output + string(langruntime.CheckedChar(low))
+					output = append(output, string(langruntime.CheckedChar(high))...)
+					output = append(output, string(langruntime.CheckedChar(low))...)
 					afterEscape = false
 				}
 				index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
 			}
-			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
@@ -3624,7 +3624,7 @@ func digestMd5Hex(input string) string {
 		stateC = digestWrap(langruntime.CheckedI64Add(stateC, c))
 		stateD = digestWrap(langruntime.CheckedI64Add(stateD, d))
 	}
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	for index < 4 {
 		word := stateA
@@ -3638,13 +3638,13 @@ func digestMd5Hex(input string) string {
 		octet := 0
 		for octet < 4 {
 			byte := langruntime.CheckedI64Remainder(word, int64(256))
-			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, int(int32(byte))))
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), int(int32(byte))))
 			word = langruntime.CheckedI64Divide(word, int64(256))
 			octet = langruntime.CheckedAdd(octet, 1)
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return output
+	return string(output)
 }
 func Md5Vpfl(input checkruntime.ByteaValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.ByteaValueError {
@@ -3678,13 +3678,13 @@ func Md5Kt50(input checkruntime.TextValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		chars := []rune(value)
-		encoded := ""
+		encoded := langruntime.NewTextBuffer("")
 		index := 0
 		for index < len(chars) {
-			encoded = langruntime.CheckedString(byteaUtf8Character(encoded, chars[index]))
+			encoded = langruntime.NewTextBuffer(byteaUtf8Character(string(encoded), chars[index]))
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		result := digestMd5Hex(encoded)
+		result := digestMd5Hex(string(encoded))
 		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: result}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
@@ -3978,7 +3978,7 @@ func digestSha256Hex(input string, short bool) string {
 		state[6] = checkruntime.CopyHashByte(checkruntime.HashByte{Value: digestWrap(langruntime.CheckedI64Add(state[6].Value, g))})
 		state[7] = checkruntime.CopyHashByte(checkruntime.HashByte{Value: digestWrap(langruntime.CheckedI64Add(state[7].Value, h))})
 	}
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	count := 8
 	if short {
@@ -3989,13 +3989,13 @@ func digestSha256Hex(input string, short bool) string {
 		octet := 0
 		for octet < 4 {
 			value := langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(state[index].Value, divisor), int64(256))
-			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, int(int32(value))))
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), int(int32(value))))
 			divisor = langruntime.CheckedI64Divide(divisor, int64(256))
 			octet = langruntime.CheckedAdd(octet, 1)
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return output
+	return string(output)
 }
 func digestSha256(input checkruntime.ByteaValue, short bool) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.ByteaValueError {
@@ -4203,7 +4203,7 @@ func digestSha512Hex(input string, short bool) string {
 			merged = langruntime.CheckedAdd(merged, 1)
 		}
 	}
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	count := 8
 	if short {
@@ -4220,7 +4220,7 @@ func digestSha512Hex(input string, short bool) string {
 			octet := 0
 			for octet < 4 {
 				byte := langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(value, divisor), int64(256))
-				output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, int(int32(byte))))
+				output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), int(int32(byte))))
 				divisor = langruntime.CheckedI64Divide(divisor, int64(256))
 				octet = langruntime.CheckedAdd(octet, 1)
 			}
@@ -4228,7 +4228,7 @@ func digestSha512Hex(input string, short bool) string {
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return output
+	return string(output)
 }
 func digestSha512(input checkruntime.ByteaValue, short bool) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.ByteaValueError {
@@ -4297,22 +4297,22 @@ func byteaSubstring(input checkruntime.ByteaValue, position checkruntime.Int4Val
 						end = langruntime.CheckedI32(langruntime.CheckedSignedAdd(byteLength, 1))
 					}
 				}
-				output := ""
+				output := langruntime.NewTextBuffer("")
 				if first > byteLength || end <= first {
-					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 				}
 				chars := []rune(value)
 				index := 0
 				current := 1
 				for index < len(chars) && current < end {
 					if current >= first {
-						output = output + string(langruntime.CheckedChar(chars[index]))
-						output = output + string(langruntime.CheckedChar(chars[langruntime.CheckedAdd(index, 1)]))
+						output = append(output, string(langruntime.CheckedChar(chars[index]))...)
+						output = append(output, string(langruntime.CheckedChar(chars[langruntime.CheckedAdd(index, 1)]))...)
 					}
 					index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
 					current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
 				}
-				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 			}
 		}
 	}
@@ -4381,13 +4381,13 @@ func byteaTrim(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue, t
 				}
 				last = langruntime.CheckedIndex(langruntime.CheckedSubtract(last, 2))
 			}
-			output := ""
+			output := langruntime.NewTextBuffer("")
 			index := first
 			for index < last {
-				output = output + string(langruntime.CheckedChar(chars[index]))
+				output = append(output, string(langruntime.CheckedChar(chars[index]))...)
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
@@ -4405,23 +4405,23 @@ func byteaUtf8Character(output string, character rune) string {
 	output = langruntime.CheckedString(output)
 	character = langruntime.CheckedChar(character)
 	code := int(langruntime.CheckedChar(character))
-	result := output
+	result := langruntime.NewTextBuffer(output)
 	if code < 128 {
-		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, code))
+		result = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(result), code))
 	} else if code < 2048 {
-		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(192, langruntime.CheckedSignedDivide(code, 64))))
-		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))))
+		result = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(result), langruntime.CheckedSignedAdd(192, langruntime.CheckedSignedDivide(code, 64))))
+		result = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(result), langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))))
 	} else if code < 65536 {
-		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(224, langruntime.CheckedSignedDivide(code, 4096))))
-		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64))))
-		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))))
+		result = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(result), langruntime.CheckedSignedAdd(224, langruntime.CheckedSignedDivide(code, 4096))))
+		result = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(result), langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64))))
+		result = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(result), langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))))
 	} else {
-		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(240, langruntime.CheckedSignedDivide(code, 262144))))
-		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 4096), 64))))
-		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64))))
-		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))))
+		result = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(result), langruntime.CheckedSignedAdd(240, langruntime.CheckedSignedDivide(code, 262144))))
+		result = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(result), langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 4096), 64))))
+		result = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(result), langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64))))
+		result = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(result), langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))))
 	}
-	return result
+	return string(result)
 }
 func bpcharCodepointCompare(left string, right string) int {
 	left = langruntime.CheckedString(left)
@@ -4630,13 +4630,13 @@ func TextVc4r(input checkruntime.TextValue) checkruntime.TextValue {
 		for end > 0 && chars[langruntime.CheckedSubtract(end, 1)] == ' ' {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 		}
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		index := 0
 		for index < end {
-			output = output + string(langruntime.CheckedChar(chars[index]))
+			output = append(output, string(langruntime.CheckedChar(chars[index]))...)
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -4664,9 +4664,9 @@ func Chr23bn(input checkruntime.Int4Value) checkruntime.TextValue {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(chrProgramLimit)}
 		}
 		character := langruntime.CharacterFromI32(value, '\x00')
-		output := ""
-		output = output + string(langruntime.CheckedChar(character))
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		output := langruntime.NewTextBuffer("")
+		output = append(output, string(langruntime.CheckedChar(character))...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -5717,13 +5717,13 @@ func integerBaseText(input checkruntime.Int8Value, fullWidth bool, radix int64) 
 			low = langruntime.CheckedI64Divide((langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(carry, int64(4294967296)), low)), radix)
 			high = langruntime.CheckedI64Divide(high, radix)
 		}
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		remaining := len(digits)
 		for remaining > 0 {
 			remaining = langruntime.CheckedIndex(langruntime.CheckedSubtract(remaining, 1))
-			output = output + string(langruntime.CheckedChar(digits[remaining]))
+			output = append(output, string(langruntime.CheckedChar(digits[remaining]))...)
 		}
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -5951,17 +5951,17 @@ func PgSizePretty24qt(input checkruntime.Int8Value) checkruntime.TextValue {
 				amount = langruntime.CheckedI64Divide((langruntime.CheckedI64Add(amount, int64(1))), int64(2))
 			}
 		}
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		if amount < int64(0) {
-			output = output + string(langruntime.CheckedChar('-'))
+			output = append(output, string(langruntime.CheckedChar('-'))...)
 			amount = langruntime.CheckedI64Subtract(int64(0), amount)
 		}
 		number := int(int32(amount))
 		formatted := checkruntime.TextNumber(number, 10)
-		output = output + formatted
-		output = output + string(langruntime.CheckedChar(' '))
-		output = output + integerSizeUnits[unit]
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		output = append(output, formatted...)
+		output = append(output, string(langruntime.CheckedChar(' '))...)
+		output = append(output, integerSizeUnits[unit]...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -6959,32 +6959,32 @@ func macAddressByte(address checkruntime.MacAddress, index int) int {
 }
 func macOutputText(address checkruntime.MacAddress, size int) string {
 	size = langruntime.CheckedI32(size)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	for index < size {
 		if index > 0 {
-			output = output + string(langruntime.CheckedChar(':'))
+			output = append(output, string(langruntime.CheckedChar(':'))...)
 		}
 		byte := macAddressByte(address, index)
 		if byte < 16 {
-			output = output + string(langruntime.CheckedChar('0'))
+			output = append(output, string(langruntime.CheckedChar('0'))...)
 		}
 		number := checkruntime.TextNumber(byte, 16)
-		output = output + number
+		output = append(output, number...)
 		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
 	}
-	return output
+	return string(output)
 }
 func macOutputBytes(address checkruntime.MacAddress, size int) string {
 	size = langruntime.CheckedI32(size)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	for index < size {
 		byte := macAddressByte(address, index)
-		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, byte))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), byte))
 		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
 	}
-	return output
+	return string(output)
 }
 func macHashBytes(address checkruntime.MacAddress, size int) []checkruntime.HashByte {
 	size = langruntime.CheckedI32(size)
@@ -8113,17 +8113,17 @@ func HashinetextendedN7xh(left checkruntime.NetworkValue, right checkruntime.Int
 func networkIpv4Text(address checkruntime.NetworkAddress, start int, octets int) string {
 	start = langruntime.CheckedIndex(start)
 	octets = langruntime.CheckedI32(octets)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := start
 	high := true
 	remaining := octets
 	for remaining > 0 {
 		if remaining != octets {
-			output = output + string(langruntime.CheckedChar('.'))
+			output = append(output, string(langruntime.CheckedChar('.'))...)
 		}
 		byte := checkruntime.NetworkAddressByte(address, index, high)
 		number := checkruntime.TextNumber(byte, 10)
-		output = output + number
+		output = append(output, number...)
 		if high {
 			high = false
 		} else {
@@ -8132,7 +8132,7 @@ func networkIpv4Text(address checkruntime.NetworkAddress, start int, octets int)
 		}
 		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
 	}
-	return output
+	return string(output)
 }
 func networkHostText(address checkruntime.NetworkAddress) string {
 	if address.Family == 4 {
@@ -8165,44 +8165,44 @@ func networkHostText(address checkruntime.NetworkAddress) string {
 	if bestLength < 2 {
 		bestLength = langruntime.CheckedIndex(0)
 	}
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	position := 0
 	for position < 8 {
 		if bestLength != 0 && position >= bestStart && position < langruntime.CheckedAdd(bestStart, bestLength) {
 			if position == bestStart {
-				output = output + string(langruntime.CheckedChar(':'))
+				output = append(output, string(langruntime.CheckedChar(':'))...)
 			}
 		} else {
 			if position != 0 {
-				output = output + string(langruntime.CheckedChar(':'))
+				output = append(output, string(langruntime.CheckedChar(':'))...)
 			}
 			if position == 6 && bestStart == 0 && (bestLength == 6 || (bestLength == 7 && address.Word7 != 1) || (bestLength == 5 && address.Word5 == 65535)) {
 				dotted := networkIpv4Text(address, 6, 4)
-				output = output + dotted
+				output = append(output, dotted...)
 				break
 			}
 			word := checkruntime.NetworkAddressWord(address, position)
 			number := checkruntime.TextNumber(word, 16)
-			output = output + number
+			output = append(output, number...)
 		}
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	if bestLength != 0 && langruntime.CheckedAdd(bestStart, bestLength) == 8 {
-		output = output + string(langruntime.CheckedChar(':'))
+		output = append(output, string(langruntime.CheckedChar(':'))...)
 	}
-	return output
+	return string(output)
 }
 func networkCidrText(address checkruntime.NetworkAddress) string {
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	if address.Family == 4 {
 		if address.Prefix == 0 {
-			output = output + string(langruntime.CheckedChar('0'))
+			output = append(output, string(langruntime.CheckedChar('0'))...)
 		} else {
 			octets := langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(address.Prefix, 7)), 8)
-			output = langruntime.CheckedString(networkIpv4Text(address, 0, octets))
+			output = langruntime.NewTextBuffer(networkIpv4Text(address, 0, octets))
 		}
 	} else if address.Prefix == 0 {
-		output = output + "::"
+		output = append(output, "::"...)
 	} else {
 		words := langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(address.Prefix, 15)), 16)
 		if words == 1 {
@@ -8238,44 +8238,44 @@ func networkCidrText(address checkruntime.NetworkAddress) string {
 		for position < index {
 			if zeroLength != 0 && position >= zeroStart && position < langruntime.CheckedAdd(zeroStart, zeroLength) {
 				if position == zeroStart {
-					output = output + string(langruntime.CheckedChar(':'))
+					output = append(output, string(langruntime.CheckedChar(':'))...)
 					printed = true
 				}
 				if position == langruntime.CheckedSubtract(index, 1) {
-					output = output + string(langruntime.CheckedChar(':'))
+					output = append(output, string(langruntime.CheckedChar(':'))...)
 				}
 			} else if ipv4 && position > 5 {
 				if position == 6 {
-					output = output + string(langruntime.CheckedChar(':'))
+					output = append(output, string(langruntime.CheckedChar(':'))...)
 				} else {
-					output = output + string(langruntime.CheckedChar('.'))
+					output = append(output, string(langruntime.CheckedChar('.'))...)
 				}
 				high := checkruntime.NetworkAddressByte(address, position, true)
 				number := checkruntime.TextNumber(high, 10)
-				output = output + number
+				output = append(output, number...)
 				if position != 7 || address.Prefix > 120 {
-					output = output + string(langruntime.CheckedChar('.'))
+					output = append(output, string(langruntime.CheckedChar('.'))...)
 					low := checkruntime.NetworkAddressByte(address, position, false)
 					lowNumber := checkruntime.TextNumber(low, 10)
-					output = output + lowNumber
+					output = append(output, lowNumber...)
 				}
 				printed = true
 			} else {
 				if printed {
-					output = output + string(langruntime.CheckedChar(':'))
+					output = append(output, string(langruntime.CheckedChar(':'))...)
 				}
 				word := checkruntime.NetworkAddressWord(address, position)
 				number := checkruntime.TextNumber(word, 16)
-				output = output + number
+				output = append(output, number...)
 				printed = true
 			}
 			position = langruntime.CheckedAdd(position, 1)
 		}
 	}
-	output = output + string(langruntime.CheckedChar('/'))
+	output = append(output, string(langruntime.CheckedChar('/'))...)
 	prefix := checkruntime.TextNumber(address.Prefix, 10)
-	output = output + prefix
-	return output
+	output = append(output, prefix...)
+	return string(output)
 }
 func networkOutput(input checkruntime.NetworkValue, mode int) checkruntime.TextValue {
 	mode = langruntime.CheckedI32(mode)
@@ -8294,13 +8294,13 @@ func networkOutput(input checkruntime.NetworkValue, mode int) checkruntime.TextV
 		if mode == 3 {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: networkCidrText(address)}
 		}
-		output := networkHostText(address)
+		output := langruntime.NewTextBuffer(networkHostText(address))
 		if mode == 1 || (mode == 2 && address.Prefix != networkMaxBits(address)) {
-			output = output + string(langruntime.CheckedChar('/'))
+			output = append(output, string(langruntime.CheckedChar('/'))...)
 			prefix := checkruntime.TextNumber(address.Prefix, 10)
-			output = output + prefix
+			output = append(output, prefix...)
 		}
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -8339,17 +8339,17 @@ func networkSend(input checkruntime.NetworkValue, cidr bool) checkruntime.ByteaV
 		if cidr {
 			cidrFlag = langruntime.CheckedI32(1)
 		}
-		output := ""
-		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, family))
-		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, address.Prefix))
-		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, cidrFlag))
-		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, size))
+		output := langruntime.NewTextBuffer("")
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), family))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), address.Prefix))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), cidrFlag))
+		output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), size))
 		index := 0
 		high := true
 		remaining := size
 		for remaining > 0 {
 			byte := checkruntime.NetworkAddressByte(address, index, high)
-			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, byte))
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), byte))
 			if high {
 				high = false
 			} else {
@@ -8358,7 +8358,7 @@ func networkSend(input checkruntime.NetworkValue, cidr bool) checkruntime.ByteaV
 			}
 			remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
 		}
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
@@ -8691,17 +8691,17 @@ func numericWorkSum(left numericWork, right numericWork, subtract bool) numericW
 		start = langruntime.CheckedAdd(start, 1)
 		weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
 	}
-	digits := ""
+	digits := langruntime.NewTextBuffer("")
 	index = langruntime.CheckedIndex(start)
 	for index < end {
-		digits = digits + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(result[index].value, 48)), '0')))
+		digits = append(digits, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(result[index].value, 48)), '0')))...)
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	if start == end {
 		sign = langruntime.CheckedI32(0)
 		weight = langruntime.CheckedI32(0)
 	}
-	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: digits}
+	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: string(digits)}
 }
 func numericWorkAdd(left numericWork, right numericWork, subtract bool) checkruntime.NumericValue {
 	left = copynumericWork(left)
@@ -8783,7 +8783,7 @@ func numericWorkProduct(left numericWork, right numericWork) numericWork {
 	for end > 0 && result[langruntime.CheckedSubtract(end, 1)].value == 0 {
 		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 	}
-	coefficient := ""
+	coefficient := langruntime.NewTextBuffer("")
 	count := 0
 	for end > 0 {
 		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
@@ -8792,29 +8792,29 @@ func numericWorkProduct(left numericWork, right numericWork) numericWork {
 		for place > 0 {
 			digit := langruntime.CheckedSignedDivide(word, place)
 			word = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(word, place))
-			if coefficient != "" || digit != 0 {
-				coefficient = coefficient + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(digit, 48)), '0')))
+			if string(coefficient) != "" || digit != 0 {
+				coefficient = append(coefficient, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(digit, 48)), '0')))...)
 				count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
 			}
 			place = langruntime.CheckedI32(langruntime.CheckedSignedDivide(place, 10))
 		}
 	}
 	weight := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(left.weight, right.weight), count), aCount), bCount), 1)
-	characters := []rune(coefficient)
+	characters := []rune(string(coefficient))
 	end = langruntime.CheckedIndex(len(characters))
 	for end > 0 && characters[langruntime.CheckedSubtract(end, 1)] == '0' {
 		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 	}
-	digits := ""
+	digits := langruntime.NewTextBuffer("")
 	index = langruntime.CheckedIndex(0)
 	for index < end {
-		digits = digits + string(langruntime.CheckedChar(characters[index]))
+		digits = append(digits, string(langruntime.CheckedChar(characters[index]))...)
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	if sign == 0 {
 		weight = langruntime.CheckedI32(0)
 	}
-	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: digits}
+	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: string(digits)}
 }
 func numericWorkMultiply(left numericWork, right numericWork) checkruntime.NumericValue {
 	left = copynumericWork(left)
@@ -9059,11 +9059,11 @@ func numericCommon(left checkruntime.NumericValue, right checkruntime.NumericVal
 			if multiple && (a.sign == 0 || b.sign == 0) {
 				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericCommonWork(numericWorkFromValue("0"), scale))}
 			}
-			dividend := numericWorkText(numericCommonWork(copynumericWork(a), scale))
-			divisor := numericWorkText(numericCommonWork(copynumericWork(b), scale))
+			dividend := langruntime.NewTextBuffer(numericWorkText(numericCommonWork(copynumericWork(a), scale)))
+			divisor := langruntime.NewTextBuffer(numericWorkText(numericCommonWork(copynumericWork(b), scale)))
 			active := b.sign != 0
 			for active {
-				remainder := numericDivision(checkruntime.MakeNumericValue(dividend), checkruntime.MakeNumericValue(divisor), 2)
+				remainder := numericDivision(checkruntime.MakeNumericValue(string(dividend)), checkruntime.MakeNumericValue(string(divisor)), 2)
 				if remainder.Kind == checkruntime.NumericValueError {
 					error := remainder.Error
 					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
@@ -9071,16 +9071,16 @@ func numericCommon(left checkruntime.NumericValue, right checkruntime.NumericVal
 				if remainder == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
 					return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
 				}
-				dividend = langruntime.CheckedString(langruntime.CheckedString(divisor))
+				dividend = langruntime.NewTextBuffer(langruntime.CheckedString(string(divisor)))
 				if remainder.Kind == checkruntime.NumericValueValue {
 					value := langruntime.CheckedString(remainder.Value)
 					layout := checkruntime.NumericParts(value)
 					active = layout.Sign != 0
-					divisor = langruntime.CheckedString(value)
+					divisor = langruntime.NewTextBuffer(value)
 				}
 			}
 			if multiple {
-				quotient := numericDivisionWork(a, numericWorkFromValue(dividend), 0, false)
+				quotient := numericDivisionWork(a, numericWorkFromValue(string(dividend)), 0, false)
 				product := numericWorkMultiply(quotient, b)
 				if product.Kind == checkruntime.NumericValueValue {
 					value := langruntime.CheckedString(product.Value)
@@ -9088,7 +9088,7 @@ func numericCommon(left checkruntime.NumericValue, right checkruntime.NumericVal
 				}
 				return product
 			}
-			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericCommonWork(numericWorkFromValue(dividend), scale))}
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(numericCommonWork(numericWorkFromValue(string(dividend)), scale))}
 		}
 	}
 	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
@@ -9188,7 +9188,7 @@ func numericDivisionWork(left numericWork, right numericWork, scale int, roundin
 	if rounding {
 		boundary = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(boundary, 1))
 	}
-	coefficient := ""
+	coefficient := langruntime.NewTextBuffer("")
 	weight := 0
 	sign := 0
 	index = langruntime.CheckedIndex(0)
@@ -9244,7 +9244,7 @@ func numericDivisionWork(left numericWork, right numericWork, scale int, roundin
 			weight = langruntime.CheckedI32(position)
 		}
 		if sign != 0 {
-			coefficient = coefficient + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(quotient, 48)), '0')))
+			coefficient = append(coefficient, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(quotient, 48)), '0')))...)
 		}
 		nonzero := false
 		cursor = langruntime.CheckedIndex(0)
@@ -9259,7 +9259,7 @@ func numericDivisionWork(left numericWork, right numericWork, scale int, roundin
 		}
 		position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
 	}
-	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: coefficient}
+	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: string(coefficient)}
 }
 func numericDivision(left checkruntime.NumericValue, right checkruntime.NumericValue, mode int) checkruntime.NumericValue {
 	mode = langruntime.CheckedI32(mode)
@@ -9504,24 +9504,24 @@ func FactorialTah6(input checkruntime.Int8Value) checkruntime.NumericValue {
 			factor = langruntime.CheckedI32(langruntime.CheckedSignedAdd(factor, 1))
 		}
 		index := len(words)
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		for index > 0 {
 			index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
 			word := words[index].value
 			if langruntime.CheckedAdd(index, 1) == len(words) {
-				output = output + checkruntime.TextNumber(word, 10)
+				output = append(output, checkruntime.TextNumber(word, 10)...)
 			} else {
 				thousands := langruntime.CheckedSignedDivide(word, 1000)
 				hundreds := langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(word, 100)), 10)
 				tens := langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(word, 10)), 10)
 				ones := langruntime.CheckedSignedRemainder(word, 10)
-				output = output + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(thousands, 48)), '0')))
-				output = output + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(hundreds, 48)), '0')))
-				output = output + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(tens, 48)), '0')))
-				output = output + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(ones, 48)), '0')))
+				output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(thousands, 48)), '0')))...)
+				output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(hundreds, 48)), '0')))...)
+				output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(tens, 48)), '0')))...)
+				output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(ones, 48)), '0')))...)
 			}
 		}
-		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: output}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(output)}
 	}
 	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
 }
@@ -11027,17 +11027,17 @@ func NumericSend3mnb(input checkruntime.NumericValue) checkruntime.ByteaValue {
 				}
 			}
 		}
-		output := ""
-		output = langruntime.CheckedString(numericWireWord(output, count))
-		output = langruntime.CheckedString(numericWireWord(output, weight))
-		output = langruntime.CheckedString(numericWireWord(output, sign))
-		output = langruntime.CheckedString(numericWireWord(output, scale))
+		output := langruntime.NewTextBuffer("")
+		output = langruntime.NewTextBuffer(numericWireWord(string(output), count))
+		output = langruntime.NewTextBuffer(numericWireWord(string(output), weight))
+		output = langruntime.NewTextBuffer(numericWireWord(string(output), sign))
+		output = langruntime.NewTextBuffer(numericWireWord(string(output), scale))
 		index := 0
 		for index < len(words) {
-			output = langruntime.CheckedString(numericWireWord(output, words[index].value))
+			output = langruntime.NewTextBuffer(numericWireWord(string(output), words[index].value))
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
@@ -11063,39 +11063,39 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 		if work.valid == false {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 		}
-		amount := numericWorkText(copynumericWork(work))
+		amount := langruntime.NewTextBuffer(numericWorkText(copynumericWork(work)))
 		unit := 0
 		if work.special != 1 {
 			unit = langruntime.CheckedIndex(5)
-		} else if numericSizeBelow(amount, "10240") == false {
-			divided := numericDivision(checkruntime.MakeNumericValue(amount), checkruntime.MakeNumericValue("512"), 1)
+		} else if numericSizeBelow(string(amount), "10240") == false {
+			divided := numericDivision(checkruntime.MakeNumericValue(string(amount)), checkruntime.MakeNumericValue("512"), 1)
 			if divided.Kind == checkruntime.NumericValueError {
 				error := divided.Error
 				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 			}
 			if divided.Kind == checkruntime.NumericValueValue {
 				number := langruntime.CheckedString(divided.Value)
-				amount = langruntime.CheckedString(number)
+				amount = langruntime.NewTextBuffer(number)
 			}
 			unit = langruntime.CheckedIndex(1)
-			for unit < 5 && numericSizeBelow(amount, "20479") == false {
-				divided := numericDivision(checkruntime.MakeNumericValue(amount), checkruntime.MakeNumericValue("1024"), 1)
+			for unit < 5 && numericSizeBelow(string(amount), "20479") == false {
+				divided := numericDivision(checkruntime.MakeNumericValue(string(amount)), checkruntime.MakeNumericValue("1024"), 1)
 				if divided.Kind == checkruntime.NumericValueError {
 					error := divided.Error
 					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
 				}
 				if divided.Kind == checkruntime.NumericValueValue {
 					number := langruntime.CheckedString(divided.Value)
-					amount = langruntime.CheckedString(number)
+					amount = langruntime.NewTextBuffer(number)
 				}
 				unit = langruntime.CheckedAdd(unit, 1)
 			}
-			layout := checkruntime.NumericParts(amount)
+			layout := checkruntime.NumericParts(string(amount))
 			subtract := 0
 			if layout.Sign < 0 {
 				subtract = langruntime.CheckedI32(1)
 			}
-			adjusted := numericArithmetic(checkruntime.MakeNumericValue(amount), checkruntime.MakeNumericValue("1"), subtract)
+			adjusted := numericArithmetic(checkruntime.MakeNumericValue(string(amount)), checkruntime.MakeNumericValue("1"), subtract)
 			rounded := numericDivision(adjusted, checkruntime.MakeNumericValue("2"), 1)
 			if rounded.Kind == checkruntime.NumericValueError {
 				error := rounded.Error
@@ -11103,12 +11103,12 @@ func PgSizePrettyAxtn(input checkruntime.NumericValue) checkruntime.TextValue {
 			}
 			if rounded.Kind == checkruntime.NumericValueValue {
 				number := langruntime.CheckedString(rounded.Value)
-				amount = langruntime.CheckedString(number)
+				amount = langruntime.NewTextBuffer(number)
 			}
 		}
-		amount = amount + string(langruntime.CheckedChar(' '))
-		amount = amount + integerSizeUnits[unit]
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: amount}
+		amount = append(amount, string(langruntime.CheckedChar(' '))...)
+		amount = append(amount, integerSizeUnits[unit]...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(amount)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -11131,7 +11131,7 @@ func numericSquareRootScaled(work numericWork, scale int) numericWork {
 	langruntime.CheckedAdd(len(remainder), 1)
 	remainder = append(remainder, copynumericWireDigit(numericWireDigit{value: 0}))
 	remainderLength := 1
-	coefficient := ""
+	coefficient := langruntime.NewTextBuffer("")
 	position := weight
 	for position >= langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, scale), 1) && work.sign != 0 {
 		pair := 0
@@ -11237,18 +11237,18 @@ func numericSquareRootScaled(work numericWork, scale int) numericWork {
 			langruntime.CheckedAdd(len(root), 1)
 			root = append(root, copynumericWireDigit(numericWireDigit{value: carry}))
 		}
-		coefficient = coefficient + string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(digit, 48)), '0')))
+		coefficient = append(coefficient, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(digit, 48)), '0')))...)
 		if inputIndex >= len(characters) && remainderLength == 1 && remainder[0].value == 0 {
 			position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, scale), 1))
 		}
 		position = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(position, 1))
 	}
 	sign := 1
-	if coefficient == "" {
+	if string(coefficient) == "" {
 		sign = langruntime.CheckedI32(0)
 		weight = langruntime.CheckedI32(0)
 	}
-	return numericWorkRounded(numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: coefficient}, scale, 1)
+	return numericWorkRounded(numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: string(coefficient)}, scale, 1)
 }
 func numericSquareRoot(work numericWork) checkruntime.NumericValue {
 	work = copynumericWork(work)
@@ -11366,7 +11366,7 @@ func copynumericWork(value numericWork) numericWork {
 func numericWorkFromValue(value string) numericWork {
 	value = langruntime.CheckedString(value)
 	layout := checkruntime.NumericParts(value)
-	digits := ""
+	digits := langruntime.NewTextBuffer("")
 	scale := 0
 	if layout.Valid && layout.Special == 1 {
 		scale = langruntime.CheckedI32(numericWireScale(value))
@@ -11375,29 +11375,29 @@ func numericWorkFromValue(value string) numericWork {
 		for index < layout.End {
 			character := characters[index]
 			if numericWireDecimalDigit(character) >= 0 {
-				digits = digits + string(langruntime.CheckedChar(character))
+				digits = append(digits, string(langruntime.CheckedChar(character))...)
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
 	}
-	return numericWork{valid: layout.Valid, special: layout.Special, sign: layout.Sign, weight: layout.Weight, scale: scale, digits: digits}
+	return numericWork{valid: layout.Valid, special: layout.Special, sign: layout.Sign, weight: layout.Weight, scale: scale, digits: string(digits)}
 }
 func numericWorkZeros(count int) string {
 	count = langruntime.CheckedI32(count)
 	remaining := count
-	block := "0"
-	output := ""
+	block := langruntime.NewTextBuffer("0")
+	output := langruntime.NewTextBuffer("")
 	for remaining > 0 {
 		if langruntime.CheckedSignedRemainder(remaining, 2) == 1 {
-			output = output + block
+			output = append(output, string(block)...)
 		}
 		remaining = langruntime.CheckedI32(langruntime.CheckedSignedDivide(remaining, 2))
 		if remaining > 0 {
-			copy := langruntime.CheckedString(block)
-			block = block + copy
+			copy := langruntime.CheckedString(string(block))
+			block = append(block, copy...)
 		}
 	}
-	return output
+	return string(output)
 }
 func numericWorkText(work numericWork) string {
 	work = copynumericWork(work)
@@ -11411,17 +11411,17 @@ func numericWorkText(work numericWork) string {
 		return "NaN"
 	}
 	digits := []rune(work.digits)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	if work.sign < 0 {
-		output = output + string(langruntime.CheckedChar('-'))
+		output = append(output, string(langruntime.CheckedChar('-'))...)
 	}
 	if work.sign == 0 {
-		output = output + string(langruntime.CheckedChar('0'))
+		output = append(output, string(langruntime.CheckedChar('0'))...)
 		if work.scale > 0 {
-			output = output + string(langruntime.CheckedChar('.'))
-			output = output + numericWorkZeros(work.scale)
+			output = append(output, string(langruntime.CheckedChar('.'))...)
+			output = append(output, numericWorkZeros(work.scale)...)
 		}
-		return output
+		return string(output)
 	}
 	index := 0
 	if work.weight >= 0 {
@@ -11433,38 +11433,38 @@ func numericWorkText(work numericWork) string {
 		index = langruntime.CheckedIndex(0)
 		positions := langruntime.CheckedSignedAdd(work.weight, 1)
 		if length <= positions {
-			output = output + work.digits
-			output = output + numericWorkZeros(langruntime.CheckedSignedSubtract(positions, length))
+			output = append(output, work.digits...)
+			output = append(output, numericWorkZeros(langruntime.CheckedSignedSubtract(positions, length))...)
 			index = langruntime.CheckedIndex(len(digits))
 		} else {
 			for positions > 0 {
-				output = output + string(langruntime.CheckedChar(digits[index]))
+				output = append(output, string(langruntime.CheckedChar(digits[index]))...)
 				index = langruntime.CheckedAdd(index, 1)
 				positions = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(positions, 1))
 			}
 		}
 	} else {
-		output = output + string(langruntime.CheckedChar('0'))
+		output = append(output, string(langruntime.CheckedChar('0'))...)
 	}
 	if work.scale > 0 {
-		output = output + string(langruntime.CheckedChar('.'))
+		output = append(output, string(langruntime.CheckedChar('.'))...)
 		positions := work.scale
 		if work.weight < langruntime.CheckedSignedNegate(1) {
 			leading := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, work.weight), 1)
 			if leading > positions {
 				leading = langruntime.CheckedI32(positions)
 			}
-			output = output + numericWorkZeros(leading)
+			output = append(output, numericWorkZeros(leading)...)
 			positions = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(positions, leading))
 		}
 		for positions > 0 && index < len(digits) {
-			output = output + string(langruntime.CheckedChar(digits[index]))
+			output = append(output, string(langruntime.CheckedChar(digits[index]))...)
 			index = langruntime.CheckedAdd(index, 1)
 			positions = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(positions, 1))
 		}
-		output = output + numericWorkZeros(positions)
+		output = append(output, numericWorkZeros(positions)...)
 	}
-	return output
+	return string(output)
 }
 func numericWorkMinScale(work numericWork) int {
 	work = copynumericWork(work)
@@ -11545,13 +11545,13 @@ func numericWorkRounded(work numericWork, scale int, mode int) numericWork {
 	for end > 0 && digits[langruntime.CheckedSubtract(end, 1)] == '0' {
 		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 	}
-	coefficient := ""
+	coefficient := langruntime.NewTextBuffer("")
 	cursor := 0
 	if leadingCarry {
-		coefficient = coefficient + string(langruntime.CheckedChar('1'))
+		coefficient = append(coefficient, string(langruntime.CheckedChar('1'))...)
 	} else {
 		for cursor < end {
-			coefficient = coefficient + string(langruntime.CheckedChar(digits[cursor]))
+			coefficient = append(coefficient, string(langruntime.CheckedChar(digits[cursor]))...)
 			cursor = langruntime.CheckedAdd(cursor, 1)
 		}
 	}
@@ -11564,7 +11564,7 @@ func numericWorkRounded(work numericWork, scale int, mode int) numericWork {
 	if outputScale < 0 {
 		outputScale = langruntime.CheckedI32(0)
 	}
-	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: outputScale, digits: coefficient}
+	return numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: outputScale, digits: string(coefficient)}
 }
 func numericWorkRound(work numericWork, requested int, mode int) checkruntime.NumericValue {
 	work = copynumericWork(work)
@@ -12366,15 +12366,15 @@ func temporalExtractCode(value string) int {
 		return unit
 	}
 	characters := []rune(value)
-	key := ""
+	key := langruntime.NewTextBuffer("")
 	index := 0
 	for index < len(characters) && index < 10 {
-		key = key + string(langruntime.CheckedChar(langruntime.AsciiLowercase(characters[index])))
+		key = append(key, string(langruntime.CheckedChar(langruntime.AsciiLowercase(characters[index])))...)
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	entry := 0
 	for entry < len(temporalExtractKeys) {
-		if key == temporalExtractKeys[entry] {
+		if string(key) == temporalExtractKeys[entry] {
 			return temporalExtractCodes[entry]
 		}
 		entry = langruntime.CheckedAdd(entry, 1)
@@ -12519,15 +12519,15 @@ var temporalUnitCodes = []int{-2, -2, 12, 12, 12, 12, 6, 6, 6, 11, 11, 11, 11, 5
 func temporalUnitCode(value string) int {
 	value = langruntime.CheckedString(value)
 	characters := []rune(value)
-	key := ""
+	key := langruntime.NewTextBuffer("")
 	index := 0
 	for index < len(characters) && index < 10 {
-		key = key + string(langruntime.CheckedChar(langruntime.AsciiLowercase(characters[index])))
+		key = append(key, string(langruntime.CheckedChar(langruntime.AsciiLowercase(characters[index])))...)
 		index = langruntime.CheckedAdd(index, 1)
 	}
 	entry := 0
 	for entry < len(temporalUnitKeys) {
-		if key == temporalUnitKeys[entry] {
+		if string(key) == temporalUnitKeys[entry] {
 			return temporalUnitCodes[entry]
 		}
 		entry = langruntime.CheckedAdd(entry, 1)
@@ -13163,14 +13163,14 @@ func TimestamptzSmallerLbk9(left checkruntime.TimestamptzValue, right checkrunti
 }
 func temporalDecimalParts(whole int64, fraction int64, scale int, negativeZero bool) string {
 	scale = langruntime.CheckedI32(scale)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	if negativeZero {
-		output = output + string(langruntime.CheckedChar('-'))
+		output = append(output, string(langruntime.CheckedChar('-'))...)
 	}
 	integer := checkruntime.TextSignedNumber(whole)
-	output = output + integer
+	output = append(output, integer...)
 	if scale > 0 {
-		output = output + string(langruntime.CheckedChar('.'))
+		output = append(output, string(langruntime.CheckedChar('.'))...)
 		divisor := int64(1)
 		index := 1
 		for index < scale {
@@ -13182,12 +13182,12 @@ func temporalDecimalParts(whole int64, fraction int64, scale int, negativeZero b
 			digit := langruntime.CheckedI64Divide(remaining, divisor)
 			code := int(int32(digit))
 			character := langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(code, 48)), '0')
-			output = output + string(langruntime.CheckedChar(character))
+			output = append(output, string(langruntime.CheckedChar(character))...)
 			remaining = langruntime.CheckedI64Remainder(remaining, divisor)
 			divisor = langruntime.CheckedI64Divide(divisor, int64(10))
 		}
 	}
-	return output
+	return string(output)
 }
 func temporalScaledNumber(value int64, scale int) checkruntime.NumericValue {
 	scale = langruntime.CheckedI32(scale)
@@ -13268,14 +13268,14 @@ func temporalTimestampJulian(julian int64, clock int64) checkruntime.NumericValu
 	if carry {
 		whole = langruntime.CheckedI64Add(whole, int64(1))
 	}
-	output := checkruntime.TextSignedNumber(whole)
-	output = output + string(langruntime.CheckedChar('.'))
+	output := langruntime.NewTextBuffer(checkruntime.TextSignedNumber(whole))
+	output = append(output, string(langruntime.CheckedChar('.'))...)
 	cursor = langruntime.CheckedIndex(0)
 	for cursor < len(fraction) {
-		output = output + string(langruntime.CheckedChar(fraction[cursor]))
+		output = append(output, string(langruntime.CheckedChar(fraction[cursor]))...)
 		cursor = langruntime.CheckedAdd(cursor, 1)
 	}
-	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: output}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(output)}
 }
 func temporalExtractTimestamp(value int64, unit string) checkruntime.NumericValue {
 	unit = langruntime.CheckedString(unit)
@@ -13638,7 +13638,7 @@ func textCaseValue(input checkruntime.TextValue, mode int) checkruntime.TextValu
 	if input.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		characters := []rune(value)
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		previousAlphanumeric := false
 		index := 0
 		for index < len(characters) {
@@ -13653,11 +13653,11 @@ func textCaseValue(input checkruntime.TextValue, mode int) checkruntime.TextValu
 					character = langruntime.CheckedChar(langruntime.CharacterFromI32(upperCode, original))
 				}
 			}
-			output = output + string(langruntime.CheckedChar(character))
+			output = append(output, string(langruntime.CheckedChar(character))...)
 			previousAlphanumeric = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 48 && code <= 57)
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -13949,7 +13949,7 @@ func LikeEscapeXfrr(input checkruntime.TextValue, escape checkruntime.TextValue)
 			if len(escapeChars) == 1 && escapeChars[0] == '\\' {
 				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
 			}
-			output := ""
+			output := langruntime.NewTextBuffer("")
 			index := 0
 			afterEscape := false
 			for index < len(chars) {
@@ -13959,18 +13959,18 @@ func LikeEscapeXfrr(input checkruntime.TextValue, escape checkruntime.TextValue)
 					isEscape = character == escapeChars[0] && afterEscape == false
 				}
 				if isEscape {
-					output = output + string(langruntime.CheckedChar('\\'))
+					output = append(output, string(langruntime.CheckedChar('\\'))...)
 					afterEscape = true
 				} else {
 					if character == '\\' && afterEscape == false {
-						output = output + string(langruntime.CheckedChar('\\'))
+						output = append(output, string(langruntime.CheckedChar('\\'))...)
 					}
-					output = output + string(langruntime.CheckedChar(character))
+					output = append(output, string(langruntime.CheckedChar(character))...)
 					afterEscape = false
 				}
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
@@ -14311,17 +14311,17 @@ func textPadding(input checkruntime.TextValue, length checkruntime.Int4Value, fi
 					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textBuildLimitError)}
 				}
 				paddingCount := langruntime.CheckedSignedSubtract(count, kept)
-				output := ""
+				output := langruntime.NewTextBuffer("")
 				index := 0
 				if right {
 					for index < end {
-						output = output + string(langruntime.CheckedChar(characters[index]))
+						output = append(output, string(langruntime.CheckedChar(characters[index]))...)
 						index = langruntime.CheckedAdd(index, 1)
 					}
 				}
 				index = langruntime.CheckedIndex(0)
 				for paddingCount > 0 {
-					output = output + string(langruntime.CheckedChar(members[index]))
+					output = append(output, string(langruntime.CheckedChar(members[index]))...)
 					index = langruntime.CheckedAdd(index, 1)
 					if index == len(members) {
 						index = langruntime.CheckedIndex(0)
@@ -14331,11 +14331,11 @@ func textPadding(input checkruntime.TextValue, length checkruntime.Int4Value, fi
 				if right == false {
 					index = langruntime.CheckedIndex(0)
 					for index < end {
-						output = output + string(langruntime.CheckedChar(characters[index]))
+						output = append(output, string(langruntime.CheckedChar(characters[index]))...)
 						index = langruntime.CheckedAdd(index, 1)
 					}
 				}
-				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 			}
 		}
 	}
@@ -14383,19 +14383,19 @@ func RepeatF0fb(input checkruntime.TextValue, length checkruntime.Int4Value) che
 				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textBuildLimitError)}
 			}
 			count := requested
-			block := text
-			output := ""
+			block := langruntime.NewTextBuffer(text)
+			output := langruntime.NewTextBuffer("")
 			for count > 0 {
 				if langruntime.CheckedSignedRemainder(count, 2) == 1 {
-					output = output + block
+					output = append(output, string(block)...)
 				}
 				count = langruntime.CheckedI32(langruntime.CheckedSignedDivide(count, 2))
 				if count > 0 {
-					copy := langruntime.CheckedString(block)
-					block = block + copy
+					copy := langruntime.CheckedString(string(block))
+					block = append(block, copy...)
 				}
 			}
-			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
@@ -14431,7 +14431,7 @@ func TranslateTxpt(input checkruntime.TextValue, from checkruntime.TextValue, to
 				characters := []rune(text)
 				before := []rune(source)
 				after := []rune(target)
-				output := ""
+				output := langruntime.NewTextBuffer("")
 				index := 0
 				for index < len(characters) {
 					member := 0
@@ -14440,14 +14440,14 @@ func TranslateTxpt(input checkruntime.TextValue, from checkruntime.TextValue, to
 					}
 					if member < len(before) {
 						if member < len(after) {
-							output = output + string(langruntime.CheckedChar(after[member]))
+							output = append(output, string(langruntime.CheckedChar(after[member]))...)
 						}
 					} else {
-						output = output + string(langruntime.CheckedChar(characters[index]))
+						output = append(output, string(langruntime.CheckedChar(characters[index]))...)
 					}
 					index = langruntime.CheckedAdd(index, 1)
 				}
-				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 			}
 		}
 	}
@@ -14481,22 +14481,22 @@ func QuoteLiteralD0rq(input checkruntime.TextValue) checkruntime.TextValue {
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		if escaped {
-			output = output + string(langruntime.CheckedChar('E'))
+			output = append(output, string(langruntime.CheckedChar('E'))...)
 		}
-		output = output + string(langruntime.CheckedChar('\''))
+		output = append(output, string(langruntime.CheckedChar('\''))...)
 		index = langruntime.CheckedIndex(0)
 		for index < len(characters) {
 			character := characters[index]
 			if character == '\'' || character == '\\' {
-				output = output + string(langruntime.CheckedChar(character))
+				output = append(output, string(langruntime.CheckedChar(character))...)
 			}
-			output = output + string(langruntime.CheckedChar(character))
+			output = append(output, string(langruntime.CheckedChar(character))...)
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		output = output + string(langruntime.CheckedChar('\''))
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		output = append(output, string(langruntime.CheckedChar('\''))...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -14529,13 +14529,13 @@ func textSearchAt(search *textSearchState, from int) bool {
 func textSearchRange(search *textSearchState, from int, end int) string {
 	from = langruntime.CheckedIndex(from)
 	end = langruntime.CheckedIndex(end)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := from
 	for index < end {
-		output = output + string(langruntime.CheckedChar(search.characters[index]))
+		output = append(output, string(langruntime.CheckedChar(search.characters[index]))...)
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return output
+	return string(output)
 }
 func TextcatS76e(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.TextValue {
 	if left.Kind == checkruntime.TextValueError {
@@ -14559,9 +14559,9 @@ func TextcatS76e(left checkruntime.TextValue, right checkruntime.TextValue) chec
 			if langruntime.CheckedI64Add(textBuildOctets(first), textBuildOctets(second)) > int64(1073741819) {
 				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textSearchInternalError)}
 			}
-			output := first
-			output = output + second
-			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+			output := langruntime.NewTextBuffer(first)
+			output = append(output, second...)
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
@@ -14711,18 +14711,18 @@ func ReplaceGz9l(input checkruntime.TextValue, from checkruntime.TextValue, to c
 				if outputSize > int64(1073741819) {
 					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textSearchInternalError)}
 				}
-				output := ""
+				output := langruntime.NewTextBuffer("")
 				index = langruntime.CheckedIndex(0)
 				for index < len(search.characters) {
 					if textSearchAt(&search, index) {
-						output = output + replacement
+						output = append(output, replacement...)
 						index = langruntime.CheckedAdd(index, len(search.pattern))
 					} else {
-						output = output + string(langruntime.CheckedChar(search.characters[index]))
+						output = append(output, string(langruntime.CheckedChar(search.characters[index]))...)
 						index = langruntime.CheckedAdd(index, 1)
 					}
 				}
-				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 			}
 		}
 	}
@@ -14849,8 +14849,8 @@ func similarPatternValue(pattern checkruntime.TextValue, escape checkruntime.Tex
 				escapeCharacter = langruntime.CheckedChar(escapes[0])
 			}
 			escapeCode := int(langruntime.CheckedChar(escapeCharacter))
-			output := ""
-			output = output + "^(?:"
+			output := langruntime.NewTextBuffer("")
+			output = append(output, "^(?:"...)
 			afterEscape := false
 			quotes := 0
 			bracketDepth := 0
@@ -14861,27 +14861,27 @@ func similarPatternValue(pattern checkruntime.TextValue, escape checkruntime.Tex
 				code := int(langruntime.CheckedChar(character))
 				if escaping && escapeCode > 127 && code > 127 {
 					if afterEscape {
-						output = output + string(langruntime.CheckedChar('\\'))
-						output = output + string(langruntime.CheckedChar(character))
+						output = append(output, string(langruntime.CheckedChar('\\'))...)
+						output = append(output, string(langruntime.CheckedChar(character))...)
 						afterEscape = false
 					} else if character == escapeCharacter {
 						afterEscape = true
 					} else {
-						output = output + string(langruntime.CheckedChar(character))
+						output = append(output, string(langruntime.CheckedChar(character))...)
 					}
 				} else if afterEscape {
 					if character == '"' && bracketDepth < 1 {
 						if quotes == 0 {
-							output = output + "){1,1}?("
+							output = append(output, "){1,1}?("...)
 						} else if quotes == 1 {
-							output = output + "){1,1}(?:"
+							output = append(output, "){1,1}(?:"...)
 						} else {
 							return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(sqlstateSimilarQuotes)}
 						}
 						quotes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(quotes, 1))
 					} else {
-						output = output + string(langruntime.CheckedChar('\\'))
-						output = output + string(langruntime.CheckedChar(character))
+						output = append(output, string(langruntime.CheckedChar('\\'))...)
+						output = append(output, string(langruntime.CheckedChar(character))...)
 						classPosition = langruntime.CheckedI32(3)
 					}
 					afterEscape = false
@@ -14889,9 +14889,9 @@ func similarPatternValue(pattern checkruntime.TextValue, escape checkruntime.Tex
 					afterEscape = true
 				} else if bracketDepth > 0 {
 					if character == '\\' {
-						output = output + string(langruntime.CheckedChar('\\'))
+						output = append(output, string(langruntime.CheckedChar('\\'))...)
 					}
-					output = output + string(langruntime.CheckedChar(character))
+					output = append(output, string(langruntime.CheckedChar(character))...)
 					if character == ']' && classPosition > 2 {
 						bracketDepth = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(bracketDepth, 1))
 					} else if character == '[' {
@@ -14903,25 +14903,25 @@ func similarPatternValue(pattern checkruntime.TextValue, escape checkruntime.Tex
 						classPosition = langruntime.CheckedI32(3)
 					}
 				} else if character == '[' {
-					output = output + string(langruntime.CheckedChar(character))
+					output = append(output, string(langruntime.CheckedChar(character))...)
 					bracketDepth = langruntime.CheckedI32(1)
 					classPosition = langruntime.CheckedI32(1)
 				} else if character == '%' {
-					output = output + ".*"
+					output = append(output, ".*"...)
 				} else if character == '_' {
-					output = output + string(langruntime.CheckedChar('.'))
+					output = append(output, string(langruntime.CheckedChar('.'))...)
 				} else if character == '(' {
-					output = output + "(?:"
+					output = append(output, "(?:"...)
 				} else if character == '\\' || character == '.' || character == '^' || character == '$' {
-					output = output + string(langruntime.CheckedChar('\\'))
-					output = output + string(langruntime.CheckedChar(character))
+					output = append(output, string(langruntime.CheckedChar('\\'))...)
+					output = append(output, string(langruntime.CheckedChar(character))...)
 				} else {
-					output = output + string(langruntime.CheckedChar(character))
+					output = append(output, string(langruntime.CheckedChar(character))...)
 				}
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			output = output + ")$"
-			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+			output = append(output, ")$"...)
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
@@ -15057,37 +15057,37 @@ func PgSizeBytesGgrt(input checkruntime.TextValue) checkruntime.Int8Value {
 		for end > index && checkruntime.NumericSpace(characters[langruntime.CheckedSubtract(end, 1)]) {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 		}
-		unit := ""
+		unit := langruntime.NewTextBuffer("")
 		for index < end {
-			unit = unit + string(langruntime.CheckedChar(langruntime.AsciiLowercase(characters[index])))
+			unit = append(unit, string(langruntime.CheckedChar(langruntime.AsciiLowercase(characters[index])))...)
 			index = langruntime.CheckedAdd(index, 1)
 		}
 		power := 0
-		if unit == "kb" {
+		if string(unit) == "kb" {
 			power = langruntime.CheckedI32(1)
-		} else if unit == "mb" {
+		} else if string(unit) == "mb" {
 			power = langruntime.CheckedI32(2)
-		} else if unit == "gb" {
+		} else if string(unit) == "gb" {
 			power = langruntime.CheckedI32(3)
-		} else if unit == "tb" {
+		} else if string(unit) == "tb" {
 			power = langruntime.CheckedI32(4)
-		} else if unit == "pb" {
+		} else if string(unit) == "pb" {
 			power = langruntime.CheckedI32(5)
-		} else if unit != "" && unit != "b" && unit != "bytes" {
+		} else if string(unit) != "" && string(unit) != "b" && string(unit) != "bytes" {
 			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sizeBytesParameterError)}
 		}
 		if sign != 0 && weight > 18 {
 			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(numericIntegerRangeError)}
 		}
-		coefficient := ""
+		coefficient := langruntime.NewTextBuffer("")
 		index = langruntime.CheckedIndex(first)
 		for index < len(characters) && index <= last {
 			if numericWireDecimalDigit(characters[index]) >= 0 {
-				coefficient = coefficient + string(langruntime.CheckedChar(characters[index]))
+				coefficient = append(coefficient, string(langruntime.CheckedChar(characters[index]))...)
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		quantity := numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: coefficient}
+		quantity := numericWork{valid: true, special: 1, sign: sign, weight: weight, scale: scale, digits: string(coefficient)}
 		value := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(quantity)}
 		if power > 0 {
 			multiplier := int64(1)
@@ -15140,17 +15140,17 @@ func textSubstringValue(input checkruntime.TextValue, position checkruntime.Int4
 					end = int64(langruntime.CheckedI32(stop))
 				}
 				characters := []rune(text)
-				output := ""
+				output := langruntime.NewTextBuffer("")
 				index := 0
 				current := int64(1)
 				for index < len(characters) && current < end {
 					if current >= first {
-						output = output + string(langruntime.CheckedChar(characters[index]))
+						output = append(output, string(langruntime.CheckedChar(characters[index]))...)
 					}
 					index = langruntime.CheckedAdd(index, 1)
 					current = langruntime.CheckedI64Add(current, int64(1))
 				}
-				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 			}
 		}
 	}
@@ -15199,17 +15199,17 @@ func textSideValue(input checkruntime.TextValue, length checkruntime.Int4Value, 
 			} else {
 				end = requested
 			}
-			output := ""
+			output := langruntime.NewTextBuffer("")
 			index = langruntime.CheckedIndex(0)
 			current := int64(0)
 			for index < len(characters) && current < end {
 				if current >= first {
-					output = output + string(langruntime.CheckedChar(characters[index]))
+					output = append(output, string(langruntime.CheckedChar(characters[index]))...)
 				}
 				index = langruntime.CheckedAdd(index, 1)
 				current = langruntime.CheckedI64Add(current, int64(1))
 			}
-			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
@@ -15247,12 +15247,12 @@ func Reverse5pr1(input checkruntime.TextValue) checkruntime.TextValue {
 		text := langruntime.CheckedString(input.Value)
 		characters := []rune(text)
 		index := len(characters)
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		for index > 0 {
 			index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
-			output = output + string(langruntime.CheckedChar(characters[index]))
+			output = append(output, string(langruntime.CheckedChar(characters[index]))...)
 		}
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -15295,28 +15295,28 @@ func asciiEncodingText(value string, encoding int) string {
 	value = langruntime.CheckedString(value)
 	encoding = langruntime.CheckedI32(encoding)
 	characters := []rune(value)
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	for index < len(characters) {
 		code := int(langruntime.CheckedChar(characters[index]))
 		if code < 128 {
-			output = output + string(langruntime.CheckedChar(asciiEncodingOctet(code, encoding)))
+			output = append(output, string(langruntime.CheckedChar(asciiEncodingOctet(code, encoding)))...)
 		} else if code < 2048 {
-			output = output + string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(192, langruntime.CheckedSignedDivide(code, 64)), encoding)))
-			output = output + string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64)), encoding)))
+			output = append(output, string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(192, langruntime.CheckedSignedDivide(code, 64)), encoding)))...)
+			output = append(output, string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64)), encoding)))...)
 		} else if code < 65536 {
-			output = output + string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(224, langruntime.CheckedSignedDivide(code, 4096)), encoding)))
-			output = output + string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64)), encoding)))
-			output = output + string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64)), encoding)))
+			output = append(output, string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(224, langruntime.CheckedSignedDivide(code, 4096)), encoding)))...)
+			output = append(output, string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64)), encoding)))...)
+			output = append(output, string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64)), encoding)))...)
 		} else {
-			output = output + string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(240, langruntime.CheckedSignedDivide(code, 262144)), encoding)))
-			output = output + string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 4096), 64)), encoding)))
-			output = output + string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64)), encoding)))
-			output = output + string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64)), encoding)))
+			output = append(output, string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(240, langruntime.CheckedSignedDivide(code, 262144)), encoding)))...)
+			output = append(output, string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 4096), 64)), encoding)))...)
+			output = append(output, string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64)), encoding)))...)
+			output = append(output, string(langruntime.CheckedChar(asciiEncodingOctet(langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64)), encoding)))...)
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return output
+	return string(output)
 }
 func ToAsciiCulg(value checkruntime.TextValue) checkruntime.TextValue {
 	if value.Kind == checkruntime.TextValueError {
@@ -15397,7 +15397,7 @@ func UnistrN58m(input checkruntime.TextValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		characters := []rune(value)
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		index := 0
 		firstSurrogate := 0
 		for index < len(characters) {
@@ -15406,13 +15406,13 @@ func UnistrN58m(input checkruntime.TextValue) checkruntime.TextValue {
 				if firstSurrogate != 0 {
 					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrSyntaxError)}
 				}
-				output = output + string(langruntime.CheckedChar(character))
+				output = append(output, string(langruntime.CheckedChar(character))...)
 				index = langruntime.CheckedAdd(index, 1)
 			} else if langruntime.CheckedAdd(index, 1) < len(characters) && characters[langruntime.CheckedAdd(index, 1)] == '\\' {
 				if firstSurrogate != 0 {
 					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrSyntaxError)}
 				}
-				output = output + string(langruntime.CheckedChar('\\'))
+				output = append(output, string(langruntime.CheckedChar('\\'))...)
 				index = langruntime.CheckedAdd(index, 2)
 			} else {
 				offset := 1
@@ -15460,7 +15460,7 @@ func UnistrN58m(input checkruntime.TextValue) checkruntime.TextValue {
 					firstSurrogate = langruntime.CheckedI32(code)
 				} else {
 					scalar := langruntime.CharacterFromI32(code, ' ')
-					output = output + string(langruntime.CheckedChar(scalar))
+					output = append(output, string(langruntime.CheckedChar(scalar))...)
 				}
 				index = langruntime.CheckedIndex(langruntime.CheckedAdd(langruntime.CheckedAdd(index, offset), width))
 			}
@@ -15468,7 +15468,7 @@ func UnistrN58m(input checkruntime.TextValue) checkruntime.TextValue {
 		if firstSurrogate != 0 {
 			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(unistrSyntaxError)}
 		}
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -15521,26 +15521,26 @@ func textWidthValue(input checkruntime.TextValue, modifier checkruntime.Int4Valu
 					if outputSize > int64(1073741819) {
 						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textWidthAllocationError)}
 					}
-					output := text
+					output := langruntime.NewTextBuffer(text)
 					for count < width {
-						output = output + string(langruntime.CheckedChar(' '))
+						output = append(output, string(langruntime.CheckedChar(' '))...)
 						count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
 					}
-					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 				}
-				output := ""
+				output := langruntime.NewTextBuffer("")
 				position := 0
 				index = langruntime.CheckedIndex(0)
 				for index < len(characters) {
 					if position < width {
-						output = output + string(langruntime.CheckedChar(characters[index]))
+						output = append(output, string(langruntime.CheckedChar(characters[index]))...)
 					} else if isExplicit == false && characters[index] != ' ' {
 						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(textWidthTruncationError)}
 					}
 					position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
 					index = langruntime.CheckedAdd(index, 1)
 				}
-				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 			}
 		}
 	}
@@ -15564,13 +15564,13 @@ func textBinaryHex(value string, trimSpaces bool) string {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 		}
 	}
-	output := ""
+	output := langruntime.NewTextBuffer("")
 	index := 0
 	for index < end {
-		output = langruntime.CheckedString(byteaUtf8Character(output, characters[index]))
+		output = langruntime.NewTextBuffer(byteaUtf8Character(string(output), characters[index]))
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return output
+	return string(output)
 }
 func textBinaryCompare(left checkruntime.TextValue, right checkruntime.TextValue, trimSpaces bool) checkruntime.Int4Value {
 	if left.Kind == checkruntime.TextValueError {
@@ -15703,13 +15703,13 @@ func textTrimValue(value checkruntime.TextValue, set checkruntime.TextValue, tri
 					end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 				}
 			}
-			output := ""
+			output := langruntime.NewTextBuffer("")
 			index := start
 			for index < end {
-				output = output + string(langruntime.CheckedChar(characters[index]))
+				output = append(output, string(langruntime.CheckedChar(characters[index]))...)
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 		}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
@@ -16162,27 +16162,27 @@ func UuidToText(input checkruntime.UuidValue) checkruntime.TextValue {
 	}
 	if input.Kind == checkruntime.UuidValueValue {
 		value := input.Value
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		index := 0
 		for index < 8 {
 			if index == 2 || index == 3 || index == 4 || index == 5 {
-				output = output + string(langruntime.CheckedChar('-'))
+				output = append(output, string(langruntime.CheckedChar('-'))...)
 			}
 			word := checkruntime.UuidWord(value, index)
 			if word < 4096 {
-				output = output + string(langruntime.CheckedChar('0'))
+				output = append(output, string(langruntime.CheckedChar('0'))...)
 			}
 			if word < 256 {
-				output = output + string(langruntime.CheckedChar('0'))
+				output = append(output, string(langruntime.CheckedChar('0'))...)
 			}
 			if word < 16 {
-				output = output + string(langruntime.CheckedChar('0'))
+				output = append(output, string(langruntime.CheckedChar('0'))...)
 			}
 			digits := checkruntime.TextNumber(word, 16)
-			output = output + digits
+			output = append(output, digits...)
 			index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
 		}
-		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -16218,14 +16218,14 @@ func UuidSend32nf(input checkruntime.UuidValue) checkruntime.ByteaValue {
 	}
 	if input.Kind == checkruntime.UuidValueValue {
 		value := input.Value
-		output := ""
+		output := langruntime.NewTextBuffer("")
 		index := 0
 		for index < 16 {
 			byte := uuidByte(value, index)
-			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, byte))
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), byte))
 			index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
 		}
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }

@@ -156,6 +156,26 @@ func (g *generator) goDetach(value ast.Expr, valueType *node) ast.Expr {
 	}
 }
 
+func goTextBuffer(value ast.Expr) ast.Expr {
+	return goCall("newTextBuffer", value)
+}
+
+func (g *generator) goTextBinding(value *node) ast.Expr {
+	if value != nil && value.Kind == "path" && len(value.Segments) == 1 {
+		name := value.Segments[0]
+		if local := g.localTypes[name]; local != nil && local.stringBuilder {
+			return goIdent(g.locals[name])
+		}
+	}
+	return nil
+}
+
+func (g *generator) markTextBuilder(name string) {
+	value := *g.localTypes[name]
+	value.stringBuilder = true
+	g.localTypes[name] = &value
+}
+
 func (g *generator) goExpression(value *node) ast.Expr {
 	if value == nil {
 		reject("missing expression")
@@ -165,6 +185,9 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		if len(value.Segments) == 1 {
 			name := value.Segments[0]
 			if generated, ok := g.locals[name]; ok {
+				if g.goTextBinding(value) != nil {
+					return goCall("string", goIdent(generated))
+				}
 				return goIdent(generated)
 			}
 			return goIdent(g.name(name))
@@ -392,6 +415,15 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 				g.localTypes[statement.Binding.Name] = g.inferType(statement.Initializer)
 			}
 			g.locals[statement.Binding.Name] = generated
+			if inherited := g.localTypes[statement.Binding.Name]; inherited.stringBuilder {
+				local := *inherited
+				local.stringBuilder = false
+				g.localTypes[statement.Binding.Name] = &local
+			}
+			if statement.Binding.Mutable && path(g.localTypes[statement.Binding.Name]) == "String" {
+				g.markTextBuilder(statement.Binding.Name)
+				value = goTextBuffer(value)
+			}
 			result = append(result, goAssign(goIdent(generated), value, token.DEFINE))
 			continue
 		}
@@ -405,7 +437,11 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 		case "break":
 			result = append(result, &ast.BranchStmt{Tok: token.BREAK})
 		case "assign":
-			result = append(result, goAssign(g.goExpression(value.Left), g.goDetach(g.goExpression(value.Right), g.inferType(value.Left)), token.ASSIGN))
+			if buffer := g.goTextBinding(value.Left); buffer != nil {
+				result = append(result, goAssign(buffer, goTextBuffer(g.goExpression(value.Right)), token.ASSIGN))
+			} else {
+				result = append(result, goAssign(g.goExpression(value.Left), g.goDetach(g.goExpression(value.Right), g.inferType(value.Left)), token.ASSIGN))
+			}
 		case "method-call":
 			if (value.Method == "push" || value.Method == "push_str") && path(g.inferType(value.Receiver)) == "String" {
 				receiver := g.goExpression(value.Receiver)
@@ -413,7 +449,12 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 				if value.Method == "push" {
 					argument = goCall("string", goCall("checkedChar", argument))
 				}
-				result = append(result, goAssign(receiver, &ast.BinaryExpr{X: receiver, Op: token.ADD, Y: argument}, token.ASSIGN))
+				if buffer := g.goTextBinding(value.Receiver); buffer != nil {
+					appended := &ast.CallExpr{Fun: goIdent("append"), Args: []ast.Expr{buffer, argument}, Ellipsis: 1}
+					result = append(result, goAssign(buffer, appended, token.ASSIGN))
+				} else {
+					result = append(result, goAssign(receiver, &ast.BinaryExpr{X: receiver, Op: token.ADD, Y: argument}, token.ASSIGN))
+				}
 				continue
 			}
 			if value.Method == "push" && len(value.Arguments) == 1 {
@@ -465,6 +506,15 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 				body = append(body, goAssign(goIdent(generated), g.goDetach(goSelect(source, g.enumPayloadField(value.EnumName, value.Variant)), payload), token.DEFINE))
 				if strings.HasPrefix(binding, "_") {
 					body = append(body, goAssign(goIdent("_"), goIdent(generated), token.ASSIGN))
+				}
+			}
+			for _, parameter := range value.Parameters {
+				if parameter.Mutable && path(parameter.Type) == "String" {
+					original := g.locals[parameter.Name]
+					buffer := "_string_" + original
+					body = append(body, goAssign(goIdent(buffer), goTextBuffer(goIdent(original)), token.DEFINE))
+					g.locals[parameter.Name] = buffer
+					g.markTextBuilder(parameter.Name)
 				}
 			}
 			body = append(body, g.goStatements(value.Body)...)
