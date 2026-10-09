@@ -2374,3 +2374,70 @@ INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_patte
 INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(b)', '%', 'ab', 'b', 1, false, NULL, NULL, true, false);
 -- name: extraction_lazy_invalid_patterns
 INSERT INTO label_pattern_extractions (id, label, regular_pattern, similar_pattern, escape, regular_fragment, regular_octets, regular_missing, similar_fragment, similar_octets, similar_missing, suppress_invalid) VALUES (2, 'abc', '(', '%#"a#"%#"b#"%', 'ab', 'ignored', 0, false, 'ignored', 0, false, true);
+
+-- name: xml_balanced
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root><child/></root>', 'plain<first/><second/>tail', false);
+-- name: xml_unicode
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<é>😊</é>', 'é&amp;😊', false);
+-- name: xml_empty_content
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', '', false);
+-- name: xml_empty_document
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '', '<root/>', false);
+-- name: xml_plain_document
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, 'plain', '<root/>', false);
+-- name: xml_multiple_document_roots
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<a/><b/>', '<root/>', false);
+-- name: xml_unclosed_document
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root>', '<root/>', false);
+-- name: xml_unclosed_content
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', '<child>', false);
+-- name: xml_mismatched_document
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root></child>', '<root/>', false);
+-- name: xml_mismatched_content
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', '<child></root>', false);
+-- name: xml_document_entities
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<!DOCTYPE root [<!ENTITY label "hello">]><root>&label;</root>', '<root/>', false);
+-- name: xml_content_entities
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', '<!DOCTYPE root [<!ENTITY label "hello">]><root>&label;</root>', false);
+-- name: xml_recursive_document
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<!DOCTYPE root [<!ENTITY label "&label;">]><root>&label;</root>', '<root/>', false);
+-- name: xml_recursive_content
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', '<!DOCTYPE root [<!ENTITY label "&label;">]><root>&label;</root>', false);
+-- name: xml_unknown_document_entity
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root>&missing;</root>', '<root/>', false);
+-- name: xml_unknown_content_entity
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', '<root>&missing;</root>', false);
+-- name: xml_external_document
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<!DOCTYPE root SYSTEM "missing"><root>&missing;</root>', '<root/>', false);
+-- name: xml_cdata
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root><![CDATA[<&text]]></root>', '<![CDATA[<&text]]>', false);
+-- name: xml_bad_comment
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', '<!--a--b-->', false);
+-- name: xml_bad_cdata
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', '<![CDATA[unterminated', false);
+-- name: xml_duplicate_attribute
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root a="1" a="2"/>', '<root/>', false);
+-- name: xml_namespace_warning
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root p:a="1" p:a="2"/>', '<p:child/>', false);
+-- name: xml_bound_duplicate_attribute
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root xmlns:p="urn:x" p:a="1" p:a="2"/>', '<root/>', false);
+-- name: xml_uri_alias_attributes
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root xmlns:p="urn:x" xmlns:q="urn:x" p:a="1" q:a="2"/>', '<root/>', false);
+-- name: xml_numeric_references
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root a="&#60;">&#x1F60A;</root>', '&#9;&#10;&#13;', false);
+-- name: xml_invalid_numeric_reference
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', '&#x110000;', false);
+-- name: xml_attribute_less_than
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root a="<"/>', '<root/>', false);
+-- name: xml_permissive_content_declaration
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', '<?xml version="2.0"?><child/>', false);
+-- name: xml_strict_document_declaration
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<?xml version="2.0"?><root/>', '<child/>', false);
+-- name: xml_null_values
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, NULL, NULL, false);
+-- name: xml_null_document
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root/>', NULL, false);
+-- name: xml_null_with_bad_content
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, NULL, '<child>', false);
+-- name: xml_lazy_invalid
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid) VALUES (2, '<root>', '<child>', true);

@@ -236,7 +236,9 @@ export function supportsTextCallableCollation(signature: string, collation?: str
       (implementation.args.length === 1 &&
         implementation.args[0] === 'pg_catalog.text' &&
         implementation.result === 'pg_catalog.bool' &&
-        implementation.name === 'unicode_assigned') ||
+        ['unicode_assigned', 'xml_is_well_formed_content', 'xml_is_well_formed_document'].includes(
+          implementation.name,
+        )) ||
       (implementation.args.length === 1 &&
         ['pg_catalog.text', 'pg_catalog.bpchar'].includes(implementation.args[0]!) &&
         implementation.result === 'pg_catalog.int4' &&

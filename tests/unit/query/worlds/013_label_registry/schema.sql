@@ -590,3 +590,17 @@ CREATE TABLE label_pattern_extractions (
     CASE WHEN suppress_invalid THEN true ELSE (substring(label FROM similar_pattern FOR escape) IS NULL) = similar_missing END
   )
 );
+
+
+CREATE TABLE xml_labels (
+  id integer PRIMARY KEY,
+  document_label text,
+  content_label text,
+  suppress_invalid boolean NOT NULL DEFAULT false,
+  CONSTRAINT xml_label_document CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE xml_is_well_formed_document(document_label) END
+  ),
+  CONSTRAINT xml_label_content CHECK (
+    CASE WHEN suppress_invalid THEN true ELSE xml_is_well_formed_content(content_label) END
+  )
+);

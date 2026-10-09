@@ -60,3 +60,6 @@ VALUES (1, NULL, NULL);
 
 INSERT INTO label_unicode_escapes (id, escaped_label, printed_label, printed_octets)
 VALUES (1, '\u0041', 'A', 1);
+
+INSERT INTO xml_labels (id, document_label, content_label, suppress_invalid)
+VALUES (1, '<root/>', 'plain<child/>tail', false);

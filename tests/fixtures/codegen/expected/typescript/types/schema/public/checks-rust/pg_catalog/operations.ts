@@ -16421,3 +16421,2479 @@ export function uuidExtractTimestampP52j(input: checkruntime.UuidValue): checkru
     }
     return { kind: "Unknown" };
 }
+function xmlWellFormedValue(input: checkruntime.TextValue, document: boolean): checkruntime.BoolValue {
+    document = langruntime.checkedBool(document);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: xmlWellFormed(value, document) };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+export function xmlIsWellFormedContent94vi(input: checkruntime.TextValue): checkruntime.BoolValue {
+    return xmlWellFormedValue(input, false);
+}
+export function xmlIsWellFormedDocument0whq(input: checkruntime.TextValue): checkruntime.BoolValue {
+    return xmlWellFormedValue(input, true);
+}
+interface XmlDeclaration {
+    next: number;
+    valid: boolean;
+    standalone: boolean;
+}
+function copyXmlDeclaration(value: XmlDeclaration): XmlDeclaration {
+    return { next: langruntime.checkedIndex(value.next), valid: langruntime.checkedBool(value.valid), standalone: langruntime.checkedBool(value.standalone) };
+}
+interface XmlQuoted {
+    value: XmlSpan;
+    next: number;
+    valid: boolean;
+}
+function copyXmlQuoted(value: XmlQuoted): XmlQuoted {
+    return { value: copyXmlSpan(value.value), next: langruntime.checkedIndex(value.next), valid: langruntime.checkedBool(value.valid) };
+}
+function xmlParseQuoted(source: XmlSource, start: number): XmlQuoted {
+    start = langruntime.checkedIndex(start);
+    let position: number = start;
+    const empty: XmlSpan = copyXmlSpan({ start: start, end: start });
+    if (position >= source.characters.length || (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\"") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "'"))) {
+        return { value: copyXmlSpan(empty), next: position, valid: false };
+    }
+    const quote: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+    position = langruntime.checkedAdd(position, 1);
+    const begin: number = position;
+    while (position < source.characters.length && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === quote)) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { value: copyXmlSpan({ start: begin, end: position }), next: langruntime.checkedAdd(position, 1), valid: position < source.characters.length };
+}
+function xmlDeclarationValue(source: XmlSource, start: number, keyword: string): XmlQuoted {
+    start = langruntime.checkedIndex(start);
+    keyword = langruntime.checkedString(keyword);
+    const characters: string[] = Array.from(keyword);
+    let position: number = start;
+    const empty: XmlSpan = copyXmlSpan({ start: start, end: start });
+    if (xmlAt(source, position, keyword) === false) {
+        return { value: copyXmlSpan(empty), next: position, valid: false };
+    }
+    position = langruntime.checkedIndex(xmlSkipSpace(source, langruntime.checkedAdd(position, characters.length)));
+    if (position >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "=")) {
+        return { value: copyXmlSpan(empty), next: position, valid: false };
+    }
+    return xmlParseQuoted(source, xmlSkipSpace(source, langruntime.checkedAdd(position, 1)));
+}
+function xmlParseDeclaration(source: XmlSource, start: number, document: boolean): XmlDeclaration {
+    start = langruntime.checkedIndex(start);
+    document = langruntime.checkedBool(document);
+    const absent: XmlDeclaration = copyXmlDeclaration({ next: start, valid: true, standalone: false });
+    if (xmlAt(source, start, "<?xml") === false) {
+        return absent;
+    }
+    let position: number = langruntime.checkedAdd(start, 5);
+    if (position < source.characters.length && xmlNameCharacter(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+        return absent;
+    }
+    const invalid: XmlDeclaration = copyXmlDeclaration({ next: start, valid: false, standalone: false });
+    if (position >= source.characters.length || xmlSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))) === false) {
+        return invalid;
+    }
+    position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    const version: XmlQuoted = copyXmlQuoted(xmlDeclarationValue(source, position, "version"));
+    if (version.valid === false) {
+        return invalid;
+    }
+    if (document) {
+        if (langruntime.checkedSubtract(version.value.end, version.value.start) < 2 || xmlAt(source, version.value.start, "1.") === false) {
+            return invalid;
+        }
+        let digit: number = langruntime.checkedAdd(version.value.start, 2);
+        while (digit < version.value.end) {
+            const code: number = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(digit))).codePointAt(0)!;
+            if (code < 48 || code > 57) {
+                return invalid;
+            }
+            digit = langruntime.checkedAdd(digit, 1);
+        }
+    }
+    position = langruntime.checkedIndex(version.next);
+    const encodingStart: number = xmlSkipSpace(source, position);
+    if (xmlAt(source, encodingStart, "encoding")) {
+        if (encodingStart === position) {
+            return invalid;
+        }
+        const encoding: XmlQuoted = copyXmlQuoted(xmlDeclarationValue(source, encodingStart, "encoding"));
+        if (encoding.valid === false) {
+            return invalid;
+        }
+        if (document) {
+            if (encoding.value.start === encoding.value.end) {
+                return invalid;
+            }
+            const first: number = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(encoding.value.start))).codePointAt(0)!;
+            if ((first < 65 || first > 90) && (first < 97 || first > 122)) {
+                return invalid;
+            }
+            let index: number = langruntime.checkedAdd(encoding.value.start, 1);
+            while (index < encoding.value.end) {
+                const code: number = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(index))).codePointAt(0)!;
+                if ((code < 65 || code > 90) && (code < 97 || code > 122) && (code < 48 || code > 57) && !(code === 45) && !(code === 46) && !(code === 95)) {
+                    return invalid;
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+        position = langruntime.checkedIndex(encoding.next);
+    }
+    const standaloneStart: number = xmlSkipSpace(source, position);
+    let standalone: boolean = false;
+    if (xmlAt(source, standaloneStart, "standalone")) {
+        if (standaloneStart === position) {
+            return invalid;
+        }
+        const declared: XmlQuoted = copyXmlQuoted(xmlDeclarationValue(source, standaloneStart, "standalone"));
+        if (declared.valid === false) {
+            return invalid;
+        }
+        if (xmlSpanIs(source, declared.value, "yes")) {
+            standalone = langruntime.checkedBool(true);
+        }
+        else if (xmlSpanIs(source, declared.value, "no") === false) {
+            return invalid;
+        }
+        position = langruntime.checkedIndex(declared.next);
+    }
+    position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    if (xmlAt(source, position, "?>") === false) {
+        return invalid;
+    }
+    position = langruntime.checkedAdd(position, 2);
+    let index: number = start;
+    while (index < position) {
+        const code: number = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (code > 127) {
+            return invalid;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { next: position, valid: true, standalone: standalone };
+}
+interface XmlDtdItem {
+    next: number;
+    valid: boolean;
+    kind: number;
+    name: XmlSpan;
+    value: XmlSpan;
+    external: boolean;
+    unparsed: boolean;
+}
+function copyXmlDtdItem(value: XmlDtdItem): XmlDtdItem {
+    return { next: langruntime.checkedIndex(value.next), valid: langruntime.checkedBool(value.valid), kind: langruntime.checkedI32(value.kind), name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), external: langruntime.checkedBool(value.external), unparsed: langruntime.checkedBool(value.unparsed) };
+}
+interface XmlDtdAttribute {
+    next: number;
+    valid: boolean;
+    name: XmlSpan;
+    value: XmlSpan;
+    tokenized: boolean;
+    hasDefault: boolean;
+}
+function copyXmlDtdAttribute(value: XmlDtdAttribute): XmlDtdAttribute {
+    return { next: langruntime.checkedIndex(value.next), valid: langruntime.checkedBool(value.valid), name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), tokenized: langruntime.checkedBool(value.tokenized), hasDefault: langruntime.checkedBool(value.hasDefault) };
+}
+function xmlParseDtdAttribute(source: XmlSource, start: number): XmlDtdAttribute {
+    start = langruntime.checkedIndex(start);
+    const empty: XmlSpan = copyXmlSpan({ start: start, end: start });
+    const invalid: XmlDtdAttribute = copyXmlDtdAttribute({ next: start, valid: false, name: copyXmlSpan(empty), value: copyXmlSpan(empty), tokenized: false, hasDefault: false });
+    const name: XmlScan = copyXmlScan(xmlName(source, start));
+    if (name.valid === false) {
+        return invalid;
+    }
+    const declaredName: XmlSpan = copyXmlSpan({ start: start, end: name.next });
+    let position: number = xmlSkipSpace(source, name.next);
+    if (position === name.next) {
+        return invalid;
+    }
+    let tokenized: boolean = true;
+    if (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "(") {
+        const enumeration: XmlScan = copyXmlScan(xmlDtdEnumeration(source, position, false));
+        if (enumeration.valid === false) {
+            return invalid;
+        }
+        position = langruntime.checkedIndex(enumeration.next);
+    }
+    else {
+        const attributeType: XmlScan = copyXmlScan(xmlName(source, position));
+        if (attributeType.valid === false) {
+            return invalid;
+        }
+        const typeName: XmlSpan = copyXmlSpan({ start: position, end: attributeType.next });
+        position = langruntime.checkedIndex(attributeType.next);
+        if (xmlSpanIs(source, typeName, "NOTATION")) {
+            const spaced: number = xmlSkipSpace(source, position);
+            if (spaced === position) {
+                return invalid;
+            }
+            const notation: XmlScan = copyXmlScan(xmlDtdEnumeration(source, spaced, true));
+            if (notation.valid === false) {
+                return invalid;
+            }
+            position = langruntime.checkedIndex(notation.next);
+        }
+        else if (xmlSpanIs(source, typeName, "CDATA")) {
+            tokenized = langruntime.checkedBool(false);
+        }
+        else if (xmlSpanIs(source, typeName, "ID") === false && xmlSpanIs(source, typeName, "IDREF") === false && xmlSpanIs(source, typeName, "IDREFS") === false && xmlSpanIs(source, typeName, "ENTITY") === false && xmlSpanIs(source, typeName, "ENTITIES") === false && xmlSpanIs(source, typeName, "NMTOKEN") === false && xmlSpanIs(source, typeName, "NMTOKENS") === false) {
+            return invalid;
+        }
+    }
+    let spaced: number = xmlSkipSpace(source, position);
+    if (spaced === position) {
+        return invalid;
+    }
+    position = langruntime.checkedIndex(spaced);
+    let value: XmlSpan = copyXmlSpan(empty);
+    let hasDefault: boolean = false;
+    if (xmlAt(source, position, "#REQUIRED")) {
+        position = langruntime.checkedAdd(position, 9);
+    }
+    else if (xmlAt(source, position, "#IMPLIED")) {
+        position = langruntime.checkedAdd(position, 8);
+    }
+    else {
+        hasDefault = langruntime.checkedBool(true);
+        if (xmlAt(source, position, "#FIXED")) {
+            position = langruntime.checkedAdd(position, 6);
+            spaced = langruntime.checkedIndex(xmlSkipSpace(source, position));
+            if (spaced === position) {
+                return invalid;
+            }
+            position = langruntime.checkedIndex(spaced);
+        }
+        const defaultValue: XmlQuoted = copyXmlQuoted(xmlDtdLiteral(source, position, false));
+        if (defaultValue.valid === false) {
+            return invalid;
+        }
+        position = langruntime.checkedIndex(defaultValue.next);
+        value = copyXmlSpan(defaultValue.value);
+    }
+    return { next: position, valid: true, name: copyXmlSpan(declaredName), value: copyXmlSpan(value), tokenized: tokenized, hasDefault: hasDefault };
+}
+function xmlDtdModel(source: XmlSource, start: number, depth: number, mixed: boolean): XmlScan {
+    start = langruntime.checkedIndex(start);
+    depth = langruntime.checkedIndex(depth);
+    mixed = langruntime.checkedBool(mixed);
+    const invalid: XmlScan = copyXmlScan({ next: start, valid: false });
+    if (depth > 256 || start >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(start)) === "(")) {
+        return invalid;
+    }
+    let position: number = xmlSkipSpace(source, langruntime.checkedAdd(start, 1));
+    if (mixed && xmlAt(source, position, "#PCDATA")) {
+        position = langruntime.checkedIndex(xmlSkipSpace(source, langruntime.checkedAdd(position, 7)));
+        let names: number = 0;
+        while (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "|") {
+            const name: XmlScan = copyXmlScan(xmlName(source, xmlSkipSpace(source, langruntime.checkedAdd(position, 1))));
+            if (name.valid === false) {
+                return invalid;
+            }
+            names = langruntime.checkedAdd(names, 1);
+            position = langruntime.checkedIndex(xmlSkipSpace(source, name.next));
+        }
+        if (position >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ")")) {
+            return invalid;
+        }
+        position = langruntime.checkedAdd(position, 1);
+        if (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "*") {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        else if (names > 0) {
+            return invalid;
+        }
+        return { next: position, valid: true };
+    }
+    let separator: string = " ";
+    let ended: boolean = false;
+    while (ended === false) {
+        if (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "(") {
+            const group: XmlScan = copyXmlScan(xmlDtdModel(source, position, langruntime.checkedAdd(depth, 1), false));
+            if (group.valid === false) {
+                return invalid;
+            }
+            position = langruntime.checkedIndex(group.next);
+        }
+        else {
+            const name: XmlScan = copyXmlScan(xmlName(source, position));
+            if (name.valid === false) {
+                return invalid;
+            }
+            position = langruntime.checkedIndex(name.next);
+            if (position < source.characters.length) {
+                const quantifier: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+                if (quantifier === "?" || quantifier === "*" || quantifier === "+") {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+        }
+        position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+        if (position >= source.characters.length) {
+            return invalid;
+        }
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (character === ")") {
+            position = langruntime.checkedAdd(position, 1);
+            ended = langruntime.checkedBool(true);
+        }
+        else if (character === "," || character === "|") {
+            if (!(separator === " ") && !(separator === character)) {
+                return invalid;
+            }
+            separator = langruntime.checkedChar(character);
+            position = langruntime.checkedIndex(xmlSkipSpace(source, langruntime.checkedAdd(position, 1)));
+        }
+        else {
+            return invalid;
+        }
+    }
+    if (position < source.characters.length) {
+        const quantifier: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (quantifier === "?" || quantifier === "*" || quantifier === "+") {
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    return { next: position, valid: true };
+}
+function xmlPublicLiteral(source: XmlSource, start: number): XmlQuoted {
+    start = langruntime.checkedIndex(start);
+    const quoted: XmlQuoted = copyXmlQuoted(xmlParseQuoted(source, start));
+    if (quoted.valid === false) {
+        return quoted;
+    }
+    let position: number = quoted.value.start;
+    let bytes: number = 0;
+    while (position < quoted.value.end) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        if ((code < 65 || code > 90) && (code < 97 || code > 122) && (code < 48 || code > 57) && !(character === " ") && !(character === "\r") && !(character === "\n") && !(character === "-") && !(character === "'") && !(character === "(") && !(character === ")") && !(character === "+") && !(character === ",") && !(character === ".") && !(character === "/") && !(character === ":") && !(character === "=") && !(character === "?") && !(character === ";") && !(character === "!") && !(character === "*") && !(character === "#") && !(character === "@") && !(character === "$") && !(character === "_") && !(character === "%")) {
+            return { value: copyXmlSpan(quoted.value), next: quoted.next, valid: false };
+        }
+        if (bytes >= 49999) {
+            return { value: copyXmlSpan(quoted.value), next: quoted.next, valid: false };
+        }
+        bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, 1));
+        if (character === "\r" && langruntime.checkedAdd(position, 1) < quoted.value.end && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return quoted;
+}
+function xmlExternalId(source: XmlSource, start: number, notation: boolean): XmlQuoted {
+    start = langruntime.checkedIndex(start);
+    notation = langruntime.checkedBool(notation);
+    const empty: XmlSpan = copyXmlSpan({ start: start, end: start });
+    const invalid: XmlQuoted = copyXmlQuoted({ value: copyXmlSpan(empty), next: start, valid: false });
+    let position: number = start;
+    if (xmlAt(source, position, "SYSTEM")) {
+        position = langruntime.checkedAdd(position, 6);
+        const spaced: number = xmlSkipSpace(source, position);
+        if (spaced === position) {
+            return invalid;
+        }
+        position = langruntime.checkedIndex(spaced);
+    }
+    else if (xmlAt(source, position, "PUBLIC")) {
+        position = langruntime.checkedAdd(position, 6);
+        const spaced: number = xmlSkipSpace(source, position);
+        if (spaced === position) {
+            return invalid;
+        }
+        const publicId: XmlQuoted = copyXmlQuoted(xmlPublicLiteral(source, spaced));
+        if (publicId.valid === false) {
+            return invalid;
+        }
+        position = langruntime.checkedIndex(xmlSkipSpace(source, publicId.next));
+        if (notation && (position >= source.characters.length || (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "'") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\"")))) {
+            return { value: copyXmlSpan(empty), next: publicId.next, valid: true };
+        }
+        if (position === publicId.next) {
+            return invalid;
+        }
+    }
+    else {
+        return invalid;
+    }
+    const system: XmlQuoted = copyXmlQuoted(xmlParseQuoted(source, position));
+    if (system.valid === false) {
+        return invalid;
+    }
+    position = langruntime.checkedIndex(system.value.start);
+    let bytes: number = 0;
+    while (position < system.value.end) {
+        if (xmlCharacter(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))) === false) {
+            return invalid;
+        }
+        if (bytes >= 49995) {
+            return invalid;
+        }
+        bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, xmlCharacterOctets(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))));
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\r" && langruntime.checkedAdd(position, 1) < system.value.end && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return system;
+}
+function xmlDtdLiteral(source: XmlSource, start: number, entity: boolean): XmlQuoted {
+    start = langruntime.checkedIndex(start);
+    entity = langruntime.checkedBool(entity);
+    const quoted: XmlQuoted = copyXmlQuoted(xmlParseQuoted(source, start));
+    if (quoted.valid === false) {
+        return quoted;
+    }
+    const invalid: XmlQuoted = copyXmlQuoted({ value: copyXmlSpan(quoted.value), next: quoted.next, valid: false });
+    let position: number = quoted.value.start;
+    while (position < quoted.value.end) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (entity === false && (xmlCharacter(character) === false || character === "<")) {
+            return invalid;
+        }
+        if (entity === false && character === "&") {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (reference.valid === false || reference.next > quoted.value.end) {
+                return invalid;
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    return quoted;
+}
+function xmlDtdEnumeration(source: XmlSource, start: number, notation: boolean): XmlScan {
+    start = langruntime.checkedIndex(start);
+    notation = langruntime.checkedBool(notation);
+    const invalid: XmlScan = copyXmlScan({ next: start, valid: false });
+    if (start >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(start)) === "(")) {
+        return invalid;
+    }
+    let position: number = xmlSkipSpace(source, langruntime.checkedAdd(start, 1));
+    let ended: boolean = false;
+    while (ended === false) {
+        const begin: number = position;
+        if (notation) {
+            const name: XmlScan = copyXmlScan(xmlName(source, position));
+            if (name.valid === false) {
+                return invalid;
+            }
+            position = langruntime.checkedIndex(name.next);
+        }
+        else {
+            while (position < source.characters.length && xmlNameCharacter(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            if (position === begin) {
+                return invalid;
+            }
+        }
+        position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+        if (position >= source.characters.length) {
+            return invalid;
+        }
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ")") {
+            position = langruntime.checkedAdd(position, 1);
+            ended = langruntime.checkedBool(true);
+        }
+        else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "|") {
+            position = langruntime.checkedIndex(xmlSkipSpace(source, langruntime.checkedAdd(position, 1)));
+        }
+        else {
+            return invalid;
+        }
+    }
+    return { next: position, valid: true };
+}
+function xmlParseDtdItem(source: XmlSource, start: number): XmlDtdItem {
+    start = langruntime.checkedIndex(start);
+    const empty: XmlSpan = copyXmlSpan({ start: start, end: start });
+    const invalid: XmlDtdItem = copyXmlDtdItem({ next: start, valid: false, kind: 0, name: copyXmlSpan(empty), value: copyXmlSpan(empty), external: false, unparsed: false });
+    let position: number = start;
+    let kind: number = 0;
+    if (xmlAt(source, position, "<!ELEMENT")) {
+        position = langruntime.checkedAdd(position, 9);
+        kind = langruntime.checkedI32(1);
+    }
+    else if (xmlAt(source, position, "<!ATTLIST")) {
+        position = langruntime.checkedAdd(position, 9);
+        kind = langruntime.checkedI32(2);
+    }
+    else if (xmlAt(source, position, "<!ENTITY")) {
+        position = langruntime.checkedAdd(position, 8);
+        kind = langruntime.checkedI32(3);
+    }
+    else if (xmlAt(source, position, "<!NOTATION")) {
+        position = langruntime.checkedAdd(position, 10);
+        kind = langruntime.checkedI32(5);
+    }
+    else {
+        return invalid;
+    }
+    let spaced: number = xmlSkipSpace(source, position);
+    if (spaced === position) {
+        return invalid;
+    }
+    position = langruntime.checkedIndex(spaced);
+    if (kind === 3 && position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "%") {
+        kind = langruntime.checkedI32(4);
+        position = langruntime.checkedAdd(position, 1);
+        spaced = langruntime.checkedIndex(xmlSkipSpace(source, position));
+        if (spaced === position) {
+            return invalid;
+        }
+        position = langruntime.checkedIndex(spaced);
+    }
+    const name: XmlScan = copyXmlScan(xmlName(source, position));
+    if (name.valid === false) {
+        return invalid;
+    }
+    const declaredName: XmlSpan = copyXmlSpan({ start: position, end: name.next });
+    position = langruntime.checkedIndex(name.next);
+    spaced = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    if (!(kind === 2) && spaced === position) {
+        return invalid;
+    }
+    position = langruntime.checkedIndex(spaced);
+    let value: XmlSpan = copyXmlSpan(empty);
+    let external: boolean = false;
+    let unparsed: boolean = false;
+    if (kind === 1) {
+        if (xmlAt(source, position, "EMPTY")) {
+            position = langruntime.checkedAdd(position, 5);
+        }
+        else if (xmlAt(source, position, "ANY")) {
+            position = langruntime.checkedAdd(position, 3);
+        }
+        else {
+            const model: XmlScan = copyXmlScan(xmlDtdModel(source, position, 0, true));
+            if (model.valid === false) {
+                return invalid;
+            }
+            position = langruntime.checkedIndex(model.next);
+        }
+    }
+    else if (kind === 2) {
+        let ended: boolean = false;
+        let previous: number = name.next;
+        while (ended === false) {
+            position = langruntime.checkedIndex(xmlSkipSpace(source, previous));
+            if (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ">") {
+                ended = langruntime.checkedBool(true);
+            }
+            else {
+                if (position === previous) {
+                    return invalid;
+                }
+                const attribute: XmlDtdAttribute = copyXmlDtdAttribute(xmlParseDtdAttribute(source, position));
+                if (attribute.valid === false) {
+                    return invalid;
+                }
+                position = langruntime.checkedIndex(attribute.next);
+                previous = langruntime.checkedIndex(position);
+            }
+        }
+    }
+    else if (kind === 3 || kind === 4) {
+        if (position < source.characters.length && (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "'" || langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\"")) {
+            const literal: XmlQuoted = copyXmlQuoted(xmlDtdLiteral(source, position, true));
+            if (literal.valid === false) {
+                return invalid;
+            }
+            value = copyXmlSpan(literal.value);
+            position = langruntime.checkedIndex(literal.next);
+        }
+        else {
+            external = langruntime.checkedBool(true);
+            const identifier: XmlQuoted = copyXmlQuoted(xmlExternalId(source, position, false));
+            if (identifier.valid === false) {
+                return invalid;
+            }
+            value = copyXmlSpan(identifier.value);
+            let index: number = value.start;
+            while (index < value.end) {
+                if (langruntime.indexChar(source.characters, langruntime.checkedIndex(index)) === "#") {
+                    return invalid;
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            position = langruntime.checkedIndex(xmlSkipSpace(source, identifier.next));
+            if (kind === 3 && position > identifier.next && xmlAt(source, position, "NDATA")) {
+                unparsed = langruntime.checkedBool(true);
+                position = langruntime.checkedAdd(position, 5);
+                spaced = langruntime.checkedIndex(xmlSkipSpace(source, position));
+                if (spaced === position) {
+                    return invalid;
+                }
+                const notation: XmlScan = copyXmlScan(xmlName(source, spaced));
+                if (notation.valid === false) {
+                    return invalid;
+                }
+                position = langruntime.checkedIndex(notation.next);
+            }
+        }
+    }
+    else {
+        const identifier: XmlQuoted = copyXmlQuoted(xmlExternalId(source, position, true));
+        if (identifier.valid === false) {
+            return invalid;
+        }
+        position = langruntime.checkedIndex(identifier.next);
+    }
+    position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    if (position >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ">")) {
+        return invalid;
+    }
+    return { next: langruntime.checkedAdd(position, 1), valid: true, kind: kind, name: copyXmlSpan(declaredName), value: copyXmlSpan(value), external: external, unparsed: unparsed };
+}
+interface XmlDtdFlags {
+    valid: boolean;
+    external: boolean;
+    standalone: boolean;
+    parameterSeen: boolean;
+}
+function copyXmlDtdFlags(value: XmlDtdFlags): XmlDtdFlags {
+    return { valid: langruntime.checkedBool(value.valid), external: langruntime.checkedBool(value.external), standalone: langruntime.checkedBool(value.standalone), parameterSeen: langruntime.checkedBool(value.parameterSeen) };
+}
+interface XmlEntityIndex {
+    name: XmlSpan;
+    value: XmlSpan;
+    parameter: boolean;
+    external: boolean;
+    unparsed: boolean;
+}
+function copyXmlEntityIndex(value: XmlEntityIndex): XmlEntityIndex {
+    return { name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), parameter: langruntime.checkedBool(value.parameter), external: langruntime.checkedBool(value.external), unparsed: langruntime.checkedBool(value.unparsed) };
+}
+interface XmlDefaultIndex {
+    element: XmlSpan;
+    name: XmlSpan;
+    value: XmlSpan;
+    tokenized: boolean;
+    hasDefault: boolean;
+    cost: bigint;
+}
+function copyXmlDefaultIndex(value: XmlDefaultIndex): XmlDefaultIndex {
+    return { element: copyXmlSpan(value.element), name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), tokenized: langruntime.checkedBool(value.tokenized), hasDefault: langruntime.checkedBool(value.hasDefault), cost: langruntime.checkedI64(value.cost) };
+}
+function xmlCollapseSpace(input: string): string {
+    input = langruntime.checkedString(input);
+    const characters: string[] = Array.from(input);
+    let output: string = "";
+    let written: boolean = false;
+    let pending: boolean = false;
+    let position: number = 0;
+    while (position < characters.length) {
+        const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+        if (character === " ") {
+            pending = langruntime.checkedBool(written);
+        }
+        else {
+            if (pending) {
+                output = output + langruntime.checkedChar(" ");
+            }
+            output = output + langruntime.checkedChar(character);
+            written = langruntime.checkedBool(true);
+            pending = langruntime.checkedBool(false);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return output;
+}
+function xmlRegisterAttributes(input: XmlEntityArena, item: XmlDtdItem, depth: number, inputStart: number): XmlEntityArena {
+    input = copyXmlEntityArena(input);
+    item = copyXmlDtdItem(item);
+    depth = langruntime.checkedIndex(depth);
+    inputStart = langruntime.checkedIndex(inputStart);
+    const text: string = input.arena;
+    const source: XmlSource = { characters: Array.from(text) };
+    let state: XmlEntityArena = input;
+    let position: number = xmlSkipSpace(source, item.name.end);
+    while (position < langruntime.checkedSubtract(item.next, 1) && state.flags.valid) {
+        const attribute: XmlDtdAttribute = copyXmlDtdAttribute(xmlParseDtdAttribute(source, position));
+        if (attribute.valid === false) {
+            return xmlDtdInvalid(state);
+        }
+        position = langruntime.checkedIndex(xmlSkipSpace(source, attribute.next));
+        let value: XmlSpan = copyXmlSpan(attribute.value);
+        if (attribute.hasDefault) {
+            const checked: XmlAttributeScan = copyXmlAttributeScan(xmlParseAttribute(source, langruntime.checkedSubtract(value.start, 1), state, depth, state.cost, inputStart, false, true));
+            if (checked.valid === false) {
+                return xmlDtdInvalid(state);
+            }
+            state = copyXmlEntityArena(xmlArenaCost(state, checked.cost));
+            let decoded: string = xmlAttributeText(source, value, state);
+            if (attribute.tokenized) {
+                decoded = langruntime.checkedString(xmlCollapseSpace(decoded));
+            }
+            let storage: string = state.arena;
+            const storageCharacters: string[] = Array.from(storage);
+            const start: number = storageCharacters.length;
+            const decodedCharacters: string[] = Array.from(decoded);
+            value = copyXmlSpan({ start: start, end: langruntime.checkedAdd(start, decodedCharacters.length) });
+            storage = storage + decoded;
+            state = copyXmlEntityArena({ arena: storage, entities: state.entities, defaults: state.defaults, flags: copyXmlDtdFlags(state.flags), cost: state.cost });
+        }
+        let declared: boolean = false;
+        let index: number = 0;
+        while (index < state.defaults.length) {
+            const previous: XmlDefaultIndex = copyXmlDefaultIndex(langruntime.indexStruct(state.defaults, langruntime.checkedIndex(index), copyXmlDefaultIndex));
+            if (xmlSpanEqual(source, previous.element, item.name) && xmlSpanEqual(source, previous.name, attribute.name)) {
+                declared = langruntime.checkedBool(true);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (declared === false) {
+            let defaults: XmlDefaultIndex[] = state.defaults;
+            const nameText: string = xmlSourceRange(source, attribute.name);
+            const prefix: XmlSpan = copyXmlSpan(xmlAttributePrefix(source, attribute.name));
+            let defaultCost: bigint = xmlOctets(nameText);
+            if (prefix.end > prefix.start) {
+                defaultCost = langruntime.checkedI64(langruntime.checkedI64Subtract(defaultCost, 1n));
+            }
+            if (attribute.hasDefault) {
+                const storedText: string = state.arena;
+                const storedSource: XmlSource = { characters: Array.from(storedText) };
+                const storedValue: string = xmlSourceRange(storedSource, value);
+                defaultCost = langruntime.checkedI64(langruntime.checkedI64Add(defaultCost, xmlOctets(storedValue)));
+            }
+            langruntime.pushStruct(defaults, { element: copyXmlSpan(item.name), name: copyXmlSpan(attribute.name), value: copyXmlSpan(value), tokenized: attribute.tokenized, hasDefault: attribute.hasDefault, cost: defaultCost }, copyXmlDefaultIndex);
+            state = copyXmlEntityArena({ arena: state.arena, entities: state.entities, defaults: defaults, flags: copyXmlDtdFlags(state.flags), cost: state.cost });
+        }
+    }
+    return state;
+}
+interface XmlEntityArena {
+    arena: string;
+    entities: XmlEntityIndex[];
+    defaults: XmlDefaultIndex[];
+    flags: XmlDtdFlags;
+    cost: bigint;
+}
+function copyXmlEntityArena(value: XmlEntityArena): XmlEntityArena {
+    return { arena: langruntime.checkedString(value.arena), entities: langruntime.checkedStructs(value.entities, copyXmlEntityIndex), defaults: langruntime.checkedStructs(value.defaults, copyXmlDefaultIndex), flags: copyXmlDtdFlags(value.flags), cost: langruntime.checkedI64(value.cost) };
+}
+interface XmlExpansion {
+    text: string;
+    valid: boolean;
+    cost: bigint;
+}
+function copyXmlExpansion(value: XmlExpansion): XmlExpansion {
+    return { text: langruntime.checkedString(value.text), valid: langruntime.checkedBool(value.valid), cost: langruntime.checkedI64(value.cost) };
+}
+function xmlNewArena(input: string, standalone: boolean): XmlEntityArena {
+    input = langruntime.checkedString(input);
+    standalone = langruntime.checkedBool(standalone);
+    const entities: XmlEntityIndex[] = [];
+    const defaults: XmlDefaultIndex[] = [];
+    return { arena: input, entities: entities, defaults: defaults, flags: copyXmlDtdFlags({ valid: true, external: false, standalone: standalone, parameterSeen: false }), cost: 0n };
+}
+function xmlDtdWithFlags(input: XmlEntityArena, flags: XmlDtdFlags): XmlEntityArena {
+    input = copyXmlEntityArena(input);
+    flags = copyXmlDtdFlags(flags);
+    return { arena: input.arena, entities: input.entities, defaults: input.defaults, flags: copyXmlDtdFlags(flags), cost: input.cost };
+}
+function xmlArenaCost(input: XmlEntityArena, cost: bigint): XmlEntityArena {
+    input = copyXmlEntityArena(input);
+    cost = langruntime.checkedI64(cost);
+    return { arena: input.arena, entities: input.entities, defaults: input.defaults, flags: copyXmlDtdFlags(input.flags), cost: cost };
+}
+function xmlDtdInvalid(input: XmlEntityArena): XmlEntityArena {
+    input = copyXmlEntityArena(input);
+    const flags: XmlDtdFlags = copyXmlDtdFlags(input.flags);
+    return xmlDtdWithFlags(input, { valid: false, external: flags.external, standalone: flags.standalone, parameterSeen: flags.parameterSeen });
+}
+function xmlSourceRange(source: XmlSource, span: XmlSpan): string {
+    span = copyXmlSpan(span);
+    let output: string = "";
+    let position: number = span.start;
+    while (position < span.end) {
+        output = output + langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return output;
+}
+function xmlEntityLookup(arena: XmlEntityArena, name: string, parameter: boolean): number {
+    name = langruntime.checkedString(name);
+    parameter = langruntime.checkedBool(parameter);
+    const text: string = arena.arena;
+    const source: XmlSource = { characters: Array.from(text) };
+    let index: number = 0;
+    while (index < arena.entities.length) {
+        const entity: XmlEntityIndex = copyXmlEntityIndex(langruntime.indexStruct(arena.entities, langruntime.checkedIndex(index), copyXmlEntityIndex));
+        if (entity.parameter === parameter && xmlSpanIs(source, entity.name, name)) {
+            return index;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return index;
+}
+function xmlReferenceScalar(source: XmlSource, start: number): string {
+    start = langruntime.checkedIndex(start);
+    if (xmlAt(source, start, "&#")) {
+        let position: number = langruntime.checkedAdd(start, 2);
+        let radix: number = 10;
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "x") {
+            radix = langruntime.checkedI32(16);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        let code: number = 0;
+        while (position < source.characters.length && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ";")) {
+            const number: number = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))).codePointAt(0)!;
+            let digit: number = langruntime.checkedSignedSubtract(number, 48);
+            if (number >= 97) {
+                digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(number, 87));
+            }
+            else if (number >= 65) {
+                digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(number, 55));
+            }
+            code = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(code, radix), digit));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return langruntime.characterFromI32(code, " ");
+    }
+    if (xmlAt(source, start, "&amp;")) {
+        return "&";
+    }
+    if (xmlAt(source, start, "&lt;")) {
+        return "<";
+    }
+    if (xmlAt(source, start, "&gt;")) {
+        return ">";
+    }
+    if (xmlAt(source, start, "&quot;")) {
+        return "\"";
+    }
+    return "'";
+}
+interface XmlEntityValue {
+    text: string;
+    valid: boolean;
+    parameterSeen: boolean;
+}
+function copyXmlEntityValue(value: XmlEntityValue): XmlEntityValue {
+    return { text: langruntime.checkedString(value.text), valid: langruntime.checkedBool(value.valid), parameterSeen: langruntime.checkedBool(value.parameterSeen) };
+}
+function xmlDecodeEntityValue(source: XmlSource, arena: XmlEntityArena, value: XmlSpan): XmlEntityValue {
+    value = copyXmlSpan(value);
+    const invalid: XmlEntityValue = { text: "", valid: false, parameterSeen: false };
+    let output: string = "";
+    let position: number = value.start;
+    let bytes: bigint = 0n;
+    while (position < value.end) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (xmlCharacter(character) === false) {
+            return invalid;
+        }
+        if (character === "&" && xmlAt(source, position, "&#")) {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (reference.valid === false || reference.next > value.end) {
+                return invalid;
+            }
+            if (bytes > 9999996n) {
+                return invalid;
+            }
+            const scalar: string = xmlReferenceScalar(source, position);
+            const width: number = xmlCharacterOctets(scalar);
+            bytes = langruntime.checkedI64(langruntime.checkedI64Add(bytes, BigInt(langruntime.checkedI32(width))));
+            output = output + langruntime.checkedChar(scalar);
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else if (character === "&") {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (reference.valid === false || reference.next > value.end) {
+                return invalid;
+            }
+            while (position < reference.next) {
+                const width: number = xmlCharacterOctets(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+                bytes = langruntime.checkedI64(langruntime.checkedI64Add(bytes, BigInt(langruntime.checkedI32(width))));
+                if (bytes > 10000000n) {
+                    return invalid;
+                }
+                output = output + langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+        else if (character === "%") {
+            const name: XmlScan = copyXmlScan(xmlName(source, langruntime.checkedAdd(position, 1)));
+            if (name.valid === false || name.next >= value.end || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(name.next)) === ";")) {
+                return invalid;
+            }
+            const spelling: string = xmlSourceRange(source, { start: langruntime.checkedAdd(position, 1), end: name.next });
+            const entity: number = xmlEntityLookup(arena, spelling, true);
+            if (entity < arena.entities.length || arena.flags.standalone) {
+                return invalid;
+            }
+            return { text: output, valid: true, parameterSeen: true };
+        }
+        else {
+            const width: number = xmlCharacterOctets(character);
+            bytes = langruntime.checkedI64(langruntime.checkedI64Add(bytes, BigInt(langruntime.checkedI32(width))));
+            if (bytes > 10000000n) {
+                return invalid;
+            }
+            output = output + langruntime.checkedChar(character);
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    return { text: output, valid: true, parameterSeen: false };
+}
+function xmlRegisterEntity(input: XmlEntityArena, item: XmlDtdItem, depth: number): XmlEntityArena {
+    input = copyXmlEntityArena(input);
+    item = copyXmlDtdItem(item);
+    depth = langruntime.checkedIndex(depth);
+    const text: string = input.arena;
+    const source: XmlSource = { characters: Array.from(text) };
+    const name: string = xmlSourceRange(source, item.name);
+    const parameter: boolean = item.kind === 4;
+    let state: XmlEntityArena = input;
+    let value: XmlSpan = copyXmlSpan(item.value);
+    if (item.external === false) {
+        if (depth >= 19) {
+            return xmlDtdInvalid(state);
+        }
+        const decoded: XmlEntityValue = xmlDecodeEntityValue(source, state, item.value);
+        if (decoded.valid === false) {
+            return xmlDtdInvalid(state);
+        }
+        if (decoded.parameterSeen) {
+            const flags: XmlDtdFlags = copyXmlDtdFlags(state.flags);
+            state = copyXmlEntityArena(xmlDtdWithFlags(state, { valid: flags.valid, external: flags.external, standalone: flags.standalone, parameterSeen: true }));
+        }
+        let storage: string = state.arena;
+        const start: number = source.characters.length;
+        storage = storage + decoded.text;
+        const decodedCharacters: string[] = Array.from(decoded.text);
+        value = copyXmlSpan({ start: start, end: langruntime.checkedAdd(start, decodedCharacters.length) });
+        state = copyXmlEntityArena({ arena: storage, entities: state.entities, defaults: state.defaults, flags: copyXmlDtdFlags(state.flags), cost: state.cost });
+    }
+    if (xmlEntityLookup(state, name, parameter) < state.entities.length) {
+        return state;
+    }
+    if (item.external && xmlNormalizedOctets(source, item.value.start, item.value.end) > 2000n) {
+        if (parameter === false && (name === "amp" || name === "lt" || name === "gt" || name === "apos" || name === "quot")) {
+            return state;
+        }
+        return xmlDtdInvalid(state);
+    }
+    let entries: XmlEntityIndex[] = state.entities;
+    langruntime.pushStruct(entries, { name: copyXmlSpan(item.name), value: copyXmlSpan(value), parameter: parameter, external: item.external, unparsed: item.unparsed }, copyXmlEntityIndex);
+    return { arena: state.arena, entities: entries, defaults: state.defaults, flags: copyXmlDtdFlags(state.flags), cost: state.cost };
+}
+function xmlExpandEntity(arena: XmlEntityArena, name: string, attribute: boolean, depth: number, priorCost: bigint, consumed: bigint): XmlExpansion {
+    name = langruntime.checkedString(name);
+    attribute = langruntime.checkedBool(attribute);
+    depth = langruntime.checkedIndex(depth);
+    priorCost = langruntime.checkedI64(priorCost);
+    consumed = langruntime.checkedI64(consumed);
+    const invalid: XmlExpansion = { text: "", valid: false, cost: 0n };
+    if (depth >= 19) {
+        return invalid;
+    }
+    const index: number = xmlEntityLookup(arena, name, false);
+    if (index === arena.entities.length) {
+        if (arena.flags.standalone || (arena.flags.external === false && arena.flags.parameterSeen === false)) {
+            return invalid;
+        }
+        return { text: "", valid: true, cost: 0n };
+    }
+    const entity: XmlEntityIndex = copyXmlEntityIndex(langruntime.indexStruct(arena.entities, langruntime.checkedIndex(index), copyXmlEntityIndex));
+    if (entity.unparsed || (attribute && entity.external)) {
+        return invalid;
+    }
+    if (entity.external) {
+        return { text: "", valid: true, cost: 20n };
+    }
+    const text: string = arena.arena;
+    const source: XmlSource = { characters: Array.from(text) };
+    if (attribute === false) {
+        const value: string = xmlSourceRange(source, entity.value);
+        const cost: bigint = langruntime.checkedI64Add(xmlOctets(value), 20n);
+        return { text: value, valid: true, cost: cost };
+    }
+    let output: string = "";
+    let position: number = entity.value.start;
+    const raw: string = xmlSourceRange(source, entity.value);
+    let cost: bigint = langruntime.checkedI64Add(xmlOctets(raw), 20n);
+    if (langruntime.checkedI64Add(priorCost, cost) > 1000000n && langruntime.checkedI64Divide((langruntime.checkedI64Add(priorCost, cost)), 5n) > consumed) {
+        return invalid;
+    }
+    while (position < entity.value.end) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (character === "&") {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (reference.valid === false || reference.next > entity.value.end) {
+                return invalid;
+            }
+            if (xmlPredefinedReference(source, position)) {
+                if (attribute) {
+                    output = output + langruntime.checkedChar(xmlReferenceScalar(source, position));
+                }
+                else {
+                    const spelling: string = xmlSourceRange(source, { start: position, end: reference.next });
+                    output = output + spelling;
+                }
+            }
+            else {
+                const spelling: string = xmlSourceRange(source, { start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
+                const expanded: XmlExpansion = xmlExpandEntity(arena, spelling, attribute, langruntime.checkedAdd(depth, 1), langruntime.checkedI64Add(priorCost, cost), consumed);
+                if (expanded.valid === false) {
+                    return invalid;
+                }
+                output = output + expanded.text;
+                cost = langruntime.checkedI64(langruntime.checkedI64Add(cost, expanded.cost));
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            if (attribute && character === "<") {
+                return invalid;
+            }
+            if (attribute && xmlSpace(character)) {
+                output = output + langruntime.checkedChar(" ");
+                if (character === "\r" && langruntime.checkedAdd(position, 1) < entity.value.end && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+            else {
+                output = output + langruntime.checkedChar(character);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (langruntime.checkedI64Add(priorCost, cost) > 1000000n && langruntime.checkedI64Divide((langruntime.checkedI64Add(priorCost, cost)), 5n) > consumed) {
+            return invalid;
+        }
+    }
+    if (langruntime.checkedI64Add(priorCost, cost) > 1000000n && langruntime.checkedI64Divide((langruntime.checkedI64Add(priorCost, cost)), 5n) > consumed) {
+        return invalid;
+    }
+    return { text: output, valid: true, cost: cost };
+}
+interface XmlSource {
+    characters: string[];
+}
+function copyXmlSource(value: XmlSource): XmlSource {
+    return { characters: langruntime.checkedChars(value.characters) };
+}
+interface XmlScan {
+    next: number;
+    valid: boolean;
+}
+function copyXmlScan(value: XmlScan): XmlScan {
+    return { next: langruntime.checkedIndex(value.next), valid: langruntime.checkedBool(value.valid) };
+}
+interface XmlSpan {
+    start: number;
+    end: number;
+}
+function copyXmlSpan(value: XmlSpan): XmlSpan {
+    return { start: langruntime.checkedIndex(value.start), end: langruntime.checkedIndex(value.end) };
+}
+interface XmlAttribute {
+    name: XmlSpan;
+    value: XmlSpan;
+    arena: boolean;
+}
+function copyXmlAttribute(value: XmlAttribute): XmlAttribute {
+    return { name: copyXmlSpan(value.name), value: copyXmlSpan(value.value), arena: langruntime.checkedBool(value.arena) };
+}
+interface XmlNamespace {
+    prefix: XmlSpan;
+    depth: number;
+    arena: boolean;
+}
+function copyXmlNamespace(value: XmlNamespace): XmlNamespace {
+    return { prefix: copyXmlSpan(value.prefix), depth: langruntime.checkedIndex(value.depth), arena: langruntime.checkedBool(value.arena) };
+}
+function xmlOriginSpan(source: XmlSource, arena: XmlEntityArena, span: XmlSpan, inArena: boolean): string {
+    span = copyXmlSpan(span);
+    inArena = langruntime.checkedBool(inArena);
+    if (inArena) {
+        const text: string = arena.arena;
+        const stored: XmlSource = { characters: Array.from(text) };
+        return xmlSourceRange(stored, span);
+    }
+    return xmlSourceRange(source, span);
+}
+function xmlCharacter(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    return code === 9 || code === 10 || code === 13 || (code >= 32 && code <= 55295) || (code >= 57344 && code <= 65533) || (code >= 65536 && code <= 1114111);
+}
+function xmlSpace(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    return character === " " || character === "\t" || character === "\n" || character === "\r";
+}
+function xmlCharacterOctets(character: string): number {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    if (code < 128) {
+        return 1;
+    }
+    if (code < 2048) {
+        return 2;
+    }
+    if (code < 65536) {
+        return 3;
+    }
+    return 4;
+}
+function xmlConsumed(source: XmlSource, start: number, end: number): bigint {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    let consumed: bigint = 0n;
+    let index: number = start;
+    while (index < end) {
+        const bytes: number = xmlCharacterOctets(langruntime.indexChar(source.characters, langruntime.checkedIndex(index)));
+        consumed = langruntime.checkedI64(langruntime.checkedI64Add(consumed, BigInt(langruntime.checkedI32(bytes))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return consumed;
+}
+function xmlAmplified(source: XmlSource, end: number, cost: bigint): boolean {
+    end = langruntime.checkedIndex(end);
+    cost = langruntime.checkedI64(cost);
+    return cost > 1000000n && langruntime.checkedI64Divide(cost, 5n) > xmlConsumed(source, 0, end);
+}
+interface XmlAttributeScan {
+    next: number;
+    valid: boolean;
+    cost: bigint;
+}
+function copyXmlAttributeScan(value: XmlAttributeScan): XmlAttributeScan {
+    return { next: langruntime.checkedIndex(value.next), valid: langruntime.checkedBool(value.valid), cost: langruntime.checkedI64(value.cost) };
+}
+interface XmlParsedEntity {
+    index: number;
+    nodes: XmlNodeList;
+    cost: bigint;
+}
+function copyXmlParsedEntity(value: XmlParsedEntity): XmlParsedEntity {
+    return { index: langruntime.checkedIndex(value.index), nodes: copyXmlNodeList(value.nodes), cost: langruntime.checkedI64(value.cost) };
+}
+interface XmlEntityCache {
+    entries: XmlParsedEntity[];
+}
+function copyXmlEntityCache(value: XmlEntityCache): XmlEntityCache {
+    return { entries: langruntime.checkedStructs(value.entries, copyXmlParsedEntity) };
+}
+function xmlNewEntityCache(): XmlEntityCache {
+    const entries: XmlParsedEntity[] = [];
+    return { entries: entries };
+}
+interface XmlMarkupResult {
+    valid: boolean;
+    cost: bigint;
+    nodes: XmlNodeList;
+    cache: XmlParsedEntity[];
+}
+function copyXmlMarkupResult(value: XmlMarkupResult): XmlMarkupResult {
+    return { valid: langruntime.checkedBool(value.valid), cost: langruntime.checkedI64(value.cost), nodes: copyXmlNodeList(value.nodes), cache: langruntime.checkedStructs(value.cache, copyXmlParsedEntity) };
+}
+function xmlMarkupInvalid(): XmlMarkupResult {
+    return { valid: false, cost: 0n, nodes: copyXmlNodeList(xmlEmptyNodes()), cache: xmlNewEntityCache().entries };
+}
+function xmlOctets(input: string): bigint {
+    input = langruntime.checkedString(input);
+    const characters: string[] = Array.from(input);
+    let bytes: bigint = 0n;
+    let index: number = 0;
+    while (index < characters.length) {
+        const code: number = langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (code < 128) {
+            bytes = langruntime.checkedI64(langruntime.checkedI64Add(bytes, 1n));
+        }
+        else if (code < 2048) {
+            bytes = langruntime.checkedI64(langruntime.checkedI64Add(bytes, 2n));
+        }
+        else if (code < 65536) {
+            bytes = langruntime.checkedI64(langruntime.checkedI64Add(bytes, 3n));
+        }
+        else {
+            bytes = langruntime.checkedI64(langruntime.checkedI64Add(bytes, 4n));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return bytes;
+}
+function xmlNameStart(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    return character === ":" || character === "_" || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 192 && code <= 214) || (code >= 216 && code <= 246) || (code >= 248 && code <= 767) || (code >= 880 && code <= 893) || (code >= 895 && code <= 8191) || (code >= 8204 && code <= 8205) || (code >= 8304 && code <= 8591) || (code >= 11264 && code <= 12271) || (code >= 12289 && code <= 55295) || (code >= 63744 && code <= 64975) || (code >= 65008 && code <= 65533) || (code >= 65536 && code <= 983039);
+}
+function xmlNameCharacter(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    return xmlNameStart(character) || character === "-" || character === "." || (code >= 48 && code <= 57) || code === 183 || (code >= 768 && code <= 879) || (code >= 8255 && code <= 8256);
+}
+function xmlAt(source: XmlSource, position: number, literal: string): boolean {
+    position = langruntime.checkedIndex(position);
+    literal = langruntime.checkedString(literal);
+    const expected: string[] = Array.from(literal);
+    if (position > source.characters.length || expected.length > langruntime.checkedSubtract(source.characters.length, position)) {
+        return false;
+    }
+    let index: number = 0;
+    while (index < expected.length) {
+        if (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, index))) === langruntime.indexChar(expected, langruntime.checkedIndex(index)))) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+function xmlSkipSpace(source: XmlSource, start: number): number {
+    start = langruntime.checkedIndex(start);
+    let position: number = start;
+    while (position < source.characters.length && xmlSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return position;
+}
+function xmlName(source: XmlSource, start: number): XmlScan {
+    start = langruntime.checkedIndex(start);
+    let position: number = start;
+    if (position >= source.characters.length || xmlNameStart(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))) === false) {
+        return { next: position, valid: false };
+    }
+    position = langruntime.checkedAdd(position, 1);
+    while (position < source.characters.length && xmlNameCharacter(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let bytes: number = 0;
+    let index: number = start;
+    while (index < position) {
+        const code: number = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (code < 128) {
+            bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, 1));
+        }
+        else if (code < 2048) {
+            bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, 2));
+        }
+        else if (code < 65536) {
+            bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, 3));
+        }
+        else {
+            bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, 4));
+        }
+        if (bytes > 50000) {
+            return { next: position, valid: false };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { next: position, valid: true };
+}
+function xmlSpanEqual(source: XmlSource, left: XmlSpan, right: XmlSpan): boolean {
+    left = copyXmlSpan(left);
+    right = copyXmlSpan(right);
+    if (!(langruntime.checkedSubtract(left.end, left.start) === langruntime.checkedSubtract(right.end, right.start))) {
+        return false;
+    }
+    let position: number = 0;
+    while (position < langruntime.checkedSubtract(left.end, left.start)) {
+        if (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(left.start, position))) === langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(right.start, position))))) {
+            return false;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return true;
+}
+function xmlSpanIs(source: XmlSource, span: XmlSpan, literal: string): boolean {
+    span = copyXmlSpan(span);
+    literal = langruntime.checkedString(literal);
+    const characters: string[] = Array.from(literal);
+    return langruntime.checkedSubtract(span.end, span.start) === characters.length && xmlAt(source, span.start, literal);
+}
+function xmlAttributePrefix(source: XmlSource, name: XmlSpan): XmlSpan {
+    name = copyXmlSpan(name);
+    const empty: XmlSpan = copyXmlSpan({ start: name.start, end: name.start });
+    let colon: number = name.end;
+    let position: number = name.start;
+    while (position < name.end) {
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ":") {
+            if (!(colon === name.end)) {
+                return empty;
+            }
+            colon = langruntime.checkedIndex(position);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (colon === name.start || langruntime.checkedAdd(colon, 1) >= name.end) {
+        return empty;
+    }
+    if (xmlNameStart(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(colon, 1)))) === false) {
+        return empty;
+    }
+    return { start: name.start, end: colon };
+}
+function xmlAttributeText(source: XmlSource, value: XmlSpan, arena: XmlEntityArena): string {
+    value = copyXmlSpan(value);
+    let output: string = "";
+    let position: number = value.start;
+    while (position < value.end) {
+        let character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        let appendCharacter: boolean = true;
+        if (character === "&") {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (xmlPredefinedReference(source, position) === false) {
+                const name: string = xmlSourceRange(source, { start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
+                const expanded: XmlExpansion = xmlExpandEntity(arena, name, true, 0, 0n, xmlOctets(arena.arena));
+                output = output + expanded.text;
+                position = langruntime.checkedIndex(reference.next);
+                appendCharacter = langruntime.checkedBool(false);
+            }
+            else if (xmlAt(source, position, "&#")) {
+                position = langruntime.checkedAdd(position, 2);
+                let radix: number = 10;
+                if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "x") {
+                    radix = langruntime.checkedI32(16);
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                let code: number = 0;
+                while (langruntime.checkedAdd(position, 1) < reference.next) {
+                    const number: number = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))).codePointAt(0)!;
+                    let digit: number = langruntime.checkedSignedSubtract(number, 48);
+                    if (number >= 97) {
+                        digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(number, 87));
+                    }
+                    else if (number >= 65) {
+                        digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(number, 55));
+                    }
+                    code = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(code, radix), digit));
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                character = langruntime.checkedChar(langruntime.characterFromI32(code, " "));
+            }
+            else if (xmlAt(source, position, "&amp;")) {
+                character = langruntime.checkedChar("&");
+            }
+            else if (xmlAt(source, position, "&lt;")) {
+                character = langruntime.checkedChar("<");
+            }
+            else if (xmlAt(source, position, "&gt;")) {
+                character = langruntime.checkedChar(">");
+            }
+            else if (xmlAt(source, position, "&quot;")) {
+                character = langruntime.checkedChar("\"");
+            }
+            else {
+                character = langruntime.checkedChar("'");
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            if (character === "\r") {
+                if (langruntime.checkedAdd(position, 1) < value.end && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                character = langruntime.checkedChar(" ");
+            }
+            else if (character === "\n" || character === "\t") {
+                character = langruntime.checkedChar(" ");
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (appendCharacter) {
+            output = output + langruntime.checkedChar(character);
+        }
+    }
+    return output;
+}
+interface XmlCommentBuffer {
+    bytes: number;
+    capacity: number;
+    allocated: boolean;
+    valid: boolean;
+}
+function copyXmlCommentBuffer(value: XmlCommentBuffer): XmlCommentBuffer {
+    return { bytes: langruntime.checkedI32(value.bytes), capacity: langruntime.checkedI32(value.capacity), allocated: langruntime.checkedBool(value.allocated), valid: langruntime.checkedBool(value.valid) };
+}
+function xmlCommentFlush(buffer: XmlCommentBuffer, pending: number): XmlCommentBuffer {
+    buffer = copyXmlCommentBuffer(buffer);
+    pending = langruntime.checkedI32(pending);
+    if (pending === 0) {
+        return buffer;
+    }
+    const bytes: number = langruntime.checkedSignedAdd(buffer.bytes, pending);
+    if (bytes > 10000000) {
+        return { bytes: bytes, capacity: buffer.capacity, allocated: buffer.allocated, valid: false };
+    }
+    let capacity: number = buffer.capacity;
+    if (buffer.allocated === false) {
+        capacity = langruntime.checkedI32(langruntime.checkedSignedAdd(pending, 4096));
+    }
+    else if (langruntime.checkedSignedAdd(bytes, 1) >= capacity) {
+        capacity = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(capacity, bytes), 4096));
+    }
+    return { bytes: bytes, capacity: capacity, allocated: true, valid: true };
+}
+function xmlCommentAppend(buffer: XmlCommentBuffer, character: string): XmlCommentBuffer {
+    buffer = copyXmlCommentBuffer(buffer);
+    character = langruntime.checkedChar(character);
+    let capacity: number = buffer.capacity;
+    if (langruntime.checkedSignedAdd(buffer.bytes, 5) >= capacity) {
+        if (capacity >= 10000000) {
+            return { bytes: buffer.bytes, capacity: capacity, allocated: true, valid: false };
+        }
+        capacity = langruntime.checkedI32(langruntime.checkedSignedAdd(capacity, langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(capacity, 1)), 2)));
+        if (capacity > 10000000) {
+            capacity = langruntime.checkedI32(10000000);
+        }
+    }
+    return { bytes: langruntime.checkedSignedAdd(buffer.bytes, xmlCharacterOctets(character)), capacity: capacity, allocated: true, valid: true };
+}
+function xmlComment(source: XmlSource, start: number): XmlScan {
+    start = langruntime.checkedIndex(start);
+    let position: number = langruntime.checkedAdd(start, 4);
+    let buffer: XmlCommentBuffer = copyXmlCommentBuffer({ bytes: 0, capacity: 4096, allocated: false, valid: true });
+    let pending: number = 0;
+    let slow: boolean = false;
+    while (position < source.characters.length) {
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-" && xmlAt(source, position, "--")) {
+            if (slow === false) {
+                buffer = copyXmlCommentBuffer(xmlCommentFlush(buffer, pending));
+            }
+            return { next: langruntime.checkedAdd(position, 3), valid: buffer.valid && xmlAt(source, position, "-->") };
+        }
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (xmlCharacter(character) === false) {
+            return { next: position, valid: false };
+        }
+        if (slow === false && character === "-") {
+            buffer = copyXmlCommentBuffer(xmlCommentFlush(buffer, pending));
+            pending = langruntime.checkedI32(0);
+        }
+        const crlf: boolean = character === "\r" && langruntime.checkedAdd(position, 1) < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n";
+        if (slow === false && (langruntime.checkedChar(character).codePointAt(0)! >= 128 || character === "\r")) {
+            buffer = copyXmlCommentBuffer(xmlCommentFlush(buffer, pending));
+            pending = langruntime.checkedI32(0);
+            if (crlf === false) {
+                slow = langruntime.checkedBool(true);
+            }
+        }
+        if (slow) {
+            buffer = copyXmlCommentBuffer(xmlCommentAppend(buffer, character));
+        }
+        else {
+            pending = langruntime.checkedI32(langruntime.checkedSignedAdd(pending, 1));
+        }
+        if (buffer.valid === false) {
+            return { next: position, valid: false };
+        }
+        if (crlf) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { next: position, valid: false };
+}
+function xmlProcessingInstruction(source: XmlSource, start: number): XmlScan {
+    start = langruntime.checkedIndex(start);
+    const target: XmlScan = copyXmlScan(xmlName(source, langruntime.checkedAdd(start, 2)));
+    if (target.valid === false) {
+        return target;
+    }
+    let position: number = target.next;
+    if (langruntime.checkedSubtract(position, start) === 5) {
+        const first: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(start, 2)));
+        const second: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(start, 3)));
+        const third: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(start, 4)));
+        if ((first === "x" || first === "X") && (second === "m" || second === "M") && (third === "l" || third === "L")) {
+            return { next: position, valid: false };
+        }
+    }
+    if (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "?" && xmlAt(source, position, "?>")) {
+        return { next: langruntime.checkedAdd(position, 2), valid: true };
+    }
+    if (position >= source.characters.length || xmlSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))) === false) {
+        return { next: position, valid: false };
+    }
+    position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    let bytes: number = 0;
+    while (position < source.characters.length) {
+        if (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "?" && xmlAt(source, position, "?>")) {
+            return { next: langruntime.checkedAdd(position, 2), valid: true };
+        }
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (xmlCharacter(character) === false) {
+            return { next: position, valid: false };
+        }
+        if (bytes >= 9999995) {
+            return { next: position, valid: false };
+        }
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        if (code < 128) {
+            bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, 1));
+        }
+        else if (code < 2048) {
+            bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, 2));
+        }
+        else if (code < 65536) {
+            bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, 3));
+        }
+        else {
+            bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, 4));
+        }
+        if (character === "\r" && langruntime.checkedAdd(position, 1) < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { next: position, valid: false };
+}
+function xmlCdata(source: XmlSource, start: number): XmlScan {
+    start = langruntime.checkedIndex(start);
+    let position: number = langruntime.checkedAdd(start, 9);
+    let bytes: number = 0;
+    while (position < source.characters.length) {
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "]" && xmlAt(source, position, "]]>")) {
+            return { next: langruntime.checkedAdd(position, 3), valid: true };
+        }
+        if (xmlCharacter(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))) === false) {
+            return { next: position, valid: false };
+        }
+        if (bytes >= 9999995) {
+            return { next: position, valid: false };
+        }
+        bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, xmlCharacterOctets(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))));
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\r" && langruntime.checkedAdd(position, 1) < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { next: position, valid: false };
+}
+function xmlReference(source: XmlSource, start: number): XmlScan {
+    start = langruntime.checkedIndex(start);
+    let position: number = langruntime.checkedAdd(start, 1);
+    if (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "#") {
+        position = langruntime.checkedAdd(position, 1);
+        let radix: number = 10;
+        if (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "x") {
+            radix = langruntime.checkedI32(16);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        const begin: number = position;
+        let code: number = 0;
+        while (position < source.characters.length && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ";")) {
+            const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+            const number: number = langruntime.checkedChar(character).codePointAt(0)!;
+            let digit: number = 16;
+            if (number >= 48 && number <= 57) {
+                digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedChar(character).codePointAt(0)!, 48));
+            }
+            else if (number >= 97 && number <= 102) {
+                digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedChar(character).codePointAt(0)!, 87));
+            }
+            else if (number >= 65 && number <= 70) {
+                digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedChar(character).codePointAt(0)!, 55));
+            }
+            if (digit >= radix || code > langruntime.checkedSignedDivide(1114111, radix)) {
+                return { next: position, valid: false };
+            }
+            code = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(code, radix), digit));
+            if (code > 1114111) {
+                return { next: position, valid: false };
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (position === begin || position >= source.characters.length || (code >= 55296 && code <= 57343) || xmlCharacter(langruntime.characterFromI32(code, "\0")) === false) {
+            return { next: position, valid: false };
+        }
+        return { next: langruntime.checkedAdd(position, 1), valid: true };
+    }
+    const name: XmlScan = copyXmlScan(xmlName(source, position));
+    if (name.valid === false || name.next >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(name.next)) === ";")) {
+        return { next: name.next, valid: false };
+    }
+    return { next: langruntime.checkedAdd(name.next, 1), valid: true };
+}
+function xmlPredefinedReference(source: XmlSource, start: number): boolean {
+    start = langruntime.checkedIndex(start);
+    return xmlAt(source, start, "&#") || xmlAt(source, start, "&amp;") || xmlAt(source, start, "&lt;") || xmlAt(source, start, "&gt;") || xmlAt(source, start, "&quot;") || xmlAt(source, start, "&apos;");
+}
+function xmlParseAttribute(source: XmlSource, start: number, arena: XmlEntityArena, entityDepth: number, priorCost: bigint, inputStart: number, normalize: boolean, owned: boolean): XmlAttributeScan {
+    start = langruntime.checkedIndex(start);
+    entityDepth = langruntime.checkedIndex(entityDepth);
+    priorCost = langruntime.checkedI64(priorCost);
+    inputStart = langruntime.checkedIndex(inputStart);
+    normalize = langruntime.checkedBool(normalize);
+    owned = langruntime.checkedBool(owned);
+    let position: number = start;
+    let cost: bigint = priorCost;
+    if (position >= source.characters.length || (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "'") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\""))) {
+        return { next: position, valid: false, cost: cost };
+    }
+    const quote: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+    position = langruntime.checkedAdd(position, 1);
+    while (position < source.characters.length && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === quote)) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (character === "<" || xmlCharacter(character) === false) {
+            return { next: position, valid: false, cost: cost };
+        }
+        if (character === "&") {
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (reference.valid === false) {
+                return { next: reference.next, valid: false, cost: cost };
+            }
+            if (xmlPredefinedReference(source, position) === false) {
+                const name: string = xmlSourceRange(source, { start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
+                const consumed: bigint = xmlConsumed(source, inputStart, reference.next);
+                const expanded: XmlExpansion = xmlExpandEntity(arena, name, true, entityDepth, cost, consumed);
+                cost = langruntime.checkedI64(langruntime.checkedI64Add(cost, expanded.cost));
+                if (expanded.valid === false) {
+                    return { next: reference.next, valid: false, cost: cost };
+                }
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    let valid: boolean = position < source.characters.length;
+    const bound: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Add(xmlConsumed(source, langruntime.checkedAdd(start, 1), position), cost), priorCost);
+    if (valid && bound > 9999996n) {
+        const buffer: XmlValueBuffer = copyXmlValueBuffer(xmlWalkValue(source, { start: langruntime.checkedAdd(start, 1), end: position }, xmlNewValue(owned), arena, normalize, 0, false));
+        valid = langruntime.checkedBool(buffer.valid);
+    }
+    return { next: langruntime.checkedAdd(position, 1), valid: valid, cost: cost };
+}
+function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: XmlEntityArena, baseDepth: number, entityDepth: number, inputCache: XmlEntityCache): XmlMarkupResult {
+    start = langruntime.checkedIndex(start);
+    document = langruntime.checkedBool(document);
+    baseDepth = langruntime.checkedIndex(baseDepth);
+    entityDepth = langruntime.checkedIndex(entityDepth);
+    inputCache = copyXmlEntityCache(inputCache);
+    if (entityDepth >= 20 || baseDepth >= 256) {
+        return xmlMarkupInvalid();
+    }
+    let position: number = start;
+    let stack: XmlSpan[] = [];
+    let depth: number = 0;
+    let roots: number = 0;
+    let cost: bigint = 0n;
+    if (entityDepth === 0) {
+        cost = langruntime.checkedI64(arena.cost);
+    }
+    let namespaces: XmlNamespace[] = [];
+    let namespaceCount: number = 0;
+    let text: XmlTextState = copyXmlTextState(xmlNewText());
+    let cache: XmlEntityCache = inputCache;
+    while (position < source.characters.length) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (xmlCharacter(character) === false) {
+            return xmlMarkupInvalid();
+        }
+        if (character === "<") {
+            if (xmlAt(source, position, "<!--")) {
+                const comment: XmlScan = copyXmlScan(xmlComment(source, position));
+                if (comment.valid === false) {
+                    return xmlMarkupInvalid();
+                }
+                position = langruntime.checkedIndex(comment.next);
+                text = copyXmlTextState(xmlTextEvent(text, 0, 0n, depth === 0));
+            }
+            else if (xmlAt(source, position, "<?")) {
+                const instruction: XmlScan = copyXmlScan(xmlProcessingInstruction(source, position));
+                if (instruction.valid === false) {
+                    return xmlMarkupInvalid();
+                }
+                position = langruntime.checkedIndex(instruction.next);
+                text = copyXmlTextState(xmlTextEvent(text, 0, 0n, depth === 0));
+            }
+            else if (xmlAt(source, position, "<![CDATA[")) {
+                if (document && depth === 0) {
+                    return xmlMarkupInvalid();
+                }
+                const cdata: XmlScan = copyXmlScan(xmlCdata(source, position));
+                if (cdata.valid === false) {
+                    return xmlMarkupInvalid();
+                }
+                const bytes: bigint = xmlNormalizedOctets(source, langruntime.checkedAdd(position, 9), langruntime.checkedSubtract(cdata.next, 3));
+                text = copyXmlTextState(xmlTextEvent(text, 2, bytes, depth === 0));
+                position = langruntime.checkedIndex(cdata.next);
+            }
+            else if (xmlAt(source, position, "</")) {
+                const begin: number = langruntime.checkedAdd(position, 2);
+                const name: XmlScan = copyXmlScan(xmlName(source, begin));
+                if (name.valid === false || depth === 0) {
+                    return xmlMarkupInvalid();
+                }
+                const closing: XmlSpan = copyXmlSpan({ start: begin, end: name.next });
+                if (xmlSpanEqual(source, langruntime.indexStruct(stack, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)), copyXmlSpan), closing) === false) {
+                    return xmlMarkupInvalid();
+                }
+                position = langruntime.checkedIndex(xmlSkipSpace(source, name.next));
+                if (position >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ">")) {
+                    return xmlMarkupInvalid();
+                }
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                text = copyXmlTextState(xmlResetText(text));
+                while (namespaceCount > 0 && langruntime.indexStruct(namespaces, langruntime.checkedIndex(langruntime.checkedSubtract(namespaceCount, 1)), copyXmlNamespace).depth > depth) {
+                    namespaceCount = langruntime.checkedIndex(langruntime.checkedSubtract(namespaceCount, 1));
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+            else {
+                const begin: number = langruntime.checkedAdd(position, 1);
+                const name: XmlScan = copyXmlScan(xmlName(source, begin));
+                if (name.valid === false || langruntime.checkedAdd(depth, baseDepth) >= 256 || (document === false && langruntime.checkedAdd(depth, baseDepth) >= 255)) {
+                    return xmlMarkupInvalid();
+                }
+                const opening: XmlSpan = copyXmlSpan({ start: begin, end: name.next });
+                text = copyXmlTextState(xmlTextEvent(text, 0, 0n, depth === 0));
+                if (depth === 0) {
+                    roots = langruntime.checkedAdd(roots, 1);
+                    if (document && roots > 1) {
+                        return xmlMarkupInvalid();
+                    }
+                }
+                position = langruntime.checkedIndex(name.next);
+                let attributes: XmlAttribute[] = [];
+                let ended: boolean = false;
+                let empty: boolean = false;
+                while (ended === false) {
+                    const spaced: number = xmlSkipSpace(source, position);
+                    if (xmlAt(source, spaced, "/>")) {
+                        position = langruntime.checkedIndex(langruntime.checkedAdd(spaced, 2));
+                        ended = langruntime.checkedBool(true);
+                        empty = langruntime.checkedBool(true);
+                    }
+                    else if (spaced < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(spaced)) === ">") {
+                        if (depth < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, depth)] = copyXmlSpan(opening);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, opening, copyXmlSpan);
+                        }
+                        depth = langruntime.checkedAdd(depth, 1);
+                        position = langruntime.checkedIndex(langruntime.checkedAdd(spaced, 1));
+                        ended = langruntime.checkedBool(true);
+                    }
+                    else {
+                        if (spaced === position) {
+                            return xmlMarkupInvalid();
+                        }
+                        const attribute: XmlScan = copyXmlScan(xmlName(source, spaced));
+                        if (attribute.valid === false) {
+                            return xmlMarkupInvalid();
+                        }
+                        const attributeName: XmlSpan = copyXmlSpan({ start: spaced, end: attribute.next });
+                        const equals: number = xmlSkipSpace(source, attribute.next);
+                        if (equals >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(equals)) === "=")) {
+                            return xmlMarkupInvalid();
+                        }
+                        const quoted: number = xmlSkipSpace(source, langruntime.checkedAdd(equals, 1));
+                        const tokenized: boolean = xmlAttributeTokenized(source, arena, opening, attributeName);
+                        const value: XmlAttributeScan = copyXmlAttributeScan(xmlParseAttribute(source, quoted, arena, entityDepth, cost, 0, tokenized, false));
+                        cost = langruntime.checkedI64(value.cost);
+                        if (value.valid === false) {
+                            return xmlMarkupInvalid();
+                        }
+                        position = langruntime.checkedIndex(value.next);
+                        langruntime.pushStruct(attributes, { name: copyXmlSpan(attributeName), value: copyXmlSpan({ start: langruntime.checkedAdd(quoted, 1), end: langruntime.checkedSubtract(value.next, 1) }), arena: false }, copyXmlAttribute);
+                    }
+                }
+                const elementName: string = xmlSourceRange(source, opening);
+                let defaultIndex: number = 0;
+                while (defaultIndex < arena.defaults.length) {
+                    const attribute: XmlDefaultIndex = copyXmlDefaultIndex(langruntime.indexStruct(arena.defaults, langruntime.checkedIndex(defaultIndex), copyXmlDefaultIndex));
+                    const element: string = xmlOriginSpan(source, arena, attribute.element, true);
+                    if (attribute.hasDefault && element === elementName) {
+                        const defaultName: string = xmlOriginSpan(source, arena, attribute.name, true);
+                        const defaultSource: XmlSource = { characters: Array.from(defaultName) };
+                        let present: boolean = false;
+                        let explicit: number = 0;
+                        while (explicit < attributes.length) {
+                            const name: string = xmlOriginSpan(source, arena, langruntime.indexStruct(attributes, langruntime.checkedIndex(explicit), copyXmlAttribute).name, langruntime.indexStruct(attributes, langruntime.checkedIndex(explicit), copyXmlAttribute).arena);
+                            if (name === defaultName && xmlAt(defaultSource, 0, "xmlns:") === false) {
+                                present = langruntime.checkedBool(true);
+                            }
+                            explicit = langruntime.checkedAdd(explicit, 1);
+                        }
+                        if (present === false) {
+                            cost = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Add(cost, attribute.cost), 20n));
+                            if (xmlAmplified(source, position, cost)) {
+                                return xmlMarkupInvalid();
+                            }
+                            langruntime.pushStruct(attributes, { name: copyXmlSpan(attribute.name), value: copyXmlSpan(attribute.value), arena: true }, copyXmlAttribute);
+                        }
+                    }
+                    defaultIndex = langruntime.checkedAdd(defaultIndex, 1);
+                }
+                const previousNamespaces: number = namespaceCount;
+                let index: number = 0;
+                let bindingDepth: number = depth;
+                if (empty) {
+                    bindingDepth = langruntime.checkedAdd(bindingDepth, 1);
+                }
+                while (index < attributes.length) {
+                    const attribute: XmlAttribute = copyXmlAttribute(langruntime.indexStruct(attributes, langruntime.checkedIndex(index), copyXmlAttribute));
+                    const attributeName: string = xmlOriginSpan(source, arena, attribute.name, attribute.arena);
+                    const attributeSource: XmlSource = { characters: Array.from(attributeName) };
+                    const prefix: XmlSpan = copyXmlSpan(xmlAttributePrefix(attributeSource, { start: 0, end: attributeSource.characters.length }));
+                    if (xmlSpanIs(attributeSource, prefix, "xmlns")) {
+                        const declared: XmlSpan = copyXmlSpan({ start: langruntime.checkedAdd(langruntime.checkedAdd(attribute.name.start, prefix.end), 1), end: attribute.name.end });
+                        const declaredName: string = xmlOriginSpan(source, arena, declared, attribute.arena);
+                        let uri: string = "";
+                        if (attribute.arena) {
+                            uri = langruntime.checkedString(xmlOriginSpan(source, arena, attribute.value, true));
+                        }
+                        else {
+                            uri = langruntime.checkedString(xmlAttributeText(source, attribute.value, arena));
+                            let declaration: number = 0;
+                            while (declaration < arena.defaults.length) {
+                                const declared: XmlDefaultIndex = copyXmlDefaultIndex(langruntime.indexStruct(arena.defaults, langruntime.checkedIndex(declaration), copyXmlDefaultIndex));
+                                if (declared.tokenized) {
+                                    const owner: string = xmlOriginSpan(source, arena, declared.element, true);
+                                    const declaredAttribute: string = xmlOriginSpan(source, arena, declared.name, true);
+                                    if (owner === elementName && declaredAttribute === attributeName) {
+                                        uri = langruntime.checkedString(xmlCollapseSpace(uri));
+                                    }
+                                }
+                                declaration = langruntime.checkedAdd(declaration, 1);
+                            }
+                        }
+                        if (!(declaredName === "xml") && (attribute.arena || (!(declaredName === "xmlns") && !(uri === "") && !(uri === "http://www.w3.org/XML/1998/namespace") && !(uri === "http://www.w3.org/2000/xmlns/")))) {
+                            let previous: number = previousNamespaces;
+                            let present: boolean = false;
+                            while (previous < namespaceCount) {
+                                const previousName: string = xmlOriginSpan(source, arena, langruntime.indexStruct(namespaces, langruntime.checkedIndex(previous), copyXmlNamespace).prefix, langruntime.indexStruct(namespaces, langruntime.checkedIndex(previous), copyXmlNamespace).arena);
+                                if (previousName === declaredName) {
+                                    if (attribute.arena === false) {
+                                        return xmlMarkupInvalid();
+                                    }
+                                    present = langruntime.checkedBool(true);
+                                }
+                                previous = langruntime.checkedAdd(previous, 1);
+                            }
+                            if (present === false) {
+                                const binding: XmlNamespace = copyXmlNamespace({ prefix: copyXmlSpan(declared), depth: bindingDepth, arena: attribute.arena });
+                                if (namespaceCount < namespaces.length) {
+                                    namespaces[langruntime.checkedIndexIn(namespaces, namespaceCount)] = copyXmlNamespace(binding);
+                                }
+                                else {
+                                    langruntime.pushStruct(namespaces, binding, copyXmlNamespace);
+                                }
+                                namespaceCount = langruntime.checkedAdd(namespaceCount, 1);
+                            }
+                        }
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                index = langruntime.checkedIndex(0);
+                while (index < attributes.length) {
+                    const attribute: XmlAttribute = copyXmlAttribute(langruntime.indexStruct(attributes, langruntime.checkedIndex(index), copyXmlAttribute));
+                    const name: string = xmlOriginSpan(source, arena, attribute.name, attribute.arena);
+                    const attributeSource: XmlSource = { characters: Array.from(name) };
+                    const prefix: XmlSpan = copyXmlSpan(xmlAttributePrefix(attributeSource, { start: 0, end: attributeSource.characters.length }));
+                    const prefixName: string = xmlSourceRange(attributeSource, prefix);
+                    let bound: boolean = prefix.start === prefix.end || prefixName === "xml";
+                    let namespace: number = 0;
+                    while (namespace < namespaceCount) {
+                        const namespaceName: string = xmlOriginSpan(source, arena, langruntime.indexStruct(namespaces, langruntime.checkedIndex(namespace), copyXmlNamespace).prefix, langruntime.indexStruct(namespaces, langruntime.checkedIndex(namespace), copyXmlNamespace).arena);
+                        if (namespaceName === prefixName) {
+                            bound = langruntime.checkedBool(true);
+                        }
+                        namespace = langruntime.checkedAdd(namespace, 1);
+                    }
+                    if (bound && !(prefixName === "xmlns")) {
+                        let previous: number = 0;
+                        while (previous < index) {
+                            const previousName: string = xmlOriginSpan(source, arena, langruntime.indexStruct(attributes, langruntime.checkedIndex(previous), copyXmlAttribute).name, langruntime.indexStruct(attributes, langruntime.checkedIndex(previous), copyXmlAttribute).arena);
+                            if (previousName === name) {
+                                return xmlMarkupInvalid();
+                            }
+                            previous = langruntime.checkedAdd(previous, 1);
+                        }
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                if (empty) {
+                    namespaceCount = langruntime.checkedIndex(previousNamespaces);
+                }
+            }
+        }
+        else if (character === "&") {
+            if (document && depth === 0) {
+                return xmlMarkupInvalid();
+            }
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (reference.valid === false) {
+                return xmlMarkupInvalid();
+            }
+            if (xmlPredefinedReference(source, position) === false) {
+                const name: string = xmlSourceRange(source, { start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
+                const index: number = xmlEntityLookup(arena, name, false);
+                let entry: number = 0;
+                while (entry < cache.entries.length && !(langruntime.indexStruct(cache.entries, langruntime.checkedIndex(entry), copyXmlParsedEntity).index === index)) {
+                    entry = langruntime.checkedAdd(entry, 1);
+                }
+                if (entry < cache.entries.length) {
+                    const cached: XmlParsedEntity = copyXmlParsedEntity(langruntime.indexStruct(cache.entries, langruntime.checkedIndex(entry), copyXmlParsedEntity));
+                    text = copyXmlTextState(xmlTextEntity(text, cached.nodes, depth === 0));
+                    cost = langruntime.checkedI64(langruntime.checkedI64Add(cost, cached.cost));
+                }
+                else {
+                    const expanded: XmlExpansion = xmlExpandEntity(arena, name, false, entityDepth, 0n, 0n);
+                    if (expanded.valid === false) {
+                        return xmlMarkupInvalid();
+                    }
+                    const content: string = expanded.text;
+                    const fragment: XmlSource = { characters: Array.from(content) };
+                    let parentDepth: number = langruntime.checkedAdd(baseDepth, depth);
+                    if (document === false) {
+                        parentDepth = langruntime.checkedAdd(parentDepth, 1);
+                    }
+                    const nested: XmlMarkupResult = xmlMarkup(fragment, 0, false, arena, parentDepth, langruntime.checkedAdd(entityDepth, 1), cache);
+                    if (nested.valid === false) {
+                        return xmlMarkupInvalid();
+                    }
+                    text = copyXmlTextState(xmlTextEntity(text, nested.nodes, depth === 0));
+                    const expansionCost: bigint = langruntime.checkedI64Add(nested.cost, expanded.cost);
+                    cost = langruntime.checkedI64(langruntime.checkedI64Add(cost, expansionCost));
+                    let entries: XmlParsedEntity[] = nested.cache;
+                    if (nested.nodes.count > 0 && index < arena.entities.length) {
+                        langruntime.pushStruct(entries, { index: index, nodes: copyXmlNodeList(nested.nodes), cost: expansionCost }, copyXmlParsedEntity);
+                    }
+                    cache = copyXmlEntityCache({ entries: entries });
+                }
+                if (xmlAmplified(source, reference.next, cost)) {
+                    return xmlMarkupInvalid();
+                }
+            }
+            else {
+                const scalar: string = xmlReferenceScalar(source, position);
+                const width: number = xmlCharacterOctets(scalar);
+                text = copyXmlTextState(xmlTextEvent(text, 1, BigInt(langruntime.checkedI32(width)), depth === 0));
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            if ((character === "]" && xmlAt(source, position, "]]>")) || (document && depth === 0 && xmlSpace(character) === false)) {
+                return xmlMarkupInvalid();
+            }
+            if (document && depth === 0) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            else {
+                const scanned: XmlTextScan = copyXmlTextScan(xmlTextPlain(source, position, text, depth === 0));
+                text = copyXmlTextState(scanned.state);
+                position = langruntime.checkedIndex(scanned.next);
+            }
+        }
+        if (text.valid === false) {
+            return xmlMarkupInvalid();
+        }
+    }
+    return { valid: depth === 0 && (document === false || roots === 1), cost: cost, nodes: copyXmlNodeList(text.nodes), cache: cache.entries };
+}
+function xmlSubsetOrigin(start: number, internal: boolean): number {
+    start = langruntime.checkedIndex(start);
+    internal = langruntime.checkedBool(internal);
+    if (internal) {
+        return 0;
+    }
+    return start;
+}
+interface XmlSubsetResult {
+    state: XmlEntityArena;
+    next: number;
+}
+function copyXmlSubsetResult(value: XmlSubsetResult): XmlSubsetResult {
+    return { state: copyXmlEntityArena(value.state), next: langruntime.checkedIndex(value.next) };
+}
+function xmlSubset(input: XmlEntityArena, start: number, end: number, depth: number, internal: boolean): XmlSubsetResult {
+    input = copyXmlEntityArena(input);
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    depth = langruntime.checkedIndex(depth);
+    internal = langruntime.checkedBool(internal);
+    let state: XmlEntityArena = input;
+    let position: number = start;
+    if (depth >= 20) {
+        return { state: xmlDtdInvalid(state), next: position };
+    }
+    let ended: boolean = false;
+    while (position < end && state.flags.valid && ended === false) {
+        const text: string = state.arena;
+        const source: XmlSource = { characters: Array.from(text) };
+        position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+        if (position >= end) {
+            ended = langruntime.checkedBool(true);
+        }
+        else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "]" && internal) {
+            ended = langruntime.checkedBool(true);
+        }
+        else if (xmlAt(source, position, "<!--")) {
+            const comment: XmlScan = copyXmlScan(xmlComment(source, position));
+            if (comment.valid === false || comment.next > end) {
+                state = copyXmlEntityArena(xmlDtdInvalid(state));
+            }
+            else {
+                position = langruntime.checkedIndex(comment.next);
+            }
+        }
+        else if (xmlAt(source, position, "<?")) {
+            const instruction: XmlScan = copyXmlScan(xmlProcessingInstruction(source, position));
+            if (instruction.valid === false || instruction.next > end) {
+                state = copyXmlEntityArena(xmlDtdInvalid(state));
+            }
+            else {
+                position = langruntime.checkedIndex(instruction.next);
+            }
+        }
+        else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "%") {
+            const name: XmlScan = copyXmlScan(xmlName(source, langruntime.checkedAdd(position, 1)));
+            if (name.valid === false || name.next >= end || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(name.next)) === ";")) {
+                state = copyXmlEntityArena(xmlDtdInvalid(state));
+            }
+            else {
+                const spelling: string = xmlSourceRange(source, { start: langruntime.checkedAdd(position, 1), end: name.next });
+                const index: number = xmlEntityLookup(state, spelling, true);
+                const flags: XmlDtdFlags = copyXmlDtdFlags(state.flags);
+                state = copyXmlEntityArena(xmlDtdWithFlags(state, { valid: flags.valid, external: flags.external, standalone: flags.standalone, parameterSeen: true }));
+                position = langruntime.checkedIndex(langruntime.checkedAdd(name.next, 1));
+                if (index === state.entities.length) {
+                    if (state.flags.standalone) {
+                        state = copyXmlEntityArena(xmlDtdInvalid(state));
+                    }
+                    else {
+                        const flags: XmlDtdFlags = copyXmlDtdFlags(state.flags);
+                        state = copyXmlEntityArena(xmlDtdWithFlags(state, { valid: flags.valid, external: flags.external, standalone: flags.standalone, parameterSeen: true }));
+                    }
+                }
+                else {
+                    const entity: XmlEntityIndex = copyXmlEntityIndex(langruntime.indexStruct(state.entities, langruntime.checkedIndex(index), copyXmlEntityIndex));
+                    if (entity.external === false) {
+                        const parentCost: bigint = state.cost;
+                        const replacement: string = xmlSourceRange(source, entity.value);
+                        state = copyXmlEntityArena(xmlArenaCost(state, 0n));
+                        const nested: XmlSubsetResult = xmlSubset(state, entity.value.start, entity.value.end, langruntime.checkedAdd(depth, 1), false);
+                        state = copyXmlEntityArena(nested.state);
+                        const cost: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(parentCost, state.cost), xmlOctets(replacement)), 20n);
+                        state = copyXmlEntityArena(xmlArenaCost(state, cost));
+                        const consumed: bigint = xmlConsumed(source, xmlSubsetOrigin(start, internal), position);
+                        if (cost > 1000000n && langruntime.checkedI64Divide(cost, 5n) > consumed) {
+                            state = copyXmlEntityArena(xmlDtdInvalid(state));
+                        }
+                        if (!(nested.next === entity.value.end)) {
+                            state = copyXmlEntityArena(xmlDtdInvalid(state));
+                        }
+                    }
+                    else {
+                        const cost: bigint = langruntime.checkedI64Add(state.cost, 20n);
+                        state = copyXmlEntityArena(xmlArenaCost(state, cost));
+                        const consumed: bigint = xmlConsumed(source, xmlSubsetOrigin(start, internal), position);
+                        if (cost > 1000000n && langruntime.checkedI64Divide(cost, 5n) > consumed) {
+                            state = copyXmlEntityArena(xmlDtdInvalid(state));
+                        }
+                    }
+                }
+            }
+        }
+        else {
+            const item: XmlDtdItem = copyXmlDtdItem(xmlParseDtdItem(source, position));
+            if (item.valid === false || item.next > end) {
+                state = copyXmlEntityArena(xmlDtdInvalid(state));
+            }
+            else {
+                position = langruntime.checkedIndex(item.next);
+                if (item.kind === 3 || item.kind === 4) {
+                    state = copyXmlEntityArena(xmlRegisterEntity(state, item, depth));
+                }
+                else if (item.kind === 2) {
+                    state = copyXmlEntityArena(xmlRegisterAttributes(state, item, depth, xmlSubsetOrigin(start, internal)));
+                }
+            }
+        }
+    }
+    return { state: state, next: position };
+}
+function xmlReadDoctype(input: string, start: number, standalone: boolean): XmlSubsetResult {
+    input = langruntime.checkedString(input);
+    start = langruntime.checkedIndex(start);
+    standalone = langruntime.checkedBool(standalone);
+    let state: XmlEntityArena = xmlNewArena(input, standalone);
+    const source: XmlSource = { characters: Array.from(input) };
+    const originalEnd: number = source.characters.length;
+    let position: number = langruntime.checkedAdd(start, 9);
+    let spaced: number = xmlSkipSpace(source, position);
+    if (xmlAt(source, start, "<!DOCTYPE") === false || spaced === position) {
+        return { state: xmlDtdInvalid(state), next: position };
+    }
+    const name: XmlScan = copyXmlScan(xmlName(source, spaced));
+    if (name.valid === false) {
+        return { state: xmlDtdInvalid(state), next: position };
+    }
+    position = langruntime.checkedIndex(name.next);
+    spaced = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    if (xmlAt(source, spaced, "SYSTEM") || xmlAt(source, spaced, "PUBLIC")) {
+        if (spaced === position) {
+            return { state: xmlDtdInvalid(state), next: position };
+        }
+        const identifier: XmlQuoted = copyXmlQuoted(xmlExternalId(source, spaced, false));
+        if (identifier.valid === false || xmlNormalizedOctets(source, identifier.value.start, identifier.value.end) > 2000n) {
+            return { state: xmlDtdInvalid(state), next: position };
+        }
+        position = langruntime.checkedIndex(identifier.next);
+        const flags: XmlDtdFlags = copyXmlDtdFlags(state.flags);
+        state = copyXmlEntityArena(xmlDtdWithFlags(state, { valid: flags.valid, external: true, standalone: flags.standalone, parameterSeen: flags.parameterSeen }));
+    }
+    position = langruntime.checkedIndex(xmlSkipSpace(source, position));
+    if (position < originalEnd && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "[") {
+        const subset: XmlSubsetResult = xmlSubset(state, langruntime.checkedAdd(position, 1), originalEnd, 0, true);
+        state = copyXmlEntityArena(subset.state);
+        position = langruntime.checkedIndex(subset.next);
+        if (state.flags.valid === false || position >= originalEnd || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "]")) {
+            return { state: xmlDtdInvalid(state), next: position };
+        }
+        position = langruntime.checkedIndex(xmlSkipSpace(source, langruntime.checkedAdd(position, 1)));
+    }
+    if (position >= originalEnd || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ">")) {
+        return { state: xmlDtdInvalid(state), next: position };
+    }
+    return { state: state, next: langruntime.checkedAdd(position, 1) };
+}
+interface XmlNodeList {
+    count: number;
+    firstKind: number;
+    firstBytes: bigint;
+    lastKind: number;
+    lastBytes: bigint;
+}
+function copyXmlNodeList(value: XmlNodeList): XmlNodeList {
+    return { count: langruntime.checkedIndex(value.count), firstKind: langruntime.checkedI32(value.firstKind), firstBytes: langruntime.checkedI64(value.firstBytes), lastKind: langruntime.checkedI32(value.lastKind), lastBytes: langruntime.checkedI64(value.lastBytes) };
+}
+interface XmlTextState {
+    kind: number;
+    bytes: bigint;
+    valid: boolean;
+    nodes: XmlNodeList;
+}
+function copyXmlTextState(value: XmlTextState): XmlTextState {
+    return { kind: langruntime.checkedI32(value.kind), bytes: langruntime.checkedI64(value.bytes), valid: langruntime.checkedBool(value.valid), nodes: copyXmlNodeList(value.nodes) };
+}
+interface XmlTextScan {
+    next: number;
+    state: XmlTextState;
+}
+function copyXmlTextScan(value: XmlTextScan): XmlTextScan {
+    return { next: langruntime.checkedIndex(value.next), state: copyXmlTextState(value.state) };
+}
+function xmlEmptyNodes(): XmlNodeList {
+    return { count: 0, firstKind: 0, firstBytes: 0n, lastKind: 0, lastBytes: 0n };
+}
+function xmlNewText(): XmlTextState {
+    return { kind: 0, bytes: 0n, valid: true, nodes: copyXmlNodeList(xmlEmptyNodes()) };
+}
+function xmlResetText(input: XmlTextState): XmlTextState {
+    input = copyXmlTextState(input);
+    return { kind: 0, bytes: 0n, valid: input.valid, nodes: copyXmlNodeList(input.nodes) };
+}
+function xmlTextEvent(input: XmlTextState, kind: number, bytes: bigint, root: boolean): XmlTextState {
+    input = copyXmlTextState(input);
+    kind = langruntime.checkedI32(kind);
+    bytes = langruntime.checkedI64(bytes);
+    root = langruntime.checkedBool(root);
+    let length: bigint = bytes;
+    let valid: boolean = input.valid;
+    if (kind === 1 && input.kind === kind) {
+        length = langruntime.checkedI64(langruntime.checkedI64Add(length, input.bytes));
+        if (length > 10000000n) {
+            valid = langruntime.checkedBool(false);
+        }
+    }
+    let nodes: XmlNodeList = copyXmlNodeList(input.nodes);
+    if (root) {
+        if (nodes.count === 0) {
+            nodes = copyXmlNodeList({ count: 1, firstKind: kind, firstBytes: bytes, lastKind: kind, lastBytes: bytes });
+        }
+        else if (kind === 1 && nodes.lastKind === kind) {
+            const total: bigint = langruntime.checkedI64Add(nodes.lastBytes, bytes);
+            let first: bigint = nodes.firstBytes;
+            if (nodes.count === 1) {
+                first = langruntime.checkedI64(total);
+            }
+            nodes = copyXmlNodeList({ count: nodes.count, firstKind: nodes.firstKind, firstBytes: first, lastKind: kind, lastBytes: total });
+        }
+        else {
+            let count: number = nodes.count;
+            if (count < 3) {
+                count = langruntime.checkedAdd(count, 1);
+            }
+            nodes = copyXmlNodeList({ count: count, firstKind: nodes.firstKind, firstBytes: nodes.firstBytes, lastKind: kind, lastBytes: bytes });
+        }
+    }
+    return { kind: kind, bytes: length, valid: valid, nodes: copyXmlNodeList(nodes) };
+}
+function xmlTextEntity(input: XmlTextState, nodes: XmlNodeList, root: boolean): XmlTextState {
+    input = copyXmlTextState(input);
+    nodes = copyXmlNodeList(nodes);
+    root = langruntime.checkedBool(root);
+    let state: XmlTextState = copyXmlTextState(input);
+    if (nodes.count > 0) {
+        state = copyXmlTextState(xmlTextEvent(state, nodes.firstKind, nodes.firstBytes, root));
+        if (nodes.count > 2) {
+            state = copyXmlTextState(xmlTextEvent(state, 0, 0n, root));
+        }
+        if (nodes.count > 1) {
+            state = copyXmlTextState(xmlTextEvent(state, nodes.lastKind, nodes.lastBytes, root));
+        }
+    }
+    return state;
+}
+function xmlNormalizedOctets(source: XmlSource, start: number, end: number): bigint {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    let position: number = start;
+    let bytes: bigint = 0n;
+    while (position < end) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        const width: number = xmlCharacterOctets(character);
+        bytes = langruntime.checkedI64(langruntime.checkedI64Add(bytes, BigInt(langruntime.checkedI32(width))));
+        if (character === "\r" && langruntime.checkedAdd(position, 1) < end && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return bytes;
+}
+function xmlTextPlain(source: XmlSource, start: number, input: XmlTextState, root: boolean): XmlTextScan {
+    start = langruntime.checkedIndex(start);
+    input = copyXmlTextState(input);
+    root = langruntime.checkedBool(root);
+    let state: XmlTextState = copyXmlTextState(input);
+    let position: number = start;
+    let pending: bigint = 0n;
+    let slow: boolean = false;
+    while (position < source.characters.length) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (character === "<" || character === "&") {
+            break;
+        }
+        if (xmlCharacter(character) === false || (character === "]" && xmlAt(source, position, "]]>"))) {
+            state = copyXmlTextState({ kind: state.kind, bytes: state.bytes, valid: false, nodes: copyXmlNodeList(state.nodes) });
+            return { next: position, state: copyXmlTextState(state) };
+        }
+        const crlf: boolean = character === "\r" && langruntime.checkedAdd(position, 1) < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n";
+        if (slow === false && (langruntime.checkedChar(character).codePointAt(0)! >= 128 || character === "\r")) {
+            if (pending > 0n) {
+                state = copyXmlTextState(xmlTextEvent(state, 1, pending, root));
+            }
+            pending = langruntime.checkedI64(0n);
+            if (crlf === false) {
+                slow = langruntime.checkedBool(true);
+            }
+        }
+        const width: number = xmlCharacterOctets(character);
+        pending = langruntime.checkedI64(langruntime.checkedI64Add(pending, BigInt(langruntime.checkedI32(width))));
+        if (slow && pending >= 300n) {
+            state = copyXmlTextState(xmlTextEvent(state, 1, pending, root));
+            pending = langruntime.checkedI64(0n);
+        }
+        if (state.valid === false) {
+            return { next: position, state: copyXmlTextState(state) };
+        }
+        if (crlf) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (pending > 0n) {
+        state = copyXmlTextState(xmlTextEvent(state, 1, pending, root));
+    }
+    return { next: position, state: copyXmlTextState(state) };
+}
+function xmlWellFormed(input: string, document: boolean): boolean {
+    input = langruntime.checkedString(input);
+    document = langruntime.checkedBool(document);
+    const source: XmlSource = { characters: Array.from(input) };
+    let beginning: number = 0;
+    if (document && source.characters.length > 0 && langruntime.indexChar(source.characters, langruntime.checkedIndex(0)) === "\uFEFF") {
+        beginning = langruntime.checkedIndex(1);
+    }
+    let declaration: XmlDeclaration = copyXmlDeclaration(xmlParseDeclaration(source, beginning, document));
+    if (declaration.valid === false) {
+        return false;
+    }
+    let cursor: number = declaration.next;
+    let scanning: boolean = true;
+    while (scanning) {
+        cursor = langruntime.checkedIndex(xmlSkipSpace(source, cursor));
+        if (xmlAt(source, cursor, "<!--")) {
+            const comment: XmlScan = copyXmlScan(xmlComment(source, cursor));
+            if (comment.valid === false) {
+                return false;
+            }
+            cursor = langruntime.checkedIndex(comment.next);
+        }
+        else if (xmlAt(source, cursor, "<?")) {
+            const instruction: XmlScan = copyXmlScan(xmlProcessingInstruction(source, cursor));
+            if (instruction.valid === false) {
+                return false;
+            }
+            cursor = langruntime.checkedIndex(instruction.next);
+        }
+        else {
+            scanning = langruntime.checkedBool(false);
+        }
+    }
+    let arena: XmlEntityArena = xmlNewArena(input, declaration.standalone);
+    let mode: boolean = document;
+    let start: number = declaration.next;
+    if (xmlAt(source, cursor, "<!DOCTYPE")) {
+        if (mode === false) {
+            declaration = copyXmlDeclaration(xmlParseDeclaration(source, beginning, true));
+            if (declaration.valid === false) {
+                return false;
+            }
+        }
+        mode = langruntime.checkedBool(true);
+        const doctype: XmlSubsetResult = xmlReadDoctype(input, cursor, declaration.standalone);
+        if (doctype.state.flags.valid === false) {
+            return false;
+        }
+        arena = copyXmlEntityArena(doctype.state);
+        start = langruntime.checkedIndex(doctype.next);
+    }
+    const markup: XmlMarkupResult = xmlMarkup(source, start, mode, arena, 0, 0, xmlNewEntityCache());
+    return markup.valid;
+}
+interface XmlValueBuffer {
+    bytes: bigint;
+    pending: bigint;
+    allocated: boolean;
+    inSpace: boolean;
+    valid: boolean;
+}
+function copyXmlValueBuffer(value: XmlValueBuffer): XmlValueBuffer {
+    return { bytes: langruntime.checkedI64(value.bytes), pending: langruntime.checkedI64(value.pending), allocated: langruntime.checkedBool(value.allocated), inSpace: langruntime.checkedBool(value.inSpace), valid: langruntime.checkedBool(value.valid) };
+}
+function xmlNewValue(owned: boolean): XmlValueBuffer {
+    owned = langruntime.checkedBool(owned);
+    return { bytes: 0n, pending: 0n, allocated: owned, inSpace: true, valid: true };
+}
+function xmlFlushValue(input: XmlValueBuffer): XmlValueBuffer {
+    input = copyXmlValueBuffer(input);
+    const bytes: bigint = langruntime.checkedI64Add(input.bytes, input.pending);
+    return { bytes: bytes, pending: 0n, allocated: input.allocated || input.pending > 0n, inSpace: input.inSpace, valid: input.valid && bytes <= 10000000n };
+}
+function xmlValueCharacter(input: XmlValueBuffer, character: string, direct: boolean, numeric: boolean, normalize: boolean): XmlValueBuffer {
+    input = copyXmlValueBuffer(input);
+    character = langruntime.checkedChar(character);
+    direct = langruntime.checkedBool(direct);
+    numeric = langruntime.checkedBool(numeric);
+    normalize = langruntime.checkedBool(normalize);
+    let state: XmlValueBuffer = copyXmlValueBuffer(input);
+    const whitespace: boolean = character === " " || (direct === false && xmlSpace(character));
+    if (whitespace && normalize && state.inSpace) {
+        if (state.pending > 0n) {
+            state = copyXmlValueBuffer(xmlFlushValue(state));
+        }
+        return state;
+    }
+    let scalar: string = character;
+    if (direct === false && whitespace) {
+        scalar = langruntime.checkedChar(" ");
+    }
+    const width: number = xmlCharacterOctets(scalar);
+    let bytes: bigint = state.bytes;
+    let pending: bigint = state.pending;
+    let allocated: boolean = state.allocated;
+    let valid: boolean = state.valid;
+    if (direct || (whitespace && !(character === " "))) {
+        state = copyXmlValueBuffer(xmlFlushValue(state));
+        let reserve: number = width;
+        if (numeric && !(scalar === " ")) {
+            reserve = langruntime.checkedI32(4);
+        }
+        const needed: bigint = BigInt(langruntime.checkedI32(reserve));
+        valid = langruntime.checkedBool(state.valid && langruntime.checkedI64Add(state.bytes, needed) <= 10000000n);
+        bytes = langruntime.checkedI64(langruntime.checkedI64Add(state.bytes, BigInt(langruntime.checkedI32(width))));
+        pending = langruntime.checkedI64(0n);
+        allocated = langruntime.checkedBool(true);
+    }
+    else {
+        pending = langruntime.checkedI64(langruntime.checkedI64Add(pending, BigInt(langruntime.checkedI32(width))));
+    }
+    return { bytes: bytes, pending: pending, allocated: allocated, inSpace: scalar === " ", valid: valid };
+}
+function xmlWalkValue(source: XmlSource, value: XmlSpan, input: XmlValueBuffer, arena: XmlEntityArena, normalize: boolean, depth: number, entity: boolean): XmlValueBuffer {
+    value = copyXmlSpan(value);
+    input = copyXmlValueBuffer(input);
+    normalize = langruntime.checkedBool(normalize);
+    depth = langruntime.checkedIndex(depth);
+    entity = langruntime.checkedBool(entity);
+    let state: XmlValueBuffer = copyXmlValueBuffer(input);
+    let position: number = value.start;
+    while (position < value.end && state.valid) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (character === "&") {
+            if (state.pending > 0n) {
+                state = copyXmlValueBuffer(xmlFlushValue(state));
+            }
+            const reference: XmlScan = copyXmlScan(xmlReference(source, position));
+            if (xmlPredefinedReference(source, position)) {
+                const scalar: string = xmlReferenceScalar(source, position);
+                state = copyXmlValueBuffer(xmlValueCharacter(state, scalar, true, xmlAt(source, position, "&#"), normalize));
+            }
+            else {
+                const name: string = xmlSourceRange(source, { start: langruntime.checkedAdd(position, 1), end: langruntime.checkedSubtract(reference.next, 1) });
+                const index: number = xmlEntityLookup(arena, name, false);
+                if (index < arena.entities.length && depth < 19) {
+                    const definition: XmlEntityIndex = copyXmlEntityIndex(langruntime.indexStruct(arena.entities, langruntime.checkedIndex(index), copyXmlEntityIndex));
+                    if (definition.external === false) {
+                        const stored: XmlSource = { characters: Array.from(arena.arena) };
+                        state = copyXmlValueBuffer(xmlWalkValue(stored, definition.value, state, arena, normalize, langruntime.checkedAdd(depth, 1), true));
+                    }
+                }
+            }
+            position = langruntime.checkedIndex(reference.next);
+        }
+        else {
+            state = copyXmlValueBuffer(xmlValueCharacter(state, character, false, false, normalize));
+            if (character === "\r" && langruntime.checkedAdd(position, 1) < value.end && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    if (entity || state.allocated) {
+        state = copyXmlValueBuffer(xmlFlushValue(state));
+    }
+    return state;
+}
+function xmlAttributeTokenized(source: XmlSource, arena: XmlEntityArena, element: XmlSpan, attribute: XmlSpan): boolean {
+    element = copyXmlSpan(element);
+    attribute = copyXmlSpan(attribute);
+    const owner: string = xmlSourceRange(source, element);
+    const name: string = xmlSourceRange(source, attribute);
+    let position: number = 0;
+    while (position < arena.defaults.length) {
+        const definition: XmlDefaultIndex = copyXmlDefaultIndex(langruntime.indexStruct(arena.defaults, langruntime.checkedIndex(position), copyXmlDefaultIndex));
+        if (definition.tokenized) {
+            const expectedOwner: string = xmlOriginSpan(source, arena, definition.element, true);
+            const expectedName: string = xmlOriginSpan(source, arena, definition.name, true);
+            if (owner === expectedOwner && name === expectedName) {
+                return true;
+            }
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return false;
+}
