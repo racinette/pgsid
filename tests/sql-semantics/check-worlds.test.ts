@@ -25,6 +25,7 @@ import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 import { typeName } from '../../src/codegen/typescript/type-mapping.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { worldPurpose } from '../unit/query/world-purpose.js'
+import { worldSourceDigest } from '../../scripts/check-measurements/worlds.js'
 
 const run = promisify(execFile)
 const worldsDirectory = fileURLToPath(new URL('../unit/query/worlds/', import.meta.url))
@@ -48,6 +49,7 @@ const worlds = (await readdir(worldsDirectory, { withFileTypes: true }))
   .sort((left, right) => left.name.localeCompare(right.name))
 const cases: Case[] = []
 const checkWorlds = new Set<string>()
+const sourceDigest = await worldSourceDigest()
 for (const world of worlds) {
   if (
     worldPurpose(await readFile(join(worldsDirectory, world.name, 'schema.sql'), 'utf8')) ===
@@ -155,6 +157,8 @@ describe('world CHECK INSERT parity', () => {
   >()
   const caseResults: {
     name: string
+    schema: string
+    relation: string
     database: { accepted: boolean; constraint?: string; sqlstate?: string }
     sql: string
     checks: (Result & { postgres: OracleOutcome })[]
@@ -518,6 +522,8 @@ describe('world CHECK INSERT parity', () => {
       ).toEqual([])
     caseResults.push({
       name: item.name,
+      schema: item.schema,
+      relation: item.relation,
       database: rejected
         ? { accepted: false, constraint: rejected.constraint, sqlstate: rejected.code }
         : { accepted: true },
@@ -1659,11 +1665,19 @@ describe('world CHECK INSERT parity', () => {
       ).toBe(true)
     }
     const reportDirectory = fileURLToPath(new URL('../../artifacts/check-worlds/', import.meta.url))
+    expect(await worldSourceDigest(), 'World inputs changed during evaluation').toBe(sourceDigest)
     await mkdir(reportDirectory, { recursive: true })
     await writeFile(
       join(reportDirectory, 'report.json'),
       JSON.stringify(
-        { summary, worlds: worldStats, constraints, unexercised, cases: caseResults },
+        {
+          sourceDigest,
+          summary,
+          worlds: worldStats,
+          constraints,
+          unexercised,
+          cases: caseResults,
+        },
         null,
         2,
       ) + '\n',

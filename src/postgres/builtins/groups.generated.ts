@@ -18,7 +18,7 @@ import { PG18_TRANSACTION } from './transaction.generated.js'
 import { PG18_UUID } from './uuid.generated.js'
 import { PG18_WINDOWS } from './windows.generated.js'
 import { PG18_XML } from './xml.generated.js'
-export const PG18_BUILTINS_VERSION = 180003 as const
+export const PG18_BUILTINS_VERSION = 180006 as const
 export const PG18_BUILTIN_GROUPS: readonly BuiltinInventoryGroup[] = [
   { domain: 'aggregates', inventory: PG18_AGGREGATES },
   { domain: 'arrays', inventory: PG18_ARRAYS },
