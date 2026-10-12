@@ -15,24 +15,19 @@ collation, input-format, or PostgreSQL type coverage.
 
 Measure each boundary separately:
 
-| Evidence                                    | What it measures                                                                      |
-| ------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `artifacts/check-surface/report.json`       | Catalog overloads, operator aliases, binding probes, and uncertain corpus expressions |
-| `artifacts/check-type-audit/report.json`    | Base-type representation and basic expression preparation                             |
-| `artifacts/check-worlds/report.json`        | Actual INSERT outcomes, Unknown results, and unexercised constraints                  |
-| `artifacts/check-xml/completion-audit.json` | Evidence for the completed bounded porting effort                                     |
+| Evidence                                 | What it measures                                                                      |
+| ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| `artifacts/check-surface/report.json`    | Catalog overloads, operator aliases, binding probes, and uncertain corpus expressions |
+| `artifacts/check-type-audit/report.json` | Base-type representation and basic expression preparation                             |
+| `artifacts/check-worlds/report.json`     | Actual INSERT outcomes, Unknown results, and unexercised constraints                  |
 
-These artifacts are ignored by Git. The census producers currently also live
-under ignored `artifacts/`; preserve them in this workspace until the first task
-below makes measurement reproducible from a checkout.
+Generated artifacts are ignored by Git. The census and type-audit producers live
+under maintained `scripts/check-measurements/`.
 
 Refresh world outcomes before measuring the surface. Run from the repository root:
 
 ```bash
-pnpm check-rust:build-wasm
-pnpm exec vitest run tests/sql-semantics/check-worlds.test.ts
-node --import tsx artifacts/check-type-audit/audit.ts
-node --import tsx artifacts/check-surface/measure.ts
+pnpm check-rust:measure
 ```
 
 A prepared evaluator may return Unknown. Count useful support from binding and
@@ -40,11 +35,18 @@ executed outcomes, rather than preparation success alone. Legacy target bindings
 and catalog function counts are separate from Rust CHECK coverage; dedicated
 regex paths can work without a catalog-named implementation.
 
+The type report separates nullness from portable value representation. The
+surface report verifies live callable and cast identities, records raw/stored
+expression probes, and joins bound corpus expressions to executed world outcomes.
+Callable candidates, context requirements, new representations, and expression
+gaps remain separate. Surface measurement rejects world outcomes whose input
+fingerprint differs from the current corpus.
+
 ## Preserve the measurement tools
 
-- [ ] Move the census and type-audit producers into maintained tooling, adapting
+- [x] Move the census and type-audit producers into maintained tooling, adapting
       imports and output paths; add a documented package command.
-- [ ] Verify catalog identity checks and separate classifications for pure
+- [x] Verify catalog identity checks and separate classifications for pure
       callables, session dependencies, new representations, and expression gaps.
 
 Done when a fresh checkout can regenerate the reports without recovering scripts

@@ -40,7 +40,12 @@ export default tseslint.config(
     ],
   },
   {
-    files: ['src/**/*.ts', 'tests/**/*.ts', 'scripts/capture-check-unicode-profile.ts'],
+    files: [
+      'src/**/*.ts',
+      'tests/**/*.ts',
+      'scripts/capture-check-unicode-profile.ts',
+      'scripts/check-measurements/**/*.ts',
+    ],
     extends: [tseslint.configs.base],
     languageOptions: {
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
