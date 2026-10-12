@@ -38,8 +38,8 @@
     "scalar-observations:check": "node --import tsx scripts/generate-scalar-observations.ts --check"
   },
   "dependencies": {
-    "@electric-sql/pglite": "file:./vendor/electric-sql-pglite-0.5.8.tgz",
-    "@electric-sql/pglite-plpgsql-check": "file:./vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz",
+    "@electric-sql/pglite": "0.5.9",
+    "@electric-sql/pglite-plpgsql-check": "file:vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz",
     "chokidar": "^5.0.0",
     "decimal.js": "10.6.0",
     "fast-glob": "^3.3.3",
