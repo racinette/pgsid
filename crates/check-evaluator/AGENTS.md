@@ -108,12 +108,15 @@ import them. Keep schema-only helpers with their callables.
   Clock text input supports colon-separated forms, fractional seconds, terminal
   AM/PM and numeric offsets. Missing timetz offsets and named zones defer for
   context; other unimplemented grammar remains separately visible in input-form
-  measurements. Interval text accepts unit, clock and ISO designator forms;
+  measurements. Interval text accepts unit, clock, compact year-month and ISO designator forms;
   unit fractions and clock fractions retain their distinct rounding rules.
   General interval fields accumulate in reverse, ISO fields in input order.
   Leading-negative general forms without further signs require IntervalStyle;
-  temporal precision modifiers and unimplemented grammar defer. Typed interval
-  literals prepare before lazy branches; runtime text casts retain branch laziness.
+  interval precision modifiers and unimplemented grammar defer. Clock precision
+  rounds before preserving the end-of-day marker and numeric offsets. Date-plus-clock
+  constructors preserve fixed offsets and timestamp bounds; timestamp infinities
+  become NULL when cast to time. Typed clock and interval literals prepare before
+  lazy branches; runtime text casts retain branch laziness.
   Catalog reads normalize interval rendering and re-deparse domain defaults from
   stored expressions, restoring caller settings afterward.
   Run the clock/interval suites and shift schedule INSERT world.

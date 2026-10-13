@@ -162,7 +162,7 @@ describe('CHECK measurement boundaries', () => {
       report.inputForms.types.find((forms) => forms.type === 'pg_catalog."interval"'),
     ).toMatchObject({
       contextRequired: ['-1 day 2 hours', '-1 year 2 mons', '-1 02:03'],
-      unimplementedGrammar: ['P0001-02-03T04:05:06', '1day', 'now', '1e2 seconds'],
+      unimplementedGrammar: ['P0001-02-03T04:05:06'],
     })
     const input = report.textInput.find((entry) => entry.type === 'pg_catalog.int4')!
     expect(input.cast).toBeNull()

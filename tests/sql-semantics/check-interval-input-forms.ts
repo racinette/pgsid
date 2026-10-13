@@ -134,14 +134,45 @@ intervalInputForms.push(
   ],
 )
 
+intervalInputForms.push(
+  '1day',
+  '1day2hours',
+  '1.5months',
+  '-1day+2hours',
+  '1year2mons3days4hours5mins6.1secs',
+  '1-2',
+  '-1-2',
+  '-0-2',
+  '+1-2',
+  '1-+2',
+  '1--2',
+  '1-12',
+  '178956970-7',
+  '-178956970-8',
+  '178956971-0',
+  '1-2 years',
+  '1-2 days',
+  '1-2 3days',
+  '1-',
+  '1-2.5',
+  '@1day',
+  '1DAY',
+  'now',
+  '1e2 seconds',
+  '2usecs',
+  '2 usec',
+  '2 usecond',
+  '2 useconds',
+  '2 us',
+  '2 mseconds',
+  '2 yrs',
+  '2 microsecon',
+  '2 microsecondsX',
+)
+
 export const deferredIntervalContextForms = [
   '-1 day 2 hours',
   '-1 year 2 mons',
   '-1 02:03',
 ] as const
-export const unimplementedIntervalGrammarForms = [
-  'P0001-02-03T04:05:06',
-  '1day',
-  'now',
-  '1e2 seconds',
-] as const
+export const unimplementedIntervalGrammarForms = ['P0001-02-03T04:05:06'] as const

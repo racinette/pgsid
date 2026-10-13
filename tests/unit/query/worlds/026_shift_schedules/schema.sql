@@ -42,3 +42,17 @@ CREATE TABLE duration_imports (
   skip_import boolean NOT NULL,
   CONSTRAINT duration_import_match CHECK (CASE WHEN skip_import THEN true ELSE raw_duration::interval IS NOT DISTINCT FROM expected_duration END)
 );
+
+CREATE TABLE departure_plans (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  service_day date NOT NULL,
+  local_departure time,
+  zoned_departure timetz,
+  recorded_local timestamp,
+  recorded_instant timestamptz,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT departure_calendar_clock CHECK (CASE WHEN skip_validation THEN true ELSE service_day + local_departure IS NOT DISTINCT FROM recorded_local END),
+  CONSTRAINT departure_calendar_instant CHECK (CASE WHEN skip_validation THEN true ELSE service_day + zoned_departure IS NOT DISTINCT FROM recorded_instant END),
+  CONSTRAINT departure_clock_precision CHECK (CASE WHEN skip_validation THEN true ELSE recorded_local::time::time(3) = (local_departure + INTERVAL '0')::time(3) END)
+);

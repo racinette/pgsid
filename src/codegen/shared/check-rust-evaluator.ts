@@ -76,7 +76,7 @@ export function emitCheckRustEvaluator(
   const constantDeclarations: string[] = []
   const constantLines: string[] = []
   const literalLines: string[] = []
-  let intervalLiteralDepth = 0
+  let temporalLiteralDepth = 0
   let preparationLines = constantLines
   const preparationState = 'constant_preparation'
   let preparationDepth = 0
@@ -185,23 +185,26 @@ export function emitCheckRustEvaluator(
     used: Set<string>,
   ): { name: string; type: string } => {
     if (
-      intervalLiteralDepth === 0 &&
+      temporalLiteralDepth === 0 &&
       node.kind === 'certain' &&
       node.expression.kind === 'temporal' &&
-      node.expression.type === 'pg_catalog."interval"' &&
+      (node.expression.type === 'pg_catalog."interval"' ||
+        node.expression.type === 'pg_catalog."time"' ||
+        node.expression.type === 'pg_catalog.timetz') &&
       node.expression.value !== null
     ) {
-      intervalLiteralDepth++
+      temporalLiteralDepth++
       preparationDepth++
       let value: { name: string; type: string }
       try {
         value = emitScalar(node, literalLines, used)
       } finally {
         preparationDepth--
-        intervalLiteralDepth--
+        temporalLiteralDepth--
       }
-      const name = fresh('interval_literal')
-      constantDeclarations.push(`let mut ${name}: IntervalValue = interval_unknown();`)
+      const prefix = rustType(value.type).slice(0, -'Value'.length).toLowerCase()
+      const name = fresh(`${prefix}_literal`)
+      constantDeclarations.push(`let mut ${name}: ${rustType(value.type)} = ${prefix}_unknown();`)
       literalLines.push(`${name} = ${value.name};`)
       return { name, type: value.type }
     }

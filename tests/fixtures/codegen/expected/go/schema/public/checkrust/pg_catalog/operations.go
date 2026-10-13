@@ -17118,6 +17118,245 @@ func TimeAkgc(input checkruntime.IntervalValue) checkruntime.TimeValue {
 	}
 	return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
 }
+func clockScaleValue(input checkruntime.TimeValue, precision checkruntime.Int4Value) checkruntime.TimeValue {
+	if input.Kind == checkruntime.TimeValueError {
+		error := input.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if precision.Kind == checkruntime.Int4ValueError {
+		error := precision.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if input == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) || precision == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+	}
+	if input == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) || precision == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+	}
+	if input.Kind == checkruntime.TimeValueValue {
+		clock := input.Value
+		if precision.Kind == checkruntime.Int4ValueValue {
+			digits := langruntime.CheckedI32(precision.Value)
+			if digits < 0 || digits >= 6 {
+				return input
+			}
+			scale := int64(1)
+			remaining := 6
+			for remaining > digits {
+				scale = langruntime.CheckedI64Multiply(scale, int64(10))
+				remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+			}
+			return checkruntime.MakeTimeValue(langruntime.CheckedI64Multiply((langruntime.CheckedI64Divide((langruntime.CheckedI64Add(clock, langruntime.CheckedI64Divide(scale, int64(2)))), scale)), scale))
+		}
+	}
+	return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+}
+func TimeBg2r(input checkruntime.TimeValue, precision checkruntime.Int4Value) checkruntime.TimeValue {
+	return clockScaleValue(input, precision)
+}
+func Timetz7slr(input checkruntime.TimetzValue, precision checkruntime.Int4Value) checkruntime.TimetzValue {
+	if input.Kind == checkruntime.TimetzValueError {
+		error := input.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if precision.Kind == checkruntime.Int4ValueError {
+		error := precision.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) || precision == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+	}
+	if input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) || precision == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}
+	}
+	if input.Kind == checkruntime.TimetzValueValue {
+		clock := input.Value
+		scaled := clockScaleValue(checkruntime.MakeTimeValue(clock.Time), precision)
+		if scaled.Kind == checkruntime.TimeValueError {
+			error := scaled.Error
+			return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+		}
+		if scaled.Kind == checkruntime.TimeValueValue {
+			time := scaled.Value
+			return checkruntime.MakeTimetzValue(time, clock.Zone)
+		}
+	}
+	return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+}
+func Time3gc2(input checkruntime.TimestampValue) checkruntime.TimeValue {
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+	}
+	if input.Kind == checkruntime.TimestampValueValue {
+		timestamp := input.Value
+		if timestamp == int64(9223372036854775807) || timestamp == (int64(-9223372036854775808)) {
+			return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+		}
+		time := langruntime.CheckedI64Remainder(timestamp, int64(86400000000))
+		if time < int64(0) {
+			time = langruntime.CheckedI64Add(time, int64(86400000000))
+		}
+		return checkruntime.MakeTimeValue(time)
+	}
+	return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+}
+func Isfinite0u09(input checkruntime.IntervalValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.IntervalValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.IntervalValueValue {
+		span := input.Value
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: intervalSpecial(span) == 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func MakeTime6c3q(hour checkruntime.Int4Value, minute checkruntime.Int4Value, second checkruntime.Float8Value) checkruntime.TimeValue {
+	if hour.Kind == checkruntime.Int4ValueError {
+		error := hour.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if minute.Kind == checkruntime.Int4ValueError {
+		error := minute.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if second.Kind == checkruntime.Float8ValueError {
+		error := second.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if hour == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || minute == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || second == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+	}
+	if hour == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || minute == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || second == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+	}
+	if hour.Kind == checkruntime.Int4ValueValue {
+		h := langruntime.CheckedI32(hour.Value)
+		if minute.Kind == checkruntime.Int4ValueValue {
+			m := langruntime.CheckedI32(minute.Value)
+			if second.Kind == checkruntime.Float8ValueValue {
+				bits := second.Value
+				s := checkruntime.Float8Number(bits)
+				if h < 0 || h > 24 || m < 0 || m > 59 || s != s || s < float64(-1.0) || s > float64(61.0) {
+					return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				baseSeconds := langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(h, 60), m)), 60)
+				scaled := langruntime.F64Multiply(s, float64(1000000.0))
+				micros := langruntime.F64ToI32(scaled)
+				fraction := langruntime.F64Subtract(scaled, (float64(micros)))
+				if fraction > float64(0.5) || (fraction == float64(0.5) && langruntime.CheckedSignedRemainder(micros, 2) != 0) {
+					micros = langruntime.CheckedI32(langruntime.CheckedSignedAdd(micros, 1))
+				}
+				if fraction < float64(-0.5) || (fraction == float64(-0.5) && langruntime.CheckedSignedRemainder(micros, 2) != 0) {
+					micros = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(micros, 1))
+				}
+				time := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(baseSeconds))), int64(1000000)), (int64(langruntime.CheckedI32(micros))))
+				if micros < 0 || micros > 60000000 || time > int64(86400000000) {
+					return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				return checkruntime.MakeTimeValue(time)
+			}
+		}
+	}
+	return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+}
+func clockDateTimestamp(date checkruntime.DateValue, clock checkruntime.TimeValue) checkruntime.TimestampValue {
+	if date.Kind == checkruntime.DateValueError {
+		error := date.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if clock.Kind == checkruntime.TimeValueError {
+		error := clock.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if date == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || clock == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+	}
+	if date == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || clock == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	base := TimestampSwxj(date)
+	if base.Kind == checkruntime.TimestampValueError {
+		error := base.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if base.Kind == checkruntime.TimestampValueValue {
+		midnight := base.Value
+		if midnight == (int64(-9223372036854775808)) || midnight == int64(9223372036854775807) {
+			return base
+		}
+		if clock.Kind == checkruntime.TimeValueValue {
+			time := clock.Value
+			return checkruntime.MakeTimestampValue(langruntime.CheckedI64Add(midnight, time))
+		}
+	}
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
+func clockDateTimestamptz(date checkruntime.DateValue, clock checkruntime.TimetzValue) checkruntime.TimestamptzValue {
+	if date.Kind == checkruntime.DateValueError {
+		error := date.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if clock.Kind == checkruntime.TimetzValueError {
+		error := clock.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if date == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || clock == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+	}
+	if date == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || clock == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	base := TimestampSwxj(date)
+	if base.Kind == checkruntime.TimestampValueError {
+		error := base.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if base.Kind == checkruntime.TimestampValueValue {
+		midnight := base.Value
+		if midnight == (int64(-9223372036854775808)) || midnight == int64(9223372036854775807) {
+			return checkruntime.MakeTimestamptzValue(midnight)
+		}
+		if clock.Kind == checkruntime.TimetzValueValue {
+			time := clock.Value
+			return checkruntime.MakeTimestamptzValue(langruntime.CheckedI64Add(langruntime.CheckedI64Add(midnight, time.Time), langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(time.Zone))), int64(1000000))))
+		}
+	}
+	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+}
+func Timestamp4biu(date checkruntime.DateValue, clock checkruntime.TimeValue) checkruntime.TimestampValue {
+	return clockDateTimestamp(date, clock)
+}
+func DatetimePlWora(date checkruntime.DateValue, clock checkruntime.TimeValue) checkruntime.TimestampValue {
+	return clockDateTimestamp(date, clock)
+}
+func TimedatePlLhsk(clock checkruntime.TimeValue, date checkruntime.DateValue) checkruntime.TimestampValue {
+	if clock.Kind == checkruntime.TimeValueError {
+		error := clock.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	return clockDateTimestamp(date, clock)
+}
+func TimestamptzZcph(date checkruntime.DateValue, clock checkruntime.TimetzValue) checkruntime.TimestamptzValue {
+	return clockDateTimestamptz(date, clock)
+}
+func DatetimetzPlW8dd(date checkruntime.DateValue, clock checkruntime.TimetzValue) checkruntime.TimestamptzValue {
+	return clockDateTimestamptz(date, clock)
+}
+func TimetzdatePl1ycq(clock checkruntime.TimetzValue, date checkruntime.DateValue) checkruntime.TimestamptzValue {
+	if clock.Kind == checkruntime.TimetzValueError {
+		error := clock.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	return clockDateTimestamptz(date, clock)
+}
 func intervalSpecial(value checkruntime.IntervalPayload) int {
 	if value.Months == 2147483647 && value.Days == 2147483647 && value.Time == int64(9223372036854775807) {
 		return 1

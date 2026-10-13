@@ -40,6 +40,27 @@ fn interval_input_fail(input: IntervalInputAcc, error: u32) -> IntervalInputAcc 
     }
 }
 fn interval_input_unit(text: &str) -> i32 {
+    let letters: Vec<char> = text.chars().collect();
+    let mut prefix = String::new();
+    let mut index: usize = 0;
+    while index < letters.len() && index < 10 {
+        prefix.push(letters[index]);
+        index += 1;
+    }
+    if prefix == "microsecon"
+        || text == "usec"
+        || text == "usecond"
+        || text == "useconds"
+        || text == "usecs"
+    {
+        return 0;
+    }
+    if prefix == "millisecon" || text == "mseconds" {
+        return 1;
+    }
+    if text == "yr" || text == "yrs" {
+        return 8;
+    }
     if text == "microsecond" || text == "microseconds" || text == "us" {
         return 0;
     }
@@ -310,8 +331,9 @@ fn interval_units_from_text(input: TextValue) -> IntervalValue {
         return IntervalValue::Null;
     }
     if let TextValue::Value(text) = input {
+        let normalized = interval_input_normalized(text.as_str());
         let buffer = IntervalInputText {
-            chars: text.chars().collect(),
+            chars: normalized.chars().collect(),
         };
         if buffer.chars.len() > 255 {
             return IntervalValue::Unknown;
@@ -413,7 +435,18 @@ fn interval_units_from_text(input: TextValue) -> IntervalValue {
                 unit = found;
                 pending = true;
             } else {
-                let whole = interval_input_whole(token.as_str());
+                if token_chars.len() > 0 && interval_input_alpha(token_chars[0]) {
+                    return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
+                }
+                let mut whole = interval_input_whole(token.as_str());
+                let mut year_month = false;
+                if whole == Int8Value::Unknown {
+                    whole = interval_input_year_month(token.as_str());
+                    year_month = true;
+                }
+                if year_month {
+                    unit = 7;
+                }
                 if let Int8Value::Error(error) = whole {
                     return IntervalValue::Error(error);
                 }
@@ -788,4 +821,112 @@ pub fn interval_from_text(input: TextValue) -> IntervalValue {
         return interval_units_from_text(TextValue::Value(text));
     }
     interval_units_from_text(input)
+}
+
+fn interval_input_alpha(character: char) -> bool {
+    let code = character.to_ascii_lowercase() as i32;
+    code >= 97 && code <= 122
+}
+fn interval_input_normalized(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut index: usize = 0;
+    let mut previous: char = ' ';
+    let mut date_field = false;
+    let mut word = false;
+    let mut output = String::new();
+    while index < chars.len() {
+        let current = chars[index];
+        if date_text_space(current) {
+            date_field = false;
+            word = false;
+        }
+        if date_field && (current == '.' || current == '+') {
+            output.push(' ');
+            date_field = false;
+            word = false;
+        }
+        if current == '-' && date_text_digit(previous) >= 0 && word == false {
+            date_field = true;
+        }
+        if (date_text_digit(previous) >= 0 && interval_input_alpha(current)) || previous == '@' {
+            output.push(' ');
+            date_field = false;
+        }
+        if interval_input_alpha(current) {
+            word = true;
+        }
+        output.push(current);
+        previous = current;
+        index += 1;
+    }
+    output
+}
+fn interval_input_year_month(text: &str) -> Int8Value {
+    let chars: Vec<char> = text.chars().collect();
+    let mut index: usize = 0;
+    let mut negative = false;
+    if index < chars.len() && (chars[index] == '-' || chars[index] == '+') {
+        negative = chars[index] == '-';
+        index += 1;
+    }
+    let start = index;
+    while index < chars.len() && date_text_digit(chars[index]) >= 0 {
+        index += 1;
+    }
+    if index == start || index == chars.len() || chars[index] != '-' {
+        return Int8Value::Unknown;
+    }
+    let separator = index;
+    let mut first = String::new();
+    index = 0;
+    while index < separator {
+        first.push(chars[index]);
+        index += 1;
+    }
+    let mut second = String::new();
+    index = separator + 1;
+    while index < chars.len() {
+        if chars[index] == '.' {
+            return Int8Value::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
+        }
+        second.push(chars[index]);
+        index += 1;
+    }
+    let years = interval_input_whole(first.as_str());
+    let mut months = interval_input_whole(second.as_str());
+    if separator + 1 == chars.len() {
+        months = Int8Value::Value(0i64);
+    }
+    if let Int8Value::Error(error) = years {
+        return Int8Value::Error(error);
+    }
+    if let Int8Value::Error(error) = months {
+        return Int8Value::Error(error);
+    }
+    if let Int8Value::Value(year) = years {
+        if let Int8Value::Value(month) = months {
+            if month < 0i64
+                || month > 11i64
+                || year > 9223372036854775807i64 / 12i64
+                || year < (-9223372036854775808i64) / 12i64
+            {
+                return Int8Value::Error(make_sql_error(INTERVAL_INPUT_RANGE));
+            }
+            let product = year * 12i64;
+            let mut value = 0i64;
+            if negative {
+                if product < (-9223372036854775808i64) + month {
+                    return Int8Value::Error(make_sql_error(INTERVAL_INPUT_RANGE));
+                }
+                value = product - month;
+            } else {
+                if product > 9223372036854775807i64 - month {
+                    return Int8Value::Error(make_sql_error(INTERVAL_INPUT_RANGE));
+                }
+                value = product + month;
+            };
+            return Int8Value::Value(value);
+        }
+    }
+    Int8Value::Error(make_sql_error(INTERVAL_INPUT_SYNTAX))
 }

@@ -1096,10 +1096,48 @@ export function bindCatalogCheck(
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
+      const modifiers = castType?.['typmods']
       if (
-        (type === 'pg_catalog."time"' ||
-          type === 'pg_catalog.timetz' ||
-          type === 'pg_catalog."interval"' ||
+        (type === 'pg_catalog."time"' || type === 'pg_catalog.timetz') &&
+        Array.isArray(modifiers) &&
+        modifiers.length
+      ) {
+        if (modifiers.length !== 1) return unknown
+        const constant = fields(fields(modifiers[0])?.['A_Const'])
+        const integer = fields(constant?.['ival'])
+        const precision = integer ? (integer['ival'] ?? 0) : undefined
+        if (typeof precision !== 'number' || !Number.isInteger(precision) || precision < 0)
+          return unknown
+        const operand = bind({
+          TypeCast: {
+            ...cast,
+            typeName: { ...castType, typmods: [] },
+          },
+        })
+        const conversion = builtinCast(type, type)
+        if (!operand.value || conversion?.method !== 'f' || !conversion.implementation)
+          return unknown
+        return {
+          type,
+          value: {
+            kind: 'call',
+            call: { kind: 'function', signature: conversion.implementation, type },
+            operands: [
+              operand.value,
+              {
+                kind: 'certain',
+                expression: {
+                  kind: 'integer',
+                  type: 'pg_catalog.int4',
+                  value: String(Math.min(precision, 6)),
+                },
+              },
+            ],
+          },
+        }
+      }
+      if (
+        (type === 'pg_catalog."interval"' ||
           type === 'pg_catalog.timestamptz' ||
           type === 'pg_catalog."timestamp"' ||
           type === 'pg_catalog."numeric"') &&

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -123,6 +123,66 @@ describe('clock text input', () => {
     await runCheckParity(
       directory,
       'clockinput',
+      group,
+      constraints.map((constraint) => constraint.name),
+      fixtures,
+    )
+  }, 120_000)
+  it('prepares typed clock literals before branches while runtime text casts stay lazy', async () => {
+    await pg.exec('CREATE TABLE clock_literal_checks (skip bool, CONSTRAINT witness CHECK (skip))')
+    const catalog = await snapshotCatalog(pg)
+    const table = catalog.tables.find((table) => table.name === 'clock_literal_checks')!
+    const expressions = {
+      precision_end: "TIME(0) '23:59:59.6' = TIME '24:00'",
+      precision_zone: "TIMETZ(3) '12:34:56.1235+02' = TIMETZ '12:34:56.124+02'",
+      precision_null: 'NULL::time(3) IS NULL AND NULL::timetz(0) IS NULL',
+      invalid_clock: "CASE WHEN skip THEN true ELSE TIME '25:00' IS NULL END",
+      invalid_constant: "CASE WHEN true THEN true ELSE TIME '25:00' IS NULL END",
+      invalid_zone: "COALESCE(TIMETZ '00:00+00', TIMETZ '12:00+16') IS NULL",
+      invalid_precision_literal: "CASE WHEN skip THEN true ELSE TIME(3) '25:00' IS NULL END",
+      runtime_dead: "CASE WHEN true THEN true ELSE ('25:00'::text)::time(3) IS NULL END",
+    }
+    const constraints = Object.entries(expressions).map(([name, sql]) => ({
+      ...table.constraints[0]!,
+      name,
+      definition: `CHECK (${sql})`,
+    }))
+    const group = prepareCheckRustGroup(
+      constraints.map((constraint) => ({
+        expression: lowerTableCheck(table, constraint)!.expression,
+        identity: {
+          schema: 'public',
+          kind: 'table' as const,
+          owner: table.name,
+          constraint: constraint.name,
+        },
+      })),
+    )
+    for (const [index, check] of group.checks.entries())
+      expect(check.kind, constraints[index]!.name).toBe('supported')
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const [name, sql] of Object.entries(expressions))
+      for (const skip of [true, false]) {
+        let expected: Outcome
+        try {
+          const result = (
+            await pg.query<{ result: boolean }>(
+              `SELECT ${sql.replaceAll('skip', '$1::bool')} result`,
+              sql.includes('skip') ? [skip] : [],
+            )
+          ).rows[0]!.result
+          expected = { kind: result ? 'True' : 'False' }
+        } catch (caught) {
+          const code = (caught as { code: string }).code
+          expect(['22008', '22009']).toContain(code)
+          expected = error(code)
+        }
+        fixtures.push({ name, row: { skip: value(skip) }, expected })
+      }
+    await mkdir(join(directory, 'literals'))
+    await runCheckParity(
+      join(directory, 'literals'),
+      'clockliterals',
       group,
       constraints.map((constraint) => constraint.name),
       fixtures,
