@@ -186,12 +186,13 @@ export function emitCheckRustEvaluator(
   ): { name: string; type: string } => {
     if (
       temporalLiteralDepth === 0 &&
-      node.kind === 'certain' &&
-      node.expression.kind === 'temporal' &&
-      (node.expression.type === 'pg_catalog."interval"' ||
-        node.expression.type === 'pg_catalog."time"' ||
-        node.expression.type === 'pg_catalog.timetz') &&
-      node.expression.value !== null
+      (node.kind === 'interval-literal' ||
+        (node.kind === 'certain' &&
+          node.expression.kind === 'temporal' &&
+          (node.expression.type === 'pg_catalog."interval"' ||
+            node.expression.type === 'pg_catalog."time"' ||
+            node.expression.type === 'pg_catalog.timetz') &&
+          node.expression.value !== null))
     ) {
       temporalLiteralDepth++
       preparationDepth++
@@ -506,6 +507,35 @@ export function emitCheckRustEvaluator(
         name: bind(`bit_from_text(${ownedOperand(operand)})`),
         type: node.type,
       }
+    }
+    if (node.kind === 'interval-literal') {
+      const type = node.type
+      const conversion = builtinCast(type, type)
+      if (conversion?.method !== 'f' || !conversion.implementation)
+        throw new UnsupportedCheckRustExpression('Interval precision needs its catalog identity')
+      const metadata = builtinMetadata(conversion.implementation)
+      if (
+        metadata.kind !== 'function' ||
+        metadata.result !== type ||
+        metadata.args[0] !== type ||
+        metadata.args[1] !== 'pg_catalog.int4' ||
+        metadata.args.length !== 2
+      )
+        throw new UnsupportedCheckRustExpression('Invalid interval precision identity')
+      callables.add(metadata.rustName)
+      const text = bind(`make_text_value(${rustStringLiteral(node.value)})`)
+      const fields = bind(`make_int4_value(${Math.floor(node.modifier / 65536)})`)
+      const parsed = bind(`interval_from_text_fields(${text}, ${fields})`)
+      const modifier = bind(`make_int4_value(${node.modifier})`)
+      return { name: bind(`${metadata.rustName}(${parsed}, ${modifier})`), type }
+    }
+    if (node.kind === 'clock-to-text') {
+      const operand = emitScalar(node.operand, bindings, used)
+      if (operand.type !== 'pg_catalog."time"' && operand.type !== 'pg_catalog.timetz')
+        throw new UnsupportedCheckRustExpression('Clock output requires time or timetz')
+      const helper =
+        operand.type === 'pg_catalog."time"' ? 'clock_time_to_text' : 'clock_timetz_to_text'
+      return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
     if (node.kind === 'uuid-to-text') {
       const operand = emitScalar(node.operand, bindings, used)

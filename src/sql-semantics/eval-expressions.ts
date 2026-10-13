@@ -102,6 +102,8 @@ export type EvalExpression =
       operand: EvalExpression
     }
   | { kind: 'text-to-interval'; type: 'pg_catalog."interval"'; operand: EvalExpression }
+  | { kind: 'interval-literal'; type: 'pg_catalog."interval"'; value: string; modifier: number }
+  | { kind: 'clock-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | { kind: 'text-to-date'; type: 'pg_catalog.date'; operand: EvalExpression }
   | { kind: 'text-to-timestamp'; type: 'pg_catalog."timestamp"'; operand: EvalExpression }
   | { kind: 'text-to-timestamptz'; type: 'pg_catalog.timestamptz'; operand: EvalExpression }
@@ -253,6 +255,8 @@ export function emitEvalExpression<Ast>(
       node.kind === 'nullif' ||
       node.kind === 'minmax' ||
       node.kind === 'row-compare' ||
+      node.kind === 'interval-literal' ||
+      node.kind === 'clock-to-text' ||
       node.kind === 'text-to-interval' ||
       node.kind === 'text-to-clock' ||
       node.kind === 'text-to-date' ||

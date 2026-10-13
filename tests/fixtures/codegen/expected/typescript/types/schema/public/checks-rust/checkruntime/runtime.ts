@@ -3411,7 +3411,148 @@ export function timestamptzFromText(value: TextValue): TimestamptzValue {
 }
 const clockInputSyntax = 3452551;
 const clockInputRange = 3452552;
-function clockInputText(input: TextValue): TextValue {
+function clockGrammarNormalized(input: TextValue): TextValue {
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        let start: number = 0;
+        let end: number = chars.length;
+        while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
+            start = langruntime.checkedAdd(start, 1);
+        }
+        while (end > start && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        let position: number = start;
+        while (position < end && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(position))) >= 0) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (langruntime.checkedSubtract(position, start) >= 4 && position < end && langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "-") {
+            position = langruntime.checkedAdd(position, 1);
+            while (position < end && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(position))) >= 0) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            if (position < end && langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "-") {
+                position = langruntime.checkedAdd(position, 1);
+                while (position < end && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(position))) >= 0) {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                if (position < end && (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position))) || langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "T" || langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "t")) {
+                    if (dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position))) === false) {
+                        return { kind: "Error", value: makeSqlError(clockInputSyntax) };
+                    }
+                    let date: string = "";
+                    let index: number = start;
+                    while (index < position) {
+                        date = date + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                    const parsed: DateValue = dateFromText({ kind: "Value", value: date });
+                    if (parsed.kind === "Error") {
+                        const error: SqlError = parsed.value;
+                        return { kind: "Error", value: error };
+                    }
+                    if (equalDateValue(parsed, { kind: "Unknown" })) {
+                        return { kind: "Unknown" };
+                    }
+                    start = langruntime.checkedIndex(langruntime.checkedAdd(position, 1));
+                    while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
+                        start = langruntime.checkedAdd(start, 1);
+                    }
+                }
+            }
+        }
+        let clock: string = "";
+        let meridian: number = 0;
+        position = langruntime.checkedIndex(start);
+        while (position < end) {
+            let consumed: boolean = false;
+            const letter: string = langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
+            if (langruntime.checkedAdd(position, 1) < end && (letter === "a" || letter === "p") && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)))) === "m") {
+                let before: boolean = true;
+                let after: boolean = true;
+                if (position > start) {
+                    before = langruntime.checkedBool(dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1)))) || dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1)))) >= 0);
+                }
+                if (langruntime.checkedAdd(position, 2) < end) {
+                    after = langruntime.checkedBool(dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2)))) || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "+" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "-");
+                }
+                if (before && after) {
+                    if (!(meridian === 0)) {
+                        return { kind: "Error", value: makeSqlError(clockInputSyntax) };
+                    }
+                    meridian = langruntime.checkedI32(1);
+                    if (letter === "p") {
+                        meridian = langruntime.checkedI32(2);
+                    }
+                    position = langruntime.checkedAdd(position, 2);
+                    consumed = langruntime.checkedBool(true);
+                }
+            }
+            if (consumed === false) {
+                clock = clock + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+        const raw: string[] = Array.from(clock);
+        start = langruntime.checkedIndex(0);
+        while (start < raw.length && dateTextSpace(langruntime.indexChar(raw, langruntime.checkedIndex(start)))) {
+            start = langruntime.checkedAdd(start, 1);
+        }
+        position = langruntime.checkedIndex(start);
+        while (position < raw.length && dateTextDigit(langruntime.indexChar(raw, langruntime.checkedIndex(position))) >= 0) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        const digits: number = langruntime.checkedSubtract(position, start);
+        let normalized: string = "";
+        if ((digits === 4 || digits === 6) && (position === raw.length || !(langruntime.indexChar(raw, langruntime.checkedIndex(position)) === ":"))) {
+            normalized = normalized + langruntime.checkedChar(langruntime.indexChar(raw, langruntime.checkedIndex(start)));
+            normalized = normalized + langruntime.checkedChar(langruntime.indexChar(raw, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))));
+            normalized = normalized + langruntime.checkedChar(":");
+            normalized = normalized + langruntime.checkedChar(langruntime.indexChar(raw, langruntime.checkedIndex(langruntime.checkedAdd(start, 2))));
+            normalized = normalized + langruntime.checkedChar(langruntime.indexChar(raw, langruntime.checkedIndex(langruntime.checkedAdd(start, 3))));
+            normalized = normalized + langruntime.checkedChar(":");
+            if (digits === 6) {
+                normalized = normalized + langruntime.checkedChar(langruntime.indexChar(raw, langruntime.checkedIndex(langruntime.checkedAdd(start, 4))));
+                normalized = normalized + langruntime.checkedChar(langruntime.indexChar(raw, langruntime.checkedIndex(langruntime.checkedAdd(start, 5))));
+            }
+            else {
+                normalized = normalized + langruntime.checkedChar("0");
+                normalized = normalized + langruntime.checkedChar("0");
+            }
+        }
+        else {
+            let clockEnd: number = position;
+            if (position < raw.length && langruntime.indexChar(raw, langruntime.checkedIndex(position)) === ":") {
+                clockEnd = langruntime.checkedAdd(clockEnd, 1);
+                while (clockEnd < raw.length && dateTextDigit(langruntime.indexChar(raw, langruntime.checkedIndex(clockEnd))) >= 0) {
+                    clockEnd = langruntime.checkedAdd(clockEnd, 1);
+                }
+                if (clockEnd < raw.length && langruntime.indexChar(raw, langruntime.checkedIndex(clockEnd)) === ".") {
+                    normalized = normalized + "00:";
+                }
+            }
+            position = langruntime.checkedIndex(start);
+        }
+        while (position < raw.length) {
+            normalized = normalized + langruntime.checkedChar(langruntime.indexChar(raw, langruntime.checkedIndex(position)));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (!(meridian === 0)) {
+            normalized = normalized + langruntime.checkedChar(" ");
+            if (meridian === 1) {
+                normalized = normalized + "AM";
+            }
+            else {
+                normalized = normalized + "PM";
+            }
+        }
+        return { kind: "Value", value: normalized };
+    }
+    return input;
+}
+function clockInputText(rawInput: TextValue): TextValue {
+    const input: TextValue = clockGrammarNormalized(rawInput);
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         const text: TimestampText = { chars: Array.from(value) };
@@ -3817,7 +3958,8 @@ function intervalInputAdd(input: IntervalInputAcc, whole: bigint, fraction: numb
     }
     return { years: Number(BigInt.asIntN(32, langruntime.checkedI64(years))), months: Number(BigInt.asIntN(32, langruntime.checkedI64(months))), days: Number(BigInt.asIntN(32, langruntime.checkedI64(days))), time: micros, mask: langruntime.checkedSignedAdd(input.mask, mask), error: 0 };
 }
-function intervalUnitsFromText(input: TextValue): IntervalValue {
+function intervalUnitsFromText(input: TextValue, fieldMask: number): IntervalValue {
+    fieldMask = langruntime.checkedI32(fieldMask);
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -3874,6 +4016,21 @@ function intervalUnitsFromText(input: TextValue): IntervalValue {
         let unit: number = langruntime.checkedSignedNegate(1);
         let pending: boolean = false;
         let implicitUnit: number = 2;
+        if (fieldMask === 4) {
+            implicitUnit = langruntime.checkedI32(8);
+        }
+        if (fieldMask === 2 || fieldMask === 6) {
+            implicitUnit = langruntime.checkedI32(7);
+        }
+        if (fieldMask === 8) {
+            implicitUnit = langruntime.checkedI32(5);
+        }
+        if (fieldMask === 1024 || fieldMask === 1032) {
+            implicitUnit = langruntime.checkedI32(4);
+        }
+        if (fieldMask === 2048 || fieldMask === 3072 || fieldMask === 3080) {
+            implicitUnit = langruntime.checkedI32(3);
+        }
         let numbers: number = 0;
         let additionalSign: boolean = false;
         while (end > start) {
@@ -3893,7 +4050,7 @@ function intervalUnitsFromText(input: TextValue): IntervalValue {
                 if (pending) {
                     return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
                 }
-                acc = copyIntervalInputAcc(intervalInputClock(acc, token));
+                acc = copyIntervalInputAcc(intervalInputClock(acc, token, fieldMask));
                 if (!(acc.error === 0)) {
                     return { kind: "Error", value: makeSqlError(acc.error) };
                 }
@@ -3983,9 +4140,10 @@ function intervalClockErrorState(error: SqlError, fallback: number): number {
     }
     return error.state;
 }
-function intervalInputClock(input: IntervalInputAcc, text: string): IntervalInputAcc {
+function intervalInputClock(input: IntervalInputAcc, text: string, fieldMask: number): IntervalInputAcc {
     input = copyIntervalInputAcc(input);
     text = langruntime.checkedString(text);
+    fieldMask = langruntime.checkedI32(fieldMask);
     const buffer: IntervalInputText = { chars: Array.from(text) };
     let start: number = 0;
     let negative: boolean = false;
@@ -4070,7 +4228,7 @@ function intervalInputClock(input: IntervalInputAcc, text: string): IntervalInpu
             seconds = langruntime.checkedI64(number);
         }
     }
-    else if (secondPoint) {
+    else if (secondPoint || fieldMask === 6144) {
         seconds = langruntime.checkedI64(minutes);
         minutes = langruntime.checkedI64(hours);
         hours = langruntime.checkedI64(0n);
@@ -4248,7 +4406,26 @@ function intervalInputIso(text: string): IntervalValue {
     }
     return makeIntervalValue(Number(BigInt.asIntN(32, langruntime.checkedI64(months))), acc.days, acc.time);
 }
-export function intervalFromText(input: TextValue): IntervalValue {
+export function intervalFromTextFields(input: TextValue, fields: Int4Value): IntervalValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (fields.kind === "Error") {
+        const error: SqlError = fields.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTextValue(input, { kind: "Unknown" }) || equalInt4Value(fields, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (equalTextValue(input, { kind: "Null" }) || equalInt4Value(fields, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    let fieldMask: number = 32767;
+    if (fields.kind === "Value") {
+        const value: number = langruntime.checkedI32(fields.value);
+        fieldMask = langruntime.checkedI32(value);
+    }
     if (input.kind === "Value") {
         const text: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(text);
@@ -4262,9 +4439,9 @@ export function intervalFromText(input: TextValue): IntervalValue {
             }
             return intervalInputIso(text);
         }
-        return intervalUnitsFromText({ kind: "Value", value: text });
+        return intervalUnitsFromText({ kind: "Value", value: text }, fieldMask);
     }
-    return intervalUnitsFromText(input);
+    return intervalUnitsFromText(input, fieldMask);
 }
 function intervalInputAlpha(character: string): boolean {
     character = langruntime.checkedChar(character);
@@ -4376,6 +4553,9 @@ function intervalInputYearMonth(text: string): Int8Value {
         }
     }
     return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+}
+export function intervalFromText(input: TextValue): IntervalValue {
+    return intervalFromTextFields(input, makeInt4Value(32767));
 }
 export function andStops(left: CheckOutcome): boolean {
     if (equalCheckOutcome(left, { kind: "False" })) {

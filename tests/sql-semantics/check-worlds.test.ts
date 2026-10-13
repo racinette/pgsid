@@ -611,7 +611,26 @@ describe('world CHECK INSERT parity', () => {
       ['shift_templates', ['shift_clock_order', 'shift_duration']],
       ['service_windows', ['service_duration_bounds', 'service_duration_span']],
       ['zoned_dispatches', ['dispatch_local_clock', 'dispatch_adjustment']],
-      ['duration_imports', ['duration_import_match']],
+      [
+        'duration_imports',
+        [
+          'duration_import_match',
+          'duration_import_precision',
+          'duration_import_justify',
+          'duration_import_scale',
+        ],
+      ],
+      ['clock_imports', ['clock_import_local', 'clock_import_zoned', 'clock_import_label']],
+      [
+        'maintenance_adjustments',
+        [
+          'maintenance_parts',
+          'maintenance_precision',
+          'maintenance_day',
+          'maintenance_clock',
+          'maintenance_elapsed',
+        ],
+      ],
       [
         'departure_plans',
         ['departure_calendar_clock', 'departure_calendar_instant', 'departure_clock_precision'],

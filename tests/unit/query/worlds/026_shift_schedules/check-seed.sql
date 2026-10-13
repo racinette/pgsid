@@ -119,3 +119,96 @@ INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, 
 
 -- name: duration_import_invalid_word
 INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, 'now', '0', false);
+
+-- name: clock_import_compact
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '040506', '040506+02', '04:05:06', '04:05:06+02', '04:05:06+02', false);
+
+-- name: clock_import_fractional_minutes
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '12:30.5', '12:30.5-05:30', '00:12:30.5', '00:12:30.5-05:30', '00:12:30.5-05:30', false);
+
+-- name: clock_import_meridian
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '12:00 PM +02', '12:00PM+02', '12:00', '12:00+02', '12:00:00+02', false);
+
+-- name: clock_import_dated_clock
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '2000-02-29 12:00', '2000-02-29 12:00 PM +02', '12:00', '12:00+02', '12:00:00+02', false);
+
+-- name: clock_import_end_of_day
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '240000', '240000+00', '24:00', '24:00+00', '24:00:00+00', false);
+
+-- name: clock_import_local_mismatch
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '12:00', '12:00+02', '13:00', '12:00+02', '12:00:00+02', false);
+
+-- name: clock_import_zoned_mismatch
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '12:00', '12:00+02', '12:00', '12:00+03', '12:00:00+03', false);
+
+-- name: clock_import_label_mismatch
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '12:00', '12:00+02', '12:00', '12:00+02', '12:00:00+03', false);
+
+-- name: clock_import_invalid_calendar
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '2000-02-31 12:00', '12:00+02', '12:00', '12:00+02', '12:00:00+02', false);
+
+-- name: clock_import_invalid_separator
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '2000-01-01T12:00+02', '12:00+02', '12:00', '12:00+02', '12:00:00+02', false);
+
+-- name: clock_import_invalid_zone
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '12:00', '12:00+16', '12:00', '12:00+02', '12:00:00+02', false);
+
+-- name: clock_import_skip_invalid
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, '25:00', 'nonsense', '12:00', '12:00+02', 'unformatted', true);
+
+-- name: clock_import_null
+INSERT INTO clock_imports (id, template_id, raw_local, raw_zoned, expected_local, expected_zoned, printed_label, skip_import) VALUES (2, 1, NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: maintenance_leap_month
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 1, 0, 0, 0, 0, 0, '1 month', '2000-01-31', '2000-01-31 12:00', '2000-02-29', '2000-02-29 12:00', '29 days', false);
+
+-- name: maintenance_ordinary_month
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 1, 0, 0, 0, 0, 0, '1 month', '2001-01-31', '2001-01-31 12:00', '2001-02-28', '2001-02-28 12:00', '28 days', false);
+
+-- name: maintenance_negative_month
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, -1, 0, 0, 0, 0, 0, '-1 month', '2000-03-31', '2000-03-31 12:00', '2000-02-29', '2000-02-29 12:00', '-31 days', false);
+
+-- name: maintenance_day_and_clock
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 1, -1, 0, 0, '1 day -1 hour', '2000-01-31', '2000-01-31 12:00', '2000-01-31 23:00', '2000-02-01 11:00', '23 hours', false);
+
+-- name: maintenance_second_rounding
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 0, 0, 0, 0.0000015, '2 microseconds', '2000-01-01', '2000-01-01 12:00', '2000-01-01 00:00:00.000002', '2000-01-01 12:00:00.000002', '2 microseconds', false);
+
+-- name: maintenance_parts_mismatch
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 0, 0, 0, 0, '1 hour', '2000-01-01', '2000-01-01 12:00', '2000-01-01 01:00', '2000-01-01 13:00', '1 hour', false);
+
+-- name: maintenance_day_mismatch
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 0, 0, 0, 0, '0', '2000-01-01', '2000-01-01 12:00', '2000-01-01 01:00', '2000-01-01 12:00', '0', false);
+
+-- name: maintenance_clock_mismatch
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 0, 0, 0, 0, '0', '2000-01-01', '2000-01-01 12:00', '2000-01-01', '2000-01-01 13:00', '1 hour', false);
+
+-- name: maintenance_elapsed_mismatch
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 0, 0, 0, 0, '0', '2000-01-01', '2000-01-01 12:00', '2000-01-01', '2000-01-01 12:00', '1 hour', false);
+
+-- name: maintenance_intermediate_year_overflow
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 178956971, -12, 0, 0, 0, 0, 0, '0', '2000-01-01', '2000-01-01 12:00', '2000-01-01', '2000-01-01 12:00', '0', false);
+
+-- name: maintenance_intermediate_week_overflow
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 306783379, -7, 0, 0, 0, '0', '2000-01-01', '2000-01-01 12:00', '2000-01-01', '2000-01-01 12:00', '0', false);
+
+-- name: maintenance_float_overflow
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 0, 0, 0, 1e308::float8, '0', '2000-01-01', '2000-01-01 12:00', '2000-01-01', '2000-01-01 12:00', '0', false);
+
+-- name: maintenance_nonfinite_seconds
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 0, 0, 0, 'NaN'::float8, '0', '2000-01-01', '2000-01-01 12:00', '2000-01-01', '2000-01-01 12:00', '0', false);
+
+-- name: maintenance_timestamp_day_bound
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 0, 0, 0, 0, '0', '294277-01-01', '2000-01-01 12:00', NULL, '2000-01-01 12:00', '0', false);
+
+-- name: maintenance_timestamp_clock_bound
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 1, 0, 0, 0, '1 day', '2000-01-01', '294276-12-31 23:59:59.999999', '2000-01-02', NULL, NULL, false);
+
+-- name: maintenance_infinite_difference
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 0, 0, 0, 0, 0, 0, 0, '0', '2000-01-01', 'infinity', '2000-01-01', 'infinity', NULL, false);
+
+-- name: maintenance_skip_errors
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, 178956971, -12, 0, 0, 0, 0, 1e308::float8, '0', '294277-01-01', 'infinity', NULL, NULL, NULL, true);
+
+-- name: maintenance_null
+INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2000-01-01', NULL, NULL, NULL, NULL, false);

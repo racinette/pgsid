@@ -63,6 +63,7 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
+  if (expression.kind === 'interval-literal') return constant(expression)
   if (expression.kind === 'input' || expression.kind === 'input-null-test')
     return { constant: false, null: false, expressions: [] }
   if (expression.kind === 'regex-count')
@@ -143,6 +144,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'bit-to-text' ||
     expression.kind === 'text-to-float' ||
     expression.kind === 'text-to-bit' ||
+    expression.kind === 'clock-to-text' ||
     expression.kind === 'text-to-interval' ||
     expression.kind === 'text-to-clock' ||
     expression.kind === 'text-to-date' ||

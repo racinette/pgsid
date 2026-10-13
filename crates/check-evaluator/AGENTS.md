@@ -105,18 +105,23 @@ import them. Keep schema-only helpers with their callables.
   Infinity uses PostgreSQL's reserved component triples. Arithmetic preserves
   component overflow, infinity errors and clock wrapping. Public clock and
   interval inputs use checked payload wrappers rather than host date objects.
-  Clock text input supports colon-separated forms, fractional seconds, terminal
-  AM/PM and numeric offsets. Missing timetz offsets and named zones defer for
-  context; other unimplemented grammar remains separately visible in input-form
-  measurements. Interval text accepts unit, clock, compact year-month and ISO designator forms;
-  unit fractions and clock fractions retain their distinct rounding rules.
-  General interval fields accumulate in reverse, ISO fields in input order.
-  Leading-negative general forms without further signs require IntervalStyle;
-  interval precision modifiers and unimplemented grammar defer. Clock precision
-  rounds before preserving the end-of-day marker and numeric offsets. Date-plus-clock
-  constructors preserve fixed offsets and timestamp bounds; timestamp infinities
-  become NULL when cast to time. Typed clock and interval literals prepare before
-  lazy branches; runtime text casts retain branch laziness.
+  Clock input accepts colon-separated and compact fields, fractional two-field
+  minute/second forms, AM/PM with numeric offsets, and validated year-first dates
+  separated by whitespace. Missing timetz offsets and named zones defer for
+  context; other grammar remains separately visible in input-form measurements.
+  Clock output preserves fractional seconds and numeric offsets across DateStyle
+  settings. Interval text accepts unit, clock, compact year-month and ISO designator
+  forms; unit fractions and clock fractions retain distinct rounding rules.
+  General fields accumulate in reverse, ISO fields in input order. Leading-negative
+  general forms without further signs require IntervalStyle. Scaling cascades
+  fractional months and days downward; justification carries units upward and
+  aligns signs. Precision truncates lower fields then rounds signed fractional
+  seconds, preserving intermediate overflow. Typed interval precision controls
+  input units; runtime text casts parse with the full range before precision.
+  Calendar arithmetic clips month ends and validates each month/day/time step.
+  Date-plus-clock constructors preserve fixed offsets and timestamp bounds;
+  timestamp infinities become NULL when cast to time. Typed clock and interval
+  literals prepare before lazy branches; runtime text casts retain branch laziness.
   Catalog reads normalize interval rendering and re-deparse domain defaults from
   stored expressions, restoring caller settings afterward.
   Run the clock/interval suites and shift schedule INSERT world.

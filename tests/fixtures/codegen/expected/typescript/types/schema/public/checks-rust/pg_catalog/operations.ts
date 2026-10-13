@@ -7675,6 +7675,596 @@ export function lcm90j8(left: checkruntime.Int4Value, right: checkruntime.Int4Va
     const result: checkruntime.Int8Value = lcmWnc0(first, second);
     return int45ywh(result);
 }
+function intervalCalendarTimestamp(day: bigint, clock: bigint): checkruntime.TimestampValue {
+    day = langruntime.checkedI64(day);
+    clock = langruntime.checkedI64(clock);
+    if (day < (-2451545n) || day >= 106751983n) {
+        return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+    }
+    return checkruntime.makeTimestampValue(langruntime.checkedI64Add(langruntime.checkedI64Multiply(day, 86400000000n), clock));
+}
+function intervalCalendarAdd(input: checkruntime.TimestampValue, amount: checkruntime.IntervalValue, subtract: boolean): checkruntime.TimestampValue {
+    subtract = langruntime.checkedBool(subtract);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (amount.kind === "Error") {
+        const error: checkruntime.SqlError = amount.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(input, { kind: "Unknown" }) || checkruntime.equalIntervalValue(amount, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimestampValue(input, { kind: "Null" }) || checkruntime.equalIntervalValue(amount, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    let spanValue: checkruntime.IntervalValue = amount;
+    if (subtract) {
+        spanValue = intervalUmK6pj(amount);
+    }
+    if (spanValue.kind === "Error") {
+        const error: checkruntime.SqlError = spanValue.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const timestamp: bigint = langruntime.checkedI64(input.value);
+        if (spanValue.kind === "Value") {
+            const span: checkruntime.IntervalPayload = spanValue.value;
+            const special: number = intervalSpecial(span);
+            if (!(special === 0)) {
+                if ((special < 0 && timestamp === 9223372036854775807n) || (special > 0 && timestamp === (-9223372036854775808n))) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                if (special < 0) {
+                    return checkruntime.makeTimestampValue(-9223372036854775808n);
+                }
+                return checkruntime.makeTimestampValue(9223372036854775807n);
+            }
+            if (timestamp === (-9223372036854775808n) || timestamp === 9223372036854775807n) {
+                return input;
+            }
+            let day: bigint = langruntime.checkedI64Divide(timestamp, 86400000000n);
+            let clock: bigint = langruntime.checkedI64Remainder(timestamp, 86400000000n);
+            if (clock < 0n) {
+                day = langruntime.checkedI64(langruntime.checkedI64Subtract(day, 1n));
+                clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
+            }
+            if (!(span.months === 0)) {
+                const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(langruntime.checkedI64Add(day, 2451545n)));
+                let month: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(calendar.month))), (BigInt(langruntime.checkedI32(span.months))));
+                if (month < (-2147483648n) || month > 2147483647n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                let year: bigint = BigInt(langruntime.checkedI32(calendar.year));
+                if (month > 12n) {
+                    year = langruntime.checkedI64(langruntime.checkedI64Add(year, langruntime.checkedI64Divide((langruntime.checkedI64Subtract(month, 1n)), 12n)));
+                    month = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Subtract(month, 1n)), 12n), 1n));
+                }
+                if (month < 1n) {
+                    year = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.checkedI64Add(year, langruntime.checkedI64Divide(month, 12n)), 1n));
+                    month = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Remainder(month, 12n), 12n));
+                }
+                let maxDay: number = 31;
+                if (month === 4n || month === 6n || month === 9n || month === 11n) {
+                    maxDay = langruntime.checkedI32(30);
+                }
+                if (month === 2n) {
+                    maxDay = langruntime.checkedI32(28);
+                    if (langruntime.checkedI64Remainder(year, 4n) === 0n && (!(langruntime.checkedI64Remainder(year, 100n) === 0n) || langruntime.checkedI64Remainder(year, 400n) === 0n)) {
+                        maxDay = langruntime.checkedI32(29);
+                    }
+                }
+                let monthDay: number = calendar.day;
+                if (monthDay > maxDay) {
+                    monthDay = langruntime.checkedI32(maxDay);
+                }
+                day = langruntime.checkedI64(langruntime.checkedI64Subtract(temporalJulianFromCalendar(Number(BigInt.asIntN(32, langruntime.checkedI64(year))), Number(BigInt.asIntN(32, langruntime.checkedI64(month))), monthDay), 2451545n));
+                const monthResult: checkruntime.TimestampValue = intervalCalendarTimestamp(day, clock);
+                if (monthResult.kind === "Error") {
+                    const error: checkruntime.SqlError = monthResult.value;
+                    return { kind: "Error", value: error };
+                }
+            }
+            day = langruntime.checkedI64(langruntime.checkedI64Add(day, (BigInt(langruntime.checkedI32(span.days)))));
+            const calendarResult: checkruntime.TimestampValue = intervalCalendarTimestamp(day, clock);
+            if (calendarResult.kind === "Error") {
+                const error: checkruntime.SqlError = calendarResult.value;
+                return { kind: "Error", value: error };
+            }
+            if (calendarResult.kind === "Value") {
+                const calendarTime: bigint = langruntime.checkedI64(calendarResult.value);
+                if ((span.time > 0n && calendarTime > langruntime.checkedI64Subtract(9223372036854775807n, span.time)) || (span.time < 0n && calendarTime < langruntime.checkedI64Subtract((-9223372036854775808n), span.time))) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                const result: bigint = langruntime.checkedI64Add(calendarTime, span.time);
+                if (result === (-9223372036854775808n) || result === 9223372036854775807n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                return checkruntime.makeTimestampValue(result);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timestampPlIntervalZi2i(input: checkruntime.TimestampValue, amount: checkruntime.IntervalValue): checkruntime.TimestampValue {
+    return intervalCalendarAdd(input, amount, false);
+}
+export function timestampMiInterval71gp(input: checkruntime.TimestampValue, amount: checkruntime.IntervalValue): checkruntime.TimestampValue {
+    return intervalCalendarAdd(input, amount, true);
+}
+export function intervalPlTimestamp3uks(amount: checkruntime.IntervalValue, input: checkruntime.TimestampValue): checkruntime.TimestampValue {
+    if (amount.kind === "Error") {
+        const error: checkruntime.SqlError = amount.value;
+        return { kind: "Error", value: error };
+    }
+    return intervalCalendarAdd(input, amount, false);
+}
+function intervalCalendarDate(input: checkruntime.DateValue, amount: checkruntime.IntervalValue, subtract: boolean): checkruntime.TimestampValue {
+    subtract = langruntime.checkedBool(subtract);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (amount.kind === "Error") {
+        const error: checkruntime.SqlError = amount.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalDateValue(input, { kind: "Unknown" }) || checkruntime.equalIntervalValue(amount, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalDateValue(input, { kind: "Null" }) || checkruntime.equalIntervalValue(amount, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const timestamp: checkruntime.TimestampValue = timestampSwxj(input);
+    return intervalCalendarAdd(timestamp, amount, subtract);
+}
+export function datePlIntervalGu7h(input: checkruntime.DateValue, amount: checkruntime.IntervalValue): checkruntime.TimestampValue {
+    return intervalCalendarDate(input, amount, false);
+}
+export function dateMiInterval3eqi(input: checkruntime.DateValue, amount: checkruntime.IntervalValue): checkruntime.TimestampValue {
+    return intervalCalendarDate(input, amount, true);
+}
+export function intervalPlDateTgwh(amount: checkruntime.IntervalValue, input: checkruntime.DateValue): checkruntime.TimestampValue {
+    if (amount.kind === "Error") {
+        const error: checkruntime.SqlError = amount.value;
+        return { kind: "Error", value: error };
+    }
+    return intervalCalendarDate(input, amount, false);
+}
+export function timestampMiSntt(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.IntervalValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Null" }) || checkruntime.equalTimestampValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(right.value);
+            const low: bigint = -9223372036854775808n;
+            const high: bigint = 9223372036854775807n;
+            if ((a === low && b === low) || (a === high && b === high)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            if (a === low || b === high) {
+                return intervalInfinity(langruntime.checkedSignedNegate(1));
+            }
+            if (a === high || b === low) {
+                return intervalInfinity(1);
+            }
+            if ((b > 0n && a < langruntime.checkedI64Add(low, b)) || (b < 0n && a > langruntime.checkedI64Add(high, b))) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            return justifyHoursKx1s(checkruntime.makeIntervalValue(0, 0, langruntime.checkedI64Subtract(a, b)));
+        }
+    }
+    return { kind: "Unknown" };
+}
+function intervalCalendarLocalPayload(input: checkruntime.TimestamptzValue): checkruntime.TimestampValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestamptzValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return checkruntime.makeTimestampValue(value);
+    }
+    return { kind: "Unknown" };
+}
+export function timestamptzMiAv9n(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.IntervalValue {
+    const a: checkruntime.TimestampValue = intervalCalendarLocalPayload(left);
+    const b: checkruntime.TimestampValue = intervalCalendarLocalPayload(right);
+    return timestampMiSntt(a, b);
+}
+const intervalMathDivisionZero = 3452582;
+function intervalMathFloat(value: bigint): number {
+    value = langruntime.checkedI64(value);
+    const text: string = checkruntime.textSignedNumber(value);
+    return langruntime.f64FromText(text, 0.0);
+}
+function intervalMathRound(value: number): number {
+    value = langruntime.checkedF64(value);
+    if (!(value === value) || value >= 9007199254740992.0 || value <= -9007199254740992.0) {
+        return value;
+    }
+    const rounded: checkruntime.Int8Value = float8Integer(checkruntime.makeFloat8Value(value));
+    if (rounded.kind === "Value") {
+        const integer: bigint = langruntime.checkedI64(rounded.value);
+        return intervalMathFloat(integer);
+    }
+    return value;
+}
+function intervalMathTsround(value: number): number {
+    value = langruntime.checkedF64(value);
+    return langruntime.f64Divide(intervalMathRound(langruntime.f64Multiply(value, 1000000.0)), 1000000.0);
+}
+function intervalScaled(input: checkruntime.IntervalValue, factor: checkruntime.Float8Value, divide: boolean): checkruntime.IntervalValue {
+    divide = langruntime.checkedBool(divide);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (factor.kind === "Error") {
+        const error: checkruntime.SqlError = factor.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(input, { kind: "Unknown" }) || checkruntime.equalFloat8Value(factor, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalIntervalValue(input, { kind: "Null" }) || checkruntime.equalFloat8Value(factor, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const span: checkruntime.IntervalPayload = input.value;
+        if (factor.kind === "Value") {
+            const bits: bigint = langruntime.checkedI64(factor.value);
+            const number: number = checkruntime.float8Number(bits);
+            if (divide && number === 0.0) {
+                return { kind: "Error", value: checkruntime.makeSqlError(intervalMathDivisionZero) };
+            }
+            if (!(number === number)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            const infiniteFactor: boolean = langruntime.f64Abs(number) === checkruntime.float8Number(9218868437227405312n);
+            const special: number = intervalSpecial(span);
+            if (!(special === 0)) {
+                if ((divide && infiniteFactor) || (divide === false && number === 0.0)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                if (number < 0.0) {
+                    return intervalInfinity(langruntime.checkedSignedSubtract(0, special));
+                }
+                return input;
+            }
+            if (divide === false && infiniteFactor) {
+                const sign: number = intervalOrder(span, { months: 0, days: 0, time: 0n });
+                if (sign === 0) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                if (langruntime.f64Multiply(number, (Number(langruntime.checkedI32(sign)))) < 0.0) {
+                    return intervalInfinity(langruntime.checkedSignedNegate(1));
+                }
+                return intervalInfinity(1);
+            }
+            let monthNumber: number = langruntime.f64Multiply((Number(langruntime.checkedI32(span.months))), number);
+            let dayNumber: number = langruntime.f64Multiply((Number(langruntime.checkedI32(span.days))), number);
+            let timeNumber: number = langruntime.f64Multiply(intervalMathFloat(span.time), number);
+            if (divide) {
+                monthNumber = langruntime.checkedF64(langruntime.f64Divide((Number(langruntime.checkedI32(span.months))), number));
+                dayNumber = langruntime.checkedF64(langruntime.f64Divide((Number(langruntime.checkedI32(span.days))), number));
+                timeNumber = langruntime.checkedF64(langruntime.f64Divide(intervalMathFloat(span.time), number));
+            }
+            if (!(monthNumber === monthNumber) || monthNumber < -2147483648.0 || monthNumber >= 2147483648.0 || !(dayNumber === dayNumber) || dayNumber < -2147483648.0 || dayNumber >= 2147483648.0) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            const months: number = langruntime.f64ToI32(monthNumber);
+            let days: bigint = BigInt(langruntime.checkedI32((langruntime.f64ToI32(dayNumber))));
+            const monthDays: number = intervalMathTsround(langruntime.f64Multiply((langruntime.f64Subtract(monthNumber, (Number(langruntime.checkedI32(months))))), 30.0));
+            let seconds: number = intervalMathTsround(langruntime.f64Multiply((langruntime.f64Subtract(langruntime.f64Add(langruntime.f64Subtract(dayNumber, (Number(langruntime.checkedI32((Number(BigInt.asIntN(32, langruntime.checkedI64(days)))))))), monthDays), (Number(langruntime.checkedI32((langruntime.f64ToI32(monthDays))))))), 86400.0));
+            if (langruntime.f64Abs(seconds) >= 86400.0) {
+                const carry: number = langruntime.f64ToI32((langruntime.f64Divide(seconds, 86400.0)));
+                days = langruntime.checkedI64(langruntime.checkedI64Add(days, (BigInt(langruntime.checkedI32(carry)))));
+                if (days < (-2147483648n) || days > 2147483647n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                seconds = langruntime.checkedF64(langruntime.f64Subtract(seconds, langruntime.f64Multiply((Number(langruntime.checkedI32(carry))), 86400.0)));
+            }
+            days = langruntime.checkedI64(langruntime.checkedI64Add(days, (BigInt(langruntime.checkedI32((langruntime.f64ToI32(monthDays)))))));
+            if (days < (-2147483648n) || days > 2147483647n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            const time: number = intervalMathRound(langruntime.f64Add(timeNumber, langruntime.f64Multiply(seconds, 1000000.0)));
+            if (!(time === time) || time < -9223372036854775808.0 || time >= 9223372036854775808.0) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            const rounded: checkruntime.Int8Value = float8Integer(checkruntime.makeFloat8Value(time));
+            if (rounded.kind === "Value") {
+                const micros: bigint = langruntime.checkedI64(rounded.value);
+                const result: checkruntime.IntervalPayload = { months: months, days: Number(BigInt.asIntN(32, langruntime.checkedI64(days))), time: micros };
+                if (!(intervalSpecial(result) === 0)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                return checkruntime.makeIntervalValue(result.months, result.days, result.time);
+            }
+            return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function intervalMul3jtg(input: checkruntime.IntervalValue, factor: checkruntime.Float8Value): checkruntime.IntervalValue {
+    return intervalScaled(input, factor, false);
+}
+export function intervalDivFazu(input: checkruntime.IntervalValue, factor: checkruntime.Float8Value): checkruntime.IntervalValue {
+    return intervalScaled(input, factor, true);
+}
+export function mulDIntervalUgtb(factor: checkruntime.Float8Value, input: checkruntime.IntervalValue): checkruntime.IntervalValue {
+    if (factor.kind === "Error") {
+        const error: checkruntime.SqlError = factor.value;
+        return { kind: "Error", value: error };
+    }
+    return intervalScaled(input, factor, false);
+}
+function intervalJustified(input: checkruntime.IntervalValue, mode: number): checkruntime.IntervalValue {
+    mode = langruntime.checkedI32(mode);
+    if (input.kind === "Value") {
+        const span: checkruntime.IntervalPayload = input.value;
+        if (!(intervalSpecial(span) === 0)) {
+            return input;
+        }
+        let months: bigint = BigInt(langruntime.checkedI32(span.months));
+        let days: bigint = BigInt(langruntime.checkedI32(span.days));
+        let time: bigint = span.time;
+        if (mode === 2 && ((days > 0n && time > 0n) || (days < 0n && time < 0n))) {
+            months = langruntime.checkedI64(langruntime.checkedI64Add(months, langruntime.checkedI64Divide(days, 30n)));
+            days = langruntime.checkedI64(langruntime.checkedI64Remainder(days, 30n));
+            if (months < (-2147483648n) || months > 2147483647n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+        }
+        if (!(mode === 1)) {
+            days = langruntime.checkedI64(langruntime.checkedI64Add(days, langruntime.checkedI64Divide(time, 86400000000n)));
+            time = langruntime.checkedI64(langruntime.checkedI64Remainder(time, 86400000000n));
+            if (days < (-2147483648n) || days > 2147483647n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+        }
+        if (!(mode === 0)) {
+            months = langruntime.checkedI64(langruntime.checkedI64Add(months, langruntime.checkedI64Divide(days, 30n)));
+            days = langruntime.checkedI64(langruntime.checkedI64Remainder(days, 30n));
+            if (months < (-2147483648n) || months > 2147483647n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            if (months > 0n && (days < 0n || (mode === 2 && days === 0n && time < 0n))) {
+                months = langruntime.checkedI64(langruntime.checkedI64Subtract(months, 1n));
+                days = langruntime.checkedI64(langruntime.checkedI64Add(days, 30n));
+            }
+            if (months < 0n && (days > 0n || (mode === 2 && days === 0n && time > 0n))) {
+                months = langruntime.checkedI64(langruntime.checkedI64Add(months, 1n));
+                days = langruntime.checkedI64(langruntime.checkedI64Subtract(days, 30n));
+            }
+        }
+        if (!(mode === 1)) {
+            if (days > 0n && time < 0n) {
+                days = langruntime.checkedI64(langruntime.checkedI64Subtract(days, 1n));
+                time = langruntime.checkedI64(langruntime.checkedI64Add(time, 86400000000n));
+            }
+            if (days < 0n && time > 0n) {
+                days = langruntime.checkedI64(langruntime.checkedI64Add(days, 1n));
+                time = langruntime.checkedI64(langruntime.checkedI64Subtract(time, 86400000000n));
+            }
+        }
+        return checkruntime.makeIntervalValue(Number(BigInt.asIntN(32, langruntime.checkedI64(months))), Number(BigInt.asIntN(32, langruntime.checkedI64(days))), time);
+    }
+    return input;
+}
+export function justifyHoursKx1s(input: checkruntime.IntervalValue): checkruntime.IntervalValue {
+    return intervalJustified(input, 0);
+}
+export function justifyDaysNeyk(input: checkruntime.IntervalValue): checkruntime.IntervalValue {
+    return intervalJustified(input, 1);
+}
+export function justifyInterval0aek(input: checkruntime.IntervalValue): checkruntime.IntervalValue {
+    return intervalJustified(input, 2);
+}
+const intervalMathParameter = 3452619;
+const intervalMathInternal = 56966976;
+export function intervalDrcl(input: checkruntime.IntervalValue, modifier: checkruntime.Int4Value): checkruntime.IntervalValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (modifier.kind === "Error") {
+        const error: checkruntime.SqlError = modifier.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(modifier, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalIntervalValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(modifier, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const span: checkruntime.IntervalPayload = input.value;
+        if (modifier.kind === "Value") {
+            const typmod: number = langruntime.checkedI32(modifier.value);
+            if (!(intervalSpecial(span) === 0) || typmod < 0) {
+                return input;
+            }
+            const fieldMask: number = langruntime.checkedSignedDivide(typmod, 65536);
+            const precision: number = langruntime.checkedSignedRemainder(typmod, 65536);
+            let months: number = span.months;
+            let days: number = span.days;
+            let time: bigint = span.time;
+            if (fieldMask === 4) {
+                months = langruntime.checkedI32(langruntime.checkedSignedMultiply((langruntime.checkedSignedDivide(months, 12)), 12));
+                days = langruntime.checkedI32(0);
+                time = langruntime.checkedI64(0n);
+            }
+            else if (fieldMask === 2 || fieldMask === 6) {
+                days = langruntime.checkedI32(0);
+                time = langruntime.checkedI64(0n);
+            }
+            else if (fieldMask === 8) {
+                time = langruntime.checkedI64(0n);
+            }
+            else if (fieldMask === 1024 || fieldMask === 1032) {
+                time = langruntime.checkedI64(langruntime.checkedI64Multiply((langruntime.checkedI64Divide(time, 3600000000n)), 3600000000n));
+            }
+            else if (fieldMask === 2048 || fieldMask === 3080 || fieldMask === 3072) {
+                time = langruntime.checkedI64(langruntime.checkedI64Multiply((langruntime.checkedI64Divide(time, 60000000n)), 60000000n));
+            }
+            else if (!(fieldMask === 32767) && !(fieldMask === 4096) && !(fieldMask === 7176) && !(fieldMask === 7168) && !(fieldMask === 6144)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(intervalMathInternal) };
+            }
+            if (!(precision === 65535)) {
+                if (precision > 6) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(intervalMathParameter) };
+                }
+                let scale: bigint = 1n;
+                let digits: number = 6;
+                while (digits > precision) {
+                    scale = langruntime.checkedI64(langruntime.checkedI64Multiply(scale, 10n));
+                    digits = langruntime.checkedI32(langruntime.checkedSignedSubtract(digits, 1));
+                }
+                const offset: bigint = langruntime.checkedI64Divide(scale, 2n);
+                if (time >= 0n) {
+                    if (time > langruntime.checkedI64Subtract(9223372036854775807n, offset)) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                    }
+                    time = langruntime.checkedI64(langruntime.checkedI64Add(time, offset));
+                }
+                else {
+                    if (time < langruntime.checkedI64Add((-9223372036854775808n), offset)) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                    }
+                    time = langruntime.checkedI64(langruntime.checkedI64Subtract(time, offset));
+                }
+                time = langruntime.checkedI64(langruntime.checkedI64Subtract(time, langruntime.checkedI64Remainder(time, scale)));
+            }
+            return checkruntime.makeIntervalValue(months, days, time);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function makeIntervalNlc1(years: checkruntime.Int4Value, months: checkruntime.Int4Value, weeks: checkruntime.Int4Value, days: checkruntime.Int4Value, hours: checkruntime.Int4Value, minutes: checkruntime.Int4Value, seconds: checkruntime.Float8Value): checkruntime.IntervalValue {
+    if (years.kind === "Error") {
+        const error: checkruntime.SqlError = years.value;
+        return { kind: "Error", value: error };
+    }
+    if (months.kind === "Error") {
+        const error: checkruntime.SqlError = months.value;
+        return { kind: "Error", value: error };
+    }
+    if (weeks.kind === "Error") {
+        const error: checkruntime.SqlError = weeks.value;
+        return { kind: "Error", value: error };
+    }
+    if (days.kind === "Error") {
+        const error: checkruntime.SqlError = days.value;
+        return { kind: "Error", value: error };
+    }
+    if (hours.kind === "Error") {
+        const error: checkruntime.SqlError = hours.value;
+        return { kind: "Error", value: error };
+    }
+    if (minutes.kind === "Error") {
+        const error: checkruntime.SqlError = minutes.value;
+        return { kind: "Error", value: error };
+    }
+    if (seconds.kind === "Error") {
+        const error: checkruntime.SqlError = seconds.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(years, { kind: "Unknown" }) || checkruntime.equalInt4Value(months, { kind: "Unknown" }) || checkruntime.equalInt4Value(weeks, { kind: "Unknown" }) || checkruntime.equalInt4Value(days, { kind: "Unknown" }) || checkruntime.equalInt4Value(hours, { kind: "Unknown" }) || checkruntime.equalInt4Value(minutes, { kind: "Unknown" }) || checkruntime.equalFloat8Value(seconds, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(years, { kind: "Null" }) || checkruntime.equalInt4Value(months, { kind: "Null" }) || checkruntime.equalInt4Value(weeks, { kind: "Null" }) || checkruntime.equalInt4Value(days, { kind: "Null" }) || checkruntime.equalInt4Value(hours, { kind: "Null" }) || checkruntime.equalInt4Value(minutes, { kind: "Null" }) || checkruntime.equalFloat8Value(seconds, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    let y: number = 0;
+    let mon: number = 0;
+    let w: number = 0;
+    let d: number = 0;
+    let h: number = 0;
+    let min: number = 0;
+    let sec: number = 0.0;
+    if (years.kind === "Value") {
+        const n: number = langruntime.checkedI32(years.value);
+        y = langruntime.checkedI32(n);
+    }
+    if (months.kind === "Value") {
+        const n: number = langruntime.checkedI32(months.value);
+        mon = langruntime.checkedI32(n);
+    }
+    if (weeks.kind === "Value") {
+        const n: number = langruntime.checkedI32(weeks.value);
+        w = langruntime.checkedI32(n);
+    }
+    if (days.kind === "Value") {
+        const n: number = langruntime.checkedI32(days.value);
+        d = langruntime.checkedI32(n);
+    }
+    if (hours.kind === "Value") {
+        const n: number = langruntime.checkedI32(hours.value);
+        h = langruntime.checkedI32(n);
+    }
+    if (minutes.kind === "Value") {
+        const n: number = langruntime.checkedI32(minutes.value);
+        min = langruntime.checkedI32(n);
+    }
+    if (seconds.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(seconds.value);
+        sec = langruntime.checkedF64(checkruntime.float8Number(bits));
+    }
+    if (!(sec === sec) || langruntime.f64Abs(sec) === checkruntime.float8Number(9218868437227405312n)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+    }
+    let resultMonths: bigint = langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(y))), 12n);
+    let resultDays: bigint = langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(w))), 7n);
+    if (resultMonths < (-2147483648n) || resultMonths > 2147483647n || resultDays < (-2147483648n) || resultDays > 2147483647n) {
+        return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+    }
+    resultMonths = langruntime.checkedI64(langruntime.checkedI64Add(resultMonths, (BigInt(langruntime.checkedI32(mon)))));
+    resultDays = langruntime.checkedI64(langruntime.checkedI64Add(resultDays, (BigInt(langruntime.checkedI32(d)))));
+    if (resultMonths < (-2147483648n) || resultMonths > 2147483647n || resultDays < (-2147483648n) || resultDays > 2147483647n) {
+        return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+    }
+    const baseTime: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(h))), 3600000000n), langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(min))), 60000000n));
+    const scaled: checkruntime.Float8Value = float8mulD3nd(seconds, checkruntime.makeFloat8Value(1000000.0));
+    if (scaled.kind === "Error") {
+        const error: checkruntime.SqlError = scaled.value;
+        return { kind: "Error", value: error };
+    }
+    if (scaled.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(scaled.value);
+        const rounded: checkruntime.Int8Value = float8Integer(checkruntime.makeFloat8Bits(bits));
+        if (rounded.kind === "Value") {
+            const micros: bigint = langruntime.checkedI64(rounded.value);
+            if ((micros > 0n && baseTime > langruntime.checkedI64Subtract(9223372036854775807n, micros)) || (micros < 0n && baseTime < langruntime.checkedI64Subtract((-9223372036854775808n), micros))) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            const result: checkruntime.IntervalPayload = { months: Number(BigInt.asIntN(32, langruntime.checkedI64(resultMonths))), days: Number(BigInt.asIntN(32, langruntime.checkedI64(resultDays))), time: langruntime.checkedI64Add(baseTime, micros) };
+            if (!(intervalSpecial(result) === 0)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            return checkruntime.makeIntervalValue(result.months, result.days, result.time);
+        }
+    }
+    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+}
 const macConversionOutOfRange = 3452547;
 function macaddrCompare(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.Int4Value {
     if (left.kind === "Error") {
@@ -17770,6 +18360,92 @@ export function intervalSmallerNs56(left: checkruntime.IntervalValue, right: che
             return left;
         }
         return right;
+    }
+    return { kind: "Unknown" };
+}
+function clockOutputPair(value: number): string {
+    value = langruntime.checkedI32(value);
+    let output: string = "";
+    if (value < 10) {
+        output = output + langruntime.checkedChar("0");
+    }
+    const number: string = checkruntime.textNumber(value, 10);
+    output = output + number;
+    return output;
+}
+function clockOutputTime(time: bigint): string {
+    time = langruntime.checkedI64(time);
+    const hour: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(time, 3600000000n)))));
+    const minute: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder((langruntime.checkedI64Divide(time, 60000000n)), 60n)))));
+    const second: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder((langruntime.checkedI64Divide(time, 1000000n)), 60n)))));
+    let fraction: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(time, 1000000n)))));
+    let output: string = clockOutputPair(hour);
+    output = output + langruntime.checkedChar(":");
+    const minutes: string = clockOutputPair(minute);
+    output = output + minutes;
+    output = output + langruntime.checkedChar(":");
+    const seconds: string = clockOutputPair(second);
+    output = output + seconds;
+    if (!(fraction === 0)) {
+        output = output + langruntime.checkedChar(".");
+        let divisor: number = 100000;
+        while (fraction > 0) {
+            const digit: string = checkruntime.textNumber(langruntime.checkedSignedDivide(fraction, divisor), 10);
+            output = output + digit;
+            fraction = langruntime.checkedI32(langruntime.checkedSignedRemainder(fraction, divisor));
+            divisor = langruntime.checkedI32(langruntime.checkedSignedDivide(divisor, 10));
+        }
+    }
+    return output;
+}
+export function clockTimeToText(input: checkruntime.TimeValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimeValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const time: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: clockOutputTime(time) };
+    }
+    return { kind: "Unknown" };
+}
+export function clockTimetzToText(input: checkruntime.TimetzValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimetzValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const time: checkruntime.TimetzPayload = input.value;
+        let output: string = clockOutputTime(time.time);
+        let offset: number = time.zone;
+        if (offset > 0) {
+            output = output + langruntime.checkedChar("-");
+        }
+        else {
+            output = output + langruntime.checkedChar("+");
+            offset = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, offset));
+        }
+        const hour: string = clockOutputPair(langruntime.checkedSignedDivide(offset, 3600));
+        const minute: number = langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(offset, 60)), 60);
+        const second: number = langruntime.checkedSignedRemainder(offset, 60);
+        output = output + hour;
+        if (!(minute === 0) || !(second === 0)) {
+            output = output + langruntime.checkedChar(":");
+            const minutes: string = clockOutputPair(minute);
+            output = output + minutes;
+            if (!(second === 0)) {
+                output = output + langruntime.checkedChar(":");
+                const seconds: string = clockOutputPair(second);
+                output = output + seconds;
+            }
+        }
+        return { kind: "Value", value: output };
     }
     return { kind: "Unknown" };
 }

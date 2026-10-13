@@ -517,9 +517,22 @@ const candidate = (
   args: readonly Bound[],
   bindDefault?: (node: unknown) => Bound,
 ): ResolvedCallable | null => {
-  if (args.some((arg) => arg.type === 'pg_catalog.float4' || arg.type === 'pg_catalog.float8'))
+  const hasOmittedDefaults =
+    kind === 'function' &&
+    callables.some(
+      ({ item }) =>
+        item.kind === 'function' &&
+        item.schema === 'pg_catalog' &&
+        item.name === name &&
+        item.args.length > args.length &&
+        item.args.length - args.length <= item.numArgDefaults,
+    )
+  if (
+    !hasOmittedDefaults &&
+    args.some((arg) => arg.type === 'pg_catalog.float4' || arg.type === 'pg_catalog.float8')
+  )
     return comparisonCandidate(args, name, true, kind, false)
-  const integer = integerCandidate(kind, name, args)
+  const integer = hasOmittedDefaults ? undefined : integerCandidate(kind, name, args)
   if (integer !== undefined) return integer
   const matches = callables.flatMap(({ signature, item }) => {
     if (
@@ -537,7 +550,12 @@ const candidate = (
       if (missing > item.numArgDefaults) return []
       const defaults = builtinDefaultArguments(item)
       if (!defaults) return []
-      const expanded = defaults.slice(defaults.length - missing).map((node) => bindDefault(node))
+      const expanded = defaults.slice(defaults.length - missing).map((node, index) => {
+        const bound = bindDefault(node)
+        const type = catalogScalarType(item.args[args.length + index]!)
+        const value = type ? implicitOperand(bound, type) : null
+        return value && type ? { ...bound, type, value, literal: undefined } : bound
+      })
       if (expanded.some((arg) => !arg.value && !arg.literal)) return []
       fullArgs = [...args, ...expanded]
     }
@@ -1097,6 +1115,51 @@ export function bindCatalogCheck(
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
       const modifiers = castType?.['typmods']
+      if (type === 'pg_catalog."interval"' && Array.isArray(modifiers) && modifiers.length) {
+        if (modifiers.length > 2) return unknown
+        const values = modifiers.map((modifier) => {
+          const integer = fields(fields(fields(modifier)?.['A_Const'])?.['ival'])
+          return integer ? (integer['ival'] ?? 0) : undefined
+        })
+        const range = values[0]
+        const precision = values.length === 2 ? values[1] : 65535
+        if (
+          typeof range !== 'number' ||
+          !Number.isInteger(range) ||
+          ![4, 2, 6, 8, 1024, 1032, 2048, 3072, 3080, 32767, 4096, 6144, 7168, 7176].includes(
+            range,
+          ) ||
+          typeof precision !== 'number' ||
+          !Number.isInteger(precision) ||
+          precision < 0
+        )
+          return unknown
+        const modifier = range * 65536 + (precision === 65535 ? 65535 : Math.min(precision, 6))
+        const original = bind(cast['arg'])
+        if (original.literal?.kind === 'string' && original.literal.value !== null)
+          return {
+            type,
+            value: { kind: 'interval-literal', type, value: original.literal.value, modifier },
+          }
+        const operand = bind({ TypeCast: { ...cast, typeName: { ...castType, typmods: [] } } })
+        const conversion = builtinCast(type, type)
+        if (!operand.value || conversion?.method !== 'f' || !conversion.implementation)
+          return unknown
+        return {
+          type,
+          value: {
+            kind: 'call',
+            call: { kind: 'function', signature: conversion.implementation, type },
+            operands: [
+              operand.value,
+              {
+                kind: 'certain',
+                expression: { kind: 'integer', type: 'pg_catalog.int4', value: String(modifier) },
+              },
+            ],
+          },
+        }
+      }
       if (
         (type === 'pg_catalog."time"' || type === 'pg_catalog.timetz') &&
         Array.isArray(modifiers) &&
@@ -1147,6 +1210,16 @@ export function bindCatalogCheck(
         return unknown
       let operand = bind(cast['arg'])
       const source = boundType(operand)
+      if (
+        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&
+        (source === 'pg_catalog."time"' || source === 'pg_catalog.timetz') &&
+        operand.value
+      )
+        operand = {
+          type: 'pg_catalog.text',
+          collation: defaultCollation,
+          value: { kind: 'clock-to-text', type: 'pg_catalog.text', operand: operand.value },
+        }
       if (
         ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&
         (isIntegerType(source) || operand.enum)

@@ -3267,7 +3267,145 @@ func TimestamptzFromText(value TextValue) TimestamptzValue {
 const clockInputSyntax = 3452551
 const clockInputRange = 3452552
 
-func clockInputText(input TextValue) TextValue {
+func clockGrammarNormalized(input TextValue) TextValue {
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		start := 0
+		end := len(chars)
+		for start < end && dateTextSpace(chars[start]) {
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		for end > start && dateTextSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		position := start
+		for position < end && dateTextDigit(chars[position]) >= 0 {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if langruntime.CheckedSubtract(position, start) >= 4 && position < end && chars[position] == '-' {
+			position = langruntime.CheckedAdd(position, 1)
+			for position < end && dateTextDigit(chars[position]) >= 0 {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			if position < end && chars[position] == '-' {
+				position = langruntime.CheckedAdd(position, 1)
+				for position < end && dateTextDigit(chars[position]) >= 0 {
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				if position < end && (dateTextSpace(chars[position]) || chars[position] == 'T' || chars[position] == 't') {
+					if dateTextSpace(chars[position]) == false {
+						return TextValue{Kind: TextValueError, Error: MakeSqlError(clockInputSyntax)}
+					}
+					date := langruntime.NewTextBuffer("")
+					index := start
+					for index < position {
+						date = append(date, string(langruntime.CheckedChar(chars[index]))...)
+						index = langruntime.CheckedAdd(index, 1)
+					}
+					parsed := DateFromText(TextValue{Kind: TextValueValue, Value: string(date)})
+					if parsed.Kind == DateValueError {
+						error := parsed.Error
+						return TextValue{Kind: TextValueError, Error: error}
+					}
+					if parsed == (DateValue{Kind: DateValueUnknown}) {
+						return TextValue{Kind: TextValueUnknown}
+					}
+					start = langruntime.CheckedIndex(langruntime.CheckedAdd(position, 1))
+					for start < end && dateTextSpace(chars[start]) {
+						start = langruntime.CheckedAdd(start, 1)
+					}
+				}
+			}
+		}
+		clock := langruntime.NewTextBuffer("")
+		meridian := 0
+		position = langruntime.CheckedIndex(start)
+		for position < end {
+			consumed := false
+			letter := langruntime.AsciiLowercase(chars[position])
+			if langruntime.CheckedAdd(position, 1) < end && (letter == 'a' || letter == 'p') && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(position, 1)]) == 'm' {
+				before := true
+				after := true
+				if position > start {
+					before = dateTextSpace(chars[langruntime.CheckedSubtract(position, 1)]) || dateTextDigit(chars[langruntime.CheckedSubtract(position, 1)]) >= 0
+				}
+				if langruntime.CheckedAdd(position, 2) < end {
+					after = dateTextSpace(chars[langruntime.CheckedAdd(position, 2)]) || chars[langruntime.CheckedAdd(position, 2)] == '+' || chars[langruntime.CheckedAdd(position, 2)] == '-'
+				}
+				if before && after {
+					if meridian != 0 {
+						return TextValue{Kind: TextValueError, Error: MakeSqlError(clockInputSyntax)}
+					}
+					meridian = langruntime.CheckedI32(1)
+					if letter == 'p' {
+						meridian = langruntime.CheckedI32(2)
+					}
+					position = langruntime.CheckedAdd(position, 2)
+					consumed = true
+				}
+			}
+			if consumed == false {
+				clock = append(clock, string(langruntime.CheckedChar(chars[position]))...)
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
+		raw := []rune(string(clock))
+		start = langruntime.CheckedIndex(0)
+		for start < len(raw) && dateTextSpace(raw[start]) {
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		position = langruntime.CheckedIndex(start)
+		for position < len(raw) && dateTextDigit(raw[position]) >= 0 {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		digits := langruntime.CheckedSubtract(position, start)
+		normalized := langruntime.NewTextBuffer("")
+		if (digits == 4 || digits == 6) && (position == len(raw) || raw[position] != ':') {
+			normalized = append(normalized, string(langruntime.CheckedChar(raw[start]))...)
+			normalized = append(normalized, string(langruntime.CheckedChar(raw[langruntime.CheckedAdd(start, 1)]))...)
+			normalized = append(normalized, string(langruntime.CheckedChar(':'))...)
+			normalized = append(normalized, string(langruntime.CheckedChar(raw[langruntime.CheckedAdd(start, 2)]))...)
+			normalized = append(normalized, string(langruntime.CheckedChar(raw[langruntime.CheckedAdd(start, 3)]))...)
+			normalized = append(normalized, string(langruntime.CheckedChar(':'))...)
+			if digits == 6 {
+				normalized = append(normalized, string(langruntime.CheckedChar(raw[langruntime.CheckedAdd(start, 4)]))...)
+				normalized = append(normalized, string(langruntime.CheckedChar(raw[langruntime.CheckedAdd(start, 5)]))...)
+			} else {
+				normalized = append(normalized, string(langruntime.CheckedChar('0'))...)
+				normalized = append(normalized, string(langruntime.CheckedChar('0'))...)
+			}
+		} else {
+			clockEnd := position
+			if position < len(raw) && raw[position] == ':' {
+				clockEnd = langruntime.CheckedAdd(clockEnd, 1)
+				for clockEnd < len(raw) && dateTextDigit(raw[clockEnd]) >= 0 {
+					clockEnd = langruntime.CheckedAdd(clockEnd, 1)
+				}
+				if clockEnd < len(raw) && raw[clockEnd] == '.' {
+					normalized = append(normalized, "00:"...)
+				}
+			}
+			position = langruntime.CheckedIndex(start)
+		}
+		for position < len(raw) {
+			normalized = append(normalized, string(langruntime.CheckedChar(raw[position]))...)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if meridian != 0 {
+			normalized = append(normalized, string(langruntime.CheckedChar(' '))...)
+			if meridian == 1 {
+				normalized = append(normalized, "AM"...)
+			} else {
+				normalized = append(normalized, "PM"...)
+			}
+		}
+		return TextValue{Kind: TextValueValue, Value: string(normalized)}
+	}
+	return input
+}
+func clockInputText(rawInput TextValue) TextValue {
+	input := clockGrammarNormalized(rawInput)
 	if input.Kind == TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		text := timestampText{chars: []rune(value)}
@@ -3671,7 +3809,8 @@ func intervalInputAdd(input intervalInputAcc, whole int64, fraction float64, uni
 	}
 	return intervalInputAcc{years: int(int32(years)), months: int(int32(months)), days: int(int32(days)), time: micros, mask: langruntime.CheckedSignedAdd(input.mask, mask), error: 0}
 }
-func intervalUnitsFromText(input TextValue) IntervalValue {
+func intervalUnitsFromText(input TextValue, fieldMask int) IntervalValue {
+	fieldMask = langruntime.CheckedI32(fieldMask)
 	if input.Kind == TextValueError {
 		error := input.Error
 		return IntervalValue{Kind: IntervalValueError, Error: error}
@@ -3730,6 +3869,21 @@ func intervalUnitsFromText(input TextValue) IntervalValue {
 		unit := langruntime.CheckedSignedNegate(1)
 		pending := false
 		implicitUnit := 2
+		if fieldMask == 4 {
+			implicitUnit = langruntime.CheckedI32(8)
+		}
+		if fieldMask == 2 || fieldMask == 6 {
+			implicitUnit = langruntime.CheckedI32(7)
+		}
+		if fieldMask == 8 {
+			implicitUnit = langruntime.CheckedI32(5)
+		}
+		if fieldMask == 1024 || fieldMask == 1032 {
+			implicitUnit = langruntime.CheckedI32(4)
+		}
+		if fieldMask == 2048 || fieldMask == 3072 || fieldMask == 3080 {
+			implicitUnit = langruntime.CheckedI32(3)
+		}
 		numbers := 0
 		additionalSign := false
 		for end > start {
@@ -3749,7 +3903,7 @@ func intervalUnitsFromText(input TextValue) IntervalValue {
 				if pending {
 					return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
 				}
-				acc = copyintervalInputAcc(intervalInputClock(acc, token))
+				acc = copyintervalInputAcc(intervalInputClock(acc, token, fieldMask))
 				if acc.error != 0 {
 					return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(acc.error)}
 				}
@@ -3837,9 +3991,10 @@ func intervalClockErrorState(error SqlError, fallback int) int {
 	}
 	return error.State
 }
-func intervalInputClock(input intervalInputAcc, text string) intervalInputAcc {
+func intervalInputClock(input intervalInputAcc, text string, fieldMask int) intervalInputAcc {
 	input = copyintervalInputAcc(input)
 	text = langruntime.CheckedString(text)
+	fieldMask = langruntime.CheckedI32(fieldMask)
 	buffer := intervalInputText{chars: []rune(text)}
 	start := 0
 	negative := false
@@ -3925,7 +4080,7 @@ func intervalInputClock(input intervalInputAcc, text string) intervalInputAcc {
 			number := lastNumber.Value
 			seconds = number
 		}
-	} else if secondPoint {
+	} else if secondPoint || fieldMask == 6144 {
 		seconds = minutes
 		minutes = hours
 		hours = int64(0)
@@ -4101,7 +4256,26 @@ func intervalInputIso(text string) IntervalValue {
 	}
 	return MakeIntervalValue(int(int32(months)), acc.days, acc.time)
 }
-func IntervalFromText(input TextValue) IntervalValue {
+func IntervalFromTextFields(input TextValue, fields Int4Value) IntervalValue {
+	if input.Kind == TextValueError {
+		error := input.Error
+		return IntervalValue{Kind: IntervalValueError, Error: error}
+	}
+	if fields.Kind == Int4ValueError {
+		error := fields.Error
+		return IntervalValue{Kind: IntervalValueError, Error: error}
+	}
+	if input == (TextValue{Kind: TextValueUnknown}) || fields == (Int4Value{Kind: Int4ValueUnknown}) {
+		return IntervalValue{Kind: IntervalValueUnknown}
+	}
+	if input == (TextValue{Kind: TextValueNull}) || fields == (Int4Value{Kind: Int4ValueNull}) {
+		return IntervalValue{Kind: IntervalValueNull}
+	}
+	fieldMask := 32767
+	if fields.Kind == Int4ValueValue {
+		value := langruntime.CheckedI32(fields.Value)
+		fieldMask = langruntime.CheckedI32(value)
+	}
 	if input.Kind == TextValueValue {
 		text := langruntime.CheckedString(input.Value)
 		chars := []rune(text)
@@ -4115,9 +4289,9 @@ func IntervalFromText(input TextValue) IntervalValue {
 			}
 			return intervalInputIso(text)
 		}
-		return intervalUnitsFromText(TextValue{Kind: TextValueValue, Value: text})
+		return intervalUnitsFromText(TextValue{Kind: TextValueValue, Value: text}, fieldMask)
 	}
-	return intervalUnitsFromText(input)
+	return intervalUnitsFromText(input, fieldMask)
 }
 func intervalInputAlpha(character rune) bool {
 	character = langruntime.CheckedChar(character)
@@ -4228,6 +4402,9 @@ func intervalInputYearMonth(text string) Int8Value {
 		}
 	}
 	return Int8Value{Kind: Int8ValueError, Error: MakeSqlError(intervalInputSyntax)}
+}
+func IntervalFromText(input TextValue) IntervalValue {
+	return IntervalFromTextFields(input, MakeInt4Value(32767))
 }
 func AndStops(left CheckOutcome) bool {
 	if left == (CheckOutcome{Kind: CheckOutcomeFalse}) {
