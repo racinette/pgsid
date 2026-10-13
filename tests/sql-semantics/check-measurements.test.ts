@@ -106,6 +106,8 @@ describe('CHECK measurement boundaries', () => {
     expect(valueRepresentation('double precision').represented).toBe(true)
     expect(valueRepresentation('real').represented).toBe(true)
     expect(valueRepresentation('integer').represented).toBe(true)
+    for (const type of ['time', 'timetz', 'interval'])
+      expect(valueRepresentation(type).represented).toBe(true)
     const unknown = inspectExpression({ kind: 'uncertain' })
     expect(unknown.preparation.kind).toBe('supported')
     expect(unknown.fullyBound).toBe(false)
@@ -144,6 +146,14 @@ describe('CHECK measurement boundaries', () => {
       callableBoundary(builtinMetadata(floatOutput.output!), new Set(['pg_catalog.float8']))
         .categories,
     ).toContain('session-setting:extra_float_digits')
+    for (const type of ['pg_catalog."time"', 'pg_catalog.timetz']) {
+      const input = report.textInput.find((entry) => entry.type === type)!
+      expect(input.probe.raw.fullyBound).toBe(true)
+      expect(input.probe.stored!.fullyBound).toBe(true)
+    }
+    const intervalInput = report.textInput.find((entry) => entry.type === 'pg_catalog."interval"')!
+    expect(intervalInput.probe.raw.fullyBound).toBe(false)
+    expect(intervalInput.probe.stored!.fullyBound).toBe(false)
     const input = report.textInput.find((entry) => entry.type === 'pg_catalog.int4')!
     expect(input.cast).toBeNull()
     expect(input.input).toBe('function:["pg_catalog","int4in"](pg_catalog.cstring)')

@@ -1112,6 +1112,150 @@ func Float8FromCaseGuard(value CheckOutcome) Float8Value {
 	return Float8Value{Kind: Float8ValueUnknown}
 }
 
+type TimeValueKind uint8
+
+const (
+	TimeValueUnknown TimeValueKind = iota
+	TimeValueNull
+	TimeValueValue
+	TimeValueError
+)
+
+type TimeValue struct {
+	Kind  TimeValueKind
+	Value int64
+	Error SqlError
+}
+
+func TimeUnknown() TimeValue {
+	return TimeValue{Kind: TimeValueUnknown}
+}
+func TimeNull() TimeValue {
+	return TimeValue{Kind: TimeValueNull}
+}
+func MakeTimeValue(time int64) TimeValue {
+	if time < int64(0) || time > int64(86400000000) {
+		return TimeValue{Kind: TimeValueUnknown}
+	}
+	return TimeValue{Kind: TimeValueValue, Value: time}
+}
+func TimeIsNull(input TimeValue) BoolValue {
+	if input.Kind == TimeValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (TimeValue{Kind: TimeValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: input == (TimeValue{Kind: TimeValueNull})}
+}
+func TimeFromCaseGuard(input CheckOutcome) TimeValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return TimeValue{Kind: TimeValueError, Error: error}
+	}
+	return TimeValue{Kind: TimeValueUnknown}
+}
+
+type TimetzPayload struct {
+	Time int64
+	Zone int
+}
+type TimetzValueKind uint8
+
+const (
+	TimetzValueUnknown TimetzValueKind = iota
+	TimetzValueNull
+	TimetzValueValue
+	TimetzValueError
+)
+
+type TimetzValue struct {
+	Kind  TimetzValueKind
+	Value TimetzPayload
+	Error SqlError
+}
+
+func TimetzUnknown() TimetzValue {
+	return TimetzValue{Kind: TimetzValueUnknown}
+}
+func TimetzNull() TimetzValue {
+	return TimetzValue{Kind: TimetzValueNull}
+}
+func MakeTimetzValue(time int64, zone int) TimetzValue {
+	zone = langruntime.CheckedI32(zone)
+	if time < int64(0) || time > int64(86400000000) || zone <= langruntime.CheckedSignedNegate(57600) || zone >= 57600 {
+		return TimetzValue{Kind: TimetzValueUnknown}
+	}
+	return TimetzValue{Kind: TimetzValueValue, Value: TimetzPayload{Time: time, Zone: zone}}
+}
+func TimetzIsNull(input TimetzValue) BoolValue {
+	if input.Kind == TimetzValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (TimetzValue{Kind: TimetzValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: input == (TimetzValue{Kind: TimetzValueNull})}
+}
+func TimetzFromCaseGuard(input CheckOutcome) TimetzValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return TimetzValue{Kind: TimetzValueError, Error: error}
+	}
+	return TimetzValue{Kind: TimetzValueUnknown}
+}
+
+type IntervalPayload struct {
+	Months int
+	Days   int
+	Time   int64
+}
+type IntervalValueKind uint8
+
+const (
+	IntervalValueUnknown IntervalValueKind = iota
+	IntervalValueNull
+	IntervalValueValue
+	IntervalValueError
+)
+
+type IntervalValue struct {
+	Kind  IntervalValueKind
+	Value IntervalPayload
+	Error SqlError
+}
+
+func IntervalUnknown() IntervalValue {
+	return IntervalValue{Kind: IntervalValueUnknown}
+}
+func IntervalNull() IntervalValue {
+	return IntervalValue{Kind: IntervalValueNull}
+}
+func MakeIntervalValue(months int, days int, time int64) IntervalValue {
+	months = langruntime.CheckedI32(months)
+	days = langruntime.CheckedI32(days)
+	return IntervalValue{Kind: IntervalValueValue, Value: IntervalPayload{Months: months, Days: days, Time: time}}
+}
+func IntervalIsNull(input IntervalValue) BoolValue {
+	if input.Kind == IntervalValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (IntervalValue{Kind: IntervalValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: input == (IntervalValue{Kind: IntervalValueNull})}
+}
+func IntervalFromCaseGuard(input CheckOutcome) IntervalValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return IntervalValue{Kind: IntervalValueError, Error: error}
+	}
+	return IntervalValue{Kind: IntervalValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int
@@ -3118,6 +3262,110 @@ func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int,
 func TimestamptzFromText(value TextValue) TimestamptzValue {
 	parsed := parseTimestampText(value, true)
 	return timestamptzFromMicroseconds(parsed)
+}
+
+const clockInputSyntax = 3452551
+const clockInputRange = 3452552
+
+func clockInputText(input TextValue) TextValue {
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		text := timestampText{chars: []rune(value)}
+		start := 0
+		end := len(text.chars)
+		for start < end && dateTextSpace(text.chars[start]) {
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		for start < end && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		if start == end || text.chars[start] == '+' || text.chars[start] == '-' {
+			return TextValue{Kind: TextValueError, Error: MakeSqlError(clockInputSyntax)}
+		}
+		meridian := 0
+		if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 1)]) == 'm' {
+			initial := langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 2)])
+			if initial == 'a' || initial == 'p' {
+				meridian = langruntime.CheckedI32(1)
+				if initial == 'p' {
+					meridian = langruntime.CheckedI32(2)
+				}
+				end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
+				for start < end && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 1)]) {
+					end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+				}
+			}
+		}
+		output := langruntime.NewTextBuffer("2000-01-01 ")
+		if meridian != 0 {
+			hours := readTimestampNumber(&text, start, end)
+			if hours.digits == 0 || hours.next == end || text.chars[hours.next] != ':' {
+				return TextValue{Kind: TextValueUnknown}
+			}
+			if hours.overflow || hours.value > 12 {
+				return TextValue{Kind: TextValueError, Error: MakeSqlError(clockInputRange)}
+			}
+			hour := hours.value
+			if hour == 12 {
+				hour = langruntime.CheckedI32(0)
+			}
+			if meridian == 2 {
+				hour = langruntime.CheckedI32(langruntime.CheckedSignedAdd(hour, 12))
+			}
+			symbols := []rune("0123456789")
+			tens := langruntime.IndexFromI32(langruntime.CheckedSignedDivide(hour, 10), 0)
+			ones := langruntime.IndexFromI32(langruntime.CheckedSignedRemainder(hour, 10), 0)
+			output = append(output, string(langruntime.CheckedChar(symbols[tens]))...)
+			output = append(output, string(langruntime.CheckedChar(symbols[ones]))...)
+			start = langruntime.CheckedIndex(hours.next)
+		}
+		for start < end {
+			output = append(output, string(langruntime.CheckedChar(text.chars[start]))...)
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		return TextValue{Kind: TextValueValue, Value: string(output)}
+	}
+	return input
+}
+func TimeFromText(input TextValue) TimeValue {
+	parsed := parseTimestampText(clockInputText(input), false)
+	if parsed.Kind == Int8ValueError {
+		error := parsed.Error
+		return TimeValue{Kind: TimeValueError, Error: error}
+	}
+	if parsed == (Int8Value{Kind: Int8ValueNull}) {
+		return TimeValue{Kind: TimeValueNull}
+	}
+	if parsed.Kind == Int8ValueValue {
+		time := parsed.Value
+		return MakeTimeValue(time)
+	}
+	return TimeValue{Kind: TimeValueUnknown}
+}
+func TimetzFromText(input TextValue) TimetzValue {
+	normalized := clockInputText(input)
+	local := parseTimestampText(normalized, false)
+	utc := parseTimestampText(normalized, true)
+	if local.Kind == Int8ValueError {
+		error := local.Error
+		return TimetzValue{Kind: TimetzValueError, Error: error}
+	}
+	if utc.Kind == Int8ValueError {
+		error := utc.Error
+		return TimetzValue{Kind: TimetzValueError, Error: error}
+	}
+	if local == (Int8Value{Kind: Int8ValueNull}) || utc == (Int8Value{Kind: Int8ValueNull}) {
+		return TimetzValue{Kind: TimetzValueNull}
+	}
+	if local.Kind == Int8ValueValue {
+		time := local.Value
+		if utc.Kind == Int8ValueValue {
+			instant := utc.Value
+			zone := langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(instant, time)), int64(1000000))
+			return MakeTimetzValue(time, int(int32(zone)))
+		}
+	}
+	return TimetzValue{Kind: TimetzValueUnknown}
 }
 func AndStops(left CheckOutcome) bool {
 	if left == (CheckOutcome{Kind: CheckOutcomeFalse}) {

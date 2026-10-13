@@ -11,7 +11,22 @@ import {
   deferredFloatInputForms,
 } from '../../tests/sql-semantics/check-float-input-forms.js'
 
+import {
+  clockInputForms,
+  timetzInputForms,
+  deferredClockContextForms,
+  unimplementedClockGrammarForms,
+} from '../../tests/sql-semantics/check-time-input-forms.js'
+
 const inputForms = [
+  ...(['time', 'timetz'] as const).map((family) => ({
+    type: family === 'time' ? 'pg_catalog."time"' : 'pg_catalog.timetz',
+    suite: 'tests/sql-semantics/check-time-input.test.ts',
+    handled: family === 'time' ? clockInputForms : timetzInputForms,
+    deferred: [...deferredClockContextForms[family], ...unimplementedClockGrammarForms[family]],
+    contextRequired: deferredClockContextForms[family],
+    unimplementedGrammar: unimplementedClockGrammarForms[family],
+  })),
   ...temporalInputForms,
   ...['pg_catalog.float4', 'pg_catalog.float8'].map((type) => ({
     type,

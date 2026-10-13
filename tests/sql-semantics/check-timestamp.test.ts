@@ -375,8 +375,14 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
     await runCheckParity(
       directory,
       'timestampchecks',
-      group,
-      [...names, 'domain', ...unsupported.map((_, index) => 'unsupported_' + index)],
+      { ...group, checks: group.checks.filter((check) => check.kind === 'supported') },
+      [
+        ...names,
+        'domain',
+        ...unsupported.flatMap((check, index) =>
+          check.kind === 'supported' ? ['unsupported_' + index] : [],
+        ),
+      ],
       fixtures,
     )
   }, 120_000)

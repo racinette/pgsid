@@ -9,6 +9,9 @@ export type GoCheckCase = {
   nullViaValue?: boolean
   floatColumns?: readonly string[]
   numericColumns?: readonly string[]
+  timeColumns?: readonly string[]
+  timetzColumns?: readonly string[]
+  intervalColumns?: readonly string[]
   dateColumns?: readonly string[]
   timestampColumns?: readonly string[]
   timestamptzColumns?: readonly string[]
@@ -39,6 +42,9 @@ export function renderGoCheckTests(
       nullViaValue,
       numericColumns,
       floatColumns,
+      timeColumns,
+      timetzColumns,
+      intervalColumns,
       dateColumns,
       timestampColumns,
       timestamptzColumns,
@@ -73,6 +79,41 @@ export function renderGoCheckTests(
             go.call(go.ident('setFloatFixture'), [number, go.address(go.selector(field, 'V'))]),
           ),
         )
+        continue
+      }
+      if (
+        options.dateRuntime &&
+        (timeColumns?.includes(column.name) ||
+          timetzColumns?.includes(column.name) ||
+          intervalColumns?.includes(column.name))
+      ) {
+        dateRuntimeUsed = true
+        const prefix = timeColumns?.includes(column.name)
+          ? 'Time'
+          : timetzColumns?.includes(column.name)
+            ? 'Timetz'
+            : 'Interval'
+        const parts = value as
+          | bigint
+          | { time: bigint; zone: number }
+          | { time: bigint; months: number; days: number }
+          | null
+        const args =
+          parts === null
+            ? []
+            : typeof parts === 'bigint'
+              ? [go.number(parts)]
+              : 'zone' in parts
+                ? [go.number(parts.time), go.number(parts.zone)]
+                : [go.number(parts.months), go.number(parts.days), go.number(parts.time)]
+        const wrapped = go.call(
+          go.selector(
+            go.ident('checkruntime'),
+            parts === null ? prefix + 'Null' : 'Make' + prefix + 'Value',
+          ),
+          args,
+        )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (options.dateRuntime && numericColumns?.includes(column.name)) {

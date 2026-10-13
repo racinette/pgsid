@@ -759,6 +759,41 @@ func ByteaneVolo(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func binarySendBits(input checkruntime.Int8Value, width int) checkruntime.ByteaValue {
+	width = langruntime.CheckedI32(width)
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		bits := input.Value
+		word := bits
+		divisor := int64(72057594037927936)
+		if width == 4 {
+			divisor = int64(16777216)
+		}
+		output := langruntime.NewTextBuffer("")
+		for divisor > int64(0) {
+			octet := int(int32((langruntime.CheckedI64Divide(word, divisor))))
+			remainder := langruntime.CheckedI64Remainder(word, divisor)
+			if remainder < int64(0) {
+				octet = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(octet, 1))
+				remainder = langruntime.CheckedI64Add(remainder, divisor)
+			}
+			if octet < 0 {
+				octet = langruntime.CheckedI32(langruntime.CheckedSignedAdd(octet, 256))
+			}
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), octet))
+			word = remainder
+			divisor = langruntime.CheckedI64Divide(divisor, int64(256))
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 func bitComparePayload(left string, right string) int {
 	left = langruntime.CheckedString(left)
 	right = langruntime.CheckedString(right)
@@ -5393,38 +5428,6 @@ func float8Compare(left checkruntime.Float8Value, right checkruntime.Float8Value
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func floatComparisonFinish(result checkruntime.Int4Value, strategy int) checkruntime.BoolValue {
-	strategy = langruntime.CheckedI32(strategy)
-	if result.Kind == checkruntime.Int4ValueError {
-		error := result.Error
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
-	}
-	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
-		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
-	}
-	if result.Kind == checkruntime.Int4ValueValue {
-		order := langruntime.CheckedI32(result.Value)
-		if strategy == 0 {
-			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order == 0}
-		}
-		if strategy == 1 {
-			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order != 0}
-		}
-		if strategy == 2 {
-			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order < 0}
-		}
-		if strategy == 3 {
-			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order <= 0}
-		}
-		if strategy == 4 {
-			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order > 0}
-		}
-		if strategy == 5 {
-			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order >= 0}
-		}
-	}
-	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
-}
 func float8Integer(input checkruntime.Float8Value) checkruntime.Int8Value {
 	if input.Kind == checkruntime.Float8ValueError {
 		error := input.Error
@@ -5548,76 +5551,76 @@ func Btfloat8cmpAdn1(left checkruntime.Float8Value, right checkruntime.Float8Val
 	return float8Compare(left, right)
 }
 func Float48eq2e8s(left checkruntime.Float4Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), right), 0)
+	return valueOrderFinish(float8Compare(float4Widen(left), right), 0)
 }
 func Float48ge61xk(left checkruntime.Float4Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), right), 5)
+	return valueOrderFinish(float8Compare(float4Widen(left), right), 5)
 }
 func Float48gtW41b(left checkruntime.Float4Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), right), 4)
+	return valueOrderFinish(float8Compare(float4Widen(left), right), 4)
 }
 func Float48leW73b(left checkruntime.Float4Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), right), 3)
+	return valueOrderFinish(float8Compare(float4Widen(left), right), 3)
 }
 func Float48ltQ05v(left checkruntime.Float4Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), right), 2)
+	return valueOrderFinish(float8Compare(float4Widen(left), right), 2)
 }
 func Float48ne0nmh(left checkruntime.Float4Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), right), 1)
+	return valueOrderFinish(float8Compare(float4Widen(left), right), 1)
 }
 func Float4eq36g8(left checkruntime.Float4Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 0)
+	return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 0)
 }
 func Float4ge74ah(left checkruntime.Float4Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 5)
+	return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 5)
 }
 func Float4gtT0ms(left checkruntime.Float4Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 4)
+	return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 4)
 }
 func Float4leG1uf(left checkruntime.Float4Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 3)
+	return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 3)
 }
 func Float4lt339k(left checkruntime.Float4Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 2)
+	return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 2)
 }
 func Float4neFrlm(left checkruntime.Float4Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 1)
+	return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 1)
 }
 func Float84eqBe8b(left checkruntime.Float8Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, float4Widen(right)), 0)
+	return valueOrderFinish(float8Compare(left, float4Widen(right)), 0)
 }
 func Float84geFudn(left checkruntime.Float8Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, float4Widen(right)), 5)
+	return valueOrderFinish(float8Compare(left, float4Widen(right)), 5)
 }
 func Float84gtGpd6(left checkruntime.Float8Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, float4Widen(right)), 4)
+	return valueOrderFinish(float8Compare(left, float4Widen(right)), 4)
 }
 func Float84le5od9(left checkruntime.Float8Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, float4Widen(right)), 3)
+	return valueOrderFinish(float8Compare(left, float4Widen(right)), 3)
 }
 func Float84ltF2id(left checkruntime.Float8Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, float4Widen(right)), 2)
+	return valueOrderFinish(float8Compare(left, float4Widen(right)), 2)
 }
 func Float84neXkja(left checkruntime.Float8Value, right checkruntime.Float4Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, float4Widen(right)), 1)
+	return valueOrderFinish(float8Compare(left, float4Widen(right)), 1)
 }
 func Float8eqTpae(left checkruntime.Float8Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, right), 0)
+	return valueOrderFinish(float8Compare(left, right), 0)
 }
 func Float8geLa0k(left checkruntime.Float8Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, right), 5)
+	return valueOrderFinish(float8Compare(left, right), 5)
 }
 func Float8gtM76q(left checkruntime.Float8Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, right), 4)
+	return valueOrderFinish(float8Compare(left, right), 4)
 }
 func Float8le9qw7(left checkruntime.Float8Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, right), 3)
+	return valueOrderFinish(float8Compare(left, right), 3)
 }
 func Float8ltVp07(left checkruntime.Float8Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, right), 2)
+	return valueOrderFinish(float8Compare(left, right), 2)
 }
 func Float8neBqr8(left checkruntime.Float8Value, right checkruntime.Float8Value) checkruntime.BoolValue {
-	return floatComparisonFinish(float8Compare(left, right), 1)
+	return valueOrderFinish(float8Compare(left, right), 1)
 }
 func Float4L0dp(input checkruntime.Int2Value) checkruntime.Float4Value {
 	return integerFloat4(checkruntime.Int2ToInt8(input))
@@ -6085,41 +6088,6 @@ func Numeric7rfd(input checkruntime.Float4Value) checkruntime.NumericValue {
 func NumericEv2s(input checkruntime.Float8Value) checkruntime.NumericValue {
 	return floatNumericDecimal(input, 15)
 }
-func floatSendBits(input checkruntime.Int8Value, width int) checkruntime.ByteaValue {
-	width = langruntime.CheckedI32(width)
-	if input.Kind == checkruntime.Int8ValueError {
-		error := input.Error
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
-	}
-	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
-	}
-	if input.Kind == checkruntime.Int8ValueValue {
-		bits := input.Value
-		word := bits
-		divisor := int64(72057594037927936)
-		if width == 4 {
-			divisor = int64(16777216)
-		}
-		output := langruntime.NewTextBuffer("")
-		for divisor > int64(0) {
-			octet := int(int32((langruntime.CheckedI64Divide(word, divisor))))
-			remainder := langruntime.CheckedI64Remainder(word, divisor)
-			if remainder < int64(0) {
-				octet = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(octet, 1))
-				remainder = langruntime.CheckedI64Add(remainder, divisor)
-			}
-			if octet < 0 {
-				octet = langruntime.CheckedI32(langruntime.CheckedSignedAdd(octet, 256))
-			}
-			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), octet))
-			word = remainder
-			divisor = langruntime.CheckedI64Divide(divisor, int64(256))
-		}
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
-	}
-	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
-}
 func Float4sendUk42(input checkruntime.Float4Value) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.Float4ValueError {
 		error := input.Error
@@ -6130,7 +6098,7 @@ func Float4sendUk42(input checkruntime.Float4Value) checkruntime.ByteaValue {
 	}
 	if input.Kind == checkruntime.Float4ValueValue {
 		bits := langruntime.CheckedI32(input.Value)
-		return floatSendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(bits))}, 4)
+		return binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(bits))}, 4)
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
@@ -6144,7 +6112,7 @@ func Float8send3bqt(input checkruntime.Float8Value) checkruntime.ByteaValue {
 	}
 	if input.Kind == checkruntime.Float8ValueValue {
 		bits := input.Value
-		return floatSendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: bits}, 8)
+		return binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: bits}, 8)
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
@@ -16880,6 +16848,642 @@ func textTrimValue(value checkruntime.TextValue, set checkruntime.TextValue, tri
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+
+const clockRange = 3452552
+
+func intervalInfinity(sign int) checkruntime.IntervalValue {
+	sign = langruntime.CheckedI32(sign)
+	if sign < 0 {
+		return checkruntime.MakeIntervalValue(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1), langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1), int64(-9223372036854775808))
+	}
+	return checkruntime.MakeIntervalValue(2147483647, 2147483647, int64(9223372036854775807))
+}
+func clockWrappedAdd(left int64, right int64) int64 {
+	if right > int64(0) && left > langruntime.CheckedI64Subtract(int64(9223372036854775807), right) {
+		return langruntime.CheckedI64Add((langruntime.CheckedI64Subtract(langruntime.CheckedI64Subtract(left, (langruntime.CheckedI64Subtract(int64(9223372036854775807), right))), int64(1))), (int64(-9223372036854775808)))
+	}
+	if right < int64(0) && left < langruntime.CheckedI64Subtract((int64(-9223372036854775808)), right) {
+		return langruntime.CheckedI64Add((langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(left, (langruntime.CheckedI64Subtract((int64(-9223372036854775808)), right))), int64(9223372036854775807))), int64(1))
+	}
+	return langruntime.CheckedI64Add(left, right)
+}
+func clockWrappedSubtract(left int64, right int64) int64 {
+	if right == (int64(-9223372036854775808)) {
+		return clockWrappedAdd(clockWrappedAdd(left, int64(9223372036854775807)), int64(1))
+	}
+	return clockWrappedAdd(left, langruntime.CheckedI64Subtract(int64(0), right))
+}
+func clockIntervalValue(left checkruntime.TimeValue, right checkruntime.IntervalValue, subtract bool) checkruntime.TimeValue {
+	if left.Kind == checkruntime.TimeValueError {
+		error := left.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if right.Kind == checkruntime.IntervalValueError {
+		error := right.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if left == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) || right == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+	}
+	if left == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) || right == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+	}
+	if left.Kind == checkruntime.TimeValueValue {
+		clock := left.Value
+		if right.Kind == checkruntime.IntervalValueValue {
+			span := right.Value
+			if intervalSpecial(span) != 0 {
+				return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: checkruntime.MakeSqlError(clockRange)}
+			}
+			result := clockWrappedAdd(clock, span.Time)
+			if subtract {
+				result = clockWrappedSubtract(clock, span.Time)
+			}
+			result = langruntime.CheckedI64Remainder(result, int64(86400000000))
+			if result < int64(0) {
+				result = langruntime.CheckedI64Add(result, int64(86400000000))
+			}
+			return checkruntime.MakeTimeValue(result)
+		}
+	}
+	return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+}
+func intervalBinaryValue(left checkruntime.IntervalValue, right checkruntime.IntervalValue, subtract bool) checkruntime.IntervalValue {
+	if left.Kind == checkruntime.IntervalValueError {
+		error := left.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if right.Kind == checkruntime.IntervalValueError {
+		error := right.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if left == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || right == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+	}
+	if left == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || right == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if left.Kind == checkruntime.IntervalValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.IntervalValueValue {
+			b := right.Value
+			aSpecial := intervalSpecial(a)
+			bSpecial := intervalSpecial(b)
+			if subtract {
+				bSpecial = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, bSpecial))
+			}
+			if aSpecial != 0 || bSpecial != 0 {
+				if aSpecial != 0 && bSpecial != 0 && aSpecial != bSpecial {
+					return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				if aSpecial != 0 {
+					return intervalInfinity(aSpecial)
+				}
+				return intervalInfinity(bSpecial)
+			}
+			months := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(a.Months))), (int64(langruntime.CheckedI32(b.Months))))
+			days := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(a.Days))), (int64(langruntime.CheckedI32(b.Days))))
+			if subtract {
+				months = langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(a.Months))), (int64(langruntime.CheckedI32(b.Months))))
+				days = langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(a.Days))), (int64(langruntime.CheckedI32(b.Days))))
+			}
+			if months < (int64(-2147483648)) || months > int64(2147483647) || days < (int64(-2147483648)) || days > int64(2147483647) {
+				return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(clockRange)}
+			}
+			if subtract {
+				if (b.Time > int64(0) && a.Time < langruntime.CheckedI64Add((int64(-9223372036854775808)), b.Time)) || (b.Time < int64(0) && a.Time > langruntime.CheckedI64Add(int64(9223372036854775807), b.Time)) {
+					return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+			} else if (b.Time > int64(0) && a.Time > langruntime.CheckedI64Subtract(int64(9223372036854775807), b.Time)) || (b.Time < int64(0) && a.Time < langruntime.CheckedI64Subtract((int64(-9223372036854775808)), b.Time)) {
+				return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(clockRange)}
+			}
+			micros := int64(0)
+			if subtract {
+				micros = langruntime.CheckedI64Subtract(a.Time, b.Time)
+			} else {
+				micros = langruntime.CheckedI64Add(a.Time, b.Time)
+			}
+			result := checkruntime.IntervalPayload{Months: int(int32(months)), Days: int(int32(days)), Time: micros}
+			if intervalSpecial(result) != 0 {
+				return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(clockRange)}
+			}
+			return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueValue, Value: result}
+		}
+	}
+	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+}
+func TimePlIntervalOsxy(left checkruntime.TimeValue, right checkruntime.IntervalValue) checkruntime.TimeValue {
+	return clockIntervalValue(left, right, false)
+}
+func TimeMiInterval9t51(left checkruntime.TimeValue, right checkruntime.IntervalValue) checkruntime.TimeValue {
+	return clockIntervalValue(left, right, true)
+}
+func TimetzPlIntervalWmqy(left checkruntime.TimetzValue, right checkruntime.IntervalValue) checkruntime.TimetzValue {
+	if left.Kind == checkruntime.TimetzValueError {
+		error := left.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if right.Kind == checkruntime.IntervalValueError {
+		error := right.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if left == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) || right == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+	}
+	if left == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) || right == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}
+	}
+	if left.Kind == checkruntime.TimetzValueValue {
+		clock := left.Value
+		result := clockIntervalValue(checkruntime.MakeTimeValue(clock.Time), right, false)
+		if result.Kind == checkruntime.TimeValueError {
+			error := result.Error
+			return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+		}
+		if result.Kind == checkruntime.TimeValueValue {
+			time := result.Value
+			return checkruntime.MakeTimetzValue(time, clock.Zone)
+		}
+	}
+	return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+}
+func TimetzMiIntervalAdb2(left checkruntime.TimetzValue, right checkruntime.IntervalValue) checkruntime.TimetzValue {
+	if left.Kind == checkruntime.TimetzValueError {
+		error := left.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if right.Kind == checkruntime.IntervalValueError {
+		error := right.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if left == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) || right == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+	}
+	if left == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) || right == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}
+	}
+	if left.Kind == checkruntime.TimetzValueValue {
+		clock := left.Value
+		result := clockIntervalValue(checkruntime.MakeTimeValue(clock.Time), right, true)
+		if result.Kind == checkruntime.TimeValueError {
+			error := result.Error
+			return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+		}
+		if result.Kind == checkruntime.TimeValueValue {
+			time := result.Value
+			return checkruntime.MakeTimetzValue(time, clock.Zone)
+		}
+	}
+	return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+}
+func IntervalPl2mgc(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.IntervalValue {
+	return intervalBinaryValue(left, right, false)
+}
+func IntervalMiNgfq(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.IntervalValue {
+	return intervalBinaryValue(left, right, true)
+}
+func IntervalUmK6pj(input checkruntime.IntervalValue) checkruntime.IntervalValue {
+	return intervalBinaryValue(checkruntime.MakeIntervalValue(0, 0, int64(0)), input, true)
+}
+func TimeMiTimeQauq(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.IntervalValue {
+	if left.Kind == checkruntime.TimeValueError {
+		error := left.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimeValueError {
+		error := right.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if left == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) || right == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+	}
+	if left == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) || right == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if left.Kind == checkruntime.TimeValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.TimeValueValue {
+			b := right.Value
+			return checkruntime.MakeIntervalValue(0, 0, langruntime.CheckedI64Subtract(a, b))
+		}
+	}
+	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+}
+func Interval39db(input checkruntime.TimeValue) checkruntime.IntervalValue {
+	if input.Kind == checkruntime.TimeValueError {
+		error := input.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if input == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if input.Kind == checkruntime.TimeValueValue {
+		clock := input.Value
+		return checkruntime.MakeIntervalValue(0, 0, clock)
+	}
+	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+}
+func Time3hf3(input checkruntime.TimetzValue) checkruntime.TimeValue {
+	if input.Kind == checkruntime.TimetzValueError {
+		error := input.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+	}
+	if input.Kind == checkruntime.TimetzValueValue {
+		clock := input.Value
+		return checkruntime.MakeTimeValue(clock.Time)
+	}
+	return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+}
+func TimeAkgc(input checkruntime.IntervalValue) checkruntime.TimeValue {
+	if input.Kind == checkruntime.IntervalValueError {
+		error := input.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+	}
+	if input.Kind == checkruntime.IntervalValueValue {
+		span := input.Value
+		if intervalSpecial(span) != 0 {
+			return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: checkruntime.MakeSqlError(clockRange)}
+		}
+		clock := langruntime.CheckedI64Remainder(span.Time, int64(86400000000))
+		if clock < int64(0) {
+			clock = langruntime.CheckedI64Add(clock, int64(86400000000))
+		}
+		return checkruntime.MakeTimeValue(clock)
+	}
+	return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+}
+func intervalSpecial(value checkruntime.IntervalPayload) int {
+	if value.Months == 2147483647 && value.Days == 2147483647 && value.Time == int64(9223372036854775807) {
+		return 1
+	}
+	if value.Months == (langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1)) && value.Days == (langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1)) && value.Time == (int64(-9223372036854775808)) {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	return 0
+}
+func clockOrder(left int64, right int64) int {
+	if left < right {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if left > right {
+		return 1
+	}
+	return 0
+}
+func intervalOrder(left checkruntime.IntervalPayload, right checkruntime.IntervalPayload) int {
+	aSpecial := intervalSpecial(left)
+	bSpecial := intervalSpecial(right)
+	if aSpecial != 0 || bSpecial != 0 {
+		return clockOrder(int64(langruntime.CheckedI32(aSpecial)), int64(langruntime.CheckedI32(bSpecial)))
+	}
+	aDays := langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(left.Months))), int64(30)), (int64(langruntime.CheckedI32(left.Days)))), langruntime.CheckedI64Divide(left.Time, int64(86400000000)))
+	bDays := langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(right.Months))), int64(30)), (int64(langruntime.CheckedI32(right.Days)))), langruntime.CheckedI64Divide(right.Time, int64(86400000000)))
+	aRemainder := langruntime.CheckedI64Remainder(left.Time, int64(86400000000))
+	bRemainder := langruntime.CheckedI64Remainder(right.Time, int64(86400000000))
+	if aRemainder < int64(0) {
+		aDays = langruntime.CheckedI64Subtract(aDays, int64(1))
+		aRemainder = langruntime.CheckedI64Add(aRemainder, int64(86400000000))
+	}
+	if bRemainder < int64(0) {
+		bDays = langruntime.CheckedI64Subtract(bDays, int64(1))
+		bRemainder = langruntime.CheckedI64Add(bRemainder, int64(86400000000))
+	}
+	days := clockOrder(aDays, bDays)
+	if days != 0 {
+		return days
+	}
+	return clockOrder(aRemainder, bRemainder)
+}
+func timetzOrder(left checkruntime.TimetzPayload, right checkruntime.TimetzPayload) int {
+	a := langruntime.CheckedI64Add(left.Time, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(left.Zone))), int64(1000000)))
+	b := langruntime.CheckedI64Add(right.Time, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(right.Zone))), int64(1000000)))
+	utc := clockOrder(a, b)
+	if utc != 0 {
+		return utc
+	}
+	return clockOrder(int64(langruntime.CheckedI32(left.Zone)), int64(langruntime.CheckedI32(right.Zone)))
+}
+func timeValueOrder(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TimeValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimeValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) || right == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) || right == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TimeValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.TimeValueValue {
+			b := right.Value
+			return checkruntime.MakeInt4Value(clockOrder(a, b))
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TimeCmpRxkq(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.Int4Value {
+	return timeValueOrder(left, right)
+}
+func TimeEq6vbi(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.BoolValue {
+	return valueOrderFinish(timeValueOrder(left, right), 0)
+}
+func TimeGeDsjr(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.BoolValue {
+	return valueOrderFinish(timeValueOrder(left, right), 5)
+}
+func TimeGtSf2e(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.BoolValue {
+	return valueOrderFinish(timeValueOrder(left, right), 4)
+}
+func TimeLarger98xe(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.TimeValue {
+	order := timeValueOrder(left, right)
+	if order.Kind == checkruntime.Int4ValueError {
+		error := order.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+	}
+	if order.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(order.Value)
+		if value > 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+}
+func TimeLeFpuk(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.BoolValue {
+	return valueOrderFinish(timeValueOrder(left, right), 3)
+}
+func TimeLtBga9(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.BoolValue {
+	return valueOrderFinish(timeValueOrder(left, right), 2)
+}
+func TimeNe1le4(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.BoolValue {
+	return valueOrderFinish(timeValueOrder(left, right), 1)
+}
+func TimeSmallerA0k2(left checkruntime.TimeValue, right checkruntime.TimeValue) checkruntime.TimeValue {
+	order := timeValueOrder(left, right)
+	if order.Kind == checkruntime.Int4ValueError {
+		error := order.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}
+	}
+	if order.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(order.Value)
+		if value < 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}
+}
+func timetzValueOrder(left checkruntime.TimetzValue, right checkruntime.TimetzValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TimetzValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimetzValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) || right == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) || right == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TimetzValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.TimetzValueValue {
+			b := right.Value
+			return checkruntime.MakeInt4Value(timetzOrder(a, b))
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TimetzCmpWy50(left checkruntime.TimetzValue, right checkruntime.TimetzValue) checkruntime.Int4Value {
+	return timetzValueOrder(left, right)
+}
+func TimetzEqH04s(left checkruntime.TimetzValue, right checkruntime.TimetzValue) checkruntime.BoolValue {
+	return valueOrderFinish(timetzValueOrder(left, right), 0)
+}
+func TimetzGeWb7v(left checkruntime.TimetzValue, right checkruntime.TimetzValue) checkruntime.BoolValue {
+	return valueOrderFinish(timetzValueOrder(left, right), 5)
+}
+func TimetzGt4zis(left checkruntime.TimetzValue, right checkruntime.TimetzValue) checkruntime.BoolValue {
+	return valueOrderFinish(timetzValueOrder(left, right), 4)
+}
+func TimetzLargerYvok(left checkruntime.TimetzValue, right checkruntime.TimetzValue) checkruntime.TimetzValue {
+	order := timetzValueOrder(left, right)
+	if order.Kind == checkruntime.Int4ValueError {
+		error := order.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}
+	}
+	if order.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(order.Value)
+		if value > 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+}
+func TimetzLeA2hu(left checkruntime.TimetzValue, right checkruntime.TimetzValue) checkruntime.BoolValue {
+	return valueOrderFinish(timetzValueOrder(left, right), 3)
+}
+func TimetzLtSkyw(left checkruntime.TimetzValue, right checkruntime.TimetzValue) checkruntime.BoolValue {
+	return valueOrderFinish(timetzValueOrder(left, right), 2)
+}
+func TimetzNe07by(left checkruntime.TimetzValue, right checkruntime.TimetzValue) checkruntime.BoolValue {
+	return valueOrderFinish(timetzValueOrder(left, right), 1)
+}
+func TimetzSmaller5wru(left checkruntime.TimetzValue, right checkruntime.TimetzValue) checkruntime.TimetzValue {
+	order := timetzValueOrder(left, right)
+	if order.Kind == checkruntime.Int4ValueError {
+		error := order.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}
+	}
+	if order.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(order.Value)
+		if value < 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+}
+func intervalValueOrder(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.IntervalValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.IntervalValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || right == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || right == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.IntervalValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.IntervalValueValue {
+			b := right.Value
+			return checkruntime.MakeInt4Value(intervalOrder(a, b))
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func IntervalCmpSwxt(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.Int4Value {
+	return intervalValueOrder(left, right)
+}
+func IntervalEq3wnh(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.BoolValue {
+	return valueOrderFinish(intervalValueOrder(left, right), 0)
+}
+func IntervalGeJ2eu(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.BoolValue {
+	return valueOrderFinish(intervalValueOrder(left, right), 5)
+}
+func IntervalGtQbkh(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.BoolValue {
+	return valueOrderFinish(intervalValueOrder(left, right), 4)
+}
+func IntervalLargerVd9t(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.IntervalValue {
+	order := intervalValueOrder(left, right)
+	if order.Kind == checkruntime.Int4ValueError {
+		error := order.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if order.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(order.Value)
+		if value > 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+}
+func IntervalLeEp4r(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.BoolValue {
+	return valueOrderFinish(intervalValueOrder(left, right), 3)
+}
+func IntervalLtMyly(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.BoolValue {
+	return valueOrderFinish(intervalValueOrder(left, right), 2)
+}
+func IntervalNeA38a(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.BoolValue {
+	return valueOrderFinish(intervalValueOrder(left, right), 1)
+}
+func IntervalSmallerNs56(left checkruntime.IntervalValue, right checkruntime.IntervalValue) checkruntime.IntervalValue {
+	order := intervalValueOrder(left, right)
+	if order.Kind == checkruntime.Int4ValueError {
+		error := order.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if order.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(order.Value)
+		if value < 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+}
+func TimeSend0qc6(input checkruntime.TimeValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.TimeValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.TimeValueValue {
+		value := input.Value
+		part0 := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value}, 8)
+		output := part0
+		return output
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func TimetzSendR9py(input checkruntime.TimetzValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.TimetzValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.TimetzValueValue {
+		value := input.Value
+		part0 := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value.Time}, 8)
+		part1 := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(value.Zone))}, 4)
+		output := part0
+		output = ByteacatZitv(output, part1)
+		return output
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func IntervalSendJxgl(input checkruntime.IntervalValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.IntervalValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.IntervalValueValue {
+		value := input.Value
+		part0 := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value.Time}, 8)
+		part1 := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(value.Days))}, 4)
+		part2 := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(value.Months))}, 4)
+		output := part0
+		output = ByteacatZitv(output, part1)
+		output = ByteacatZitv(output, part2)
+		return output
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 func TimestampEqJd79(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.TimestampValueError {
 		error := left.Error
@@ -17495,6 +18099,38 @@ func UuidExtractTimestampP52j(input checkruntime.UuidValue) checkruntime.Timesta
 		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
 	}
 	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+}
+func valueOrderFinish(result checkruntime.Int4Value, strategy int) checkruntime.BoolValue {
+	strategy = langruntime.CheckedI32(strategy)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		if strategy == 0 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order == 0}
+		}
+		if strategy == 1 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order != 0}
+		}
+		if strategy == 2 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order < 0}
+		}
+		if strategy == 3 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order <= 0}
+		}
+		if strategy == 4 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order > 0}
+		}
+		if strategy == 5 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order >= 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func xmlWellFormedValue(input checkruntime.TextValue, document bool) checkruntime.BoolValue {
 	if input.Kind == checkruntime.TextValueError {

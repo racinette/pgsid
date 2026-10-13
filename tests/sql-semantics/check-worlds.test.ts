@@ -307,8 +307,49 @@ describe('world CHECK INSERT parity', () => {
             catalogFloatType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const clockColumns = (type: string) =>
+        table.columns
+          .filter(
+            (column) =>
+              column.generated === 'none' &&
+              catalogTemporalType(column.typeName, column.typeOid, catalog.domains) === type,
+          )
+          .map((column) => column.name)
+      const timeColumns = clockColumns('pg_catalog."time"')
+      const timetzColumns = clockColumns('pg_catalog.timetz')
+      const intervalColumns = clockColumns('pg_catalog."interval"')
       const portableRow = { ...row }
       const goRow = { ...row }
+      for (const [family, names] of [
+        ['time', timeColumns],
+        ['timetz', timetzColumns],
+        ['interval', intervalColumns],
+      ] as const) {
+        for (const name of names) {
+          const hex = (
+            await pg.query<{ binary: string | null }>(
+              `SELECT encode(${family}_send(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+            )
+          ).rows[0]!.binary
+          let payload:
+            | bigint
+            | { time: bigint; zone: number }
+            | { time: bigint; months: number; days: number }
+            | null = null
+          if (hex !== null) {
+            const bytes = Buffer.from(hex, 'hex')
+            const time = bytes.readBigInt64BE()
+            payload =
+              family === 'time'
+                ? time
+                : family === 'timetz'
+                  ? { time, zone: bytes.readInt32BE(8) }
+                  : { time, days: bytes.readInt32BE(8), months: bytes.readInt32BE(12) }
+          }
+          portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+          goRow[name] = payload
+        }
+      }
       for (const name of floatColumns) {
         const column = table.columns.find((column) => column.name === name)!
         const single =
@@ -377,6 +418,9 @@ describe('world CHECK INSERT parity', () => {
         row: goRow,
         numericColumns,
         floatColumns,
+        timeColumns,
+        timetzColumns,
+        intervalColumns,
         dateColumns,
         timestampColumns,
         timestamptzColumns,
@@ -563,6 +607,19 @@ describe('world CHECK INSERT parity', () => {
     expect(definite).toBeGreaterThan(0)
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
+    for (const [table, names] of [
+      ['shift_templates', ['shift_clock_order', 'shift_duration']],
+      ['service_windows', ['service_duration_bounds', 'service_duration_span']],
+      ['zoned_dispatches', ['dispatch_local_clock', 'dispatch_adjustment']],
+    ] as const) {
+      for (const name of names) {
+        const identity = `world_026_shift_schedules.${table}.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.unknown, identity).toBe(0)
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+      }
+    }
     let numericFunctionConstraints = 0
     for (const table of [
       'shipment_fee_sign',

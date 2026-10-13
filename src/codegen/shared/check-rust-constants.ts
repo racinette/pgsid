@@ -143,6 +143,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'bit-to-text' ||
     expression.kind === 'text-to-float' ||
     expression.kind === 'text-to-bit' ||
+    expression.kind === 'text-to-clock' ||
     expression.kind === 'text-to-date' ||
     expression.kind === 'text-to-timestamp' ||
     expression.kind === 'text-to-timestamptz'

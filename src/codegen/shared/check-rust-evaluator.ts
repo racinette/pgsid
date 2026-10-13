@@ -43,6 +43,9 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.float4') return 'Float4Value'
   if (type === 'pg_catalog.float8') return 'Float8Value'
   if (type === 'pg_catalog."numeric"') return 'NumericValue'
+  if (type === 'pg_catalog."time"') return 'TimeValue'
+  if (type === 'pg_catalog.timetz') return 'TimetzValue'
+  if (type === 'pg_catalog."interval"') return 'IntervalValue'
   if (type === 'pg_catalog.date') return 'DateValue'
   if (type === 'pg_catalog."timestamp"') return 'TimestampValue'
   if (type === 'pg_catalog.timestamptz') return 'TimestamptzValue'
@@ -492,6 +495,7 @@ export function emitCheckRustEvaluator(
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
     if (
+      node.kind === 'text-to-clock' ||
       node.kind === 'text-to-date' ||
       node.kind === 'text-to-timestamp' ||
       node.kind === 'text-to-timestamptz' ||
@@ -507,40 +511,55 @@ export function emitCheckRustEvaluator(
       )
         throw new UnsupportedCheckRustExpression('A SQL text cast requires text')
       const helper =
-        node.kind === 'text-to-bytea'
-          ? 'bytea_from_text'
-          : node.kind === 'text-to-uuid'
-            ? 'uuid_from_text'
-            : node.kind === 'text-to-date'
-              ? 'date_from_text'
-              : node.kind === 'text-to-timestamp'
-                ? 'timestamp_from_text'
-                : node.kind === 'text-to-timestamptz'
-                  ? 'timestamptz_from_text'
-                  : node.kind === 'text-to-mac'
-                    ? node.type === 'pg_catalog.macaddr'
-                      ? 'macaddr_from_text'
-                      : 'macaddr8_from_text'
-                    : node.type === 'pg_catalog.cidr'
-                      ? 'cidr_from_text'
-                      : 'network_from_text'
+        node.kind === 'text-to-clock'
+          ? node.type === 'pg_catalog."time"'
+            ? 'time_from_text'
+            : 'timetz_from_text'
+          : node.kind === 'text-to-bytea'
+            ? 'bytea_from_text'
+            : node.kind === 'text-to-uuid'
+              ? 'uuid_from_text'
+              : node.kind === 'text-to-date'
+                ? 'date_from_text'
+                : node.kind === 'text-to-timestamp'
+                  ? 'timestamp_from_text'
+                  : node.kind === 'text-to-timestamptz'
+                    ? 'timestamptz_from_text'
+                    : node.kind === 'text-to-mac'
+                      ? node.type === 'pg_catalog.macaddr'
+                        ? 'macaddr_from_text'
+                        : 'macaddr8_from_text'
+                      : node.type === 'pg_catalog.cidr'
+                        ? 'cidr_from_text'
+                        : 'network_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'certain') {
       const value = node.expression
       if (
         value.kind === 'temporal' &&
-        (value.type === 'pg_catalog.date' ||
+        (value.type === 'pg_catalog."time"' ||
+          value.type === 'pg_catalog.timetz' ||
+          value.type === 'pg_catalog."interval"' ||
+          value.type === 'pg_catalog.date' ||
           value.type === 'pg_catalog."timestamp"' ||
           value.type === 'pg_catalog.timestamptz')
       ) {
         const prefix =
-          value.type === 'pg_catalog.date'
-            ? 'date'
-            : value.type === 'pg_catalog."timestamp"'
-              ? 'timestamp'
-              : 'timestamptz'
+          value.type === 'pg_catalog."time"'
+            ? 'time'
+            : value.type === 'pg_catalog.timetz'
+              ? 'timetz'
+              : value.type === 'pg_catalog."interval"'
+                ? 'interval'
+                : value.type === 'pg_catalog.date'
+                  ? 'date'
+                  : value.type === 'pg_catalog."timestamp"'
+                    ? 'timestamp'
+                    : 'timestamptz'
         if (value.value === null) return { name: bind(`${prefix}_null()`), type: value.type }
+        if (value.type === 'pg_catalog."interval"')
+          throw new UnsupportedCheckRustExpression('Interval text input is not implemented')
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`${prefix}_from_text(${text})`), type: value.type }
       }
@@ -695,6 +714,9 @@ export function emitCheckRustEvaluator(
           'pg_catalog.float4',
           'pg_catalog.float8',
           'pg_catalog."numeric"',
+          'pg_catalog."time"',
+          'pg_catalog.timetz',
+          'pg_catalog."interval"',
           'pg_catalog.date',
           'pg_catalog."timestamp"',
           'pg_catalog.timestamptz',

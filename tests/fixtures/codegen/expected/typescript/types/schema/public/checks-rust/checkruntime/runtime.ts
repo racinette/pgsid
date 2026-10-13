@@ -1209,6 +1209,171 @@ export function float8FromCaseGuard(value: CheckOutcome): Float8Value {
     }
     return { kind: "Unknown" };
 }
+export type TimeValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: bigint;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalTimeValue(left: TimeValue, right: TimeValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function timeUnknown(): TimeValue {
+    return { kind: "Unknown" };
+}
+export function timeNull(): TimeValue {
+    return { kind: "Null" };
+}
+export function makeTimeValue(time: bigint): TimeValue {
+    time = langruntime.checkedI64(time);
+    if (time < 0n || time > 86400000000n) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: time };
+}
+export function timeIsNull(input: TimeValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTimeValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalTimeValue(input, { kind: "Null" }) };
+}
+export function timeFromCaseGuard(input: CheckOutcome): TimeValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export interface TimetzPayload {
+    readonly time: bigint;
+    readonly zone: number;
+}
+function equalTimetzPayload(left: TimetzPayload, right: TimetzPayload): boolean {
+    return left.time === right.time && left.zone === right.zone;
+}
+export type TimetzValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: TimetzPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalTimetzValue(left: TimetzValue, right: TimetzValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalTimetzPayload(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function timetzUnknown(): TimetzValue {
+    return { kind: "Unknown" };
+}
+export function timetzNull(): TimetzValue {
+    return { kind: "Null" };
+}
+export function makeTimetzValue(time: bigint, zone: number): TimetzValue {
+    time = langruntime.checkedI64(time);
+    zone = langruntime.checkedI32(zone);
+    if (time < 0n || time > 86400000000n || zone <= langruntime.checkedSignedNegate(57600) || zone >= 57600) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: { time: time, zone: zone } };
+}
+export function timetzIsNull(input: TimetzValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTimetzValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalTimetzValue(input, { kind: "Null" }) };
+}
+export function timetzFromCaseGuard(input: CheckOutcome): TimetzValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export interface IntervalPayload {
+    readonly months: number;
+    readonly days: number;
+    readonly time: bigint;
+}
+function equalIntervalPayload(left: IntervalPayload, right: IntervalPayload): boolean {
+    return left.months === right.months && left.days === right.days && left.time === right.time;
+}
+export type IntervalValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: IntervalPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalIntervalValue(left: IntervalValue, right: IntervalValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalIntervalPayload(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function intervalUnknown(): IntervalValue {
+    return { kind: "Unknown" };
+}
+export function intervalNull(): IntervalValue {
+    return { kind: "Null" };
+}
+export function makeIntervalValue(months: number, days: number, time: bigint): IntervalValue {
+    months = langruntime.checkedI32(months);
+    days = langruntime.checkedI32(days);
+    time = langruntime.checkedI64(time);
+    return { kind: "Value", value: { months: months, days: days, time: time } };
+}
+export function intervalIsNull(input: IntervalValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalIntervalValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalIntervalValue(input, { kind: "Null" }) };
+}
+export function intervalFromCaseGuard(input: CheckOutcome): IntervalValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;
@@ -3243,6 +3408,108 @@ export function timestamptzFromCalendar(year: number, month: number, day: number
 export function timestamptzFromText(value: TextValue): TimestamptzValue {
     const parsed: Int8Value = parseTimestampText(value, true);
     return timestamptzFromMicroseconds(parsed);
+}
+const clockInputSyntax = 3452551;
+const clockInputRange = 3452552;
+function clockInputText(input: TextValue): TextValue {
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const text: TimestampText = { chars: Array.from(value) };
+        let start: number = 0;
+        let end: number = text.chars.length;
+        while (start < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(start)))) {
+            start = langruntime.checkedAdd(start, 1);
+        }
+        while (start < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        if (start === end || langruntime.indexChar(text.chars, langruntime.checkedIndex(start)) === "+" || langruntime.indexChar(text.chars, langruntime.checkedIndex(start)) === "-") {
+            return { kind: "Error", value: makeSqlError(clockInputSyntax) };
+        }
+        let meridian: number = 0;
+        if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "m") {
+            const initial: string = langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2))));
+            if (initial === "a" || initial === "p") {
+                meridian = langruntime.checkedI32(1);
+                if (initial === "p") {
+                    meridian = langruntime.checkedI32(2);
+                }
+                end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 2));
+                while (start < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+                    end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+                }
+            }
+        }
+        let output: string = "2000-01-01 ";
+        if (!(meridian === 0)) {
+            const hours: TimestampNumber = readTimestampNumber(text, start, end);
+            if (hours.digits === 0 || hours.next === end || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(hours.next)) === ":")) {
+                return { kind: "Unknown" };
+            }
+            if (hours.overflow || hours.value > 12) {
+                return { kind: "Error", value: makeSqlError(clockInputRange) };
+            }
+            let hour: number = hours.value;
+            if (hour === 12) {
+                hour = langruntime.checkedI32(0);
+            }
+            if (meridian === 2) {
+                hour = langruntime.checkedI32(langruntime.checkedSignedAdd(hour, 12));
+            }
+            const symbols: string[] = Array.from("0123456789");
+            const tens: number = langruntime.indexFromI32(langruntime.checkedSignedDivide(hour, 10), 0);
+            const ones: number = langruntime.indexFromI32(langruntime.checkedSignedRemainder(hour, 10), 0);
+            output = output + langruntime.checkedChar(langruntime.indexChar(symbols, langruntime.checkedIndex(tens)));
+            output = output + langruntime.checkedChar(langruntime.indexChar(symbols, langruntime.checkedIndex(ones)));
+            start = langruntime.checkedIndex(hours.next);
+        }
+        while (start < end) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(text.chars, langruntime.checkedIndex(start)));
+            start = langruntime.checkedAdd(start, 1);
+        }
+        return { kind: "Value", value: output };
+    }
+    return input;
+}
+export function timeFromText(input: TextValue): TimeValue {
+    const parsed: Int8Value = parseTimestampText(clockInputText(input), false);
+    if (parsed.kind === "Error") {
+        const error: SqlError = parsed.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalInt8Value(parsed, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (parsed.kind === "Value") {
+        const time: bigint = langruntime.checkedI64(parsed.value);
+        return makeTimeValue(time);
+    }
+    return { kind: "Unknown" };
+}
+export function timetzFromText(input: TextValue): TimetzValue {
+    const normalized: TextValue = clockInputText(input);
+    const local: Int8Value = parseTimestampText(normalized, false);
+    const utc: Int8Value = parseTimestampText(normalized, true);
+    if (local.kind === "Error") {
+        const error: SqlError = local.value;
+        return { kind: "Error", value: error };
+    }
+    if (utc.kind === "Error") {
+        const error: SqlError = utc.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalInt8Value(local, { kind: "Null" }) || equalInt8Value(utc, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (local.kind === "Value") {
+        const time: bigint = langruntime.checkedI64(local.value);
+        if (utc.kind === "Value") {
+            const instant: bigint = langruntime.checkedI64(utc.value);
+            const zone: bigint = langruntime.checkedI64Divide((langruntime.checkedI64Subtract(instant, time)), 1000000n);
+            return makeTimetzValue(time, Number(BigInt.asIntN(32, langruntime.checkedI64(zone))));
+        }
+    }
+    return { kind: "Unknown" };
 }
 export function andStops(left: CheckOutcome): boolean {
     if (equalCheckOutcome(left, { kind: "False" })) {

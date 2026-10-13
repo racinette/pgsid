@@ -14,6 +14,7 @@ pub mod checkruntime {
     include!("date.rs");
     include!("timestamp.rs");
     include!("timestamptz.rs");
+    include!("time.rs");
     include!("logic.rs");
     include!("constants.rs");
 
@@ -58,6 +59,11 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/timezone_named.rs");
     include!("operations/pg_catalog/timezone_recurring.rs");
     include!(concat!(env!("OUT_DIR"), "/timezone-tables.rs"));
+    include!("operations/pg_catalog/binary_send.rs");
+    include!("operations/pg_catalog/time_send.rs");
+    include!("operations/pg_catalog/value_order.rs");
+    include!("operations/pg_catalog/time_core.rs");
+    include!("operations/pg_catalog/time_arithmetic.rs");
     include!("operations/pg_catalog/float_core.rs");
     include!("operations/pg_catalog/float_arithmetic.rs");
     include!("operations/pg_catalog/float_input.rs");
