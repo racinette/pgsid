@@ -83,7 +83,7 @@ fn clock_fields_component(span: IntervalPayload, zone: i32, family: i32, code: i
         return make_int8_value(span.time / 3600000000i64);
     };
     if family == 2 {
-        let offset = 0i64 - (zone as i64);
+        let offset = fixed_zone_wrapped_seconds(0i64 - (zone as i64)) as i64;
         if code == 20 {
             return make_int8_value(offset);
         };

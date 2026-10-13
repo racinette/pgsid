@@ -1184,7 +1184,7 @@ func TimetzNull() TimetzValue {
 }
 func MakeTimetzValue(time int64, zone int) TimetzValue {
 	zone = langruntime.CheckedI32(zone)
-	if time < int64(0) || time > int64(86400000000) || zone <= langruntime.CheckedSignedNegate(57600) || zone >= 57600 {
+	if time < int64(0) || time > int64(86400000000) {
 		return TimetzValue{Kind: TimetzValueUnknown}
 	}
 	return TimetzValue{Kind: TimetzValueValue, Value: TimetzPayload{Time: time, Zone: zone}}
@@ -4123,96 +4123,239 @@ func intervalInputClock(input intervalInputAcc, text string, fieldMask int) inte
 	}
 	return intervalInputAcc{years: input.years, months: input.months, days: input.days, time: micros, mask: langruntime.CheckedSignedAdd(input.mask, 31), error: 0}
 }
-func intervalInputIsoNumber(input intervalInputAcc, text string, unit int) intervalInputAcc {
-	input = copyintervalInputAcc(input)
-	text = langruntime.CheckedString(text)
-	unit = langruntime.CheckedI32(unit)
-	value := langruntime.F64FromText(text, float64(1.0e16))
-	infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
-	if langruntime.F64Abs(value) == infinity {
-		return intervalInputFail(input, intervalInputSyntax)
-	}
-	if value < float64(-1.0e15) || value > float64(1.0e15) || value != value {
-		return intervalInputFail(input, intervalInputRange)
-	}
-	chars := []rune(text)
-	index := 0
-	nonzero := false
-	for index < len(chars) && chars[index] != 'e' && chars[index] != 'E' {
-		if dateTextDigit(chars[index]) > 0 {
-			nonzero = true
-		}
+
+type intervalIsoNumber struct {
+	whole        int64
+	fractionBits int64
+	next         int
+	width        int
+	error        int
+}
+
+func copyintervalIsoNumber(value intervalIsoNumber) intervalIsoNumber {
+	return intervalIsoNumber{whole: value.whole, fractionBits: value.fractionBits, next: langruntime.CheckedIndex(value.next), width: langruntime.CheckedIndex(value.width), error: langruntime.CheckedIndex(value.error)}
+}
+func intervalIsoNumberFail(next int, width int, error int) intervalIsoNumber {
+	next = langruntime.CheckedIndex(next)
+	width = langruntime.CheckedIndex(width)
+	error = langruntime.CheckedIndex(error)
+	return intervalIsoNumber{whole: int64(0), fractionBits: int64(0), next: next, width: width, error: error}
+}
+func intervalIsoRead(input *intervalInputText, start int) intervalIsoNumber {
+	start = langruntime.CheckedIndex(start)
+	index := start
+	number := langruntime.NewTextBuffer("")
+	if index < len(input.chars) && input.chars[index] == '-' {
+		number = append(number, string(langruntime.CheckedChar('-'))...)
 		index = langruntime.CheckedAdd(index, 1)
 	}
+	width := 0
+	for index < len(input.chars) && dateTextDigit(input.chars[index]) >= 0 {
+		number = append(number, string(langruntime.CheckedChar(input.chars[index]))...)
+		index = langruntime.CheckedAdd(index, 1)
+		width = langruntime.CheckedAdd(width, 1)
+	}
+	digits := width
+	if index < len(input.chars) && input.chars[index] == '.' {
+		number = append(number, string(langruntime.CheckedChar('.'))...)
+		index = langruntime.CheckedAdd(index, 1)
+		for index < len(input.chars) && dateTextDigit(input.chars[index]) >= 0 {
+			number = append(number, string(langruntime.CheckedChar(input.chars[index]))...)
+			index = langruntime.CheckedAdd(index, 1)
+			digits = langruntime.CheckedAdd(digits, 1)
+		}
+	}
+	if digits == 0 {
+		return intervalIsoNumberFail(index, width, intervalInputSyntax)
+	}
+	if index < len(input.chars) && (input.chars[index] == 'e' || input.chars[index] == 'E') {
+		number = append(number, string(langruntime.CheckedChar(input.chars[index]))...)
+		index = langruntime.CheckedAdd(index, 1)
+		if index < len(input.chars) && (input.chars[index] == '-' || input.chars[index] == '+') {
+			number = append(number, string(langruntime.CheckedChar(input.chars[index]))...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		exponent := index
+		for index < len(input.chars) && dateTextDigit(input.chars[index]) >= 0 {
+			number = append(number, string(langruntime.CheckedChar(input.chars[index]))...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if index == exponent {
+			return intervalIsoNumberFail(index, width, intervalInputSyntax)
+		}
+	}
+	spelling := string(number)
+	value := langruntime.F64FromText(spelling, float64(1.0e16))
+	infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+	if langruntime.F64Abs(value) == infinity {
+		return intervalIsoNumberFail(index, width, intervalInputSyntax)
+	}
+	if value < float64(-1.0e15) || value > float64(1.0e15) || value != value {
+		return intervalIsoNumberFail(index, width, intervalInputRange)
+	}
+	letters := []rune(string(number))
+	digitIndex := 0
+	nonzero := false
+	for digitIndex < len(letters) && letters[digitIndex] != 'e' && letters[digitIndex] != 'E' {
+		if dateTextDigit(letters[digitIndex]) > 0 {
+			nonzero = true
+		}
+		digitIndex = langruntime.CheckedAdd(digitIndex, 1)
+	}
 	if (value == float64(0.0) && nonzero) || (value != float64(0.0) && langruntime.F64Abs(value) < float64(2.2250738585072014e-308)) {
-		return intervalInputFail(input, intervalInputSyntax)
+		return intervalIsoNumberFail(index, width, intervalInputSyntax)
 	}
 	high := langruntime.F64ToI32((langruntime.F64Divide(value, float64(1000000000.0))))
 	rest := langruntime.F64Subtract(value, langruntime.F64Multiply((float64(high)), float64(1000000000.0)))
 	low := langruntime.F64ToI32(rest)
-	whole := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(high))), int64(1000000000)), (int64(langruntime.CheckedI32(low))))
 	fraction := langruntime.F64Subtract(rest, (float64(low)))
+	fractionBits := langruntime.F64ToI64Bits(fraction)
+	return intervalIsoNumber{whole: langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(high))), int64(1000000000)), (int64(langruntime.CheckedI32(low)))), fractionBits: fractionBits, next: index, width: width, error: 0}
+}
+func intervalIsoApply(input intervalInputAcc, whole int64, fraction float64, unit int) intervalInputAcc {
+	input = copyintervalInputAcc(input)
+	unit = langruntime.CheckedI32(unit)
 	clean := intervalInputAcc{years: input.years, months: input.months, days: input.days, time: input.time, mask: 0, error: input.error}
 	return intervalInputAdd(clean, whole, fraction, unit)
 }
+
+type intervalIsoStep struct {
+	acc      intervalInputAcc
+	next     int
+	timepart bool
+	finished bool
+}
+
+func copyintervalIsoStep(value intervalIsoStep) intervalIsoStep {
+	return intervalIsoStep{acc: copyintervalInputAcc(value.acc), next: langruntime.CheckedIndex(value.next), timepart: value.timepart, finished: value.finished}
+}
+func intervalIsoMakeStep(acc intervalInputAcc, next int, timepart bool, finished bool) intervalIsoStep {
+	acc = copyintervalInputAcc(acc)
+	next = langruntime.CheckedIndex(next)
+	return intervalIsoStep{acc: acc, next: next, timepart: timepart, finished: finished}
+}
+func intervalIsoStepFail(acc intervalInputAcc, error int) intervalIsoStep {
+	acc = copyintervalInputAcc(acc)
+	error = langruntime.CheckedIndex(error)
+	if acc.error != 0 {
+		return intervalIsoMakeStep(acc, 0, false, true)
+	}
+	return intervalIsoMakeStep(intervalInputFail(acc, error), 0, false, true)
+}
+func intervalIsoAlternative(input *intervalInputText, acc intervalInputAcc, number intervalIsoNumber, next int, datepart bool, designator rune, ended bool) intervalIsoStep {
+	acc = copyintervalInputAcc(acc)
+	number = copyintervalIsoNumber(number)
+	next = langruntime.CheckedIndex(next)
+	designator = langruntime.CheckedChar(designator)
+	result := acc
+	if datepart {
+		if number.width == 8 && (ended || designator == 'T') {
+			result = copyintervalInputAcc(intervalIsoApply(result, langruntime.CheckedI64Divide(number.whole, int64(10000)), float64(0.0), 8))
+			result = copyintervalInputAcc(intervalIsoApply(result, langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(number.whole, int64(100))), int64(100)), float64(0.0), 7))
+			result = copyintervalInputAcc(intervalIsoApply(result, langruntime.CheckedI64Remainder(number.whole, int64(100)), Float8Number(number.fractionBits), 5))
+			return intervalIsoMakeStep(result, next, true, ended)
+		}
+		result = copyintervalInputAcc(intervalIsoApply(result, number.whole, Float8Number(number.fractionBits), 8))
+		if ended || designator == 'T' {
+			return intervalIsoMakeStep(result, next, true, ended)
+		}
+		month := intervalIsoRead(input, next)
+		if month.error != 0 {
+			return intervalIsoStepFail(result, month.error)
+		}
+		result = copyintervalInputAcc(intervalIsoApply(result, month.whole, Float8Number(month.fractionBits), 7))
+		if month.next == len(input.chars) {
+			return intervalIsoMakeStep(result, month.next, false, true)
+		}
+		if input.chars[month.next] == 'T' {
+			return intervalIsoMakeStep(result, month.next, true, false)
+		}
+		if input.chars[month.next] != '-' {
+			return intervalIsoStepFail(result, intervalInputSyntax)
+		}
+		day := intervalIsoRead(input, langruntime.CheckedAdd(month.next, 1))
+		if day.error != 0 {
+			return intervalIsoStepFail(result, day.error)
+		}
+		result = copyintervalInputAcc(intervalIsoApply(result, day.whole, Float8Number(day.fractionBits), 5))
+		if day.next == len(input.chars) {
+			return intervalIsoMakeStep(result, day.next, false, true)
+		}
+		if input.chars[day.next] == 'T' {
+			return intervalIsoMakeStep(result, day.next, true, false)
+		}
+		return intervalIsoStepFail(result, intervalInputSyntax)
+	}
+	if number.width == 6 && ended {
+		result = copyintervalInputAcc(intervalIsoApply(result, langruntime.CheckedI64Divide(number.whole, int64(10000)), float64(0.0), 4))
+		result = copyintervalInputAcc(intervalIsoApply(result, langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(number.whole, int64(100))), int64(100)), float64(0.0), 3))
+		result = copyintervalInputAcc(intervalIsoApply(result, langruntime.CheckedI64Remainder(number.whole, int64(100)), float64(0.0), 2))
+		result = copyintervalInputAcc(intervalIsoApply(result, int64(0), Float8Number(number.fractionBits), 0))
+		return intervalIsoMakeStep(result, next, true, true)
+	}
+	result = copyintervalInputAcc(intervalIsoApply(result, number.whole, Float8Number(number.fractionBits), 4))
+	if ended {
+		return intervalIsoMakeStep(result, next, true, true)
+	}
+	minute := intervalIsoRead(input, next)
+	if minute.error != 0 {
+		return intervalIsoStepFail(result, minute.error)
+	}
+	result = copyintervalInputAcc(intervalIsoApply(result, minute.whole, Float8Number(minute.fractionBits), 3))
+	if minute.next == len(input.chars) {
+		return intervalIsoMakeStep(result, minute.next, true, true)
+	}
+	if input.chars[minute.next] != ':' {
+		return intervalIsoStepFail(result, intervalInputSyntax)
+	}
+	second := intervalIsoRead(input, langruntime.CheckedAdd(minute.next, 1))
+	if second.error != 0 {
+		return intervalIsoStepFail(result, second.error)
+	}
+	result = copyintervalInputAcc(intervalIsoApply(result, second.whole, Float8Number(second.fractionBits), 2))
+	if second.next == len(input.chars) {
+		return intervalIsoMakeStep(result, second.next, true, true)
+	}
+	return intervalIsoStepFail(result, intervalInputSyntax)
+}
+func intervalIsoFinish(acc intervalInputAcc) IntervalValue {
+	acc = copyintervalInputAcc(acc)
+	if acc.error != 0 {
+		return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(acc.error)}
+	}
+	months := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(acc.years))), int64(12)), (int64(langruntime.CheckedI32(acc.months))))
+	if months < (int64(-2147483648)) || months > int64(2147483647) {
+		return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputFinalRange)}
+	}
+	return MakeIntervalValue(int(int32(months)), acc.days, acc.time)
+}
 func intervalInputIso(text string) IntervalValue {
 	text = langruntime.CheckedString(text)
-	chars := []rune(text)
-	if len(chars) < 2 || chars[0] != 'P' {
+	input := intervalInputText{chars: []rune(text)}
+	if len(input.chars) < 2 || input.chars[0] != 'P' {
 		return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
 	}
 	acc := intervalInputAcc{years: 0, months: 0, days: 0, time: int64(0), mask: 0, error: 0}
 	datepart := true
+	havefield := false
 	index := 1
-	for index < len(chars) {
-		if chars[index] == 'T' {
+	for index < len(input.chars) {
+		if input.chars[index] == 'T' {
 			datepart = false
+			havefield = false
 			index = langruntime.CheckedAdd(index, 1)
 		} else {
-			number := langruntime.NewTextBuffer("")
-			if chars[index] == '-' {
-				number = append(number, string(langruntime.CheckedChar('-'))...)
+			number := intervalIsoRead(&input, index)
+			if number.error != 0 {
+				return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(number.error)}
+			}
+			index = langruntime.CheckedIndex(number.next)
+			ended := index == len(input.chars)
+			designator := '?'
+			if ended == false {
+				designator = langruntime.CheckedChar(input.chars[index])
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			digits := 0
-			for index < len(chars) && dateTextDigit(chars[index]) >= 0 {
-				number = append(number, string(langruntime.CheckedChar(chars[index]))...)
-				index = langruntime.CheckedAdd(index, 1)
-				digits = langruntime.CheckedAdd(digits, 1)
-			}
-			if index < len(chars) && chars[index] == '.' {
-				number = append(number, string(langruntime.CheckedChar('.'))...)
-				index = langruntime.CheckedAdd(index, 1)
-				for index < len(chars) && dateTextDigit(chars[index]) >= 0 {
-					number = append(number, string(langruntime.CheckedChar(chars[index]))...)
-					index = langruntime.CheckedAdd(index, 1)
-					digits = langruntime.CheckedAdd(digits, 1)
-				}
-			}
-			if digits == 0 {
-				return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
-			}
-			if index < len(chars) && (chars[index] == 'e' || chars[index] == 'E') {
-				number = append(number, string(langruntime.CheckedChar(chars[index]))...)
-				index = langruntime.CheckedAdd(index, 1)
-				if index < len(chars) && (chars[index] == '-' || chars[index] == '+') {
-					number = append(number, string(langruntime.CheckedChar(chars[index]))...)
-					index = langruntime.CheckedAdd(index, 1)
-				}
-				start := index
-				for index < len(chars) && dateTextDigit(chars[index]) >= 0 {
-					number = append(number, string(langruntime.CheckedChar(chars[index]))...)
-					index = langruntime.CheckedAdd(index, 1)
-				}
-				if index == start {
-					return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
-				}
-			}
-			if index == len(chars) {
-				return IntervalValue{Kind: IntervalValueUnknown}
-			}
-			designator := chars[index]
-			index = langruntime.CheckedAdd(index, 1)
 			unit := langruntime.CheckedSignedNegate(1)
 			if datepart {
 				if designator == 'Y' {
@@ -4238,23 +4381,36 @@ func intervalInputIso(text string) IntervalValue {
 					unit = langruntime.CheckedI32(2)
 				}
 			}
-			if unit < 0 {
-				if designator == '-' || designator == ':' || designator == 'T' || designator == 'x' || designator == 'X' {
-					return IntervalValue{Kind: IntervalValueUnknown}
+			if unit >= 0 {
+				acc = copyintervalInputAcc(intervalIsoApply(acc, number.whole, Float8Number(number.fractionBits), unit))
+				havefield = true
+			} else {
+				alternative := ended || (datepart && (designator == '-' || designator == 'T')) || (datepart == false && designator == ':')
+				if alternative {
+					if havefield {
+						return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
+					}
+					step := intervalIsoAlternative(&input, acc, number, index, datepart, designator, ended)
+					acc = copyintervalInputAcc(step.acc)
+					if step.finished {
+						return intervalIsoFinish(acc)
+					}
+					index = langruntime.CheckedIndex(step.next)
+					datepart = step.timepart == false
+					havefield = false
+				} else {
+					if designator == 'x' || designator == 'X' {
+						return IntervalValue{Kind: IntervalValueUnknown}
+					}
+					return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
 				}
-				return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
 			}
-			acc = copyintervalInputAcc(intervalInputIsoNumber(acc, string(number), unit))
 			if acc.error != 0 {
 				return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(acc.error)}
 			}
 		}
 	}
-	months := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(acc.years))), int64(12)), (int64(langruntime.CheckedI32(acc.months))))
-	if months < (int64(-2147483648)) || months > int64(2147483647) {
-		return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputFinalRange)}
-	}
-	return MakeIntervalValue(int(int32(months)), acc.days, acc.time)
+	return intervalIsoFinish(acc)
 }
 func IntervalFromTextFields(input TextValue, fields Int4Value) IntervalValue {
 	if input.Kind == TextValueError {

@@ -16,7 +16,7 @@ fn interval_token_text(input: &IntervalInputText, token: IntervalInputToken) -> 
     while index < token.end {
         text.push(input.chars[index].to_ascii_lowercase());
         index += 1;
-    };
+    }
     text
 }
 
@@ -46,7 +46,7 @@ fn interval_input_unit(text: &str) -> i32 {
     while index < letters.len() && index < 10 {
         prefix.push(letters[index]);
         index += 1;
-    };
+    }
     if prefix == "microsecon"
         || text == "usec"
         || text == "usecond"
@@ -121,7 +121,7 @@ fn interval_input_whole(text: &str) -> Int8Value {
         };
         whole = whole * 10i64 - (digit as i64);
         index += 1;
-    };
+    }
     let integer_digits = index - start;
     if integer_digits == 0 && start > 0 {
         return Int8Value::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
@@ -132,7 +132,7 @@ fn interval_input_whole(text: &str) -> Int8Value {
         let fraction_start = index;
         while index < chars.len() && date_text_digit(chars[index]) >= 0 {
             index += 1;
-        };
+        }
         fraction_digits = index - fraction_start;
     };
     if index != chars.len() || integer_digits + fraction_digits == 0 {
@@ -151,12 +151,12 @@ fn interval_input_fraction(text: &str) -> f64 {
     let mut index: usize = 0;
     while index < chars.len() && chars[index] != '.' {
         index += 1;
-    };
+    }
     let mut fraction = "0".to_owned();
     while index < chars.len() {
         fraction.push(chars[index]);
         index += 1;
-    };
+    }
     let parsed = fraction.as_str().parse::<f64>().unwrap_or(0.0f64);
     if chars.len() > 0 && chars[0] == '-' {
         return 0.0f64 - parsed;
@@ -203,7 +203,7 @@ fn interval_input_add(
     while index < unit {
         bit = bit * 2;
         index = index + 1;
-    };
+    }
     let mut mask = bit;
     if unit == 2 && fraction != 0.0f64 {
         mask = 7;
@@ -216,7 +216,7 @@ fn interval_input_add(
         };
         check = check / 2;
         stored = stored / 2;
-    };
+    }
     let mut years = input.years as i64;
     let mut months = input.months as i64;
     let mut days = input.days as i64;
@@ -352,7 +352,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32) -> IntervalValue 
                 token_start = index + 1;
             };
             index += 1;
-        };
+        }
         if token_start < index {
             tokens.push(IntervalInputToken {
                 start: token_start,
@@ -425,7 +425,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32) -> IntervalValue 
                     colon = true;
                 };
                 position += 1;
-            };
+            }
             let found = interval_input_unit(token.as_str());
             if colon {
                 if pending {
@@ -493,7 +493,7 @@ fn interval_units_from_text(input: TextValue, field_mask: i32) -> IntervalValue 
                     };
                 };
             };
-        };
+        }
         if pending || numbers == 0 {
             return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
         };
@@ -549,7 +549,7 @@ fn interval_input_clock(input: IntervalInputAcc, text: &str, field_mask: i32) ->
             start = index + 1;
         };
         index += 1;
-    };
+    }
     fields.push(IntervalInputToken {
         start: start,
         end: index,
@@ -586,7 +586,7 @@ fn interval_input_clock(input: IntervalInputAcc, text: &str, field_mask: i32) ->
             return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
         };
         index += 1;
-    };
+    }
     let second_chars: Vec<char> = second_text.chars().collect();
     let mut fraction_text = "0".to_owned();
     let mut second_point = false;
@@ -599,7 +599,7 @@ fn interval_input_clock(input: IntervalInputAcc, text: &str, field_mask: i32) ->
             return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
         };
         index += 1;
-    };
+    }
     if fields.len() == 3 {
         fraction_text = interval_token_text(&buffer, fields[2]);
         let last_number = interval_input_whole(fraction_text.as_str());
@@ -660,7 +660,7 @@ fn interval_input_clock(input: IntervalInputAcc, text: &str, field_mask: i32) ->
             return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
         };
         bit = bit * 2;
-    };
+    }
     return IntervalInputAcc {
         years: input.years,
         months: input.months,
@@ -671,33 +671,107 @@ fn interval_input_clock(input: IntervalInputAcc, text: &str, field_mask: i32) ->
     };
 }
 
-fn interval_input_iso_number(input: IntervalInputAcc, text: &str, unit: i32) -> IntervalInputAcc {
-    let value = text.parse::<f64>().unwrap_or(1.0e16f64);
-    let infinity = 1.0f64 / 0.0f64;
-    if value.abs() == infinity {
-        return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
-    };
-    if value < -1.0e15f64 || value > 1.0e15f64 || value != value {
-        return interval_input_fail(input, INTERVAL_INPUT_RANGE);
-    };
-    let chars: Vec<char> = text.chars().collect();
-    let mut index: usize = 0;
-    let mut nonzero = false;
-    while index < chars.len() && chars[index] != 'e' && chars[index] != 'E' {
-        if date_text_digit(chars[index]) > 0 {
-            nonzero = true;
-        };
+#[derive(Clone, Copy)]
+struct IntervalIsoNumber {
+    whole: i64,
+    fraction_bits: i64,
+    next: usize,
+    width: usize,
+    error: u32,
+}
+fn interval_iso_number_fail(next: usize, width: usize, error: u32) -> IntervalIsoNumber {
+    IntervalIsoNumber {
+        whole: 0i64,
+        fraction_bits: 0i64,
+        next,
+        width,
+        error,
+    }
+}
+fn interval_iso_read(input: &IntervalInputText, start: usize) -> IntervalIsoNumber {
+    let mut index = start;
+    let mut number = String::new();
+    if index < input.chars.len() && input.chars[index] == '-' {
+        number.push('-');
         index += 1;
     };
+    let mut width: usize = 0;
+    while index < input.chars.len() && date_text_digit(input.chars[index]) >= 0 {
+        number.push(input.chars[index]);
+        index += 1;
+        width += 1;
+    }
+    let mut digits = width;
+    if index < input.chars.len() && input.chars[index] == '.' {
+        number.push('.');
+        index += 1;
+        while index < input.chars.len() && date_text_digit(input.chars[index]) >= 0 {
+            number.push(input.chars[index]);
+            index += 1;
+            digits += 1;
+        }
+    };
+    if digits == 0 {
+        return interval_iso_number_fail(index, width, INTERVAL_INPUT_SYNTAX);
+    };
+    if index < input.chars.len() && (input.chars[index] == 'e' || input.chars[index] == 'E') {
+        number.push(input.chars[index]);
+        index += 1;
+        if index < input.chars.len() && (input.chars[index] == '-' || input.chars[index] == '+') {
+            number.push(input.chars[index]);
+            index += 1;
+        };
+        let exponent = index;
+        while index < input.chars.len() && date_text_digit(input.chars[index]) >= 0 {
+            number.push(input.chars[index]);
+            index += 1;
+        }
+        if index == exponent {
+            return interval_iso_number_fail(index, width, INTERVAL_INPUT_SYNTAX);
+        };
+    };
+    let spelling = number.as_str();
+    let value = spelling.parse::<f64>().unwrap_or(1.0e16f64);
+    let infinity = 1.0f64 / 0.0f64;
+    if value.abs() == infinity {
+        return interval_iso_number_fail(index, width, INTERVAL_INPUT_SYNTAX);
+    };
+    if value < -1.0e15f64 || value > 1.0e15f64 || value != value {
+        return interval_iso_number_fail(index, width, INTERVAL_INPUT_RANGE);
+    };
+    let letters: Vec<char> = number.chars().collect();
+    let mut digit_index: usize = 0;
+    let mut nonzero = false;
+    while digit_index < letters.len() && letters[digit_index] != 'e' && letters[digit_index] != 'E'
+    {
+        if date_text_digit(letters[digit_index]) > 0 {
+            nonzero = true;
+        };
+        digit_index += 1;
+    }
     if (value == 0.0f64 && nonzero) || (value != 0.0f64 && value.abs() < 2.2250738585072014e-308f64)
     {
-        return interval_input_fail(input, INTERVAL_INPUT_SYNTAX);
+        return interval_iso_number_fail(index, width, INTERVAL_INPUT_SYNTAX);
     };
     let high = (value / 1000000000.0f64) as i32;
     let rest = value - (high as f64) * 1000000000.0f64;
     let low = rest as i32;
-    let whole = (high as i64) * 1000000000i64 + (low as i64);
     let fraction = rest - (low as f64);
+    let fraction_bits = fraction.to_bits() as i64;
+    IntervalIsoNumber {
+        whole: (high as i64) * 1000000000i64 + (low as i64),
+        fraction_bits,
+        next: index,
+        width,
+        error: 0,
+    }
+}
+fn interval_iso_apply(
+    input: IntervalInputAcc,
+    whole: i64,
+    fraction: f64,
+    unit: i32,
+) -> IntervalInputAcc {
     let clean = IntervalInputAcc {
         years: input.years,
         months: input.months,
@@ -708,9 +782,132 @@ fn interval_input_iso_number(input: IntervalInputAcc, text: &str, unit: i32) -> 
     };
     interval_input_add(clean, whole, fraction, unit)
 }
+#[derive(Clone, Copy)]
+struct IntervalIsoStep {
+    acc: IntervalInputAcc,
+    next: usize,
+    timepart: bool,
+    finished: bool,
+}
+fn interval_iso_make_step(
+    acc: IntervalInputAcc,
+    next: usize,
+    timepart: bool,
+    finished: bool,
+) -> IntervalIsoStep {
+    IntervalIsoStep {
+        acc,
+        next,
+        timepart,
+        finished,
+    }
+}
+fn interval_iso_step_fail(acc: IntervalInputAcc, error: u32) -> IntervalIsoStep {
+    if acc.error != 0 {
+        return interval_iso_make_step(acc, 0, false, true);
+    };
+    interval_iso_make_step(interval_input_fail(acc, error), 0, false, true)
+}
+fn interval_iso_alternative(
+    input: &IntervalInputText,
+    acc: IntervalInputAcc,
+    number: IntervalIsoNumber,
+    next: usize,
+    datepart: bool,
+    designator: char,
+    ended: bool,
+) -> IntervalIsoStep {
+    let mut result = acc;
+    if datepart {
+        if number.width == 8 && (ended || designator == 'T') {
+            result = interval_iso_apply(result, number.whole / 10000i64, 0.0f64, 8);
+            result = interval_iso_apply(result, (number.whole / 100i64) % 100i64, 0.0f64, 7);
+            result = interval_iso_apply(
+                result,
+                number.whole % 100i64,
+                float8_number(number.fraction_bits),
+                5,
+            );
+            return interval_iso_make_step(result, next, true, ended);
+        };
+        result = interval_iso_apply(result, number.whole, float8_number(number.fraction_bits), 8);
+        if ended || designator == 'T' {
+            return interval_iso_make_step(result, next, true, ended);
+        };
+        let month = interval_iso_read(input, next);
+        if month.error != 0 {
+            return interval_iso_step_fail(result, month.error);
+        };
+        result = interval_iso_apply(result, month.whole, float8_number(month.fraction_bits), 7);
+        if month.next == input.chars.len() {
+            return interval_iso_make_step(result, month.next, false, true);
+        };
+        if input.chars[month.next] == 'T' {
+            return interval_iso_make_step(result, month.next, true, false);
+        };
+        if input.chars[month.next] != '-' {
+            return interval_iso_step_fail(result, INTERVAL_INPUT_SYNTAX);
+        };
+        let day = interval_iso_read(input, month.next + 1);
+        if day.error != 0 {
+            return interval_iso_step_fail(result, day.error);
+        };
+        result = interval_iso_apply(result, day.whole, float8_number(day.fraction_bits), 5);
+        if day.next == input.chars.len() {
+            return interval_iso_make_step(result, day.next, false, true);
+        };
+        if input.chars[day.next] == 'T' {
+            return interval_iso_make_step(result, day.next, true, false);
+        };
+        return interval_iso_step_fail(result, INTERVAL_INPUT_SYNTAX);
+    };
+    if number.width == 6 && ended {
+        result = interval_iso_apply(result, number.whole / 10000i64, 0.0f64, 4);
+        result = interval_iso_apply(result, (number.whole / 100i64) % 100i64, 0.0f64, 3);
+        result = interval_iso_apply(result, number.whole % 100i64, 0.0f64, 2);
+        result = interval_iso_apply(result, 0i64, float8_number(number.fraction_bits), 0);
+        return interval_iso_make_step(result, next, true, true);
+    };
+    result = interval_iso_apply(result, number.whole, float8_number(number.fraction_bits), 4);
+    if ended {
+        return interval_iso_make_step(result, next, true, true);
+    };
+    let minute = interval_iso_read(input, next);
+    if minute.error != 0 {
+        return interval_iso_step_fail(result, minute.error);
+    };
+    result = interval_iso_apply(result, minute.whole, float8_number(minute.fraction_bits), 3);
+    if minute.next == input.chars.len() {
+        return interval_iso_make_step(result, minute.next, true, true);
+    };
+    if input.chars[minute.next] != ':' {
+        return interval_iso_step_fail(result, INTERVAL_INPUT_SYNTAX);
+    };
+    let second = interval_iso_read(input, minute.next + 1);
+    if second.error != 0 {
+        return interval_iso_step_fail(result, second.error);
+    };
+    result = interval_iso_apply(result, second.whole, float8_number(second.fraction_bits), 2);
+    if second.next == input.chars.len() {
+        return interval_iso_make_step(result, second.next, true, true);
+    };
+    interval_iso_step_fail(result, INTERVAL_INPUT_SYNTAX)
+}
+fn interval_iso_finish(acc: IntervalInputAcc) -> IntervalValue {
+    if acc.error != 0 {
+        return IntervalValue::Error(make_sql_error(acc.error));
+    };
+    let months = (acc.years as i64) * 12i64 + (acc.months as i64);
+    if months < (-2147483648i64) || months > 2147483647i64 {
+        return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_FINAL_RANGE));
+    };
+    make_interval_value(months as i32, acc.days, acc.time)
+}
 fn interval_input_iso(text: &str) -> IntervalValue {
-    let chars: Vec<char> = text.chars().collect();
-    if chars.len() < 2 || chars[0] != 'P' {
+    let input = IntervalInputText {
+        chars: text.chars().collect(),
+    };
+    if input.chars.len() < 2 || input.chars[0] != 'P' {
         return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
     };
     let mut acc = IntervalInputAcc {
@@ -722,56 +919,25 @@ fn interval_input_iso(text: &str) -> IntervalValue {
         error: 0,
     };
     let mut datepart = true;
+    let mut havefield = false;
     let mut index: usize = 1;
-    while index < chars.len() {
-        if chars[index] == 'T' {
+    while index < input.chars.len() {
+        if input.chars[index] == 'T' {
             datepart = false;
+            havefield = false;
             index += 1;
         } else {
-            let mut number = String::new();
-            if chars[index] == '-' {
-                number.push('-');
+            let number = interval_iso_read(&input, index);
+            if number.error != 0 {
+                return IntervalValue::Error(make_sql_error(number.error));
+            };
+            index = number.next;
+            let ended = index == input.chars.len();
+            let mut designator: char = '?';
+            if ended == false {
+                designator = input.chars[index];
                 index += 1;
             };
-            let mut digits: usize = 0;
-            while index < chars.len() && date_text_digit(chars[index]) >= 0 {
-                number.push(chars[index]);
-                index += 1;
-                digits += 1;
-            };
-            if index < chars.len() && chars[index] == '.' {
-                number.push('.');
-                index += 1;
-                while index < chars.len() && date_text_digit(chars[index]) >= 0 {
-                    number.push(chars[index]);
-                    index += 1;
-                    digits += 1;
-                };
-            };
-            if digits == 0 {
-                return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
-            };
-            if index < chars.len() && (chars[index] == 'e' || chars[index] == 'E') {
-                number.push(chars[index]);
-                index += 1;
-                if index < chars.len() && (chars[index] == '-' || chars[index] == '+') {
-                    number.push(chars[index]);
-                    index += 1;
-                };
-                let start = index;
-                while index < chars.len() && date_text_digit(chars[index]) >= 0 {
-                    number.push(chars[index]);
-                    index += 1;
-                };
-                if index == start {
-                    return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
-                };
-            };
-            if index == chars.len() {
-                return IntervalValue::Unknown;
-            };
-            let designator = chars[index];
-            index += 1;
             let mut unit: i32 = -1;
             if datepart {
                 if designator == 'Y' {
@@ -797,28 +963,45 @@ fn interval_input_iso(text: &str) -> IntervalValue {
                     unit = 2;
                 };
             };
-            if unit < 0 {
-                if designator == '-'
-                    || designator == ':'
-                    || designator == 'T'
-                    || designator == 'x'
-                    || designator == 'X'
-                {
-                    return IntervalValue::Unknown;
+            if unit >= 0 {
+                acc = interval_iso_apply(
+                    acc,
+                    number.whole,
+                    float8_number(number.fraction_bits),
+                    unit,
+                );
+                havefield = true;
+            } else {
+                let alternative = ended
+                    || (datepart && (designator == '-' || designator == 'T'))
+                    || (datepart == false && designator == ':');
+                if alternative {
+                    if havefield {
+                        return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
+                    };
+                    let step = interval_iso_alternative(
+                        &input, acc, number, index, datepart, designator, ended,
+                    );
+                    acc = step.acc;
+                    if step.finished {
+                        return interval_iso_finish(acc);
+                    };
+                    index = step.next;
+                    datepart = step.timepart == false;
+                    havefield = false;
+                } else {
+                    if designator == 'x' || designator == 'X' {
+                        return IntervalValue::Unknown;
+                    };
+                    return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
                 };
-                return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_SYNTAX));
             };
-            acc = interval_input_iso_number(acc, number.as_str(), unit);
             if acc.error != 0 {
                 return IntervalValue::Error(make_sql_error(acc.error));
             };
         };
-    };
-    let months = (acc.years as i64) * 12i64 + (acc.months as i64);
-    if months < (-2147483648i64) || months > 2147483647i64 {
-        return IntervalValue::Error(make_sql_error(INTERVAL_INPUT_FINAL_RANGE));
-    };
-    make_interval_value(months as i32, acc.days, acc.time)
+    }
+    interval_iso_finish(acc)
 }
 pub fn interval_from_text_fields(input: TextValue, fields: Int4Value) -> IntervalValue {
     if let TextValue::Error(error) = input {
@@ -842,7 +1025,7 @@ pub fn interval_from_text_fields(input: TextValue, fields: Int4Value) -> Interva
         let mut start: usize = 0;
         while start < chars.len() && date_text_space(chars[start]) {
             start += 1;
-        };
+        }
         if start < chars.len() && chars[start] == 'P' {
             if chars.len() > 255 {
                 return IntervalValue::Unknown;
@@ -889,7 +1072,7 @@ fn interval_input_normalized(text: &str) -> String {
         output.push(current);
         previous = current;
         index += 1;
-    };
+    }
     output
 }
 fn interval_input_year_month(text: &str) -> Int8Value {
@@ -903,7 +1086,7 @@ fn interval_input_year_month(text: &str) -> Int8Value {
     let start = index;
     while index < chars.len() && date_text_digit(chars[index]) >= 0 {
         index += 1;
-    };
+    }
     if index == start || index == chars.len() || chars[index] != '-' {
         return Int8Value::Unknown;
     };
@@ -913,7 +1096,7 @@ fn interval_input_year_month(text: &str) -> Int8Value {
     while index < separator {
         first.push(chars[index]);
         index += 1;
-    };
+    }
     let mut second = String::new();
     index = separator + 1;
     while index < chars.len() {
@@ -922,7 +1105,7 @@ fn interval_input_year_month(text: &str) -> Int8Value {
         };
         second.push(chars[index]);
         index += 1;
-    };
+    }
     let years = interval_input_whole(first.as_str());
     let mut months = interval_input_whole(second.as_str());
     if separator + 1 == chars.len() {

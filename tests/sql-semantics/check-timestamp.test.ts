@@ -145,11 +145,19 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
           constraint: domain.checks[0]!.name,
         },
       },
+      {
+        expression: bind("timezone(INTERVAL '1 hour',a) = instant"),
+        identity: {
+          schema: 'public',
+          kind: 'table' as const,
+          owner: table.name,
+          constraint: 'fixed_interval_zone',
+        },
+      },
       ...[
         "a > 'now'::timestamp",
         'a::timestamptz = instant',
         'instant::timestamp = a',
-        "timezone(INTERVAL '1 hour',a) = instant",
         "a = '2000-01-01 00:00:00'::timestamp(3)",
       ].map((sql, index) => ({
         expression: bind(sql),
@@ -161,7 +169,7 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
         },
       })),
     ])
-    for (const [index, item] of group.checks.slice(0, names.length + 1).entries())
+    for (const [index, item] of group.checks.slice(0, names.length + 2).entries())
       expect(item.kind, names[index] ?? 'domain').toBe('supported')
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     for (const session of ['UTC', 'America/New_York', 'Asia/Tokyo']) {
@@ -185,6 +193,27 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
           ).rows[0]!
           for (const name of names) fixtures.push({ name, row, expected: outcome(result[name]!) })
         }
+      for (const date of dates) {
+        let expected: Outcome
+        try {
+          expected = outcome(
+            (
+              await pg.query<{ value: boolean | null }>(
+                "SELECT timezone(INTERVAL '1 hour',$1::timestamp) = timezone('UTC',$1::timestamp) AS value",
+                [date],
+              )
+            ).rows[0]!.value,
+          )
+        } catch (error) {
+          expect((error as { code: string }).code).toBe('22008')
+          expected = { kind: 'Error', value: { state: parseInt('22008', 36) } }
+        }
+        fixtures.push({
+          name: 'fixed_interval_zone',
+          row: { a: value(microseconds.get(date)!), instant: value(microseconds.get(date)!) },
+          expected,
+        })
+      }
     }
     for (const date of dates) {
       const result = (
@@ -364,7 +393,7 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       })
       fixtures.push({ name: 'equal', row: { a: value(payload), b: value(0n) }, expected: error })
     }
-    const unsupported = group.checks.slice(names.length + 1)
+    const unsupported = group.checks.slice(names.length + 2)
     for (const [index, check] of unsupported.entries())
       if (check.kind === 'supported')
         fixtures.push({
@@ -379,6 +408,7 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
       [
         ...names,
         'domain',
+        'fixed_interval_zone',
         ...unsupported.flatMap((check, index) =>
           check.kind === 'supported' ? ['unsupported_' + index] : [],
         ),

@@ -175,6 +175,8 @@ exposes a prerequisite:
       and clock input/output.
 - [x] Establish temporal field extraction, hashes, interval truncation, timestamp
       binning, and local calendar age.
+- [x] Establish temporal range checks, fixed interval timezones, SQL-coerced wide
+      offsets, and ISO alternative interval input.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.

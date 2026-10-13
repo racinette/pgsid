@@ -446,7 +446,8 @@ describe('time, timetz and interval CHECK values', () => {
           .result,
       ).toEqual({ certain: false })
     for (const invalid of [
-      { kind: 'Value', value: { time: 0n, zone: 57600 } },
+      { kind: 'Value', value: { time: 0n, zone: 2147483648 } },
+      { kind: 'Value', value: { time: 0n, zone: -2147483649 } },
       { kind: 'Value', value: { time: 0, zone: 0 } },
     ])
       expect(

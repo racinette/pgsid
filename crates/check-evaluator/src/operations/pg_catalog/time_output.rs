@@ -27,7 +27,7 @@ fn clock_output_time(time: i64) -> String {
             output.push_str(digit.as_str());
             fraction = fraction % divisor;
             divisor = divisor / 10;
-        };
+        }
     };
     output
 }
@@ -43,6 +43,19 @@ pub fn clock_time_to_text(input: TimeValue) -> TextValue {
     };
     TextValue::Unknown
 }
+fn clock_output_offset_pair(value: i32) -> String {
+    let mut number = value as i64;
+    if number < 0i64 {
+        number = number + 4294967296i64;
+    };
+    let mut output = String::new();
+    if number < 10i64 {
+        output.push('0');
+    };
+    let digits = text_signed_number(number);
+    output.push_str(digits.as_str());
+    output
+}
 pub fn clock_timetz_to_text(input: TimetzValue) -> TextValue {
     if let TimetzValue::Error(error) = input {
         return TextValue::Error(error);
@@ -57,19 +70,21 @@ pub fn clock_timetz_to_text(input: TimetzValue) -> TextValue {
             output.push('-');
         } else {
             output.push('+');
-            offset = 0 - offset;
+            if offset != (-2147483647 - 1) {
+                offset = 0 - offset;
+            };
         };
-        let hour = clock_output_pair(offset / 3600);
+        let hour = clock_output_offset_pair(offset / 3600);
         let minute = (offset / 60) % 60;
         let second = offset % 60;
         output.push_str(hour.as_str());
         if minute != 0 || second != 0 {
             output.push(':');
-            let minutes = clock_output_pair(minute);
+            let minutes = clock_output_offset_pair(minute);
             output.push_str(minutes.as_str());
             if second != 0 {
                 output.push(':');
-                let seconds = clock_output_pair(second);
+                let seconds = clock_output_offset_pair(second);
                 output.push_str(seconds.as_str());
             };
         };

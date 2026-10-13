@@ -52,6 +52,8 @@ describe('interval text input and catalog literals', () => {
       '-1 day +2 hours',
       '1 year 2 mons 3 days 04:05:06.123456',
       'P1Y2M3DT4H5M6.1S',
+      'P0001-02-03T04:05:06',
+      'PT010203.75',
       '-9223372036854.775808 seconds',
       '9223372036854.775807 seconds',
       '-2147483648 months',
@@ -89,6 +91,7 @@ describe('interval text input and catalog literals', () => {
       invalid_constant_case:
         "CASE WHEN true THEN true ELSE INTERVAL '1 month 2 months' IS NULL END",
       invalid_coalesce: "COALESCE(INTERVAL '0',INTERVAL '1 month 2 months') IS NULL",
+      invalid_alternative: "CASE WHEN true THEN true ELSE INTERVAL 'P1Y2' IS NULL END",
     }
     for (const [name, sql] of Object.entries(invalidConstants))
       constraints.push({

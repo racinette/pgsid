@@ -1295,7 +1295,7 @@ export function timetzNull(): TimetzValue {
 export function makeTimetzValue(time: bigint, zone: number): TimetzValue {
     time = langruntime.checkedI64(time);
     zone = langruntime.checkedI32(zone);
-    if (time < 0n || time > 86400000000n || zone <= langruntime.checkedSignedNegate(57600) || zone >= 57600) {
+    if (time < 0n || time > 86400000000n) {
         return { kind: "Unknown" };
     }
     return { kind: "Value", value: { time: time, zone: zone } };
@@ -4271,97 +4271,242 @@ function intervalInputClock(input: IntervalInputAcc, text: string, fieldMask: nu
     }
     return { years: input.years, months: input.months, days: input.days, time: micros, mask: langruntime.checkedSignedAdd(input.mask, 31), error: 0 };
 }
-function intervalInputIsoNumber(input: IntervalInputAcc, text: string, unit: number): IntervalInputAcc {
-    input = copyIntervalInputAcc(input);
-    text = langruntime.checkedString(text);
-    unit = langruntime.checkedI32(unit);
-    const value: number = langruntime.f64FromText(text, 1.0e16);
-    const infinity: number = langruntime.f64Divide(1.0, 0.0);
-    if (langruntime.f64Abs(value) === infinity) {
-        return intervalInputFail(input, intervalInputSyntax);
-    }
-    if (value < -1.0e15 || value > 1.0e15 || !(value === value)) {
-        return intervalInputFail(input, intervalInputRange);
-    }
-    const chars: string[] = Array.from(text);
-    let index: number = 0;
-    let nonzero: boolean = false;
-    while (index < chars.length && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "e") && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "E")) {
-        if (dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) > 0) {
-            nonzero = langruntime.checkedBool(true);
-        }
+interface IntervalIsoNumber {
+    whole: bigint;
+    fractionBits: bigint;
+    next: number;
+    width: number;
+    error: number;
+}
+function copyIntervalIsoNumber(value: IntervalIsoNumber): IntervalIsoNumber {
+    return { whole: langruntime.checkedI64(value.whole), fractionBits: langruntime.checkedI64(value.fractionBits), next: langruntime.checkedIndex(value.next), width: langruntime.checkedIndex(value.width), error: langruntime.checkedIndex(value.error) };
+}
+function intervalIsoNumberFail(next: number, width: number, error: number): IntervalIsoNumber {
+    next = langruntime.checkedIndex(next);
+    width = langruntime.checkedIndex(width);
+    error = langruntime.checkedIndex(error);
+    return { whole: 0n, fractionBits: 0n, next: next, width: width, error: error };
+}
+function intervalIsoRead(input: IntervalInputText, start: number): IntervalIsoNumber {
+    start = langruntime.checkedIndex(start);
+    let index: number = start;
+    let number: string = "";
+    if (index < input.chars.length && langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "-") {
+        number = number + langruntime.checkedChar("-");
         index = langruntime.checkedAdd(index, 1);
     }
+    let width: number = 0;
+    while (index < input.chars.length && dateTextDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(index))) >= 0) {
+        number = number + langruntime.checkedChar(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+        width = langruntime.checkedAdd(width, 1);
+    }
+    let digits: number = width;
+    if (index < input.chars.length && langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === ".") {
+        number = number + langruntime.checkedChar(".");
+        index = langruntime.checkedAdd(index, 1);
+        while (index < input.chars.length && dateTextDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(index))) >= 0) {
+            number = number + langruntime.checkedChar(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+            digits = langruntime.checkedAdd(digits, 1);
+        }
+    }
+    if (digits === 0) {
+        return intervalIsoNumberFail(index, width, intervalInputSyntax);
+    }
+    if (index < input.chars.length && (langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "e" || langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "E")) {
+        number = number + langruntime.checkedChar(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+        if (index < input.chars.length && (langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "-" || langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "+")) {
+            number = number + langruntime.checkedChar(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        const exponent: number = index;
+        while (index < input.chars.length && dateTextDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(index))) >= 0) {
+            number = number + langruntime.checkedChar(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (index === exponent) {
+            return intervalIsoNumberFail(index, width, intervalInputSyntax);
+        }
+    }
+    const spelling: string = number;
+    const value: number = langruntime.f64FromText(spelling, 1.0e16);
+    const infinity: number = langruntime.f64Divide(1.0, 0.0);
+    if (langruntime.f64Abs(value) === infinity) {
+        return intervalIsoNumberFail(index, width, intervalInputSyntax);
+    }
+    if (value < -1.0e15 || value > 1.0e15 || !(value === value)) {
+        return intervalIsoNumberFail(index, width, intervalInputRange);
+    }
+    const letters: string[] = Array.from(number);
+    let digitIndex: number = 0;
+    let nonzero: boolean = false;
+    while (digitIndex < letters.length && !(langruntime.indexChar(letters, langruntime.checkedIndex(digitIndex)) === "e") && !(langruntime.indexChar(letters, langruntime.checkedIndex(digitIndex)) === "E")) {
+        if (dateTextDigit(langruntime.indexChar(letters, langruntime.checkedIndex(digitIndex))) > 0) {
+            nonzero = langruntime.checkedBool(true);
+        }
+        digitIndex = langruntime.checkedAdd(digitIndex, 1);
+    }
     if ((value === 0.0 && nonzero) || (!(value === 0.0) && langruntime.f64Abs(value) < 2.2250738585072014e-308)) {
-        return intervalInputFail(input, intervalInputSyntax);
+        return intervalIsoNumberFail(index, width, intervalInputSyntax);
     }
     const high: number = langruntime.f64ToI32((langruntime.f64Divide(value, 1000000000.0)));
     const rest: number = langruntime.f64Subtract(value, langruntime.f64Multiply((Number(langruntime.checkedI32(high))), 1000000000.0));
     const low: number = langruntime.f64ToI32(rest);
-    const whole: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(high))), 1000000000n), (BigInt(langruntime.checkedI32(low))));
     const fraction: number = langruntime.f64Subtract(rest, (Number(langruntime.checkedI32(low))));
+    const fractionBits: bigint = langruntime.f64ToI64Bits(fraction);
+    return { whole: langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(high))), 1000000000n), (BigInt(langruntime.checkedI32(low)))), fractionBits: fractionBits, next: index, width: width, error: 0 };
+}
+function intervalIsoApply(input: IntervalInputAcc, whole: bigint, fraction: number, unit: number): IntervalInputAcc {
+    input = copyIntervalInputAcc(input);
+    whole = langruntime.checkedI64(whole);
+    fraction = langruntime.checkedF64(fraction);
+    unit = langruntime.checkedI32(unit);
     const clean: IntervalInputAcc = copyIntervalInputAcc({ years: input.years, months: input.months, days: input.days, time: input.time, mask: 0, error: input.error });
     return intervalInputAdd(clean, whole, fraction, unit);
 }
+interface IntervalIsoStep {
+    acc: IntervalInputAcc;
+    next: number;
+    timepart: boolean;
+    finished: boolean;
+}
+function copyIntervalIsoStep(value: IntervalIsoStep): IntervalIsoStep {
+    return { acc: copyIntervalInputAcc(value.acc), next: langruntime.checkedIndex(value.next), timepart: langruntime.checkedBool(value.timepart), finished: langruntime.checkedBool(value.finished) };
+}
+function intervalIsoMakeStep(acc: IntervalInputAcc, next: number, timepart: boolean, finished: boolean): IntervalIsoStep {
+    acc = copyIntervalInputAcc(acc);
+    next = langruntime.checkedIndex(next);
+    timepart = langruntime.checkedBool(timepart);
+    finished = langruntime.checkedBool(finished);
+    return { acc: copyIntervalInputAcc(acc), next: next, timepart: timepart, finished: finished };
+}
+function intervalIsoStepFail(acc: IntervalInputAcc, error: number): IntervalIsoStep {
+    acc = copyIntervalInputAcc(acc);
+    error = langruntime.checkedIndex(error);
+    if (!(acc.error === 0)) {
+        return intervalIsoMakeStep(acc, 0, false, true);
+    }
+    return intervalIsoMakeStep(intervalInputFail(acc, error), 0, false, true);
+}
+function intervalIsoAlternative(input: IntervalInputText, acc: IntervalInputAcc, number: IntervalIsoNumber, next: number, datepart: boolean, designator: string, ended: boolean): IntervalIsoStep {
+    acc = copyIntervalInputAcc(acc);
+    number = copyIntervalIsoNumber(number);
+    next = langruntime.checkedIndex(next);
+    datepart = langruntime.checkedBool(datepart);
+    designator = langruntime.checkedChar(designator);
+    ended = langruntime.checkedBool(ended);
+    let result: IntervalInputAcc = copyIntervalInputAcc(acc);
+    if (datepart) {
+        if (number.width === 8 && (ended || designator === "T")) {
+            result = copyIntervalInputAcc(intervalIsoApply(result, langruntime.checkedI64Divide(number.whole, 10000n), 0.0, 8));
+            result = copyIntervalInputAcc(intervalIsoApply(result, langruntime.checkedI64Remainder((langruntime.checkedI64Divide(number.whole, 100n)), 100n), 0.0, 7));
+            result = copyIntervalInputAcc(intervalIsoApply(result, langruntime.checkedI64Remainder(number.whole, 100n), float8Number(number.fractionBits), 5));
+            return intervalIsoMakeStep(result, next, true, ended);
+        }
+        result = copyIntervalInputAcc(intervalIsoApply(result, number.whole, float8Number(number.fractionBits), 8));
+        if (ended || designator === "T") {
+            return intervalIsoMakeStep(result, next, true, ended);
+        }
+        const month: IntervalIsoNumber = copyIntervalIsoNumber(intervalIsoRead(input, next));
+        if (!(month.error === 0)) {
+            return intervalIsoStepFail(result, month.error);
+        }
+        result = copyIntervalInputAcc(intervalIsoApply(result, month.whole, float8Number(month.fractionBits), 7));
+        if (month.next === input.chars.length) {
+            return intervalIsoMakeStep(result, month.next, false, true);
+        }
+        if (langruntime.indexChar(input.chars, langruntime.checkedIndex(month.next)) === "T") {
+            return intervalIsoMakeStep(result, month.next, true, false);
+        }
+        if (!(langruntime.indexChar(input.chars, langruntime.checkedIndex(month.next)) === "-")) {
+            return intervalIsoStepFail(result, intervalInputSyntax);
+        }
+        const day: IntervalIsoNumber = copyIntervalIsoNumber(intervalIsoRead(input, langruntime.checkedAdd(month.next, 1)));
+        if (!(day.error === 0)) {
+            return intervalIsoStepFail(result, day.error);
+        }
+        result = copyIntervalInputAcc(intervalIsoApply(result, day.whole, float8Number(day.fractionBits), 5));
+        if (day.next === input.chars.length) {
+            return intervalIsoMakeStep(result, day.next, false, true);
+        }
+        if (langruntime.indexChar(input.chars, langruntime.checkedIndex(day.next)) === "T") {
+            return intervalIsoMakeStep(result, day.next, true, false);
+        }
+        return intervalIsoStepFail(result, intervalInputSyntax);
+    }
+    if (number.width === 6 && ended) {
+        result = copyIntervalInputAcc(intervalIsoApply(result, langruntime.checkedI64Divide(number.whole, 10000n), 0.0, 4));
+        result = copyIntervalInputAcc(intervalIsoApply(result, langruntime.checkedI64Remainder((langruntime.checkedI64Divide(number.whole, 100n)), 100n), 0.0, 3));
+        result = copyIntervalInputAcc(intervalIsoApply(result, langruntime.checkedI64Remainder(number.whole, 100n), 0.0, 2));
+        result = copyIntervalInputAcc(intervalIsoApply(result, 0n, float8Number(number.fractionBits), 0));
+        return intervalIsoMakeStep(result, next, true, true);
+    }
+    result = copyIntervalInputAcc(intervalIsoApply(result, number.whole, float8Number(number.fractionBits), 4));
+    if (ended) {
+        return intervalIsoMakeStep(result, next, true, true);
+    }
+    const minute: IntervalIsoNumber = copyIntervalIsoNumber(intervalIsoRead(input, next));
+    if (!(minute.error === 0)) {
+        return intervalIsoStepFail(result, minute.error);
+    }
+    result = copyIntervalInputAcc(intervalIsoApply(result, minute.whole, float8Number(minute.fractionBits), 3));
+    if (minute.next === input.chars.length) {
+        return intervalIsoMakeStep(result, minute.next, true, true);
+    }
+    if (!(langruntime.indexChar(input.chars, langruntime.checkedIndex(minute.next)) === ":")) {
+        return intervalIsoStepFail(result, intervalInputSyntax);
+    }
+    const second: IntervalIsoNumber = copyIntervalIsoNumber(intervalIsoRead(input, langruntime.checkedAdd(minute.next, 1)));
+    if (!(second.error === 0)) {
+        return intervalIsoStepFail(result, second.error);
+    }
+    result = copyIntervalInputAcc(intervalIsoApply(result, second.whole, float8Number(second.fractionBits), 2));
+    if (second.next === input.chars.length) {
+        return intervalIsoMakeStep(result, second.next, true, true);
+    }
+    return intervalIsoStepFail(result, intervalInputSyntax);
+}
+function intervalIsoFinish(acc: IntervalInputAcc): IntervalValue {
+    acc = copyIntervalInputAcc(acc);
+    if (!(acc.error === 0)) {
+        return { kind: "Error", value: makeSqlError(acc.error) };
+    }
+    const months: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(acc.years))), 12n), (BigInt(langruntime.checkedI32(acc.months))));
+    if (months < (-2147483648n) || months > 2147483647n) {
+        return { kind: "Error", value: makeSqlError(intervalInputFinalRange) };
+    }
+    return makeIntervalValue(Number(BigInt.asIntN(32, langruntime.checkedI64(months))), acc.days, acc.time);
+}
 function intervalInputIso(text: string): IntervalValue {
     text = langruntime.checkedString(text);
-    const chars: string[] = Array.from(text);
-    if (chars.length < 2 || !(langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "P")) {
+    const input: IntervalInputText = { chars: Array.from(text) };
+    if (input.chars.length < 2 || !(langruntime.indexChar(input.chars, langruntime.checkedIndex(0)) === "P")) {
         return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
     }
     let acc: IntervalInputAcc = copyIntervalInputAcc({ years: 0, months: 0, days: 0, time: 0n, mask: 0, error: 0 });
     let datepart: boolean = true;
+    let havefield: boolean = false;
     let index: number = 1;
-    while (index < chars.length) {
-        if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "T") {
+    while (index < input.chars.length) {
+        if (langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "T") {
             datepart = langruntime.checkedBool(false);
+            havefield = langruntime.checkedBool(false);
             index = langruntime.checkedAdd(index, 1);
         }
         else {
-            let number: string = "";
-            if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-") {
-                number = number + langruntime.checkedChar("-");
+            const number: IntervalIsoNumber = copyIntervalIsoNumber(intervalIsoRead(input, index));
+            if (!(number.error === 0)) {
+                return { kind: "Error", value: makeSqlError(number.error) };
+            }
+            index = langruntime.checkedIndex(number.next);
+            const ended: boolean = index === input.chars.length;
+            let designator: string = "?";
+            if (ended === false) {
+                designator = langruntime.checkedChar(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
                 index = langruntime.checkedAdd(index, 1);
             }
-            let digits: number = 0;
-            while (index < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
-                number = number + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
-                index = langruntime.checkedAdd(index, 1);
-                digits = langruntime.checkedAdd(digits, 1);
-            }
-            if (index < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".") {
-                number = number + langruntime.checkedChar(".");
-                index = langruntime.checkedAdd(index, 1);
-                while (index < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
-                    number = number + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
-                    index = langruntime.checkedAdd(index, 1);
-                    digits = langruntime.checkedAdd(digits, 1);
-                }
-            }
-            if (digits === 0) {
-                return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
-            }
-            if (index < chars.length && (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "e" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "E")) {
-                number = number + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
-                index = langruntime.checkedAdd(index, 1);
-                if (index < chars.length && (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "+")) {
-                    number = number + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
-                    index = langruntime.checkedAdd(index, 1);
-                }
-                const start: number = index;
-                while (index < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
-                    number = number + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
-                    index = langruntime.checkedAdd(index, 1);
-                }
-                if (index === start) {
-                    return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
-                }
-            }
-            if (index === chars.length) {
-                return { kind: "Unknown" };
-            }
-            const designator: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
-            index = langruntime.checkedAdd(index, 1);
             let unit: number = langruntime.checkedSignedNegate(1);
             if (datepart) {
                 if (designator === "Y") {
@@ -4388,23 +4533,38 @@ function intervalInputIso(text: string): IntervalValue {
                     unit = langruntime.checkedI32(2);
                 }
             }
-            if (unit < 0) {
-                if (designator === "-" || designator === ":" || designator === "T" || designator === "x" || designator === "X") {
-                    return { kind: "Unknown" };
-                }
-                return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+            if (unit >= 0) {
+                acc = copyIntervalInputAcc(intervalIsoApply(acc, number.whole, float8Number(number.fractionBits), unit));
+                havefield = langruntime.checkedBool(true);
             }
-            acc = copyIntervalInputAcc(intervalInputIsoNumber(acc, number, unit));
+            else {
+                const alternative: boolean = ended || (datepart && (designator === "-" || designator === "T")) || (datepart === false && designator === ":");
+                if (alternative) {
+                    if (havefield) {
+                        return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+                    }
+                    const step: IntervalIsoStep = copyIntervalIsoStep(intervalIsoAlternative(input, acc, number, index, datepart, designator, ended));
+                    acc = copyIntervalInputAcc(step.acc);
+                    if (step.finished) {
+                        return intervalIsoFinish(acc);
+                    }
+                    index = langruntime.checkedIndex(step.next);
+                    datepart = langruntime.checkedBool(step.timepart === false);
+                    havefield = langruntime.checkedBool(false);
+                }
+                else {
+                    if (designator === "x" || designator === "X") {
+                        return { kind: "Unknown" };
+                    }
+                    return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+                }
+            }
             if (!(acc.error === 0)) {
                 return { kind: "Error", value: makeSqlError(acc.error) };
             }
         }
     }
-    const months: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(acc.years))), 12n), (BigInt(langruntime.checkedI32(acc.months))));
-    if (months < (-2147483648n) || months > 2147483647n) {
-        return { kind: "Error", value: makeSqlError(intervalInputFinalRange) };
-    }
-    return makeIntervalValue(Number(BigInt.asIntN(32, langruntime.checkedI64(months))), acc.days, acc.time);
+    return intervalIsoFinish(acc);
 }
 export function intervalFromTextFields(input: TextValue, fields: Int4Value): IntervalValue {
     if (input.kind === "Error") {

@@ -4828,7 +4828,7 @@ function clockFieldsComponent(span: checkruntime.IntervalPayload, zone: number, 
         return checkruntime.makeInt8Value(langruntime.checkedI64Divide(span.time, 3600000000n));
     }
     if (family === 2) {
-        const offset: bigint = langruntime.checkedI64Subtract(0n, (BigInt(langruntime.checkedI32(zone))));
+        const offset: bigint = BigInt(langruntime.checkedI32(fixedZoneWrappedSeconds(langruntime.checkedI64Subtract(0n, (BigInt(langruntime.checkedI32(zone)))))));
         if (code === 20) {
             return checkruntime.makeInt8Value(offset);
         }
@@ -15127,6 +15127,298 @@ export function timestamptzUwsx(left: checkruntime.TimestamptzValue, right: chec
     }
     return { kind: "Unknown" };
 }
+function temporalRangeFinish(order: checkruntime.Int4Value, less: boolean): checkruntime.BoolValue {
+    less = langruntime.checkedBool(less);
+    if (less) {
+        return valueOrderFinish(order, 3);
+    }
+    return valueOrderFinish(order, 5);
+}
+function temporalRangeClockValue(value: bigint, valueZone: number, base: bigint, baseZone: number, offset: bigint, subtract: boolean, less: boolean): checkruntime.BoolValue {
+    value = langruntime.checkedI64(value);
+    valueZone = langruntime.checkedI32(valueZone);
+    base = langruntime.checkedI64(base);
+    baseZone = langruntime.checkedI32(baseZone);
+    offset = langruntime.checkedI64(offset);
+    subtract = langruntime.checkedBool(subtract);
+    less = langruntime.checkedBool(less);
+    if (offset < 0n) {
+        return { kind: "Error", value: checkruntime.makeSqlError(integerInvalidFrameSize) };
+    }
+    let boundary: bigint = base;
+    if (subtract) {
+        boundary = langruntime.checkedI64(langruntime.checkedI64Subtract(base, offset));
+    }
+    else {
+        if (base > langruntime.checkedI64Subtract(9223372036854775807n, offset)) {
+            return checkruntime.makeBoolValue(less);
+        }
+        boundary = langruntime.checkedI64(langruntime.checkedI64Add(base, offset));
+    }
+    const a: bigint = clockWrappedAdd(value, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(valueZone))), 1000000n));
+    const b: bigint = clockWrappedAdd(boundary, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(baseZone))), 1000000n));
+    let order: number = clockOrder(a, b);
+    if (order === 0) {
+        order = langruntime.checkedI32(clockOrder(BigInt(langruntime.checkedI32(valueZone)), BigInt(langruntime.checkedI32(baseZone))));
+    }
+    if (less) {
+        return checkruntime.makeBoolValue(order <= 0);
+    }
+    return checkruntime.makeBoolValue(order >= 0);
+}
+function temporalRangeTimestampValue(value: bigint, base: bigint, offset: checkruntime.IntervalPayload, subtract: boolean, less: boolean): checkruntime.BoolValue {
+    value = langruntime.checkedI64(value);
+    base = langruntime.checkedI64(base);
+    subtract = langruntime.checkedBool(subtract);
+    less = langruntime.checkedBool(less);
+    const zero: checkruntime.IntervalPayload = { months: 0, days: 0, time: 0n };
+    if (intervalOrder(offset, zero) < 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(integerInvalidFrameSize) };
+    }
+    if (intervalSpecial(offset) > 0 && ((subtract && base === 9223372036854775807n) || (subtract === false && base === (-9223372036854775808n)))) {
+        return checkruntime.makeBoolValue(true);
+    }
+    const boundary: checkruntime.TimestampValue = intervalCalendarAdd(checkruntime.makeTimestampValue(base), checkruntime.makeIntervalValue(offset.months, offset.days, offset.time), subtract);
+    if (boundary.kind === "Error") {
+        const error: checkruntime.SqlError = boundary.value;
+        return { kind: "Error", value: error };
+    }
+    if (boundary.kind === "Value") {
+        const time: bigint = langruntime.checkedI64(boundary.value);
+        const order: number = clockOrder(value, time);
+        if (less) {
+            return checkruntime.makeBoolValue(order <= 0);
+        }
+        return checkruntime.makeBoolValue(order >= 0);
+    }
+    return { kind: "Unknown" };
+}
+function temporalRangeIntervalValue(value: checkruntime.IntervalPayload, base: checkruntime.IntervalPayload, offset: checkruntime.IntervalPayload, subtract: boolean, less: boolean): checkruntime.BoolValue {
+    subtract = langruntime.checkedBool(subtract);
+    less = langruntime.checkedBool(less);
+    const zero: checkruntime.IntervalPayload = { months: 0, days: 0, time: 0n };
+    if (intervalOrder(offset, zero) < 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(integerInvalidFrameSize) };
+    }
+    const special: number = intervalSpecial(base);
+    if (intervalSpecial(offset) > 0 && ((subtract && special > 0) || (subtract === false && special < 0))) {
+        return checkruntime.makeBoolValue(true);
+    }
+    const boundary: checkruntime.IntervalValue = intervalBinaryValue(checkruntime.makeIntervalValue(base.months, base.days, base.time), checkruntime.makeIntervalValue(offset.months, offset.days, offset.time), subtract);
+    const order: checkruntime.Int4Value = intervalCmpSwxt(checkruntime.makeIntervalValue(value.months, value.days, value.time), boundary);
+    return temporalRangeFinish(order, less);
+}
+export function inRangeF2o9(value: checkruntime.IntervalValue, base: checkruntime.IntervalValue, offset: checkruntime.IntervalValue, subtract: checkruntime.BoolValue, less: checkruntime.BoolValue): checkruntime.BoolValue {
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (base.kind === "Error") {
+        const error: checkruntime.SqlError = base.value;
+        return { kind: "Error", value: error };
+    }
+    if (offset.kind === "Error") {
+        const error: checkruntime.SqlError = offset.value;
+        return { kind: "Error", value: error };
+    }
+    if (subtract.kind === "Error") {
+        const error: checkruntime.SqlError = subtract.value;
+        return { kind: "Error", value: error };
+    }
+    if (less.kind === "Error") {
+        const error: checkruntime.SqlError = less.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(value, { kind: "Unknown" }) || checkruntime.equalIntervalValue(base, { kind: "Unknown" }) || checkruntime.equalIntervalValue(offset, { kind: "Unknown" }) || checkruntime.equalBoolValue(subtract, { kind: "Unknown" }) || checkruntime.equalBoolValue(less, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalIntervalValue(value, { kind: "Null" }) || checkruntime.equalIntervalValue(base, { kind: "Null" }) || checkruntime.equalIntervalValue(offset, { kind: "Null" }) || checkruntime.equalBoolValue(subtract, { kind: "Null" }) || checkruntime.equalBoolValue(less, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const input: checkruntime.IntervalPayload = value.value;
+        if (base.kind === "Value") {
+            const center: checkruntime.IntervalPayload = base.value;
+            if (offset.kind === "Value") {
+                const distance: checkruntime.IntervalPayload = offset.value;
+                if (subtract.kind === "Value") {
+                    const backward: boolean = langruntime.checkedBool(subtract.value);
+                    if (less.kind === "Value") {
+                        const lower: boolean = langruntime.checkedBool(less.value);
+                        return temporalRangeIntervalValue(input, center, distance, backward, lower);
+                    }
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function inRangeBs2r(value: checkruntime.TimeValue, base: checkruntime.TimeValue, offset: checkruntime.IntervalValue, subtract: checkruntime.BoolValue, less: checkruntime.BoolValue): checkruntime.BoolValue {
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (base.kind === "Error") {
+        const error: checkruntime.SqlError = base.value;
+        return { kind: "Error", value: error };
+    }
+    if (offset.kind === "Error") {
+        const error: checkruntime.SqlError = offset.value;
+        return { kind: "Error", value: error };
+    }
+    if (subtract.kind === "Error") {
+        const error: checkruntime.SqlError = subtract.value;
+        return { kind: "Error", value: error };
+    }
+    if (less.kind === "Error") {
+        const error: checkruntime.SqlError = less.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimeValue(value, { kind: "Unknown" }) || checkruntime.equalTimeValue(base, { kind: "Unknown" }) || checkruntime.equalIntervalValue(offset, { kind: "Unknown" }) || checkruntime.equalBoolValue(subtract, { kind: "Unknown" }) || checkruntime.equalBoolValue(less, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimeValue(value, { kind: "Null" }) || checkruntime.equalTimeValue(base, { kind: "Null" }) || checkruntime.equalIntervalValue(offset, { kind: "Null" }) || checkruntime.equalBoolValue(subtract, { kind: "Null" }) || checkruntime.equalBoolValue(less, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const input: bigint = langruntime.checkedI64(value.value);
+        if (base.kind === "Value") {
+            const center: bigint = langruntime.checkedI64(base.value);
+            if (offset.kind === "Value") {
+                const distance: checkruntime.IntervalPayload = offset.value;
+                if (subtract.kind === "Value") {
+                    const backward: boolean = langruntime.checkedBool(subtract.value);
+                    if (less.kind === "Value") {
+                        const lower: boolean = langruntime.checkedBool(less.value);
+                        return temporalRangeClockValue(input, 0, center, 0, distance.time, backward, lower);
+                    }
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function inRangeFn2k(value: checkruntime.TimestampValue, base: checkruntime.TimestampValue, offset: checkruntime.IntervalValue, subtract: checkruntime.BoolValue, less: checkruntime.BoolValue): checkruntime.BoolValue {
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (base.kind === "Error") {
+        const error: checkruntime.SqlError = base.value;
+        return { kind: "Error", value: error };
+    }
+    if (offset.kind === "Error") {
+        const error: checkruntime.SqlError = offset.value;
+        return { kind: "Error", value: error };
+    }
+    if (subtract.kind === "Error") {
+        const error: checkruntime.SqlError = subtract.value;
+        return { kind: "Error", value: error };
+    }
+    if (less.kind === "Error") {
+        const error: checkruntime.SqlError = less.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(value, { kind: "Unknown" }) || checkruntime.equalTimestampValue(base, { kind: "Unknown" }) || checkruntime.equalIntervalValue(offset, { kind: "Unknown" }) || checkruntime.equalBoolValue(subtract, { kind: "Unknown" }) || checkruntime.equalBoolValue(less, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimestampValue(value, { kind: "Null" }) || checkruntime.equalTimestampValue(base, { kind: "Null" }) || checkruntime.equalIntervalValue(offset, { kind: "Null" }) || checkruntime.equalBoolValue(subtract, { kind: "Null" }) || checkruntime.equalBoolValue(less, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const input: bigint = langruntime.checkedI64(value.value);
+        if (base.kind === "Value") {
+            const center: bigint = langruntime.checkedI64(base.value);
+            if (offset.kind === "Value") {
+                const distance: checkruntime.IntervalPayload = offset.value;
+                if (subtract.kind === "Value") {
+                    const backward: boolean = langruntime.checkedBool(subtract.value);
+                    if (less.kind === "Value") {
+                        const lower: boolean = langruntime.checkedBool(less.value);
+                        return temporalRangeTimestampValue(input, center, distance, backward, lower);
+                    }
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function inRange4yq8(value: checkruntime.DateValue, base: checkruntime.DateValue, offset: checkruntime.IntervalValue, subtract: checkruntime.BoolValue, less: checkruntime.BoolValue): checkruntime.BoolValue {
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (base.kind === "Error") {
+        const error: checkruntime.SqlError = base.value;
+        return { kind: "Error", value: error };
+    }
+    if (offset.kind === "Error") {
+        const error: checkruntime.SqlError = offset.value;
+        return { kind: "Error", value: error };
+    }
+    if (subtract.kind === "Error") {
+        const error: checkruntime.SqlError = subtract.value;
+        return { kind: "Error", value: error };
+    }
+    if (less.kind === "Error") {
+        const error: checkruntime.SqlError = less.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalDateValue(value, { kind: "Unknown" }) || checkruntime.equalDateValue(base, { kind: "Unknown" }) || checkruntime.equalIntervalValue(offset, { kind: "Unknown" }) || checkruntime.equalBoolValue(subtract, { kind: "Unknown" }) || checkruntime.equalBoolValue(less, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalDateValue(value, { kind: "Null" }) || checkruntime.equalDateValue(base, { kind: "Null" }) || checkruntime.equalIntervalValue(offset, { kind: "Null" }) || checkruntime.equalBoolValue(subtract, { kind: "Null" }) || checkruntime.equalBoolValue(less, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const valueTime: checkruntime.TimestampValue = timestampSwxj(value);
+    const baseTime: checkruntime.TimestampValue = timestampSwxj(base);
+    return inRangeFn2k(valueTime, baseTime, offset, subtract, less);
+}
+export function inRange6ce3(value: checkruntime.TimetzValue, base: checkruntime.TimetzValue, offset: checkruntime.IntervalValue, subtract: checkruntime.BoolValue, less: checkruntime.BoolValue): checkruntime.BoolValue {
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (base.kind === "Error") {
+        const error: checkruntime.SqlError = base.value;
+        return { kind: "Error", value: error };
+    }
+    if (offset.kind === "Error") {
+        const error: checkruntime.SqlError = offset.value;
+        return { kind: "Error", value: error };
+    }
+    if (subtract.kind === "Error") {
+        const error: checkruntime.SqlError = subtract.value;
+        return { kind: "Error", value: error };
+    }
+    if (less.kind === "Error") {
+        const error: checkruntime.SqlError = less.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimetzValue(value, { kind: "Unknown" }) || checkruntime.equalTimetzValue(base, { kind: "Unknown" }) || checkruntime.equalIntervalValue(offset, { kind: "Unknown" }) || checkruntime.equalBoolValue(subtract, { kind: "Unknown" }) || checkruntime.equalBoolValue(less, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimetzValue(value, { kind: "Null" }) || checkruntime.equalTimetzValue(base, { kind: "Null" }) || checkruntime.equalIntervalValue(offset, { kind: "Null" }) || checkruntime.equalBoolValue(subtract, { kind: "Null" }) || checkruntime.equalBoolValue(less, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const input: checkruntime.TimetzPayload = value.value;
+        if (base.kind === "Value") {
+            const center: checkruntime.TimetzPayload = base.value;
+            if (offset.kind === "Value") {
+                const distance: checkruntime.IntervalPayload = offset.value;
+                if (subtract.kind === "Value") {
+                    const backward: boolean = langruntime.checkedBool(subtract.value);
+                    if (less.kind === "Value") {
+                        const lower: boolean = langruntime.checkedBool(less.value);
+                        return temporalRangeClockValue(input.time, input.zone, center.time, center.zone, distance.time, backward, lower);
+                    }
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function dateCmpU18z(left: checkruntime.DateValue, right: checkruntime.DateValue): checkruntime.Int4Value {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
@@ -19026,6 +19318,20 @@ export function clockTimeToText(input: checkruntime.TimeValue): checkruntime.Tex
     }
     return { kind: "Unknown" };
 }
+function clockOutputOffsetPair(value: number): string {
+    value = langruntime.checkedI32(value);
+    let number: bigint = BigInt(langruntime.checkedI32(value));
+    if (number < 0n) {
+        number = langruntime.checkedI64(langruntime.checkedI64Add(number, 4294967296n));
+    }
+    let output: string = "";
+    if (number < 10n) {
+        output = output + langruntime.checkedChar("0");
+    }
+    const digits: string = checkruntime.textSignedNumber(number);
+    output = output + digits;
+    return output;
+}
 export function clockTimetzToText(input: checkruntime.TimetzValue): checkruntime.TextValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
@@ -19043,19 +19349,21 @@ export function clockTimetzToText(input: checkruntime.TimetzValue): checkruntime
         }
         else {
             output = output + langruntime.checkedChar("+");
-            offset = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, offset));
+            if (!(offset === (langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)))) {
+                offset = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, offset));
+            }
         }
-        const hour: string = clockOutputPair(langruntime.checkedSignedDivide(offset, 3600));
+        const hour: string = clockOutputOffsetPair(langruntime.checkedSignedDivide(offset, 3600));
         const minute: number = langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(offset, 60)), 60);
         const second: number = langruntime.checkedSignedRemainder(offset, 60);
         output = output + hour;
         if (!(minute === 0) || !(second === 0)) {
             output = output + langruntime.checkedChar(":");
-            const minutes: string = clockOutputPair(minute);
+            const minutes: string = clockOutputOffsetPair(minute);
             output = output + minutes;
             if (!(second === 0)) {
                 output = output + langruntime.checkedChar(":");
-                const seconds: string = clockOutputPair(second);
+                const seconds: string = clockOutputOffsetPair(second);
                 output = output + seconds;
             }
         }
@@ -19114,6 +19422,123 @@ export function intervalSendJxgl(input: checkruntime.IntervalValue): checkruntim
         output = byteacatZitv(output, part1);
         output = byteacatZitv(output, part2);
         return output;
+    }
+    return { kind: "Unknown" };
+}
+function fixedZoneWrappedSeconds(seconds: bigint): number {
+    seconds = langruntime.checkedI64(seconds);
+    let value: bigint = langruntime.checkedI64Remainder(seconds, 4294967296n);
+    if (value < (-2147483648n)) {
+        value = langruntime.checkedI64(langruntime.checkedI64Add(value, 4294967296n));
+    }
+    if (value > 2147483647n) {
+        value = langruntime.checkedI64(langruntime.checkedI64Subtract(value, 4294967296n));
+    }
+    return Number(BigInt.asIntN(32, langruntime.checkedI64(value)));
+}
+function fixedZoneOffset(span: checkruntime.IntervalPayload, reverse: boolean): checkruntime.Int4Value {
+    reverse = langruntime.checkedBool(reverse);
+    if (!(intervalSpecial(span) === 0) || !(span.months === 0) || !(span.days === 0)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(temporalFieldUnitError) };
+    }
+    let seconds: bigint = langruntime.checkedI64Divide(span.time, 1000000n);
+    if (reverse) {
+        seconds = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, seconds));
+    }
+    return checkruntime.makeInt4Value(fixedZoneWrappedSeconds(seconds));
+}
+function fixedZoneTimestamp(zone: checkruntime.IntervalValue, input: checkruntime.TimestampValue, reverse: boolean): checkruntime.TimestampValue {
+    reverse = langruntime.checkedBool(reverse);
+    if (zone.kind === "Error") {
+        const error: checkruntime.SqlError = zone.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(zone, { kind: "Unknown" }) || checkruntime.equalTimestampValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalIntervalValue(zone, { kind: "Null" }) || checkruntime.equalTimestampValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const time: bigint = langruntime.checkedI64(input.value);
+        if (time === (-9223372036854775808n) || time === 9223372036854775807n) {
+            return input;
+        }
+        if (zone.kind === "Value") {
+            const span: checkruntime.IntervalPayload = zone.value;
+            const offset: checkruntime.Int4Value = fixedZoneOffset(span, reverse);
+            if (offset.kind === "Error") {
+                const error: checkruntime.SqlError = offset.value;
+                return { kind: "Error", value: error };
+            }
+            if (offset.kind === "Value") {
+                const seconds: number = langruntime.checkedI32(offset.value);
+                const result: bigint = clockWrappedSubtract(time, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(seconds))), 1000000n));
+                if (result === (-9223372036854775808n) || result === 9223372036854775807n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                return checkruntime.makeTimestampValue(result);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timezoneLxij(zone: checkruntime.IntervalValue, input: checkruntime.TimestampValue): checkruntime.TimestamptzValue {
+    const result: checkruntime.TimestampValue = fixedZoneTimestamp(zone, input, false);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const time: bigint = langruntime.checkedI64(result.value);
+        return checkruntime.makeTimestamptzValue(time);
+    }
+    return { kind: "Unknown" };
+}
+export function timezoneN8k4(zone: checkruntime.IntervalValue, input: checkruntime.TimestamptzValue): checkruntime.TimestampValue {
+    return fixedZoneTimestamp(zone, intervalCalendarLocalPayload(input), true);
+}
+export function timezone5q6e(zone: checkruntime.IntervalValue, input: checkruntime.TimetzValue): checkruntime.TimetzValue {
+    if (zone.kind === "Error") {
+        const error: checkruntime.SqlError = zone.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(zone, { kind: "Unknown" }) || checkruntime.equalTimetzValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalIntervalValue(zone, { kind: "Null" }) || checkruntime.equalTimetzValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (zone.kind === "Value") {
+        const span: checkruntime.IntervalPayload = zone.value;
+        if (input.kind === "Value") {
+            const time: checkruntime.TimetzPayload = input.value;
+            const offset: checkruntime.Int4Value = fixedZoneOffset(span, true);
+            if (offset.kind === "Error") {
+                const error: checkruntime.SqlError = offset.value;
+                return { kind: "Error", value: error };
+            }
+            if (offset.kind === "Value") {
+                const seconds: number = langruntime.checkedI32(offset.value);
+                const difference: number = fixedZoneWrappedSeconds(langruntime.checkedI64Subtract((BigInt(langruntime.checkedI32(time.zone))), (BigInt(langruntime.checkedI32(seconds)))));
+                let clock: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Add(time.time, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(difference))), 1000000n))), 86400000000n);
+                if (clock < 0n) {
+                    clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
+                }
+                return { kind: "Value", value: { time: clock, zone: seconds } };
+            }
+        }
     }
     return { kind: "Unknown" };
 }

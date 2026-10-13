@@ -163,3 +163,59 @@ CREATE TABLE event_bucket_records (
   CONSTRAINT event_instant_bucket CHECK (CASE WHEN skip_audit THEN true ELSE date_bin(bucket_width,observed_instant,origin_instant) = recorded_instant END),
   CONSTRAINT event_calendar_age CHECK (CASE WHEN skip_audit THEN true ELSE age(observed_local,origin_local) = recorded_age END)
 );
+
+CREATE TABLE clock_tolerances (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  candidate_clock time,
+  base_clock time,
+  candidate_zoned timetz,
+  base_zoned timetz,
+  tolerance interval,
+  subtract_offset boolean,
+  compare_less boolean,
+  recorded_local boolean,
+  recorded_zoned boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT tolerance_local CHECK (CASE WHEN skip_validation THEN true ELSE in_range(candidate_clock,base_clock,tolerance,subtract_offset,compare_less) = recorded_local END),
+  CONSTRAINT tolerance_zoned CHECK (CASE WHEN skip_validation THEN true ELSE in_range(candidate_zoned,base_zoned,tolerance,subtract_offset,compare_less) = recorded_zoned END)
+);
+CREATE TABLE calendar_tolerances (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  candidate_day date,
+  base_day date,
+  candidate_at timestamp,
+  base_at timestamp,
+  candidate_duration interval,
+  base_duration interval,
+  tolerance interval,
+  subtract_offset boolean,
+  compare_less boolean,
+  recorded_day boolean,
+  recorded_at boolean,
+  recorded_duration boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT tolerance_calendar_day CHECK (CASE WHEN skip_validation THEN true ELSE in_range(candidate_day,base_day,tolerance,subtract_offset,compare_less) = recorded_day END),
+  CONSTRAINT tolerance_calendar_clock CHECK (CASE WHEN skip_validation THEN true ELSE in_range(candidate_at,base_at,tolerance,subtract_offset,compare_less) = recorded_at END),
+  CONSTRAINT tolerance_duration CHECK (CASE WHEN skip_validation THEN true ELSE in_range(candidate_duration,base_duration,tolerance,subtract_offset,compare_less) = recorded_duration END)
+);
+CREATE TABLE fixed_zone_records (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  zone_offset interval,
+  source_local timestamp,
+  source_instant timestamptz,
+  source_clock timetz,
+  recorded_instant timestamptz,
+  recorded_local timestamp,
+  recorded_clock timetz,
+  recorded_label text,
+  recorded_offset numeric,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT fixed_zone_instant CHECK (CASE WHEN skip_validation THEN true ELSE timezone(zone_offset,source_local) = recorded_instant END),
+  CONSTRAINT fixed_zone_local CHECK (CASE WHEN skip_validation THEN true ELSE timezone(zone_offset,source_instant) = recorded_local END),
+  CONSTRAINT fixed_zone_clock CHECK (CASE WHEN skip_validation THEN true ELSE timezone(zone_offset,source_clock) = recorded_clock END),
+  CONSTRAINT fixed_zone_label CHECK (CASE WHEN skip_validation THEN true ELSE recorded_clock::text = recorded_label END),
+  CONSTRAINT fixed_zone_offset CHECK (CASE WHEN skip_validation THEN true ELSE pg_catalog."extract"('timezone',recorded_clock) = recorded_offset END)
+);

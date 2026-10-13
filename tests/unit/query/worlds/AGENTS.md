@@ -318,7 +318,9 @@ shared world on behalf of everyone who never needed it.
 ## `[world]/check-seed.sql` — independent INSERT cases for generated CHECK evaluator parity
 
 Write independent, single-row INSERT VALUES statements with explicit
-column lists and literal values. Include accepted and rejected rows using the
+column lists and constant scalar inputs. Use literals and casts of literals;
+fixed interval timezone conversions may construct SQL-coerced temporal values
+that text input cannot represent. Include accepted and rejected rows using the
 world's seeded foreign keys. PostgreSQL supplies the expected outcomes; do not
 record them in annotations. Every statement runs against the seed state and is
 rolled back. Name cases with SQL name comments for readable failure reports.
