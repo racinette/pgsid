@@ -948,3 +948,95 @@ pub fn make_uuid_value(value: &str) -> UuidValue {
     }
     parsed
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Float4Value {
+    Unknown,
+    Null,
+    Value(i32),
+    Error(SqlError),
+}
+
+pub fn float4_unknown() -> Float4Value {
+    Float4Value::Unknown
+}
+pub fn float4_null() -> Float4Value {
+    Float4Value::Null
+}
+pub fn make_float4_bits(bits: i32) -> Float4Value {
+    Float4Value::Value(bits)
+}
+
+pub fn float4_number(bits: i32) -> f64 {
+    f32::from_bits(bits as u32) as f64
+}
+
+pub fn make_float4_value(value: f64) -> Float4Value {
+    let bits = (value as f32).to_bits() as i32;
+    let rounded = float4_number(bits);
+    if value == value && rounded != value {
+        return Float4Value::Unknown;
+    }
+    Float4Value::Value(bits)
+}
+
+pub fn float4_is_null(value: Float4Value) -> BoolValue {
+    if let Float4Value::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == Float4Value::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == Float4Value::Null)
+}
+
+pub fn float4_from_case_guard(value: CheckOutcome) -> Float4Value {
+    if let CheckOutcome::Error(error) = value {
+        return Float4Value::Error(error);
+    }
+    Float4Value::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Float8Value {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+
+pub fn float8_unknown() -> Float8Value {
+    Float8Value::Unknown
+}
+pub fn float8_null() -> Float8Value {
+    Float8Value::Null
+}
+pub fn make_float8_bits(bits: i64) -> Float8Value {
+    Float8Value::Value(bits)
+}
+
+pub fn float8_number(bits: i64) -> f64 {
+    f64::from_bits(bits as u64)
+}
+
+pub fn make_float8_value(value: f64) -> Float8Value {
+    let bits = value.to_bits() as i64;
+    Float8Value::Value(bits)
+}
+
+pub fn float8_is_null(value: Float8Value) -> BoolValue {
+    if let Float8Value::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == Float8Value::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == Float8Value::Null)
+}
+
+pub fn float8_from_case_guard(value: CheckOutcome) -> Float8Value {
+    if let CheckOutcome::Error(error) = value {
+        return Float8Value::Error(error);
+    }
+    Float8Value::Unknown
+}

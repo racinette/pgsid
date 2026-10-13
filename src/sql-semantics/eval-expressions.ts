@@ -82,6 +82,11 @@ export type EvalExpression =
       output: string
       enum?: EnumDefinition
     }
+  | {
+      kind: 'text-to-float'
+      type: 'pg_catalog.float4' | 'pg_catalog.float8'
+      operand: EvalExpression
+    }
   | { kind: 'text-to-uuid'; type: 'pg_catalog.uuid'; operand: EvalExpression }
   | { kind: 'text-to-bytea'; type: 'pg_catalog.bytea'; operand: EvalExpression }
   | { kind: 'uuid-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
@@ -249,6 +254,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'text-to-mac' ||
       node.kind === 'mac-to-text' ||
       node.kind === 'io-to-text' ||
+      node.kind === 'text-to-float' ||
       node.kind === 'text-to-uuid' ||
       node.kind === 'text-to-bytea' ||
       node.kind === 'uuid-to-text' ||

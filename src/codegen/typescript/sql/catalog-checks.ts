@@ -128,6 +128,8 @@ export function renderTypescriptSchemaCheckArtifacts(
               'Int2Value',
               'Int4Value',
               'Int8Value',
+              'Float4Value',
+              'Float8Value',
               'NetworkValue',
               'UuidValue',
               'MacaddrValue',
@@ -145,41 +147,47 @@ export function renderTypescriptSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'BitValue'
-              ? 'checkRustBit'
-              : item.rustType === 'UuidValue'
-                ? 'checkRustUuid'
-                : item.rustType === 'ByteaValue'
-                  ? 'checkRustBytea'
-                  : item.rustType === 'MacaddrValue'
-                    ? 'checkRustMacaddr'
-                    : item.rustType === 'Macaddr8Value'
-                      ? 'checkRustMacaddr8'
-                      : item.rustType === 'NetworkValue'
-                        ? 'checkRustNetwork'
-                        : item.rustType === 'NumericValue'
-                          ? 'checkRustNumeric'
-                          : item.rustType === 'DateValue'
-                            ? 'checkRustDate'
-                            : item.rustType === 'TimestampValue'
-                              ? 'checkRustTimestamp'
-                              : item.rustType === 'TimestamptzValue'
-                                ? 'checkRustTimestamptz'
-                                : item.nullness
-                                  ? 'checkRustNullness'
-                                  : item.enum
-                                    ? 'checkRustEnum'
-                                    : item.rustType === 'Int2Value'
-                                      ? 'checkRustInt2'
-                                      : item.rustType === 'Int4Value'
-                                        ? 'checkRustInt4'
-                                        : item.rustType === 'Int8Value'
-                                          ? 'checkRustInt8'
-                                          : item.rustType === 'TextValue'
-                                            ? 'checkRustText'
-                                            : 'checkRustBool'
+            item.rustType === 'Float4Value'
+              ? 'checkRustFloat4'
+              : item.rustType === 'Float8Value'
+                ? 'checkRustFloat8'
+                : item.rustType === 'BitValue'
+                  ? 'checkRustBit'
+                  : item.rustType === 'UuidValue'
+                    ? 'checkRustUuid'
+                    : item.rustType === 'ByteaValue'
+                      ? 'checkRustBytea'
+                      : item.rustType === 'MacaddrValue'
+                        ? 'checkRustMacaddr'
+                        : item.rustType === 'Macaddr8Value'
+                          ? 'checkRustMacaddr8'
+                          : item.rustType === 'NetworkValue'
+                            ? 'checkRustNetwork'
+                            : item.rustType === 'NumericValue'
+                              ? 'checkRustNumeric'
+                              : item.rustType === 'DateValue'
+                                ? 'checkRustDate'
+                                : item.rustType === 'TimestampValue'
+                                  ? 'checkRustTimestamp'
+                                  : item.rustType === 'TimestamptzValue'
+                                    ? 'checkRustTimestamptz'
+                                    : item.nullness
+                                      ? 'checkRustNullness'
+                                      : item.enum
+                                        ? 'checkRustEnum'
+                                        : item.rustType === 'Int2Value'
+                                          ? 'checkRustInt2'
+                                          : item.rustType === 'Int4Value'
+                                            ? 'checkRustInt4'
+                                            : item.rustType === 'Int8Value'
+                                              ? 'checkRustInt8'
+                                              : item.rustType === 'TextValue'
+                                                ? 'checkRustText'
+                                                : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
+            item.rustType !== 'Float4Value' &&
+            item.rustType !== 'Float8Value' &&
             item.rustType !== 'NetworkValue' &&
             item.rustType !== 'UuidValue' &&
             item.rustType !== 'MacaddrValue' &&
@@ -529,6 +537,26 @@ function checkRustTimestamptz(row: object, name: string): _checkRust.Timestamptz
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimestamptzValue
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeTimestamptzValue(value.value)
   return _checkRust.timestamptzUnknown()
+}
+function checkRustFloat4(row: object, name: string): _checkRust.Float4Value {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.float4Unknown()
+  if (value === null) return _checkRust.float4Null()
+  if (typeof value === 'number') return _checkRust.makeFloat4Value(value)
+  if (typeof value !== 'object' || !('kind' in value)) return _checkRust.float4Unknown()
+  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.Float4Value
+  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'number' && Number.isInteger(value.value) && value.value >= -2147483648 && value.value <= 2147483647) return _checkRust.makeFloat4Bits(value.value)
+  return _checkRust.float4Unknown()
+}
+function checkRustFloat8(row: object, name: string): _checkRust.Float8Value {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.float8Unknown()
+  if (value === null) return _checkRust.float8Null()
+  if (typeof value === 'number') return _checkRust.makeFloat8Value(value)
+  if (typeof value !== 'object' || !('kind' in value)) return _checkRust.float8Unknown()
+  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.Float8Value
+  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeFloat8Bits(value.value)
+  return _checkRust.float8Unknown()
 }
 function checkRustBit(row: object, name: string): _checkRust.BitValue {
   const value = Reflect.get(row, name)

@@ -1093,6 +1093,122 @@ export function makeUuidValue(value: string): UuidValue {
     }
     return parsed;
 }
+export type Float4Value = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: number;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalFloat4Value(left: Float4Value, right: Float4Value): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function float4Unknown(): Float4Value {
+    return { kind: "Unknown" };
+}
+export function float4Null(): Float4Value {
+    return { kind: "Null" };
+}
+export function makeFloat4Bits(bits: number): Float4Value {
+    bits = langruntime.checkedI32(bits);
+    return { kind: "Value", value: bits };
+}
+export function float4Number(bits: number): number {
+    bits = langruntime.checkedI32(bits);
+    return langruntime.f32FromI32Bits(bits);
+}
+export function makeFloat4Value(value: number): Float4Value {
+    value = langruntime.checkedF64(value);
+    const bits: number = langruntime.f32ToI32Bits(value);
+    const rounded: number = float4Number(bits);
+    if (value === value && !(rounded === value)) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: bits };
+}
+export function float4IsNull(value: Float4Value): BoolValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalFloat4Value(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalFloat4Value(value, { kind: "Null" }) };
+}
+export function float4FromCaseGuard(value: CheckOutcome): Float4Value {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export type Float8Value = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: bigint;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalFloat8Value(left: Float8Value, right: Float8Value): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function float8Unknown(): Float8Value {
+    return { kind: "Unknown" };
+}
+export function float8Null(): Float8Value {
+    return { kind: "Null" };
+}
+export function makeFloat8Bits(bits: bigint): Float8Value {
+    bits = langruntime.checkedI64(bits);
+    return { kind: "Value", value: bits };
+}
+export function float8Number(bits: bigint): number {
+    bits = langruntime.checkedI64(bits);
+    return langruntime.f64FromI64Bits(bits);
+}
+export function makeFloat8Value(value: number): Float8Value {
+    value = langruntime.checkedF64(value);
+    const bits: bigint = langruntime.f64ToI64Bits(value);
+    return { kind: "Value", value: bits };
+}
+export function float8IsNull(value: Float8Value): BoolValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalFloat8Value(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalFloat8Value(value, { kind: "Null" }) };
+}
+export function float8FromCaseGuard(value: CheckOutcome): Float8Value {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

@@ -49,6 +49,12 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("EnumValue") => {
             Ok("EnumValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("Float4Value") => {
+            Ok("Float4Value")
+        }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("Float8Value") => {
+            Ok("Float8Value")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("UuidValue") => {
             Ok("UuidValue")
         }
@@ -362,6 +368,8 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "TimestamptzValue"
                     | "EnumValue"
                     | "NetworkValue"
+                    | "Float4Value"
+                    | "Float8Value"
                     | "UuidValue"
                     | "MacaddrValue"
                     | "Macaddr8Value"
@@ -558,11 +566,33 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_float_carriers_and_rejects_host_float_parameters() {
+        for (ty, constructor, literal) in [
+            ("Float4Value", "make_float4_bits", "-2147483647 - 1"),
+            ("Float8Value", "make_float8_bits", "-9223372036854775808i64"),
+        ] {
+            let source = format!("pub fn evaluate_check(input: {ty}) -> CheckOutcome {{ let value = {constructor}({literal}); let result = compare(input, value); check_from_bool(result) }}");
+            check_source(&source).unwrap();
+            assert!(check_source(&source.replace(&format!("input: {ty}"), "input: f64")).is_err());
+            assert!(check_source(
+                &source.replace(&format!("input: {ty}"), &format!("input: {ty}<i32>"))
+            )
+            .is_err());
+            assert!(check_source(
+                &source.replace(&format!("input: {ty}"), &format!("mut input: {ty}"))
+            )
+            .is_err());
+        }
+    }
+
+    #[test]
     fn accepts_scalar_case_result_locals() {
         for (ty, constructor) in [
             ("Int2Value", "int2_unknown"),
             ("Int4Value", "int4_unknown"),
             ("Int8Value", "int8_unknown"),
+            ("Float4Value", "float4_unknown"),
+            ("Float8Value", "float8_unknown"),
             ("EnumValue", "enum_unknown"),
             ("DateValue", "date_unknown"),
             ("TimestampValue", "timestamp_unknown"),

@@ -135,9 +135,25 @@ describe('integer CASE result coercion', () => {
   })
 
   it('defers unsupported result conversions and incompatible branches', async () => {
+    const floating = lowerTableCheck(
+      table,
+      {
+        name: 'floating',
+        type: 'check',
+        definition: 'CHECK ((CASE WHEN flag THEN small ELSE 1::float8 END) IS NULL)',
+      },
+      [],
+      catalog.domains,
+    )!
+    const floatingGroup = prepareCheckRustGroup([
+      {
+        expression: floating.expression,
+        identity: { schema: 'public', kind: 'table', owner: table.name, constraint: 'floating' },
+      },
+    ])
+    expect(floatingGroup.checks[0]?.kind).toBe('supported')
     for (const sql of [
       'CASE WHEN flag THEN small ELSE 1.5 END',
-      'CASE WHEN flag THEN small ELSE 1::float8 END',
       "CASE WHEN flag THEN small ELSE '7' END",
       'CASE WHEN flag THEN small ELSE abs(1.5) END',
     ]) {

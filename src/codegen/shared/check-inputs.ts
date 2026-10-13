@@ -108,6 +108,7 @@ const inputNeedsCoercion = (column: ColumnInfo, catalog: CatalogSnapshot): boole
   return (
     type === 'pg_catalog."bit"' ||
     type === 'pg_catalog.varbit' ||
+    type === 'pg_catalog.float4' ||
     type === 'pg_catalog.bpchar' ||
     ((type === 'pg_catalog."varchar"' || type === 'pg_catalog."numeric"') &&
       (unknownModifier || typeMod >= 0 || name.includes('(')))

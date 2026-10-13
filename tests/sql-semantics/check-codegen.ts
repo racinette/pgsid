@@ -7,6 +7,7 @@ export type GoCheckCase = {
   table: TableInfo
   row: Record<string, unknown>
   nullViaValue?: boolean
+  floatColumns?: readonly string[]
   numericColumns?: readonly string[]
   dateColumns?: readonly string[]
   timestampColumns?: readonly string[]
@@ -25,6 +26,7 @@ export function renderGoCheckTests(
   const t = go.ident('t')
   let dateRuntimeUsed = false
   let jsonUsed = false
+  let floatUsed = false
   const fatal = (message: string, ...args: GoExpression[]): GoStatement =>
     go.expression(go.call(go.selector(t, 'Fatalf'), [go.string(message), ...args]))
   const expect = (actual: GoExpression, expected: GoExpression, label: string): GoStatement =>
@@ -36,6 +38,7 @@ export function renderGoCheckTests(
       row,
       nullViaValue,
       numericColumns,
+      floatColumns,
       dateColumns,
       timestampColumns,
       timestamptzColumns,
@@ -55,6 +58,21 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && floatColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        floatUsed = true
+        const fixture = value as { bits: number | bigint; single: boolean }
+        const number = go.call(
+          go.selector(go.ident('checkruntime'), fixture.single ? 'Float4Number' : 'Float8Number'),
+          [go.number(fixture.bits)],
+        )
+        statements.push(
+          go.expression(
+            go.call(go.ident('setFloatFixture'), [number, go.address(go.selector(field, 'V'))]),
+          ),
+        )
         continue
       }
       if (options.dateRuntime && numericColumns?.includes(column.name)) {
@@ -216,11 +234,12 @@ export function renderGoCheckTests(
       ]),
     )
   })
-  return printGoFile({
+  const source = printGoFile({
     package: packageName,
     imports: [
       { path: 'testing' },
       ...(jsonUsed ? [{ path: 'encoding/json' }] : []),
+      ...(floatUsed ? [{ path: 'reflect' }] : []),
       ...(dateRuntimeUsed ? [{ path: options.dateRuntime!, alias: 'checkruntime' }] : []),
     ],
     declarations: [
@@ -232,4 +251,19 @@ export function renderGoCheckTests(
       ),
     ],
   })
+  return (
+    source +
+    (floatUsed
+      ? `
+func setFloatFixture[T any](number float64, target *T) {
+  value := reflect.ValueOf(target).Elem()
+  if value.Kind() == reflect.Pointer {
+    value.Set(reflect.New(value.Type().Elem()))
+    value = value.Elem()
+  }
+  value.SetFloat(number)
+}
+`
+      : '')
+  )
 }

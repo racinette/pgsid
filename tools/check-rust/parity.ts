@@ -61,37 +61,39 @@ export async function runCheckParity(
     return result[0]!.toLowerCase() + result.slice(1)
   }
   const prefixOf = (type: string): string =>
-    type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
-      ? 'bit'
-      : type === 'pg_catalog.uuid'
-        ? 'uuid'
-        : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
-          ? 'network'
-          : type === 'pg_catalog.macaddr'
-            ? 'macaddr'
-            : type === 'pg_catalog.macaddr8'
-              ? 'macaddr8'
-              : type === 'pg_catalog.bytea'
-                ? 'bytea'
-                : type.startsWith('enum:')
-                  ? 'enum'
-                  : type === 'pg_catalog.int2'
-                    ? 'int2'
-                    : type === 'pg_catalog.int4'
-                      ? 'int4'
-                      : type === 'pg_catalog.int8'
-                        ? 'int8'
-                        : type === 'pg_catalog."numeric"'
-                          ? 'numeric'
-                          : type === 'pg_catalog."timestamp"'
-                            ? 'timestamp'
-                            : type === 'pg_catalog.timestamptz'
-                              ? 'timestamptz'
-                              : type === 'pg_catalog.date'
-                                ? 'date'
-                                : type === 'pg_catalog.bool'
-                                  ? 'bool'
-                                  : 'text'
+    type === 'pg_catalog.float4' || type === 'pg_catalog.float8'
+      ? type.slice('pg_catalog.'.length)
+      : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
+        ? 'bit'
+        : type === 'pg_catalog.uuid'
+          ? 'uuid'
+          : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
+            ? 'network'
+            : type === 'pg_catalog.macaddr'
+              ? 'macaddr'
+              : type === 'pg_catalog.macaddr8'
+                ? 'macaddr8'
+                : type === 'pg_catalog.bytea'
+                  ? 'bytea'
+                  : type.startsWith('enum:')
+                    ? 'enum'
+                    : type === 'pg_catalog.int2'
+                      ? 'int2'
+                      : type === 'pg_catalog.int4'
+                        ? 'int4'
+                        : type === 'pg_catalog.int8'
+                          ? 'int8'
+                          : type === 'pg_catalog."numeric"'
+                            ? 'numeric'
+                            : type === 'pg_catalog."timestamp"'
+                              ? 'timestamp'
+                              : type === 'pg_catalog.timestamptz'
+                                ? 'timestamptz'
+                                : type === 'pg_catalog.date'
+                                  ? 'date'
+                                  : type === 'pg_catalog.bool'
+                                    ? 'bool'
+                                    : 'text'
   const inputCode = (input: Input, type: string, definition?: EnumDefinition): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -101,6 +103,16 @@ export async function runCheckParity(
     if (prefix === 'enum' && definition) {
       const oid = enumLabelOid(definition, input.value as number)
       if (oid !== null) return `make_catalog_enum_value(${input.value}, ${oid}i64)`
+    }
+    if (prefix === 'float4' || prefix === 'float8') {
+      const bits = BigInt(input.value as number | bigint)
+      const literal =
+        prefix === 'float8'
+          ? `${bits}i64`
+          : bits === -2147483648n
+            ? '-2147483647 - 1'
+            : String(bits)
+      return `make_${prefix}_bits(${literal})`
     }
     const literal =
       typeof input.value === 'string'
@@ -135,6 +147,8 @@ export async function runCheckParity(
           go.number(oid),
         ])
     }
+    if (prefix === 'Float4' || prefix === 'Float8')
+      return go.call(runtime('Make' + prefix + 'Bits'), [go.number(input.value as number | bigint)])
     const value =
       typeof input.value === 'string'
         ? go.string(input.value)
@@ -308,6 +322,10 @@ export async function runCheckParity(
           value.kind === 'Value'
         )
           return generated.makeNetworkValue(value.value)
+        if (input.type === 'pg_catalog.float4' && value.kind === 'Value')
+          return generated.makeFloat4Bits(Number(value.value))
+        if (input.type === 'pg_catalog.float8' && value.kind === 'Value')
+          return generated.makeFloat8Bits(BigInt(value.value))
         if (input.type === 'pg_catalog.uuid' && value.kind === 'Value')
           return generated.makeUuidValue(value.value)
         if (input.type === 'pg_catalog.macaddr' && value.kind === 'Value')

@@ -130,11 +130,26 @@ describe('fixed ROW constructor comparisons in CHECKs', () => {
     expect(
       expression.expression.pairs.map((pair) => builtinMetadata(pair.comparison.signature!).name),
     ).toEqual(['btint24cmp', 'btint82cmp'])
+    for (const sql of ['ROW(floating_amount,amount) < ROW(floating_amount,divisor)']) {
+      const expression = lower(sql)
+      expect(hasUncertain(expression), sql).toBe(false)
+      const group = prepareCheckRustGroup([
+        {
+          expression,
+          identity: {
+            schema: 'public',
+            kind: 'table',
+            owner: table.name,
+            constraint: 'float_support',
+          },
+        },
+      ])
+      expect(group.checks[0]?.kind, sql).toBe('supported')
+    }
     for (const sql of [
       'ROW(locale_text,amount) < ROW(locale_text,divisor)',
       'ROW(record_value,amount) = ROW(record_value,divisor)',
       'ROW(ROW(amount,divisor),first) = ROW(ROW(divisor,amount),other_first)',
-      'ROW(floating_amount,amount) < ROW(floating_amount,divisor)',
     ]) {
       const expression = lower(sql)
       const group = prepareCheckRustGroup([

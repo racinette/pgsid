@@ -6,6 +6,20 @@ import { bindProbe, inspectExpression, valueRepresentation } from './probes.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { writeReport } from './worlds.js'
 import { temporalInputForms } from '../../tests/sql-semantics/check-temporal-input-forms.js'
+import {
+  floatInputForms,
+  deferredFloatInputForms,
+} from '../../tests/sql-semantics/check-float-input-forms.js'
+
+const inputForms = [
+  ...temporalInputForms,
+  ...['pg_catalog.float4', 'pg_catalog.float8'].map((type) => ({
+    type,
+    suite: 'tests/sql-semantics/check-float-input.test.ts',
+    handled: floatInputForms,
+    deferred: deferredFloatInputForms,
+  })),
+]
 
 export async function measureCoercions(pg: PGlite) {
   const catalog = await verifiedCatalog(pg)
@@ -125,11 +139,11 @@ export async function measureCoercions(pg: PGlite) {
         .length,
       textInputsRawAndStoredPrepared: textInput.filter((entry) => prepared(entry.probe)).length,
       textOutputsRawAndStoredPrepared: textOutput.filter((entry) => prepared(entry.probe)).length,
-      maintainedInputForms: temporalInputForms.reduce(
+      maintainedInputForms: inputForms.reduce(
         (count, forms) => count + forms.handled.length + forms.deferred.length,
         0,
       ),
-      maintainedDeferredInputForms: temporalInputForms.reduce(
+      maintainedDeferredInputForms: inputForms.reduce(
         (count, forms) => count + forms.deferred.length,
         0,
       ),
@@ -137,7 +151,7 @@ export async function measureCoercions(pg: PGlite) {
     casts,
     textInput,
     textOutput,
-    inputForms: { evidence: 'maintained parity-suite expectations', types: temporalInputForms },
+    inputForms: { evidence: 'maintained parity-suite expectations', types: inputForms },
   }
 }
 

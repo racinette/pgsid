@@ -203,8 +203,23 @@ describe('GREATEST and LEAST CHECK evaluation', () => {
         if (metadata.kind !== 'operator') throw new Error('Expected ordering operator')
         expect(builtinMetadata(metadata.implementation).name, sql).toBe(ordering[0]!.implementation)
       }
+    for (const sql of ['GREATEST(amount,floating_amount) IS NULL']) {
+      const expression = lower(sql)
+      expect(hasUncertain(expression), sql).toBe(false)
+      const group = prepareCheckRustGroup([
+        {
+          expression,
+          identity: {
+            schema: 'public',
+            kind: 'table',
+            owner: table.name,
+            constraint: 'float_support',
+          },
+        },
+      ])
+      expect(group.checks[0]?.kind, sql).toBe('supported')
+    }
     for (const sql of [
-      'GREATEST(amount,floating_amount) IS NULL',
       'LEAST(date_left,timestamptz_left) IS NULL',
       'GREATEST(locale_text,locale_text) IS NULL',
       'LEAST(insensitive_text,insensitive_text) IS NULL',
