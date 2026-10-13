@@ -80,8 +80,8 @@ const numberOf = (bits: bigint): number => {
   return view.getFloat64(0)
 }
 
-describe('CHECK IEEE bit conversions', () => {
-  it('preserves binary carriers and rounds single precision like native Rust', async () => {
+describe('CHECK IEEE bit conversions and square roots', () => {
+  it('preserves binary carriers, single precision rounding and double precision square roots like native Rust', async () => {
     const source = await readFile('tools/check-transpiler/float_bits_smoke.rs', 'utf8')
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-float-bits-'))
     try {
@@ -90,7 +90,7 @@ describe('CHECK IEEE bit conversions', () => {
         join(directory, 'oracle.rs'),
         `include!("bits.rs");
 fn main() {
-${doublePatterns.map((bits) => `println!("{} {}", double_roundtrip(${bits}i64), rounded_single_bits(${bits}i64));`).join('\n')}
+${doublePatterns.map((bits) => `println!("{} {} {}", double_roundtrip(${bits}i64), rounded_single_bits(${bits}i64), double_sqrt_bits(${bits}i64));`).join('\n')}
 ${singlePatterns.map((bits) => `println!("{} {}", single_roundtrip(${bits}), widened_single_bits(${bits}));`).join('\n')}
 }`,
       )
@@ -122,6 +122,7 @@ ${singlePatterns.map((bits) => `println!("{} {}", single_roundtrip(${bits}), wid
         singleFromBits(value: number): number
         singleToBits(value: number): number
         doubleRoundtrip(value: bigint): bigint
+        doubleSqrtBits(value: bigint): bigint
         singleRoundtrip(value: number): number
         roundedSingleBits(value: bigint): number
         widenedSingleBits(value: number): bigint
@@ -137,14 +138,16 @@ ${singlePatterns.map((bits) => `println!("{} {}", single_roundtrip(${bits}), wid
         )
       }
       for (const [index, bits] of doublePatterns.entries()) {
-        const [roundtrip, rounded] = expected[index]!
+        const [roundtrip, rounded, squareRoot] = expected[index]!
         expect(roundtrip).toBe(bits)
         expect(functions.doubleRoundtrip(bits)).toBe(roundtrip)
+        expect(functions.doubleSqrtBits(bits)).toBe(squareRoot)
         expect(bitsOf(functions.doubleFromBits(bits))).toBe(bits)
         expect(functions.doubleToBits(numberOf(bits))).toBe(bits)
         expect(functions.roundedSingleBits(bits)).toBe(Number(rounded))
         expect(functions.singleToBits(numberOf(bits))).toBe(Number(rounded))
         assertGo('DoubleRoundtrip', bits, roundtrip!)
+        assertGo('DoubleSqrtBits', bits, squareRoot!)
         assertGo('RoundedSingleBits', bits, Number(rounded))
         statements.push(
           go.if(

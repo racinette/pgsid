@@ -6290,6 +6290,31 @@ func Float8FromText(input checkruntime.TextValue) checkruntime.Float8Value {
 	}
 	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
 }
+
+const floatSqrtArgument = 3452595
+
+func Dsqrt5pmk(input checkruntime.Float8Value) checkruntime.Float8Value {
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		number := checkruntime.Float8Number(bits)
+		if number < float64(0.0) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatSqrtArgument)}
+		}
+		result := langruntime.F64Sqrt(number)
+		infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+		if langruntime.F64Abs(result) == infinity && langruntime.F64Abs(number) != infinity {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		if result == float64(0.0) && number != float64(0.0) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+		}
+		return checkruntime.MakeFloat8Value(result)
+	}
+	return input
+}
+func SqrtL707(input checkruntime.Float8Value) checkruntime.Float8Value {
+	return Dsqrt5pmk(input)
+}
 func floatNumericDecimal(input checkruntime.Float8Value, precision int) checkruntime.NumericValue {
 	precision = langruntime.CheckedIndex(precision)
 	if input.Kind == checkruntime.Float8ValueError {
@@ -13587,6 +13612,86 @@ func numericWorkRound(work numericWork, requested int, mode int) checkruntime.Nu
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(numericSupportRangeError)}
 	}
 	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(rounded)}
+}
+func pointSameValue(left checkruntime.PointPayload, right checkruntime.PointPayload) bool {
+	x := checkruntime.Float8Number(left.X)
+	y := checkruntime.Float8Number(left.Y)
+	otherX := checkruntime.Float8Number(right.X)
+	otherY := checkruntime.Float8Number(right.Y)
+	if x != x || y != y || otherX != otherX || otherY != otherY {
+		return (x == otherX || (x != x && otherX != otherX)) && (y == otherY || (y != y && otherY != otherY))
+	}
+	return (x == otherX || langruntime.F64Abs((langruntime.F64Subtract(x, otherX))) <= float64(0.000001)) && (y == otherY || langruntime.F64Abs((langruntime.F64Subtract(y, otherY))) <= float64(0.000001))
+}
+func pointSame(left checkruntime.PointValue, right checkruntime.PointValue, negate bool) checkruntime.BoolValue {
+	if left.Kind == checkruntime.PointValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PointValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.PointValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.PointValueValue {
+			b := right.Value
+			return checkruntime.MakeBoolValue(pointSameValue(a, b) != negate)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func PointEq5be0(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoolValue {
+	return pointSame(left, right, false)
+}
+func PointNeJppg(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoolValue {
+	return pointSame(left, right, true)
+}
+func PointDb27(x checkruntime.Float8Value, y checkruntime.Float8Value) checkruntime.PointValue {
+	if x.Kind == checkruntime.Float8ValueError {
+		error := x.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if y.Kind == checkruntime.Float8ValueError {
+		error := y.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if x == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || y == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+	}
+	if x == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || y == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if x.Kind == checkruntime.Float8ValueValue {
+		xBits := x.Value
+		if y.Kind == checkruntime.Float8ValueValue {
+			yBits := y.Value
+			return checkruntime.MakePointBits(xBits, yBits)
+		}
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func PointSendKuoa(input checkruntime.PointValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.PointValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.PointValueValue {
+		point := input.Value
+		x := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: point.X}, 8)
+		y := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: point.Y}, 8)
+		return ByteacatZitv(x, y)
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
 func Int24eqCfkl(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	leftWide := checkruntime.Int2ToInt4(left)

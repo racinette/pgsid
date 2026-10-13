@@ -633,7 +633,10 @@ fn infer_expr_type(
             Ok(Some("char".into()))
         }
         Expr::MethodCall(call)
-            if matches!(call.method.to_string().as_str(), "abs" | "ln" | "log10") =>
+            if matches!(
+                call.method.to_string().as_str(),
+                "abs" | "ln" | "log10" | "sqrt"
+            ) =>
         {
             if infer_expr_type(&call.receiver, locals, semantics)?.as_deref() != Some("f64") {
                 return Err("float methods require f64".into());

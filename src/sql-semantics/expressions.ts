@@ -14,6 +14,7 @@ export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.
 export type NetworkType = 'pg_catalog.inet' | 'pg_catalog.cidr'
 export type MacType = 'pg_catalog.macaddr' | 'pg_catalog.macaddr8'
 export type BitType = 'pg_catalog."bit"' | 'pg_catalog.varbit'
+export type PointType = 'pg_catalog.point'
 export type UuidType = 'pg_catalog.uuid'
 export type JsonType = 'pg_catalog."json"'
 export type JsonbType = 'pg_catalog.jsonb'
@@ -42,6 +43,7 @@ export type ArrayElementType = (typeof BUILTIN_ARRAY_ELEMENT_TYPES)[number] | En
 export type ArrayType = `array:${ArrayElementType}`
 export type ScalarType =
   | NumericType
+  | PointType
   | 'pg_catalog.bool'
   | TextType
   | NetworkType
@@ -279,6 +281,7 @@ export type SqlExpression =
   | { kind: 'internal-char'; type: 'pg_catalog."char"'; value: string | null }
   | { kind: 'bytea'; type: 'pg_catalog.bytea'; value: string | null }
   | { kind: 'bit'; type: 'pg_catalog."bit"' | 'pg_catalog.varbit'; value: string | null }
+  | { kind: 'point'; type: PointType; value: null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
   | { kind: 'json'; type: JsonType; value: string | null }
   | { kind: 'jsonb'; type: JsonbType; value: string | null }
@@ -923,6 +926,7 @@ export function emitSqlExpression<Ast>(
       helpers.add(node.kind === 'boolean' ? 'booleanInput' : 'textInput')
       return { type: node.type, expression }
     }
+    if (node.kind === 'point') return { type: node.type, expression: backend.text(null) }
     if (node.kind === 'uuid') {
       helpers.add('uuidInput')
       return { type: node.type, expression: backend.uuid(node.value) }

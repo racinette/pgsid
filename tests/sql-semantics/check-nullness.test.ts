@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -12,6 +12,7 @@ import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { planCheckInputs } from '../../src/codegen/shared/check-inputs.js'
 import { parseSql } from '../../src/ast.js'
 import { emitCheckRustEvaluator } from '../../src/codegen/shared/check-rust-evaluator.js'
+import { assembleCheckRust } from '../../src/codegen/shared/check-rust-source.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import {
   renderTypescriptSchemaCheckArtifacts,
@@ -19,6 +20,7 @@ import {
 } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
+import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
 
 const run = promisify(execFile)
 const fields = [
@@ -48,6 +50,7 @@ describe('CHECK input nullness', () => {
   beforeAll(async () => {
     pg = await PGlite.create()
     directory = await mkdtemp(join(tmpdir(), 'pgsid-check-nullness-'))
+    await symlink(resolve('node_modules'), join(directory, 'node_modules'), 'dir')
     await pg.exec(`
       CREATE TYPE public.null_state AS ENUM ('ready', 'done');
       CREATE TYPE public.null_pair AS (a integer, b integer);
@@ -113,12 +116,9 @@ describe('CHECK input nullness', () => {
         (constraint) => constraint.type === 'check',
       )) {
         const plan = lowerTableCheck(table, constraint)!
-        const unsupported = [
-          'pair_null',
-          'pair_present',
-          'pair_domain_null',
-          'amount_comparison',
-        ].includes(constraint.name)
+        const unsupported = ['pair_null', 'pair_present', 'pair_domain_null'].includes(
+          constraint.name,
+        )
         const parameters = plan.inputs.map((column) => row[column])
         const missing = parameters.some((value) => value === undefined)
         const shortCircuit =
@@ -205,35 +205,58 @@ describe('CHECK input nullness', () => {
       )
       await writeFile(
         join(root, 'schema/public/checks_test.go'),
-        renderGoCheckTests('public', cases),
+        renderGoCheckTests(
+          'public',
+          cases.map((item) => ({
+            ...item,
+            row: {
+              ...item.row,
+              ...(item.row['day'] instanceof Date
+                ? { day: item.row['day'].toISOString().slice(0, 10) }
+                : {}),
+              ...Object.fromEntries(
+                ['instant', 'local_time'].flatMap((name) => {
+                  const value = item.row[name]
+                  return value instanceof Date
+                    ? [[name, BigInt(value.getTime() - Date.UTC(2000, 0, 1)) * 1000n]]
+                    : []
+                }),
+              ),
+              ...(item.row['duration'] === undefined || item.row['duration'] === null
+                ? {}
+                : { duration: { months: 0, days: 0, time: 3_600_000_000n } }),
+            },
+            numericColumns: ['amount', 'price', 'nested_price'],
+            intervalColumns: ['duration'],
+          })),
+          { dateRuntime: 'nullchecks/schema/public/checkrust/checkruntime' },
+        ),
       )
       await run('go', ['test', '-mod=mod', './...'], {
         cwd: root,
         env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      }).catch((error: { stdout: string; stderr: string }) => {
+        throw new Error(error.stdout + error.stderr, { cause: error })
       })
     }
 
     const native = join(directory, 'native')
     await mkdir(native)
-    for (const file of ['values.rs', 'logic.rs'])
-      await writeFile(join(native, file), await readFile('crates/check-evaluator/src/' + file))
     const constraint = table.constraints.find((constraint) => constraint.name === 'amount_present')!
-    await writeFile(
+    writeCheckRustSources(
       join(native, 'evaluator.rs'),
-      emitCheckRustEvaluator(lowerTableCheck(table, constraint)!.expression).source,
+      assembleCheckRust(emitCheckRustEvaluator(lowerTableCheck(table, constraint)!.expression)),
     )
     await writeFile(
       join(native, 'test.rs'),
-      `include!("values.rs");
-include!("logic.rs");
-include!("evaluator.rs");
+      `include!("evaluator.rs");
 #[test]
 fn nullness() {
-    assert!(evaluate_check(BoolValue::Unknown) == CheckOutcome::Unknown);
-    assert!(evaluate_check(BoolValue::Value(true)) == CheckOutcome::False);
-    assert!(evaluate_check(BoolValue::Value(false)) == CheckOutcome::True);
+    assert!(evaluate_check(NumericValue::Unknown) == CheckOutcome::Unknown);
+    assert!(evaluate_check(NumericValue::Null) == CheckOutcome::False);
+    assert!(evaluate_check(make_numeric_value("12.50")) == CheckOutcome::True);
     let error = SqlError { state: 1 };
-    assert!(evaluate_check(BoolValue::Error(error)) == CheckOutcome::Error(error));
+    assert!(evaluate_check(NumericValue::Error(error)) == CheckOutcome::Error(error));
 }
 `,
     )
@@ -279,10 +302,24 @@ fn nullness() {
   ])
     it(name, () => {
       const item = cases.find((item) => item.name === name)!
-      for (const target of [evaluate, fallback]) {
-        const results = target(item.row).map(({ constraint, result }) => ({ constraint, result }))
-        expect(results).toEqual(item.results)
-      }
+      const results = evaluate(item.row).map(({ constraint, result }) => ({ constraint, result }))
+      expect(results).toEqual(item.results)
+      const fallbackUnsupported = new Set([
+        'amount_comparison',
+        'amount_null',
+        'amount_present',
+        'conditional_presence',
+        'identifier_null',
+        'identifier_present',
+        'nullness_name_collision',
+      ])
+      expect(fallback(item.row).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
+        item.results.map((item) =>
+          fallbackUnsupported.has(item.constraint)
+            ? { constraint: item.constraint, result: { certain: false } }
+            : item,
+        ),
+      )
     })
 
   it('keeps composite row NULL semantics distinct from scalar nullness', async () => {

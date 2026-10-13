@@ -2,7 +2,11 @@ import type { Node } from 'libpg-query'
 import type { CatalogSnapshot, ColumnInfo, TableInfo } from '../../catalog/types.js'
 import type { WriteValueLineage, ValueLineage } from '../../query/value-lineage.js'
 import { catalogCheckGroups } from '../../sql-semantics/catalog-checks.js'
-import { catalogScalarType, catalogTemporalType } from '../../sql-semantics/catalog-check-binder.js'
+import {
+  catalogPointType,
+  catalogScalarType,
+  catalogTemporalType,
+} from '../../sql-semantics/catalog-check-binder.js'
 
 export type CheckColumnSource =
   | { kind: 'parameter'; number: number }
@@ -219,6 +223,7 @@ export function planCheckInputs(
     if (source.kind !== 'parameter') return []
     const column = plan.table.columns.find((column) => column.name === name)!
     if (catalogTemporalType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogPointType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalog && inputNeedsCoercion(column, catalog)) return []
     return [{ name, parameter: source.number }]
   })

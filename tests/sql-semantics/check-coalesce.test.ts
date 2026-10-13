@@ -41,6 +41,7 @@ const scalars = {
   nested: 'COALESCE(NULL, COALESCE(small, wide), big)',
   lazy_division: 'COALESCE(big, wide / small, 0)',
   intermediate_overflow: 'COALESCE(small + small, big)',
+  float_root: 'COALESCE(sqrt(1.5::float8), 0::float8)',
   typed_null: 'COALESCE(small, NULL::bigint)',
   case_argument: 'COALESCE(CASE WHEN flag THEN small ELSE wide END, big)',
 } as const
@@ -189,7 +190,7 @@ describe('COALESCE CHECK control flow', () => {
     expect(floating.checks[0]?.kind).toBe('supported')
     const unavailable = prepareCheckRustGroup([
       {
-        expression: lower('COALESCE(sqrt(1.5::float8), 0::float8) IS NULL'),
+        expression: lower('COALESCE(cos(1.5::float8), 0::float8) IS NULL'),
         identity: { schema: 'public', kind: 'table', owner: 'probe', constraint: 'unavailable' },
       },
     ])

@@ -229,6 +229,9 @@ export function f64Ln(value: number): number {
 export function f64Log10(value: number): number {
     return Math.log10(checkedF64(value));
 }
+export function f64Sqrt(value: number): number {
+    return Math.sqrt(checkedF64(value));
+}
 export function f64ToI32(value: number): number {
     checkedF64(value);
     if (Number.isNaN(value))

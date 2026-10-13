@@ -1374,6 +1374,68 @@ export function intervalFromCaseGuard(input: CheckOutcome): IntervalValue {
     }
     return { kind: "Unknown" };
 }
+export interface PointPayload {
+    readonly x: bigint;
+    readonly y: bigint;
+}
+function equalPointPayload(left: PointPayload, right: PointPayload): boolean {
+    return left.x === right.x && left.y === right.y;
+}
+export type PointValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: PointPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalPointValue(left: PointValue, right: PointValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalPointPayload(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function pointUnknown(): PointValue {
+    return { kind: "Unknown" };
+}
+export function pointNull(): PointValue {
+    return { kind: "Null" };
+}
+export function makePointBits(x: bigint, y: bigint): PointValue {
+    x = langruntime.checkedI64(x);
+    y = langruntime.checkedI64(y);
+    return { kind: "Value", value: { x: x, y: y } };
+}
+export function makePointValue(x: number, y: number): PointValue {
+    x = langruntime.checkedF64(x);
+    y = langruntime.checkedF64(y);
+    const xBits: bigint = langruntime.f64ToI64Bits(x);
+    const yBits: bigint = langruntime.f64ToI64Bits(y);
+    return makePointBits(xBits, yBits);
+}
+export function pointIsNull(input: PointValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalPointValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalPointValue(input, { kind: "Null" }));
+}
+export function pointFromCaseGuard(input: CheckOutcome): PointValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

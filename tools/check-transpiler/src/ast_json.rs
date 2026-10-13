@@ -1274,6 +1274,25 @@ mod f64_tests {
         }
     }
     #[test]
+    fn permits_square_root_only_on_scalar_f64_without_arguments() {
+        for source in [
+            "pub fn f(value:f64)->f64 { value.sqrt() }",
+            "pub fn f(value:f64)->i64 { let root=value.sqrt(); root.to_bits() as i64 }",
+            "pub fn f(value:f64)->f64 { (value * value + 1.0f64).sqrt() }",
+        ] {
+            assert!(parse(source).is_ok(), "{source}");
+        }
+        for source in [
+            "pub fn f(value:i32)->f64 { value.sqrt() }",
+            "pub fn f(value:i64)->f64 { value.sqrt() }",
+            "pub fn f(value:&str)->f64 { value.sqrt() }",
+            "pub fn f(value:f64)->f64 { value.sqrt(1.0f64) }",
+            "pub fn f(value:f64)->f64 { value.sqrt::<f64>() }",
+        ] {
+            assert!(parse(source).is_err(), "{source}");
+        }
+    }
+    #[test]
     fn rejects_float_expansion_beyond_precision_calculations() {
         for source in [
             "pub fn f() -> f64 { 1.0 }",
