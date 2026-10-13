@@ -110,8 +110,13 @@ import them. Keep schema-only helpers with their callables.
   separated by whitespace. Missing timetz offsets and named zones defer for
   context; other grammar remains separately visible in input-form measurements.
   Clock output preserves fractional seconds and numeric offsets across DateStyle
-  settings. Interval text accepts unit, clock, compact year-month and ISO designator
-  forms; unit fractions and clock fractions retain distinct rounding rules.
+  settings. SQL-coerced timetz payloads preserve the complete stored offset;
+  text parsing applies its own narrower bounds. Fixed interval timezone conversion
+  preserves stored-width arithmetic, including offset extraction and unsigned
+  output components at the signed minimum. Interval text accepts unit, clock,
+  compact year-month, ISO designator and alternative forms. Alternative fields
+  retain numeric widths and field-specific fractional rounding; unit fractions
+  and clock fractions retain distinct rounding rules.
   General fields accumulate in reverse, ISO fields in input order. Leading-negative
   general forms without further signs require IntervalStyle. Scaling cascades
   fractional months and days downward; justification carries units upward and
@@ -125,6 +130,9 @@ import them. Keep schema-only helpers with their callables.
   positive finite day/time strides and rounds toward negative infinity. Interval
   truncation preserves component signs. Calendar age borrows days from the earlier
   timestamp's month rather than converting months to elapsed days.
+  Range checks reject negative offsets according to the family's comparison.
+  Clock ranges ignore calendar fields and keep boundaries unwrapped; calendar
+  ranges preserve date promotion, component overflow and infinity rules.
   Date-plus-clock constructors preserve fixed offsets and timestamp bounds;
   timestamp infinities become NULL when cast to time. Typed clock and interval
   literals prepare before lazy branches; runtime text casts retain branch laziness.

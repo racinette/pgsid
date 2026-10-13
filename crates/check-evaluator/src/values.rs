@@ -1102,7 +1102,7 @@ pub fn timetz_null() -> TimetzValue {
 }
 
 pub fn make_timetz_value(time: i64, zone: i32) -> TimetzValue {
-    if time < 0i64 || time > 86400000000i64 || zone <= -57600 || zone >= 57600 {
+    if time < 0i64 || time > 86400000000i64 {
         return TimetzValue::Unknown;
     }
     TimetzValue::Value(TimetzPayload {

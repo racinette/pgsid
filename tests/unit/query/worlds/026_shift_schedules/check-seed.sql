@@ -368,3 +368,171 @@ INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local,
 
 -- name: event_bin_null
 INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', NULL, NULL, NULL, NULL, NULL, false, NULL, NULL, NULL);
+
+-- name: clock_tolerance_equal
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '13:00'::time, '12:00'::time, '13:00+02'::timetz, '12:00+02'::timetz, '1 hour'::interval, false, true, true, true);
+
+-- name: clock_tolerance_no_wrap
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '00:30'::time, '23:30'::time, '00:30+02'::timetz, '23:30+02'::timetz, '1 hour'::interval, false, true, true, true);
+
+-- name: clock_tolerance_offset_order
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '12:00'::time, '12:00'::time, '11:00+01'::timetz, '12:00+02'::timetz, '0'::interval, false, true, true, false);
+
+-- name: clock_tolerance_ignore_calendar
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '13:00'::time, '12:00'::time, '13:00+02'::timetz, '12:00+02'::timetz, '-1 month -2 days'::interval, false, true, false, false);
+
+-- name: clock_tolerance_infinite
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '13:00'::time, '12:00'::time, '13:00+02'::timetz, '12:00+02'::timetz, 'infinity'::interval, false, true, true, true);
+
+-- name: clock_tolerance_overflow
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '13:00'::time, '12:00'::time, '13:00+02'::timetz, '12:00+02'::timetz, '9223372036854.775807 seconds'::interval, false, true, true, true);
+
+-- name: clock_tolerance_utc_wrap
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '13:00'::time, '00:00'::time, '13:00+02'::timetz, '00:00-15:59:59'::timetz, '9223372036854.775807 seconds'::interval, true, true, false, false);
+
+-- name: clock_tolerance_wide_zone
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '13:00'::time, '12:00'::time, timezone(interval '2147483648 seconds',timetz '12:00+02'), timezone(interval '2147483647 seconds',timetz '12:00+02'), '1 hour'::interval, false, true, true, true);
+
+-- name: clock_tolerance_wrong_recorded_local
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '13:00'::time, '12:00'::time, '13:00+02'::timetz, '12:00+02'::timetz, '1 hour'::interval, false, true, false, true);
+
+-- name: clock_tolerance_wrong_recorded_zoned
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '13:00'::time, '12:00'::time, '13:00+02'::timetz, '12:00+02'::timetz, '1 hour'::interval, false, true, true, false);
+
+-- name: clock_tolerance_negative
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, '13:00'::time, '12:00'::time, '13:00+02'::timetz, '12:00+02'::timetz, '-1 microsecond'::interval, false, true, true, true);
+
+-- name: clock_tolerance_skipped_negative
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, true, '13:00'::time, '12:00'::time, '13:00+02'::timetz, '12:00+02'::timetz, '-infinity'::interval, false, true, true, true);
+
+-- name: clock_tolerance_null
+INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (2, 1, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: calendar_tolerance_month_end
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '2000-02-29'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '1 month'::interval, '1 month'::interval, false, true, true, true, true);
+
+-- name: calendar_tolerance_cancelled_span
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '2000-02-29'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '1 month'::interval, '1 month -30 days'::interval, false, true, false, false, false);
+
+-- name: calendar_tolerance_mixed_positive
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '2000-02-29'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '1 month'::interval, '-1 month 31 days'::interval, false, true, false, false, false);
+
+-- name: calendar_tolerance_infinite_boundary
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '2000-02-29'::date, 'infinity'::date, '2000-02-29 12:00'::timestamp, 'infinity'::timestamp, '60 days'::interval, 'infinity'::interval, 'infinity'::interval, true, true, true, true, true);
+
+-- name: calendar_tolerance_wrong_recorded_day
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '2000-02-29'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '1 month'::interval, '1 month'::interval, false, true, false, true, true);
+
+-- name: calendar_tolerance_wrong_recorded_at
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '2000-02-29'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '1 month'::interval, '1 month'::interval, false, true, true, false, true);
+
+-- name: calendar_tolerance_wrong_recorded_duration
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '2000-02-29'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '1 month'::interval, '1 month'::interval, false, true, true, true, false);
+
+-- name: calendar_tolerance_negative
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '2000-02-29'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '1 month'::interval, '1 month -31 days'::interval, false, true, true, true, true);
+
+-- name: calendar_tolerance_date_bounds
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '400000-01-01'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '1 month'::interval, '1 month'::interval, false, true, true, true, true);
+
+-- name: calendar_tolerance_timestamp_bounds
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '2000-02-29'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '294276-12-31 23:59:59.999999'::timestamp, '60 days'::interval, '1 month'::interval, '1 day'::interval, false, true, true, true, true);
+
+-- name: calendar_tolerance_component_overflow
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, '2000-02-29'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '2147483647 months'::interval, '1 month'::interval, false, true, true, true, true);
+
+-- name: calendar_tolerance_skipped_error
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, true, '400000-01-01'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '1 month'::interval, '-infinity'::interval, false, true, true, true, true);
+
+-- name: calendar_tolerance_null
+INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (2, 1, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: zone_fixed_hour
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '1 hour'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 13:34:56.123456', '11:34:56.123456+01', '3600', timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_negative
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '-05:30'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 18:04:56.123456+00', '2000-01-01 07:04:56.123456', '05:04:56.123456-05:30', '-19800', timezone('-05:30'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_fraction
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '0.999999 seconds'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 12:34:56.123456+00', '2000-01-01 12:34:56.123456', '10:34:56.123456+00', '0', timezone('0.999999 seconds'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_outside_text_range
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '16 hours'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '1999-12-31 20:34:56.123456+00', '2000-01-02 04:34:56.123456', '02:34:56.123456+16', '57600', timezone('16 hours'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_wide
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '100 hours'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '1999-12-28 08:34:56.123456+00', '2000-01-05 16:34:56.123456', '14:34:56.123456+100', '360000', timezone('100 hours'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_int32_min
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '2147483648 seconds'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2068-01-19 15:49:04.123456+00', '2068-01-19 15:49:04.123456', '13:49:04.123456+4294370773:4294967282:4294967288', '-2147483648', timezone('2147483648 seconds'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_int32_min_negative
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '-2147483648 seconds'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2068-01-19 15:49:04.123456+00', '2068-01-19 15:49:04.123456', '13:49:04.123456+4294370773:4294967282:4294967288', '-2147483648', timezone('-2147483648 seconds'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_wrapped
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '4294967296 seconds'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 12:34:56.123456+00', '2000-01-01 12:34:56.123456', '10:34:56.123456+00', '0', timezone('4294967296 seconds'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_maximum_interval
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '9223372036854.775807 seconds'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '1934-03-06 06:02:34.123456+00', '2065-10-28 19:07:18.123456', '17:07:18.123456+577014:32:22', '2077252342', timezone('9223372036854.775807 seconds'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_wrong_recorded_instant
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '1 hour'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 00:00+00', '2000-01-01 13:34:56.123456', '11:34:56.123456+01', '3600', timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_wrong_recorded_local
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '1 hour'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 00:00+00', '11:34:56.123456+01', '3600', timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_wrong_recorded_clock
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '1 hour'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 13:34:56.123456', '11:34:56.123456+01', '3600', '00:00+00');
+
+-- name: zone_fixed_wrong_recorded_label
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '1 hour'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 13:34:56.123456', '00:00+00', '3600', timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_wrong_recorded_offset
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '1 hour'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 13:34:56.123456', '11:34:56.123456+01', 0, timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_invalid_1_day
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '1 day'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 13:34:56.123456', '11:34:56.123456+01', '3600', timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_invalid_1_month
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '1 month'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 13:34:56.123456', '11:34:56.123456+01', '3600', timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_invalid_infinity
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, 'infinity'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 13:34:56.123456', '11:34:56.123456+01', '3600', timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_timestamp_bounds
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, '-1 hour'::interval, '294276-12-31 23:59:59.999999'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 13:34:56.123456', '11:34:56.123456+01', '3600', timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_skipped_error
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, true, 'infinity'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 13:34:56.123456', '11:34:56.123456+01', '3600', timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+-- name: zone_fixed_null
+INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (2, 1, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: duration_alternative_extended
+INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'P0002-06-07T01:30:00','2 years 6 mons 7 days 01:30:00',false);
+
+-- name: duration_alternative_basic
+INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'P00020607T013000.5','2 years 6 mons 7 days 01:30:00',false);
+
+-- name: duration_alternative_basic_time_fraction
+INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'PT010203.75','01:02:03.000001',false);
+
+-- name: duration_alternative_negative
+INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'P-00020607T-013000','-2 years -6 mons -7 days -01:30:00',false);
+
+-- name: duration_alternative_mixed
+INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'P1--2--3T4:-5:-6.5','10 mons -3 days +03:54:53.5',false);
+
+-- name: duration_alternative_exponents
+INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'P1e2-3e1-4e1T1e1:2e1:3e1','102 years 6 mons 40 days 10:20:30',false);
+
+-- name: duration_alternative_invalid_designator
+INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'P1Y2','0',false);
+
+-- name: duration_alternative_skips_invalid_designator
+INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'P1Y2','0',true);
+
+-- name: duration_alternative_invalid_trailing
+INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'P1-2-3T4:5:6S','0',false);
+
+-- name: duration_alternative_skips_invalid_trailing
+INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'P1-2-3T4:5:6S','0',true);

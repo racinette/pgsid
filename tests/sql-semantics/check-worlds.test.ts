@@ -27,6 +27,8 @@ import { typeName } from '../../src/codegen/typescript/type-mapping.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { worldPurpose } from '../unit/query/world-purpose.js'
 import { worldSourceDigest } from '../../scripts/check-measurements/worlds.js'
+// @ts-expect-error -- Espalier input policy is a runtime JavaScript rule.
+import { constantInput } from '../unit/query/espalier/worlds/[world]/check-seed.sql.mjs'
 
 const run = promisify(execFile)
 const worldsDirectory = fileURLToPath(new URL('../unit/query/worlds/', import.meta.url))
@@ -78,10 +80,8 @@ for (const world of worlds) {
     const values = 'List' in first ? (first.List.items ?? []) : []
     if (values.length !== insert.cols.length)
       throw new Error(`${world.name}: INSERT arity mismatch`)
-    const literal = (node: Node): boolean =>
-      'A_Const' in node ||
-      ('TypeCast' in node && Boolean(node.TypeCast.arg) && literal(node.TypeCast.arg!))
-    if (!values.every(literal)) throw new Error(`${world.name}: CHECK case requires literal values`)
+    if (!values.every(constantInput))
+      throw new Error(`${world.name}: CHECK case requires constant scalar inputs`)
     const label = labels[index]!
     if (insert.relation.schemaname && insert.relation.schemaname !== world.schema)
       throw new Error(`${world.name}: CHECK case must address its own world`)
@@ -663,6 +663,21 @@ describe('world CHECK INSERT parity', () => {
       [
         'event_bucket_records',
         ['event_local_bucket', 'event_instant_bucket', 'event_calendar_age'],
+      ],
+      ['clock_tolerances', ['tolerance_local', 'tolerance_zoned']],
+      [
+        'calendar_tolerances',
+        ['tolerance_calendar_day', 'tolerance_calendar_clock', 'tolerance_duration'],
+      ],
+      [
+        'fixed_zone_records',
+        [
+          'fixed_zone_instant',
+          'fixed_zone_local',
+          'fixed_zone_clock',
+          'fixed_zone_label',
+          'fixed_zone_offset',
+        ],
       ],
     ] as const) {
       for (const name of names) {

@@ -73,6 +73,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/clock_extract.rs");
     include!("operations/pg_catalog/temporal_bins.rs");
     include!("operations/pg_catalog/temporal_age.rs");
+    include!("operations/pg_catalog/temporal_range.rs");
+    include!("operations/pg_catalog/time_zone.rs");
     include!("operations/pg_catalog/float_core.rs");
     include!("operations/pg_catalog/float_arithmetic.rs");
     include!("operations/pg_catalog/float_input.rs");

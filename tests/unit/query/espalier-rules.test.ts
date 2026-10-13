@@ -12,6 +12,8 @@ import * as healthRule from './espalier/worlds/[...world]/world-health.sql.mjs'
 import * as rungReachRule from './espalier/worlds/[...world]/rung-reach.sql.mjs'
 // @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
 import * as sharedFixtureRule from './espalier/fixtures/[fixture].sql.mjs'
+// @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
+import * as checkSeedRule from './espalier/worlds/[world]/check-seed.sql.mjs'
 
 const PATH = 'worlds/example/contract.sql'
 const GROUPED = `-- @args [1, 2]
@@ -181,6 +183,26 @@ SELECT 1 -- @notNull
     expect(await codes(GROUPED.replace('-- @param 1 nullable', '-- @param 1 notNull'))).toContain(
       'invalid_parameter_group_member',
     )
+  })
+})
+
+describe('Espalier CHECK input policy', () => {
+  it.each([
+    ["timezone(interval '2147483648 seconds', timetz '12:00+02')", true],
+    ["pg_catalog.timezone(interval '16 hours', timestamptz '2000-01-01+00')", true],
+    ["timezone(interval '1 hour', timestamp '2000-01-01')::timestamptz", true],
+    ["timezone(text 'America/New_York', timetz '12:00+02')", false],
+    ['clock_timestamp()', false],
+    ["timezone(interval '1 hour', current_timestamp)", false],
+    ["timezone(interval '1 hour', (SELECT timetz '12:00+02'))", false],
+    ["other.timezone(interval '1 hour', timetz '12:00+02')", false],
+  ])('checks constant construction for %s', async (input, allowed) => {
+    const path = 'worlds/example/check-seed.sql'
+    const issues = await runRule(checkSeedRule, {
+      path,
+      tree: { [path]: `-- name: input\nINSERT INTO example (value) VALUES (${input});` },
+    })
+    expect(issues.map((issue) => issue.code).includes('check_seed_literal')).toBe(!allowed)
   })
 })
 

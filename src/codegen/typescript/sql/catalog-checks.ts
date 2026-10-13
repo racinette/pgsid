@@ -556,7 +556,7 @@ function checkRustTimetz(row: object, name: string): _checkRust.TimetzValue {
   if (value === null) return _checkRust.timetzNull()
   if (typeof value !== 'object' || !('kind' in value)) return _checkRust.timetzUnknown()
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimetzValue
-  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'time' in value.value && 'zone' in value.value && typeof value.value.time === 'bigint' && typeof value.value.zone === 'number' && Number.isInteger(value.value.zone)) return _checkRust.makeTimetzValue(value.value.time, value.value.zone)
+  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'time' in value.value && 'zone' in value.value && typeof value.value.time === 'bigint' && typeof value.value.zone === 'number' && Number.isInteger(value.value.zone) && value.value.zone >= -2147483648 && value.value.zone <= 2147483647) return _checkRust.makeTimetzValue(value.value.time, value.value.zone)
   return _checkRust.timetzUnknown()
 }
 function checkRustInterval(row: object, name: string): _checkRust.IntervalValue {

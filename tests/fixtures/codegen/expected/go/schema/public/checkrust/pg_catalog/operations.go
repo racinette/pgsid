@@ -4794,7 +4794,7 @@ func clockFieldsComponent(span checkruntime.IntervalPayload, zone int, family in
 		return checkruntime.MakeInt8Value(langruntime.CheckedI64Divide(span.Time, int64(3600000000)))
 	}
 	if family == 2 {
-		offset := langruntime.CheckedI64Subtract(int64(0), (int64(langruntime.CheckedI32(zone))))
+		offset := int64(langruntime.CheckedI32(fixedZoneWrappedSeconds(langruntime.CheckedI64Subtract(int64(0), (int64(langruntime.CheckedI32(zone)))))))
 		if code == 20 {
 			return checkruntime.MakeInt8Value(offset)
 		}
@@ -15081,6 +15081,285 @@ func TimestamptzUwsx(left checkruntime.TimestamptzValue, right checkruntime.Int4
 	}
 	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
 }
+func temporalRangeFinish(order checkruntime.Int4Value, less bool) checkruntime.BoolValue {
+	if less {
+		return valueOrderFinish(order, 3)
+	}
+	return valueOrderFinish(order, 5)
+}
+func temporalRangeClockValue(value int64, valueZone int, base int64, baseZone int, offset int64, subtract bool, less bool) checkruntime.BoolValue {
+	valueZone = langruntime.CheckedI32(valueZone)
+	baseZone = langruntime.CheckedI32(baseZone)
+	if offset < int64(0) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(integerInvalidFrameSize)}
+	}
+	boundary := base
+	if subtract {
+		boundary = langruntime.CheckedI64Subtract(base, offset)
+	} else {
+		if base > langruntime.CheckedI64Subtract(int64(9223372036854775807), offset) {
+			return checkruntime.MakeBoolValue(less)
+		}
+		boundary = langruntime.CheckedI64Add(base, offset)
+	}
+	a := clockWrappedAdd(value, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(valueZone))), int64(1000000)))
+	b := clockWrappedAdd(boundary, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(baseZone))), int64(1000000)))
+	order := clockOrder(a, b)
+	if order == 0 {
+		order = langruntime.CheckedI32(clockOrder(int64(langruntime.CheckedI32(valueZone)), int64(langruntime.CheckedI32(baseZone))))
+	}
+	if less {
+		return checkruntime.MakeBoolValue(order <= 0)
+	}
+	return checkruntime.MakeBoolValue(order >= 0)
+}
+func temporalRangeTimestampValue(value int64, base int64, offset checkruntime.IntervalPayload, subtract bool, less bool) checkruntime.BoolValue {
+	zero := checkruntime.IntervalPayload{Months: 0, Days: 0, Time: int64(0)}
+	if intervalOrder(offset, zero) < 0 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(integerInvalidFrameSize)}
+	}
+	if intervalSpecial(offset) > 0 && ((subtract && base == int64(9223372036854775807)) || (subtract == false && base == (int64(-9223372036854775808)))) {
+		return checkruntime.MakeBoolValue(true)
+	}
+	boundary := intervalCalendarAdd(checkruntime.MakeTimestampValue(base), checkruntime.MakeIntervalValue(offset.Months, offset.Days, offset.Time), subtract)
+	if boundary.Kind == checkruntime.TimestampValueError {
+		error := boundary.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if boundary.Kind == checkruntime.TimestampValueValue {
+		time := boundary.Value
+		order := clockOrder(value, time)
+		if less {
+			return checkruntime.MakeBoolValue(order <= 0)
+		}
+		return checkruntime.MakeBoolValue(order >= 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func temporalRangeIntervalValue(value checkruntime.IntervalPayload, base checkruntime.IntervalPayload, offset checkruntime.IntervalPayload, subtract bool, less bool) checkruntime.BoolValue {
+	zero := checkruntime.IntervalPayload{Months: 0, Days: 0, Time: int64(0)}
+	if intervalOrder(offset, zero) < 0 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(integerInvalidFrameSize)}
+	}
+	special := intervalSpecial(base)
+	if intervalSpecial(offset) > 0 && ((subtract && special > 0) || (subtract == false && special < 0)) {
+		return checkruntime.MakeBoolValue(true)
+	}
+	boundary := intervalBinaryValue(checkruntime.MakeIntervalValue(base.Months, base.Days, base.Time), checkruntime.MakeIntervalValue(offset.Months, offset.Days, offset.Time), subtract)
+	order := IntervalCmpSwxt(checkruntime.MakeIntervalValue(value.Months, value.Days, value.Time), boundary)
+	return temporalRangeFinish(order, less)
+}
+func InRangeF2o9(value checkruntime.IntervalValue, base checkruntime.IntervalValue, offset checkruntime.IntervalValue, subtract checkruntime.BoolValue, less checkruntime.BoolValue) checkruntime.BoolValue {
+	if value.Kind == checkruntime.IntervalValueError {
+		error := value.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if base.Kind == checkruntime.IntervalValueError {
+		error := base.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if offset.Kind == checkruntime.IntervalValueError {
+		error := offset.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if subtract.Kind == checkruntime.BoolValueError {
+		error := subtract.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if less.Kind == checkruntime.BoolValueError {
+		error := less.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if value == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || base == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || offset == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if value == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || base == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || offset == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if value.Kind == checkruntime.IntervalValueValue {
+		input := value.Value
+		if base.Kind == checkruntime.IntervalValueValue {
+			center := base.Value
+			if offset.Kind == checkruntime.IntervalValueValue {
+				distance := offset.Value
+				if subtract.Kind == checkruntime.BoolValueValue {
+					backward := subtract.Value
+					if less.Kind == checkruntime.BoolValueValue {
+						lower := less.Value
+						return temporalRangeIntervalValue(input, center, distance, backward, lower)
+					}
+				}
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func InRangeBs2r(value checkruntime.TimeValue, base checkruntime.TimeValue, offset checkruntime.IntervalValue, subtract checkruntime.BoolValue, less checkruntime.BoolValue) checkruntime.BoolValue {
+	if value.Kind == checkruntime.TimeValueError {
+		error := value.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if base.Kind == checkruntime.TimeValueError {
+		error := base.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if offset.Kind == checkruntime.IntervalValueError {
+		error := offset.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if subtract.Kind == checkruntime.BoolValueError {
+		error := subtract.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if less.Kind == checkruntime.BoolValueError {
+		error := less.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if value == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) || base == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) || offset == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if value == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) || base == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) || offset == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if value.Kind == checkruntime.TimeValueValue {
+		input := value.Value
+		if base.Kind == checkruntime.TimeValueValue {
+			center := base.Value
+			if offset.Kind == checkruntime.IntervalValueValue {
+				distance := offset.Value
+				if subtract.Kind == checkruntime.BoolValueValue {
+					backward := subtract.Value
+					if less.Kind == checkruntime.BoolValueValue {
+						lower := less.Value
+						return temporalRangeClockValue(input, 0, center, 0, distance.Time, backward, lower)
+					}
+				}
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func InRangeFn2k(value checkruntime.TimestampValue, base checkruntime.TimestampValue, offset checkruntime.IntervalValue, subtract checkruntime.BoolValue, less checkruntime.BoolValue) checkruntime.BoolValue {
+	if value.Kind == checkruntime.TimestampValueError {
+		error := value.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if base.Kind == checkruntime.TimestampValueError {
+		error := base.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if offset.Kind == checkruntime.IntervalValueError {
+		error := offset.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if subtract.Kind == checkruntime.BoolValueError {
+		error := subtract.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if less.Kind == checkruntime.BoolValueError {
+		error := less.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if value == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || base == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || offset == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if value == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || base == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || offset == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if value.Kind == checkruntime.TimestampValueValue {
+		input := value.Value
+		if base.Kind == checkruntime.TimestampValueValue {
+			center := base.Value
+			if offset.Kind == checkruntime.IntervalValueValue {
+				distance := offset.Value
+				if subtract.Kind == checkruntime.BoolValueValue {
+					backward := subtract.Value
+					if less.Kind == checkruntime.BoolValueValue {
+						lower := less.Value
+						return temporalRangeTimestampValue(input, center, distance, backward, lower)
+					}
+				}
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func InRange4yq8(value checkruntime.DateValue, base checkruntime.DateValue, offset checkruntime.IntervalValue, subtract checkruntime.BoolValue, less checkruntime.BoolValue) checkruntime.BoolValue {
+	if value.Kind == checkruntime.DateValueError {
+		error := value.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if base.Kind == checkruntime.DateValueError {
+		error := base.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if offset.Kind == checkruntime.IntervalValueError {
+		error := offset.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if subtract.Kind == checkruntime.BoolValueError {
+		error := subtract.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if less.Kind == checkruntime.BoolValueError {
+		error := less.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if value == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || base == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || offset == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if value == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || base == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || offset == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	valueTime := TimestampSwxj(value)
+	baseTime := TimestampSwxj(base)
+	return InRangeFn2k(valueTime, baseTime, offset, subtract, less)
+}
+func InRange6ce3(value checkruntime.TimetzValue, base checkruntime.TimetzValue, offset checkruntime.IntervalValue, subtract checkruntime.BoolValue, less checkruntime.BoolValue) checkruntime.BoolValue {
+	if value.Kind == checkruntime.TimetzValueError {
+		error := value.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if base.Kind == checkruntime.TimetzValueError {
+		error := base.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if offset.Kind == checkruntime.IntervalValueError {
+		error := offset.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if subtract.Kind == checkruntime.BoolValueError {
+		error := subtract.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if less.Kind == checkruntime.BoolValueError {
+		error := less.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if value == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) || base == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) || offset == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if value == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) || base == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) || offset == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || subtract == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) || less == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if value.Kind == checkruntime.TimetzValueValue {
+		input := value.Value
+		if base.Kind == checkruntime.TimetzValueValue {
+			center := base.Value
+			if offset.Kind == checkruntime.IntervalValueValue {
+				distance := offset.Value
+				if subtract.Kind == checkruntime.BoolValueValue {
+					backward := subtract.Value
+					if less.Kind == checkruntime.BoolValueValue {
+						lower := less.Value
+						return temporalRangeClockValue(input.Time, input.Zone, center.Time, center.Zone, distance.Time, backward, lower)
+					}
+				}
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
 func DateCmpU18z(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.Int4Value {
 	if left.Kind == checkruntime.DateValueError {
 		error := left.Error
@@ -18911,6 +19190,20 @@ func ClockTimeToText(input checkruntime.TimeValue) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+func clockOutputOffsetPair(value int) string {
+	value = langruntime.CheckedI32(value)
+	number := int64(langruntime.CheckedI32(value))
+	if number < int64(0) {
+		number = langruntime.CheckedI64Add(number, int64(4294967296))
+	}
+	output := langruntime.NewTextBuffer("")
+	if number < int64(10) {
+		output = append(output, string(langruntime.CheckedChar('0'))...)
+	}
+	digits := checkruntime.TextSignedNumber(number)
+	output = append(output, digits...)
+	return string(output)
+}
 func ClockTimetzToText(input checkruntime.TimetzValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.TimetzValueError {
 		error := input.Error
@@ -18927,19 +19220,21 @@ func ClockTimetzToText(input checkruntime.TimetzValue) checkruntime.TextValue {
 			output = append(output, string(langruntime.CheckedChar('-'))...)
 		} else {
 			output = append(output, string(langruntime.CheckedChar('+'))...)
-			offset = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, offset))
+			if offset != (langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1)) {
+				offset = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, offset))
+			}
 		}
-		hour := clockOutputPair(langruntime.CheckedSignedDivide(offset, 3600))
+		hour := clockOutputOffsetPair(langruntime.CheckedSignedDivide(offset, 3600))
 		minute := langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(offset, 60)), 60)
 		second := langruntime.CheckedSignedRemainder(offset, 60)
 		output = append(output, hour...)
 		if minute != 0 || second != 0 {
 			output = append(output, string(langruntime.CheckedChar(':'))...)
-			minutes := clockOutputPair(minute)
+			minutes := clockOutputOffsetPair(minute)
 			output = append(output, minutes...)
 			if second != 0 {
 				output = append(output, string(langruntime.CheckedChar(':'))...)
-				seconds := clockOutputPair(second)
+				seconds := clockOutputOffsetPair(second)
 				output = append(output, seconds...)
 			}
 		}
@@ -19000,6 +19295,120 @@ func IntervalSendJxgl(input checkruntime.IntervalValue) checkruntime.ByteaValue 
 		return output
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func fixedZoneWrappedSeconds(seconds int64) int {
+	value := langruntime.CheckedI64Remainder(seconds, int64(4294967296))
+	if value < (int64(-2147483648)) {
+		value = langruntime.CheckedI64Add(value, int64(4294967296))
+	}
+	if value > int64(2147483647) {
+		value = langruntime.CheckedI64Subtract(value, int64(4294967296))
+	}
+	return int(int32(value))
+}
+func fixedZoneOffset(span checkruntime.IntervalPayload, reverse bool) checkruntime.Int4Value {
+	if intervalSpecial(span) != 0 || span.Months != 0 || span.Days != 0 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(temporalFieldUnitError)}
+	}
+	seconds := langruntime.CheckedI64Divide(span.Time, int64(1000000))
+	if reverse {
+		seconds = langruntime.CheckedI64Subtract(int64(0), seconds)
+	}
+	return checkruntime.MakeInt4Value(fixedZoneWrappedSeconds(seconds))
+}
+func fixedZoneTimestamp(zone checkruntime.IntervalValue, input checkruntime.TimestampValue, reverse bool) checkruntime.TimestampValue {
+	if zone.Kind == checkruntime.IntervalValueError {
+		error := zone.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if zone == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+	}
+	if zone == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if input.Kind == checkruntime.TimestampValueValue {
+		time := input.Value
+		if time == (int64(-9223372036854775808)) || time == int64(9223372036854775807) {
+			return input
+		}
+		if zone.Kind == checkruntime.IntervalValueValue {
+			span := zone.Value
+			offset := fixedZoneOffset(span, reverse)
+			if offset.Kind == checkruntime.Int4ValueError {
+				error := offset.Error
+				return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+			}
+			if offset.Kind == checkruntime.Int4ValueValue {
+				seconds := langruntime.CheckedI32(offset.Value)
+				result := clockWrappedSubtract(time, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(seconds))), int64(1000000)))
+				if result == (int64(-9223372036854775808)) || result == int64(9223372036854775807) {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				return checkruntime.MakeTimestampValue(result)
+			}
+		}
+	}
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
+func TimezoneLxij(zone checkruntime.IntervalValue, input checkruntime.TimestampValue) checkruntime.TimestamptzValue {
+	result := fixedZoneTimestamp(zone, input, false)
+	if result.Kind == checkruntime.TimestampValueError {
+		error := result.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if result == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	if result.Kind == checkruntime.TimestampValueValue {
+		time := result.Value
+		return checkruntime.MakeTimestamptzValue(time)
+	}
+	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+}
+func TimezoneN8k4(zone checkruntime.IntervalValue, input checkruntime.TimestamptzValue) checkruntime.TimestampValue {
+	return fixedZoneTimestamp(zone, intervalCalendarLocalPayload(input), true)
+}
+func Timezone5q6e(zone checkruntime.IntervalValue, input checkruntime.TimetzValue) checkruntime.TimetzValue {
+	if zone.Kind == checkruntime.IntervalValueError {
+		error := zone.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TimetzValueError {
+		error := input.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	if zone == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
+	}
+	if zone == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) {
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}
+	}
+	if zone.Kind == checkruntime.IntervalValueValue {
+		span := zone.Value
+		if input.Kind == checkruntime.TimetzValueValue {
+			time := input.Value
+			offset := fixedZoneOffset(span, true)
+			if offset.Kind == checkruntime.Int4ValueError {
+				error := offset.Error
+				return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+			}
+			if offset.Kind == checkruntime.Int4ValueValue {
+				seconds := langruntime.CheckedI32(offset.Value)
+				difference := fixedZoneWrappedSeconds(langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(time.Zone))), (int64(langruntime.CheckedI32(seconds)))))
+				clock := langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(time.Time, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(difference))), int64(1000000)))), int64(86400000000))
+				if clock < int64(0) {
+					clock = langruntime.CheckedI64Add(clock, int64(86400000000))
+				}
+				return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueValue, Value: checkruntime.TimetzPayload{Time: clock, Zone: seconds}}
+			}
+		}
+	}
+	return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}
 }
 func TimestampEqJd79(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.TimestampValueError {
