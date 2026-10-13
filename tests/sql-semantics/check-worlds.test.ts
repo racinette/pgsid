@@ -612,6 +612,10 @@ describe('world CHECK INSERT parity', () => {
       ['service_windows', ['service_duration_bounds', 'service_duration_span']],
       ['zoned_dispatches', ['dispatch_local_clock', 'dispatch_adjustment']],
       ['duration_imports', ['duration_import_match']],
+      [
+        'departure_plans',
+        ['departure_calendar_clock', 'departure_calendar_instant', 'departure_clock_precision'],
+      ],
     ] as const) {
       for (const name of names) {
         const identity = `world_026_shift_schedules.${table}.${name}`

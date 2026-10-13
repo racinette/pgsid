@@ -3555,6 +3555,22 @@ function intervalInputFail(input: IntervalInputAcc, error: number): IntervalInpu
 }
 function intervalInputUnit(text: string): number {
     text = langruntime.checkedString(text);
+    const letters: string[] = Array.from(text);
+    let prefix: string = "";
+    let index: number = 0;
+    while (index < letters.length && index < 10) {
+        prefix = prefix + langruntime.checkedChar(langruntime.indexChar(letters, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (prefix === "microsecon" || text === "usec" || text === "usecond" || text === "useconds" || text === "usecs") {
+        return 0;
+    }
+    if (prefix === "millisecon" || text === "mseconds") {
+        return 1;
+    }
+    if (text === "yr" || text === "yrs") {
+        return 8;
+    }
     if (text === "microsecond" || text === "microseconds" || text === "us") {
         return 0;
     }
@@ -3811,7 +3827,8 @@ function intervalUnitsFromText(input: TextValue): IntervalValue {
     }
     if (input.kind === "Value") {
         const text: string = langruntime.checkedString(input.value);
-        const buffer: IntervalInputText = { chars: Array.from(text) };
+        const normalized: string = intervalInputNormalized(text);
+        const buffer: IntervalInputText = { chars: Array.from(normalized) };
         if (buffer.chars.length > 255) {
             return { kind: "Unknown" };
         }
@@ -3894,7 +3911,18 @@ function intervalUnitsFromText(input: TextValue): IntervalValue {
                 pending = langruntime.checkedBool(true);
             }
             else {
-                const whole: Int8Value = intervalInputWhole(token);
+                if (tokenChars.length > 0 && intervalInputAlpha(langruntime.indexChar(tokenChars, langruntime.checkedIndex(0)))) {
+                    return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+                }
+                let whole: Int8Value = intervalInputWhole(token);
+                let yearMonth: boolean = false;
+                if (equalInt8Value(whole, { kind: "Unknown" })) {
+                    whole = intervalInputYearMonth(token);
+                    yearMonth = langruntime.checkedBool(true);
+                }
+                if (yearMonth) {
+                    unit = langruntime.checkedI32(7);
+                }
                 if (whole.kind === "Error") {
                     const error: SqlError = whole.value;
                     return { kind: "Error", value: error };
@@ -4237,6 +4265,117 @@ export function intervalFromText(input: TextValue): IntervalValue {
         return intervalUnitsFromText({ kind: "Value", value: text });
     }
     return intervalUnitsFromText(input);
+}
+function intervalInputAlpha(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(langruntime.asciiLowercase(character)).codePointAt(0)!;
+    return code >= 97 && code <= 122;
+}
+function intervalInputNormalized(text: string): string {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let index: number = 0;
+    let previous: string = " ";
+    let dateField: boolean = false;
+    let word: boolean = false;
+    let output: string = "";
+    while (index < chars.length) {
+        const current: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        if (dateTextSpace(current)) {
+            dateField = langruntime.checkedBool(false);
+            word = langruntime.checkedBool(false);
+        }
+        if (dateField && (current === "." || current === "+")) {
+            output = output + langruntime.checkedChar(" ");
+            dateField = langruntime.checkedBool(false);
+            word = langruntime.checkedBool(false);
+        }
+        if (current === "-" && dateTextDigit(previous) >= 0 && word === false) {
+            dateField = langruntime.checkedBool(true);
+        }
+        if ((dateTextDigit(previous) >= 0 && intervalInputAlpha(current)) || previous === "@") {
+            output = output + langruntime.checkedChar(" ");
+            dateField = langruntime.checkedBool(false);
+        }
+        if (intervalInputAlpha(current)) {
+            word = langruntime.checkedBool(true);
+        }
+        output = output + langruntime.checkedChar(current);
+        previous = langruntime.checkedChar(current);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return output;
+}
+function intervalInputYearMonth(text: string): Int8Value {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let index: number = 0;
+    let negative: boolean = false;
+    if (index < chars.length && (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "+")) {
+        negative = langruntime.checkedBool(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-");
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const start: number = index;
+    while (index < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (index === start || index === chars.length || !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-")) {
+        return { kind: "Unknown" };
+    }
+    const separator: number = index;
+    let first: string = "";
+    index = langruntime.checkedIndex(0);
+    while (index < separator) {
+        first = first + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let second: string = "";
+    index = langruntime.checkedIndex(langruntime.checkedAdd(separator, 1));
+    while (index < chars.length) {
+        if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".") {
+            return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+        }
+        second = second + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const years: Int8Value = intervalInputWhole(first);
+    let months: Int8Value = intervalInputWhole(second);
+    if (langruntime.checkedAdd(separator, 1) === chars.length) {
+        months = { kind: "Value", value: 0n };
+    }
+    if (years.kind === "Error") {
+        const error: SqlError = years.value;
+        return { kind: "Error", value: error };
+    }
+    if (months.kind === "Error") {
+        const error: SqlError = months.value;
+        return { kind: "Error", value: error };
+    }
+    if (years.kind === "Value") {
+        const year: bigint = langruntime.checkedI64(years.value);
+        if (months.kind === "Value") {
+            const month: bigint = langruntime.checkedI64(months.value);
+            if (month < 0n || month > 11n || year > langruntime.checkedI64Divide(9223372036854775807n, 12n) || year < langruntime.checkedI64Divide((-9223372036854775808n), 12n)) {
+                return { kind: "Error", value: makeSqlError(intervalInputRange) };
+            }
+            const product: bigint = langruntime.checkedI64Multiply(year, 12n);
+            let value: bigint = 0n;
+            if (negative) {
+                if (product < langruntime.checkedI64Add((-9223372036854775808n), month)) {
+                    return { kind: "Error", value: makeSqlError(intervalInputRange) };
+                }
+                value = langruntime.checkedI64(langruntime.checkedI64Subtract(product, month));
+            }
+            else {
+                if (product > langruntime.checkedI64Subtract(9223372036854775807n, month)) {
+                    return { kind: "Error", value: makeSqlError(intervalInputRange) };
+                }
+                value = langruntime.checkedI64(langruntime.checkedI64Add(product, month));
+            }
+            return { kind: "Value", value: value };
+        }
+    }
+    return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
 }
 export function andStops(left: CheckOutcome): boolean {
     if (equalCheckOutcome(left, { kind: "False" })) {

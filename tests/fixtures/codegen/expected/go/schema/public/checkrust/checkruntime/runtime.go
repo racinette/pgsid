@@ -3418,6 +3418,22 @@ func intervalInputFail(input intervalInputAcc, error int) intervalInputAcc {
 }
 func intervalInputUnit(text string) int {
 	text = langruntime.CheckedString(text)
+	letters := []rune(text)
+	prefix := langruntime.NewTextBuffer("")
+	index := 0
+	for index < len(letters) && index < 10 {
+		prefix = append(prefix, string(langruntime.CheckedChar(letters[index]))...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if string(prefix) == "microsecon" || text == "usec" || text == "usecond" || text == "useconds" || text == "usecs" {
+		return 0
+	}
+	if string(prefix) == "millisecon" || text == "mseconds" {
+		return 1
+	}
+	if text == "yr" || text == "yrs" {
+		return 8
+	}
 	if text == "microsecond" || text == "microseconds" || text == "us" {
 		return 0
 	}
@@ -3665,7 +3681,8 @@ func intervalUnitsFromText(input TextValue) IntervalValue {
 	}
 	if input.Kind == TextValueValue {
 		text := langruntime.CheckedString(input.Value)
-		buffer := intervalInputText{chars: []rune(text)}
+		normalized := intervalInputNormalized(text)
+		buffer := intervalInputText{chars: []rune(normalized)}
 		if len(buffer.chars) > 255 {
 			return IntervalValue{Kind: IntervalValueUnknown}
 		}
@@ -3748,7 +3765,18 @@ func intervalUnitsFromText(input TextValue) IntervalValue {
 				unit = langruntime.CheckedI32(found)
 				pending = true
 			} else {
+				if len(tokenChars) > 0 && intervalInputAlpha(tokenChars[0]) {
+					return IntervalValue{Kind: IntervalValueError, Error: MakeSqlError(intervalInputSyntax)}
+				}
 				whole := intervalInputWhole(token)
+				yearMonth := false
+				if whole == (Int8Value{Kind: Int8ValueUnknown}) {
+					whole = intervalInputYearMonth(token)
+					yearMonth = true
+				}
+				if yearMonth {
+					unit = langruntime.CheckedI32(7)
+				}
 				if whole.Kind == Int8ValueError {
 					error := whole.Error
 					return IntervalValue{Kind: IntervalValueError, Error: error}
@@ -4090,6 +4118,116 @@ func IntervalFromText(input TextValue) IntervalValue {
 		return intervalUnitsFromText(TextValue{Kind: TextValueValue, Value: text})
 	}
 	return intervalUnitsFromText(input)
+}
+func intervalInputAlpha(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(langruntime.AsciiLowercase(character)))
+	return code >= 97 && code <= 122
+}
+func intervalInputNormalized(text string) string {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	index := 0
+	previous := ' '
+	dateField := false
+	word := false
+	output := langruntime.NewTextBuffer("")
+	for index < len(chars) {
+		current := chars[index]
+		if dateTextSpace(current) {
+			dateField = false
+			word = false
+		}
+		if dateField && (current == '.' || current == '+') {
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+			dateField = false
+			word = false
+		}
+		if current == '-' && dateTextDigit(previous) >= 0 && word == false {
+			dateField = true
+		}
+		if (dateTextDigit(previous) >= 0 && intervalInputAlpha(current)) || previous == '@' {
+			output = append(output, string(langruntime.CheckedChar(' '))...)
+			dateField = false
+		}
+		if intervalInputAlpha(current) {
+			word = true
+		}
+		output = append(output, string(langruntime.CheckedChar(current))...)
+		previous = langruntime.CheckedChar(current)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return string(output)
+}
+func intervalInputYearMonth(text string) Int8Value {
+	text = langruntime.CheckedString(text)
+	chars := []rune(text)
+	index := 0
+	negative := false
+	if index < len(chars) && (chars[index] == '-' || chars[index] == '+') {
+		negative = chars[index] == '-'
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	start := index
+	for index < len(chars) && dateTextDigit(chars[index]) >= 0 {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if index == start || index == len(chars) || chars[index] != '-' {
+		return Int8Value{Kind: Int8ValueUnknown}
+	}
+	separator := index
+	first := langruntime.NewTextBuffer("")
+	index = langruntime.CheckedIndex(0)
+	for index < separator {
+		first = append(first, string(langruntime.CheckedChar(chars[index]))...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	second := langruntime.NewTextBuffer("")
+	index = langruntime.CheckedIndex(langruntime.CheckedAdd(separator, 1))
+	for index < len(chars) {
+		if chars[index] == '.' {
+			return Int8Value{Kind: Int8ValueError, Error: MakeSqlError(intervalInputSyntax)}
+		}
+		second = append(second, string(langruntime.CheckedChar(chars[index]))...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	years := intervalInputWhole(string(first))
+	months := intervalInputWhole(string(second))
+	if langruntime.CheckedAdd(separator, 1) == len(chars) {
+		months = Int8Value{Kind: Int8ValueValue, Value: int64(0)}
+	}
+	if years.Kind == Int8ValueError {
+		error := years.Error
+		return Int8Value{Kind: Int8ValueError, Error: error}
+	}
+	if months.Kind == Int8ValueError {
+		error := months.Error
+		return Int8Value{Kind: Int8ValueError, Error: error}
+	}
+	if years.Kind == Int8ValueValue {
+		year := years.Value
+		if months.Kind == Int8ValueValue {
+			month := months.Value
+			if month < int64(0) || month > int64(11) || year > langruntime.CheckedI64Divide(int64(9223372036854775807), int64(12)) || year < langruntime.CheckedI64Divide((int64(-9223372036854775808)), int64(12)) {
+				return Int8Value{Kind: Int8ValueError, Error: MakeSqlError(intervalInputRange)}
+			}
+			product := langruntime.CheckedI64Multiply(year, int64(12))
+			value := int64(0)
+			if negative {
+				if product < langruntime.CheckedI64Add((int64(-9223372036854775808)), month) {
+					return Int8Value{Kind: Int8ValueError, Error: MakeSqlError(intervalInputRange)}
+				}
+				value = langruntime.CheckedI64Subtract(product, month)
+			} else {
+				if product > langruntime.CheckedI64Subtract(int64(9223372036854775807), month) {
+					return Int8Value{Kind: Int8ValueError, Error: MakeSqlError(intervalInputRange)}
+				}
+				value = langruntime.CheckedI64Add(product, month)
+			}
+			return Int8Value{Kind: Int8ValueValue, Value: value}
+		}
+	}
+	return Int8Value{Kind: Int8ValueError, Error: MakeSqlError(intervalInputSyntax)}
 }
 func AndStops(left CheckOutcome) bool {
 	if left == (CheckOutcome{Kind: CheckOutcomeFalse}) {

@@ -74,3 +74,48 @@ INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, 
 INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, NULL, NULL, false);
 -- name: duration_import_null_reject
 INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, NULL, '0', false);
+
+-- name: departure_fixed_offset
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, '2000-01-01', '12:34:56.123456', '12:34:56.123456-05:30', '2000-01-01 12:34:56.123456', '2000-01-01 18:04:56.123456+00', false);
+
+-- name: departure_end_of_day
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, '1999-12-31', '24:00', '24:00+02', '2000-01-01 00:00', '1999-12-31 22:00+00', false);
+
+-- name: departure_local_mismatch
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, '2000-01-01', '12:00', '12:00+02', '2000-01-01 13:00', '2000-01-01 10:00+00', false);
+
+-- name: departure_instant_mismatch
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, '2000-01-01', '12:00', '12:00+02', '2000-01-01 12:00', '2000-01-01 11:00+00', false);
+
+-- name: departure_infinite_day
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, 'infinity', '12:00', '12:00+02', 'infinity', 'infinity', false);
+
+-- name: departure_negative_infinite_day
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, '-infinity', '12:00', '12:00+02', '-infinity', '-infinity', false);
+
+-- name: departure_out_of_timestamp_range
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, '294277-01-01', '00:00', '00:00+02', NULL, NULL, false);
+
+-- name: departure_overflow_after_clock
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, '294276-12-31', '24:00', '24:00+00', NULL, NULL, false);
+
+-- name: departure_skip_overflow
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, '400000-01-01', '12:00', '12:00+02', NULL, NULL, true);
+
+-- name: departure_null_clocks
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, '2000-01-01', NULL, NULL, NULL, NULL, false);
+
+-- name: departure_null_mismatch
+INSERT INTO departure_plans (id, template_id, service_day, local_departure, zoned_departure, recorded_local, recorded_instant, skip_validation) VALUES (2, 1, '2000-01-01', NULL, NULL, '2000-01-01 00:00', NULL, false);
+
+-- name: duration_import_compact
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '1day', '1 day', false);
+
+-- name: duration_import_year_month
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '1-2', '14 months', false);
+
+-- name: duration_import_compact_reject
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '1day2hours', '0', false);
+
+-- name: duration_import_invalid_word
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, 'now', '0', false);
