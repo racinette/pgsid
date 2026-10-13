@@ -40,6 +40,8 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.inet' || type === 'pg_catalog.cidr') return 'NetworkValue'
   if (type === 'pg_catalog.int4') return 'Int4Value'
   if (type === 'pg_catalog.int8') return 'Int8Value'
+  if (type === 'pg_catalog.float4') return 'Float4Value'
+  if (type === 'pg_catalog.float8') return 'Float8Value'
   if (type === 'pg_catalog."numeric"') return 'NumericValue'
   if (type === 'pg_catalog.date') return 'DateValue'
   if (type === 'pg_catalog."timestamp"') return 'TimestampValue'
@@ -455,6 +457,18 @@ export function emitCheckRustEvaluator(
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
+    if (node.kind === 'text-to-float') {
+      const operand = emitScalar(node.operand, bindings, used)
+      if (operand.type !== 'pg_catalog.text')
+        throw new UnsupportedCheckRustExpression('A floating-point input cast requires text')
+      const io = builtinTypeIO(node.type)?.input
+      if (!io || builtinMetadata(io).args[0] !== 'pg_catalog.cstring')
+        throw new UnsupportedCheckRustExpression(
+          'A floating-point input cast needs its catalog I/O identity',
+        )
+      const prefix = node.type === 'pg_catalog.float4' ? 'float4' : 'float8'
+      return { name: bind(`${prefix}_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
     if (node.kind === 'text-to-bit') {
       const operand = emitScalar(node.operand, bindings, used)
       if (operand.type !== 'pg_catalog.text')
@@ -576,6 +590,20 @@ export function emitCheckRustEvaluator(
           ),
           type: value.type,
         }
+      if (value.kind === 'float') {
+        const single = value.type === 'pg_catalog.float4'
+        const prefix = single ? 'float4' : 'float8'
+        if (value.bits === null) return { name: bind(`${prefix}_null()`), type: value.type }
+        if (!(single ? /^[0-9a-f]{8}$/u : /^[0-9a-f]{16}$/u).test(value.bits))
+          throw new UnsupportedCheckRustExpression('Invalid floating-point literal bits')
+        const bits = BigInt.asIntN(single ? 32 : 64, BigInt('0x' + value.bits))
+        const literal = single
+          ? bits === -2147483648n
+            ? '-2147483647 - 1'
+            : String(bits)
+          : `${bits}i64`
+        return { name: bind(`make_${prefix}_bits(${literal})`), type: value.type }
+      }
       if (value.kind === 'decimal')
         return {
           name: bind(
@@ -664,6 +692,8 @@ export function emitCheckRustEvaluator(
           'pg_catalog.int2',
           'pg_catalog.int4',
           'pg_catalog.int8',
+          'pg_catalog.float4',
+          'pg_catalog.float8',
           'pg_catalog."numeric"',
           'pg_catalog.date',
           'pg_catalog."timestamp"',

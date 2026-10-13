@@ -17,6 +17,7 @@ import {
   catalogDateType,
   catalogTemporalType,
   catalogNumericType,
+  catalogFloatType,
 } from '../../src/sql-semantics/catalog-check-binder.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
@@ -299,8 +300,33 @@ describe('world CHECK INSERT parity', () => {
             catalogNumericType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const floatColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogFloatType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const portableRow = { ...row }
       const goRow = { ...row }
+      for (const name of floatColumns) {
+        const column = table.columns.find((column) => column.name === name)!
+        const single =
+          catalogFloatType(column.typeName, column.typeOid, catalog.domains) === 'pg_catalog.float4'
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(float${single ? 4 : 8}send(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bits =
+          hex === null
+            ? null
+            : single
+              ? Buffer.from(hex, 'hex').readInt32BE()
+              : Buffer.from(hex, 'hex').readBigInt64BE()
+        portableRow[name] = bits === null ? null : { kind: 'Value', value: bits }
+        goRow[name] = bits === null ? null : { bits, single }
+      }
       for (const name of numericColumns) {
         const value = (
           await pg.query<{ value: string | null }>(
@@ -350,6 +376,7 @@ describe('world CHECK INSERT parity', () => {
         table,
         row: goRow,
         numericColumns,
+        floatColumns,
         dateColumns,
         timestampColumns,
         timestamptzColumns,

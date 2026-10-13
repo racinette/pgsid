@@ -98,6 +98,19 @@ import them. Keep schema-only helpers with their callables.
   for zero and 22003 for minimum divided by negative one; SQL remainder returns
   zero for a divisor of negative one, bypassing the Rust primitive. Narrow with
   `as i32` only after checking the SQL range.
+- Float4 and float8 wrappers carry signed IEEE bit words, preserving signed zero
+  and NaN payloads through binary send. Comparisons use PostgreSQL's total order:
+  NaNs are equal above infinity and both zeros compare equal. Float4 arithmetic
+  rounds each result to single precision. Finite overflow, nonzero multiplication
+  or division rounded to zero, and invalid integer casts return 22003; division
+  by zero returns 22012 except for a NaN numerator. Integer casts round ties to
+  even. Int8-to-float4 and decimal-to-float4 conversion avoid rounding through
+  float8. Float-to-numeric conversion rounds exact dyadics to decimal precision
+  with ties to even. SQL text parsing distinguishes invalid syntax from range
+  failure; hexadecimal and extended NaN input forms defer without a platform
+  contract. Public float4 numbers must already be single-precision values;
+  raw parameters requiring assignment rounding defer. Bit carriers preserve
+  all payloads. Run the float suites and sensor measurement INSERT world.
 - Numeric payloads own exact decimal strings in `NumericValue`; targets use
   strings or readonly wrappers for already-coerced SQL values. Reject floating
   point inputs; malformed or unsupported representations defer. Rust validates

@@ -157,25 +157,26 @@ and internal/cstring interfaces are not an automatic CHECK implementation queue.
 
 Implement the remaining concrete PostgreSQL value families after the preceding
 expression and corpus work. Complete one bounded slice through the completion
-gate before expanding it. Use this dependency order unless implementation
+gate before expanding it. Prioritize scalar families before arrays, ranges,
+composites, and JSON values. Use this dependency order unless implementation
 exposes a prerequisite:
 
 - [x] Establish IEEE bit conversion primitives before floating-point values,
       casts, comparisons, and binary I/O.
 - [x] Preserve lossless floating-point literals when reading catalog CHECKs
       and defaults, restoring the caller's rendering settings after the read.
-- [ ] Floating point (`float4`, `float8`).
+- [x] Floating point (`float4`, `float8`).
 - [ ] Time and interval (`time`, `timetz`, `interval`).
-- [ ] JSON and JSONB.
-- [ ] JSONPath, after JSON value operations.
-- [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
-- [ ] Ranges and multiranges, after their subtype operations.
-- [ ] Composite values, including field identity, access, and row NULL semantics.
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.
 - [ ] Money, with scale and locale requirements explicit.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
+- [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
+- [ ] Ranges and multiranges, after their subtype operations.
+- [ ] Composite values, including field identity, access, and row NULL semantics.
+- [ ] JSON and JSONB, after scalar representations and recursive ownership are established.
+- [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types, with tested context requirements
       or exclusion from the public value contract.
 

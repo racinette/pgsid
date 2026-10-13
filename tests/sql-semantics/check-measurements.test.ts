@@ -97,10 +97,14 @@ describe('CHECK measurement boundaries', () => {
   })
 
   it('does not mistake nullness support or preparation of Unknown for a value representation', () => {
-    const nullness = bindProbe('value IS NULL', [{ name: 'value', typeName: 'double precision' }])
+    const nullness = bindProbe('value IS NULL', [
+      { name: 'value', typeName: 'jsonb', isRowType: false },
+    ])
     expect(nullness.fullyBound).toBe(true)
     expect(nullness.preparation.kind).toBe('supported')
-    expect(valueRepresentation('double precision').represented).toBe(false)
+    expect(valueRepresentation('jsonb').represented).toBe(false)
+    expect(valueRepresentation('double precision').represented).toBe(true)
+    expect(valueRepresentation('real').represented).toBe(true)
     expect(valueRepresentation('integer').represented).toBe(true)
     const unknown = inspectExpression({ kind: 'uncertain' })
     expect(unknown.preparation.kind).toBe('supported')
@@ -128,8 +132,18 @@ describe('CHECK measurement boundaries', () => {
     const float = report.casts.find(
       (cast) => cast.source === 'pg_catalog.int4' && cast.target === 'pg_catalog.float8',
     )!
-    expect(float.missingTypes).toEqual(['pg_catalog.float8'])
-    expect(float.probe).toBeNull()
+    expect(float.missingTypes).toEqual([])
+    expect(float.probe!.raw.fullyBound).toBe(true)
+    expect(float.probe!.stored!.fullyBound).toBe(true)
+    const floatInput = report.textInput.find((entry) => entry.type === 'pg_catalog.float4')!
+    expect(floatInput.probe.raw.fullyBound).toBe(true)
+    expect(floatInput.probe.stored!.fullyBound).toBe(true)
+    const floatOutput = report.textOutput.find((entry) => entry.type === 'pg_catalog.float8')!
+    expect(floatOutput.probe.raw.fullyBound).toBe(false)
+    expect(
+      callableBoundary(builtinMetadata(floatOutput.output!), new Set(['pg_catalog.float8']))
+        .categories,
+    ).toContain('session-setting:extra_float_digits')
     const input = report.textInput.find((entry) => entry.type === 'pg_catalog.int4')!
     expect(input.cast).toBeNull()
     expect(input.input).toBe('function:["pg_catalog","int4in"](pg_catalog.cstring)')

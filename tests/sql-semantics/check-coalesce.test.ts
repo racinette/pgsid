@@ -176,18 +176,20 @@ describe('COALESCE CHECK control flow', () => {
   })
 
   it('defers unavailable conversions and rejects incompatible types without selecting an implementation', async () => {
-    for (const sql of [
-      'COALESCE(small, amount)',
-      'COALESCE(wide, 1::float8)',
-      "COALESCE(small, '7')",
-      'COALESCE(code, note)',
-    ]) {
+    for (const sql of ['COALESCE(small, amount)', "COALESCE(small, '7')", 'COALESCE(code, note)']) {
       await pg.query(`SELECT ${sql} FROM coalesce_checks`)
       expect(lower(`(${sql}) IS NULL`)).toEqual({ kind: 'uncertain' })
     }
+    const floating = prepareCheckRustGroup([
+      {
+        expression: lower('COALESCE(wide, 1::float8) IS NULL'),
+        identity: { schema: 'public', kind: 'table', owner: 'probe', constraint: 'floating' },
+      },
+    ])
+    expect(floating.checks[0]?.kind).toBe('supported')
     const unavailable = prepareCheckRustGroup([
       {
-        expression: lower('COALESCE(abs(1.5::float8), 0::float8) IS NULL'),
+        expression: lower('COALESCE(sqrt(1.5::float8), 0::float8) IS NULL'),
         identity: { schema: 'public', kind: 'table', owner: 'probe', constraint: 'unavailable' },
       },
     ])

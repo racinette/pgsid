@@ -117,6 +117,8 @@ function prepare(expression: EvalExpression): Preparation | null {
       return prepare({ kind: 'certain', expression: expression.expression.expression })
     return constantCheckExpression(expression.expression) ? constant(expression) : null
   }
+  if (expression.kind === 'certain' && expression.expression.kind === 'float')
+    return constant(expression, expression.expression.bits === null)
   if (
     expression.kind === 'certain' &&
     'value' in expression.expression &&
@@ -139,6 +141,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'text-to-bytea' ||
     expression.kind === 'uuid-to-text' ||
     expression.kind === 'bit-to-text' ||
+    expression.kind === 'text-to-float' ||
     expression.kind === 'text-to-bit' ||
     expression.kind === 'text-to-date' ||
     expression.kind === 'text-to-timestamp' ||

@@ -231,6 +231,8 @@ export function renderGoSchemaCheckArtifacts(
               'Int2Value',
               'Int4Value',
               'Int8Value',
+              'Float4Value',
+              'Float8Value',
               'NetworkValue',
               'UuidValue',
               'MacaddrValue',
@@ -248,43 +250,51 @@ export function renderGoSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'BitValue'
-              ? 'checkRustBit'
-              : item.rustType === 'UuidValue'
-                ? 'checkRustUuid'
-                : item.rustType === 'ByteaValue'
-                  ? 'checkRustBytea'
-                  : item.rustType === 'MacaddrValue'
-                    ? 'checkRustMacaddr'
-                    : item.rustType === 'Macaddr8Value'
-                      ? 'checkRustMacaddr8'
-                      : item.rustType === 'NetworkValue'
-                        ? 'checkRustNetwork'
-                        : item.rustType === 'NumericValue'
-                          ? 'checkRustNumeric'
-                          : item.rustType === 'DateValue'
-                            ? 'checkRustDate'
-                            : item.rustType === 'TimestampValue'
-                              ? 'checkRustTimestamp'
-                              : item.rustType === 'TimestamptzValue'
-                                ? 'checkRustTimestamptz'
-                                : item.nullness
-                                  ? 'checkRustNullness'
-                                  : item.enum
-                                    ? 'checkRustEnum'
-                                    : item.rustType === 'Int2Value'
-                                      ? 'checkRustInt2'
-                                      : item.rustType === 'Int4Value'
-                                        ? 'checkRustInt4'
-                                        : item.rustType === 'Int8Value'
-                                          ? 'checkRustInt8'
-                                          : item.rustType === 'TextValue' ||
-                                              item.rustType === 'NetworkValue'
-                                            ? 'checkRustText'
-                                            : 'checkRustBool'
+            item.rustType === 'Float4Value'
+              ? 'checkRustFloat4'
+              : item.rustType === 'Float8Value'
+                ? 'checkRustFloat8'
+                : item.rustType === 'BitValue'
+                  ? 'checkRustBit'
+                  : item.rustType === 'UuidValue'
+                    ? 'checkRustUuid'
+                    : item.rustType === 'ByteaValue'
+                      ? 'checkRustBytea'
+                      : item.rustType === 'MacaddrValue'
+                        ? 'checkRustMacaddr'
+                        : item.rustType === 'Macaddr8Value'
+                          ? 'checkRustMacaddr8'
+                          : item.rustType === 'NetworkValue'
+                            ? 'checkRustNetwork'
+                            : item.rustType === 'NumericValue'
+                              ? 'checkRustNumeric'
+                              : item.rustType === 'DateValue'
+                                ? 'checkRustDate'
+                                : item.rustType === 'TimestampValue'
+                                  ? 'checkRustTimestamp'
+                                  : item.rustType === 'TimestamptzValue'
+                                    ? 'checkRustTimestamptz'
+                                    : item.nullness
+                                      ? 'checkRustNullness'
+                                      : item.enum
+                                        ? 'checkRustEnum'
+                                        : item.rustType === 'Int2Value'
+                                          ? 'checkRustInt2'
+                                          : item.rustType === 'Int4Value'
+                                            ? 'checkRustInt4'
+                                            : item.rustType === 'Int8Value'
+                                              ? 'checkRustInt8'
+                                              : item.rustType === 'TextValue' ||
+                                                  item.rustType === 'NetworkValue'
+                                                ? 'checkRustText'
+                                                : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (item.rustType === 'ByteaValue') inputHelpers.add('checkPrimitive')
+          if (item.rustType === 'Float4Value' || item.rustType === 'Float8Value')
+            inputHelpers.add('checkInputFloat')
           if (
+            item.rustType !== 'Float4Value' &&
+            item.rustType !== 'Float8Value' &&
             item.rustType !== 'ByteaValue' &&
             item.rustType !== 'NumericValue' &&
             item.rustType !== 'DateValue' &&
@@ -417,6 +427,9 @@ export function renderGoSchemaCheckArtifacts(
       imports: normalizeGoImports([
         ...imports,
         ...(rustGroup?.source ? [{ path: 'strconv' }, { path: 'strings' }] : []),
+        ...(rustInputAdapters.has('checkRustFloat4')
+          ? [{ path: 'math' }, { path: 'reflect' }]
+          : []),
         ...(rustGroup?.source ? [{ path: `${rustImportPath}/checkrust`, as: 'checkrust' }] : []),
         ...(rustGroup?.source
           ? [{ path: `${rustImportPath}/checkrust/checkruntime`, as: 'checkruntime' }]
@@ -606,6 +619,50 @@ func checkRustMacaddr8[T any](field CheckOptional[T]) checkruntime.Macaddr8Value
   }
   if !value.Value.Valid { return checkruntime.Macaddr8Null() }
   return checkruntime.MakeMacaddr8Value(value.Value.Value)
+}
+func checkRustFloat4[T any](field CheckOptional[T]) checkruntime.Float4Value {
+  if !field.Set { return checkruntime.Float4Unknown() }
+  if field.Null { return checkruntime.Float4Null() }
+  if value, ok := any(field.V).(checkruntime.Float4Value); ok { return value }
+  raw := any(field.V)
+  if value, ok := raw.(interface { SQLValid() bool; SQLValue() any }); ok {
+    if !value.SQLValid() { return checkruntime.Float4Null() }
+    raw = value.SQLValue()
+  }
+  native := reflect.ValueOf(raw)
+  for native.IsValid() && native.Kind() == reflect.Pointer {
+    if native.IsNil() { return checkruntime.Float4Null() }
+    native = native.Elem()
+  }
+  if native.IsValid() && native.Kind() == reflect.Float32 {
+    number := native.Convert(reflect.TypeOf(float32(0))).Interface().(float32)
+    return checkruntime.MakeFloat4Bits(int(int32(math.Float32bits(number))))
+  }
+  input := checkInputFloat(field)
+  if !input.Certain { return checkruntime.Float4Unknown() }
+  if input.Value.Error != "" {
+    if state, valid := checkRustState(input.Value.Error); valid {
+      return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: state}
+    }
+    return checkruntime.Float4Unknown()
+  }
+  if !input.Value.Valid { return checkruntime.Float4Null() }
+  return checkruntime.MakeFloat4Value(input.Value.Value)
+}
+func checkRustFloat8[T any](field CheckOptional[T]) checkruntime.Float8Value {
+  if !field.Set { return checkruntime.Float8Unknown() }
+  if field.Null { return checkruntime.Float8Null() }
+  if value, ok := any(field.V).(checkruntime.Float8Value); ok { return value }
+  input := checkInputFloat(field)
+  if !input.Certain { return checkruntime.Float8Unknown() }
+  if input.Value.Error != "" {
+    if state, valid := checkRustState(input.Value.Error); valid {
+      return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: state}
+    }
+    return checkruntime.Float8Unknown()
+  }
+  if !input.Value.Valid { return checkruntime.Float8Null() }
+  return checkruntime.MakeFloat8Value(input.Value.Value)
 }
 func checkRustNumeric[T any](field CheckOptional[T]) checkruntime.NumericValue {
   if !field.Set { return checkruntime.NumericUnknown() }

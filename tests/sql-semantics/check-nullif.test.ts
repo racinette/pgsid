@@ -155,8 +155,23 @@ describe('NULLIF CHECK evaluation', () => {
     for (const sql of [
       'NULLIF(1::float8,1::float8) IS NULL',
       'NULLIF(amount,floating_amount) IS NULL',
-      'NULLIF(ROW(amount,divisor),ROW(divisor,amount)) IS NULL',
     ]) {
+      const expression = lower(sql)
+      expect(hasUncertain(expression), sql).toBe(false)
+      const group = prepareCheckRustGroup([
+        {
+          expression,
+          identity: {
+            schema: 'public',
+            kind: 'table',
+            owner: table.name,
+            constraint: 'float_support',
+          },
+        },
+      ])
+      expect(group.checks[0]?.kind, sql).toBe('supported')
+    }
+    for (const sql of ['NULLIF(ROW(amount,divisor),ROW(divisor,amount)) IS NULL']) {
       const expression = lower(sql)
       const group = prepareCheckRustGroup([
         {

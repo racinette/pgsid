@@ -5098,6 +5098,1096 @@ export function hashenumextended18hh(input: checkruntime.EnumValue, seed: checkr
     }
     return { kind: "Unknown" };
 }
+const floatArithmeticZero = 3452582;
+function floatArithmetic(left: checkruntime.Float8Value, right: checkruntime.Float8Value, mode: number, single: boolean): checkruntime.Float8Value {
+    mode = langruntime.checkedI32(mode);
+    single = langruntime.checkedBool(single);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Unknown" }) || checkruntime.equalFloat8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Null" }) || checkruntime.equalFloat8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const aBits: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const bBits: bigint = langruntime.checkedI64(right.value);
+            const a: number = checkruntime.float8Number(aBits);
+            const b: number = checkruntime.float8Number(bBits);
+            const infinity: number = langruntime.f64Divide(1.0, 0.0);
+            if (mode === 3 && b === 0.0 && a === a) {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatArithmeticZero) };
+            }
+            let value: number = 0.0;
+            if (mode === 0) {
+                value = langruntime.checkedF64(langruntime.f64Add(a, b));
+            }
+            if (mode === 1) {
+                value = langruntime.checkedF64(langruntime.f64Subtract(a, b));
+            }
+            if (mode === 2) {
+                value = langruntime.checkedF64(langruntime.f64Multiply(a, b));
+            }
+            if (mode === 3) {
+                value = langruntime.checkedF64(langruntime.f64Divide(a, b));
+            }
+            if (single) {
+                const bits: number = langruntime.f32ToI32Bits(value);
+                value = langruntime.checkedF64(checkruntime.float4Number(bits));
+            }
+            if (langruntime.f64Abs(value) === infinity && !(langruntime.f64Abs(a) === infinity) && (mode === 3 || !(langruntime.f64Abs(b) === infinity))) {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+            }
+            if (value === 0.0 && !(a === 0.0) && ((mode === 2 && !(b === 0.0)) || (mode === 3 && !(langruntime.f64Abs(b) === infinity)))) {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+            }
+            return checkruntime.makeFloat8Value(value);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function float48divRlvj(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
+    return floatArithmetic(float4Widen(left), right, 3, false);
+}
+export function float48miJ57p(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
+    return floatArithmetic(float4Widen(left), right, 1, false);
+}
+export function float48mulVt4x(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
+    return floatArithmetic(float4Widen(left), right, 2, false);
+}
+export function float48plW08q(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
+    return floatArithmetic(float4Widen(left), right, 0, false);
+}
+export function float4absSvtc(left: checkruntime.Float4Value): checkruntime.Float4Value {
+    if (left.kind === "Value") {
+        const bits: number = langruntime.checkedI32(left.value);
+        const signed: bigint = BigInt(langruntime.checkedI32(bits));
+        let output: bigint = signed;
+        if (signed < 0n) {
+            output = langruntime.checkedI64(langruntime.checkedI64Subtract(signed, (-2147483648n)));
+        }
+        return checkruntime.makeFloat4Bits(Number(BigInt.asIntN(32, langruntime.checkedI64(output))));
+    }
+    return left;
+}
+export function float4div27d0(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.Float4Value {
+    return float8Narrow(floatArithmetic(float4Widen(left), float4Widen(right), 3, true));
+}
+export function float4largerBpdf(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.Float4Value {
+    const order: checkruntime.Int4Value = float8Compare(float4Widen(left), float4Widen(right));
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (value > 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function float4miVetq(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.Float4Value {
+    return float8Narrow(floatArithmetic(float4Widen(left), float4Widen(right), 1, true));
+}
+export function float4mul1pfj(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.Float4Value {
+    return float8Narrow(floatArithmetic(float4Widen(left), float4Widen(right), 2, true));
+}
+export function float4pl1qe3(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.Float4Value {
+    return float8Narrow(floatArithmetic(float4Widen(left), float4Widen(right), 0, true));
+}
+export function float4smaller1d11(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.Float4Value {
+    const order: checkruntime.Int4Value = float8Compare(float4Widen(left), float4Widen(right));
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (value < 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function float4um4uu4(left: checkruntime.Float4Value): checkruntime.Float4Value {
+    if (left.kind === "Value") {
+        const bits: number = langruntime.checkedI32(left.value);
+        const signed: bigint = BigInt(langruntime.checkedI32(bits));
+        let output: bigint = signed;
+        if (signed < 0n) {
+            output = langruntime.checkedI64(langruntime.checkedI64Subtract(signed, (-2147483648n)));
+        }
+        else {
+            output = langruntime.checkedI64(langruntime.checkedI64Add(signed, (-2147483648n)));
+        }
+        return checkruntime.makeFloat4Bits(Number(BigInt.asIntN(32, langruntime.checkedI64(output))));
+    }
+    return left;
+}
+export function float4upFygi(left: checkruntime.Float4Value): checkruntime.Float4Value {
+    return left;
+}
+export function float84divCk25(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.Float8Value {
+    return floatArithmetic(left, float4Widen(right), 3, false);
+}
+export function float84miMegv(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.Float8Value {
+    return floatArithmetic(left, float4Widen(right), 1, false);
+}
+export function float84mulF3k3(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.Float8Value {
+    return floatArithmetic(left, float4Widen(right), 2, false);
+}
+export function float84plV598(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.Float8Value {
+    return floatArithmetic(left, float4Widen(right), 0, false);
+}
+export function float8absFq86(left: checkruntime.Float8Value): checkruntime.Float8Value {
+    if (left.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(left.value);
+        const signed: bigint = bits;
+        let output: bigint = signed;
+        if (signed < 0n) {
+            output = langruntime.checkedI64(langruntime.checkedI64Subtract(signed, (-9223372036854775808n)));
+        }
+        return checkruntime.makeFloat8Bits(output);
+    }
+    return left;
+}
+export function float8divKumj(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
+    return floatArithmetic(left, right, 3, false);
+}
+export function float8largerB58s(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
+    const order: checkruntime.Int4Value = float8Compare(left, right);
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (value > 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function float8miR1nu(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
+    return floatArithmetic(left, right, 1, false);
+}
+export function float8mulD3nd(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
+    return floatArithmetic(left, right, 2, false);
+}
+export function float8plG3ou(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
+    return floatArithmetic(left, right, 0, false);
+}
+export function float8smallerSp3n(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.Float8Value {
+    const order: checkruntime.Int4Value = float8Compare(left, right);
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (value < 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function float8um3uy5(left: checkruntime.Float8Value): checkruntime.Float8Value {
+    if (left.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(left.value);
+        const signed: bigint = bits;
+        let output: bigint = signed;
+        if (signed < 0n) {
+            output = langruntime.checkedI64(langruntime.checkedI64Subtract(signed, (-9223372036854775808n)));
+        }
+        else {
+            output = langruntime.checkedI64(langruntime.checkedI64Add(signed, (-9223372036854775808n)));
+        }
+        return checkruntime.makeFloat8Bits(output);
+    }
+    return left;
+}
+export function float8up8n3o(left: checkruntime.Float8Value): checkruntime.Float8Value {
+    return left;
+}
+export function absCsap(input: checkruntime.Float4Value): checkruntime.Float4Value {
+    return float4absSvtc(input);
+}
+export function absWle0(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return float8absFq86(input);
+}
+const floatCoreRange = 3452547;
+function float4Widen(input: checkruntime.Float4Value): checkruntime.Float8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat4Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const bits: number = langruntime.checkedI32(input.value);
+        return checkruntime.makeFloat8Value(checkruntime.float4Number(bits));
+    }
+    return { kind: "Unknown" };
+}
+function float8Narrow(input: checkruntime.Float8Value): checkruntime.Float4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const value: number = checkruntime.float8Number(bits);
+        const roundedBits: number = langruntime.f32ToI32Bits(value);
+        const rounded: number = checkruntime.float4Number(roundedBits);
+        const infinity: number = langruntime.f64Divide(1.0, 0.0);
+        if ((!(langruntime.f64Abs(value) === infinity) && langruntime.f64Abs(rounded) === infinity) || (!(value === 0.0) && rounded === 0.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return checkruntime.makeFloat4Bits(roundedBits);
+    }
+    return { kind: "Unknown" };
+}
+function float8Compare(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Unknown" }) || checkruntime.equalFloat8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Null" }) || checkruntime.equalFloat8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const aBits: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const bBits: bigint = langruntime.checkedI64(right.value);
+            const a: number = checkruntime.float8Number(aBits);
+            const b: number = checkruntime.float8Number(bBits);
+            if (!(a === a)) {
+                if (!(b === b)) {
+                    return { kind: "Value", value: 0 };
+                }
+                return { kind: "Value", value: 1 };
+            }
+            if (!(b === b)) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a < b) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a > b) {
+                return { kind: "Value", value: 1 };
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function floatComparisonFinish(result: checkruntime.Int4Value, strategy: number): checkruntime.BoolValue {
+    strategy = langruntime.checkedI32(strategy);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        if (strategy === 0) {
+            return { kind: "Value", value: order === 0 };
+        }
+        if (strategy === 1) {
+            return { kind: "Value", value: !(order === 0) };
+        }
+        if (strategy === 2) {
+            return { kind: "Value", value: order < 0 };
+        }
+        if (strategy === 3) {
+            return { kind: "Value", value: order <= 0 };
+        }
+        if (strategy === 4) {
+            return { kind: "Value", value: order > 0 };
+        }
+        if (strategy === 5) {
+            return { kind: "Value", value: order >= 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function float8Integer(input: checkruntime.Float8Value): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const raw: bigint = langruntime.checkedI64(input.value);
+        let bits: bigint = raw;
+        const negative: boolean = raw < 0n;
+        if (negative) {
+            bits = langruntime.checkedI64(langruntime.checkedI64Subtract(raw, -9223372036854775808n));
+        }
+        const exponent: number = langruntime.checkedSignedSubtract(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(bits, 4503599627370496n))))), 1023);
+        const fraction: bigint = langruntime.checkedI64Remainder(bits, 4503599627370496n);
+        if (exponent >= 63) {
+            if (exponent === 63 && negative && fraction === 0n) {
+                return { kind: "Value", value: -9223372036854775808n };
+            }
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        if (exponent < langruntime.checkedSignedNegate(1)) {
+            return { kind: "Value", value: 0n };
+        }
+        let coefficient: bigint = langruntime.checkedI64Add(fraction, 4503599627370496n);
+        let power: number = langruntime.checkedSignedSubtract(exponent, 52);
+        if (power >= 0) {
+            while (power > 0) {
+                coefficient = langruntime.checkedI64(langruntime.checkedI64Multiply(coefficient, 2n));
+                power = langruntime.checkedI32(langruntime.checkedSignedSubtract(power, 1));
+            }
+        }
+        else {
+            let divisor: bigint = 1n;
+            while (power < 0) {
+                divisor = langruntime.checkedI64(langruntime.checkedI64Multiply(divisor, 2n));
+                power = langruntime.checkedI32(langruntime.checkedSignedAdd(power, 1));
+            }
+            const remainder: bigint = langruntime.checkedI64Remainder(coefficient, divisor);
+            coefficient = langruntime.checkedI64(langruntime.checkedI64Divide(coefficient, divisor));
+            const half: bigint = langruntime.checkedI64Divide(divisor, 2n);
+            if (remainder > half || (remainder === half && !(langruntime.checkedI64Remainder(coefficient, 2n) === 0n))) {
+                coefficient = langruntime.checkedI64(langruntime.checkedI64Add(coefficient, 1n));
+            }
+        }
+        if (negative) {
+            coefficient = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, coefficient));
+        }
+        return { kind: "Value", value: coefficient };
+    }
+    return { kind: "Unknown" };
+}
+function integerFloat4(input: checkruntime.Int8Value): checkruntime.Float4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const number: bigint = langruntime.checkedI64(input.value);
+        if (number === -9223372036854775808n) {
+            return checkruntime.makeFloat4Value(-9223372036854775808.0);
+        }
+        let magnitude: bigint = number;
+        if (number < 0n) {
+            magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, number));
+        }
+        let coefficient: bigint = magnitude;
+        let divisor: bigint = 1n;
+        let scale: number = 1.0;
+        while (coefficient > 16777215n) {
+            coefficient = langruntime.checkedI64(langruntime.checkedI64Divide(coefficient, 2n));
+            divisor = langruntime.checkedI64(langruntime.checkedI64Multiply(divisor, 2n));
+            scale = langruntime.checkedF64(langruntime.f64Multiply(scale, 2.0));
+        }
+        if (divisor > 1n) {
+            const remainder: bigint = langruntime.checkedI64Remainder(magnitude, divisor);
+            const half: bigint = langruntime.checkedI64Divide(divisor, 2n);
+            if (remainder > half || (remainder === half && !(langruntime.checkedI64Remainder(coefficient, 2n) === 0n))) {
+                coefficient = langruntime.checkedI64(langruntime.checkedI64Add(coefficient, 1n));
+            }
+        }
+        const small: number = Number(BigInt.asIntN(32, langruntime.checkedI64(coefficient)));
+        let result: number = langruntime.f64Multiply(Number(langruntime.checkedI32(small)), scale);
+        if (number < 0n) {
+            result = langruntime.checkedF64(langruntime.f64Negate(result));
+        }
+        return checkruntime.makeFloat4Value(result);
+    }
+    return { kind: "Unknown" };
+}
+function integerFloat8(input: checkruntime.Int8Value): checkruntime.Float8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const number: bigint = langruntime.checkedI64(input.value);
+        const text: string = checkruntime.textSignedNumber(number);
+        const value: number = langruntime.f64FromText(text, 0.0);
+        return checkruntime.makeFloat8Value(value);
+    }
+    return { kind: "Unknown" };
+}
+export function btfloat48cmpR29z(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.Int4Value {
+    return float8Compare(float4Widen(left), right);
+}
+export function btfloat4cmpYfof(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.Int4Value {
+    return float8Compare(float4Widen(left), float4Widen(right));
+}
+export function btfloat84cmpHm5k(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.Int4Value {
+    return float8Compare(left, float4Widen(right));
+}
+export function btfloat8cmpAdn1(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.Int4Value {
+    return float8Compare(left, right);
+}
+export function float48eq2e8s(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), right), 0);
+}
+export function float48ge61xk(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), right), 5);
+}
+export function float48gtW41b(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), right), 4);
+}
+export function float48leW73b(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), right), 3);
+}
+export function float48ltQ05v(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), right), 2);
+}
+export function float48ne0nmh(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), right), 1);
+}
+export function float4eq36g8(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 0);
+}
+export function float4ge74ah(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 5);
+}
+export function float4gtT0ms(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 4);
+}
+export function float4leG1uf(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 3);
+}
+export function float4lt339k(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 2);
+}
+export function float4neFrlm(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 1);
+}
+export function float84eqBe8b(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 0);
+}
+export function float84geFudn(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 5);
+}
+export function float84gtGpd6(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 4);
+}
+export function float84le5od9(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 3);
+}
+export function float84ltF2id(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 2);
+}
+export function float84neXkja(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 1);
+}
+export function float8eqTpae(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, right), 0);
+}
+export function float8geLa0k(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, right), 5);
+}
+export function float8gtM76q(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, right), 4);
+}
+export function float8le9qw7(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, right), 3);
+}
+export function float8ltVp07(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, right), 2);
+}
+export function float8neBqr8(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
+    return floatComparisonFinish(float8Compare(left, right), 1);
+}
+export function float4L0dp(input: checkruntime.Int2Value): checkruntime.Float4Value {
+    return integerFloat4(checkruntime.int2ToInt8(input));
+}
+export function float8Q72n(input: checkruntime.Int2Value): checkruntime.Float8Value {
+    return integerFloat8(checkruntime.int2ToInt8(input));
+}
+export function float4Hmza(input: checkruntime.Int4Value): checkruntime.Float4Value {
+    return integerFloat4(int8Mzac(input));
+}
+export function float8Yt2i(input: checkruntime.Int4Value): checkruntime.Float8Value {
+    return integerFloat8(int8Mzac(input));
+}
+export function float4Trtc(input: checkruntime.Int8Value): checkruntime.Float4Value {
+    return integerFloat4(input);
+}
+export function float81dvp(input: checkruntime.Int8Value): checkruntime.Float8Value {
+    return integerFloat8(input);
+}
+export function int2Pv8l(input: checkruntime.Float4Value): checkruntime.Int2Value {
+    const result: checkruntime.Int8Value = float8Integer(float4Widen(input));
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const number: bigint = langruntime.checkedI64(result.value);
+        if (number < -32768n || number > 32767n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(number))) };
+    }
+    return { kind: "Unknown" };
+}
+export function int4Tbuy(input: checkruntime.Float4Value): checkruntime.Int4Value {
+    const result: checkruntime.Int8Value = float8Integer(float4Widen(input));
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const number: bigint = langruntime.checkedI64(result.value);
+        if (number < -2147483648n || number > 2147483647n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(number))) };
+    }
+    return { kind: "Unknown" };
+}
+export function int885by(input: checkruntime.Float4Value): checkruntime.Int8Value {
+    return float8Integer(float4Widen(input));
+}
+export function float8Qcwm(input: checkruntime.Float4Value): checkruntime.Float8Value {
+    return float4Widen(input);
+}
+export function int268cf(input: checkruntime.Float8Value): checkruntime.Int2Value {
+    const result: checkruntime.Int8Value = float8Integer(input);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const number: bigint = langruntime.checkedI64(result.value);
+        if (number < -32768n || number > 32767n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(number))) };
+    }
+    return { kind: "Unknown" };
+}
+export function int4Nc79(input: checkruntime.Float8Value): checkruntime.Int4Value {
+    const result: checkruntime.Int8Value = float8Integer(input);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const number: bigint = langruntime.checkedI64(result.value);
+        if (number < -2147483648n || number > 2147483647n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(number))) };
+    }
+    return { kind: "Unknown" };
+}
+export function int8Kmmw(input: checkruntime.Float8Value): checkruntime.Int8Value {
+    return float8Integer(input);
+}
+export function float4Frus(input: checkruntime.Float8Value): checkruntime.Float4Value {
+    return float8Narrow(input);
+}
+const floatInputInvalid = 3484946;
+const floatInputRange = 3452547;
+interface FloatInputLayout {
+    kind: number;
+    negative: boolean;
+    zero: boolean;
+    weight: number;
+    digits: string;
+    text: string;
+}
+function copyFloatInputLayout(value: FloatInputLayout): FloatInputLayout {
+    return { kind: langruntime.checkedI32(value.kind), negative: langruntime.checkedBool(value.negative), zero: langruntime.checkedBool(value.zero), weight: langruntime.checkedI32(value.weight), digits: langruntime.checkedString(value.digits), text: langruntime.checkedString(value.text) };
+}
+function floatInputTerminal(kind: number): FloatInputLayout {
+    kind = langruntime.checkedI32(kind);
+    return { kind: kind, negative: false, zero: true, weight: 0, digits: "", text: "" };
+}
+function decodeFloatInput(value: string): FloatInputLayout {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 1000000) {
+        return floatInputTerminal(4);
+    }
+    let begin: number = 0;
+    let end: number = chars.length;
+    while (begin < end && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(begin)))) {
+        begin = langruntime.checkedAdd(begin, 1);
+    }
+    while (begin < end && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+    }
+    if (begin === end) {
+        return floatInputTerminal(5);
+    }
+    let index: number = begin;
+    let negative: boolean = false;
+    let signed: boolean = false;
+    if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "+") {
+        negative = langruntime.checkedBool(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-");
+        signed = langruntime.checkedBool(true);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (index === end) {
+        return floatInputTerminal(5);
+    }
+    const start: number = index;
+    let word: string = "";
+    while (index < end) {
+        word = word + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (word === "inf" || word === "infinity") {
+        if (negative) {
+            return floatInputTerminal(2);
+        }
+        return floatInputTerminal(1);
+    }
+    if (word === "nan") {
+        if (signed) {
+            return floatInputTerminal(4);
+        }
+        return floatInputTerminal(3);
+    }
+    if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "0" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1)))) === "x") {
+        return floatInputTerminal(4);
+    }
+    if (langruntime.checkedSubtract(end, start) >= 4 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(start))) === "n" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1)))) === "a" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 2)))) === "n" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 3))) === "(") {
+        return floatInputTerminal(4);
+    }
+    index = langruntime.checkedIndex(start);
+    let point: boolean = false;
+    let any: boolean = false;
+    let started: boolean = false;
+    let before: number = 0;
+    let leading: number = 0;
+    let digits: string = "";
+    while (index < end) {
+        const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (code >= 48 && code <= 57) {
+            any = langruntime.checkedBool(true);
+            if (point === false) {
+                before = langruntime.checkedI32(langruntime.checkedSignedAdd(before, 1));
+            }
+            if (started === false && code === 48) {
+                leading = langruntime.checkedI32(langruntime.checkedSignedAdd(leading, 1));
+            }
+            else {
+                started = langruntime.checkedBool(true);
+                digits = digits + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "." && point === false) {
+            point = langruntime.checkedBool(true);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else {
+            break;
+        }
+    }
+    if (any === false) {
+        return floatInputTerminal(5);
+    }
+    let exponent: number = 0;
+    if (index < end && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === "e") {
+        index = langruntime.checkedAdd(index, 1);
+        let minus: boolean = false;
+        if (index < end && (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "+")) {
+            minus = langruntime.checkedBool(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-");
+            index = langruntime.checkedAdd(index, 1);
+        }
+        const first: number = index;
+        while (index < end) {
+            const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+            if (code < 48 || code > 57) {
+                break;
+            }
+            if (exponent < 100000000) {
+                exponent = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(exponent, 10), code), 48));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (index === first) {
+            return floatInputTerminal(5);
+        }
+        if (minus) {
+            exponent = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, exponent));
+        }
+    }
+    if (!(index === end)) {
+        return floatInputTerminal(5);
+    }
+    index = langruntime.checkedIndex(begin);
+    let text: string = "";
+    while (index < end) {
+        text = text + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: 0, negative: negative, zero: started === false, weight: langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(before, leading), 1), exponent), digits: digits, text: text };
+}
+function floatExactDecimal(value: number): NumericWork {
+    value = langruntime.checkedF64(value);
+    if (value === 0.0) {
+        return numericWorkFromValue("0");
+    }
+    const bits: bigint = langruntime.f64ToI64Bits(value);
+    const exponent: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(bits, 4503599627370496n)))));
+    let coefficient: bigint = langruntime.checkedI64Remainder(bits, 4503599627370496n);
+    let power: number = langruntime.checkedSignedSubtract(exponent, 1075);
+    if (exponent === 0) {
+        power = langruntime.checkedI32(langruntime.checkedSignedNegate(1074));
+    }
+    else {
+        coefficient = langruntime.checkedI64(langruntime.checkedI64Add(coefficient, 4503599627370496n));
+    }
+    while (langruntime.checkedI64Remainder(coefficient, 2n) === 0n) {
+        coefficient = langruntime.checkedI64(langruntime.checkedI64Divide(coefficient, 2n));
+        power = langruntime.checkedI32(langruntime.checkedSignedAdd(power, 1));
+    }
+    const text: string = checkruntime.textSignedNumber(coefficient);
+    let result: NumericWork = numericWorkFromValue(text);
+    let count: number = power;
+    let factor: NumericWork = numericWorkFromValue("2");
+    let scale: number = 0;
+    if (power < 0) {
+        count = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, power));
+        scale = langruntime.checkedI32(count);
+        factor = copyNumericWork(numericWorkFromValue("5"));
+    }
+    while (count > 0) {
+        result = copyNumericWork(numericWorkProduct(result, copyNumericWork(factor)));
+        count = langruntime.checkedI32(langruntime.checkedSignedSubtract(count, 1));
+    }
+    return { valid: result.valid, special: 1, sign: 1, weight: langruntime.checkedSignedSubtract(result.weight, scale), scale: scale, digits: result.digits };
+}
+function floatInputSingle(layout: FloatInputLayout): checkruntime.Float4Value {
+    layout = copyFloatInputLayout(layout);
+    if (layout.zero) {
+        let bits: number = 0;
+        if (layout.negative) {
+            bits = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1));
+        }
+        return checkruntime.makeFloat4Bits(bits);
+    }
+    const magnitude: NumericWork = { valid: true, special: 1, sign: 1, weight: layout.weight, scale: 0, digits: langruntime.checkedString(layout.digits) };
+    const upper: NumericWork = floatExactDecimal(340282356779733661637539395458142568448.0);
+    const lower: NumericWork = floatExactDecimal(langruntime.f64Divide(checkruntime.float4Number(1), 2.0));
+    if (numericWorkMagnitude(copyNumericWork(magnitude), upper) >= 0 || numericWorkMagnitude(copyNumericWork(magnitude), lower) <= 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatInputRange) };
+    }
+    const estimate: number = langruntime.f64Abs(langruntime.f64FromText(layout.text, 0.0));
+    let bits: number = langruntime.f32ToI32Bits(estimate);
+    if (bits === 0) {
+        bits = langruntime.checkedI32(1);
+    }
+    if (bits === 2139095040) {
+        bits = langruntime.checkedI32(2139095039);
+    }
+    const center: number = checkruntime.float4Number(bits);
+    const previous: number = checkruntime.float4Number(langruntime.checkedSignedSubtract(bits, 1));
+    const below: NumericWork = floatExactDecimal(langruntime.f64Divide((langruntime.f64Add(center, previous)), 2.0));
+    let above: NumericWork = floatExactDecimal(340282356779733661637539395458142568448.0);
+    if (bits < 2139095039) {
+        above = copyNumericWork(floatExactDecimal(langruntime.f64Divide((langruntime.f64Add(center, checkruntime.float4Number(langruntime.checkedSignedAdd(bits, 1)))), 2.0)));
+    }
+    const lowOrder: number = numericWorkMagnitude(copyNumericWork(magnitude), below);
+    const highOrder: number = numericWorkMagnitude(magnitude, above);
+    if (lowOrder < 0 || (lowOrder === 0 && !(langruntime.checkedSignedRemainder(bits, 2) === 0))) {
+        bits = langruntime.checkedI32(langruntime.checkedSignedSubtract(bits, 1));
+    }
+    else if (highOrder > 0 || (highOrder === 0 && !(langruntime.checkedSignedRemainder(bits, 2) === 0))) {
+        bits = langruntime.checkedI32(langruntime.checkedSignedAdd(bits, 1));
+    }
+    if (layout.negative) {
+        bits = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Subtract(BigInt(langruntime.checkedI32(bits)), 2147483648n))))));
+    }
+    return checkruntime.makeFloat4Bits(bits);
+}
+export function float4FromText(input: checkruntime.TextValue): checkruntime.Float4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const layout: FloatInputLayout = decodeFloatInput(text);
+        if (layout.kind === 5) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+        }
+        if (layout.kind === 1) {
+            return checkruntime.makeFloat4Bits(2139095040);
+        }
+        if (layout.kind === 2) {
+            return checkruntime.makeFloat4Bits(langruntime.checkedSignedNegate(8388608));
+        }
+        if (layout.kind === 3) {
+            return checkruntime.makeFloat4Bits(2143289344);
+        }
+        if (layout.kind === 0) {
+            return floatInputSingle(layout);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function float8FromText(input: checkruntime.TextValue): checkruntime.Float8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const layout: FloatInputLayout = decodeFloatInput(text);
+        if (layout.kind === 5) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+        }
+        if (layout.kind === 1) {
+            return checkruntime.makeFloat8Bits(9218868437227405312n);
+        }
+        if (layout.kind === 2) {
+            return checkruntime.makeFloat8Bits(-4503599627370496n);
+        }
+        if (layout.kind === 3) {
+            return checkruntime.makeFloat8Bits(9221120237041090560n);
+        }
+        if (layout.kind === 0) {
+            if (layout.zero) {
+                let bits: bigint = 0n;
+                if (layout.negative) {
+                    bits = langruntime.checkedI64(-9223372036854775808n);
+                }
+                return checkruntime.makeFloat8Bits(bits);
+            }
+            const value: number = langruntime.f64FromText(layout.text, 0.0);
+            const infinity: number = langruntime.f64Divide(1.0, 0.0);
+            if (value === 0.0 || langruntime.f64Abs(value) === infinity) {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatInputRange) };
+            }
+            return checkruntime.makeFloat8Value(value);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function floatNumericDecimal(input: checkruntime.Float8Value, precision: number): checkruntime.NumericValue {
+    precision = langruntime.checkedIndex(precision);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const value: number = checkruntime.float8Number(bits);
+        if (!(value === value)) {
+            return checkruntime.makeNumericValue("NaN");
+        }
+        const infinity: number = langruntime.f64Divide(1.0, 0.0);
+        if (value === infinity) {
+            return checkruntime.makeNumericValue("Infinity");
+        }
+        if (value === langruntime.f64Subtract(0.0, infinity)) {
+            return checkruntime.makeNumericValue("-Infinity");
+        }
+        const exact: NumericWork = floatExactDecimal(langruntime.f64Abs(value));
+        const digits: string[] = Array.from(exact.digits);
+        let mode: number = 1;
+        if (digits.length > precision && langruntime.indexChar(digits, langruntime.checkedIndex(precision)) === "5") {
+            let tie: boolean = true;
+            let index: number = langruntime.checkedAdd(precision, 1);
+            while (index < digits.length) {
+                if (!(langruntime.indexChar(digits, langruntime.checkedIndex(index)) === "0")) {
+                    tie = langruntime.checkedBool(false);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (tie && langruntime.checkedSignedRemainder(numericWireDecimalDigit(langruntime.indexChar(digits, langruntime.checkedIndex(langruntime.checkedSubtract(precision, 1)))), 2) === 0) {
+                mode = langruntime.checkedI32(0);
+            }
+        }
+        const scale: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(langruntime.checkedI32(langruntime.checkedIndex(precision)), 1), exact.weight);
+        const rounded: NumericWork = numericWorkRounded(exact, scale, mode);
+        let sign: number = rounded.sign;
+        if (value < 0.0) {
+            sign = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, sign));
+        }
+        const minimumScale: number = numericWorkMinScale(copyNumericWork(rounded));
+        const result: NumericWork = { valid: rounded.valid, special: rounded.special, sign: sign, weight: rounded.weight, scale: minimumScale, digits: rounded.digits };
+        return { kind: "Value", value: numericWorkText(result) };
+    }
+    return { kind: "Unknown" };
+}
+function floatNumericText(input: checkruntime.NumericValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(text);
+        if (work.valid) {
+            return { kind: "Value", value: numericWorkText(work) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function float490ur(input: checkruntime.NumericValue): checkruntime.Float4Value {
+    return float4FromText(floatNumericText(input));
+}
+export function float8Bkfn(input: checkruntime.NumericValue): checkruntime.Float8Value {
+    return float8FromText(floatNumericText(input));
+}
+export function numeric7rfd(input: checkruntime.Float4Value): checkruntime.NumericValue {
+    return floatNumericDecimal(float4Widen(input), 6);
+}
+export function numericEv2s(input: checkruntime.Float8Value): checkruntime.NumericValue {
+    return floatNumericDecimal(input, 15);
+}
+function floatSendBits(input: checkruntime.Int8Value, width: number): checkruntime.ByteaValue {
+    width = langruntime.checkedI32(width);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        let word: bigint = bits;
+        let divisor: bigint = 72057594037927936n;
+        if (width === 4) {
+            divisor = langruntime.checkedI64(16777216n);
+        }
+        let output: string = "";
+        while (divisor > 0n) {
+            let octet: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(word, divisor)))));
+            let remainder: bigint = langruntime.checkedI64Remainder(word, divisor);
+            if (remainder < 0n) {
+                octet = langruntime.checkedI32(langruntime.checkedSignedSubtract(octet, 1));
+                remainder = langruntime.checkedI64(langruntime.checkedI64Add(remainder, divisor));
+            }
+            if (octet < 0) {
+                octet = langruntime.checkedI32(langruntime.checkedSignedAdd(octet, 256));
+            }
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, octet));
+            word = langruntime.checkedI64(remainder);
+            divisor = langruntime.checkedI64(langruntime.checkedI64Divide(divisor, 256n));
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function float4sendUk42(input: checkruntime.Float4Value): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat4Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const bits: number = langruntime.checkedI32(input.value);
+        return floatSendBits({ kind: "Value", value: BigInt(langruntime.checkedI32(bits)) }, 4);
+    }
+    return { kind: "Unknown" };
+}
+export function float8send3bqt(input: checkruntime.Float8Value): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        return floatSendBits({ kind: "Value", value: bits }, 8);
+    }
+    return { kind: "Unknown" };
+}
 export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

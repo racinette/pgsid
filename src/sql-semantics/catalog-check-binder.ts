@@ -157,6 +157,15 @@ export function catalogNumericType(
   return catalogBaseScalarType(name, oid, domains) === 'pg_catalog."numeric"'
 }
 
+export function catalogFloatType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): 'pg_catalog.float4' | 'pg_catalog.float8' | null {
+  const type = catalogBaseScalarType(name, oid, domains)
+  return type === 'pg_catalog.float4' || type === 'pg_catalog.float8' ? type : null
+}
+
 export function catalogTemporalType(
   name: string,
   oid: number | undefined,
@@ -198,6 +207,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     (literal.kind === 'string' || literal.kind === 'null')
   )
     return { kind: 'bit', type, value: literal.value }
+  if ((type === 'pg_catalog.float4' || type === 'pg_catalog.float8') && literal.kind === 'null')
+    return { kind: 'float', type, bits: null }
   if (type === 'pg_catalog.uuid' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'uuid', type, value: literal.value }
   if (type === 'pg_catalog.bytea') {
@@ -287,6 +298,19 @@ const materialize = (
     }
   }
   if (bound.literal) {
+    if (
+      (type === 'pg_catalog.float4' || type === 'pg_catalog.float8') &&
+      bound.literal.kind !== 'null'
+    )
+      return {
+        kind: 'text-to-float',
+        type,
+        operand: {
+          kind: 'certain',
+          expression: { kind: 'text', type: 'pg_catalog.text', value: bound.literal.value },
+        },
+      }
+
     if (type === 'pg_catalog.bytea' && bound.literal.kind === 'string')
       return {
         kind: 'text-to-bytea',
@@ -472,6 +496,8 @@ const candidate = (
   args: readonly Bound[],
   bindDefault?: (node: unknown) => Bound,
 ): ResolvedCallable | null => {
+  if (args.some((arg) => arg.type === 'pg_catalog.float4' || arg.type === 'pg_catalog.float8'))
+    return comparisonCandidate(args, name, true, kind, false)
   const integer = integerCandidate(kind, name, args)
   if (integer !== undefined) return integer
   const matches = callables.flatMap(({ signature, item }) => {
@@ -628,8 +654,11 @@ const comparisonCandidate = (
   args: readonly Bound[],
   name = '=',
   requireCollation = true,
+  kind: 'operator' | 'function' = 'operator',
+  predicate = true,
 ): ResolvedCallable | null => {
-  if (args.length !== 2 || args.some((arg) => !arg.value && !arg.literal)) return null
+  if ((predicate && args.length !== 2) || args.some((arg) => !arg.value && !arg.literal))
+    return null
   let types = args.map(boundType)
   if (types.every((type) => type === null)) {
     args = args.map((arg) => ({
@@ -648,11 +677,11 @@ const comparisonCandidate = (
     type === 'pg_catalog.anyenum' ? enumIdentity : type
   const viable = callables.filter(
     ({ item }) =>
-      item.kind === 'operator' &&
+      item.kind === kind &&
       item.schema === 'pg_catalog' &&
       item.name === name &&
-      item.result === 'pg_catalog.bool' &&
-      item.args.length === 2 &&
+      (predicate ? item.result === 'pg_catalog.bool' : catalogScalarType(item.result) !== null) &&
+      item.args.length === args.length &&
       item.args.every((type, index) => {
         const target = concrete(type)
         const source = types[index]!
@@ -661,9 +690,10 @@ const comparisonCandidate = (
         return source === null || source === target || builtinCast(source, target)?.context === 'i'
       }),
   )
-  const assumed = types.includes(null)
-    ? types.map((type) => type ?? types.find((type) => type !== null)!)
-    : types
+  const assumed =
+    kind === 'operator' && types.length === 2 && types.includes(null)
+      ? types.map((type) => type ?? types.find((type) => type !== null)!)
+      : types
   const exact = viable.filter(({ item }) =>
     item.args.every((type, index) => concrete(type) === assumed[index]),
   )
@@ -832,14 +862,27 @@ export function bindCatalogCheck(
       if (!Array.isArray(nodes) || !nodes.length) return unknown
       const args = nodes.map((arg) => bind(arg))
       if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+      const floatType = args.some(
+        (arg) => arg.type === 'pg_catalog.float4' || arg.type === 'pg_catalog.float8',
+      )
+        ? (commonType(args) ?? undefined)
+        : undefined
       const integerType = integerCommonType(args)
       const typed = args.flatMap((arg) => (arg.type ? [arg.type] : []))
       const textTypes = ['pg_catalog.text', 'pg_catalog."varchar"']
       const networkType = networkCommonType(args)
       const bitType = bitCommonType(args)
       const macType = macCommonType(args)
-      const type = integerType ?? networkType ?? macType ?? bitType ?? typed[0] ?? 'pg_catalog.text'
+      const type =
+        floatType ??
+        integerType ??
+        networkType ??
+        macType ??
+        bitType ??
+        typed[0] ??
+        'pg_catalog.text'
       if (
+        floatType === undefined &&
         integerType === undefined &&
         networkType === undefined &&
         macType === undefined &&
@@ -853,9 +896,11 @@ export function bindCatalogCheck(
       const operands = args.map((arg, index): EvalExpression | null =>
         type === 'pg_catalog.bool' && arg.type === 'pg_catalog.bool'
           ? { kind: 'check', type, expression: lower(nodes[index]) }
-          : integerType === undefined
-            ? materialize(arg, type, definition)
-            : materializeInteger(arg, type),
+          : floatType !== undefined
+            ? implicitOperand(arg, type, definition)
+            : integerType === undefined
+              ? materialize(arg, type, definition)
+              : materializeInteger(arg, type),
       )
       if (!operands.every((value): value is EvalExpression => value !== null)) return unknown
       return {
@@ -879,12 +924,18 @@ export function bindCatalogCheck(
         ? bind(caseExpression['defresult'])
         : ({ type: null, value: null, literal: { kind: 'null', value: null } } as Bound)
       const arms = [...results, otherwise]
+      const floatType = arms.some(
+        (arm) => arm.type === 'pg_catalog.float4' || arm.type === 'pg_catalog.float8',
+      )
+        ? (commonType([otherwise, ...results]) ?? undefined)
+        : undefined
       const integerType = integerCommonType([otherwise, ...results])
       const typed = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
       const networkType = networkCommonType(arms)
       const bitType = bitCommonType([otherwise, ...results])
       const macType = macCommonType([otherwise, ...results])
       const type =
+        floatType ??
         integerType ??
         networkType ??
         macType ??
@@ -895,6 +946,7 @@ export function bindCatalogCheck(
           ? 'pg_catalog.int4'
           : 'pg_catalog.text')
       if (
+        floatType === undefined &&
         integerType === undefined &&
         networkType === undefined &&
         macType === undefined &&
@@ -904,9 +956,11 @@ export function bindCatalogCheck(
         return unknown
       const definition = arms.find((arm) => arm.enum)?.enum
       const values = arms.map((arm) =>
-        integerType === undefined
-          ? materialize(arm, type, definition)
-          : materializeInteger(arm, type),
+        floatType !== undefined
+          ? implicitOperand(arm, type, definition)
+          : integerType === undefined
+            ? materialize(arm, type, definition)
+            : materializeInteger(arm, type),
       )
       if (type !== 'pg_catalog.bool' && values.some((value) => !value)) return unknown
       const collation = ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
@@ -1280,6 +1334,14 @@ export function bindCatalogCheck(
             ? operand.value
             : materialize(operand, 'pg_catalog.text')
         return text ? { type, value: { kind: 'text-to-bytea', type, operand: text } } : unknown
+      }
+      if (
+        (type === 'pg_catalog.float4' || type === 'pg_catalog.float8') &&
+        (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
+        operand.value
+      ) {
+        const text = materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-float', type, operand: text } } : unknown
       }
       if (
         type === 'pg_catalog.uuid' &&

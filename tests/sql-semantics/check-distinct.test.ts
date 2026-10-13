@@ -130,9 +130,24 @@ describe('NULL-safe equality in CHECK evaluators', () => {
       code: '42883',
     })
     expect(hasUncertain(lower('json', 'NULL::json IS DISTINCT FROM NULL::json'))).toBe(true)
+    for (const sql of ['1::float8 IS DISTINCT FROM 1::float8']) {
+      const expression = lower('float', sql)
+      expect(hasUncertain(expression), sql).toBe(false)
+      const group = prepareCheckRustGroup([
+        {
+          expression,
+          identity: {
+            schema: 'public',
+            kind: 'table',
+            owner: table.name,
+            constraint: 'float_support',
+          },
+        },
+      ])
+      expect(group.checks[0]?.kind, sql).toBe('supported')
+    }
     for (const sql of [
       'ROW(ROW(amount, divisor), amount) IS DISTINCT FROM ROW(ROW(divisor, amount), divisor)',
-      '1::float8 IS DISTINCT FROM 1::float8',
     ]) {
       const group = prepareCheckRustGroup([
         {

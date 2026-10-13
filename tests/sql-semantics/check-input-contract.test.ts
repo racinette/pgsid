@@ -24,6 +24,8 @@ describe('SQL-coerced CHECK inputs and raw query parameters', () => {
       CREATE DOMAIN limited_label AS varchar(4);
       CREATE DOMAIN nested_label AS limited_label;
       CREATE DOMAIN exact_amount AS numeric;
+      CREATE DOMAIN single_reading AS real;
+      CREATE DOMAIN nested_reading AS single_reading;
       CREATE TABLE parameter_coercions (
         amount numeric(6,2) CHECK (amount < 1.233),
         domain_amount nested_amount CHECK (domain_amount < 1.233),
@@ -36,7 +38,10 @@ describe('SQL-coerced CHECK inputs and raw query parameters', () => {
         variable_mask varbit(4) CHECK (bit_length(variable_mask) = 4),
         plain_amount numeric CHECK (plain_amount < 1.233),
         plain_domain exact_amount CHECK (plain_domain < 1.233),
-        plain_label text CHECK (plain_label <> ''))`)
+        plain_label text CHECK (plain_label <> ''),
+        single_value real CHECK (single_value < 2),
+        domain_single nested_reading CHECK (domain_single < 2),
+        double_value float8 CHECK (double_value < 2))`)
     catalog = await snapshotCatalog(pg)
   })
   afterAll(async () => {
@@ -72,8 +77,13 @@ describe('SQL-coerced CHECK inputs and raw query parameters', () => {
       ['local_time', 'timestamp without time zone'],
       ['bit_mask', 'bit'],
       ['variable_mask', 'bit varying'],
+      ['single_value', 'real'],
+      ['domain_single', 'public.nested_reading'],
     ])
       expect(await inputs(name!, parameterType!), name).toEqual([])
+    expect(await inputs('double_value', 'double precision')).toEqual([
+      { name: 'double_value', parameter: 1 },
+    ])
     expect(await inputs('plain_amount', 'numeric')).toEqual([
       { name: 'plain_amount', parameter: 1 },
     ])

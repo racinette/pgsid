@@ -1008,6 +1008,110 @@ func MakeUuidValue(value string) UuidValue {
 	return parsed
 }
 
+type Float4ValueKind uint8
+
+const (
+	Float4ValueUnknown Float4ValueKind = iota
+	Float4ValueNull
+	Float4ValueValue
+	Float4ValueError
+)
+
+type Float4Value struct {
+	Kind  Float4ValueKind
+	Value int
+	Error SqlError
+}
+
+func Float4Unknown() Float4Value {
+	return Float4Value{Kind: Float4ValueUnknown}
+}
+func Float4Null() Float4Value {
+	return Float4Value{Kind: Float4ValueNull}
+}
+func MakeFloat4Bits(bits int) Float4Value {
+	bits = langruntime.CheckedI32(bits)
+	return Float4Value{Kind: Float4ValueValue, Value: bits}
+}
+func Float4Number(bits int) float64 {
+	bits = langruntime.CheckedI32(bits)
+	return langruntime.F32FromI32Bits(bits)
+}
+func MakeFloat4Value(value float64) Float4Value {
+	bits := langruntime.F32ToI32Bits(value)
+	rounded := Float4Number(bits)
+	if value == value && rounded != value {
+		return Float4Value{Kind: Float4ValueUnknown}
+	}
+	return Float4Value{Kind: Float4ValueValue, Value: bits}
+}
+func Float4IsNull(value Float4Value) BoolValue {
+	if value.Kind == Float4ValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (Float4Value{Kind: Float4ValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (Float4Value{Kind: Float4ValueNull})}
+}
+func Float4FromCaseGuard(value CheckOutcome) Float4Value {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return Float4Value{Kind: Float4ValueError, Error: error}
+	}
+	return Float4Value{Kind: Float4ValueUnknown}
+}
+
+type Float8ValueKind uint8
+
+const (
+	Float8ValueUnknown Float8ValueKind = iota
+	Float8ValueNull
+	Float8ValueValue
+	Float8ValueError
+)
+
+type Float8Value struct {
+	Kind  Float8ValueKind
+	Value int64
+	Error SqlError
+}
+
+func Float8Unknown() Float8Value {
+	return Float8Value{Kind: Float8ValueUnknown}
+}
+func Float8Null() Float8Value {
+	return Float8Value{Kind: Float8ValueNull}
+}
+func MakeFloat8Bits(bits int64) Float8Value {
+	return Float8Value{Kind: Float8ValueValue, Value: bits}
+}
+func Float8Number(bits int64) float64 {
+	return langruntime.F64FromI64Bits(bits)
+}
+func MakeFloat8Value(value float64) Float8Value {
+	bits := langruntime.F64ToI64Bits(value)
+	return Float8Value{Kind: Float8ValueValue, Value: bits}
+}
+func Float8IsNull(value Float8Value) BoolValue {
+	if value.Kind == Float8ValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (Float8Value{Kind: Float8ValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (Float8Value{Kind: Float8ValueNull})}
+}
+func Float8FromCaseGuard(value CheckOutcome) Float8Value {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return Float8Value{Kind: Float8ValueError, Error: error}
+	}
+	return Float8Value{Kind: Float8ValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

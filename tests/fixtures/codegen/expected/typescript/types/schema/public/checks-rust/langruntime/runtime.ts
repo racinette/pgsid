@@ -205,7 +205,7 @@ export function checkedF64(value: number): number {
         throw new TypeError('expected an f64');
     return value;
 }
-function f64Negate(value: number): number {
+export function f64Negate(value: number): number {
     return -checkedF64(value);
 }
 export function f64Add(left: number, right: number): number {
@@ -250,22 +250,22 @@ export function f64FromText(value: string, fallback: number): number {
         return fallback;
     return Number(value);
 }
-function f64FromI64Bits(value: bigint): number {
+export function f64FromI64Bits(value: bigint): number {
     const view = new DataView(new ArrayBuffer(8));
     view.setBigInt64(0, checkedI64(value));
     return view.getFloat64(0);
 }
-function f64ToI64Bits(value: number): bigint {
+export function f64ToI64Bits(value: number): bigint {
     const view = new DataView(new ArrayBuffer(8));
     view.setFloat64(0, checkedF64(value));
     return view.getBigInt64(0);
 }
-function f32FromI32Bits(value: number): number {
+export function f32FromI32Bits(value: number): number {
     const view = new DataView(new ArrayBuffer(4));
     view.setInt32(0, checkedI32(value));
     return view.getFloat32(0);
 }
-function f32ToI32Bits(value: number): number {
+export function f32ToI32Bits(value: number): number {
     const view = new DataView(new ArrayBuffer(4));
     view.setFloat32(0, checkedF64(value));
     return view.getInt32(0);
