@@ -152,8 +152,18 @@ describe('CHECK measurement boundaries', () => {
       expect(input.probe.stored!.fullyBound).toBe(true)
     }
     const intervalInput = report.textInput.find((entry) => entry.type === 'pg_catalog."interval"')!
-    expect(intervalInput.probe.raw.fullyBound).toBe(false)
-    expect(intervalInput.probe.stored!.fullyBound).toBe(false)
+    expect(intervalInput.probe.raw.fullyBound).toBe(true)
+    expect(intervalInput.probe.stored!.fullyBound).toBe(true)
+    expect(
+      callableBoundary(builtinMetadata(intervalInput.input!), new Set(['pg_catalog."interval"']))
+        .categories,
+    ).toContain('session-setting:IntervalStyle')
+    expect(
+      report.inputForms.types.find((forms) => forms.type === 'pg_catalog."interval"'),
+    ).toMatchObject({
+      contextRequired: ['-1 day 2 hours', '-1 year 2 mons', '-1 02:03'],
+      unimplementedGrammar: ['P0001-02-03T04:05:06', '1day', 'now', '1e2 seconds'],
+    })
     const input = report.textInput.find((entry) => entry.type === 'pg_catalog.int4')!
     expect(input.cast).toBeNull()
     expect(input.input).toBe('function:["pg_catalog","int4in"](pg_catalog.cstring)')

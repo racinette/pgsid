@@ -611,6 +611,7 @@ describe('world CHECK INSERT parity', () => {
       ['shift_templates', ['shift_clock_order', 'shift_duration']],
       ['service_windows', ['service_duration_bounds', 'service_duration_span']],
       ['zoned_dispatches', ['dispatch_local_clock', 'dispatch_adjustment']],
+      ['duration_imports', ['duration_import_match']],
     ] as const) {
       for (const name of names) {
         const identity = `world_026_shift_schedules.${table}.${name}`

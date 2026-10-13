@@ -256,11 +256,61 @@ describe('catalog diff is stable across a rebuild', () => {
     }
   })
 
+  it('renders interval constants losslessly and restores every caller IntervalStyle', async () => {
+    const pg = await PGlite.create()
+    try {
+      await pg.exec(`CREATE DOMAIN exact_span AS interval
+        DEFAULT INTERVAL '-9223372036854.775808 seconds'
+        CHECK (VALUE >= INTERVAL '-9223372036854.775808 seconds');
+        CREATE TABLE interval_defaults (
+          span exact_span,
+          adjustment interval DEFAULT INTERVAL '-1 day +2 hours',
+          CONSTRAINT span_threshold CHECK (span >= INTERVAL '-9223372036854.775808 seconds'));`)
+      const canonical = await snapshotCatalog(pg)
+      const original = (
+        await pg.query<{ wire: string }>(
+          "SELECT encode(interval_send('-9223372036854.775808 seconds'::interval),'hex') wire",
+        )
+      ).rows[0]!.wire
+      for (const style of ['postgres', 'postgres_verbose', 'sql_standard', 'iso_8601']) {
+        await pg.exec(`SET IntervalStyle='${style}'`)
+        const snapshot = await snapshotCatalog(pg)
+        expect(diffCatalogs(canonical, snapshot).modified).toEqual([])
+        const domain = snapshot.domains.find((domain) => domain.name === 'exact_span')!
+        expect(domain.default).toContain('PT-2562047788H-54.775808S')
+        expect(
+          (
+            await pg.query<{ wire: string }>(
+              `SELECT encode(interval_send((${domain.default!})),'hex') wire`,
+            )
+          ).rows[0]!.wire,
+        ).toBe(original)
+        expect(
+          (await pg.query<{ style: string }>("SELECT current_setting('IntervalStyle') style"))
+            .rows[0]!.style,
+        ).toBe(style)
+        const constraint = snapshot.tables
+          .find((table) => table.name === 'interval_defaults')!
+          .constraints.find((constraint) => constraint.name === 'span_threshold')!
+        const expression = constraint.definition.replace(/^CHECK\s*\(/u, '').slice(0, -1)
+        expect(
+          (
+            await pg.query<{ result: boolean }>(
+              `SELECT ${expression} result FROM (SELECT '-9223372036854.775808 seconds'::interval span) candidate`,
+            )
+          ).rows[0]!.result,
+        ).toBe(true)
+      }
+    } finally {
+      await pg.close()
+    }
+  })
+
   it('restores every catalog-rendering setting when a catalog read fails', async () => {
     const pg = await PGlite.create()
     try {
       await pg.exec(
-        "SET search_path=public; SET DateStyle='SQL, DMY'; SET TimeZone='Asia/Tokyo'; SET extra_float_digits=-15",
+        "SET search_path=public; SET DateStyle='SQL, DMY'; SET TimeZone='Asia/Tokyo'; SET extra_float_digits=-15; SET IntervalStyle='sql_standard'",
       )
       const original = pg.query.bind(pg)
       const failure = new Error('catalog read failed')
@@ -275,9 +325,15 @@ describe('catalog diff is stable across a rebuild', () => {
         query.mockRestore()
       }
       const settings = (
-        await pg.query<{ path: string; style: string; zone: string; digits: string }>(
+        await pg.query<{
+          path: string
+          style: string
+          zone: string
+          digits: string
+          interval: string
+        }>(
           `SELECT current_setting('search_path') path,current_setting('DateStyle') style,
-        current_setting('TimeZone') zone,current_setting('extra_float_digits') digits`,
+        current_setting('TimeZone') zone,current_setting('extra_float_digits') digits,current_setting('IntervalStyle') interval`,
         )
       ).rows[0]!
       expect(settings).toEqual({
@@ -285,6 +341,7 @@ describe('catalog diff is stable across a rebuild', () => {
         style: 'SQL, DMY',
         zone: 'Asia/Tokyo',
         digits: '-15',
+        interval: 'sql_standard',
       })
     } finally {
       await pg.close()

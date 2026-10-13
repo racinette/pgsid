@@ -1445,6 +1445,14 @@ export function bindCatalogCheck(
         const text = materialize(operand, 'pg_catalog.text')
         return text ? { type, value: { kind: 'text-to-clock', type, operand: text } } : unknown
       }
+      if (
+        type === 'pg_catalog."interval"' &&
+        (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
+        operand.value
+      ) {
+        const text = materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-interval', type, operand: text } } : unknown
+      }
       if (type === 'pg_catalog.date' && operand.type === 'pg_catalog.text' && operand.value)
         return {
           type,

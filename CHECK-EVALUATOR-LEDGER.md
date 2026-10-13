@@ -168,6 +168,8 @@ exposes a prerequisite:
 - [x] Floating point (`float4`, `float8`).
 - [x] Establish time, timetz, and interval payloads, comparisons, arithmetic,
       core casts, binary output, and SQL-coerced public inputs.
+- [x] Establish interval unit, clock, and ISO designator input, lossless catalog
+      literals, and explicit IntervalStyle requirements.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.

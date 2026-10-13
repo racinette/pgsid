@@ -15,6 +15,7 @@ pub mod checkruntime {
     include!("timestamp.rs");
     include!("timestamptz.rs");
     include!("time.rs");
+    include!("interval.rs");
     include!("logic.rs");
     include!("constants.rs");
 

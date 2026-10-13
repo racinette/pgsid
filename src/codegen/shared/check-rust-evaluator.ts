@@ -75,6 +75,8 @@ export function emitCheckRustEvaluator(
   const indent = (lines: readonly string[]): string[] => lines.map((line) => `    ${line}`)
   const constantDeclarations: string[] = []
   const constantLines: string[] = []
+  const literalLines: string[] = []
+  let intervalLiteralDepth = 0
   let preparationLines = constantLines
   const preparationState = 'constant_preparation'
   let preparationDepth = 0
@@ -182,6 +184,27 @@ export function emitCheckRustEvaluator(
     bindings: string[],
     used: Set<string>,
   ): { name: string; type: string } => {
+    if (
+      intervalLiteralDepth === 0 &&
+      node.kind === 'certain' &&
+      node.expression.kind === 'temporal' &&
+      node.expression.type === 'pg_catalog."interval"' &&
+      node.expression.value !== null
+    ) {
+      intervalLiteralDepth++
+      preparationDepth++
+      let value: { name: string; type: string }
+      try {
+        value = emitScalar(node, literalLines, used)
+      } finally {
+        preparationDepth--
+        intervalLiteralDepth--
+      }
+      const name = fresh('interval_literal')
+      constantDeclarations.push(`let mut ${name}: IntervalValue = interval_unknown();`)
+      literalLines.push(`${name} = ${value.name};`)
+      return { name, type: value.type }
+    }
     if (
       constantOperandDepth > 0 &&
       preparationDepth === 0 &&
@@ -495,6 +518,7 @@ export function emitCheckRustEvaluator(
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
     if (
+      node.kind === 'text-to-interval' ||
       node.kind === 'text-to-clock' ||
       node.kind === 'text-to-date' ||
       node.kind === 'text-to-timestamp' ||
@@ -511,27 +535,29 @@ export function emitCheckRustEvaluator(
       )
         throw new UnsupportedCheckRustExpression('A SQL text cast requires text')
       const helper =
-        node.kind === 'text-to-clock'
-          ? node.type === 'pg_catalog."time"'
-            ? 'time_from_text'
-            : 'timetz_from_text'
-          : node.kind === 'text-to-bytea'
-            ? 'bytea_from_text'
-            : node.kind === 'text-to-uuid'
-              ? 'uuid_from_text'
-              : node.kind === 'text-to-date'
-                ? 'date_from_text'
-                : node.kind === 'text-to-timestamp'
-                  ? 'timestamp_from_text'
-                  : node.kind === 'text-to-timestamptz'
-                    ? 'timestamptz_from_text'
-                    : node.kind === 'text-to-mac'
-                      ? node.type === 'pg_catalog.macaddr'
-                        ? 'macaddr_from_text'
-                        : 'macaddr8_from_text'
-                      : node.type === 'pg_catalog.cidr'
-                        ? 'cidr_from_text'
-                        : 'network_from_text'
+        node.kind === 'text-to-interval'
+          ? 'interval_from_text'
+          : node.kind === 'text-to-clock'
+            ? node.type === 'pg_catalog."time"'
+              ? 'time_from_text'
+              : 'timetz_from_text'
+            : node.kind === 'text-to-bytea'
+              ? 'bytea_from_text'
+              : node.kind === 'text-to-uuid'
+                ? 'uuid_from_text'
+                : node.kind === 'text-to-date'
+                  ? 'date_from_text'
+                  : node.kind === 'text-to-timestamp'
+                    ? 'timestamp_from_text'
+                    : node.kind === 'text-to-timestamptz'
+                      ? 'timestamptz_from_text'
+                      : node.kind === 'text-to-mac'
+                        ? node.type === 'pg_catalog.macaddr'
+                          ? 'macaddr_from_text'
+                          : 'macaddr8_from_text'
+                        : node.type === 'pg_catalog.cidr'
+                          ? 'cidr_from_text'
+                          : 'network_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'certain') {
@@ -558,8 +584,6 @@ export function emitCheckRustEvaluator(
                     ? 'timestamp'
                     : 'timestamptz'
         if (value.value === null) return { name: bind(`${prefix}_null()`), type: value.type }
-        if (value.type === 'pg_catalog."interval"')
-          throw new UnsupportedCheckRustExpression('Interval text input is not implemented')
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`${prefix}_from_text(${text})`), type: value.type }
       }
@@ -1318,13 +1342,14 @@ export function emitCheckRustEvaluator(
   const entry = emit(expression)
   let lines = entry.lines
   let resultName = entry.name
-  if (constantLines.length) {
+  if (constantLines.length || literalLines.length) {
     const start = fresh('preparation_start')
     resultName = fresh('prepared_result')
     lines = [
       ...constantDeclarations,
       `let ${start} = make_bool_value(true);`,
       `let mut ${preparationState}: CheckOutcome = check_from_bool(${start});`,
+      ...literalLines,
       ...constantLines,
       `let mut ${resultName}: CheckOutcome = ${preparationState};`,
       `if case_guard_stops(${preparationState}) == false {`,

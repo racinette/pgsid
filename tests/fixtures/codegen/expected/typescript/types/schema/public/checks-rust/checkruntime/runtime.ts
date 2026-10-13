@@ -3511,6 +3511,733 @@ export function timetzFromText(input: TextValue): TimetzValue {
     }
     return { kind: "Unknown" };
 }
+const intervalInputSyntax = 3452551;
+const intervalInputRange = 3452585;
+const intervalInputFinalRange = 3452552;
+interface IntervalInputToken {
+    start: number;
+    end: number;
+}
+function copyIntervalInputToken(value: IntervalInputToken): IntervalInputToken {
+    return { start: langruntime.checkedIndex(value.start), end: langruntime.checkedIndex(value.end) };
+}
+interface IntervalInputText {
+    chars: string[];
+}
+function copyIntervalInputText(value: IntervalInputText): IntervalInputText {
+    return { chars: langruntime.checkedChars(value.chars) };
+}
+function intervalTokenText(input: IntervalInputText, token: IntervalInputToken): string {
+    token = copyIntervalInputToken(token);
+    let index: number = token.start;
+    let text: string = "";
+    while (index < token.end) {
+        text = text + langruntime.checkedChar(langruntime.asciiLowercase(langruntime.indexChar(input.chars, langruntime.checkedIndex(index))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return text;
+}
+interface IntervalInputAcc {
+    years: number;
+    months: number;
+    days: number;
+    time: bigint;
+    mask: number;
+    error: number;
+}
+function copyIntervalInputAcc(value: IntervalInputAcc): IntervalInputAcc {
+    return { years: langruntime.checkedI32(value.years), months: langruntime.checkedI32(value.months), days: langruntime.checkedI32(value.days), time: langruntime.checkedI64(value.time), mask: langruntime.checkedI32(value.mask), error: langruntime.checkedIndex(value.error) };
+}
+function intervalInputFail(input: IntervalInputAcc, error: number): IntervalInputAcc {
+    input = copyIntervalInputAcc(input);
+    error = langruntime.checkedIndex(error);
+    return { years: input.years, months: input.months, days: input.days, time: input.time, mask: input.mask, error: error };
+}
+function intervalInputUnit(text: string): number {
+    text = langruntime.checkedString(text);
+    if (text === "microsecond" || text === "microseconds" || text === "us") {
+        return 0;
+    }
+    if (text === "millisecond" || text === "milliseconds" || text === "ms" || text === "msec" || text === "msecs") {
+        return 1;
+    }
+    if (text === "second" || text === "seconds" || text === "sec" || text === "secs" || text === "s") {
+        return 2;
+    }
+    if (text === "minute" || text === "minutes" || text === "min" || text === "mins" || text === "m") {
+        return 3;
+    }
+    if (text === "hour" || text === "hours" || text === "hr" || text === "hrs" || text === "h") {
+        return 4;
+    }
+    if (text === "day" || text === "days" || text === "d") {
+        return 5;
+    }
+    if (text === "week" || text === "weeks" || text === "w") {
+        return 6;
+    }
+    if (text === "month" || text === "months" || text === "mon" || text === "mons") {
+        return 7;
+    }
+    if (text === "year" || text === "years" || text === "y") {
+        return 8;
+    }
+    if (text === "decade" || text === "decades" || text === "dec" || text === "decs") {
+        return 9;
+    }
+    if (text === "century" || text === "centuries" || text === "cent" || text === "c") {
+        return 10;
+    }
+    if (text === "millennium" || text === "millennia" || text === "mil" || text === "mils") {
+        return 11;
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function intervalInputWhole(text: string): Int8Value {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let index: number = 0;
+    let negative: boolean = false;
+    if (index < chars.length && (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "+")) {
+        negative = langruntime.checkedBool(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-");
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const start: number = index;
+    let whole: bigint = 0n;
+    while (index < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
+        const digit: number = dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        if (whole < -922337203685477580n || (whole === -922337203685477580n && digit > 8)) {
+            return { kind: "Error", value: makeSqlError(intervalInputRange) };
+        }
+        whole = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.checkedI64Multiply(whole, 10n), (BigInt(langruntime.checkedI32(digit)))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const integerDigits: number = langruntime.checkedSubtract(index, start);
+    if (integerDigits === 0 && start > 0) {
+        return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+    }
+    let fractionDigits: number = 0;
+    if (index < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".") {
+        index = langruntime.checkedAdd(index, 1);
+        const fractionStart: number = index;
+        while (index < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        fractionDigits = langruntime.checkedIndex(langruntime.checkedSubtract(index, fractionStart));
+    }
+    if (!(index === chars.length) || langruntime.checkedAdd(integerDigits, fractionDigits) === 0) {
+        return { kind: "Unknown" };
+    }
+    if (negative) {
+        return { kind: "Value", value: whole };
+    }
+    if (whole === -9223372036854775808n) {
+        return { kind: "Error", value: makeSqlError(intervalInputRange) };
+    }
+    return { kind: "Value", value: langruntime.checkedI64Subtract(0n, whole) };
+}
+function intervalInputFraction(text: string): number {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    let index: number = 0;
+    while (index < chars.length && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".")) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let fraction: string = "0";
+    while (index < chars.length) {
+        fraction = fraction + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const parsed: number = langruntime.f64FromText(fraction, 0.0);
+    if (chars.length > 0 && langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "-") {
+        return langruntime.f64Subtract(0.0, parsed);
+    }
+    return parsed;
+}
+function intervalInputFractionMicros(fraction: number, scale: number): bigint {
+    fraction = langruntime.checkedF64(fraction);
+    scale = langruntime.checkedF64(scale);
+    const scaled: number = langruntime.f64Multiply(fraction, scale);
+    const high: number = langruntime.f64ToI32((langruntime.f64Divide(scaled, 1000000.0)));
+    const rest: number = langruntime.f64Subtract(scaled, langruntime.f64Multiply((Number(langruntime.checkedI32(high))), 1000000.0));
+    let low: number = langruntime.f64ToI32(rest);
+    const extra: number = langruntime.f64Subtract(rest, (Number(langruntime.checkedI32(low))));
+    if (extra > 0.5) {
+        low = langruntime.checkedI32(langruntime.checkedSignedAdd(low, 1));
+    }
+    if (extra < -0.5) {
+        low = langruntime.checkedI32(langruntime.checkedSignedSubtract(low, 1));
+    }
+    return langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(high))), 1000000n), (BigInt(langruntime.checkedI32(low))));
+}
+function intervalInputYearFraction(fraction: number, scale: number): number {
+    fraction = langruntime.checkedF64(fraction);
+    scale = langruntime.checkedF64(scale);
+    const scaled: number = langruntime.f64Multiply(langruntime.f64Multiply(fraction, scale), 12.0);
+    let whole: number = langruntime.f64ToI32(scaled);
+    const remainder: number = langruntime.f64Subtract(scaled, (Number(langruntime.checkedI32(whole))));
+    if (remainder > 0.5 || (remainder === 0.5 && !(langruntime.checkedSignedRemainder(whole, 2) === 0))) {
+        whole = langruntime.checkedI32(langruntime.checkedSignedAdd(whole, 1));
+    }
+    if (remainder < -0.5 || (remainder === -0.5 && !(langruntime.checkedSignedRemainder(whole, 2) === 0))) {
+        whole = langruntime.checkedI32(langruntime.checkedSignedSubtract(whole, 1));
+    }
+    return whole;
+}
+function intervalInputAdd(input: IntervalInputAcc, whole: bigint, fraction: number, unit: number): IntervalInputAcc {
+    input = copyIntervalInputAcc(input);
+    whole = langruntime.checkedI64(whole);
+    fraction = langruntime.checkedF64(fraction);
+    unit = langruntime.checkedI32(unit);
+    if (!(input.error === 0)) {
+        return input;
+    }
+    let bit: number = 1;
+    let index: number = 0;
+    while (index < unit) {
+        bit = langruntime.checkedI32(langruntime.checkedSignedMultiply(bit, 2));
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    let mask: number = bit;
+    if (unit === 2 && !(fraction === 0.0)) {
+        mask = langruntime.checkedI32(7);
+    }
+    let check: number = mask;
+    let stored: number = input.mask;
+    while (check > 0) {
+        if (!(langruntime.checkedSignedRemainder(check, 2) === 0) && !(langruntime.checkedSignedRemainder(stored, 2) === 0)) {
+            return intervalInputFail(input, intervalInputSyntax);
+        }
+        check = langruntime.checkedI32(langruntime.checkedSignedDivide(check, 2));
+        stored = langruntime.checkedI32(langruntime.checkedSignedDivide(stored, 2));
+    }
+    let years: bigint = BigInt(langruntime.checkedI32(input.years));
+    let months: bigint = BigInt(langruntime.checkedI32(input.months));
+    let days: bigint = BigInt(langruntime.checkedI32(input.days));
+    let micros: bigint = input.time;
+    let fractionalMicros: bigint = 0n;
+    if (unit <= 4) {
+        let scale: bigint = 1n;
+        let floatScale: number = 1.0;
+        if (unit === 1) {
+            scale = langruntime.checkedI64(1000n);
+            floatScale = langruntime.checkedF64(1000.0);
+        }
+        if (unit === 2) {
+            scale = langruntime.checkedI64(1000000n);
+            floatScale = langruntime.checkedF64(1000000.0);
+        }
+        if (unit === 3) {
+            scale = langruntime.checkedI64(60000000n);
+            floatScale = langruntime.checkedF64(60000000.0);
+        }
+        if (unit === 4) {
+            scale = langruntime.checkedI64(3600000000n);
+            floatScale = langruntime.checkedF64(3600000000.0);
+        }
+        if (whole > langruntime.checkedI64Divide(9223372036854775807n, scale) || whole < langruntime.checkedI64Divide((-9223372036854775808n), scale)) {
+            return intervalInputFail(input, intervalInputRange);
+        }
+        const product: bigint = langruntime.checkedI64Multiply(whole, scale);
+        if ((product > 0n && micros > langruntime.checkedI64Subtract(9223372036854775807n, product)) || (product < 0n && micros < langruntime.checkedI64Subtract((-9223372036854775808n), product))) {
+            return intervalInputFail(input, intervalInputRange);
+        }
+        micros = langruntime.checkedI64(langruntime.checkedI64Add(micros, product));
+        fractionalMicros = langruntime.checkedI64(intervalInputFractionMicros(fraction, floatScale));
+    }
+    else if (unit === 5 || unit === 6 || unit === 7) {
+        let scale: bigint = 1n;
+        if (unit === 6) {
+            scale = langruntime.checkedI64(7n);
+        }
+        if (whole > langruntime.checkedI64Divide(2147483647n, scale) || whole < langruntime.checkedI64Divide((-2147483648n), scale)) {
+            return intervalInputFail(input, intervalInputRange);
+        }
+        if (unit === 7) {
+            months = langruntime.checkedI64(langruntime.checkedI64Add(months, whole));
+            const scaled: number = langruntime.f64Multiply(fraction, 30.0);
+            const extraDays: number = langruntime.f64ToI32(scaled);
+            days = langruntime.checkedI64(langruntime.checkedI64Add(days, (BigInt(langruntime.checkedI32(extraDays)))));
+            fractionalMicros = langruntime.checkedI64(intervalInputFractionMicros(langruntime.f64Subtract(scaled, (Number(langruntime.checkedI32(extraDays)))), 86400000000.0));
+        }
+        else {
+            days = langruntime.checkedI64(langruntime.checkedI64Add(days, langruntime.checkedI64Multiply(whole, scale)));
+            let scaled: number = fraction;
+            if (unit === 6) {
+                scaled = langruntime.checkedF64(langruntime.f64Multiply(fraction, 7.0));
+            }
+            const extraDays: number = langruntime.f64ToI32(scaled);
+            days = langruntime.checkedI64(langruntime.checkedI64Add(days, (BigInt(langruntime.checkedI32(extraDays)))));
+            fractionalMicros = langruntime.checkedI64(intervalInputFractionMicros(langruntime.f64Subtract(scaled, (Number(langruntime.checkedI32(extraDays)))), 86400000000.0));
+        }
+    }
+    else {
+        let scale: bigint = 1n;
+        let floatScale: number = 1.0;
+        if (unit === 9) {
+            scale = langruntime.checkedI64(10n);
+            floatScale = langruntime.checkedF64(10.0);
+        }
+        if (unit === 10) {
+            scale = langruntime.checkedI64(100n);
+            floatScale = langruntime.checkedF64(100.0);
+        }
+        if (unit === 11) {
+            scale = langruntime.checkedI64(1000n);
+            floatScale = langruntime.checkedF64(1000.0);
+        }
+        if (whole > langruntime.checkedI64Divide(2147483647n, scale) || whole < langruntime.checkedI64Divide((-2147483648n), scale)) {
+            return intervalInputFail(input, intervalInputRange);
+        }
+        years = langruntime.checkedI64(langruntime.checkedI64Add(years, langruntime.checkedI64Multiply(whole, scale)));
+        months = langruntime.checkedI64(langruntime.checkedI64Add(months, (BigInt(langruntime.checkedI32(intervalInputYearFraction(fraction, floatScale))))));
+    }
+    if ((fractionalMicros > 0n && micros > langruntime.checkedI64Subtract(9223372036854775807n, fractionalMicros)) || (fractionalMicros < 0n && micros < langruntime.checkedI64Subtract((-9223372036854775808n), fractionalMicros))) {
+        return intervalInputFail(input, intervalInputRange);
+    }
+    micros = langruntime.checkedI64(langruntime.checkedI64Add(micros, fractionalMicros));
+    if (years < (-2147483648n) || years > 2147483647n || months < (-2147483648n) || months > 2147483647n || days < (-2147483648n) || days > 2147483647n) {
+        return intervalInputFail(input, intervalInputRange);
+    }
+    return { years: Number(BigInt.asIntN(32, langruntime.checkedI64(years))), months: Number(BigInt.asIntN(32, langruntime.checkedI64(months))), days: Number(BigInt.asIntN(32, langruntime.checkedI64(days))), time: micros, mask: langruntime.checkedSignedAdd(input.mask, mask), error: 0 };
+}
+function intervalUnitsFromText(input: TextValue): IntervalValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const buffer: IntervalInputText = { chars: Array.from(text) };
+        if (buffer.chars.length > 255) {
+            return { kind: "Unknown" };
+        }
+        let tokens: IntervalInputToken[] = [];
+        let tokenStart: number = 0;
+        let index: number = 0;
+        while (index < buffer.chars.length) {
+            if (dateTextSpace(langruntime.indexChar(buffer.chars, langruntime.checkedIndex(index)))) {
+                if (tokenStart < index) {
+                    langruntime.pushStruct(tokens, { start: tokenStart, end: index }, copyIntervalInputToken);
+                }
+                tokenStart = langruntime.checkedIndex(langruntime.checkedAdd(index, 1));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (tokenStart < index) {
+            langruntime.pushStruct(tokens, { start: tokenStart, end: index }, copyIntervalInputToken);
+        }
+        if (tokens.length === 0) {
+            return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+        }
+        const firstToken: string = intervalTokenText(buffer, langruntime.indexStruct(tokens, langruntime.checkedIndex(0), copyIntervalInputToken));
+        if (tokens.length === 1) {
+            if (firstToken === "infinity" || firstToken === "+infinity") {
+                return makeIntervalValue(2147483647, 2147483647, 9223372036854775807n);
+            }
+            if (firstToken === "-infinity") {
+                return makeIntervalValue(langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1), langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1), -9223372036854775808n);
+            }
+        }
+        let acc: IntervalInputAcc = copyIntervalInputAcc({ years: 0, months: 0, days: 0, time: 0n, mask: 0, error: 0 });
+        let end: number = tokens.length;
+        let ago: boolean = false;
+        const lastToken: string = intervalTokenText(buffer, langruntime.indexStruct(tokens, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)), copyIntervalInputToken));
+        if (lastToken === "ago") {
+            ago = langruntime.checkedBool(true);
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        let start: number = 0;
+        if (firstToken === "@") {
+            start = langruntime.checkedIndex(1);
+        }
+        let unit: number = langruntime.checkedSignedNegate(1);
+        let pending: boolean = false;
+        let implicitUnit: number = 2;
+        let numbers: number = 0;
+        let additionalSign: boolean = false;
+        while (end > start) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+            const token: string = intervalTokenText(buffer, langruntime.indexStruct(tokens, langruntime.checkedIndex(end), copyIntervalInputToken));
+            const tokenChars: string[] = Array.from(token);
+            let colon: boolean = false;
+            let position: number = 0;
+            while (position < tokenChars.length) {
+                if (langruntime.indexChar(tokenChars, langruntime.checkedIndex(position)) === ":") {
+                    colon = langruntime.checkedBool(true);
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+            const found: number = intervalInputUnit(token);
+            if (colon) {
+                if (pending) {
+                    return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+                }
+                acc = copyIntervalInputAcc(intervalInputClock(acc, token));
+                if (!(acc.error === 0)) {
+                    return { kind: "Error", value: makeSqlError(acc.error) };
+                }
+                numbers = langruntime.checkedI32(langruntime.checkedSignedAdd(numbers, 1));
+                if (end > start && tokenChars.length > 0 && (langruntime.indexChar(tokenChars, langruntime.checkedIndex(0)) === "-" || langruntime.indexChar(tokenChars, langruntime.checkedIndex(0)) === "+")) {
+                    additionalSign = langruntime.checkedBool(true);
+                }
+                implicitUnit = langruntime.checkedI32(5);
+            }
+            else if (found >= 0) {
+                if (pending) {
+                    return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+                }
+                unit = langruntime.checkedI32(found);
+                pending = langruntime.checkedBool(true);
+            }
+            else {
+                const whole: Int8Value = intervalInputWhole(token);
+                if (whole.kind === "Error") {
+                    const error: SqlError = whole.value;
+                    return { kind: "Error", value: error };
+                }
+                if (equalInt8Value(whole, { kind: "Unknown" })) {
+                    return { kind: "Unknown" };
+                }
+                if (whole.kind === "Value") {
+                    const number: bigint = langruntime.checkedI64(whole.value);
+                    const fraction: number = intervalInputFraction(token);
+                    if (unit < 0) {
+                        unit = langruntime.checkedI32(implicitUnit);
+                    }
+                    acc = copyIntervalInputAcc(intervalInputAdd(acc, number, fraction, unit));
+                    if (!(acc.error === 0)) {
+                        return { kind: "Error", value: makeSqlError(acc.error) };
+                    }
+                    implicitUnit = langruntime.checkedI32(unit);
+                    if (unit === 4) {
+                        implicitUnit = langruntime.checkedI32(5);
+                    }
+                    unit = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+                    pending = langruntime.checkedBool(false);
+                    numbers = langruntime.checkedI32(langruntime.checkedSignedAdd(numbers, 1));
+                    const numberChars: string[] = Array.from(token);
+                    if (end > start && numberChars.length > 0 && (langruntime.indexChar(numberChars, langruntime.checkedIndex(0)) === "-" || langruntime.indexChar(numberChars, langruntime.checkedIndex(0)) === "+")) {
+                        additionalSign = langruntime.checkedBool(true);
+                    }
+                }
+            }
+        }
+        if (pending || numbers === 0) {
+            return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+        }
+        const firstNumber: string = intervalTokenText(buffer, langruntime.indexStruct(tokens, langruntime.checkedIndex(start), copyIntervalInputToken));
+        const first: string[] = Array.from(firstNumber);
+        if (numbers > 1 && first.length > 0 && langruntime.indexChar(first, langruntime.checkedIndex(0)) === "-" && additionalSign === false) {
+            return { kind: "Unknown" };
+        }
+        const months: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(acc.years))), 12n), (BigInt(langruntime.checkedI32(acc.months))));
+        if (months < (-2147483648n) || months > 2147483647n) {
+            return { kind: "Error", value: makeSqlError(intervalInputFinalRange) };
+        }
+        if (ago) {
+            if (months === (-2147483648n) || acc.days === (langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) || acc.time === (-9223372036854775808n)) {
+                return { kind: "Error", value: makeSqlError(intervalInputRange) };
+            }
+            return makeIntervalValue(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Subtract(0n, months))))), langruntime.checkedSignedSubtract(0, acc.days), langruntime.checkedI64Subtract(0n, acc.time));
+        }
+        return makeIntervalValue(Number(BigInt.asIntN(32, langruntime.checkedI64(months))), acc.days, acc.time);
+    }
+    return { kind: "Unknown" };
+}
+function intervalClockErrorState(error: SqlError, fallback: number): number {
+    fallback = langruntime.checkedIndex(fallback);
+    if (fallback === intervalInputSyntax) {
+        return fallback;
+    }
+    return error.state;
+}
+function intervalInputClock(input: IntervalInputAcc, text: string): IntervalInputAcc {
+    input = copyIntervalInputAcc(input);
+    text = langruntime.checkedString(text);
+    const buffer: IntervalInputText = { chars: Array.from(text) };
+    let start: number = 0;
+    let negative: boolean = false;
+    let rangeError: number = intervalInputRange;
+    if (buffer.chars.length > 0 && (langruntime.indexChar(buffer.chars, langruntime.checkedIndex(0)) === "-" || langruntime.indexChar(buffer.chars, langruntime.checkedIndex(0)) === "+")) {
+        negative = langruntime.checkedBool(langruntime.indexChar(buffer.chars, langruntime.checkedIndex(0)) === "-");
+        start = langruntime.checkedIndex(1);
+        rangeError = langruntime.checkedIndex(intervalInputSyntax);
+    }
+    let fields: IntervalInputToken[] = [];
+    let index: number = start;
+    while (index < buffer.chars.length) {
+        if (langruntime.indexChar(buffer.chars, langruntime.checkedIndex(index)) === ":") {
+            langruntime.pushStruct(fields, { start: start, end: index }, copyIntervalInputToken);
+            start = langruntime.checkedIndex(langruntime.checkedAdd(index, 1));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    langruntime.pushStruct(fields, { start: start, end: index }, copyIntervalInputToken);
+    if (fields.length < 2 || fields.length > 3) {
+        return intervalInputFail(input, intervalInputSyntax);
+    }
+    const firstText: string = intervalTokenText(buffer, langruntime.indexStruct(fields, langruntime.checkedIndex(0), copyIntervalInputToken));
+    const secondText: string = intervalTokenText(buffer, langruntime.indexStruct(fields, langruntime.checkedIndex(1), copyIntervalInputToken));
+    const firstNumber: Int8Value = intervalInputWhole(firstText);
+    const secondNumber: Int8Value = intervalInputWhole(secondText);
+    if (firstNumber.kind === "Error") {
+        const error: SqlError = firstNumber.value;
+        return intervalInputFail(input, intervalClockErrorState(error, rangeError));
+    }
+    if (secondNumber.kind === "Error") {
+        const error: SqlError = secondNumber.value;
+        return intervalInputFail(input, intervalClockErrorState(error, rangeError));
+    }
+    if (equalInt8Value(firstNumber, { kind: "Unknown" }) || equalInt8Value(secondNumber, { kind: "Unknown" })) {
+        return intervalInputFail(input, intervalInputSyntax);
+    }
+    let hours: bigint = 0n;
+    let minutes: bigint = 0n;
+    let seconds: bigint = 0n;
+    if (firstNumber.kind === "Value") {
+        const number: bigint = langruntime.checkedI64(firstNumber.value);
+        hours = langruntime.checkedI64(number);
+    }
+    if (secondNumber.kind === "Value") {
+        const number: bigint = langruntime.checkedI64(secondNumber.value);
+        minutes = langruntime.checkedI64(number);
+    }
+    const firstChars: string[] = Array.from(firstText);
+    index = langruntime.checkedIndex(0);
+    while (index < firstChars.length) {
+        if (dateTextDigit(langruntime.indexChar(firstChars, langruntime.checkedIndex(index))) < 0) {
+            return intervalInputFail(input, intervalInputSyntax);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const secondChars: string[] = Array.from(secondText);
+    let fractionText: string = "0";
+    let secondPoint: boolean = false;
+    index = langruntime.checkedIndex(0);
+    while (index < secondChars.length) {
+        if (langruntime.indexChar(secondChars, langruntime.checkedIndex(index)) === ".") {
+            secondPoint = langruntime.checkedBool(true);
+        }
+        if (fields.length === 3 && dateTextDigit(langruntime.indexChar(secondChars, langruntime.checkedIndex(index))) < 0) {
+            return intervalInputFail(input, intervalInputSyntax);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (fields.length === 3) {
+        fractionText = langruntime.checkedString(intervalTokenText(buffer, langruntime.indexStruct(fields, langruntime.checkedIndex(2), copyIntervalInputToken)));
+        const lastNumber: Int8Value = intervalInputWhole(fractionText);
+        if (lastNumber.kind === "Error") {
+            const error: SqlError = lastNumber.value;
+            return intervalInputFail(input, intervalClockErrorState(error, rangeError));
+        }
+        if (equalInt8Value(lastNumber, { kind: "Unknown" })) {
+            return intervalInputFail(input, intervalInputSyntax);
+        }
+        if (lastNumber.kind === "Value") {
+            const number: bigint = langruntime.checkedI64(lastNumber.value);
+            seconds = langruntime.checkedI64(number);
+        }
+    }
+    else if (secondPoint) {
+        seconds = langruntime.checkedI64(minutes);
+        minutes = langruntime.checkedI64(hours);
+        hours = langruntime.checkedI64(0n);
+        fractionText = langruntime.checkedString(secondText);
+    }
+    if (hours < 0n || minutes < 0n || minutes > 59n || seconds < 0n || seconds > 60n || hours > langruntime.checkedI64Divide(9223372036854775807n, 3600000000n)) {
+        return intervalInputFail(input, rangeError);
+    }
+    const fraction: number = langruntime.f64Multiply(intervalInputFraction(fractionText), 1000000.0);
+    let rounded: number = langruntime.f64ToI32(fraction);
+    const extra: number = langruntime.f64Subtract(fraction, (Number(langruntime.checkedI32(rounded))));
+    if (extra > 0.5 || (extra === 0.5 && !(langruntime.checkedSignedRemainder(rounded, 2) === 0))) {
+        rounded = langruntime.checkedI32(langruntime.checkedSignedAdd(rounded, 1));
+    }
+    let micros: bigint = BigInt(langruntime.checkedI32(rounded));
+    const hoursMicroseconds: bigint = langruntime.checkedI64Multiply(hours, 3600000000n);
+    if (micros > langruntime.checkedI64Subtract(9223372036854775807n, hoursMicroseconds)) {
+        return intervalInputFail(input, rangeError);
+    }
+    micros = langruntime.checkedI64(langruntime.checkedI64Add(micros, hoursMicroseconds));
+    const minutesMicroseconds: bigint = langruntime.checkedI64Multiply(minutes, 60000000n);
+    if (micros > langruntime.checkedI64Subtract(9223372036854775807n, minutesMicroseconds)) {
+        return intervalInputFail(input, rangeError);
+    }
+    micros = langruntime.checkedI64(langruntime.checkedI64Add(micros, minutesMicroseconds));
+    const secondsMicroseconds: bigint = langruntime.checkedI64Multiply(seconds, 1000000n);
+    if (micros > langruntime.checkedI64Subtract(9223372036854775807n, secondsMicroseconds)) {
+        return intervalInputFail(input, rangeError);
+    }
+    micros = langruntime.checkedI64(langruntime.checkedI64Add(micros, secondsMicroseconds));
+    if (negative) {
+        micros = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, micros));
+    }
+    let bit: number = 1;
+    while (bit <= 16) {
+        if (!(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(input.mask, bit)), 2) === 0)) {
+            return intervalInputFail(input, intervalInputSyntax);
+        }
+        bit = langruntime.checkedI32(langruntime.checkedSignedMultiply(bit, 2));
+    }
+    return { years: input.years, months: input.months, days: input.days, time: micros, mask: langruntime.checkedSignedAdd(input.mask, 31), error: 0 };
+}
+function intervalInputIsoNumber(input: IntervalInputAcc, text: string, unit: number): IntervalInputAcc {
+    input = copyIntervalInputAcc(input);
+    text = langruntime.checkedString(text);
+    unit = langruntime.checkedI32(unit);
+    const value: number = langruntime.f64FromText(text, 1.0e16);
+    const infinity: number = langruntime.f64Divide(1.0, 0.0);
+    if (langruntime.f64Abs(value) === infinity) {
+        return intervalInputFail(input, intervalInputSyntax);
+    }
+    if (value < -1.0e15 || value > 1.0e15 || !(value === value)) {
+        return intervalInputFail(input, intervalInputRange);
+    }
+    const chars: string[] = Array.from(text);
+    let index: number = 0;
+    let nonzero: boolean = false;
+    while (index < chars.length && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "e") && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "E")) {
+        if (dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) > 0) {
+            nonzero = langruntime.checkedBool(true);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if ((value === 0.0 && nonzero) || (!(value === 0.0) && langruntime.f64Abs(value) < 2.2250738585072014e-308)) {
+        return intervalInputFail(input, intervalInputSyntax);
+    }
+    const high: number = langruntime.f64ToI32((langruntime.f64Divide(value, 1000000000.0)));
+    const rest: number = langruntime.f64Subtract(value, langruntime.f64Multiply((Number(langruntime.checkedI32(high))), 1000000000.0));
+    const low: number = langruntime.f64ToI32(rest);
+    const whole: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(high))), 1000000000n), (BigInt(langruntime.checkedI32(low))));
+    const fraction: number = langruntime.f64Subtract(rest, (Number(langruntime.checkedI32(low))));
+    const clean: IntervalInputAcc = copyIntervalInputAcc({ years: input.years, months: input.months, days: input.days, time: input.time, mask: 0, error: input.error });
+    return intervalInputAdd(clean, whole, fraction, unit);
+}
+function intervalInputIso(text: string): IntervalValue {
+    text = langruntime.checkedString(text);
+    const chars: string[] = Array.from(text);
+    if (chars.length < 2 || !(langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "P")) {
+        return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+    }
+    let acc: IntervalInputAcc = copyIntervalInputAcc({ years: 0, months: 0, days: 0, time: 0n, mask: 0, error: 0 });
+    let datepart: boolean = true;
+    let index: number = 1;
+    while (index < chars.length) {
+        if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "T") {
+            datepart = langruntime.checkedBool(false);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else {
+            let number: string = "";
+            if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-") {
+                number = number + langruntime.checkedChar("-");
+                index = langruntime.checkedAdd(index, 1);
+            }
+            let digits: number = 0;
+            while (index < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
+                number = number + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                index = langruntime.checkedAdd(index, 1);
+                digits = langruntime.checkedAdd(digits, 1);
+            }
+            if (index < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".") {
+                number = number + langruntime.checkedChar(".");
+                index = langruntime.checkedAdd(index, 1);
+                while (index < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
+                    number = number + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                    index = langruntime.checkedAdd(index, 1);
+                    digits = langruntime.checkedAdd(digits, 1);
+                }
+            }
+            if (digits === 0) {
+                return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+            }
+            if (index < chars.length && (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "e" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "E")) {
+                number = number + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                index = langruntime.checkedAdd(index, 1);
+                if (index < chars.length && (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "+")) {
+                    number = number + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                const start: number = index;
+                while (index < chars.length && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
+                    number = number + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                if (index === start) {
+                    return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+                }
+            }
+            if (index === chars.length) {
+                return { kind: "Unknown" };
+            }
+            const designator: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+            index = langruntime.checkedAdd(index, 1);
+            let unit: number = langruntime.checkedSignedNegate(1);
+            if (datepart) {
+                if (designator === "Y") {
+                    unit = langruntime.checkedI32(8);
+                }
+                if (designator === "M") {
+                    unit = langruntime.checkedI32(7);
+                }
+                if (designator === "W") {
+                    unit = langruntime.checkedI32(6);
+                }
+                if (designator === "D") {
+                    unit = langruntime.checkedI32(5);
+                }
+            }
+            else {
+                if (designator === "H") {
+                    unit = langruntime.checkedI32(4);
+                }
+                if (designator === "M") {
+                    unit = langruntime.checkedI32(3);
+                }
+                if (designator === "S") {
+                    unit = langruntime.checkedI32(2);
+                }
+            }
+            if (unit < 0) {
+                if (designator === "-" || designator === ":" || designator === "T" || designator === "x" || designator === "X") {
+                    return { kind: "Unknown" };
+                }
+                return { kind: "Error", value: makeSqlError(intervalInputSyntax) };
+            }
+            acc = copyIntervalInputAcc(intervalInputIsoNumber(acc, number, unit));
+            if (!(acc.error === 0)) {
+                return { kind: "Error", value: makeSqlError(acc.error) };
+            }
+        }
+    }
+    const months: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(acc.years))), 12n), (BigInt(langruntime.checkedI32(acc.months))));
+    if (months < (-2147483648n) || months > 2147483647n) {
+        return { kind: "Error", value: makeSqlError(intervalInputFinalRange) };
+    }
+    return makeIntervalValue(Number(BigInt.asIntN(32, langruntime.checkedI64(months))), acc.days, acc.time);
+}
+export function intervalFromText(input: TextValue): IntervalValue {
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        let start: number = 0;
+        while (start < chars.length && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
+            start = langruntime.checkedAdd(start, 1);
+        }
+        if (start < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "P") {
+            if (chars.length > 255) {
+                return { kind: "Unknown" };
+            }
+            return intervalInputIso(text);
+        }
+        return intervalUnitsFromText({ kind: "Value", value: text });
+    }
+    return intervalUnitsFromText(input);
+}
 export function andStops(left: CheckOutcome): boolean {
     if (equalCheckOutcome(left, { kind: "False" })) {
         return true;

@@ -18,7 +18,21 @@ import {
   unimplementedClockGrammarForms,
 } from '../../tests/sql-semantics/check-time-input-forms.js'
 
+import {
+  intervalInputForms,
+  deferredIntervalContextForms,
+  unimplementedIntervalGrammarForms,
+} from '../../tests/sql-semantics/check-interval-input-forms.js'
+
 const inputForms = [
+  {
+    type: 'pg_catalog."interval"',
+    suite: 'tests/sql-semantics/check-interval-input.test.ts',
+    handled: intervalInputForms,
+    deferred: [...deferredIntervalContextForms, ...unimplementedIntervalGrammarForms],
+    contextRequired: deferredIntervalContextForms,
+    unimplementedGrammar: unimplementedIntervalGrammarForms,
+  },
   ...(['time', 'timetz'] as const).map((family) => ({
     type: family === 'time' ? 'pg_catalog."time"' : 'pg_catalog.timetz',
     suite: 'tests/sql-semantics/check-time-input.test.ts',

@@ -1,5 +1,6 @@
 -- @world checks
 CREATE DOMAIN daily_clock AS time CHECK (VALUE BETWEEN TIME '00:00' AND TIME '24:00');
+CREATE DOMAIN nonnegative_duration AS interval CHECK (VALUE >= INTERVAL '0');
 
 CREATE TABLE shift_templates (
   id integer PRIMARY KEY,
@@ -15,7 +16,7 @@ CREATE TABLE service_windows (
   id integer PRIMARY KEY,
   template_id integer NOT NULL REFERENCES shift_templates (id),
   minimum_duration interval,
-  planned_duration interval NOT NULL,
+  planned_duration nonnegative_duration NOT NULL,
   maximum_duration interval,
   CONSTRAINT service_duration_bounds CHECK (planned_duration BETWEEN minimum_duration AND maximum_duration),
   CONSTRAINT service_duration_span CHECK (maximum_duration - minimum_duration >= planned_duration - planned_duration)
@@ -31,4 +32,13 @@ CREATE TABLE zoned_dispatches (
   skip_adjustment boolean NOT NULL,
   CONSTRAINT dispatch_local_clock CHECK (local_departure = zoned_departure::time),
   CONSTRAINT dispatch_adjustment CHECK (CASE WHEN skip_adjustment THEN true ELSE zoned_departure + adjustment IS NOT DISTINCT FROM adjusted_departure END)
+);
+
+CREATE TABLE duration_imports (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  raw_duration text,
+  expected_duration interval,
+  skip_import boolean NOT NULL,
+  CONSTRAINT duration_import_match CHECK (CASE WHEN skip_import THEN true ELSE raw_duration::interval IS NOT DISTINCT FROM expected_duration END)
 );
