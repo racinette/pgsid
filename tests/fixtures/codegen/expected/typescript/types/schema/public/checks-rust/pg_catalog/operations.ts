@@ -6328,6 +6328,29 @@ export function float8FromText(input: checkruntime.TextValue): checkruntime.Floa
     }
     return { kind: "Unknown" };
 }
+const floatSqrtArgument = 3452595;
+export function dsqrt5pmk(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (number < 0.0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatSqrtArgument) };
+        }
+        const result: number = langruntime.f64Sqrt(number);
+        const infinity: number = langruntime.f64Divide(1.0, 0.0);
+        if (langruntime.f64Abs(result) === infinity && !(langruntime.f64Abs(number) === infinity)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        if (result === 0.0 && !(number === 0.0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+        }
+        return checkruntime.makeFloat8Value(result);
+    }
+    return input;
+}
+export function sqrtL707(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    return dsqrt5pmk(input);
+}
 function floatNumericDecimal(input: checkruntime.Float8Value, precision: number): checkruntime.NumericValue {
     precision = langruntime.checkedIndex(precision);
     if (input.kind === "Error") {
@@ -13627,6 +13650,87 @@ function numericWorkRound(work: NumericWork, requested: number, mode: number): c
         return { kind: "Error", value: checkruntime.makeSqlError(numericSupportRangeError) };
     }
     return { kind: "Value", value: numericWorkText(rounded) };
+}
+function pointSameValue(left: checkruntime.PointPayload, right: checkruntime.PointPayload): boolean {
+    const x: number = checkruntime.float8Number(left.x);
+    const y: number = checkruntime.float8Number(left.y);
+    const otherX: number = checkruntime.float8Number(right.x);
+    const otherY: number = checkruntime.float8Number(right.y);
+    if (!(x === x) || !(y === y) || !(otherX === otherX) || !(otherY === otherY)) {
+        return (x === otherX || (!(x === x) && !(otherX === otherX))) && (y === otherY || (!(y === y) && !(otherY === otherY)));
+    }
+    return (x === otherX || langruntime.f64Abs((langruntime.f64Subtract(x, otherX))) <= 0.000001) && (y === otherY || langruntime.f64Abs((langruntime.f64Subtract(y, otherY))) <= 0.000001);
+}
+function pointSame(left: checkruntime.PointValue, right: checkruntime.PointValue, negate: boolean): checkruntime.BoolValue {
+    negate = langruntime.checkedBool(negate);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(left, { kind: "Unknown" }) || checkruntime.equalPointValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(left, { kind: "Null" }) || checkruntime.equalPointValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PointPayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.PointPayload = right.value;
+            return checkruntime.makeBoolValue(!(pointSameValue(a, b) === negate));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function pointEq5be0(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.BoolValue {
+    return pointSame(left, right, false);
+}
+export function pointNeJppg(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.BoolValue {
+    return pointSame(left, right, true);
+}
+export function pointDb27(x: checkruntime.Float8Value, y: checkruntime.Float8Value): checkruntime.PointValue {
+    if (x.kind === "Error") {
+        const error: checkruntime.SqlError = x.value;
+        return { kind: "Error", value: error };
+    }
+    if (y.kind === "Error") {
+        const error: checkruntime.SqlError = y.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(x, { kind: "Unknown" }) || checkruntime.equalFloat8Value(y, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(x, { kind: "Null" }) || checkruntime.equalFloat8Value(y, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (x.kind === "Value") {
+        const xBits: bigint = langruntime.checkedI64(x.value);
+        if (y.kind === "Value") {
+            const yBits: bigint = langruntime.checkedI64(y.value);
+            return checkruntime.makePointBits(xBits, yBits);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function pointSendKuoa(input: checkruntime.PointValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const point: checkruntime.PointPayload = input.value;
+        const x: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: point.x }, 8);
+        const y: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: point.y }, 8);
+        return byteacatZitv(x, y);
+    }
+    return { kind: "Unknown" };
 }
 export function int24eqCfkl(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);

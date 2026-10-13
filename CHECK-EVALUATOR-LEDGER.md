@@ -181,6 +181,9 @@ exposes a prerequisite:
       legacy timestamp field extraction, and the measured session-timezone
       requirement for instant calendar age.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
+- [x] Establish point payloads, SQL-coerced public inputs, construction,
+      geometric equality, binary output and composition; establish the scalar
+      square-root primitive and classify geometric text rendering requirements.
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.

@@ -160,6 +160,14 @@ import them. Keep schema-only helpers with their callables.
   contract. Public float4 numbers must already be single-precision values;
   raw parameters requiring assignment rounding defer. Bit carriers preserve
   all payloads. Run the float suites and sensor measurement INSERT world.
+- Point coordinates retain IEEE bits in immutable signed bigint carriers.
+  SQL-coerced public inputs use checked payload wrappers; malformed inputs defer.
+  Construction and binary output preserve coordinate bits. Geometric equality
+  uses coordinate tolerances, except that a NaN coordinate selects exact SQL
+  floating equality for both coordinates. Typed NULLs, domains, CASE and
+  COALESCE share the point wrapper. Text input remains a separate parser boundary;
+  geometric text output requires explicit floating rendering settings.
+  Run the point foundation suite and survey position INSERT world.
 - Numeric payloads own exact decimal strings in `NumericValue`; targets use
   strings or readonly wrappers for already-coerced SQL values. Reject floating
   point inputs; malformed or unsupported representations defer. Rust validates

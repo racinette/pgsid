@@ -64,6 +64,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("Float8Value") => {
             Ok("Float8Value")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("PointValue") => {
+            Ok("PointValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("UuidValue") => {
             Ok("UuidValue")
         }
@@ -382,6 +385,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "NetworkValue"
                     | "Float4Value"
                     | "Float8Value"
+                    | "PointValue"
                     | "UuidValue"
                     | "MacaddrValue"
                     | "Macaddr8Value"
@@ -598,6 +602,24 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_point_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: PointValue, right: PointValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in [
+            "PointPayload",
+            "f64",
+            "i64",
+            "PointValue<i64>",
+            "&PointValue",
+        ] {
+            assert!(
+                check_source(&source.replace("left: PointValue", &format!("left: {ty}"))).is_err()
+            );
+        }
+        assert!(check_source(&source.replace("left: PointValue", "mut left: PointValue")).is_err());
+    }
+
+    #[test]
     fn accepts_clock_and_interval_values_without_payload_parameters() {
         for ty in ["TimeValue", "TimetzValue", "IntervalValue"] {
             let source = format!("pub fn evaluate_check(input: {ty}) -> CheckOutcome {{ let result = compare(input, input); check_from_bool(result) }}");
@@ -619,6 +641,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("Int8Value", "int8_unknown"),
             ("Float4Value", "float4_unknown"),
             ("Float8Value", "float8_unknown"),
+            ("PointValue", "point_unknown"),
             ("EnumValue", "enum_unknown"),
             ("TimeValue", "time_unknown"),
             ("TimetzValue", "timetz_unknown"),

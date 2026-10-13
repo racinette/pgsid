@@ -103,7 +103,12 @@ function camelCase(name: string): string {
   return result[0]!.toLowerCase() + result.slice(1)
 }
 
-const f64Methods: Record<string, string> = { abs: 'f64Abs', ln: 'f64Ln', log10: 'f64Log10' }
+const f64Methods: Record<string, string> = {
+  abs: 'f64Abs',
+  ln: 'f64Ln',
+  log10: 'f64Log10',
+  sqrt: 'f64Sqrt',
+}
 const f = ts.factory
 const identifier = (name: string): ts.Identifier => f.createIdentifier(name)
 const call = (name: string, ...args: ts.Expression[]): ts.Expression =>
@@ -341,7 +346,7 @@ class Transpiler {
       case 'struct-literal':
         return value.path.join('::')
       case 'method-call':
-        if (['abs', 'ln', 'log10'].includes(value.method)) return 'f64'
+        if (['abs', 'ln', 'log10', 'sqrt'].includes(value.method)) return 'f64'
         if (value.method === 'clone') return this.infer(value.receiver, locals)
         if (value.method === 'to_owned') return 'String'
         if (value.method === 'as_str') return '&str'
@@ -555,7 +560,7 @@ class Transpiler {
         return call(element === 'usize' ? 'indexNumber' : 'indexChar', values, index)
       }
       case 'method-call':
-        if (['abs', 'ln', 'log10'].includes(value.method) && value.arguments.length === 0)
+        if (['abs', 'ln', 'log10', 'sqrt'].includes(value.method) && value.arguments.length === 0)
           return call(f64Methods[value.method]!, this.expression(value.receiver, locals))
         if (value.method === 'clone')
           return this.detach(

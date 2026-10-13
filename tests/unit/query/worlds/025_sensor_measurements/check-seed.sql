@@ -42,3 +42,37 @@ INSERT INTO reading_imports (id, sensor_id, raw_reading, expected_reading, skip_
 INSERT INTO reading_imports (id, sensor_id, raw_reading, expected_reading, skip_import) VALUES (2, 1, 'invalid', 0, true);
 -- name: reading_import_null
 INSERT INTO reading_imports (id, sensor_id, raw_reading, expected_reading, skip_import) VALUES (2, 1, NULL, NULL, false);
+
+-- name: magnitude_square_root
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,9,3,'\x4008000000000000',false);
+-- name: magnitude_wrong_value
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,9,4,'\x4008000000000000',false);
+-- name: magnitude_wrong_wire
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,9,3,'\x4010000000000000',false);
+-- name: magnitude_negative_zero
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,'-0','-0','\x8000000000000000',false);
+-- name: magnitude_fractional_root
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,0.25,0.5,'\x3fe0000000000000',false);
+-- name: magnitude_infinite_root
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,'Infinity','Infinity','\x7ff0000000000000',false);
+-- name: magnitude_nan_root
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,'NaN','NaN','\x7ff8000000000000',false);
+-- name: magnitude_null_root
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,NULL,NULL,NULL,false);
+-- name: magnitude_wrong_null_root
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,NULL,1,NULL,false);
+-- name: magnitude_negative_argument
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,-1,NULL,NULL,false);
+-- name: magnitude_lazy_negative_argument
+INSERT INTO calibrated_magnitudes (id,sensor_id,squared_value,recorded_magnitude,recorded_wire,skip_validation)
+VALUES (2,1,-1,NULL,NULL,true);

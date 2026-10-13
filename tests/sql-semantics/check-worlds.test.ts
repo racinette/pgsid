@@ -18,6 +18,7 @@ import {
   catalogTemporalType,
   catalogNumericType,
   catalogFloatType,
+  catalogPointType,
 } from '../../src/sql-semantics/catalog-check-binder.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
@@ -318,6 +319,13 @@ describe('world CHECK INSERT parity', () => {
       const timeColumns = clockColumns('pg_catalog."time"')
       const timetzColumns = clockColumns('pg_catalog.timetz')
       const intervalColumns = clockColumns('pg_catalog."interval"')
+      const pointColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogPointType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const portableRow = { ...row }
       const goRow = { ...row }
       for (const [family, names] of [
@@ -349,6 +357,18 @@ describe('world CHECK INSERT parity', () => {
           portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
           goRow[name] = payload
         }
+      }
+      for (const name of pointColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(point_send(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload =
+          bytes === null ? null : { x: bytes.readBigInt64BE(), y: bytes.readBigInt64BE(8) }
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
       }
       for (const name of floatColumns) {
         const column = table.columns.find((column) => column.name === name)!
@@ -418,6 +438,7 @@ describe('world CHECK INSERT parity', () => {
         row: goRow,
         numericColumns,
         floatColumns,
+        pointColumns,
         timeColumns,
         timetzColumns,
         intervalColumns,
@@ -441,11 +462,68 @@ describe('world CHECK INSERT parity', () => {
     }).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
-  }, 360_000)
+  }, 600_000)
 
   afterAll(async () => {
     if (pg && !pg.closed) await pg.close()
     if (directory) await rm(directory, { recursive: true, force: true })
+  })
+
+  it('defers malformed and oversized portable point payloads without throwing', () => {
+    const table = catalog.tables.find(
+      (table) => table.schema === 'world_027_survey_positions' && table.name === 'survey_matches',
+    )!
+    const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
+    const valid = { kind: 'Value', value: { x: 0n, y: 0n } }
+    const baseline = {
+      candidate_point: valid,
+      reference_point: valid,
+      recorded_match: true,
+      choose_candidate: true,
+      recorded_selection: new Uint8Array(16),
+      recorded_coalesced: new Uint8Array(16),
+      skip_validation: false,
+    }
+    for (const candidate of [
+      undefined,
+      '(0,0)',
+      {},
+      { kind: 'Invalid' },
+      { kind: 'Value', value: null },
+      { kind: 'Value', value: { x: 0, y: 0 } },
+      { kind: 'Value', value: { x: 0n } },
+      { kind: 'Value', value: { x: 0n, y: 0 } },
+      { kind: 'Value', value: { x: 9223372036854775808n, y: 0n } },
+      { kind: 'Value', value: { x: -9223372036854775809n, y: 0n } },
+      { kind: 'Value', value: { x: 0n, y: 9223372036854775808n } },
+      { kind: 'Value', value: { x: 0n, y: -9223372036854775809n } },
+    ]) {
+      const results = evaluate({ ...baseline, candidate_point: candidate })
+      expect(results).toHaveLength(3)
+      for (const result of results) {
+        expect(result.result.certain, result.constraint).toBe(false)
+        expect(result.message, result.constraint).toBeTruthy()
+      }
+    }
+    const missing: Record<string, unknown> = { ...baseline }
+    delete missing.candidate_point
+    expect(evaluate(missing).every(({ result }) => !result.certain)).toBe(true)
+    expect(normalized(evaluate(baseline)).map(({ result }) => result)).toEqual([
+      { certain: true, value: true },
+      { certain: true, value: true },
+      { certain: true, value: true },
+    ])
+    const nullResults = Object.fromEntries(
+      normalized(evaluate({ ...baseline, candidate_point: null })).map(({ constraint, result }) => [
+        constraint,
+        result,
+      ]),
+    )
+    expect(nullResults).toEqual({
+      survey_coalesced: { certain: true, value: true },
+      survey_same_position: { certain: true, value: null },
+      survey_selection: { certain: true, value: null },
+    })
   })
 
   it.each(cases)('$name', async (item) => {
@@ -707,6 +785,32 @@ describe('world CHECK INSERT parity', () => {
     ] as const) {
       for (const name of names) {
         const identity = `world_026_shift_schedules.${table}.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.unknown, identity).toBe(0)
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+      }
+    }
+    for (const [world, table, names] of [
+      [
+        '025_sensor_measurements',
+        'calibrated_magnitudes',
+        ['calibrated_magnitude_value', 'calibrated_magnitude_wire'],
+      ],
+      ['027_survey_positions', 'survey_locations', ['location_wire', 'location_presence']],
+      [
+        '027_survey_positions',
+        'coordinate_constructions',
+        ['construction_position', 'construction_wire'],
+      ],
+      [
+        '027_survey_positions',
+        'survey_matches',
+        ['survey_same_position', 'survey_selection', 'survey_coalesced'],
+      ],
+    ] as const) {
+      for (const name of names) {
+        const identity = `world_${world}.${table}.${name}`
         const measured = coverage.get(identity)!
         expect(measured.unknown, identity).toBe(0)
         expect(measured.true, identity).toBeGreaterThan(0)

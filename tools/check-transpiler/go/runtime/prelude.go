@@ -246,6 +246,7 @@ func f64Subtract(left float64, right float64) float64 { return float64(left - ri
 func f64Multiply(left float64, right float64) float64 { return float64(left * right) }
 func f64Divide(left float64, right float64) float64   { return float64(left / right) }
 func f64Abs(value float64) float64                    { return math.Abs(value) }
+func f64Sqrt(value float64) float64                   { return math.Sqrt(value) }
 func f64Ln(value float64) float64                     { return math.Log(value) }
 func f64Log10(value float64) float64                  { return math.Log10(value) }
 func f64ToI32(value float64) int {

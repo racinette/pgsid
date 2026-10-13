@@ -1256,6 +1256,57 @@ func IntervalFromCaseGuard(input CheckOutcome) IntervalValue {
 	return IntervalValue{Kind: IntervalValueUnknown}
 }
 
+type PointPayload struct {
+	X int64
+	Y int64
+}
+type PointValueKind uint8
+
+const (
+	PointValueUnknown PointValueKind = iota
+	PointValueNull
+	PointValueValue
+	PointValueError
+)
+
+type PointValue struct {
+	Kind  PointValueKind
+	Value PointPayload
+	Error SqlError
+}
+
+func PointUnknown() PointValue {
+	return PointValue{Kind: PointValueUnknown}
+}
+func PointNull() PointValue {
+	return PointValue{Kind: PointValueNull}
+}
+func MakePointBits(x int64, y int64) PointValue {
+	return PointValue{Kind: PointValueValue, Value: PointPayload{X: x, Y: y}}
+}
+func MakePointValue(x float64, y float64) PointValue {
+	xBits := langruntime.F64ToI64Bits(x)
+	yBits := langruntime.F64ToI64Bits(y)
+	return MakePointBits(xBits, yBits)
+}
+func PointIsNull(input PointValue) BoolValue {
+	if input.Kind == PointValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (PointValue{Kind: PointValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (PointValue{Kind: PointValueNull}))
+}
+func PointFromCaseGuard(input CheckOutcome) PointValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return PointValue{Kind: PointValueError, Error: error}
+	}
+	return PointValue{Kind: PointValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

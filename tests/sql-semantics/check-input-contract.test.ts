@@ -26,6 +26,7 @@ describe('SQL-coerced CHECK inputs and raw query parameters', () => {
       CREATE DOMAIN exact_amount AS numeric;
       CREATE DOMAIN single_reading AS real;
       CREATE DOMAIN nested_reading AS single_reading;
+      CREATE DOMAIN parameter_point AS point;
       CREATE TABLE parameter_coercions (
         amount numeric(6,2) CHECK (amount < 1.233),
         domain_amount nested_amount CHECK (domain_amount < 1.233),
@@ -41,7 +42,9 @@ describe('SQL-coerced CHECK inputs and raw query parameters', () => {
         plain_label text CHECK (plain_label <> ''),
         single_value real CHECK (single_value < 2),
         domain_single nested_reading CHECK (domain_single < 2),
-        double_value float8 CHECK (double_value < 2))`)
+        double_value float8 CHECK (double_value < 2),
+        point_value point,
+        domain_point parameter_point)`)
     catalog = await snapshotCatalog(pg)
   })
   afterAll(async () => {
@@ -91,6 +94,11 @@ describe('SQL-coerced CHECK inputs and raw query parameters', () => {
     expect(await inputs('plain_domain', 'public.exact_amount')).toEqual([
       { name: 'plain_domain', parameter: 1 },
     ])
+  })
+
+  it('keeps raw point parameters outside portable payload prevalidation', async () => {
+    expect(await inputs('point_value', 'point')).toEqual([])
+    expect(await inputs('domain_point', 'public.parameter_point')).toEqual([])
   })
 
   it('requires domain modifier metadata before treating numeric parameters as SQL-coerced', async () => {

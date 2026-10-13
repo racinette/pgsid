@@ -30,3 +30,14 @@ CREATE TABLE reading_imports (
   skip_import boolean,
   CONSTRAINT reading_import_match CHECK (CASE WHEN skip_import THEN true ELSE raw_reading::real IS NOT DISTINCT FROM expected_reading END)
 );
+
+CREATE TABLE calibrated_magnitudes (
+  id integer PRIMARY KEY,
+  sensor_id integer NOT NULL REFERENCES sensor_limits (id),
+  squared_value double precision,
+  recorded_magnitude double precision,
+  recorded_wire bytea,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT calibrated_magnitude_value CHECK (CASE WHEN skip_validation THEN true ELSE sqrt(squared_value) IS NOT DISTINCT FROM recorded_magnitude END),
+  CONSTRAINT calibrated_magnitude_wire CHECK (CASE WHEN skip_validation THEN true ELSE float8send(dsqrt(squared_value)) = recorded_wire END)
+);

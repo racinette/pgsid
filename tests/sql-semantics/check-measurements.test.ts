@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
 import type { BuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
-import { builtinMetadata } from '../../src/postgres/builtins/inventory.js'
+import { builtinMetadata, builtinTypeIO } from '../../src/postgres/builtins/inventory.js'
 import { callableBoundary, verifyCatalog } from '../../scripts/check-measurements/catalog.js'
 import {
   bindProbe,
@@ -122,6 +122,39 @@ describe('CHECK measurement boundaries', () => {
     expect(wires).toEqual(['00000000000000000000000100000000', '00000000d693a4000000000100000000'])
   })
 
+  it('records geometric text output as requiring floating-point rendering context', async () => {
+    const samples = [
+      ['point', '(1.2345678901234567,2)'],
+      ['line', '{1.2345678901234567,1,0}'],
+      ['lseg', '[(1.2345678901234567,2),(3,4)]'],
+      ['box', '(1.2345678901234567,2),(3,4)'],
+      ['circle', '<(1.2345678901234567,2),3>'],
+      ['path', '[(1.2345678901234567,2),(3,4)]'],
+      ['polygon', '((1.2345678901234567,2),(3,4),(5,6))'],
+    ] as const
+    const represented = new Set(samples.map(([type]) => 'pg_catalog.' + type))
+    try {
+      for (const [type, input] of samples) {
+        const output = builtinMetadata(builtinTypeIO('pg_catalog.' + type)!.output!)
+        expect(output.volatility, type).toBe('i')
+        expect(callableBoundary(output, represented).categories, type).toContain(
+          'session-setting:extra_float_digits',
+        )
+        const results = []
+        for (const setting of ['0', '3']) {
+          await pg.query("SELECT set_config('extra_float_digits', $1, false)", [setting])
+          results.push(
+            (await pg.query<{ value: string }>(`SELECT ($1::${type})::text value`, [input]))
+              .rows[0]!.value,
+          )
+        }
+        expect(results[0], type).not.toBe(results[1])
+      }
+    } finally {
+      await pg.exec('RESET extra_float_digits')
+    }
+  })
+
   it('does not mistake nullness support or preparation of Unknown for a value representation', () => {
     const nullness = bindProbe('value IS NULL', [
       { name: 'value', typeName: 'jsonb', isRowType: false },
@@ -132,6 +165,7 @@ describe('CHECK measurement boundaries', () => {
     expect(valueRepresentation('double precision').represented).toBe(true)
     expect(valueRepresentation('real').represented).toBe(true)
     expect(valueRepresentation('integer').represented).toBe(true)
+    expect(valueRepresentation('point').represented).toBe(true)
     for (const type of ['time', 'timetz', 'interval'])
       expect(valueRepresentation(type).represented).toBe(true)
     const unknown = inspectExpression({ kind: 'uncertain' })

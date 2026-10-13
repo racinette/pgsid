@@ -96,6 +96,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     decimal: 'pg_catalog."numeric"',
     inet: 'pg_catalog.inet',
     cidr: 'pg_catalog.cidr',
+    point: 'pg_catalog.point',
     uuid: 'pg_catalog.uuid',
     macaddr: 'pg_catalog.macaddr',
     macaddr8: 'pg_catalog.macaddr8',
@@ -155,6 +156,14 @@ function catalogBaseScalarType(
     oid = domain.baseTypeOid
   }
   return catalogScalarType(name)
+}
+
+export function catalogPointType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.point'
 }
 
 export function catalogNumericType(
@@ -227,6 +236,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'bit', type, value: literal.value }
   if ((type === 'pg_catalog.float4' || type === 'pg_catalog.float8') && literal.kind === 'null')
     return { kind: 'float', type, bits: null }
+  if (type === 'pg_catalog.point' && literal.kind === 'null')
+    return { kind: 'point', type, value: null }
   if (type === 'pg_catalog.uuid' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'uuid', type, value: literal.value }
   if (type === 'pg_catalog.bytea') {
@@ -2095,6 +2106,7 @@ export function bindCatalogCheck(
       const column = names?.length === 1 ? columns.find((item) => item.name === names[0]) : null
       if (
         column?.isRowType === false &&
+        !catalogPointType(column.typeName, column.typeOid, domains) &&
         (!catalogScalarType(column.typeName) ||
           catalogTemporalType(column.typeName, column.typeOid, domains) !== null)
       ) {

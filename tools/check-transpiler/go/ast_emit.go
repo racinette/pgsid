@@ -347,6 +347,8 @@ func (g *generator) goExpression(value *node) ast.Expr {
 			return goCall("f64Ln", g.goExpression(value.Receiver))
 		case value.Method == "log10" && len(value.Arguments) == 0:
 			return goCall("f64Log10", g.goExpression(value.Receiver))
+		case value.Method == "sqrt" && len(value.Arguments) == 0:
+			return goCall("f64Sqrt", g.goExpression(value.Receiver))
 		case value.Method == "clone":
 			return g.goDetach(g.goExpression(value.Receiver), g.inferType(value.Receiver))
 		case value.Method == "to_owned" || value.Method == "as_str":

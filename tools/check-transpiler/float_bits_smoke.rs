@@ -32,3 +32,9 @@ pub fn widened_single_bits(bits: i32) -> i64 {
     let value = f32::from_bits(bits as u32) as f64;
     value.to_bits() as i64
 }
+
+pub fn double_sqrt_bits(bits: i64) -> i64 {
+    let value = f64::from_bits(bits as u64);
+    let root = value.sqrt();
+    root.to_bits() as i64
+}

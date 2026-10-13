@@ -7,7 +7,7 @@ import { PG18_BUILTIN_CASTS } from '../../src/postgres/builtins/casts.generated.
 import { PG18_TYPE_RESOLUTION } from '../../src/postgres/builtins/type-resolution.generated.js'
 import { PG18_BTREE_COMPARISONS } from '../../src/postgres/builtins/btree-comparisons.generated.js'
 import { PG18_TYPE_IO } from '../../src/postgres/builtins/type-io.generated.js'
-import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
+import { builtinCallables, builtinTypeIO } from '../../src/postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../src/postgres/builtins/taxonomy.js'
 
 export function verifyCatalog(catalog: BuiltinCatalog): void {
@@ -89,7 +89,17 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (!item.strict) categories.push('non-strict')
   if (item.schema === 'pg_catalog' && item.name === 'quote_ident')
     categories.push('session-setting:quote_all_identifiers')
-  if (item.schema === 'pg_catalog' && ['float4out', 'float8out'].includes(item.name))
+  const geometricOutput =
+    item.kind === 'function' &&
+    item.args.length === 1 &&
+    ['point', 'line', 'lseg', 'box', 'circle', 'path', 'polygon'].some(
+      (type) => item.args[0] === 'pg_catalog.' + type,
+    ) &&
+    builtinTypeIO(item.args[0]!)?.output === callableIdentity(item)
+  if (
+    (item.schema === 'pg_catalog' && ['float4out', 'float8out'].includes(item.name)) ||
+    geometricOutput
+  )
     categories.push('session-setting:extra_float_digits')
   if (item.schema === 'pg_catalog' && ['interval_in', 'interval_out'].includes(item.name))
     categories.push('session-setting:IntervalStyle')

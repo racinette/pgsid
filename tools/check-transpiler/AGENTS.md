@@ -96,7 +96,7 @@ change to the regex transpiler unless the regex engine itself changes.
 - Numeric logarithm CHECKs such as `ln(amount) > 0` need private floating-point
   precision estimates while decimal arithmetic determines the SQL result. Accept
   explicitly suffixed finite `f64` literals, scalar locals/returns, literal constants,
-  arithmetic, comparisons, negation, and `abs` / `ln` / `log10`. Widen only `i32`
+  arithmetic, comparisons, negation, and `abs` / `ln` / `log10` / `sqrt`. Widen only `i32`
   to `f64`; narrowing to `i32` truncates and saturates like Rust, with NaN becoming
   zero. Preserve signed zero and rounded intermediate products in both targets.
   Exponential CHECKs such as `exp(amount) > 0` also need borrowed decimal text

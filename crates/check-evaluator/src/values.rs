@@ -1174,3 +1174,47 @@ pub fn interval_from_case_guard(input: CheckOutcome) -> IntervalValue {
     }
     IntervalValue::Unknown
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct PointPayload {
+    pub x: i64,
+    pub y: i64,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PointValue {
+    Unknown,
+    Null,
+    Value(PointPayload),
+    Error(SqlError),
+}
+
+pub fn point_unknown() -> PointValue {
+    PointValue::Unknown
+}
+pub fn point_null() -> PointValue {
+    PointValue::Null
+}
+pub fn make_point_bits(x: i64, y: i64) -> PointValue {
+    PointValue::Value(PointPayload { x, y })
+}
+pub fn make_point_value(x: f64, y: f64) -> PointValue {
+    let x_bits = x.to_bits() as i64;
+    let y_bits = y.to_bits() as i64;
+    make_point_bits(x_bits, y_bits)
+}
+pub fn point_is_null(input: PointValue) -> BoolValue {
+    if let PointValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == PointValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == PointValue::Null)
+}
+pub fn point_from_case_guard(input: CheckOutcome) -> PointValue {
+    if let CheckOutcome::Error(error) = input {
+        return PointValue::Error(error);
+    };
+    PointValue::Unknown
+}
