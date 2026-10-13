@@ -177,6 +177,9 @@ exposes a prerequisite:
       binning, and local calendar age.
 - [x] Establish temporal range checks, fixed interval timezones, SQL-coerced wide
       offsets, and ISO alternative interval input.
+- [x] Establish explicit-zone calendar adjustments, non-strict temporal overlaps,
+      legacy timestamp field extraction, and the measured session-timezone
+      requirement for instant calendar age.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.

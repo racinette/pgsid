@@ -93,6 +93,13 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     categories.push('session-setting:extra_float_digits')
   if (item.schema === 'pg_catalog' && ['interval_in', 'interval_out'].includes(item.name))
     categories.push('session-setting:IntervalStyle')
+  if (
+    item.schema === 'pg_catalog' &&
+    item.name === 'age' &&
+    item.args.length === 2 &&
+    item.args.every((type) => type === 'pg_catalog.timestamptz')
+  )
+    categories.push('session-setting:TimeZone')
   const missingTypes = [...new Set(types.filter((type) => !represented.has(type)))].sort()
   if (missingTypes.length) categories.push('new-representation')
   if (!categories.length) categories.push('pure-callable-candidate')

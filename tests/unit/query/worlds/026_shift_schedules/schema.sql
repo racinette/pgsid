@@ -219,3 +219,93 @@ CREATE TABLE fixed_zone_records (
   CONSTRAINT fixed_zone_label CHECK (CASE WHEN skip_validation THEN true ELSE recorded_clock::text = recorded_label END),
   CONSTRAINT fixed_zone_offset CHECK (CASE WHEN skip_validation THEN true ELSE pg_catalog."extract"('timezone',recorded_clock) = recorded_offset END)
 );
+
+CREATE TABLE zoned_calendar_adjustments (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  source_instant timestamptz NOT NULL,
+  calendar_span interval,
+  zone_name text NOT NULL,
+  recorded_addition timestamptz,
+  recorded_subtraction timestamptz,
+  recorded_return timestamptz,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT zoned_calendar_add CHECK (CASE WHEN skip_validation THEN true ELSE date_add(source_instant, calendar_span, zone_name) = recorded_addition END),
+  CONSTRAINT zoned_calendar_subtract CHECK (CASE WHEN skip_validation THEN true ELSE date_subtract(source_instant, calendar_span, zone_name) = recorded_subtraction END),
+  CONSTRAINT zoned_calendar_return CHECK (CASE WHEN skip_validation THEN true ELSE date_subtract(date_add(source_instant, calendar_span, zone_name), calendar_span, zone_name) = recorded_return END)
+);
+
+CREATE TABLE local_shift_conflicts (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  first_starts_at time NOT NULL,
+  first_ends_at time,
+  first_duration interval NOT NULL,
+  second_starts_at time,
+  second_ends_at time,
+  second_duration interval NOT NULL,
+  endpoint_overlap boolean,
+  first_duration_overlap boolean,
+  second_duration_overlap boolean,
+  both_duration_overlap boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT local_conflict_endpoints CHECK (CASE WHEN skip_validation THEN true ELSE (first_starts_at,first_ends_at) OVERLAPS (second_starts_at,second_ends_at) = endpoint_overlap END),
+  CONSTRAINT local_conflict_first_duration CHECK (CASE WHEN skip_validation THEN true ELSE (first_starts_at,first_duration) OVERLAPS (second_starts_at,second_ends_at) = first_duration_overlap END),
+  CONSTRAINT local_conflict_second_duration CHECK (CASE WHEN skip_validation THEN true ELSE (first_starts_at,first_ends_at) OVERLAPS (second_starts_at,second_duration) = second_duration_overlap END),
+  CONSTRAINT local_conflict_both_durations CHECK (CASE WHEN skip_validation THEN true ELSE (first_starts_at,first_duration) OVERLAPS (second_starts_at,second_duration) = both_duration_overlap END)
+);
+CREATE TABLE calendar_shift_conflicts (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  first_starts_at timestamp NOT NULL,
+  first_ends_at timestamp,
+  first_duration interval NOT NULL,
+  second_starts_at timestamp,
+  second_ends_at timestamp,
+  second_duration interval NOT NULL,
+  endpoint_overlap boolean,
+  first_duration_overlap boolean,
+  second_duration_overlap boolean,
+  both_duration_overlap boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT calendar_conflict_endpoints CHECK (CASE WHEN skip_validation THEN true ELSE (first_starts_at,first_ends_at) OVERLAPS (second_starts_at,second_ends_at) = endpoint_overlap END),
+  CONSTRAINT calendar_conflict_first_duration CHECK (CASE WHEN skip_validation THEN true ELSE (first_starts_at,first_duration) OVERLAPS (second_starts_at,second_ends_at) = first_duration_overlap END),
+  CONSTRAINT calendar_conflict_second_duration CHECK (CASE WHEN skip_validation THEN true ELSE (first_starts_at,first_ends_at) OVERLAPS (second_starts_at,second_duration) = second_duration_overlap END),
+  CONSTRAINT calendar_conflict_both_durations CHECK (CASE WHEN skip_validation THEN true ELSE (first_starts_at,first_duration) OVERLAPS (second_starts_at,second_duration) = both_duration_overlap END)
+);
+CREATE TABLE zoned_shift_conflicts (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  first_starts_at timetz NOT NULL,
+  first_ends_at timetz,
+  second_starts_at timetz,
+  second_ends_at timetz,
+  recorded_overlap boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT zoned_conflict_forward CHECK (CASE WHEN skip_validation THEN true ELSE (first_starts_at,first_ends_at) OVERLAPS (second_starts_at,second_ends_at) = recorded_overlap END),
+  CONSTRAINT zoned_conflict_reverse CHECK (CASE WHEN skip_validation THEN true ELSE (second_ends_at,second_starts_at) OVERLAPS (first_ends_at,first_starts_at) = recorded_overlap END)
+);
+CREATE TABLE instant_shift_conflicts (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  first_starts_at timestamptz NOT NULL,
+  first_ends_at timestamptz,
+  second_starts_at timestamptz,
+  second_ends_at timestamptz,
+  recorded_overlap boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT instant_conflict_forward CHECK (CASE WHEN skip_validation THEN true ELSE (first_starts_at,first_ends_at) OVERLAPS (second_starts_at,second_ends_at) = recorded_overlap END),
+  CONSTRAINT instant_conflict_reverse CHECK (CASE WHEN skip_validation THEN true ELSE (second_ends_at,second_starts_at) OVERLAPS (first_ends_at,first_starts_at) = recorded_overlap END)
+);
+
+CREATE TABLE calendar_field_records (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  source_local timestamp NOT NULL,
+  field_name text NOT NULL,
+  recorded_value double precision,
+  recorded_wire bytea,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT calendar_field_value CHECK (CASE WHEN skip_validation THEN true ELSE date_part(field_name,source_local) IS NOT DISTINCT FROM recorded_value END),
+  CONSTRAINT calendar_field_wire CHECK (CASE WHEN skip_validation THEN true ELSE float8send(date_part(field_name,source_local)) = recorded_wire END)
+);

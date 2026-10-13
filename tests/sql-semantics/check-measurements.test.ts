@@ -96,6 +96,32 @@ describe('CHECK measurement boundaries', () => {
     }
   })
 
+  it('records immutable instant age as requiring the session timezone', async () => {
+    const age = builtinMetadata(
+      'function:["pg_catalog","age"](pg_catalog.timestamptz,pg_catalog.timestamptz)',
+    )
+    expect(age.volatility).toBe('i')
+    expect(
+      callableBoundary(age, new Set(['pg_catalog.timestamptz', 'pg_catalog."interval"'])),
+    ).toEqual({
+      categories: ['session-setting:TimeZone'],
+      missingTypes: [],
+    })
+    const wires = []
+    try {
+      for (const zone of ['UTC', 'America/New_York']) {
+        await pg.query("SELECT set_config('TimeZone', $1, false)", [zone])
+        const result = await pg.query<{ wire: string }>(
+          "SELECT encode(interval_send(age(TIMESTAMPTZ '2024-03-11 06:30+00', TIMESTAMPTZ '2024-03-10 06:30+00')), 'hex') AS wire",
+        )
+        wires.push(result.rows[0]!.wire)
+      }
+    } finally {
+      await pg.exec('RESET TimeZone')
+    }
+    expect(wires).toEqual(['00000000000000000000000100000000', '00000000d693a4000000000100000000'])
+  })
+
   it('does not mistake nullness support or preparation of Unknown for a value representation', () => {
     const nullness = bindProbe('value IS NULL', [
       { name: 'value', typeName: 'jsonb', isRowType: false },

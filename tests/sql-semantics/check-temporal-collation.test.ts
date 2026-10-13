@@ -10,12 +10,13 @@ describe('temporal field collation', () => {
   it('limits collation-independent field decoding to the represented immutable overloads', () => {
     const callables = builtinCallables().filter(
       (item) =>
-        item.kind === 'function' && ['date_trunc', 'extract', 'date_part'].includes(item.name),
+        item.kind === 'function' &&
+        ['date_trunc', 'extract', 'date_part', 'date_add', 'date_subtract'].includes(item.name),
     )
     const supported = callables.filter((item) =>
       supportsTextCallableCollation(callableIdentity(item), 'other'),
     )
-    expect(supported).toHaveLength(11)
+    expect(supported).toHaveLength(14)
     for (const item of supported) {
       expect(item).toMatchObject({
         kind: 'function',
@@ -57,6 +58,11 @@ describe('temporal field collation', () => {
         legacy_clock: 'pg_catalog.date_part(clock_unit, clock_value) = 56.123456::float8',
         legacy_zoned_clock: 'pg_catalog.date_part(clock_unit, zoned_clock) = 56.123456::float8',
         legacy_span: 'pg_catalog.date_part(unit_name, duration) = 2::float8',
+        legacy_timestamp: 'pg_catalog.date_part(clock_unit, local_time) = 56.123456::float8',
+        calendar_add:
+          "pg_catalog.date_add(absolute_time,interval '1 day',zone_name) = timestamptz '2000-08-26 12:00+00'",
+        calendar_subtract:
+          "pg_catalog.date_subtract(absolute_time,interval '1 day',zone_name) = timestamptz '2000-08-24 12:00+00'",
         truncate_span: "pg_catalog.date_trunc(unit_name,duration) = interval '2 years'",
       }
       for (const [index, collation] of collations.entries())
@@ -100,7 +106,7 @@ describe('temporal field collation', () => {
             .map(([name, sql]) => `(${sql}) AS ${name}`)
             .join(',')}
             FROM (SELECT 'YEAR'::text${collation} unit_name, 'SECOND'::text${collation} clock_unit,
-              'UTC'::text${collation} zone_name, timestamp '2000-08-25' local_time,
+              'UTC'::text${collation} zone_name, timestamp '2000-08-25 12:34:56.123456' local_time,
               timestamptz '2000-08-25 12:00+00' absolute_time, date '2000-08-25' day_value,
               time '12:34:56.123456' clock_value,timetz '12:34:56.123456-05:30' zoned_clock,
               interval '2 years 3 months 4 days 12:34:56.123456' duration) inputs`)

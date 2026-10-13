@@ -74,6 +74,9 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/temporal_bins.rs");
     include!("operations/pg_catalog/temporal_age.rs");
     include!("operations/pg_catalog/temporal_range.rs");
+    include!("operations/pg_catalog/timezone_calendar.rs");
+    include!("operations/pg_catalog/temporal_overlaps.rs");
+    include!("operations/pg_catalog/temporal_timestamp_legacy.rs");
     include!("operations/pg_catalog/time_zone.rs");
     include!("operations/pg_catalog/float_core.rs");
     include!("operations/pg_catalog/float_arithmetic.rs");

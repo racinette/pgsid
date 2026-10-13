@@ -125,11 +125,19 @@ import them. Keep schema-only helpers with their callables.
   input units; runtime text casts parse with the full range before precision.
   Calendar arithmetic clips month ends and validates each month/day/time step.
   Clock and interval extraction preserve numeric display scales and the separate
-  floating arithmetic of legacy field calls. Interval hashes use the low bits of
+  floating arithmetic of legacy field calls. Legacy timestamp fields retain separate
+  fractional, Julian-day and epoch floating arithmetic. Interval hashes use the low bits of
   their comparison span; seeded hashes preserve every seed bit. Binning requires
   positive finite day/time strides and rounds toward negative infinity. Interval
   truncation preserves component signs. Calendar age borrows days from the earlier
   timestamp's month rather than converting months to elapsed days.
+  Period overlap normalizes endpoint order and uses half-open bounds, except
+  that equal endpoints denote a point. A NULL endpoint can still establish a
+  known overlap; do not replace non-strict calls with strict NULL folding.
+  Duration forms derive endpoints through the family's maintained arithmetic.
+  Explicit-zone calendar adjustments re-resolve offsets after each month and
+  day step, preserving gaps, folds and intermediate bounds. Zone lookup precedes
+  infinity handling and subtraction's interval negation.
   Range checks reject negative offsets according to the family's comparison.
   Clock ranges ignore calendar fields and keep boundaries unwrapped; calendar
   ranges preserve date promotion, component overflow and infinity rules.
