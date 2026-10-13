@@ -635,6 +635,35 @@ describe('world CHECK INSERT parity', () => {
         'departure_plans',
         ['departure_calendar_clock', 'departure_calendar_instant', 'departure_clock_precision'],
       ],
+      [
+        'shift_audit_fields',
+        [
+          'audit_local_field',
+          'audit_zoned_field',
+          'audit_local_legacy',
+          'audit_zoned_legacy',
+          'audit_local_digest',
+          'audit_zoned_digest',
+          'audit_local_seeded_digest',
+          'audit_zoned_seeded_digest',
+          'audit_local_adjustment',
+          'audit_zoned_adjustment',
+        ],
+      ],
+      [
+        'duration_audit_fields',
+        [
+          'audit_duration_field',
+          'audit_duration_legacy',
+          'audit_duration_truncation',
+          'audit_duration_digest',
+          'audit_duration_seeded_digest',
+        ],
+      ],
+      [
+        'event_bucket_records',
+        ['event_local_bucket', 'event_instant_bucket', 'event_calendar_age'],
+      ],
     ] as const) {
       for (const name of names) {
         const identity = `world_026_shift_schedules.${table}.${name}`

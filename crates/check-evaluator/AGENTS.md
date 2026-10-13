@@ -119,6 +119,12 @@ import them. Keep schema-only helpers with their callables.
   seconds, preserving intermediate overflow. Typed interval precision controls
   input units; runtime text casts parse with the full range before precision.
   Calendar arithmetic clips month ends and validates each month/day/time step.
+  Clock and interval extraction preserve numeric display scales and the separate
+  floating arithmetic of legacy field calls. Interval hashes use the low bits of
+  their comparison span; seeded hashes preserve every seed bit. Binning requires
+  positive finite day/time strides and rounds toward negative infinity. Interval
+  truncation preserves component signs. Calendar age borrows days from the earlier
+  timestamp's month rather than converting months to elapsed days.
   Date-plus-clock constructors preserve fixed offsets and timestamp bounds;
   timestamp infinities become NULL when cast to time. Typed clock and interval
   literals prepare before lazy branches; runtime text casts retain branch laziness.

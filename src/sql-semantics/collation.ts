@@ -77,16 +77,28 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     metadata.args[0] === 'pg_catalog.text' &&
     ((metadata.name === 'date_trunc' &&
       ((metadata.args.length === 2 &&
-        metadata.args[1] === 'pg_catalog."timestamp"' &&
-        metadata.result === 'pg_catalog."timestamp"') ||
+        ['pg_catalog."timestamp"', 'pg_catalog."interval"'].includes(metadata.args[1]!) &&
+        metadata.result === metadata.args[1]) ||
         (metadata.args.length === 3 &&
           metadata.args[1] === 'pg_catalog.timestamptz' &&
           metadata.args[2] === 'pg_catalog.text' &&
           metadata.result === 'pg_catalog.timestamptz'))) ||
       (metadata.name === 'extract' &&
         metadata.args.length === 2 &&
-        ['pg_catalog.date', 'pg_catalog."timestamp"'].includes(metadata.args[1]!) &&
-        metadata.result === 'pg_catalog."numeric"'))
+        [
+          'pg_catalog.date',
+          'pg_catalog."timestamp"',
+          'pg_catalog."time"',
+          'pg_catalog.timetz',
+          'pg_catalog."interval"',
+        ].includes(metadata.args[1]!) &&
+        metadata.result === 'pg_catalog."numeric"') ||
+      (metadata.name === 'date_part' &&
+        metadata.args.length === 2 &&
+        ['pg_catalog."time"', 'pg_catalog.timetz', 'pg_catalog."interval"'].includes(
+          metadata.args[1]!,
+        ) &&
+        metadata.result === 'pg_catalog.float8'))
   const implementation =
     metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
   const textHash =

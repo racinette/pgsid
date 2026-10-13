@@ -9,12 +9,13 @@ import { supportsTextCallableCollation } from '../../src/sql-semantics/collation
 describe('temporal field collation', () => {
   it('limits collation-independent field decoding to the represented immutable overloads', () => {
     const callables = builtinCallables().filter(
-      (item) => item.kind === 'function' && ['date_trunc', 'extract'].includes(item.name),
+      (item) =>
+        item.kind === 'function' && ['date_trunc', 'extract', 'date_part'].includes(item.name),
     )
     const supported = callables.filter((item) =>
       supportsTextCallableCollation(callableIdentity(item), 'other'),
     )
-    expect(supported).toHaveLength(4)
+    expect(supported).toHaveLength(11)
     for (const item of supported) {
       expect(item).toMatchObject({
         kind: 'function',
@@ -50,11 +51,19 @@ describe('temporal field collation', () => {
           "pg_catalog.date_trunc(unit_name, absolute_time, zone_name) = timestamptz '2000-01-01 00:00:00+00'",
         extract_date: 'pg_catalog.extract(unit_name, day_value) = 2000::numeric',
         extract_timestamp: 'pg_catalog.extract(unit_name, local_time) = 2000::numeric',
+        extract_clock: 'pg_catalog.extract(clock_unit, clock_value) = 56.123456::numeric',
+        extract_zoned_clock: 'pg_catalog.extract(clock_unit, zoned_clock) = 56.123456::numeric',
+        extract_span: 'pg_catalog.extract(unit_name, duration) = 2::numeric',
+        legacy_clock: 'pg_catalog.date_part(clock_unit, clock_value) = 56.123456::float8',
+        legacy_zoned_clock: 'pg_catalog.date_part(clock_unit, zoned_clock) = 56.123456::float8',
+        legacy_span: 'pg_catalog.date_part(unit_name, duration) = 2::float8',
+        truncate_span: "pg_catalog.date_trunc(unit_name,duration) = interval '2 years'",
       }
       for (const [index, collation] of collations.entries())
         await pg.exec(`CREATE TABLE public.field_checks_${index} (
-          unit_name text${collation}, zone_name text COLLATE public.other_collation,
+          unit_name text${collation}, clock_unit text${collation}, zone_name text COLLATE public.other_collation,
           local_time timestamp, absolute_time timestamptz, day_value date,
+          clock_value time, zoned_clock timetz, duration interval,
           ${Object.entries(expressions)
             .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
             .join(',')}
@@ -87,14 +96,18 @@ describe('temporal field collation', () => {
       ).rejects.toMatchObject({ code: '42P21' })
       for (const collation of collations) {
         const result = (
-          await pg.query(`SELECT
-          pg_catalog.date_trunc('YEAR'::text${collation}, timestamp '2000-08-25') = timestamp '2000-01-01' AS local,
-          pg_catalog.date_trunc('YEAR'::text${collation}, timestamptz '2000-08-25 12:00+00', 'UTC'::text${collation}) = timestamptz '2000-01-01 00:00+00' AS zoned,
-          pg_catalog.extract('YEAR'::text${collation}, date '2000-08-25') = 2000 AS day,
-          pg_catalog.extract('YEAR'::text${collation}, timestamp '2000-08-25') = 2000 AS timestamp
-        `)
+          await pg.query(`SELECT ${Object.entries(expressions)
+            .map(([name, sql]) => `(${sql}) AS ${name}`)
+            .join(',')}
+            FROM (SELECT 'YEAR'::text${collation} unit_name, 'SECOND'::text${collation} clock_unit,
+              'UTC'::text${collation} zone_name, timestamp '2000-08-25' local_time,
+              timestamptz '2000-08-25 12:00+00' absolute_time, date '2000-08-25' day_value,
+              time '12:34:56.123456' clock_value,timetz '12:34:56.123456-05:30' zoned_clock,
+              interval '2 years 3 months 4 days 12:34:56.123456' duration) inputs`)
         ).rows[0]
-        expect(result).toEqual({ local: true, zoned: true, day: true, timestamp: true })
+        expect(result).toEqual(
+          Object.fromEntries(Object.keys(expressions).map((name) => [name, true])),
+        )
       }
     } finally {
       await pg.close()

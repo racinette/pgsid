@@ -212,3 +212,159 @@ INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_m
 
 -- name: maintenance_null
 INSERT INTO maintenance_adjustments (id, template_id, duration_years, duration_months, duration_weeks, duration_days, duration_hours, duration_minutes, duration_seconds, expected_duration, service_day, requested_at, expected_day, expected_at, expected_elapsed, skip_adjustment) VALUES (2, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2000-01-01', NULL, NULL, NULL, NULL, false);
+
+-- name: audit_clock_seconds
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '56.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_epoch
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '00:00:00.000001', '00:00:00.000001+15:59:59', 'epoch', '9223372036854775807', '-1 hour', false, '0.000001', '-57598.999999', '1e-06', '-57598.999999', '-1905060026', '-1768939542', '-7235533053458395473', '6321944787552428439', '23:00:00.000001', '23:00:00.000001+15:59:59');
+
+-- name: audit_clock_end_marker
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '24:00', '24:00+00', 'hour', '0', '0', false, '24', '24', '24', '24', '-2053980660', '1781300899', '8030965169264967180', '6258769810305089187', '00:00:00', '00:00:00+00');
+
+-- name: audit_clock_fraction
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '23:59:59.999999', '23:59:59.999999-15:59:59', 'milliseconds', '4294967295', '1 month 2 days 1 hour', false, '59999.999', '59999.999', '59999.999', '59999.999', '38296624', '-180542231', '-7482101991032798787', '265153594208579201', '00:59:59.999999', '00:59:59.999999-15:59:59');
+
+-- name: audit_clock_wrong_local_field
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '57.123456', '56.123456', '56.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_wrong_zoned_field
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '56.123456', '57.123456', '56.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_wrong_local_legacy
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '57.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_wrong_zoned_legacy
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '56.123456', '57.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_wrong_local_digest
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '56.123456', '56.123456', '-836151981', '-1181989844', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_wrong_zoned_digest
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '56.123456', '56.123456', '-836151982', '-1181989843', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_wrong_local_seeded_digest
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '56.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766874', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_wrong_zoned_seeded_digest
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '56.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536948', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_wrong_recorded_local
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '56.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536947', '00:00', '13:34:56.123456-05:30');
+
+-- name: audit_clock_wrong_recorded_zoned
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'second', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '56.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '00:00+00');
+
+-- name: audit_clock_unsupported_field
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'day', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '56.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_unrecognized_field
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'foo', '-9223372036854775808', '1 hour', false, '56.123456', '56.123456', '56.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_skipped_field
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', '12:34:56.123456', '12:34:56.123456-05:30', 'foo', '-9223372036854775808', 'infinity', true, '56.123456', '56.123456', '56.123456', '56.123456', '-836151982', '-1181989844', '2244728923395766873', '7351998219920536947', '13:34:56.123456', '13:34:56.123456-05:30');
+
+-- name: audit_clock_null
+INSERT INTO shift_audit_fields (id, template_id, local_clock, zoned_clock, field_name, hash_seed, adjustment, skip_audit, local_field, zoned_field, local_legacy, zoned_legacy, local_digest, zoned_digest, local_seeded_digest, zoned_seeded_digest, recorded_local, recorded_zoned) VALUES ('2', '1', NULL, NULL, NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: audit_span_epoch
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '1 year 2 months 3 days 25:01:59.999999', 'epoch', 'day', '-9223372036854775808', false, '37090919.999999', '37090919.999999', '1 year 2 mons 3 days', '54788117', '-4565647013232157916');
+
+-- name: audit_span_negative
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '-1 year -2 months -3 days -25:01:59.999999', 'second', 'millisecond', '9223372036854775807', false, '-59.999999', '-59.999999', '-1 years -2 mons -3 days -25:01:59.999', '135921666', '-6958935400198257681');
+
+-- name: audit_span_minimum_months
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '-2147483648 months', 'quarter', 'quarter', '0', false, '1', '1', '-178956970 years -6 mons', '545726794', '-3068577755319295670');
+
+-- name: audit_span_minimum_time
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '-9223372036854.775808 seconds', 'epoch', 'hour', '4294967295', false, '-9223372036854.775808', '-9223372036854.775', '-2562047788:00:00', '-96758253', '6678990371818108661');
+
+-- name: audit_span_infinity
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', 'infinity', 'year', 'year', '-1', false, 'Infinity', 'Infinity', 'infinity', '-523051888', '-1123889875554259596');
+
+-- name: audit_span_infinity_null_field
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '-infinity', 'month', 'second', '1', false, NULL, NULL, '-infinity', '810964538', '-6405518938190579824');
+
+-- name: audit_span_wrong_recorded_field
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '1 year 2 months 3 days 25:01:59.999999', 'epoch', 'day', '-9223372036854775808', false, '37090920.999999', '37090919.999999', '1 year 2 mons 3 days', '54788117', '-4565647013232157916');
+
+-- name: audit_span_wrong_recorded_legacy
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '1 year 2 months 3 days 25:01:59.999999', 'epoch', 'day', '-9223372036854775808', false, '37090919.999999', '37090920.999999', '1 year 2 mons 3 days', '54788117', '-4565647013232157916');
+
+-- name: audit_span_wrong_digest
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '1 year 2 months 3 days 25:01:59.999999', 'epoch', 'day', '-9223372036854775808', false, '37090919.999999', '37090919.999999', '1 year 2 mons 3 days', '54788118', '-4565647013232157916');
+
+-- name: audit_span_wrong_seeded_digest
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '1 year 2 months 3 days 25:01:59.999999', 'epoch', 'day', '-9223372036854775808', false, '37090919.999999', '37090919.999999', '1 year 2 mons 3 days', '54788117', '-4565647013232157915');
+
+-- name: audit_span_wrong_truncation
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '1 year 2 months 3 days 25:01:59.999999', 'epoch', 'day', '-9223372036854775808', false, '37090919.999999', '37090919.999999', '0', '54788117', '-4565647013232157916');
+
+-- name: audit_span_unsupported_week
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '1 year 2 months 3 days 25:01:59.999999', 'epoch', 'week', '-9223372036854775808', false, '37090919.999999', '37090919.999999', '1 year 2 mons 3 days', '54788117', '-4565647013232157916');
+
+-- name: audit_span_unsupported_zone
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '1 year 2 months 3 days 25:01:59.999999', 'timezone', 'day', '-9223372036854775808', false, '37090919.999999', '37090919.999999', '1 year 2 mons 3 days', '54788117', '-4565647013232157916');
+
+-- name: audit_span_bad_field
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '1 year 2 months 3 days 25:01:59.999999', 'foo', 'day', '-9223372036854775808', false, '37090919.999999', '37090919.999999', '1 year 2 mons 3 days', '54788117', '-4565647013232157916');
+
+-- name: audit_span_skip_error
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', '1 year 2 months 3 days 25:01:59.999999', 'foo', 'week', '-9223372036854775808', true, '37090919.999999', '37090919.999999', '1 year 2 mons 3 days', '54788117', '-4565647013232157916');
+
+-- name: audit_span_null
+INSERT INTO duration_audit_fields (id, template_id, duration, field_name, truncation_field, hash_seed, skip_audit, recorded_field, recorded_legacy, recorded_truncation, digest, seeded_digest) VALUES ('2', '1', NULL, NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL);
+
+-- name: event_bin_positive
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '15 minutes', '2000-03-01 12:34:56.123456', '2000-01-31 12:00', '2000-03-01 12:34:56.123456+00', '2000-01-31 12:00+00', false, '2000-03-01 12:30:00', '2000-03-01 12:30:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_negative
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '15 minutes', '1999-12-31 23:59:59.999999', '2000-01-01 00:00', '1999-12-31 23:59:59.999999+00', '2000-01-01 00:00+00', false, '1999-12-31 23:45:00', '1999-12-31 23:45:00+00', '-00:00:00.000001');
+
+-- name: event_bin_exact
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '1 microsecond', '2000-01-01 00:00:00.000001', '2000-01-01 00:00', '2000-01-01 00:00:00.000001+00', '2000-01-01 00:00+00', false, '2000-01-01 00:00:00.000001', '2000-01-01 00:00:00.000001+00', '00:00:00.000001');
+
+-- name: event_bin_age_leap
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '1 day', '2000-03-01 00:00', '2000-02-29 23:59:59.999999', '2000-03-01 00:00+00', '2000-02-29 23:59:59.999999+00', false, '2000-02-29 23:59:59.999999', '2000-02-29 23:59:59.999999+00', '00:00:00.000001');
+
+-- name: event_bin_age_reverse
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '1 day', '1900-02-28 00:00', '1900-03-31 12:00', '1900-02-28 00:00+00', '1900-03-31 12:00+00', false, '1900-02-27 12:00:00', '1900-02-27 12:00:00+00', '-1 mons -3 days -12:00:00');
+
+-- name: event_bin_infinity
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '0', 'infinity', '2000-01-01 00:00', 'infinity', '2000-01-01 00:00+00', false, 'infinity', 'infinity', 'infinity');
+
+-- name: event_bin_wrong_recorded_local
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '15 minutes', '2000-03-01 12:34:56.123456', '2000-01-31 12:00', '2000-03-01 12:34:56.123456+00', '2000-01-31 12:00+00', false, '2000-01-01 00:00+00', '2000-03-01 12:30:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_wrong_recorded_instant
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '15 minutes', '2000-03-01 12:34:56.123456', '2000-01-31 12:00', '2000-03-01 12:34:56.123456+00', '2000-01-31 12:00+00', false, '2000-03-01 12:30:00', '2000-01-01 00:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_wrong_recorded_age
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '15 minutes', '2000-03-01 12:34:56.123456', '2000-01-31 12:00', '2000-03-01 12:34:56.123456+00', '2000-01-31 12:00+00', false, '2000-03-01 12:30:00', '2000-03-01 12:30:00+00', '0');
+
+-- name: event_bin_invalid_0
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '0', '2000-03-01 12:34:56.123456', '2000-01-31 12:00', '2000-03-01 12:34:56.123456+00', '2000-01-31 12:00+00', false, '2000-03-01 12:30:00', '2000-03-01 12:30:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_invalid_1_microsecond
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '-1 microsecond', '2000-03-01 12:34:56.123456', '2000-01-31 12:00', '2000-03-01 12:34:56.123456+00', '2000-01-31 12:00+00', false, '2000-03-01 12:30:00', '2000-03-01 12:30:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_invalid_1_month
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '1 month', '2000-03-01 12:34:56.123456', '2000-01-31 12:00', '2000-03-01 12:34:56.123456+00', '2000-01-31 12:00+00', false, '2000-03-01 12:30:00', '2000-03-01 12:30:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_invalid_infinity
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', 'infinity', '2000-03-01 12:34:56.123456', '2000-01-31 12:00', '2000-03-01 12:34:56.123456+00', '2000-01-31 12:00+00', false, '2000-03-01 12:30:00', '2000-03-01 12:30:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_invalid_106751992_days_9223372036854_seconds
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '106751992 days -9223372036854 seconds', '2000-03-01 12:34:56.123456', '2000-01-31 12:00', '2000-03-01 12:34:56.123456+00', '2000-01-31 12:00+00', false, '2000-03-01 12:30:00', '2000-03-01 12:30:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_bad_instant_origin
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '15 minutes', '2000-03-01 12:34:56.123456', '2000-01-31 12:00', '2000-03-01 12:34:56.123456+00', 'infinity', false, '2000-03-01 12:30:00', '2000-03-01 12:30:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_infinite_age_error
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '15 minutes', 'infinity', 'infinity', '2000-03-01 12:34:56.123456+00', '2000-01-31 12:00+00', false, 'infinity', '2000-03-01 12:30:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_skip_errors
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', '0', '2000-03-01 12:34:56.123456', 'infinity', '2000-03-01 12:34:56.123456+00', 'infinity', true, '2000-03-01 12:30:00', '2000-03-01 12:30:00+00', '1 mon 1 day 00:34:56.123456');
+
+-- name: event_bin_null
+INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local, origin_local, observed_instant, origin_instant, skip_audit, recorded_local, recorded_instant, recorded_age) VALUES ('2', '1', NULL, NULL, NULL, NULL, NULL, false, NULL, NULL, NULL);
