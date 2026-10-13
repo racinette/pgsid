@@ -554,7 +554,13 @@ const typescriptRustAdapterSource = `function checkRustPoint(row: object, name: 
   if (value === null) return _checkRust.pointNull()
   if (typeof value !== 'object' || !('kind' in value)) return _checkRust.pointUnknown()
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.PointValue
-  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'x' in value.value && 'y' in value.value && typeof value.value.x === 'bigint' && typeof value.value.y === 'bigint' && value.value.x >= -9223372036854775808n && value.value.x <= 9223372036854775807n && value.value.y >= -9223372036854775808n && value.value.y <= 9223372036854775807n) return _checkRust.makePointBits(value.value.x, value.value.y)
+  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'x' in value.value && 'y' in value.value && typeof value.value.x === 'bigint' && typeof value.value.y === 'bigint' && value.value.x >= -9223372036854775808n && value.value.x <= 9223372036854775807n && value.value.y >= -9223372036854775808n && value.value.y <= 9223372036854775807n) {
+    if ('wireKnown' in value.value) {
+      if (typeof value.value.wireKnown !== 'boolean') return _checkRust.pointUnknown()
+      if (!value.value.wireKnown) return value as _checkRust.PointValue
+    }
+    return _checkRust.makePointBits(value.value.x, value.value.y)
+  }
   return _checkRust.pointUnknown()
 }
 function checkRustTime(row: object, name: string): _checkRust.TimeValue {

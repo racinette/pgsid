@@ -200,6 +200,19 @@ describe('CHECK measurement boundaries', () => {
     const floatInput = report.textInput.find((entry) => entry.type === 'pg_catalog.float4')!
     expect(floatInput.probe.raw.fullyBound).toBe(true)
     expect(floatInput.probe.stored!.fullyBound).toBe(true)
+    const pointInput = report.textInput.find((entry) => entry.type === 'pg_catalog.point')!
+    expect(pointInput.probe.postgres.accepted).toBe(true)
+    expect(pointInput.probe.raw.fullyBound).toBe(true)
+    expect(pointInput.probe.stored!.fullyBound).toBe(true)
+    expect(pointInput.input).toBe('function:["pg_catalog","point_in"](pg_catalog.cstring)')
+    const pointForms = report.inputForms.types.find((forms) => forms.type === 'pg_catalog.point')!
+    expect(pointForms).toMatchObject({
+      contextRequired: [],
+      unimplementedGrammar: [],
+      inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+      platformDependent: expect.arrayContaining(['(0x1p0,0)', '(NaN(1),0)']),
+    })
+    expect(pointForms.handled).toEqual(expect.arrayContaining(['1,2', '(-0,-0)', '(NaN,NaN)']))
     const floatOutput = report.textOutput.find((entry) => entry.type === 'pg_catalog.float8')!
     expect(floatOutput.probe.raw.fullyBound).toBe(false)
     expect(

@@ -82,6 +82,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/float_arithmetic.rs");
     include!("operations/pg_catalog/float_math.rs");
     include!("operations/pg_catalog/point_core.rs");
+    include!("operations/pg_catalog/point_operations.rs");
+    include!("operations/pg_catalog/point_input.rs");
     include!("operations/pg_catalog/float_input.rs");
     include!("operations/pg_catalog/float_send.rs");
     include!("operations/pg_catalog/float_numeric.rs");

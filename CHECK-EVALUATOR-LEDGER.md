@@ -64,6 +64,7 @@ from ignored artifacts. Keep generated results separate from maintained sources.
 - [x] `NULLIF`, including catalog equality resolution and result typing.
 - [x] `GREATEST` and `LEAST`, including common types and PostgreSQL NULL rules.
 - [x] Row comparisons, including element ordering and NULL behavior.
+- [ ] Keep scalar null tests type-aware for portable temporal values and nested domains.
 
 Verify each form independently, including NULL,
 Unknown, SQL errors, type resolution, and evaluation behavior. Compare raw SQL
@@ -184,6 +185,9 @@ exposes a prerequisite:
 - [x] Establish point payloads, SQL-coerced public inputs, construction,
       geometric equality, binary output and composition; establish the scalar
       square-root primitive and classify geometric text rendering requirements.
+- [x] Establish point direction tests, arithmetic, distance, slope, portable text
+      input and literals, and catalog-resolved unconstrained-domain casts;
+      preserve semantic NaN values while classifying computed binary precision.
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.

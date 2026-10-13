@@ -64,6 +64,9 @@ pub fn sql__pg_catalog__point_send__kuoa(input: PointValue) -> ByteaValue {
         return ByteaValue::Null;
     };
     if let PointValue::Value(point) = input {
+        if point.wire_known == false {
+            return ByteaValue::Unknown;
+        };
         let x = binary_send_bits(Int8Value::Value(point.x), 8);
         let y = binary_send_bits(Int8Value::Value(point.y), 8);
         return sql__pg_catalog__byteacat__zitv(x, y);

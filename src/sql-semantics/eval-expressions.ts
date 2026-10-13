@@ -87,6 +87,7 @@ export type EvalExpression =
       type: 'pg_catalog.float4' | 'pg_catalog.float8'
       operand: EvalExpression
     }
+  | { kind: 'text-to-point'; type: 'pg_catalog.point'; operand: EvalExpression }
   | { kind: 'text-to-uuid'; type: 'pg_catalog.uuid'; operand: EvalExpression }
   | { kind: 'text-to-bytea'; type: 'pg_catalog.bytea'; operand: EvalExpression }
   | { kind: 'uuid-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
@@ -241,6 +242,11 @@ export function emitEvalExpression<Ast>(
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }
     if (node.kind === 'certain') {
+      if (node.expression.kind === 'point' && node.expression.value !== null) {
+        const result = backend.uncertain(node.expression.type)
+        include(result.helpers)
+        return { type: node.expression.type, expression: result.expression, effect: 'partial' }
+      }
       const result = emitSqlExpression(node.expression, scalarBackend)
       include(result.helpers)
       return { ...result.value, effect: 'total' }
@@ -267,6 +273,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'mac-to-text' ||
       node.kind === 'io-to-text' ||
       node.kind === 'text-to-float' ||
+      node.kind === 'text-to-point' ||
       node.kind === 'text-to-uuid' ||
       node.kind === 'text-to-bytea' ||
       node.kind === 'uuid-to-text' ||

@@ -13687,11 +13687,418 @@ func PointSendKuoa(input checkruntime.PointValue) checkruntime.ByteaValue {
 	}
 	if input.Kind == checkruntime.PointValueValue {
 		point := input.Value
+		if point.WireKnown == false {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+		}
 		x := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: point.X}, 8)
 		y := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: point.Y}, 8)
 		return ByteacatZitv(x, y)
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+
+type geometryInputText struct {
+	chars []rune
+}
+
+func copygeometryInputText(value geometryInputText) geometryInputText {
+	return geometryInputText{chars: langruntime.CheckedChars(value.chars)}
+}
+
+type geometryInputNumber struct {
+	value checkruntime.Float8Value
+	end   int
+}
+
+func copygeometryInputNumber(value geometryInputNumber) geometryInputNumber {
+	return geometryInputNumber{value: value.value, end: langruntime.CheckedIndex(value.end)}
+}
+func geometryInputWord(source *geometryInputText, start int, word string) bool {
+	start = langruntime.CheckedIndex(start)
+	word = langruntime.CheckedString(word)
+	letters := []rune(word)
+	if langruntime.CheckedAdd(start, len(letters)) > len(source.chars) {
+		return false
+	}
+	index := 0
+	for index < len(letters) {
+		if langruntime.AsciiLowercase(source.chars[langruntime.CheckedAdd(start, index)]) != letters[index] {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func geometryInputSpace(source *geometryInputText, start int) int {
+	start = langruntime.CheckedIndex(start)
+	index := start
+	for index < len(source.chars) && checkruntime.NumericSpace(source.chars[index]) {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return index
+}
+func geometryInputDigit(value rune) bool {
+	value = langruntime.CheckedChar(value)
+	code := int(langruntime.CheckedChar(value))
+	return code >= 48 && code <= 57
+}
+func geometryReadNumber(source *geometryInputText, begin int) geometryInputNumber {
+	begin = langruntime.CheckedIndex(begin)
+	start := geometryInputSpace(source, begin)
+	index := start
+	if index < len(source.chars) && (source.chars[index] == '+' || source.chars[index] == '-') {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	unsigned := index
+	if geometryInputWord(source, unsigned, "0x") {
+		return geometryInputNumber{value: checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}, end: index}
+	}
+	if geometryInputWord(source, unsigned, "infinity") {
+		index = langruntime.CheckedAdd(index, 8)
+	} else if geometryInputWord(source, unsigned, "inf") {
+		index = langruntime.CheckedAdd(index, 3)
+	} else if geometryInputWord(source, unsigned, "nan") {
+		index = langruntime.CheckedAdd(index, 3)
+		if unsigned != start || (index < len(source.chars) && source.chars[index] == '(') {
+			return geometryInputNumber{value: checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}, end: index}
+		}
+	} else {
+		digits := 0
+		for index < len(source.chars) && geometryInputDigit(source.chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+			digits = langruntime.CheckedAdd(digits, 1)
+		}
+		if index < len(source.chars) && source.chars[index] == '.' {
+			index = langruntime.CheckedAdd(index, 1)
+			for index < len(source.chars) && geometryInputDigit(source.chars[index]) {
+				index = langruntime.CheckedAdd(index, 1)
+				digits = langruntime.CheckedAdd(digits, 1)
+			}
+		}
+		if digits == 0 {
+			return geometryInputNumber{value: checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}, end: index}
+		}
+		if index < len(source.chars) && langruntime.AsciiLowercase(source.chars[index]) == 'e' {
+			saved := index
+			index = langruntime.CheckedAdd(index, 1)
+			if index < len(source.chars) && (source.chars[index] == '+' || source.chars[index] == '-') {
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			exponent := index
+			for index < len(source.chars) && geometryInputDigit(source.chars[index]) {
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if index == exponent {
+				index = langruntime.CheckedIndex(saved)
+			}
+		}
+	}
+	token := langruntime.NewTextBuffer("")
+	at := start
+	for at < index {
+		token = append(token, string(langruntime.CheckedChar(source.chars[at]))...)
+		at = langruntime.CheckedAdd(at, 1)
+	}
+	value := Float8FromText(checkruntime.MakeTextValue(string(token)))
+	return geometryInputNumber{value: value, end: geometryInputSpace(source, index)}
+}
+func pointParse(value string) checkruntime.PointValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	if len(chars) > 4096 {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+	}
+	source := geometryInputText{chars: chars}
+	index := geometryInputSpace(&source, 0)
+	parenthesized := false
+	if index < len(source.chars) && source.chars[index] == '(' {
+		parenthesized = true
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	first := geometryReadNumber(&source, index)
+	firstValue := first.value
+	if firstValue.Kind == checkruntime.Float8ValueError {
+		error := firstValue.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if firstValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+	}
+	index = langruntime.CheckedIndex(first.end)
+	if index >= len(source.chars) || source.chars[index] != ',' {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+	}
+	index = langruntime.CheckedAdd(index, 1)
+	second := geometryReadNumber(&source, index)
+	secondValue := second.value
+	if secondValue.Kind == checkruntime.Float8ValueError {
+		error := secondValue.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if secondValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+	}
+	index = langruntime.CheckedIndex(second.end)
+	if parenthesized {
+		if index >= len(source.chars) || source.chars[index] != ')' {
+			return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+		}
+		index = langruntime.CheckedIndex(geometryInputSpace(&source, langruntime.CheckedAdd(index, 1)))
+	}
+	if index != len(source.chars) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+	}
+	return PointDb27(firstValue, secondValue)
+}
+func PointFromText(input checkruntime.TextValue) checkruntime.PointValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return pointParse(value)
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func pointArithmeticResult(x checkruntime.Float8Value, y checkruntime.Float8Value) checkruntime.PointValue {
+	result := PointDb27(x, y)
+	if result.Kind == checkruntime.PointValueValue {
+		value := result.Value
+		first := checkruntime.Float8Number(value.X)
+		second := checkruntime.Float8Number(value.Y)
+		if first != first || second != second {
+			return checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: checkruntime.PointPayload{X: value.X, Y: value.Y, WireKnown: false}}
+		}
+	}
+	return result
+}
+func geometricCoordinateEqual(a float64, b float64) bool {
+	return a == b || langruntime.F64Abs((langruntime.F64Subtract(a, b))) <= float64(0.000001)
+}
+func pointCoordinateRelation(left checkruntime.PointValue, right checkruntime.PointValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	if left.Kind == checkruntime.PointValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PointValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.PointValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.PointValueValue {
+			b := right.Value
+			first := checkruntime.Float8Number(a.X)
+			second := checkruntime.Float8Number(b.X)
+			if mode >= 3 {
+				first = checkruntime.Float8Number(a.Y)
+				second = checkruntime.Float8Number(b.Y)
+			}
+			if mode == 0 || mode == 3 {
+				return checkruntime.MakeBoolValue(langruntime.F64Add(first, float64(0.000001)) < second)
+			}
+			if mode == 1 || mode == 4 {
+				return checkruntime.MakeBoolValue(first > langruntime.F64Add(second, float64(0.000001)))
+			}
+			return checkruntime.MakeBoolValue(geometricCoordinateEqual(first, second))
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func PointLeftIpjy(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoolValue {
+	return pointCoordinateRelation(left, right, 0)
+}
+func PointRightSgly(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoolValue {
+	return pointCoordinateRelation(left, right, 1)
+}
+func PointVertV6kr(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoolValue {
+	return pointCoordinateRelation(left, right, 2)
+}
+func IsverticalF50i(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoolValue {
+	return pointCoordinateRelation(left, right, 2)
+}
+func PointBelowJsjs(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoolValue {
+	return pointCoordinateRelation(left, right, 3)
+}
+func PointAbovePdwh(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoolValue {
+	return pointCoordinateRelation(left, right, 4)
+}
+func PointHorizTsjw(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoolValue {
+	return pointCoordinateRelation(left, right, 5)
+}
+func IshorizontalKubm(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoolValue {
+	return pointCoordinateRelation(left, right, 5)
+}
+func pointArithmetic(left checkruntime.PointValue, right checkruntime.PointValue, mode int) checkruntime.PointValue {
+	mode = langruntime.CheckedI32(mode)
+	if left.Kind == checkruntime.PointValueError {
+		error := left.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PointValueError {
+		error := right.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if left.Kind == checkruntime.PointValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.PointValueValue {
+			b := right.Value
+			ax := checkruntime.MakeFloat8Bits(a.X)
+			ay := checkruntime.MakeFloat8Bits(a.Y)
+			bx := checkruntime.MakeFloat8Bits(b.X)
+			by := checkruntime.MakeFloat8Bits(b.Y)
+			if mode == 0 {
+				return pointArithmeticResult(Float8plG3ou(ax, bx), Float8plG3ou(ay, by))
+			}
+			if mode == 1 {
+				return pointArithmeticResult(Float8miR1nu(ax, bx), Float8miR1nu(ay, by))
+			}
+			xx := Float8mulD3nd(ax, bx)
+			yy := Float8mulD3nd(ay, by)
+			xy := Float8mulD3nd(ax, by)
+			yx := Float8mulD3nd(ay, bx)
+			if mode == 2 {
+				return pointArithmeticResult(Float8miR1nu(xx, yy), Float8plG3ou(xy, yx))
+			}
+			denominator := Float8plG3ou(Float8mulD3nd(bx, bx), Float8mulD3nd(by, by))
+			if denominator.Kind == checkruntime.Float8ValueError {
+				error := denominator.Error
+				return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+			}
+			real := Float8divKumj(Float8plG3ou(xx, yy), denominator)
+			imaginary := Float8divKumj(Float8miR1nu(yx, xy), denominator)
+			return pointArithmeticResult(real, imaginary)
+		}
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func PointAddGn1v(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.PointValue {
+	return pointArithmetic(left, right, 0)
+}
+func PointSubO53k(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.PointValue {
+	return pointArithmetic(left, right, 1)
+}
+func PointMul9izx(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.PointValue {
+	return pointArithmetic(left, right, 2)
+}
+func PointDivBtbo(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.PointValue {
+	return pointArithmetic(left, right, 3)
+}
+func geometricHypot(first checkruntime.Float8Value, second checkruntime.Float8Value) checkruntime.Float8Value {
+	if first.Kind == checkruntime.Float8ValueError {
+		error := first.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if second.Kind == checkruntime.Float8ValueError {
+		error := second.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if first == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || second == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if first == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || second == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if first.Kind == checkruntime.Float8ValueValue {
+		a := first.Value
+		if second.Kind == checkruntime.Float8ValueValue {
+			b := second.Value
+			x := langruntime.F64Abs(checkruntime.Float8Number(a))
+			y := langruntime.F64Abs(checkruntime.Float8Number(b))
+			infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+			if x == infinity || y == infinity {
+				return checkruntime.MakeFloat8Bits(int64(9218868437227405312))
+			}
+			if x != x || y != y {
+				return checkruntime.MakeFloat8Bits(int64(9221120237041090560))
+			}
+			if x < y {
+				saved := x
+				x = y
+				y = saved
+			}
+			if y == float64(0.0) {
+				return checkruntime.MakeFloat8Value(x)
+			}
+			ratio := langruntime.F64Divide(y, x)
+			squared := langruntime.F64Multiply(ratio, ratio)
+			root := langruntime.F64Sqrt((langruntime.F64Add(float64(1.0), squared)))
+			result := langruntime.F64Multiply(x, root)
+			if result == infinity || result == float64(0.0) {
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+			}
+			return checkruntime.MakeFloat8Value(result)
+		}
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func pointMeasurement(left checkruntime.PointValue, right checkruntime.PointValue, slope bool) checkruntime.Float8Value {
+	if left.Kind == checkruntime.PointValueError {
+		error := left.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PointValueError {
+		error := right.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if left.Kind == checkruntime.PointValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.PointValueValue {
+			b := right.Value
+			if slope {
+				if geometricCoordinateEqual(checkruntime.Float8Number(a.X), checkruntime.Float8Number(b.X)) {
+					return checkruntime.MakeFloat8Bits(int64(9218868437227405312))
+				}
+				if geometricCoordinateEqual(checkruntime.Float8Number(a.Y), checkruntime.Float8Number(b.Y)) {
+					return checkruntime.MakeFloat8Bits(int64(0))
+				}
+			}
+			x := Float8miR1nu(checkruntime.MakeFloat8Bits(a.X), checkruntime.MakeFloat8Bits(b.X))
+			y := Float8miR1nu(checkruntime.MakeFloat8Bits(a.Y), checkruntime.MakeFloat8Bits(b.Y))
+			if slope {
+				result := Float8divKumj(y, x)
+				if result.Kind == checkruntime.Float8ValueValue {
+					bits := result.Value
+					value := checkruntime.Float8Number(bits)
+					if value != value {
+						return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+					}
+				}
+				return result
+			}
+			return geometricHypot(x, y)
+		}
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func PointDistance2haq(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.Float8Value {
+	return pointMeasurement(left, right, false)
+}
+func SlopeXxph(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.Float8Value {
+	return pointMeasurement(left, right, true)
 }
 func Int24eqCfkl(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	leftWide := checkruntime.Int2ToInt4(left)

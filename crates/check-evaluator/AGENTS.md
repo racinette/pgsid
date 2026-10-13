@@ -162,12 +162,23 @@ import them. Keep schema-only helpers with their callables.
   all payloads. Run the float suites and sensor measurement INSERT world.
 - Point coordinates retain IEEE bits in immutable signed bigint carriers.
   SQL-coerced public inputs use checked payload wrappers; malformed inputs defer.
-  Construction and binary output preserve coordinate bits. Geometric equality
+  Construction and binary output preserve SQL-coerced coordinate bits. Arithmetic
+  retains coordinate values but marks computed NaN bit patterns as unavailable;
+  binary output defers for those payloads while geometric comparisons remain
+  definite. Distance scales its operands before squaring; arithmetic preserves
+  each floating-point overflow and underflow check.
+  Geometric equality
   uses coordinate tolerances, except that a NaN coordinate selects exact SQL
   floating equality for both coordinates. Typed NULLs, domains, CASE and
-  COALESCE share the point wrapper. Text input remains a separate parser boundary;
-  geometric text output requires explicit floating rendering settings.
-  Run the point foundation suite and survey position INSERT world.
+  COALESCE share the point wrapper. Point text input accepts optional parentheses,
+  ASCII whitespace, comma-separated decimal coordinates, infinity and plain NaN.
+  Parse coordinates in order, preserving range errors before later syntax errors.
+  Hexadecimal coordinates and extended NaN spellings require a platform contract;
+  oversized inputs defer separately. Typed literals prepare before lazy branches;
+  runtime casts retain branch laziness. Unconstrained point-domain casts unwrap
+  their catalog chain; domain enforcement remains a separate coercion boundary.
+  Geometric text output requires explicit floating rendering settings.
+  Run the point suites and survey position INSERT world.
 - Numeric payloads own exact decimal strings in `NumericValue`; targets use
   strings or readonly wrappers for already-coerced SQL values. Reject floating
   point inputs; malformed or unsupported representations defer. Rust validates

@@ -77,7 +77,7 @@ export function emitCheckRustEvaluator(
   const constantDeclarations: string[] = []
   const constantLines: string[] = []
   const literalLines: string[] = []
-  let temporalLiteralDepth = 0
+  let valueLiteralDepth = 0
   let preparationLines = constantLines
   const preparationState = 'constant_preparation'
   let preparationDepth = 0
@@ -186,23 +186,24 @@ export function emitCheckRustEvaluator(
     used: Set<string>,
   ): { name: string; type: string } => {
     if (
-      temporalLiteralDepth === 0 &&
+      valueLiteralDepth === 0 &&
       (node.kind === 'interval-literal' ||
         (node.kind === 'certain' &&
-          node.expression.kind === 'temporal' &&
-          (node.expression.type === 'pg_catalog."interval"' ||
-            node.expression.type === 'pg_catalog."time"' ||
-            node.expression.type === 'pg_catalog.timetz') &&
+          (node.expression.kind === 'point' ||
+            (node.expression.kind === 'temporal' &&
+              (node.expression.type === 'pg_catalog."interval"' ||
+                node.expression.type === 'pg_catalog."time"' ||
+                node.expression.type === 'pg_catalog.timetz'))) &&
           node.expression.value !== null))
     ) {
-      temporalLiteralDepth++
+      valueLiteralDepth++
       preparationDepth++
       let value: { name: string; type: string }
       try {
         value = emitScalar(node, literalLines, used)
       } finally {
         preparationDepth--
-        temporalLiteralDepth--
+        valueLiteralDepth--
       }
       const prefix = rustType(value.type).slice(0, -'Value'.length).toLowerCase()
       const name = fresh(`${prefix}_literal`)
@@ -489,6 +490,19 @@ export function emitCheckRustEvaluator(
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
+    if (node.kind === 'text-to-point') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (
+        operand.type !== 'pg_catalog.text' ||
+        !io ||
+        builtinMetadata(io).args[0] !== 'pg_catalog.cstring'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Point input requires text and its catalog I/O identity',
+        )
+      return { name: bind(`point_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
     if (node.kind === 'text-to-float') {
       const operand = emitScalar(node.operand, bindings, used)
       if (operand.type !== 'pg_catalog.text')
@@ -648,7 +662,11 @@ export function emitCheckRustEvaluator(
             : `make_bool_value(${value.value ? 'true' : 'false'})`
         return { name: bind(helper), type: value.type }
       }
-      if (value.kind === 'point') return { name: bind('point_null()'), type: value.type }
+      if (value.kind === 'point') {
+        if (value.value === null) return { name: bind('point_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`point_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'uuid') {
         if (value.value === null) return { name: bind('uuid_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
