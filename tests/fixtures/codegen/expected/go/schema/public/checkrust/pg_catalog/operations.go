@@ -4845,6 +4845,46 @@ func DateGe8wil(left checkruntime.DateValue, right checkruntime.DateValue) check
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func EnumToText(input checkruntime.EnumValue, labels string, count int) checkruntime.TextValue {
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
+	if input.Kind == checkruntime.EnumValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.EnumValueValue {
+		value := input.Value
+		if value.Ordinal < 0 || value.Ordinal >= count {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		chars := []rune(labels)
+		index := 0
+		ordinal := 0
+		output := langruntime.NewTextBuffer("")
+		for index < len(chars) {
+			character := chars[index]
+			if character == '\x00' {
+				if ordinal == value.Ordinal {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+				}
+				ordinal = langruntime.CheckedI32(langruntime.CheckedSignedAdd(ordinal, 1))
+			} else if ordinal == value.Ordinal {
+				output = append(output, string(langruntime.CheckedChar(character))...)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if ordinal == value.Ordinal {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func EnumEqW63e(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.EnumValueError {
 		error := left.Error
@@ -5724,6 +5764,45 @@ func integerBaseText(input checkruntime.Int8Value, fullWidth bool, radix int64) 
 			output = append(output, string(langruntime.CheckedChar(digits[remaining]))...)
 		}
 		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func Int8ToText(input checkruntime.Int8Value) checkruntime.TextValue {
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		value := input.Value
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: checkruntime.TextSignedNumber(value)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func Int4ToText(input checkruntime.Int4Value) checkruntime.TextValue {
+	widened := Int8Mzac(input)
+	return Int8ToText(widened)
+}
+func Int2ToText(input checkruntime.Int2Value) checkruntime.TextValue {
+	if input.Kind == checkruntime.Int2ValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.Int2Value{Kind: checkruntime.Int2ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.Int2ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		widened := int64(langruntime.CheckedI32(value))
+		return Int8ToText(checkruntime.MakeInt8Value(widened))
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }

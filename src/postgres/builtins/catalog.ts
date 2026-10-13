@@ -35,6 +35,28 @@ export interface BuiltinCatalog {
   functions: { metadata: FunctionMetadata; signature: BuiltinFunctionSignature }[]
   operators: { metadata: OperatorMetadata; signature: BuiltinOperatorSignature }[]
   casts: BuiltinCastMetadata[]
+  types: BuiltinTypeResolution[]
+  btreeComparisons: BuiltinBtreeComparison[]
+  typeIO: BuiltinTypeIO[]
+}
+
+export interface BuiltinTypeIO {
+  identity: string
+  input: string | null
+  output: string | null
+}
+
+export interface BuiltinBtreeComparison {
+  operator: string
+  family: string
+  strategy: 1 | 2 | 3 | 4 | 5
+  comparator: string | null
+}
+
+export interface BuiltinTypeResolution {
+  identity: string
+  category: string
+  preferred: boolean
 }
 
 export interface BuiltinCastMetadata {
@@ -57,7 +79,7 @@ export function callableIdentity(metadata: FunctionMetadata | OperatorMetadata):
 }
 
 export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
-  const [version, functions, operators, casts] = await Promise.all([
+  const [version, functions, operators, casts, types, btree, typeIO] = await Promise.all([
     pg.query<{ server_version_num: string }>('SHOW server_version_num'),
     pg.query<{
       schema: string
@@ -146,6 +168,60 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       LEFT JOIN pg_namespace pn ON pn.oid = p.pronamespace
       WHERE sn.nspname = 'pg_catalog' AND tn.nspname = 'pg_catalog'
       ORDER BY 1, 2`),
+    pg.query<BuiltinTypeResolution>(`SELECT quote_ident(n.nspname) || '.' || quote_ident(t.typname) AS identity,
+      t.typcategory AS category, t.typispreferred AS preferred
+      FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE n.nspname = 'pg_catalog' ORDER BY 1`),
+    pg.query<{
+      operator_schema: string
+      operator_name: string
+      left: string
+      right: string
+      family: string
+      strategy: 1 | 2 | 3 | 4 | 5
+      comparator_schema: string | null
+      comparator_name: string | null
+      comparator_args: string[] | null
+    }>(`SELECT onsp.nspname AS operator_schema, o.oprname AS operator_name,
+      (${typeIdentity} o.oprleft) AS left, (${typeIdentity} o.oprright) AS right,
+      quote_ident(fnsp.nspname) || '.' || quote_ident(f.opfname) AS family,
+      a.amopstrategy::int AS strategy,
+      pnsp.nspname AS comparator_schema, p.proname AS comparator_name,
+      (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
+        FROM unnest(p.proargtypes) WITH ORDINALITY u(t, ord)) AS comparator_args
+      FROM pg_amop a JOIN pg_am am ON am.oid = a.amopmethod AND am.amname = 'btree'
+      JOIN pg_opfamily f ON f.oid = a.amopfamily
+      JOIN pg_namespace fnsp ON fnsp.oid = f.opfnamespace
+      JOIN pg_operator o ON o.oid = a.amopopr
+      JOIN pg_namespace onsp ON onsp.oid = o.oprnamespace
+      LEFT JOIN pg_amproc ap ON ap.amprocfamily = f.oid AND ap.amproclefttype = a.amoplefttype
+        AND ap.amprocrighttype = a.amoprighttype AND ap.amprocnum = 1
+      LEFT JOIN pg_proc p ON p.oid = ap.amproc
+      LEFT JOIN pg_namespace pnsp ON pnsp.oid = p.pronamespace
+      WHERE onsp.nspname = 'pg_catalog' AND fnsp.nspname = 'pg_catalog'
+        AND (p.oid IS NULL OR pnsp.nspname = 'pg_catalog')
+      ORDER BY 1, 2, 3, 4, 5, 6`),
+    pg.query<{
+      identity: string
+      input_schema: string | null
+      input_name: string | null
+      input_args: string[] | null
+      output_schema: string | null
+      output_name: string | null
+      output_args: string[] | null
+    }>(`SELECT quote_ident(n.nspname) || '.' || quote_ident(t.typname) AS identity,
+      ins.nspname AS input_schema, ip.proname AS input_name,
+      (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
+        FROM unnest(ip.proargtypes) WITH ORDINALITY u(t, ord)) AS input_args,
+      outs.nspname AS output_schema, op.proname AS output_name,
+      (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
+        FROM unnest(op.proargtypes) WITH ORDINALITY u(t, ord)) AS output_args
+      FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+      LEFT JOIN pg_proc ip ON ip.oid = t.typinput
+      LEFT JOIN pg_namespace ins ON ins.oid = ip.pronamespace
+      LEFT JOIN pg_proc op ON op.oid = t.typoutput
+      LEFT JOIN pg_namespace outs ON outs.oid = op.pronamespace
+      WHERE n.nspname = 'pg_catalog' ORDER BY 1`),
   ])
   assertUniqueRustCallableNames([
     ...functions.rows.map((row) => ({
@@ -174,6 +250,27 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
   }
   return {
     serverVersion: Number(version.rows[0]!.server_version_num),
+    types: types.rows,
+    typeIO: typeIO.rows.map((row) => ({
+      identity: row.identity,
+      input:
+        row.input_name === null
+          ? null
+          : `function:${JSON.stringify([row.input_schema, row.input_name])}(${(row.input_args ?? []).join(',')})`,
+      output:
+        row.output_name === null
+          ? null
+          : `function:${JSON.stringify([row.output_schema, row.output_name])}(${(row.output_args ?? []).join(',')})`,
+    })),
+    btreeComparisons: btree.rows.map((row) => ({
+      operator: `operator:${JSON.stringify([row.operator_schema, row.operator_name])}(${row.left},${row.right})`,
+      family: row.family,
+      strategy: row.strategy,
+      comparator:
+        row.comparator_name === null
+          ? null
+          : `function:${JSON.stringify([row.comparator_schema, row.comparator_name])}(${(row.comparator_args ?? []).join(',')})`,
+    })),
     casts: casts.rows.map((row) => ({
       source: row.source,
       target: row.target,

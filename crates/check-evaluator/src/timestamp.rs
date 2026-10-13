@@ -43,7 +43,12 @@ fn timestamp_calendar_microseconds(
     microsecond: i32,
     offset_seconds: i32,
     with_timezone: bool,
+    allow_fraction_carry: bool,
 ) -> Int8Value {
+    let mut max_fraction: i32 = 999999;
+    if allow_fraction_carry {
+        max_fraction = 1000000;
+    }
     if hour < 0
         || hour > 24
         || minute < 0
@@ -51,7 +56,7 @@ fn timestamp_calendar_microseconds(
         || second < 0
         || second > 60
         || microsecond < 0
-        || microsecond > 999999
+        || microsecond > max_fraction
     {
         return Int8Value::Error(SqlError {
             state: TIMESTAMP_FIELD_OVERFLOW,
@@ -155,6 +160,26 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
         while start < end && date_text_space(text.chars[end - 1]) {
             end = end - 1;
         }
+        if end - start == 5
+            && text.chars[start].to_ascii_lowercase() == 'e'
+            && text.chars[start + 1].to_ascii_lowercase() == 'p'
+            && text.chars[start + 2].to_ascii_lowercase() == 'o'
+            && text.chars[start + 3].to_ascii_lowercase() == 'c'
+            && text.chars[start + 4].to_ascii_lowercase() == 'h'
+        {
+            return timestamp_calendar_microseconds(
+                1970,
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                with_timezone,
+                false,
+            );
+        }
         let mut infinity_start = start;
         let mut negative = false;
         if infinity_start < end && text.chars[infinity_start] == '-' {
@@ -218,6 +243,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
                 0,
                 0,
                 false,
+                false,
             );
         }
         if text.chars[index].to_ascii_lowercase() == 't' {
@@ -249,17 +275,37 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
             }
             second = seconds.value;
             if index < end && text.chars[index] == '.' {
+                let fraction_start = index + 1;
                 let digits = read_timestamp_number(&text, index + 1, end);
                 index = digits.next;
-                if digits.digits < 1 || digits.digits > 6 {
+                if digits.digits < 1 {
                     return Int8Value::Unknown;
                 }
-                fraction = digits.value;
-                let mut fraction_digits = digits.digits;
-                while fraction_digits < 6 {
-                    fraction = fraction * 10;
-                    fraction_digits += 1;
-                }
+                if digits.digits <= 6 {
+                    fraction = digits.value;
+                    let mut fraction_digits = digits.digits;
+                    while fraction_digits < 6 {
+                        fraction = fraction * 10;
+                        fraction_digits += 1;
+                    }
+                } else {
+                    let mut fraction_text = String::new();
+                    fraction_text.push('0');
+                    fraction_text.push('.');
+                    let mut digit_index = fraction_start;
+                    while digit_index < index {
+                        fraction_text.push(text.chars[digit_index]);
+                        digit_index += 1;
+                    }
+                    let parsed = fraction_text.as_str().parse::<f64>().unwrap_or(0.0f64);
+                    let scaled = parsed * 1000000.0f64;
+                    fraction = scaled as i32;
+                    let integral = fraction as f64;
+                    let remainder = scaled - integral;
+                    if remainder > 0.5f64 || (remainder == 0.5f64 && fraction % 2 != 0) {
+                        fraction = fraction + 1;
+                    };
+                };
             }
         }
         while index < end && date_text_space(text.chars[index]) {
@@ -336,6 +382,7 @@ fn parse_timestamp_text(value: TextValue, with_timezone: bool) -> Int8Value {
             fraction,
             offset,
             with_timezone,
+            true,
         );
     }
     Int8Value::Unknown
@@ -372,6 +419,7 @@ pub fn timestamp_from_calendar(
         second,
         microsecond,
         0,
+        false,
         false,
     );
     timestamp_from_microseconds(parsed)

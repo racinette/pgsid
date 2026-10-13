@@ -1,5 +1,5 @@
 import { parseSync } from 'libpg-query'
-import type { EnumInfo } from '../../src/catalog/types.js'
+import type { ColumnInfo, EnumInfo } from '../../src/catalog/types.js'
 import {
   bindCatalogCheck,
   catalogScalarType,
@@ -20,8 +20,14 @@ export function hasUncertain(value: unknown): boolean {
   return Object.values(value).some(hasUncertain)
 }
 
-export function inspectExpression(expression: EvalBoolExpression) {
+export function inspectExpression(
+  expression: EvalBoolExpression,
+  columns: readonly Pick<ColumnInfo, 'name' | 'typeName' | 'generated' | 'defaultExpr'>[] = [],
+) {
   const prepared = prepareCheckRust(expression)
+  const inputs = new Set(
+    prepared.kind === 'supported' ? prepared.evaluator.inputs.map((input) => input.name) : [],
+  )
   return {
     fullyBound: !hasUncertain(expression),
     preparation:
@@ -33,6 +39,14 @@ export function inspectExpression(expression: EvalBoolExpression) {
           }
         : prepared,
     expression,
+    materializedInputs: columns
+      .filter((column) => column.generated !== 'none' && inputs.has(column.name))
+      .map((column) => ({
+        name: column.name,
+        type: column.typeName,
+        generated: column.generated,
+        expression: column.defaultExpr,
+      })),
   }
 }
 

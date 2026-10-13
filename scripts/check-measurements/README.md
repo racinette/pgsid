@@ -14,11 +14,17 @@ sources. Surface measurement rejects outcomes from different world inputs.
 
 The type audit separates reading a portable value from testing its nullness.
 Nullness may be available for a type without a portable value representation.
+Column probes retain catalog row-type metadata, including for arrays and ranges.
+Column admission is probed in PostgreSQL rather than inferred from catalog kind.
+Rejected types remain in the inventory with the rejection reason and column
+probes marked inapplicable. Composite NULL tests require row semantics.
 Basic equality and NULL probes describe expression preparation, not exhaustive
 input or coercion support.
 
-The surface census checks the live catalog against the generated overload and
-cast inventories. Operator aliases retain their implementation identities.
+The surface census checks the live catalog against the generated overload, cast,
+and type I/O inventories. Operator aliases retain their implementation identities.
+I/O casts retain type output identities separately from explicit cast links;
+enum output also requires concrete catalog label definitions.
 Probes record whether the requested overload survives binding and whether Rust
 preparation succeeds; neither proves executed behavior. Dedicated regex paths
 may bind without retaining a catalog-named call.
@@ -33,13 +39,27 @@ aggregate, window, and representation boundaries remain explicit.
 
 Expression probes compare raw SQL with PostgreSQL's stored CHECK definitions.
 Corpus entries retain constraint identities, bound expressions, INSERT outcomes,
-and named Unknown cases. World outcomes distinguish definite values, SQL errors,
+named Unknown cases, and required materialized generated-column inputs. A CHECK
+reads a supplied generated value; its source columns do not supply that value.
+Write-hook metadata identifies tables whose INSERT inputs may be rewritten before
+PostgreSQL evaluates their CHECKs, including hooks on descendant partitions.
+World outcomes distinguish definite values, SQL errors,
 Unknown results, and constraints without INSERT cases. A prepared Unknown is
 deferred work, and an unexercised constraint supplies no execution evidence.
+
+The coercion census probes explicit catalog casts between represented types and
+their runtime text input/output paths, retaining actual type I/O identities.
+It compares raw and stored CHECKs and records PostgreSQL admission separately
+from local preparation. Binding a conversion does not establish all input
+spellings, precision modifiers, assignment coercion, or raw parameter handling.
+Named input-form cases are shared with their parity suites. Handled cases include
+SQL errors; deferred cases require Unknown. These lists inventory tested
+spellings and retain their executing owner without claiming complete grammar coverage.
 
 To rerun individual reports after refreshing world parity:
 
 ```sh
 node --import tsx scripts/check-measurements/types.ts
 node --import tsx scripts/check-measurements/surface.ts
+node --import tsx scripts/check-measurements/coercions.ts
 ```

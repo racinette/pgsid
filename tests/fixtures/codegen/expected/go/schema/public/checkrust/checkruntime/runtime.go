@@ -2493,13 +2493,22 @@ func DateFromText(value TextValue) DateValue {
 		}
 		bc := false
 		if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 1)]) == 'c' && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 2)]) == 'b' {
+			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
+				return DateValue{Kind: DateValueUnknown}
+			}
 			bc = true
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
 		} else if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 1)]) == 'd' && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 2)]) == 'a' {
+			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
+				return DateValue{Kind: DateValueUnknown}
+			}
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
 		}
 		for start < end && dateTextSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		if langruntime.CheckedSubtract(end, start) == 5 && langruntime.AsciiLowercase(chars[start]) == 'e' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(start, 1)]) == 'p' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(start, 2)]) == 'o' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(start, 3)]) == 'c' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(start, 4)]) == 'h' {
+			return DateFromYmd(1970, 1, 1)
 		}
 		infinityStart := start
 		negative := false
@@ -2668,7 +2677,7 @@ func readTimestampNumber(text *timestampText, start int, end int) timestampNumbe
 	}
 	return timestampNumber{next: index, digits: langruntime.CheckedSubtract(index, start), value: value, overflow: overflow}
 }
-func timestampCalendarMicroseconds(year int, month int, day int, hour int, minute int, second int, microsecond int, offsetSeconds int, withTimezone bool) Int8Value {
+func timestampCalendarMicroseconds(year int, month int, day int, hour int, minute int, second int, microsecond int, offsetSeconds int, withTimezone bool, allowFractionCarry bool) Int8Value {
 	year = langruntime.CheckedI32(year)
 	month = langruntime.CheckedI32(month)
 	day = langruntime.CheckedI32(day)
@@ -2677,7 +2686,11 @@ func timestampCalendarMicroseconds(year int, month int, day int, hour int, minut
 	second = langruntime.CheckedI32(second)
 	microsecond = langruntime.CheckedI32(microsecond)
 	offsetSeconds = langruntime.CheckedI32(offsetSeconds)
-	if hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 || microsecond < 0 || microsecond > 999999 {
+	maxFraction := 999999
+	if allowFractionCarry {
+		maxFraction = langruntime.CheckedI32(1000000)
+	}
+	if hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 || microsecond < 0 || microsecond > maxFraction {
 		return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 	}
 	clockSeconds := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(hour, 60), minute)), 60), second)
@@ -2759,6 +2772,9 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 		for start < end && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 1)]) {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 		}
+		if langruntime.CheckedSubtract(end, start) == 5 && langruntime.AsciiLowercase(text.chars[start]) == 'e' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 1)]) == 'p' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 2)]) == 'o' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 3)]) == 'c' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(start, 4)]) == 'h' {
+			return timestampCalendarMicroseconds(1970, 1, 1, 0, 0, 0, 0, 0, withTimezone, false)
+		}
 		infinityStart := start
 		negative := false
 		if infinityStart < end && text.chars[infinityStart] == '-' {
@@ -2810,7 +2826,7 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 			if bc {
 				year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, year))
 			}
-			return timestampCalendarMicroseconds(year, month.value, day.value, 0, 0, 0, 0, 0, false)
+			return timestampCalendarMicroseconds(year, month.value, day.value, 0, 0, 0, 0, 0, false, false)
 		}
 		if langruntime.AsciiLowercase(text.chars[index]) == 't' {
 			index = langruntime.CheckedAdd(index, 1)
@@ -2841,16 +2857,36 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 			}
 			second = langruntime.CheckedI32(seconds.value)
 			if index < end && text.chars[index] == '.' {
+				fractionStart := langruntime.CheckedAdd(index, 1)
 				digits := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 				index = langruntime.CheckedIndex(digits.next)
-				if digits.digits < 1 || digits.digits > 6 {
+				if digits.digits < 1 {
 					return Int8Value{Kind: Int8ValueUnknown}
 				}
-				fraction = langruntime.CheckedI32(digits.value)
-				fractionDigits := digits.digits
-				for fractionDigits < 6 {
-					fraction = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(fraction, 10))
-					fractionDigits = langruntime.CheckedAdd(fractionDigits, 1)
+				if digits.digits <= 6 {
+					fraction = langruntime.CheckedI32(digits.value)
+					fractionDigits := digits.digits
+					for fractionDigits < 6 {
+						fraction = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(fraction, 10))
+						fractionDigits = langruntime.CheckedAdd(fractionDigits, 1)
+					}
+				} else {
+					fractionText := langruntime.NewTextBuffer("")
+					fractionText = append(fractionText, string(langruntime.CheckedChar('0'))...)
+					fractionText = append(fractionText, string(langruntime.CheckedChar('.'))...)
+					digitIndex := fractionStart
+					for digitIndex < index {
+						fractionText = append(fractionText, string(langruntime.CheckedChar(text.chars[digitIndex]))...)
+						digitIndex = langruntime.CheckedAdd(digitIndex, 1)
+					}
+					parsed := langruntime.F64FromText(string(fractionText), float64(0.0))
+					scaled := langruntime.F64Multiply(parsed, float64(1000000.0))
+					fraction = langruntime.CheckedI32(langruntime.F64ToI32(scaled))
+					integral := float64(fraction)
+					remainder := langruntime.F64Subtract(scaled, integral)
+					if remainder > float64(0.5) || (remainder == float64(0.5) && langruntime.CheckedSignedRemainder(fraction, 2) != 0) {
+						fraction = langruntime.CheckedI32(langruntime.CheckedSignedAdd(fraction, 1))
+					}
 				}
 			}
 		}
@@ -2916,7 +2952,7 @@ func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 		if bc {
 			year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, year))
 		}
-		return timestampCalendarMicroseconds(year, month.value, day.value, hour.value, minute.value, second, fraction, offset, withTimezone)
+		return timestampCalendarMicroseconds(year, month.value, day.value, hour.value, minute.value, second, fraction, offset, withTimezone, true)
 	}
 	return Int8Value{Kind: Int8ValueUnknown}
 }
@@ -2942,7 +2978,7 @@ func TimestampFromCalendar(year int, month int, day int, hour int, minute int, s
 	minute = langruntime.CheckedI32(minute)
 	second = langruntime.CheckedI32(second)
 	microsecond = langruntime.CheckedI32(microsecond)
-	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false)
+	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false, false)
 	return timestampFromMicroseconds(parsed)
 }
 func TimestampFromText(value TextValue) TimestampValue {
@@ -2972,7 +3008,7 @@ func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int,
 	second = langruntime.CheckedI32(second)
 	microsecond = langruntime.CheckedI32(microsecond)
 	offsetSeconds = langruntime.CheckedI32(offsetSeconds)
-	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true)
+	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true, false)
 	return timestamptzFromMicroseconds(parsed)
 }
 func TimestamptzFromText(value TextValue) TimestamptzValue {
@@ -3046,6 +3082,50 @@ func NotFinish(value CheckOutcome) CheckOutcome {
 	}
 	return value
 }
+func booleanTestFinish(value CheckOutcome, matched bool) CheckOutcome {
+	if CaseGuardStops(value) {
+		return value
+	}
+	if matched {
+		return CheckOutcome{Kind: CheckOutcomeTrue}
+	}
+	return CheckOutcome{Kind: CheckOutcomeFalse}
+}
+func IsTrueFinish(value CheckOutcome) CheckOutcome {
+	return booleanTestFinish(value, value == (CheckOutcome{Kind: CheckOutcomeTrue}))
+}
+func IsFalseFinish(value CheckOutcome) CheckOutcome {
+	return booleanTestFinish(value, value == (CheckOutcome{Kind: CheckOutcomeFalse}))
+}
+func IsUnknownFinish(value CheckOutcome) CheckOutcome {
+	return booleanTestFinish(value, value == (CheckOutcome{Kind: CheckOutcomeNull}))
+}
+func DistinctNeedsComparison(leftNull BoolValue, rightNull BoolValue) bool {
+	return leftNull == (BoolValue{Kind: BoolValueValue, Value: false}) && rightNull == (BoolValue{Kind: BoolValueValue, Value: false})
+}
+func DistinctNullsFinish(leftNull BoolValue, rightNull BoolValue) CheckOutcome {
+	if leftNull.Kind == BoolValueError {
+		error := leftNull.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if rightNull.Kind == BoolValueError {
+		error := rightNull.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if leftNull.Kind == BoolValueValue {
+		left := leftNull.Value
+		if rightNull.Kind == BoolValueValue {
+			right := rightNull.Value
+			if left && right {
+				return CheckOutcome{Kind: CheckOutcomeFalse}
+			}
+			if left || right {
+				return CheckOutcome{Kind: CheckOutcomeTrue}
+			}
+		}
+	}
+	return CheckOutcome{Kind: CheckOutcomeUnknown}
+}
 func CaseGuardStops(value CheckOutcome) bool {
 	if value == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
 		return true
@@ -3055,8 +3135,62 @@ func CaseGuardStops(value CheckOutcome) bool {
 	}
 	return false
 }
+func MinmaxNullsChooseRight(leftNull BoolValue, rightNull BoolValue) CheckOutcome {
+	if leftNull.Kind == BoolValueError {
+		error := leftNull.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if rightNull.Kind == BoolValueError {
+		error := rightNull.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if leftNull.Kind == BoolValueValue {
+		left := leftNull.Value
+		if rightNull.Kind == BoolValueValue {
+			right := rightNull.Value
+			if left && right == false {
+				return CheckOutcome{Kind: CheckOutcomeTrue}
+			}
+			return CheckOutcome{Kind: CheckOutcomeFalse}
+		}
+	}
+	return CheckOutcome{Kind: CheckOutcomeUnknown}
+}
 func CaseGuardTakes(value CheckOutcome) bool {
 	return value == (CheckOutcome{Kind: CheckOutcomeTrue})
+}
+func RowCompareContinues(value Int4Value) bool {
+	if value.Kind == Int4ValueValue {
+		ordering := langruntime.CheckedI32(value.Value)
+		return ordering == 0
+	}
+	return false
+}
+func RowCompareFinish(value Int4Value, strategy int) BoolValue {
+	strategy = langruntime.CheckedI32(strategy)
+	if value.Kind == Int4ValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (Int4Value{Kind: Int4ValueNull}) {
+		return BoolValue{Kind: BoolValueNull}
+	}
+	if value.Kind == Int4ValueValue {
+		ordering := langruntime.CheckedI32(value.Value)
+		if strategy == 1 {
+			return BoolValue{Kind: BoolValueValue, Value: ordering < 0}
+		}
+		if strategy == 2 {
+			return BoolValue{Kind: BoolValueValue, Value: ordering <= 0}
+		}
+		if strategy == 4 {
+			return BoolValue{Kind: BoolValueValue, Value: ordering >= 0}
+		}
+		if strategy == 5 {
+			return BoolValue{Kind: BoolValueValue, Value: ordering > 0}
+		}
+	}
+	return BoolValue{Kind: BoolValueUnknown}
 }
 func ConstantFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
 	if left.Kind == CheckOutcomeError {

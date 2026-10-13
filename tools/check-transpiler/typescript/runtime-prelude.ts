@@ -262,3 +262,24 @@ function f64FromText(value: string, fallback: number): number {
   if (!/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/u.test(value)) return fallback
   return Number(value)
 }
+
+function f64FromI64Bits(value: bigint): number {
+  const view = new DataView(new ArrayBuffer(8))
+  view.setBigInt64(0, checkedI64(value))
+  return view.getFloat64(0)
+}
+function f64ToI64Bits(value: number): bigint {
+  const view = new DataView(new ArrayBuffer(8))
+  view.setFloat64(0, checkedF64(value))
+  return view.getBigInt64(0)
+}
+function f32FromI32Bits(value: number): number {
+  const view = new DataView(new ArrayBuffer(4))
+  view.setInt32(0, checkedI32(value))
+  return view.getFloat32(0)
+}
+function f32ToI32Bits(value: number): number {
+  const view = new DataView(new ArrayBuffer(4))
+  view.setFloat32(0, checkedF64(value))
+  return view.getInt32(0)
+}

@@ -59,6 +59,7 @@ type node struct {
 	Segments       []string    `json:"segments"`
 	Path           []string    `json:"path"`
 	Operator       string      `json:"operator"`
+	Operation      string      `json:"operation"`
 	Member         string      `json:"member"`
 	Method         string      `json:"method"`
 	Semicolon      bool        `json:"semicolon"`
@@ -314,6 +315,17 @@ func (g *generator) inferType(value *node) *node {
 		return namedType("usize")
 	case "float", "float-from-text":
 		return namedType("f64")
+	case "float-bits":
+		switch value.Operation {
+		case "decode-double", "decode-single":
+			return namedType("f64")
+		case "encode-double":
+			return namedType("i64")
+		case "encode-single":
+			return namedType("i32")
+		default:
+			reject("unknown float bit conversion")
+		}
 	case "integer":
 		if value.IntegerType == "i64" {
 			return namedType("i64")

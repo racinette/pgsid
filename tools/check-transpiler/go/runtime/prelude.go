@@ -281,3 +281,10 @@ func f64FromText(value string, fallback float64) float64 {
 	}
 	return fallback
 }
+
+func f64FromI64Bits(value int64) float64 { return math.Float64frombits(uint64(value)) }
+func f64ToI64Bits(value float64) int64   { return int64(math.Float64bits(value)) }
+func f32FromI32Bits(value int) float64 {
+	return float64(math.Float32frombits(uint32(checkedI32(value))))
+}
+func f32ToI32Bits(value float64) int { return int(int32(math.Float32bits(float32(value)))) }

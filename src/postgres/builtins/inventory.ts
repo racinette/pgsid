@@ -1,9 +1,39 @@
 import { PG18_BUILTIN_GROUPS } from './groups.generated.js'
 import { PG18_BUILTIN_CASTS } from './casts.generated.js'
-import type { BuiltinCastMetadata, FunctionMetadata, OperatorMetadata } from './catalog.js'
+import { PG18_TYPE_RESOLUTION } from './type-resolution.generated.js'
+import { PG18_BTREE_COMPARISONS } from './btree-comparisons.generated.js'
+import { PG18_TYPE_IO } from './type-io.generated.js'
+import type {
+  BuiltinCastMetadata,
+  BuiltinTypeResolution,
+  BuiltinTypeIO,
+  BuiltinBtreeComparison,
+  FunctionMetadata,
+  OperatorMetadata,
+} from './catalog.js'
 import type { BuiltinCallable } from './taxonomy.js'
 
 const casts: Readonly<Record<string, BuiltinCastMetadata>> = PG18_BUILTIN_CASTS
+const types: Readonly<Record<string, BuiltinTypeResolution>> = PG18_TYPE_RESOLUTION
+const typeIO: Readonly<Record<string, BuiltinTypeIO>> = PG18_TYPE_IO
+
+export function builtinTypeIO(identity: string): BuiltinTypeIO | null {
+  return typeIO[identity] ?? null
+}
+const btree = new Map<string, BuiltinBtreeComparison[]>()
+for (const comparison of PG18_BTREE_COMPARISONS) {
+  const entries = btree.get(comparison.operator) ?? []
+  entries.push(comparison)
+  btree.set(comparison.operator, entries)
+}
+
+export function builtinBtreeComparisons(operator: string): readonly BuiltinBtreeComparison[] {
+  return btree.get(operator) ?? []
+}
+
+export function builtinTypeResolution(identity: string): BuiltinTypeResolution | null {
+  return types[identity] ?? null
+}
 
 export function builtinCast(source: string, target: string): BuiltinCastMetadata | null {
   return casts[JSON.stringify([source, target])] ?? null

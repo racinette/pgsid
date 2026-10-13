@@ -4881,6 +4881,47 @@ export function dateGe8wil(left: checkruntime.DateValue, right: checkruntime.Dat
     }
     return { kind: "Unknown" };
 }
+export function enumToText(input: checkruntime.EnumValue, labels: string, count: number): checkruntime.TextValue {
+    labels = langruntime.checkedString(labels);
+    count = langruntime.checkedI32(count);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalEnumValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalEnumValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.EnumPayload = input.value;
+        if (value.ordinal < 0 || value.ordinal >= count) {
+            return { kind: "Unknown" };
+        }
+        const chars: string[] = Array.from(labels);
+        let index: number = 0;
+        let ordinal: number = 0;
+        let output: string = "";
+        while (index < chars.length) {
+            const character: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+            if (character === "\0") {
+                if (ordinal === value.ordinal) {
+                    return { kind: "Value", value: output };
+                }
+                ordinal = langruntime.checkedI32(langruntime.checkedSignedAdd(ordinal, 1));
+            }
+            else if (ordinal === value.ordinal) {
+                output = output + langruntime.checkedChar(character);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (ordinal === value.ordinal) {
+            return { kind: "Value", value: output };
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function enumEqW63e(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
@@ -5760,6 +5801,45 @@ function integerBaseText(input: checkruntime.Int8Value, fullWidth: boolean, radi
             output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(remaining)));
         }
         return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function int8ToText(input: checkruntime.Int8Value): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: checkruntime.textSignedNumber(value) };
+    }
+    return { kind: "Unknown" };
+}
+export function int4ToText(input: checkruntime.Int4Value): checkruntime.TextValue {
+    const widened: checkruntime.Int8Value = int8Mzac(input);
+    return int8ToText(widened);
+}
+export function int2ToText(input: checkruntime.Int2Value): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt2Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt2Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        const widened: bigint = BigInt(langruntime.checkedI32(value));
+        return int8ToText(checkruntime.makeInt8Value(widened));
     }
     return { kind: "Unknown" };
 }

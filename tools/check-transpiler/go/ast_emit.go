@@ -205,6 +205,12 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		return goCall("indexFromI32", g.goExpression(value.Value), g.goExpression(value.Fallback))
 	case "float-from-text":
 		return goCall("f64FromText", g.goExpression(value.Value), g.goExpression(value.Fallback))
+	case "float-bits":
+		helper := map[string]string{"decode-double": "f64FromI64Bits", "encode-double": "f64ToI64Bits", "decode-single": "f32FromI32Bits", "encode-single": "f32ToI32Bits"}[value.Operation]
+		if helper == "" {
+			reject("unknown float bit conversion")
+		}
+		return goCall(helper, g.goExpression(value.Value))
 	case "float":
 		parsed, err := strconv.ParseFloat(value.Digits, 64)
 		if err != nil {

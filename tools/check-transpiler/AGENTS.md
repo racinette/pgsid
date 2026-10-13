@@ -103,6 +103,14 @@ change to the regex transpiler unless the regex engine itself changes.
   converted with `parse::<f64>().unwrap_or(f64_fallback)`. Preserve Rust parsing,
   signed zero, infinities and eager fallback evaluation; reject other parse types
   and general Result handling.
+  Real narrowing and floating-point binary-send CHECKs need IEEE bit carriers.
+  Accept only `f64::from_bits(i64_value as u64)`, `f64_value.to_bits() as i64`,
+  `f32::from_bits(i32_value as u32) as f64`, and
+  `(f64_value as f32).to_bits() as i32`. Keep signed carrier bits intact;
+  single-precision conversion rounds before widening back to the private f64
+  primitive. General f32 values and unsigned integer casts remain rejected.
+  Run `check-float-bits.test.ts` for native Rust, Go, TypeScript and PostgreSQL
+  narrowing behavior, including signed zero, NaN payloads and range errors.
   Floating-point fields, enum payloads, tables, remainder and other methods remain
   rejected. Public SQL numeric values retain their decimal string representation.
 - Decimal iteration may replace a mutable Clone record binding as a whole.

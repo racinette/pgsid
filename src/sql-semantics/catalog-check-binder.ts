@@ -1,7 +1,13 @@
 import { parseSync } from 'libpg-query'
 import type { ColumnInfo, DomainInfo, EnumInfo } from '../catalog/types.js'
 import { PG18_BUILTIN_GROUPS } from '../postgres/builtins/groups.generated.js'
-import { builtinCast, builtinMetadata } from '../postgres/builtins/inventory.js'
+import {
+  builtinCast,
+  builtinMetadata,
+  builtinTypeResolution,
+  builtinBtreeComparisons,
+  builtinTypeIO,
+} from '../postgres/builtins/inventory.js'
 import { builtinDefaultArguments } from '../postgres/builtins/default-arguments.js'
 import type { BuiltinCallable } from '../postgres/builtins/taxonomy.js'
 import type { EvalExpression } from './eval-expressions.js'
@@ -553,6 +559,169 @@ const candidate = (
   return matches.length === 1 ? matches[0]! : null
 }
 
+const commonType = (args: readonly Bound[]): ScalarType | null => {
+  const types = args.map(boundType).filter((type): type is ScalarType => type !== null)
+  if (!types.length) return 'pg_catalog.text'
+  let selected = types[0]!
+  for (const type of types.slice(1)) {
+    if (type === selected) continue
+    const current = builtinTypeResolution(selected)
+    const next = builtinTypeResolution(type)
+    if (!current || !next || current.category !== next.category) return null
+    if (
+      !current.preferred &&
+      builtinCast(selected, type)?.context === 'i' &&
+      builtinCast(type, selected)?.context !== 'i'
+    )
+      selected = type
+  }
+  return types.every((type) => type === selected || builtinCast(type, selected)?.context === 'i')
+    ? selected
+    : null
+}
+
+const implicitOperand = (
+  arg: Bound,
+  target: ScalarType,
+  definition = arg.enum,
+): EvalExpression | null => {
+  const source = boundType(arg)
+  const value = materialize(arg, source ?? target, definition)
+  if (!value || source === null || source === target) return value
+  const conversion = builtinCast(source, target)
+  if (conversion?.context !== 'i') return null
+  if (conversion.method === 'b')
+    return {
+      kind: 'call',
+      call: { kind: 'cast', signature: null, type: target },
+      operands: [value],
+    }
+  if (conversion.method === 'f' && conversion.implementation) {
+    const implementation = builtinMetadata(conversion.implementation)
+    const result = catalogScalarType(implementation.result)
+    if (!result || implementation.args.length !== 1 || implementation.args[0] !== source)
+      return null
+    if (result !== target) {
+      if (builtinCast(result, target)?.method !== 'b') return null
+      return {
+        kind: 'call',
+        call: { kind: 'cast', signature: null, type: target },
+        operands: [
+          {
+            kind: 'call',
+            call: { kind: 'function', signature: conversion.implementation, type: result },
+            operands: [value],
+          },
+        ],
+      }
+    }
+    return {
+      kind: 'call',
+      call: { kind: 'cast', signature: conversion.implementation, type: target },
+      operands: [value],
+    }
+  }
+  return null
+}
+
+const comparisonCandidate = (
+  args: readonly Bound[],
+  name = '=',
+  requireCollation = true,
+): ResolvedCallable | null => {
+  if (args.length !== 2 || args.some((arg) => !arg.value && !arg.literal)) return null
+  let types = args.map(boundType)
+  if (types.every((type) => type === null)) {
+    args = args.map((arg) => ({
+      ...arg,
+      type: 'pg_catalog.text',
+      value: materialize(arg, 'pg_catalog.text'),
+      literal: undefined,
+      collation: arg.collation ?? defaultCollation,
+    }))
+    if (args.some((arg) => !arg.value)) return null
+    types = args.map(boundType)
+  }
+  const definition = args.find((arg) => arg.enum)?.enum
+  const enumIdentity = definition ? enumType(definition) : null
+  const concrete = (type: string): string | null =>
+    type === 'pg_catalog.anyenum' ? enumIdentity : type
+  const viable = callables.filter(
+    ({ item }) =>
+      item.kind === 'operator' &&
+      item.schema === 'pg_catalog' &&
+      item.name === name &&
+      item.result === 'pg_catalog.bool' &&
+      item.args.length === 2 &&
+      item.args.every((type, index) => {
+        const target = concrete(type)
+        const source = types[index]!
+        if (!target || (type === 'pg_catalog.anyenum' && args[index]!.enumDomain !== undefined))
+          return false
+        return source === null || source === target || builtinCast(source, target)?.context === 'i'
+      }),
+  )
+  const assumed = types.includes(null)
+    ? types.map((type) => type ?? types.find((type) => type !== null)!)
+    : types
+  const exact = viable.filter(({ item }) =>
+    item.args.every((type, index) => concrete(type) === assumed[index]),
+  )
+  const scores = viable.map(
+    ({ item }) => item.args.filter((type, index) => concrete(type) === types[index]).length,
+  )
+  const maximum = Math.max(-1, ...scores)
+  let best = exact.length ? exact : viable.filter((_, index) => scores[index] === maximum)
+  if (best.length > 1) {
+    const preferred = best.map(
+      ({ item }) =>
+        item.args.filter((type, index) => {
+          const source = types[index]
+          const target = builtinTypeResolution(type)
+          return (
+            source !== null &&
+            source !== type &&
+            target?.preferred &&
+            builtinTypeResolution(source!)?.category === target.category
+          )
+        }).length,
+    )
+    const maximum = Math.max(...preferred)
+    best = best.filter((_, index) => preferred[index] === maximum)
+  }
+  for (const index of types.keys()) {
+    if (types[index] !== null || best.length < 2) continue
+    const categories = best.map(({ item }) => builtinTypeResolution(item.args[index]!)?.category)
+    const category = categories.includes('S')
+      ? 'S'
+      : categories.every((category) => category === categories[0])
+        ? categories[0]
+        : null
+    if (!category) return null
+    best = best.filter((_, index) => categories[index] === category)
+    if (best.some(({ item }) => builtinTypeResolution(item.args[index]!)?.preferred))
+      best = best.filter(({ item }) => builtinTypeResolution(item.args[index]!)?.preferred)
+  }
+  if (best.length !== 1) return null
+  const selected = best[0]!
+  const collation = combineCollations(args.map((arg) => arg.collation))
+  if (collation?.explicit && collation.identity === 'conflict') return null
+  if (
+    requireCollation &&
+    selected.item.args.some((type) =>
+      ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type),
+    ) &&
+    !supportsTextCallableCollation(selected.signature, collation?.kind)
+  )
+    return null
+  const operands = args.map((arg, index) =>
+    implicitOperand(arg, concrete(selected.item.args[index]!)! as ScalarType, definition),
+  )
+  return operands.every((value): value is EvalExpression => value !== null)
+    ? { ...selected, operands, collation, enum: definition }
+    : null
+}
+
 const containsColumn = (node: unknown): boolean => {
   if (Array.isArray(node)) return node.some(containsColumn)
   const wrapper = fields(node)
@@ -601,6 +770,62 @@ export function bindCatalogCheck(
   const bind = (node: unknown, expectedType?: ScalarType): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const minmax = fields(wrapper['MinMaxExpr'])
+    if (minmax) {
+      const nodes = minmax['args']
+      const operation =
+        minmax['op'] === 'IS_GREATEST' ? 'greatest' : minmax['op'] === 'IS_LEAST' ? 'least' : null
+      if (!operation || !Array.isArray(nodes) || !nodes.length) return unknown
+      const args = nodes.map((arg) => bind(arg))
+      if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+      const type = commonType(args)
+      if (!type) return unknown
+      const definition = args.find((arg) => arg.enum)?.enum
+      const operands = args.map((arg, index) =>
+        type === 'pg_catalog.bool' && arg.type === 'pg_catalog.bool'
+          ? { kind: 'check' as const, type, expression: lower(nodes[index]) }
+          : implicitOperand(arg, type, definition),
+      )
+      if (!operands.every((value): value is EvalExpression => value !== null)) return unknown
+      const collation = combineCollations(args.map((arg) => arg.collation))
+      const allNull = operands.every(
+        (operand) =>
+          operand.kind === 'certain' &&
+          'value' in operand.expression &&
+          operand.expression.value === null,
+      )
+      const subject: Bound = { type, value: operands[0]!, enum: definition, collation }
+      const resolved = comparisonCandidate(
+        [subject, subject],
+        operation === 'greatest' ? '<' : '>',
+        operands.length > 1 && !allNull,
+      )
+      if (!resolved || resolved.item.args[0] !== resolved.item.args[1]) return unknown
+      const comparisonType =
+        resolved.item.args[0] === 'pg_catalog.anyenum' ? type : resolved.item.args[0]!
+      if (comparisonType !== type && builtinCast(type, comparisonType)?.method !== 'b')
+        return unknown
+      return {
+        type,
+        enum: definition,
+        enumDomain: commonEnumDomain(args),
+        collation,
+        value: allNull
+          ? operands[0]!
+          : {
+              kind: 'minmax',
+              type,
+              operation,
+              operands,
+              comparison: {
+                kind: 'operator',
+                signature: resolved.signature,
+                type: 'pg_catalog.bool',
+                collation: resolved.collation?.kind,
+              },
+            },
+      }
+    }
     const coalesce = fields(wrapper['CoalesceExpr'])
     if (coalesce) {
       const nodes = coalesce['args']
@@ -761,7 +986,7 @@ export function bindCatalogCheck(
         },
       }
     }
-    if (fields(wrapper['BoolExpr']))
+    if (fields(wrapper['BoolExpr']) || fields(wrapper['BooleanTest']))
       return {
         type: 'pg_catalog.bool',
         value: { kind: 'check', type: 'pg_catalog.bool', expression: lower(node) },
@@ -772,6 +997,12 @@ export function bindCatalogCheck(
       const names = strings(castType?.['names'])
       const bounds = castType?.['arrayBounds']
       if (Array.isArray(bounds) && bounds.length) return unknown
+      if (
+        names?.at(-1) === 'unknown' &&
+        (names.length === 1 || (names.length === 2 && names[0] === 'pg_catalog')) &&
+        fields(fields(cast['arg'])?.['A_Const'])?.['isnull'] === true
+      )
+        return bind(cast['arg'])
       const definitions = enums.filter((item) =>
         names?.length === 2
           ? item.schema === names[0] && item.name === names[1]
@@ -798,7 +1029,40 @@ export function bindCatalogCheck(
         castType['typmods'].length
       )
         return unknown
-      const operand = bind(cast['arg'])
+      let operand = bind(cast['arg'])
+      const source = boundType(operand)
+      if (
+        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&
+        (isIntegerType(source) || operand.enum)
+      ) {
+        const value = source ? materialize(operand, source) : null
+        const output =
+          operand.enum?.outputFunction ?? (source ? builtinTypeIO(source)?.output : null)
+        const metadata = output ? callables.find((item) => item.signature === output)?.item : null
+        if (
+          !value ||
+          !output ||
+          !metadata ||
+          metadata.kind !== 'function' ||
+          metadata.result !== 'pg_catalog.cstring' ||
+          !metadata.strict ||
+          metadata.args.length !== 1 ||
+          metadata.args[0] !== (operand.enum ? 'pg_catalog.anyenum' : source) ||
+          (!operand.enum && metadata.volatility !== 'i')
+        )
+          return unknown
+        operand = {
+          type: 'pg_catalog.text',
+          collation: defaultCollation,
+          value: {
+            kind: 'io-to-text',
+            type: 'pg_catalog.text',
+            operand: value,
+            output,
+            enum: operand.enum,
+          },
+        }
+      }
       if (type === 'pg_catalog."varchar"' || type === 'pg_catalog.bpchar') {
         const modifiers = castType?.['typmods']
         let width: number | null = null
@@ -817,12 +1081,7 @@ export function bindCatalogCheck(
         }
         let value = materialize(operand, type)
         const source = operand.type
-        if (
-          !value &&
-          source &&
-          operand.value &&
-          ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(source)
-        ) {
+        if (!value && source && operand.value) {
           const conversion = builtinCast(source, type)
           if (conversion?.method === 'b')
             value = {
@@ -835,15 +1094,17 @@ export function bindCatalogCheck(
             if (
               implementation.kind !== 'function' ||
               implementation.args.length !== 1 ||
-              implementation.args[0] !== source ||
               implementation.volatility !== 'i'
             )
               return unknown
-            const result = implementation.result as ScalarType
+            const argument = catalogScalarType(implementation.args[0]!)
+            const result = catalogScalarType(implementation.result)
+            const converted = argument ? implicitOperand(operand, argument) : null
+            if (!result || !converted) return unknown
             value = {
               kind: 'call',
               call: { kind: 'function', signature: conversion.implementation, type: result },
-              operands: [operand.value],
+              operands: [converted],
             }
             if (result !== type) {
               if (!isBinaryTextRelabel(result, type) || builtinCast(result, type)?.method !== 'b')
@@ -1136,12 +1397,12 @@ export function bindCatalogCheck(
             ? { collation: operand.collation ?? defaultCollation }
             : {}),
         }
-      const source =
+      const conversionSource =
         operand.type ?? (operand.literal?.kind === 'integer' ? 'pg_catalog.int4' : null)
-      if (source) {
-        const value = materialize(operand, source)
+      if (conversionSource) {
+        const value = materialize(operand, conversionSource)
         if (!value) return unknown
-        const conversion = builtinCast(source, type)
+        const conversion = builtinCast(conversionSource, type)
         if (
           conversion?.method === 'f' &&
           conversion.implementation !== null &&
@@ -1302,6 +1563,119 @@ export function bindCatalogCheck(
     const operator = fields(wrapper['A_Expr'])
     if (
       operator &&
+      ['AEXPR_OP', 'AEXPR_DISTINCT', 'AEXPR_NOT_DISTINCT'].includes(String(operator['kind']))
+    ) {
+      const left = fields(fields(operator['lexpr'])?.['RowExpr'])?.['args']
+      const right = fields(fields(operator['rexpr'])?.['RowExpr'])?.['args']
+      if (left !== undefined || right !== undefined) {
+        if (
+          !Array.isArray(left) ||
+          !Array.isArray(right) ||
+          !left.length ||
+          left.length !== right.length
+        )
+          return unknown
+        if ([...left, ...right].some((value) => fields(value)?.['RowExpr'] !== undefined))
+          return unknown
+        const names = strings(operator['name'])
+        if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unknown
+        const name = names.at(-1)!
+        if (left.length === 1)
+          return bind({ A_Expr: { ...operator, lexpr: left[0], rexpr: right[0] } })
+        const distinct = operator['kind'] !== 'AEXPR_OP'
+        if (!distinct && !['=', '<>', '<', '<=', '>', '>='].includes(name)) return unknown
+        const pairs = left.map((node, index) =>
+          comparisonCandidate([bind(node), bind(right[index])], distinct ? '=' : name),
+        )
+        if (pairs.some((pair) => !pair)) return unknown
+        if (distinct || name === '=' || name === '<>') {
+          const operands = pairs.map((pair, index): EvalExpression =>
+            distinct
+              ? (bind({
+                  A_Expr: {
+                    ...operator,
+                    kind: 'AEXPR_DISTINCT',
+                    lexpr: left[index],
+                    rexpr: right[index],
+                  },
+                }).value ?? { kind: 'uncertain', type: 'pg_catalog.bool' })
+              : {
+                  kind: 'call',
+                  call: {
+                    kind: 'operator',
+                    signature: pair!.signature,
+                    type: 'pg_catalog.bool',
+                    collation: pair!.collation?.kind,
+                  },
+                  operands: pair!.operands,
+                },
+          )
+          const value: EvalExpression = {
+            kind: 'boolean-logic',
+            type: 'pg_catalog.bool',
+            operation: !distinct && name === '=' ? 'and' : 'or',
+            operands,
+          }
+          return {
+            type: 'pg_catalog.bool',
+            value:
+              operator['kind'] === 'AEXPR_NOT_DISTINCT'
+                ? {
+                    kind: 'boolean-logic',
+                    type: 'pg_catalog.bool',
+                    operation: 'not',
+                    operands: [value],
+                  }
+                : value,
+          }
+        }
+        let strategy: 1 | 2 | 4 | 5 | undefined
+        const comparisons: Extract<EvalExpression, { kind: 'row-compare' }>['pairs'][number][] = []
+        for (const pair of pairs) {
+          const entries = builtinBtreeComparisons(pair!.signature).filter(
+            (entry) => entry.strategy !== 3,
+          )
+          if (
+            !entries.length ||
+            entries.some(
+              (entry) =>
+                entry.comparator === null ||
+                entry.comparator !== entries[0]!.comparator ||
+                entry.strategy !== entries[0]!.strategy,
+            )
+          )
+            return unknown
+          const entry = entries[0]!
+          if (entry.strategy === 3 || (strategy !== undefined && strategy !== entry.strategy))
+            return unknown
+          strategy = entry.strategy
+          const comparator = builtinMetadata(entry.comparator!)
+          if (
+            comparator.kind !== 'function' ||
+            comparator.result !== 'pg_catalog.int4' ||
+            comparator.args.some((type, index) => type !== pair!.item.args[index])
+          )
+            return unknown
+          comparisons.push({
+            operands: [pair!.operands[0]!, pair!.operands[1]!],
+            comparison: {
+              kind: 'function',
+              signature: entry.comparator!,
+              type: 'pg_catalog.int4',
+              collation: pair!.collation?.kind,
+            },
+          })
+        }
+        return strategy === undefined
+          ? unknown
+          : {
+              type: 'pg_catalog.bool',
+              value: { kind: 'row-compare', type: 'pg_catalog.bool', strategy, pairs: comparisons },
+            }
+      }
+    }
+    if (
+      operator &&
       ['AEXPR_BETWEEN', 'AEXPR_NOT_BETWEEN', 'AEXPR_BETWEEN_SYM', 'AEXPR_NOT_BETWEEN_SYM'].includes(
         String(operator['kind']),
       )
@@ -1430,6 +1804,60 @@ export function bindCatalogCheck(
         },
       }
     }
+    if (
+      operator &&
+      ['AEXPR_DISTINCT', 'AEXPR_NOT_DISTINCT', 'AEXPR_NULLIF'].includes(String(operator['kind']))
+    ) {
+      const nodes = [operator['lexpr'], operator['rexpr']]
+      const negated = operator['kind'] === 'AEXPR_NOT_DISTINCT'
+      const nullIndex = nodes.findIndex(
+        (node) => fields(fields(node)?.['A_Const'])?.['isnull'] === true,
+      )
+      if (nullIndex !== -1 && operator['kind'] !== 'AEXPR_NULLIF')
+        return bind({
+          NullTest: {
+            arg: nodes[1 - nullIndex],
+            nulltesttype: negated ? 'IS_NULL' : 'IS_NOT_NULL',
+          },
+        })
+      const resolved = comparisonCandidate(nodes.map((node) => bind(node)))
+      if (!resolved || resolved.item.result !== 'pg_catalog.bool' || resolved.operands.length !== 2)
+        return unknown
+      const comparison = {
+        kind: 'operator' as const,
+        signature: resolved.signature,
+        type: 'pg_catalog.bool' as const,
+        collation: resolved.collation?.kind,
+      }
+      if (operator['kind'] === 'AEXPR_NULLIF') {
+        const type =
+          resolved.item.args[0] === 'pg_catalog.anyenum'
+            ? resolved.enum && enumType(resolved.enum)
+            : catalogScalarType(resolved.item.args[0]!)
+        if (!type) return unknown
+        return {
+          type,
+          enum: resolved.enum,
+          collation: resolved.collation,
+          value: {
+            kind: 'nullif',
+            type,
+            operands: [resolved.operands[0]!, resolved.operands[1]!],
+            comparison,
+          },
+        }
+      }
+      return {
+        type: 'pg_catalog.bool',
+        value: {
+          kind: 'distinct',
+          type: 'pg_catalog.bool',
+          negated,
+          operands: [resolved.operands[0]!, resolved.operands[1]!],
+          comparison,
+        },
+      }
+    }
     if (operator && ['AEXPR_OP', 'AEXPR_LIKE', 'AEXPR_ILIKE'].includes(String(operator['kind']))) {
       const names = strings(operator['name'])
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
@@ -1469,14 +1897,15 @@ export function bindCatalogCheck(
         }
       }
       const operand = bind(nullTest['arg'])
-      if (!operand.value) return unknown
+      const value = operand.value ?? materialize(operand, boundType(operand) ?? 'pg_catalog.text')
+      if (!value) return unknown
       return {
         type: 'pg_catalog.bool',
         value: {
           kind: 'null-test',
           type: 'pg_catalog.bool',
           negated: nullTest['nulltesttype'] === 'IS_NOT_NULL',
-          operand: operand.value,
+          operand: value,
         },
       }
     }
@@ -1593,6 +2022,30 @@ export function bindCatalogCheck(
   const lower = (node: unknown): EvalBoolExpression => {
     const wrapper = fields(node)
     if (!wrapper) return { kind: 'uncertain' }
+    if (fields(wrapper['A_Const'])?.['isnull'] === true)
+      return {
+        kind: 'certain',
+        expression: { kind: 'boolean', type: 'pg_catalog.bool', value: null },
+      }
+    const booleanTest = fields(wrapper['BooleanTest'])
+    if (booleanTest) {
+      const forms = {
+        IS_TRUE: ['true', false],
+        IS_NOT_TRUE: ['true', true],
+        IS_FALSE: ['false', false],
+        IS_NOT_FALSE: ['false', true],
+        IS_UNKNOWN: ['unknown', false],
+        IS_NOT_UNKNOWN: ['unknown', true],
+      } as const
+      const form = forms[booleanTest['booltesttype'] as keyof typeof forms]
+      if (!form || booleanTest['arg'] === undefined) return { kind: 'uncertain' }
+      return {
+        kind: 'eval-test',
+        test: form[0],
+        negated: form[1],
+        operand: lower(booleanTest['arg']),
+      }
+    }
     const caseExpression = fields(wrapper['CaseExpr'])
     if (caseExpression) {
       if (caseExpression['arg'] !== undefined) {

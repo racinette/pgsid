@@ -43,6 +43,44 @@ fn integer_base_text(input: Int8Value, full_width: bool, radix: i64) -> TextValu
     TextValue::Unknown
 }
 
+pub fn int8_to_text(input: Int8Value) -> TextValue {
+    if let Int8Value::Error(error) = input {
+        return TextValue::Error(error);
+    }
+    if input == Int8Value::Unknown {
+        return TextValue::Unknown;
+    }
+    if input == Int8Value::Null {
+        return TextValue::Null;
+    }
+    if let Int8Value::Value(value) = input {
+        return TextValue::Value(text_signed_number(value));
+    }
+    TextValue::Unknown
+}
+
+pub fn int4_to_text(input: Int4Value) -> TextValue {
+    let widened = sql__pg_catalog__int8__mzac(input);
+    int8_to_text(widened)
+}
+
+pub fn int2_to_text(input: Int2Value) -> TextValue {
+    if let Int2Value::Error(error) = input {
+        return TextValue::Error(error);
+    }
+    if input == Int2Value::Unknown {
+        return TextValue::Unknown;
+    }
+    if input == Int2Value::Null {
+        return TextValue::Null;
+    }
+    if let Int2Value::Value(value) = input {
+        let widened = value as i64;
+        return int8_to_text(make_int8_value(widened));
+    }
+    TextValue::Unknown
+}
+
 pub fn sql__pg_catalog__to_bin__w0oh(input: Int8Value) -> TextValue {
     let widened = input;
     integer_base_text(widened, true, 2i64)

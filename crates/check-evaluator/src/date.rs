@@ -77,16 +77,37 @@ pub fn date_from_text(value: TextValue) -> DateValue {
             && chars[end - 1].to_ascii_lowercase() == 'c'
             && chars[end - 2].to_ascii_lowercase() == 'b'
         {
+            if end - start > 2
+                && date_text_space(chars[end - 3]) == false
+                && date_text_digit(chars[end - 3]) < 0
+            {
+                return DateValue::Unknown;
+            }
             bc = true;
             end = end - 2;
         } else if end - start >= 2
             && chars[end - 1].to_ascii_lowercase() == 'd'
             && chars[end - 2].to_ascii_lowercase() == 'a'
         {
+            if end - start > 2
+                && date_text_space(chars[end - 3]) == false
+                && date_text_digit(chars[end - 3]) < 0
+            {
+                return DateValue::Unknown;
+            }
             end = end - 2;
         }
         while start < end && date_text_space(chars[end - 1]) {
             end = end - 1;
+        }
+        if end - start == 5
+            && chars[start].to_ascii_lowercase() == 'e'
+            && chars[start + 1].to_ascii_lowercase() == 'p'
+            && chars[start + 2].to_ascii_lowercase() == 'o'
+            && chars[start + 3].to_ascii_lowercase() == 'c'
+            && chars[start + 4].to_ascii_lowercase() == 'h'
+        {
+            return date_from_ymd(1970, 1, 1);
         }
         let mut infinity_start = start;
         let mut negative = false;

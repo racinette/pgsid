@@ -1,3 +1,7 @@
+import {
+  dateHandledText as supportedText,
+  dateDeferredText as unsupportedText,
+} from './check-temporal-input-forms.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -37,57 +41,6 @@ const expressions = {
   bc_literal: "anchor >= DATE '4714-11-24 bc'",
   infinity_literal: "anchor < DATE '+INFINITY'",
 }
-const supportedText = [
-  null,
-  '',
-  ' \t\r\n\v\f ',
-  '2000-01-01',
-  '00002000-01-01',
-  ' 2000-1-1 ',
-  '\t2000-02-29\n',
-  '1999-12-31',
-  '0001-01-01',
-  '0001-01-01 BC',
-  '0001-02-29bc',
-  '0044-03-15 bC',
-  '2000-01-01 Ad',
-  '4714-11-24 BC',
-  '4714-11-23 BC',
-  '5874897-12-31',
-  '5874898-01-01',
-  '99999999999999999999-01-01',
-  '0000-01-01',
-  '0000-01-01 BC',
-  '1900-02-29',
-  '2100-02-29',
-  '2000-00-01',
-  '2000-13-01',
-  '2000-01-00',
-  '2000-01-32',
-  '2000-01-',
-  '2000-04-31',
-  'infinity',
-  '+INFINITY',
-  ' -infinity ',
-  'infinity BC',
-]
-const unsupportedText = [
-  'today',
-  'tomorrow',
-  'yesterday',
-  'now',
-  '01-02-03',
-  '01/02/2000',
-  'January 1, 2000',
-  '20000101',
-  '2000-001',
-  '2000-01-001',
-  '2000-01-01 12:00',
-  '2000-01-01Z',
-  '2000-01--01',
-  '2000-01-01-',
-  'epoch',
-]
 const input = (value: string | number | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const outcome = (value: boolean | null): Outcome => ({
@@ -213,7 +166,15 @@ describe('Rust text-to-date CHECK casts', () => {
           })
       }
     }
-    for (const raw of ['not a date', '2000-01-01 junk', 'λ', '2'.repeat(129) + '-01-01'])
+    for (const raw of [
+      'not a date',
+      '2000-01-01 junk',
+      'λ',
+      '2'.repeat(129) + '-01-01',
+      'epochbc',
+      'epochad',
+      'infinitybc',
+    ])
       fixtures.push({
         name: 'null_test',
         row: { raw: input(raw), anchor: input(0), flag: input(false) },

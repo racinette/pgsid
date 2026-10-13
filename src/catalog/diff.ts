@@ -196,6 +196,7 @@ function domainState(d: DomainInfo): Omit<DomainInfo, 'oid' | 'baseTypeOid' | 'c
     schema: d.schema,
     name: d.name,
     baseTypeName: d.baseTypeName,
+    baseTypeMod: d.baseTypeMod ?? -1,
     isRowType: d.isRowType,
     collationIsC: d.collationIsC ?? null,
     collationDeterministic: d.collationDeterministic ?? null,

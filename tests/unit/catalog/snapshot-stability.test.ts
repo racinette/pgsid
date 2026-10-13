@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
 import { comparableStates, diffCatalogs } from '../../../src/catalog/diff.js'
@@ -114,6 +114,18 @@ describe('catalog diff is stable across a rebuild', () => {
     expect(diffCatalogs(before, after).modified.map((m) => m.entityId)).toEqual(['public.pct'])
   })
 
+  it('reports a domain precision change at the domain while retaining its base identity', async () => {
+    const before = await snapshotOf(DDL.replace('AS numeric NOT NULL', 'AS numeric(6,2) NOT NULL'))
+    const after = await snapshotOf(DDL.replace('AS numeric NOT NULL', 'AS numeric(6,3) NOT NULL'))
+    const prior = before.domains.find((domain) => domain.name === 'pct')!
+    const next = after.domains.find((domain) => domain.name === 'pct')!
+    expect(prior.baseTypeName).toBe(next.baseTypeName)
+    expect(prior.baseTypeMod).not.toBe(next.baseTypeMod)
+    expect(diffCatalogs(before, after).modified.map((change) => change.entityId)).toEqual([
+      'public.pct',
+    ])
+  })
+
   it("reports nothing when only the session's search_path differs", async () => {
     // Names in a snapshot are rendered by PostgreSQL, and every renderer omits
     // the schema qualifier for whatever the search path makes visible. Without
@@ -153,6 +165,127 @@ describe('catalog diff is stable across a rebuild', () => {
       await snapshotCatalog(pg)
       const after = await pg.query<{ search_path: string }>('SHOW search_path;')
       expect(after.rows[0]!.search_path).toBe('app, public')
+    } finally {
+      await pg.close()
+    }
+  })
+
+  it('renders temporal constants independently of DateStyle and TimeZone and restores both', async () => {
+    const pg = await PGlite.create()
+    try {
+      await pg.exec(`CREATE TABLE temporal_defaults (
+        event_day date DEFAULT DATE '2000-01-02',
+        local_clock timestamp DEFAULT TIMESTAMP '2000-01-02 03:04:05',
+        instant timestamptz DEFAULT TIMESTAMPTZ '2000-01-02 03:04:05+00',
+        CHECK (event_day >= DATE '1970-01-01'),
+        CHECK (instant >= TIMESTAMPTZ '1970-01-01 00:00:00+00'))`)
+      const canonical = await snapshotCatalog(pg)
+      await pg.exec("SET DateStyle='SQL, DMY'; SET TimeZone='Asia/Tokyo'")
+      const changedSession = await snapshotCatalog(pg)
+      expect(diffCatalogs(canonical, changedSession).modified).toEqual([])
+      expect(
+        changedSession.tables
+          .find((table) => table.name === 'temporal_defaults')!
+          .columns.find((column) => column.name === 'instant')!.defaultExpr,
+      ).toContain('2000-01-02 03:04:05+00')
+      const restored = (
+        await pg.query<{ style: string; zone: string }>(
+          "SELECT current_setting('DateStyle') AS style,current_setting('TimeZone') AS zone",
+        )
+      ).rows[0]!
+      expect(restored).toEqual({ style: 'SQL, DMY', zone: 'Asia/Tokyo' })
+    } finally {
+      await pg.close()
+    }
+  })
+
+  it('keeps floating-point CHECK and DEFAULT constants lossless across extra_float_digits settings', async () => {
+    const pg = await PGlite.create()
+    try {
+      await pg.exec(`CREATE DOMAIN precise_double AS float8
+        DEFAULT '1.2345678901234567'::float8 CHECK (VALUE >= '1.2345678901234567'::float8);
+        CREATE TABLE float_defaults (
+          measured precise_double,
+          single real DEFAULT '1.23456789'::real,
+          CONSTRAINT double_threshold CHECK (measured >= '1.2345678901234567'::float8),
+          CHECK (single >= '1.23456789'::real));`)
+      const canonical = await snapshotCatalog(pg)
+      const original = (
+        await pg.query<{ double: string; single: string }>(
+          `SELECT encode(float8send('1.2345678901234567'::float8),'hex') double,
+        encode(float4send('1.23456789'::real),'hex') single`,
+        )
+      ).rows[0]!
+      for (const digits of [-15, 0, 1, 3]) {
+        await pg.exec(`SET extra_float_digits=${digits}`)
+        const snapshot = await snapshotCatalog(pg)
+        expect(diffCatalogs(canonical, snapshot).modified).toEqual([])
+        const table = snapshot.tables.find((table) => table.name === 'float_defaults')!
+        const domain = snapshot.domains.find((domain) => domain.name === 'precise_double')!
+        const single = table.columns.find((column) => column.name === 'single')!.defaultExpr!
+        const roundtrip = (
+          await pg.query<{ double: string; single: string }>(
+            `SELECT encode(float8send((${domain.default!})),'hex') double,
+          encode(float4send((${single})),'hex') single`,
+          )
+        ).rows[0]!
+        expect(roundtrip).toEqual(original)
+        const comparison = table.constraints.find(
+          (constraint) => constraint.name === 'double_threshold',
+        )!
+        const expression = comparison.definition.replace(/^CHECK\s*\(/u, '').slice(0, -1)
+        const result = (
+          await pg.query<{ result: boolean }>(
+            `SELECT ${expression} result FROM (SELECT 1.1::float8 measured) candidate`,
+          )
+        ).rows[0]!.result
+        expect(result).toBe(false)
+        await expect(
+          pg.exec('INSERT INTO float_defaults(measured) VALUES(1.1)'),
+        ).rejects.toMatchObject({ code: '23514' })
+        expect(
+          (
+            await pg.query<{ digits: string }>(
+              "SELECT current_setting('extra_float_digits') digits",
+            )
+          ).rows[0]!.digits,
+        ).toBe(String(digits))
+      }
+    } finally {
+      await pg.close()
+    }
+  })
+
+  it('restores every catalog-rendering setting when a catalog read fails', async () => {
+    const pg = await PGlite.create()
+    try {
+      await pg.exec(
+        "SET search_path=public; SET DateStyle='SQL, DMY'; SET TimeZone='Asia/Tokyo'; SET extra_float_digits=-15",
+      )
+      const original = pg.query.bind(pg)
+      const failure = new Error('catalog read failed')
+      const query = vi.spyOn(pg, 'query')
+      query
+        .mockImplementationOnce(original)
+        .mockImplementationOnce(original)
+        .mockRejectedValueOnce(failure)
+      try {
+        await expect(snapshotCatalog(pg)).rejects.toBe(failure)
+      } finally {
+        query.mockRestore()
+      }
+      const settings = (
+        await pg.query<{ path: string; style: string; zone: string; digits: string }>(
+          `SELECT current_setting('search_path') path,current_setting('DateStyle') style,
+        current_setting('TimeZone') zone,current_setting('extra_float_digits') digits`,
+        )
+      ).rows[0]!
+      expect(settings).toEqual({
+        path: 'public',
+        style: 'SQL, DMY',
+        zone: 'Asia/Tokyo',
+        digits: '-15',
+      })
     } finally {
       await pg.close()
     }

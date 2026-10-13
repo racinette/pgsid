@@ -2595,14 +2595,23 @@ export function dateFromText(value: TextValue): DateValue {
         }
         let bc: boolean = false;
         if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "c" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))) === "b") {
+            if (langruntime.checkedSubtract(end, start) > 2 && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) === false && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) < 0) {
+                return { kind: "Unknown" };
+            }
             bc = langruntime.checkedBool(true);
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 2));
         }
         else if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "d" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))) === "a") {
+            if (langruntime.checkedSubtract(end, start) > 2 && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) === false && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 3)))) < 0) {
+                return { kind: "Unknown" };
+            }
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 2));
         }
         while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        if (langruntime.checkedSubtract(end, start) === 5 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(start))) === "e" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1)))) === "p" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 2)))) === "o" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 3)))) === "c" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 4)))) === "h") {
+            return dateFromYmd(1970, 1, 1);
         }
         let infinityStart: number = start;
         let negative: boolean = false;
@@ -2769,7 +2778,7 @@ function readTimestampNumber(text: TimestampText, start: number, end: number): T
     }
     return { next: index, digits: langruntime.checkedSubtract(index, start), value: value, overflow: overflow };
 }
-function timestampCalendarMicroseconds(year: number, month: number, day: number, hour: number, minute: number, second: number, microsecond: number, offsetSeconds: number, withTimezone: boolean): Int8Value {
+function timestampCalendarMicroseconds(year: number, month: number, day: number, hour: number, minute: number, second: number, microsecond: number, offsetSeconds: number, withTimezone: boolean, allowFractionCarry: boolean): Int8Value {
     year = langruntime.checkedI32(year);
     month = langruntime.checkedI32(month);
     day = langruntime.checkedI32(day);
@@ -2779,7 +2788,12 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
     microsecond = langruntime.checkedI32(microsecond);
     offsetSeconds = langruntime.checkedI32(offsetSeconds);
     withTimezone = langruntime.checkedBool(withTimezone);
-    if (hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 || microsecond < 0 || microsecond > 999999) {
+    allowFractionCarry = langruntime.checkedBool(allowFractionCarry);
+    let maxFraction: number = 999999;
+    if (allowFractionCarry) {
+        maxFraction = langruntime.checkedI32(1000000);
+    }
+    if (hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 || microsecond < 0 || microsecond > maxFraction) {
         return { kind: "Error", value: { state: timestampFieldOverflow } };
     }
     const clockSeconds: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(hour, 60), minute)), 60), second);
@@ -2863,6 +2877,9 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
         while (start < end && dateTextSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
             end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
         }
+        if (langruntime.checkedSubtract(end, start) === 5 && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(start))) === "e" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1)))) === "p" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 2)))) === "o" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 3)))) === "c" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 4)))) === "h") {
+            return timestampCalendarMicroseconds(1970, 1, 1, 0, 0, 0, 0, 0, withTimezone, false);
+        }
         let infinityStart: number = start;
         let negative: boolean = false;
         if (infinityStart < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(infinityStart)) === "-") {
@@ -2915,7 +2932,7 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
             if (bc) {
                 year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, year));
             }
-            return timestampCalendarMicroseconds(year, month.value, day.value, 0, 0, 0, 0, 0, false);
+            return timestampCalendarMicroseconds(year, month.value, day.value, 0, 0, 0, 0, 0, false, false);
         }
         if (langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t") {
             index = langruntime.checkedAdd(index, 1);
@@ -2948,16 +2965,37 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
             }
             second = langruntime.checkedI32(seconds.value);
             if (index < end && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ".") {
+                const fractionStart: number = langruntime.checkedAdd(index, 1);
                 const digits: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
                 index = langruntime.checkedIndex(digits.next);
-                if (digits.digits < 1 || digits.digits > 6) {
+                if (digits.digits < 1) {
                     return { kind: "Unknown" };
                 }
-                fraction = langruntime.checkedI32(digits.value);
-                let fractionDigits: number = digits.digits;
-                while (fractionDigits < 6) {
-                    fraction = langruntime.checkedI32(langruntime.checkedSignedMultiply(fraction, 10));
-                    fractionDigits = langruntime.checkedAdd(fractionDigits, 1);
+                if (digits.digits <= 6) {
+                    fraction = langruntime.checkedI32(digits.value);
+                    let fractionDigits: number = digits.digits;
+                    while (fractionDigits < 6) {
+                        fraction = langruntime.checkedI32(langruntime.checkedSignedMultiply(fraction, 10));
+                        fractionDigits = langruntime.checkedAdd(fractionDigits, 1);
+                    }
+                }
+                else {
+                    let fractionText: string = "";
+                    fractionText = fractionText + langruntime.checkedChar("0");
+                    fractionText = fractionText + langruntime.checkedChar(".");
+                    let digitIndex: number = fractionStart;
+                    while (digitIndex < index) {
+                        fractionText = fractionText + langruntime.checkedChar(langruntime.indexChar(text.chars, langruntime.checkedIndex(digitIndex)));
+                        digitIndex = langruntime.checkedAdd(digitIndex, 1);
+                    }
+                    const parsed: number = langruntime.f64FromText(fractionText, 0.0);
+                    const scaled: number = langruntime.f64Multiply(parsed, 1000000.0);
+                    fraction = langruntime.checkedI32(langruntime.f64ToI32(scaled));
+                    const integral: number = Number(langruntime.checkedI32(fraction));
+                    const remainder: number = langruntime.f64Subtract(scaled, integral);
+                    if (remainder > 0.5 || (remainder === 0.5 && !(langruntime.checkedSignedRemainder(fraction, 2) === 0))) {
+                        fraction = langruntime.checkedI32(langruntime.checkedSignedAdd(fraction, 1));
+                    }
                 }
             }
         }
@@ -3027,7 +3065,7 @@ function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value 
         if (bc) {
             year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, year));
         }
-        return timestampCalendarMicroseconds(year, month.value, day.value, hour.value, minute.value, second, fraction, offset, withTimezone);
+        return timestampCalendarMicroseconds(year, month.value, day.value, hour.value, minute.value, second, fraction, offset, withTimezone, true);
     }
     return { kind: "Unknown" };
 }
@@ -3053,7 +3091,7 @@ export function timestampFromCalendar(year: number, month: number, day: number, 
     minute = langruntime.checkedI32(minute);
     second = langruntime.checkedI32(second);
     microsecond = langruntime.checkedI32(microsecond);
-    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false);
+    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false, false);
     return timestampFromMicroseconds(parsed);
 }
 export function timestampFromText(value: TextValue): TimestampValue {
@@ -3083,7 +3121,7 @@ export function timestamptzFromCalendar(year: number, month: number, day: number
     second = langruntime.checkedI32(second);
     microsecond = langruntime.checkedI32(microsecond);
     offsetSeconds = langruntime.checkedI32(offsetSeconds);
-    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true);
+    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true, false);
     return timestamptzFromMicroseconds(parsed);
 }
 export function timestamptzFromText(value: TextValue): TimestamptzValue {
@@ -3157,6 +3195,51 @@ export function notFinish(value: CheckOutcome): CheckOutcome {
     }
     return value;
 }
+function booleanTestFinish(value: CheckOutcome, matched: boolean): CheckOutcome {
+    matched = langruntime.checkedBool(matched);
+    if (caseGuardStops(value)) {
+        return value;
+    }
+    if (matched) {
+        return { kind: "True" };
+    }
+    return { kind: "False" };
+}
+export function isTrueFinish(value: CheckOutcome): CheckOutcome {
+    return booleanTestFinish(value, equalCheckOutcome(value, { kind: "True" }));
+}
+export function isFalseFinish(value: CheckOutcome): CheckOutcome {
+    return booleanTestFinish(value, equalCheckOutcome(value, { kind: "False" }));
+}
+export function isUnknownFinish(value: CheckOutcome): CheckOutcome {
+    return booleanTestFinish(value, equalCheckOutcome(value, { kind: "Null" }));
+}
+export function distinctNeedsComparison(leftNull: BoolValue, rightNull: BoolValue): boolean {
+    return equalBoolValue(leftNull, { kind: "Value", value: false }) && equalBoolValue(rightNull, { kind: "Value", value: false });
+}
+export function distinctNullsFinish(leftNull: BoolValue, rightNull: BoolValue): CheckOutcome {
+    if (leftNull.kind === "Error") {
+        const error: SqlError = leftNull.value;
+        return { kind: "Error", value: error };
+    }
+    if (rightNull.kind === "Error") {
+        const error: SqlError = rightNull.value;
+        return { kind: "Error", value: error };
+    }
+    if (leftNull.kind === "Value") {
+        const left: boolean = langruntime.checkedBool(leftNull.value);
+        if (rightNull.kind === "Value") {
+            const right: boolean = langruntime.checkedBool(rightNull.value);
+            if (left && right) {
+                return { kind: "False" };
+            }
+            if (left || right) {
+                return { kind: "True" };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function caseGuardStops(value: CheckOutcome): boolean {
     if (equalCheckOutcome(value, { kind: "Unknown" })) {
         return true;
@@ -3166,8 +3249,62 @@ export function caseGuardStops(value: CheckOutcome): boolean {
     }
     return false;
 }
+export function minmaxNullsChooseRight(leftNull: BoolValue, rightNull: BoolValue): CheckOutcome {
+    if (leftNull.kind === "Error") {
+        const error: SqlError = leftNull.value;
+        return { kind: "Error", value: error };
+    }
+    if (rightNull.kind === "Error") {
+        const error: SqlError = rightNull.value;
+        return { kind: "Error", value: error };
+    }
+    if (leftNull.kind === "Value") {
+        const left: boolean = langruntime.checkedBool(leftNull.value);
+        if (rightNull.kind === "Value") {
+            const right: boolean = langruntime.checkedBool(rightNull.value);
+            if (left && right === false) {
+                return { kind: "True" };
+            }
+            return { kind: "False" };
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function caseGuardTakes(value: CheckOutcome): boolean {
     return equalCheckOutcome(value, { kind: "True" });
+}
+export function rowCompareContinues(value: Int4Value): boolean {
+    if (value.kind === "Value") {
+        const ordering: number = langruntime.checkedI32(value.value);
+        return ordering === 0;
+    }
+    return false;
+}
+export function rowCompareFinish(value: Int4Value, strategy: number): BoolValue {
+    strategy = langruntime.checkedI32(strategy);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalInt4Value(value, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const ordering: number = langruntime.checkedI32(value.value);
+        if (strategy === 1) {
+            return { kind: "Value", value: ordering < 0 };
+        }
+        if (strategy === 2) {
+            return { kind: "Value", value: ordering <= 0 };
+        }
+        if (strategy === 4) {
+            return { kind: "Value", value: ordering >= 0 };
+        }
+        if (strategy === 5) {
+            return { kind: "Value", value: ordering > 0 };
+        }
+    }
+    return { kind: "Unknown" };
 }
 export function constantFinish(left: CheckOutcome, right: CheckOutcome): CheckOutcome {
     if (left.kind === "Error") {

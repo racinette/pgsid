@@ -66,6 +66,52 @@ pub fn not_finish(value: CheckOutcome) -> CheckOutcome {
     value
 }
 
+fn boolean_test_finish(value: CheckOutcome, matched: bool) -> CheckOutcome {
+    if case_guard_stops(value) {
+        return value;
+    }
+    if matched {
+        return CheckOutcome::True;
+    }
+    CheckOutcome::False
+}
+
+pub fn is_true_finish(value: CheckOutcome) -> CheckOutcome {
+    boolean_test_finish(value, value == CheckOutcome::True)
+}
+
+pub fn is_false_finish(value: CheckOutcome) -> CheckOutcome {
+    boolean_test_finish(value, value == CheckOutcome::False)
+}
+
+pub fn is_unknown_finish(value: CheckOutcome) -> CheckOutcome {
+    boolean_test_finish(value, value == CheckOutcome::Null)
+}
+
+pub fn distinct_needs_comparison(left_null: BoolValue, right_null: BoolValue) -> bool {
+    left_null == BoolValue::Value(false) && right_null == BoolValue::Value(false)
+}
+
+pub fn distinct_nulls_finish(left_null: BoolValue, right_null: BoolValue) -> CheckOutcome {
+    if let BoolValue::Error(error) = left_null {
+        return CheckOutcome::Error(error);
+    }
+    if let BoolValue::Error(error) = right_null {
+        return CheckOutcome::Error(error);
+    }
+    if let BoolValue::Value(left) = left_null {
+        if let BoolValue::Value(right) = right_null {
+            if left && right {
+                return CheckOutcome::False;
+            }
+            if left || right {
+                return CheckOutcome::True;
+            }
+        }
+    }
+    CheckOutcome::Unknown
+}
+
 pub fn case_guard_stops(value: CheckOutcome) -> bool {
     if value == CheckOutcome::Unknown {
         return true;
@@ -76,6 +122,55 @@ pub fn case_guard_stops(value: CheckOutcome) -> bool {
     false
 }
 
+pub fn minmax_nulls_choose_right(left_null: BoolValue, right_null: BoolValue) -> CheckOutcome {
+    if let BoolValue::Error(error) = left_null {
+        return CheckOutcome::Error(error);
+    }
+    if let BoolValue::Error(error) = right_null {
+        return CheckOutcome::Error(error);
+    }
+    if let BoolValue::Value(left) = left_null {
+        if let BoolValue::Value(right) = right_null {
+            if left && right == false {
+                return CheckOutcome::True;
+            }
+            return CheckOutcome::False;
+        }
+    }
+    CheckOutcome::Unknown
+}
+
 pub fn case_guard_takes(value: CheckOutcome) -> bool {
     value == CheckOutcome::True
+}
+
+pub fn row_compare_continues(value: Int4Value) -> bool {
+    if let Int4Value::Value(ordering) = value {
+        return ordering == 0;
+    }
+    false
+}
+
+pub fn row_compare_finish(value: Int4Value, strategy: i32) -> BoolValue {
+    if let Int4Value::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == Int4Value::Null {
+        return BoolValue::Null;
+    }
+    if let Int4Value::Value(ordering) = value {
+        if strategy == 1 {
+            return BoolValue::Value(ordering < 0);
+        }
+        if strategy == 2 {
+            return BoolValue::Value(ordering <= 0);
+        }
+        if strategy == 4 {
+            return BoolValue::Value(ordering >= 0);
+        }
+        if strategy == 5 {
+            return BoolValue::Value(ordering > 0);
+        }
+    }
+    BoolValue::Unknown
 }

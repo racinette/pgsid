@@ -44,3 +44,21 @@ INSERT INTO ledger_entries (id, merchant_id, account_code, provider_charge_id, k
 INSERT INTO ledger_entries (id, merchant_id, account_code, provider_charge_id, kind, amount, occurred_at, reference, note) VALUES (10000, 1, 'main', 'ch-captured', 'charge', -0.00000000000000000000001, '2026-08-02 10:00+00', 'CHECK-LEDGER', NULL);
 -- name: payout_nan_amount
 INSERT INTO payout_batches (merchant_id, batch_ref, account_code, state, declared_amount, opened_at) VALUES (1, 'B-CHECK', 'main', 'open', 'NaN'::numeric, '2026-08-02 10:00+00');
+
+-- name: dispute_open_without_outcome
+INSERT INTO disputes (merchant_id, provider_charge_id, reason, opened_at, resolved_at, outcome, evidence_ref) VALUES (1, 'ch-captured', 'delivery damage', '2026-08-03 10:00+00', NULL, NULL, NULL);
+
+-- name: dispute_resolved_at_opening
+INSERT INTO disputes (merchant_id, provider_charge_id, reason, opened_at, resolved_at, outcome, evidence_ref) VALUES (1, 'ch-captured', 'delivery damage', '2026-08-03 10:00+00', '2026-08-03 10:00+00', 'merchant won', 'claim photo');
+
+-- name: dispute_resolution_precedes_opening
+INSERT INTO disputes (merchant_id, provider_charge_id, reason, opened_at, resolved_at, outcome, evidence_ref) VALUES (1, 'ch-captured', 'delivery damage', '2026-08-03 10:00+00', '2026-08-03 09:59:59.999999+00', 'merchant won', NULL);
+
+-- name: dispute_open_with_outcome
+INSERT INTO disputes (merchant_id, provider_charge_id, reason, opened_at, resolved_at, outcome, evidence_ref) VALUES (1, 'ch-captured', 'delivery damage', '2026-08-03 10:00+00', NULL, 'merchant won', NULL);
+
+-- name: dispute_resolved_without_outcome
+INSERT INTO disputes (merchant_id, provider_charge_id, reason, opened_at, resolved_at, outcome, evidence_ref) VALUES (1, 'ch-captured', 'delivery damage', '2026-08-03 10:00+00', '2026-08-03 10:00+00', NULL, NULL);
+
+-- name: dispute_evidence_repeats_reason
+INSERT INTO disputes (merchant_id, provider_charge_id, reason, opened_at, resolved_at, outcome, evidence_ref) VALUES (1, 'ch-captured', 'delivery damage', '2026-08-03 10:00+00', NULL, NULL, 'delivery damage');

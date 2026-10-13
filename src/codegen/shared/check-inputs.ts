@@ -89,14 +89,18 @@ const targetNames = (nodes: readonly Node[] | undefined): string[] =>
     return name ? [name] : []
   })
 
-const textInputNeedsCoercion = (column: ColumnInfo, catalog: CatalogSnapshot): boolean => {
+const inputNeedsCoercion = (column: ColumnInfo, catalog: CatalogSnapshot): boolean => {
   let name = column.typeName
   let oid = column.typeOid
+  let typeMod = column.typeMod ?? -1
+  let unknownModifier = false
   const seen = new Set<number>()
   while (!seen.has(oid)) {
     seen.add(oid)
     const domain = catalog.domains.find((domain) => domain.oid === oid)
     if (!domain) break
+    if (domain.baseTypeMod === undefined) unknownModifier = true
+    else if (domain.baseTypeMod >= 0) typeMod = domain.baseTypeMod
     name = domain.baseTypeName
     oid = domain.baseTypeOid
   }
@@ -105,7 +109,8 @@ const textInputNeedsCoercion = (column: ColumnInfo, catalog: CatalogSnapshot): b
     type === 'pg_catalog."bit"' ||
     type === 'pg_catalog.varbit' ||
     type === 'pg_catalog.bpchar' ||
-    (type === 'pg_catalog."varchar"' && ((column.typeMod ?? -1) >= 0 || name.includes('(')))
+    ((type === 'pg_catalog."varchar"' || type === 'pg_catalog."numeric"') &&
+      (unknownModifier || typeMod >= 0 || name.includes('(')))
   )
 }
 
@@ -213,7 +218,7 @@ export function planCheckInputs(
     if (source.kind !== 'parameter') return []
     const column = plan.table.columns.find((column) => column.name === name)!
     if (catalogTemporalType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
-    if (catalog && textInputNeedsCoercion(column, catalog)) return []
+    if (catalog && inputNeedsCoercion(column, catalog)) return []
     return [{ name, parameter: source.number }]
   })
   return columns.length ? [{ table: plan.table, columns }] : []

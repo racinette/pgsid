@@ -12,6 +12,11 @@ type Expr =
   | { kind: 'float'; digits: string }
   | { kind: 'index-from-signed'; value: Expr; fallback: Expr }
   | { kind: 'float-from-text'; value: Expr; fallback: Expr }
+  | {
+      kind: 'float-bits'
+      operation: 'decode-double' | 'encode-double' | 'decode-single' | 'encode-single'
+      value: Expr
+    }
   | { kind: 'integer'; digits: string; integerType?: 'i64' }
   | { kind: 'character'; scalar: string }
   | { kind: 'character-from-codepoint'; value: Expr; fallback: Expr }
@@ -284,6 +289,12 @@ class Transpiler {
       case 'float':
       case 'float-from-text':
         return 'f64'
+      case 'float-bits':
+        return value.operation === 'encode-double'
+          ? 'i64'
+          : value.operation === 'encode-single'
+            ? 'i32'
+            : 'f64'
       case 'integer':
         return value.integerType ?? 'usize'
       case 'character':
@@ -396,6 +407,16 @@ class Transpiler {
           'f64FromText',
           this.expression(value.value, locals),
           this.expression(value.fallback, locals),
+        )
+      case 'float-bits':
+        return call(
+          {
+            'decode-double': 'f64FromI64Bits',
+            'encode-double': 'f64ToI64Bits',
+            'decode-single': 'f32FromI32Bits',
+            'encode-single': 'f32ToI32Bits',
+          }[value.operation],
+          this.expression(value.value, locals),
         )
       case 'float': {
         const literal = f.createNumericLiteral(value.digits.replace(/^-/, ''))
