@@ -48,3 +48,29 @@ INSERT INTO zoned_dispatches (id, template_id, local_departure, zoned_departure,
 INSERT INTO zoned_dispatches (id, template_id, local_departure, zoned_departure, adjustment, adjusted_departure, skip_adjustment) VALUES (2, 1, '12:00', '12:00+02', 'infinity', '12:00+02', true);
 -- name: dispatch_null_values
 INSERT INTO zoned_dispatches (id, template_id, local_departure, zoned_departure, adjustment, adjusted_departure, skip_adjustment) VALUES (2, 1, '12:00', NULL, NULL, NULL, false);
+-- name: duration_import_month_equivalence
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '1 month', '30 days', false);
+-- name: duration_import_reject
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '1 month', '29 days', false);
+-- name: duration_import_unit_tie
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '1.5 microseconds', '1 microsecond', false);
+-- name: duration_import_clock_tie
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '00:00:00.0000015', '2 microseconds', false);
+-- name: duration_import_iso
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, 'P1Y2M3DT4H5M6.1S', '1 year 2 mons 3 days 04:05:06.1', false);
+-- name: duration_import_mixed_sign_iso
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, 'P-1DT2H', '-1 day +2 hours', false);
+-- name: duration_import_minimum_time
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '-9223372036854.775808 seconds', '-9223372036854.775808 seconds', false);
+-- name: duration_import_infinity
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '-infinity', '-infinity', false);
+-- name: duration_import_duplicate_fields
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '1 month 2 months', '0', false);
+-- name: duration_import_overflow
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '2147483648 months', '0', false);
+-- name: duration_import_skip_invalid
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, '1 month 2 months', '0', true);
+-- name: duration_import_null
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, NULL, NULL, false);
+-- name: duration_import_null_reject
+INSERT INTO duration_imports (id, template_id, raw_duration, expected_duration, skip_import) VALUES (2, 1, NULL, '0', false);

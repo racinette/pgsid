@@ -514,7 +514,7 @@ export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
 }
 
 /**
- * Render qualified names and constants with ISO/UTC dates and lossless floats.
+ * Render qualified names and constants with ISO dates/intervals, UTC and lossless floats.
  * Restore the caller's settings after the read; these settings affect literal
  * values embedded in constraint and default expressions.
  */
@@ -525,23 +525,30 @@ async function withCatalogRendering<T>(pg: PGlite, read: () => Promise<T>): Prom
       date_style: string
       time_zone: string
       float_digits: string
+      interval_style: string
     }>(
       `SELECT current_setting('search_path') AS search_path,
       current_setting('DateStyle') AS date_style,current_setting('TimeZone') AS time_zone,
-      current_setting('extra_float_digits') AS float_digits`,
+      current_setting('extra_float_digits') AS float_digits, current_setting('IntervalStyle') AS interval_style`,
     )
   ).rows[0]!
   await pg.query(`SELECT set_config('search_path','',false),
     set_config('DateStyle','ISO, MDY',false),set_config('TimeZone','UTC',false),
-    set_config('extra_float_digits','3',false)`)
+    set_config('extra_float_digits','3',false), set_config('IntervalStyle','iso_8601',false)`)
   try {
     return await read()
   } finally {
     await pg.query(
       `SELECT set_config('search_path',$1,false),
       set_config('DateStyle',$2,false),set_config('TimeZone',$3,false),
-      set_config('extra_float_digits',$4,false)`,
-      [saved.search_path, saved.date_style, saved.time_zone, saved.float_digits],
+      set_config('extra_float_digits',$4,false), set_config('IntervalStyle',$5,false)`,
+      [
+        saved.search_path,
+        saved.date_style,
+        saved.time_zone,
+        saved.float_digits,
+        saved.interval_style,
+      ],
     )
   }
 }
@@ -1922,10 +1929,7 @@ async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
             END AS collation_is_default,
             NULLIF(t.typcollation, 0)::int AS collation_oid,
             t.typnotnull AS not_null,
-            -- Domain defaults: typdefault is the pre-deparsed SQL text
-            -- (e.g. 'unknown'::text). pg_get_expr(typdefaultbin, oid) returns
-            -- null for domains, so use typdefault directly.
-            t.typdefault AS default_expr,
+            pg_get_expr(t.typdefaultbin, 0) AS default_expr,
             -- EVERY check, ordered by name. A domain may declare any number
             -- of them; this was LIMIT 1 with no ORDER BY, which kept one
             -- arbitrarily — the rest were invisible to the diff, and the one

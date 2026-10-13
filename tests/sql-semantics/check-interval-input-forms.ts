@@ -1,0 +1,147 @@
+export const intervalInputForms: (string | null)[] = [
+  '',
+  ' ',
+  '0',
+  '1',
+  '-1',
+  '.5',
+  '-.5',
+  'infinity',
+  '-infinity',
+  '+infinity',
+  'Infinity',
+  '2147483647 months',
+  '2147483648 months',
+  '-2147483648 months',
+  '2147483647 years',
+  '2147483648 years',
+  '178956971 years -12 mons',
+  '1 year -2147483648 mons',
+  '9223372036854.775807 seconds',
+  '-9223372036854.775808 seconds',
+  '9223372036854.775808 seconds',
+  '1 month 2 months',
+  '1 day 2 days',
+  '2 seconds 1 microsecond',
+  '1.1 seconds 1 microsecond',
+  '1 year 2 mons 3 days 4 hours 5 mins 6.1 secs',
+  '@ 1 year 2 mons 3 days 4 hours 5 mins 6.1 secs ago',
+  '-1 day +2 hours',
+  '1 day -2 hours',
+  null,
+]
+intervalInputForms.push(
+  ...[
+    '04:05:06',
+    '04:05',
+    '12:30.5',
+    '59:59.9999995',
+    '60:00.5',
+    '1:59:60',
+    '1:99',
+    '-1:99',
+    '+1:99',
+    '24:00',
+    '-24:00',
+    '1 day 04:05:06.123456',
+    '1 04:05',
+    '-1 -04:05',
+    '1 -04:05',
+    '2562047788:00:54.775807',
+    '-2562047788:00:54.775808',
+    '01:00 1 microsecond',
+    '1 microsecond 01:00',
+    '01:00 1 hour',
+    '1 2 hours',
+    '1 2 days',
+  ],
+)
+intervalInputForms.push(
+  ...[
+    'P1Y2M3DT4H5M6.1S',
+    'PT0S',
+    'P-1DT2H',
+    'P1.5Y',
+    'P1.5M',
+    'P1.5W',
+    'PT1.2345675S',
+    'PT1.0000005S',
+    'PT9223372036854.775807S',
+    'PT-9223372036854.775808S',
+    'P1Y2Y',
+    'PT1H2H',
+    'P1e2D',
+    'PT1e-2S',
+    'PT1e-400S',
+    'PT0e999S',
+    'PT1e999S',
+    'P1000000000000001D',
+    'P178956971Y-12M',
+    'P',
+    'PT',
+    'P1Q',
+    'PT1e-S',
+  ],
+)
+for (const unit of [
+  'microseconds',
+  'milliseconds',
+  'seconds',
+  'minutes',
+  'hours',
+  'days',
+  'weeks',
+  'months',
+  'years',
+  'decades',
+  'centuries',
+  'millennia',
+])
+  for (const number of [
+    '0.5',
+    '1.5',
+    '2.5',
+    '-0.5',
+    '-1.5',
+    '-2.5',
+    '0.999999999',
+    '1.0000005',
+    '1.2345675',
+    '12.875',
+    '-12.875',
+  ])
+    intervalInputForms.push(`${number} ${unit}`)
+let seed = 0x8243d119
+for (let i = 0; i < 256; i++) {
+  seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+  const units = ['microseconds', 'seconds', 'minutes', 'days', 'months', 'years']
+  intervalInputForms.push(
+    `${i % 2 ? '-' : ''}${seed % 1000}.${String(seed >>> 8).padStart(7, '0')} ${units[i % units.length]}`,
+  )
+}
+intervalInputForms.push(
+  ...[
+    'PT-2562047788H-54.775808S',
+    'PT2562047788H54.775807S',
+    'P-178956970Y-8M',
+    'P178956970Y7M',
+    'P-2147483648D',
+    'P2147483647D',
+    'P1M-30D',
+    'P-1DT2H',
+    'infinity',
+    '-infinity',
+  ],
+)
+
+export const deferredIntervalContextForms = [
+  '-1 day 2 hours',
+  '-1 year 2 mons',
+  '-1 02:03',
+] as const
+export const unimplementedIntervalGrammarForms = [
+  'P0001-02-03T04:05:06',
+  '1day',
+  'now',
+  '1e2 seconds',
+] as const

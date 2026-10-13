@@ -108,8 +108,15 @@ import them. Keep schema-only helpers with their callables.
   Clock text input supports colon-separated forms, fractional seconds, terminal
   AM/PM and numeric offsets. Missing timetz offsets and named zones defer for
   context; other unimplemented grammar remains separately visible in input-form
-  measurements. Interval text input and temporal precision modifiers defer.
-  Run the clock suites and shift schedule INSERT world.
+  measurements. Interval text accepts unit, clock and ISO designator forms;
+  unit fractions and clock fractions retain their distinct rounding rules.
+  General interval fields accumulate in reverse, ISO fields in input order.
+  Leading-negative general forms without further signs require IntervalStyle;
+  temporal precision modifiers and unimplemented grammar defer. Typed interval
+  literals prepare before lazy branches; runtime text casts retain branch laziness.
+  Catalog reads normalize interval rendering and re-deparse domain defaults from
+  stored expressions, restoring caller settings afterward.
+  Run the clock/interval suites and shift schedule INSERT world.
 - Float4 and float8 wrappers carry signed IEEE bit words, preserving signed zero
   and NaN payloads through binary send. Comparisons use PostgreSQL's total order:
   NaNs are equal above infinity and both zeros compare equal. Float4 arithmetic
