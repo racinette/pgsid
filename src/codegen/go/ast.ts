@@ -80,7 +80,7 @@ interface GoAstExports {
   dispose(): void
 }
 
-let bridge: GoAstExports | undefined
+let bridgeModule: unknown
 
 export const go = {
   index: (left: GoExpression, right: GoExpression): GoExpression => ({
@@ -192,7 +192,7 @@ export const go = {
 }
 
 export function printGoFile(file: GoFile): string {
-  const runtime = bridge ?? (bridge = loadBridge())
+  const runtime = loadBridge()
   const input = Buffer.from(JSON.stringify(file))
   const pointer = runtime.alloc(input.length) >>> 0
   try {
@@ -210,9 +210,6 @@ export function printGoFile(file: GoFile): string {
 }
 
 const loadBridge = (): GoAstExports => {
-  const source = new URL('./assets/go-ast.wasm', import.meta.url)
-  const bundled = new URL('./go-ast.wasm', import.meta.url)
-  const bytes = readFileSync(existsSync(source) ? source : bundled)
   const wasm = (
     globalThis as unknown as {
       WebAssembly: {
@@ -224,9 +221,16 @@ const loadBridge = (): GoAstExports => {
       }
     }
   ).WebAssembly
-  const module = new wasm.Module(bytes)
-  const imports = wasm.Module.imports(module)
-  if (imports.length) throw new Error('The Go AST bridge unexpectedly requires runtime imports')
+  let module = bridgeModule
+  if (!module) {
+    const source = new URL('./assets/go-ast.wasm', import.meta.url)
+    const bundled = new URL('./go-ast.wasm', import.meta.url)
+    const bytes = readFileSync(existsSync(source) ? source : bundled)
+    module = new wasm.Module(bytes)
+    const imports = wasm.Module.imports(module)
+    if (imports.length) throw new Error('The Go AST bridge unexpectedly requires runtime imports')
+    bridgeModule = module
+  }
   const instance = new wasm.Instance(module)
   const exports = instance.exports as GoAstExports
   exports._initialize()

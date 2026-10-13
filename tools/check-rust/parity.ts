@@ -194,6 +194,31 @@ export async function runCheckParity(
   }
   const rustAssertions: string[] = []
   const goAssertions: GoStatement[] = []
+  let goBatchIndex = 0
+  await mkdir(join(directory, 'go'), { recursive: true })
+  const flushGoAssertions = async (): Promise<void> => {
+    if (!goAssertions.length) return
+    const index = goBatchIndex++
+    let source: string
+    try {
+      source = printGoFile({
+        package: 'generated',
+        imports: [{ path: 'testing' }, { path: moduleName + '/checkruntime' }],
+        declarations: [
+          go.function(
+            'TestChecks' + index,
+            [{ names: ['t'], type: go.pointer(go.selector(go.ident('testing'), 'T')) }],
+            [],
+            goAssertions,
+          ),
+        ],
+      })
+    } catch (cause) {
+      throw new Error(`Render Go parity batch ${index} in ${moduleName}`, { cause })
+    }
+    await writeFile(join(directory, `go/checks_${index}_test.go`), source)
+    goAssertions.length = 0
+  }
   for (const [index, fixture] of fixtures.entries()) {
     const check = entries.get(fixture.name)!
     const args = check.inputs
@@ -256,7 +281,9 @@ export async function runCheckParity(
         ),
       ),
     )
+    if (goAssertions.length === 250) await flushGoAssertions()
   }
+  await flushGoAssertions()
   const batches = (assertions: readonly string[]): string[] => {
     const result: string[] = []
     for (let index = 0; index < assertions.length; index += 250)
@@ -301,23 +328,6 @@ export async function runCheckParity(
     await writeFile(path, source)
   }
   await writeFile(join(directory, 'go/go.mod'), `module ${moduleName}\n\ngo 1.25\n`)
-  for (let index = 0; index < Math.ceil(goAssertions.length / 250); index++) {
-    await writeFile(
-      join(directory, `go/checks_${index}_test.go`),
-      printGoFile({
-        package: 'generated',
-        imports: [{ path: 'testing' }, { path: moduleName + '/checkruntime' }],
-        declarations: [
-          go.function(
-            'TestChecks' + index,
-            [{ names: ['t'], type: go.pointer(go.selector(go.ident('testing'), 'T')) }],
-            [],
-            goAssertions.slice(index * 250, (index + 1) * 250),
-          ),
-        ],
-      }),
-    )
-  }
   await run('go', ['test', './...'], {
     cwd: join(directory, 'go'),
     env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },

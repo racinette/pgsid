@@ -173,6 +173,8 @@ exposes a prerequisite:
 - [x] Establish compact interval grammar, clock precision and scalar time constructors.
 - [x] Establish interval scaling, calendar arithmetic, precision-aware literals,
       and clock input/output.
+- [x] Establish temporal field extraction, hashes, interval truncation, timestamp
+      binning, and local calendar age.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.

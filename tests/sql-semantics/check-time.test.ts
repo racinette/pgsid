@@ -300,15 +300,38 @@ describe('time, timetz and interval CHECK values', () => {
 
   it('validates SQL-coerced clock payloads through both public APIs and preserves 24:00', async () => {
     const run = promisify(execFile)
-    await pg.exec(`CREATE TABLE clock_public (local_time clock_domain, zoned_time timetz, span interval,
-      CONSTRAINT local_equal CHECK (local_time = zoned_time::time),
-      CONSTRAINT span_equal CHECK (span = local_time::interval),
-      CONSTRAINT local_precision CHECK (local_time::time(0) = pg_catalog.time(local_time,0)),
-      CONSTRAINT zoned_precision CHECK (zoned_time::timetz(3) = pg_catalog.timetz(zoned_time,3)),
-      CONSTRAINT span_finite CHECK (isfinite(span)),
-      CONSTRAINT local_output_roundtrip CHECK (local_time::text::time = local_time),
-      CONSTRAINT zoned_output_roundtrip CHECK (zoned_time::text::timetz = zoned_time),
-      CONSTRAINT span_justify CHECK (justify_interval(span) = span))`)
+    const publicExpressions = {
+      local_equal: 'local_time = zoned_time::time',
+      span_equal: 'span = local_time::interval',
+      local_precision: 'local_time::time(0) = pg_catalog.time(local_time,0)',
+      zoned_precision: 'zoned_time::timetz(3) = pg_catalog.timetz(zoned_time,3)',
+      span_finite: 'isfinite(span)',
+      local_output_roundtrip: 'local_time::text::time = local_time',
+      zoned_output_roundtrip: 'zoned_time::text::timetz = zoned_time',
+      span_justify: 'justify_interval(span) = span',
+      local_second: 'extract(second FROM local_time) = extract(second FROM zoned_time)',
+      local_legacy_second: "date_part('second',local_time) = date_part('second',zoned_time)",
+      local_hash: 'time_hash(local_time) = time_hash(zoned_time::time)',
+      local_seeded_hash:
+        "time_hash_extended(local_time,'-9223372036854775808'::bigint) = time_hash_extended(zoned_time::time,'-9223372036854775808'::bigint)",
+      span_hash: 'interval_hash(span) = interval_hash(local_time::interval)',
+      span_seeded_hash:
+        "interval_hash_extended(span,'9223372036854775807'::bigint) = interval_hash_extended(local_time::interval,'9223372036854775807'::bigint)",
+      span_truncated: "date_trunc('second',span) = date_trunc('second',local_time::interval)",
+      local_reverse_adjustment: "INTERVAL '0' + local_time = local_time + INTERVAL '0'",
+      zoned_reverse_adjustment: "INTERVAL '0' + zoned_time = zoned_time + INTERVAL '0'",
+      local_bucket:
+        "date_bin(INTERVAL '1 hour',DATE '2000-01-01' + local_time,TIMESTAMP '2000-01-01') = DATE '2000-01-01' + date_trunc('hour',local_time::interval)",
+      local_calendar_age:
+        "age(DATE '2000-01-01' + local_time,TIMESTAMP '2000-01-01') = local_time::interval",
+    }
+    await pg.exec(
+      `CREATE TABLE clock_public (local_time clock_domain,zoned_time timetz,span interval,${Object.entries(
+        publicExpressions,
+      )
+        .map(([name, sql]) => `CONSTRAINT ${name} CHECK (${sql})`)
+        .join(',')})`,
+    )
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find((table) => table.name === 'clock_public')!
     const ts = renderTypescriptSchemaCheckArtifacts([table], catalog.domains)
@@ -372,23 +395,25 @@ describe('time, timetz and interval CHECK values', () => {
         span: inputs[2],
       }
       const result = (
-        await pg.query<{
-          local_equal: boolean | null
-          span_equal: boolean | null
-          local_precision: boolean | null
-          zoned_precision: boolean | null
-          span_finite: boolean | null
-          local_output_roundtrip: boolean | null
-          zoned_output_roundtrip: boolean | null
-          span_justify: boolean | null
-        }>(
-          'SELECT $1::time = $2::timetz::time local_equal, $3::interval = $1::time::interval span_equal, $1::time::time(0) = pg_catalog.time($1::time,0) local_precision, $2::timetz::timetz(3) = pg_catalog.timetz($2::timetz,3) zoned_precision, isfinite($3::interval) span_finite, $1::time::text::time = $1::time local_output_roundtrip, $2::timetz::text::timetz = $2::timetz zoned_output_roundtrip, justify_interval($3::interval) = $3::interval span_justify',
+        await pg.query<Record<string, boolean | null>>(
+          'SELECT ' +
+            Object.entries(publicExpressions)
+              .map(
+                ([name, sql]) =>
+                  sql
+                    .replaceAll('local_time', '$1::time')
+                    .replaceAll('zoned_time', '$2::timetz')
+                    .replaceAll('span', '$3::interval') +
+                  ' AS ' +
+                  name,
+              )
+              .join(','),
           texts,
         )
       ).rows[0]!
       const results = evaluate(wrapped)
       for (const item of results)
-        expect(item.result).toEqual({
+        expect(item.result, `${item.constraint}: ${texts.join('/')}`).toEqual({
           certain: true,
           value: result[item.constraint as keyof typeof result],
         })
@@ -417,14 +442,17 @@ describe('time, timetz and interval CHECK values', () => {
           local_time: invalid,
           zoned_time: runtime.makeTimetzValue(0n, 0),
           span: runtime.makeIntervalValue(0, 0, 0n),
-        })[0].result,
+        }).find((item: GoCheckCase['results'][number]) => item.constraint === 'local_equal')!
+          .result,
       ).toEqual({ certain: false })
     for (const invalid of [
       { kind: 'Value', value: { time: 0n, zone: 57600 } },
       { kind: 'Value', value: { time: 0, zone: 0 } },
     ])
       expect(
-        evaluate({ local_time: runtime.makeTimeValue(0n), zoned_time: invalid })[0].result,
+        evaluate({ local_time: runtime.makeTimeValue(0n), zoned_time: invalid }).find(
+          (item: GoCheckCase['results'][number]) => item.constraint === 'local_equal',
+        )!.result,
       ).toEqual({ certain: false })
     const generated = renderGoSchemaArtifacts(
       { ...catalog, tables: [table] },

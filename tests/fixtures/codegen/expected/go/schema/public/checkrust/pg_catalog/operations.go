@@ -4705,6 +4705,287 @@ func Chr23bn(input checkruntime.Int4Value) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+
+type clockFieldInput struct {
+	value  checkruntime.IntervalValue
+	zone   int
+	family int
+}
+
+func copyclockFieldInput(value clockFieldInput) clockFieldInput {
+	return clockFieldInput{value: value.value, zone: langruntime.CheckedI32(value.zone), family: langruntime.CheckedI32(value.family)}
+}
+func clockFieldsTime(input checkruntime.TimeValue) clockFieldInput {
+	value := checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+	if input.Kind == checkruntime.TimeValueError {
+		error := input.Error
+		value = checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if input == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) {
+		value = checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if input.Kind == checkruntime.TimeValueValue {
+		time := input.Value
+		value = checkruntime.MakeIntervalValue(0, 0, time)
+	}
+	return clockFieldInput{value: value, zone: 0, family: 1}
+}
+func clockFieldsTimetz(input checkruntime.TimetzValue) clockFieldInput {
+	value := checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+	zone := 0
+	if input.Kind == checkruntime.TimetzValueError {
+		error := input.Error
+		value = checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) {
+		value = checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if input.Kind == checkruntime.TimetzValueValue {
+		time := input.Value
+		value = checkruntime.MakeIntervalValue(0, 0, time.Time)
+		zone = langruntime.CheckedI32(time.Zone)
+	}
+	return clockFieldInput{value: value, zone: zone, family: 2}
+}
+func clockFieldsCode(unit string) int {
+	unit = langruntime.CheckedString(unit)
+	code := temporalExtractCode(unit)
+	if code == langruntime.CheckedSignedNegate(2) {
+		return 0
+	}
+	if code != langruntime.CheckedSignedNegate(1) && code != 0 {
+		return code
+	}
+	letters := []rune(unit)
+	key := langruntime.NewTextBuffer("")
+	index := 0
+	for index < len(letters) && index < 10 {
+		key = append(key, string(langruntime.CheckedChar(langruntime.AsciiLowercase(letters[index])))...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if string(key) == "timezone" {
+		return 20
+	}
+	if string(key) == "timezone_h" {
+		return 21
+	}
+	if string(key) == "timezone_m" {
+		return 22
+	}
+	if code == langruntime.CheckedSignedNegate(1) {
+		return 90
+	}
+	return 0
+}
+func clockFieldsComponent(span checkruntime.IntervalPayload, zone int, family int, code int) checkruntime.Int8Value {
+	zone = langruntime.CheckedI32(zone)
+	family = langruntime.CheckedI32(family)
+	code = langruntime.CheckedI32(code)
+	if code <= 0 || code == 90 {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(temporalFieldUnitError)}
+	}
+	if code == 1 || code == 2 || code == 3 {
+		return checkruntime.MakeInt8Value(langruntime.CheckedI64Remainder(span.Time, int64(60000000)))
+	}
+	if code == 4 {
+		return checkruntime.MakeInt8Value(langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(span.Time, int64(60000000))), int64(60)))
+	}
+	if code == 5 {
+		return checkruntime.MakeInt8Value(langruntime.CheckedI64Divide(span.Time, int64(3600000000)))
+	}
+	if family == 2 {
+		offset := langruntime.CheckedI64Subtract(int64(0), (int64(langruntime.CheckedI32(zone))))
+		if code == 20 {
+			return checkruntime.MakeInt8Value(offset)
+		}
+		if code == 21 {
+			return checkruntime.MakeInt8Value(langruntime.CheckedI64Divide(offset, int64(3600)))
+		}
+		if code == 22 {
+			return checkruntime.MakeInt8Value(langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(offset, int64(60))), int64(60)))
+		}
+	}
+	if family == 3 {
+		months := int64(langruntime.CheckedI32(span.Months))
+		years := langruntime.CheckedI64Divide(months, int64(12))
+		if code == 6 {
+			return checkruntime.MakeInt8Value(int64(langruntime.CheckedI32(span.Days)))
+		}
+		if code == 7 {
+			return checkruntime.MakeInt8Value(langruntime.CheckedI64Divide((int64(langruntime.CheckedI32(span.Days))), int64(7)))
+		}
+		if code == 8 {
+			return checkruntime.MakeInt8Value(langruntime.CheckedI64Remainder(months, int64(12)))
+		}
+		if code == 9 {
+			if months == (int64(-2147483648)) {
+				return checkruntime.MakeInt8Value(int64(1))
+			}
+			if months < int64(0) {
+				return checkruntime.MakeInt8Value(langruntime.CheckedI64Subtract(int64(0), (langruntime.CheckedI64Add(langruntime.CheckedI64Divide((langruntime.CheckedI64Remainder((langruntime.CheckedI64Subtract(int64(0), months)), int64(12))), int64(3)), int64(1)))))
+			}
+			return checkruntime.MakeInt8Value(langruntime.CheckedI64Add(langruntime.CheckedI64Divide((langruntime.CheckedI64Remainder(months, int64(12))), int64(3)), int64(1)))
+		}
+		if code == 10 {
+			return checkruntime.MakeInt8Value(years)
+		}
+		if code == 11 {
+			return checkruntime.MakeInt8Value(langruntime.CheckedI64Divide(years, int64(10)))
+		}
+		if code == 12 {
+			return checkruntime.MakeInt8Value(langruntime.CheckedI64Divide(years, int64(100)))
+		}
+		if code == 13 {
+			return checkruntime.MakeInt8Value(langruntime.CheckedI64Divide(years, int64(1000)))
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
+}
+func clockFieldsNumericValue(span checkruntime.IntervalPayload, zone int, family int, code int) checkruntime.NumericValue {
+	zone = langruntime.CheckedI32(zone)
+	family = langruntime.CheckedI32(family)
+	code = langruntime.CheckedI32(code)
+	if code <= 0 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnitError)}
+	}
+	if family == 3 {
+		special := intervalSpecial(span)
+		if special != 0 {
+			if code == 1 || code == 2 || code == 3 || code == 4 || code == 7 || code == 8 || code == 9 {
+				return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+			}
+			if code == 5 || code == 6 || code == 10 || code == 11 || code == 12 || code == 13 || code == 19 {
+				if special < 0 {
+					return checkruntime.MakeNumericValue("-Infinity")
+				}
+				return checkruntime.MakeNumericValue("Infinity")
+			}
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
+		}
+	}
+	if code == 19 {
+		if family == 1 {
+			return temporalScaledNumber(span.Time, 6)
+		}
+		if family == 2 {
+			return temporalScaledNumber(langruntime.CheckedI64Add(span.Time, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(zone))), int64(1000000))), 6)
+		}
+		years := langruntime.CheckedI64Divide((int64(langruntime.CheckedI32(span.Months))), int64(12))
+		months := langruntime.CheckedI64Remainder((int64(langruntime.CheckedI32(span.Months))), int64(12))
+		seconds := langruntime.CheckedI64Multiply((langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(int64(1461), years), langruntime.CheckedI64Multiply(int64(120), months)), langruntime.CheckedI64Multiply(int64(4), (int64(langruntime.CheckedI32(span.Days)))))), int64(21600))
+		whole := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(seconds)}
+		clock := temporalScaledNumber(span.Time, 6)
+		return NumericAddO3d7(clock, whole)
+	}
+	component := clockFieldsComponent(span, zone, family, code)
+	if component.Kind == checkruntime.Int8ValueError {
+		error := component.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if component.Kind == checkruntime.Int8ValueValue {
+		number := component.Value
+		scale := 0
+		if code == 2 {
+			scale = langruntime.CheckedI32(3)
+		}
+		if code == 3 {
+			scale = langruntime.CheckedI32(6)
+		}
+		return temporalScaledNumber(number, scale)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func clockFieldsNumeric(units checkruntime.TextValue, input clockFieldInput) checkruntime.NumericValue {
+	input = copyclockFieldInput(input)
+	if units.Kind == checkruntime.TextValueError {
+		error := units.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	intervalValue := input.value
+	if intervalValue.Kind == checkruntime.IntervalValueError {
+		error := intervalValue.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input.value == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || input.value == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if units.Kind == checkruntime.TextValueValue {
+		unit := langruntime.CheckedString(units.Value)
+		if intervalValue.Kind == checkruntime.IntervalValueValue {
+			span := intervalValue.Value
+			return clockFieldsNumericValue(span, input.zone, input.family, clockFieldsCode(unit))
+		}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func clockFieldsLegacy(units checkruntime.TextValue, input clockFieldInput) checkruntime.Float8Value {
+	input = copyclockFieldInput(input)
+	intervalValue := input.value
+	number := clockFieldsNumeric(units, input)
+	if number.Kind == checkruntime.NumericValueError {
+		error := number.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if units.Kind == checkruntime.TextValueValue {
+		unit := langruntime.CheckedString(units.Value)
+		if intervalValue.Kind == checkruntime.IntervalValueValue {
+			span := intervalValue.Value
+			code := clockFieldsCode(unit)
+			if input.family != 3 || intervalSpecial(span) == 0 {
+				seconds := int(int32((langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(span.Time, int64(1000000))), int64(60)))))
+				fraction := int(int32((langruntime.CheckedI64Remainder(span.Time, int64(1000000)))))
+				if code == 2 {
+					return checkruntime.MakeFloat8Value(langruntime.F64Add(langruntime.F64Multiply((float64(seconds)), float64(1000.0)), langruntime.F64Divide((float64(fraction)), float64(1000.0))))
+				}
+				if code == 3 {
+					return checkruntime.MakeFloat8Value(langruntime.F64Add((float64(seconds)), langruntime.F64Divide((float64(fraction)), float64(1000000.0))))
+				}
+				if code == 19 {
+					result := langruntime.F64Divide(intervalMathFloat(span.Time), float64(1000000.0))
+					if input.family == 2 {
+						result = langruntime.F64Add(result, (float64(input.zone)))
+					}
+					if input.family == 3 {
+						years := langruntime.CheckedSignedDivide(span.Months, 12)
+						months := langruntime.CheckedSignedRemainder(span.Months, 12)
+						result = langruntime.F64Add(result, langruntime.F64Multiply(float64(31557600.0), (float64(years))))
+						result = langruntime.F64Add(result, langruntime.F64Multiply(float64(2592000.0), (float64(months))))
+						result = langruntime.F64Add(result, langruntime.F64Multiply(float64(86400.0), (float64(span.Days))))
+					}
+					return checkruntime.MakeFloat8Value(result)
+				}
+			}
+		}
+	}
+	return Float8Bkfn(number)
+}
+func Extract5l0q(units checkruntime.TextValue, input checkruntime.TimeValue) checkruntime.NumericValue {
+	return clockFieldsNumeric(units, clockFieldsTime(input))
+}
+func ExtractO3bx(units checkruntime.TextValue, input checkruntime.TimetzValue) checkruntime.NumericValue {
+	return clockFieldsNumeric(units, clockFieldsTimetz(input))
+}
+func ExtractXn2y(units checkruntime.TextValue, input checkruntime.IntervalValue) checkruntime.NumericValue {
+	return clockFieldsNumeric(units, clockFieldInput{value: input, zone: 0, family: 3})
+}
+func DatePartJht9(units checkruntime.TextValue, input checkruntime.TimeValue) checkruntime.Float8Value {
+	return clockFieldsLegacy(units, clockFieldsTime(input))
+}
+func DatePartYjvq(units checkruntime.TextValue, input checkruntime.TimetzValue) checkruntime.Float8Value {
+	return clockFieldsLegacy(units, clockFieldsTimetz(input))
+}
+func DatePartFb3a(units checkruntime.TextValue, input checkruntime.IntervalValue) checkruntime.Float8Value {
+	return clockFieldsLegacy(units, clockFieldInput{value: input, zone: 0, family: 3})
+}
 func MakeDateZ9pv(year checkruntime.Int4Value, month checkruntime.Int4Value, day checkruntime.Int4Value) checkruntime.DateValue {
 	if year.Kind == checkruntime.Int4ValueError {
 		error := year.Error
@@ -13532,6 +13813,76 @@ func Int42div0fx0(left checkruntime.Int4Value, right checkruntime.Int2Value) che
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4div8ogr(left, rightWide)
 }
+func intervalAgeMonthDays(calendar temporalCalendarFields) int {
+	calendar = copytemporalCalendarFields(calendar)
+	if calendar.month == 4 || calendar.month == 6 || calendar.month == 9 || calendar.month == 11 {
+		return 30
+	}
+	if calendar.month == 2 {
+		if langruntime.CheckedSignedRemainder(calendar.year, 4) == 0 && (langruntime.CheckedSignedRemainder(calendar.year, 100) != 0 || langruntime.CheckedSignedRemainder(calendar.year, 400) == 0) {
+			return 29
+		}
+		return 28
+	}
+	return 31
+}
+func intervalAgeValue(left int64, right int64) checkruntime.IntervalValue {
+	first := left
+	second := right
+	if left < right {
+		first = right
+		second = left
+	}
+	firstDay := langruntime.CheckedI64Divide(first, int64(86400000000))
+	firstClock := langruntime.CheckedI64Remainder(first, int64(86400000000))
+	secondDay := langruntime.CheckedI64Divide(second, int64(86400000000))
+	secondClock := langruntime.CheckedI64Remainder(second, int64(86400000000))
+	if firstClock < int64(0) {
+		firstClock = langruntime.CheckedI64Add(firstClock, int64(86400000000))
+		firstDay = langruntime.CheckedI64Subtract(firstDay, int64(1))
+	}
+	if secondClock < int64(0) {
+		secondClock = langruntime.CheckedI64Add(secondClock, int64(86400000000))
+		secondDay = langruntime.CheckedI64Subtract(secondDay, int64(1))
+	}
+	later := temporalCalendarFromJulian(langruntime.CheckedI64Add(firstDay, int64(2451545)))
+	earlier := temporalCalendarFromJulian(langruntime.CheckedI64Add(secondDay, int64(2451545)))
+	years := langruntime.CheckedSignedSubtract(later.year, earlier.year)
+	months := langruntime.CheckedSignedSubtract(later.month, earlier.month)
+	days := langruntime.CheckedSignedSubtract(later.day, earlier.day)
+	clock := langruntime.CheckedI64Subtract(firstClock, secondClock)
+	if clock < int64(0) {
+		clock = langruntime.CheckedI64Add(clock, int64(86400000000))
+		days = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(days, 1))
+	}
+	for days < 0 {
+		days = langruntime.CheckedI32(langruntime.CheckedSignedAdd(days, intervalAgeMonthDays(earlier)))
+		months = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(months, 1))
+	}
+	for months < 0 {
+		months = langruntime.CheckedI32(langruntime.CheckedSignedAdd(months, 12))
+		years = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(years, 1))
+	}
+	totalMonths := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(years, 12), months)
+	if left < right {
+		totalMonths = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, totalMonths))
+		days = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, days))
+		clock = langruntime.CheckedI64Subtract(int64(0), clock)
+	}
+	return checkruntime.MakeIntervalValue(totalMonths, days, clock)
+}
+func Age7dfp(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.IntervalValue {
+	if left.Kind == checkruntime.TimestampValueValue {
+		first := left.Value
+		if right.Kind == checkruntime.TimestampValueValue {
+			second := right.Value
+			if first != (int64(-9223372036854775808)) && first != int64(9223372036854775807) && second != (int64(-9223372036854775808)) && second != int64(9223372036854775807) {
+				return intervalAgeValue(first, second)
+			}
+		}
+	}
+	return TimestampMiSntt(left, right)
+}
 
 const temporalRangeError = 3452552
 
@@ -13707,6 +14058,162 @@ func TimestampSwxj(left checkruntime.DateValue) checkruntime.TimestampValue {
 		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(leftValue))), int64(86400000000))}
 	}
 	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
+func DateTruncD8uf(units checkruntime.TextValue, input checkruntime.IntervalValue) checkruntime.IntervalValue {
+	if units.Kind == checkruntime.TextValueError {
+		error := units.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if input.Kind == checkruntime.IntervalValueError {
+		error := input.Error
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: error}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+	}
+	if units == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}
+	}
+	if units.Kind == checkruntime.TextValueValue {
+		unit := langruntime.CheckedString(units.Value)
+		if input.Kind == checkruntime.IntervalValueValue {
+			span := input.Value
+			code := temporalUnitCode(unit)
+			if code == 0 || code == langruntime.CheckedSignedNegate(2) {
+				return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(temporalFieldUnitError)}
+			}
+			if code < 1 || code > 13 || code == 7 {
+				return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
+			}
+			if intervalSpecial(span) != 0 {
+				return input
+			}
+			months := span.Months
+			days := span.Days
+			time := span.Time
+			if code == 2 {
+				time = langruntime.CheckedI64Multiply((langruntime.CheckedI64Divide(time, int64(1000))), int64(1000))
+			}
+			if code == 3 {
+				time = langruntime.CheckedI64Multiply((langruntime.CheckedI64Divide(time, int64(1000000))), int64(1000000))
+			}
+			if code == 4 {
+				time = langruntime.CheckedI64Multiply((langruntime.CheckedI64Divide(time, int64(60000000))), int64(60000000))
+			}
+			if code == 5 {
+				time = langruntime.CheckedI64Multiply((langruntime.CheckedI64Divide(time, int64(3600000000))), int64(3600000000))
+			}
+			if code >= 6 {
+				time = int64(0)
+			}
+			if code >= 8 {
+				days = langruntime.CheckedI32(0)
+			}
+			if code == 9 {
+				months = langruntime.CheckedI32(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide(months, 3)), 3))
+			}
+			if code == 10 {
+				months = langruntime.CheckedI32(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide(months, 12)), 12))
+			}
+			if code == 11 {
+				months = langruntime.CheckedI32(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide(months, 120)), 120))
+			}
+			if code == 12 {
+				months = langruntime.CheckedI32(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide(months, 1200)), 1200))
+			}
+			if code == 13 {
+				months = langruntime.CheckedI32(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedDivide(months, 12000)), 12000))
+			}
+			return checkruntime.MakeIntervalValue(months, days, time)
+		}
+	}
+	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}
+}
+func DateBin67ed(stride checkruntime.IntervalValue, input checkruntime.TimestampValue, origin checkruntime.TimestampValue) checkruntime.TimestampValue {
+	if stride.Kind == checkruntime.IntervalValueError {
+		error := stride.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if origin.Kind == checkruntime.TimestampValueError {
+		error := origin.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if stride == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueUnknown}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || origin == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+	}
+	if stride == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) || input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || origin == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if stride.Kind == checkruntime.IntervalValueValue {
+		span := stride.Value
+		if input.Kind == checkruntime.TimestampValueValue {
+			timestamp := input.Value
+			if origin.Kind == checkruntime.TimestampValueValue {
+				start := origin.Value
+				low := int64(-9223372036854775808)
+				high := int64(9223372036854775807)
+				if timestamp == low || timestamp == high {
+					return input
+				}
+				if start == low || start == high || intervalSpecial(span) != 0 {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				if span.Months != 0 {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(temporalFieldUnsupportedError)}
+				}
+				days := int64(langruntime.CheckedI32(span.Days))
+				if days < (int64(-106751991)) || days > int64(106751991) {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				dayTime := langruntime.CheckedI64Multiply(days, int64(86400000000))
+				if (span.Time > int64(0) && dayTime > langruntime.CheckedI64Subtract(high, span.Time)) || (span.Time < int64(0) && dayTime < langruntime.CheckedI64Subtract(low, span.Time)) {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				width := langruntime.CheckedI64Add(dayTime, span.Time)
+				if width <= int64(0) {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				if (start > int64(0) && timestamp < langruntime.CheckedI64Add(low, start)) || (start < int64(0) && timestamp > langruntime.CheckedI64Add(high, start)) {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				difference := langruntime.CheckedI64Subtract(timestamp, start)
+				remainder := langruntime.CheckedI64Remainder(difference, width)
+				result := langruntime.CheckedI64Subtract(timestamp, remainder)
+				if remainder < int64(0) {
+					if result < langruntime.CheckedI64Add(low, width) {
+						return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+					}
+					result = langruntime.CheckedI64Subtract(result, width)
+				}
+				if result == low || result == high {
+					return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}
+				}
+				return checkruntime.MakeTimestampValue(result)
+			}
+		}
+	}
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
+func DateBin0b5n(stride checkruntime.IntervalValue, input checkruntime.TimestamptzValue, origin checkruntime.TimestamptzValue) checkruntime.TimestamptzValue {
+	sourceTime := intervalCalendarLocalPayload(input)
+	originTime := intervalCalendarLocalPayload(origin)
+	result := DateBin67ed(stride, sourceTime, originTime)
+	if result.Kind == checkruntime.TimestampValueError {
+		error := result.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if result == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	if result.Kind == checkruntime.TimestampValueValue {
+		timestamp := result.Value
+		return checkruntime.MakeTimestamptzValue(timestamp)
+	}
+	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
 }
 func temporalCompare(left int64, right int64) int {
 	if left < right {
@@ -14379,6 +14886,113 @@ func DateTrunc3i0u(units checkruntime.TextValue, input checkruntime.TimestampVal
 		}
 	}
 	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
+func temporalHashTimeInput(input checkruntime.TimeValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.TimeValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.TimeValue{Kind: checkruntime.TimeValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.TimeValueValue {
+		value := input.Value
+		return checkruntime.MakeInt8Value(value)
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func temporalHashIntervalInput(input checkruntime.IntervalValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.IntervalValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.IntervalValue{Kind: checkruntime.IntervalValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.IntervalValueValue {
+		span := input.Value
+		days := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(span.Months))), int64(30)), (int64(langruntime.CheckedI32(span.Days))))
+		factor := int64(86400000000)
+		result := span.Time
+		for factor > int64(0) {
+			if langruntime.CheckedI64Remainder(factor, int64(2)) != int64(0) {
+				result = clockWrappedAdd(result, days)
+			}
+			days = clockWrappedAdd(days, days)
+			factor = langruntime.CheckedI64Divide(factor, int64(2))
+		}
+		return checkruntime.MakeInt8Value(result)
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func temporalHashTimetz(input checkruntime.TimetzValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	if input.Kind == checkruntime.TimetzValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueNull}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.TimetzValueValue {
+		clock := input.Value
+		timeHash := Hashint8extendedFrvh(checkruntime.MakeInt8Value(clock.Time), seed)
+		zoneHash := Hashint4extendedXf6v(checkruntime.MakeInt4Value(clock.Zone), seed)
+		return Int8xor4v56(timeHash, zoneHash)
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func temporalHashNarrow(input checkruntime.Int8Value) checkruntime.Int4Value {
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		value := input.Value
+		return checkruntime.MakeInt4Value(int(int32(value)))
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TimeHashYc41(input checkruntime.TimeValue) checkruntime.Int4Value {
+	return Hashint83wid(temporalHashTimeInput(input))
+}
+func TimeHashExtendedJsyf(input checkruntime.TimeValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	return Hashint8extendedFrvh(temporalHashTimeInput(input), seed)
+}
+func TimetzHashE9xu(input checkruntime.TimetzValue) checkruntime.Int4Value {
+	return temporalHashNarrow(temporalHashTimetz(input, checkruntime.MakeInt8Value(int64(0))))
+}
+func TimetzHashExtended8tni(input checkruntime.TimetzValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	return temporalHashTimetz(input, seed)
+}
+func IntervalHash1uw4(input checkruntime.IntervalValue) checkruntime.Int4Value {
+	return Hashint83wid(temporalHashIntervalInput(input))
+}
+func IntervalHashExtended4x7k(input checkruntime.IntervalValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	return Hashint8extendedFrvh(temporalHashIntervalInput(input), seed)
+}
+func IntervalPlTimeCdi6(amount checkruntime.IntervalValue, input checkruntime.TimeValue) checkruntime.TimeValue {
+	if amount.Kind == checkruntime.IntervalValueError {
+		error := amount.Error
+		return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: error}
+	}
+	return TimePlIntervalOsxy(input, amount)
+}
+func IntervalPlTimetz0g00(amount checkruntime.IntervalValue, input checkruntime.TimetzValue) checkruntime.TimetzValue {
+	if amount.Kind == checkruntime.IntervalValueError {
+		error := amount.Error
+		return checkruntime.TimetzValue{Kind: checkruntime.TimetzValueError, Error: error}
+	}
+	return TimetzPlIntervalWmqy(input, amount)
 }
 
 const temporalPrecisionError = 3452619
