@@ -370,7 +370,8 @@ export function emitCheckRustEvaluator(
         metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
         resultType !== call.type ||
-        !implementation.strict ||
+        (!implementation.strict &&
+          !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         implementation.volatility !== 'i' ||
         implementation.returnsSet ||
         implementation.args.length !== operands.length

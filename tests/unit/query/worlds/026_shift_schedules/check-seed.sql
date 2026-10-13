@@ -536,3 +536,249 @@ INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip
 
 -- name: duration_alternative_skips_invalid_trailing
 INSERT INTO duration_imports (id,template_id,raw_duration,expected_duration,skip_import) VALUES (2,1,'P1-2-3T4:5:6S','0',true);
+
+-- name: zoned_calendar_month_clip
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2000-01-31 12:00+00', '1 month', 'UTC', '2000-02-29 12:00+00', '1999-12-31 12:00+00', '2000-01-29 12:00+00', false);
+-- name: zoned_calendar_fall_day
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2024-11-02 05:30+00', '1 day', 'America/New_York', '2024-11-03 06:30+00', '2024-11-01 05:30+00', '2024-11-02 05:30+00', false);
+-- name: zoned_calendar_fall_hours
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2024-11-02 05:30+00', '24 hours', 'America/New_York', '2024-11-03 05:30+00', '2024-11-01 05:30+00', '2024-11-02 05:30+00', false);
+-- name: zoned_calendar_month_gap_then_day
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2024-02-10 07:30+00', '1 month 1 day', 'America/New_York', '2024-03-11 07:30+00', '2024-01-09 07:30+00', '2024-02-10 08:30+00', false);
+-- name: zoned_calendar_skipped_day
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2011-11-30 10:30+00', '1 month 1 day', 'Pacific/Apia', '2011-12-31 10:30+00', '2011-10-29 10:30+00', '2011-11-30 10:30+00', false);
+-- name: zoned_calendar_wrong_addition
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2000-01-31 12:00+00', '1 month', 'UTC', '2000-02-28 12:00+00', '1999-12-31 12:00+00', '2000-01-29 12:00+00', false);
+-- name: zoned_calendar_wrong_subtraction
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2000-01-31 12:00+00', '1 month', 'UTC', '2000-02-29 12:00+00', '1999-12-30 12:00+00', '2000-01-29 12:00+00', false);
+-- name: zoned_calendar_noninvertible_month
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2000-01-31 12:00+00', '1 month', 'UTC', '2000-02-29 12:00+00', '1999-12-31 12:00+00', '2000-01-31 12:00+00', false);
+-- name: zoned_calendar_positive_infinity
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, 'infinity', '1 month', 'Europe/Berlin', 'infinity', 'infinity', 'infinity', false);
+-- name: zoned_calendar_negative_infinity
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '-infinity', '-1 month', 'Europe/Berlin', '-infinity', '-infinity', '-infinity', false);
+-- name: zoned_calendar_null_span
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2000-01-31 12:00+00', NULL, 'UTC', NULL, NULL, NULL, false);
+-- name: zoned_calendar_infinite_span_error
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2000-01-31 12:00+00', 'infinity', 'UTC', 'infinity', '-infinity', 'infinity', false);
+-- name: zoned_calendar_month_overflow
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, '2000-01-31 12:00+00', '2147483647 months', 'UTC', 'infinity', '-infinity', 'infinity', false);
+-- name: zoned_calendar_negation_overflow
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, 'infinity', '-2147483648 months', 'UTC', 'infinity', 'infinity', 'infinity', false);
+-- name: zoned_calendar_invalid_zone_before_infinity
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, 'infinity', '0', 'UTC+168', 'infinity', 'infinity', 'infinity', false);
+-- name: zoned_calendar_null_span_skips_zone_lookup
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, 'infinity', NULL, 'UTC+168', 'infinity', 'infinity', 'infinity', false);
+-- name: zoned_calendar_skip_invalid_zone
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, 'infinity', '0', 'UTC+168', 'infinity', 'infinity', 'infinity', true);
+-- name: zoned_calendar_skip_invalid_span
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (2, 1, 'infinity', '-2147483648 months', 'UTC', 'infinity', 'infinity', 'infinity', true);
+
+-- name: local_conflict_intersection
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'09:00','12:00','3 hours','10:00','13:00','3 hours',true,true,true,true,false);
+-- name: local_conflict_wrong_endpoints
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'09:00','12:00','3 hours','10:00','13:00','3 hours',false,true,true,true,false);
+-- name: local_conflict_wrong_first_duration
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'09:00','12:00','3 hours','10:00','13:00','3 hours',true,false,true,true,false);
+-- name: local_conflict_wrong_second_duration
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'09:00','12:00','3 hours','10:00','13:00','3 hours',true,true,false,true,false);
+-- name: local_conflict_wrong_both_durations
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'09:00','12:00','3 hours','10:00','13:00','3 hours',true,true,true,false,false);
+-- name: local_conflict_touching_boundary
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'09:00','10:00','1 hour','10:00','11:00','1 hour',false,false,false,false,false);
+-- name: local_conflict_reversed_periods
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'12:00','09:00','-3 hours','13:00','10:00','-3 hours',true,true,true,true,false);
+-- name: local_conflict_equal_points
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'10:00','10:00','0','10:00','10:00','0',true,true,true,true,false);
+-- name: local_conflict_distinct_midnight_markers
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'24:00','24:00','0','00:00','00:00','0',false,true,false,true,false);
+-- name: local_conflict_wrapped_duration
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'23:00','01:00','2 hours','12:00','13:00','1 hour',true,true,true,true,false);
+-- name: local_conflict_known_intersection_with_null_end
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'10:00',NULL,'1 hour','09:00','11:00','2 hours',true,true,true,true,false);
+-- name: local_conflict_indeterminate_null_end
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'09:00',NULL,'2 hours','10:00','12:00','2 hours',false,true,false,true,false);
+-- name: local_conflict_known_intersection_with_null_start
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'09:00','12:00','3 hours',NULL,'11:00','2 hours',true,true,NULL,NULL,false);
+-- name: local_conflict_calendar_fields_ignored
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'09:00','10:00','1 month 1 hour','09:30','10:30','-2 days 1 hour',true,true,true,true,false);
+-- name: local_conflict_lazy_validation
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'09:00','12:00','3 hours','10:00','13:00','3 hours',false,false,false,false,true);
+
+-- name: calendar_conflict_intersection
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'2024-02-28 09:00','2024-02-28 12:00','3 hours','2024-02-28 10:00','2024-02-28 13:00','3 hours',true,true,true,true,false);
+-- name: calendar_conflict_wrong_endpoints
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'2024-02-28 09:00','2024-02-28 12:00','3 hours','2024-02-28 10:00','2024-02-28 13:00','3 hours',false,true,true,true,false);
+-- name: calendar_conflict_wrong_first_duration
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'2024-02-28 09:00','2024-02-28 12:00','3 hours','2024-02-28 10:00','2024-02-28 13:00','3 hours',true,false,true,true,false);
+-- name: calendar_conflict_wrong_second_duration
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'2024-02-28 09:00','2024-02-28 12:00','3 hours','2024-02-28 10:00','2024-02-28 13:00','3 hours',true,true,false,true,false);
+-- name: calendar_conflict_wrong_both_durations
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'2024-02-28 09:00','2024-02-28 12:00','3 hours','2024-02-28 10:00','2024-02-28 13:00','3 hours',true,true,true,false,false);
+-- name: calendar_conflict_touching_boundary
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'2024-02-28 09:00','2024-02-28 10:00','1 hour','2024-02-28 10:00','2024-02-28 11:00','1 hour',false,false,false,false,false);
+-- name: calendar_conflict_reversed_periods
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'2024-02-28 12:00','2024-02-28 09:00','-3 hours','2024-02-28 13:00','2024-02-28 10:00','-3 hours',true,true,true,true,false);
+-- name: calendar_conflict_month_clipping
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'2024-01-31 09:00','2024-02-29 09:00','1 month','2024-02-28 09:00','2024-03-01 09:00','2 days',true,true,true,true,false);
+-- name: calendar_conflict_same_infinite_points
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'infinity','infinity','0','infinity','infinity','0',true,true,true,true,false);
+-- name: calendar_conflict_opposite_infinite_points
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'-infinity','-infinity','0','infinity','infinity','0',false,false,false,false,false);
+-- name: calendar_conflict_known_intersection_with_null_end
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'2024-02-28 10:00',NULL,'1 hour','2024-02-28 09:00','2024-02-28 11:00','2 hours',true,true,true,true,false);
+-- name: calendar_conflict_indeterminate_null_end
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'2024-02-28 09:00',NULL,'2 hours','2024-02-28 10:00','2024-02-28 12:00','2 hours',false,true,false,true,false);
+-- name: calendar_conflict_duration_overflow
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'294276-12-31 23:59:59','294276-12-31 23:59:59','1 day','2000-01-01','2000-01-02','1 day',false,false,false,false,false);
+-- name: calendar_conflict_infinite_duration_error
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'infinity','infinity','-infinity','2000-01-01','2000-01-02','1 day',false,false,false,false,false);
+-- name: calendar_conflict_lazy_overflow
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (2,1,'294276-12-31 23:59:59','294276-12-31 23:59:59','1 day','2000-01-01','2000-01-02','1 day',false,false,false,false,true);
+
+-- name: zoned_conflict_intersection
+INSERT INTO zoned_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'09:00+00','12:00+00','12:00+02','15:00+02',true,false);
+-- name: zoned_conflict_wrong_result
+INSERT INTO zoned_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'09:00+00','12:00+00','12:00+02','15:00+02',false,false);
+-- name: zoned_conflict_touching_boundary
+INSERT INTO zoned_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'09:00+00','10:00+00','10:00+00','11:00+00',false,false);
+-- name: zoned_conflict_equal_utc_with_offset_tie
+INSERT INTO zoned_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'12:00+02','12:00+02','11:00+01','11:00+01',false,false);
+-- name: zoned_conflict_equal_points
+INSERT INTO zoned_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'12:00+02','12:00+02','12:00+02','12:00+02',true,false);
+-- name: zoned_conflict_known_intersection_with_null_end
+INSERT INTO zoned_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'10:00+00',NULL,'09:00+00','11:00+00',true,false);
+-- name: zoned_conflict_indeterminate_null_end
+INSERT INTO zoned_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'09:00+00',NULL,'10:00+00','12:00+00',false,false);
+-- name: zoned_conflict_wide_offsets
+INSERT INTO zoned_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,timezone('2147483648 seconds'::interval,'09:00+00'::timetz),timezone('2147483648 seconds'::interval,'12:00+00'::timetz),timezone('2147483648 seconds'::interval,'10:00+00'::timetz),timezone('2147483648 seconds'::interval,'13:00+00'::timetz),true,false);
+-- name: zoned_conflict_lazy_validation
+INSERT INTO zoned_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'09:00+00','12:00+00','12:00+02','15:00+02',false,true);
+
+-- name: instant_conflict_intersection
+INSERT INTO instant_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'2024-03-10 01:00-05','2024-03-10 04:00-04','2024-03-10 07:00+00','2024-03-10 09:00+00',true,false);
+-- name: instant_conflict_wrong_result
+INSERT INTO instant_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'2024-03-10 01:00-05','2024-03-10 04:00-04','2024-03-10 07:00+00','2024-03-10 09:00+00',false,false);
+-- name: instant_conflict_touching_boundary
+INSERT INTO instant_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'2024-03-10 01:00-05','2024-03-10 04:00-04','2024-03-10 08:00+00','2024-03-10 09:00+00',false,false);
+-- name: instant_conflict_equal_instants
+INSERT INTO instant_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'2024-11-03 01:30-04','2024-11-03 01:30-04','2024-11-03 05:30+00','2024-11-03 05:30+00',true,false);
+-- name: instant_conflict_infinite_span
+INSERT INTO instant_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'infinity','-infinity','2000-01-01+00','2000-01-02+00',true,false);
+-- name: instant_conflict_same_infinite_points
+INSERT INTO instant_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'infinity','infinity','infinity','infinity',true,false);
+-- name: instant_conflict_known_intersection_with_null_end
+INSERT INTO instant_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'2000-01-01 10:00+00',NULL,'2000-01-01 09:00+00','2000-01-01 11:00+00',true,false);
+-- name: instant_conflict_indeterminate_null_end
+INSERT INTO instant_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'2000-01-01 09:00+00',NULL,'2000-01-01 10:00+00','2000-01-01 12:00+00',false,false);
+-- name: instant_conflict_lazy_validation
+INSERT INTO instant_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (2,1,'2024-03-10 01:00-05','2024-03-10 04:00-04','2024-03-10 07:00+00','2024-03-10 09:00+00',false,true);
+
+-- name: calendar_field_fractional_seconds
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'2000-01-01 12:34:12.5','seconds',12.5,'\x4029000000000000',false);
+-- name: calendar_field_wrong_value
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'2000-01-01 12:34:12.5','seconds',12.25,'\x4029000000000000',false);
+-- name: calendar_field_wrong_wire
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'2000-01-01 12:34:12.5','seconds',12.5,'\x4028800000000000',false);
+-- name: calendar_field_epoch_zero
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'1970-01-01','epoch',0,'\x0000000000000000',false);
+-- name: calendar_field_negative_epoch_fraction
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'1969-12-31 23:59:59.999999','epoch',-0.000001,'\xbeb0c6f7a0b5ed8d',false);
+-- name: calendar_field_fractional_julian_day
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'2000-01-01 12:00','julian',2451545.5,'\x4142b42cc0000000',false);
+-- name: calendar_field_bc_year
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'0001-01-01 BC','year',-1,'\xbff0000000000000',false);
+-- name: calendar_field_infinite_year
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'infinity','year','Infinity','\x7ff0000000000000',false);
+-- name: calendar_field_negative_infinite_year
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'-infinity','year','-Infinity','\xfff0000000000000',false);
+-- name: calendar_field_infinite_seconds_null
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'infinity','seconds',NULL,NULL,false);
+-- name: calendar_field_wrong_infinite_seconds
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'infinity','seconds',1,NULL,false);
+-- name: calendar_field_unsupported_unit
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'2000-01-01','timezone',0,'\x0000000000000000',false);
+-- name: calendar_field_unrecognized_unit
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'2000-01-01','bogus',0,'\x0000000000000000',false);
+-- name: calendar_field_lazy_unknown_unit
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (2,1,'2000-01-01','bogus',0,'\x0000000000000000',true);

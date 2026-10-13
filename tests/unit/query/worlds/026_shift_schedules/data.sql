@@ -15,3 +15,18 @@ INSERT INTO event_bucket_records (id, template_id, bucket_width, observed_local,
 INSERT INTO clock_tolerances (id, template_id, skip_validation, candidate_clock, base_clock, candidate_zoned, base_zoned, tolerance, subtract_offset, compare_less, recorded_local, recorded_zoned) VALUES (1, 1, false, '13:00'::time, '12:00'::time, '13:00+02'::timetz, '12:00+02'::timetz, '1 hour'::interval, false, true, true, true);
 INSERT INTO calendar_tolerances (id, template_id, skip_validation, candidate_day, base_day, candidate_at, base_at, candidate_duration, base_duration, tolerance, subtract_offset, compare_less, recorded_day, recorded_at, recorded_duration) VALUES (1, 1, false, '2000-02-29'::date, '2000-01-31'::date, '2000-02-29 12:00'::timestamp, '2000-01-31 12:00'::timestamp, '60 days'::interval, '1 month'::interval, '1 month'::interval, false, true, true, true, true);
 INSERT INTO fixed_zone_records (id, template_id, skip_validation, zone_offset, source_local, source_instant, source_clock, recorded_instant, recorded_local, recorded_label, recorded_offset, recorded_clock) VALUES (1, 1, false, '1 hour'::interval, '2000-01-01 12:34:56.123456'::timestamp, '2000-01-01 12:34:56.123456+00'::timestamptz, '12:34:56.123456+02'::timetz, '2000-01-01 11:34:56.123456+00', '2000-01-01 13:34:56.123456', '11:34:56.123456+01', '3600', timezone('1 hour'::interval,'12:34:56.123456+02'::timetz));
+
+INSERT INTO zoned_calendar_adjustments (id, template_id, source_instant, calendar_span, zone_name, recorded_addition, recorded_subtraction, recorded_return, skip_validation)
+VALUES (1, 1, '2000-01-31 12:00+00', '1 month', 'UTC', '2000-02-29 12:00+00', '1999-12-31 12:00+00', '2000-01-29 12:00+00', false);
+
+INSERT INTO local_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (1,1,'09:00','12:00','3 hours','10:00','13:00','3 hours',true,true,true,true,false);
+INSERT INTO calendar_shift_conflicts (id,template_id,first_starts_at,first_ends_at,first_duration,second_starts_at,second_ends_at,second_duration,endpoint_overlap,first_duration_overlap,second_duration_overlap,both_duration_overlap,skip_validation)
+VALUES (1,1,'2024-02-28 09:00','2024-02-28 12:00','3 hours','2024-02-28 10:00','2024-02-28 13:00','3 hours',true,true,true,true,false);
+INSERT INTO zoned_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (1,1,'09:00+00','12:00+00','12:00+02','15:00+02',true,false);
+INSERT INTO instant_shift_conflicts (id,template_id,first_starts_at,first_ends_at,second_starts_at,second_ends_at,recorded_overlap,skip_validation)
+VALUES (1,1,'2024-02-28 09:00+00','2024-02-28 12:00+00','2024-02-28 12:00+02','2024-02-28 15:00+02',true,false);
+
+INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
+VALUES (1,1,'2000-01-01 12:34:12.5','seconds',12.5,'\x4029000000000000',false);

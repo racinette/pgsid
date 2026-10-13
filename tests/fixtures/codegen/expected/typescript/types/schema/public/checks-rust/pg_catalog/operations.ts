@@ -15041,6 +15041,345 @@ export function intervalPlTimetz0g00(amount: checkruntime.IntervalValue, input: 
     }
     return timetzPlIntervalWmqy(input, amount);
 }
+interface OverlapPoint {
+    present: boolean;
+    time: bigint;
+    zone: number;
+}
+function copyOverlapPoint(value: OverlapPoint): OverlapPoint {
+    return { present: langruntime.checkedBool(value.present), time: langruntime.checkedI64(value.time), zone: langruntime.checkedI32(value.zone) };
+}
+function overlapMissingPoint(): OverlapPoint {
+    return { present: false, time: 0n, zone: 0 };
+}
+function overlapPointOrder(left: OverlapPoint, right: OverlapPoint): number {
+    left = copyOverlapPoint(left);
+    right = copyOverlapPoint(right);
+    const a: bigint = clockWrappedAdd(left.time, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(left.zone))), 1000000n));
+    const b: bigint = clockWrappedAdd(right.time, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(right.zone))), 1000000n));
+    const order: number = clockOrder(a, b);
+    if (!(order === 0)) {
+        return order;
+    }
+    return clockOrder(BigInt(langruntime.checkedI32(left.zone)), BigInt(langruntime.checkedI32(right.zone)));
+}
+function overlapPoints(a: OverlapPoint, b: OverlapPoint, c: OverlapPoint, d: OverlapPoint): checkruntime.BoolValue {
+    a = copyOverlapPoint(a);
+    b = copyOverlapPoint(b);
+    c = copyOverlapPoint(c);
+    d = copyOverlapPoint(d);
+    let firstStart: OverlapPoint = copyOverlapPoint(a);
+    let firstEnd: OverlapPoint = copyOverlapPoint(b);
+    let secondStart: OverlapPoint = copyOverlapPoint(c);
+    let secondEnd: OverlapPoint = copyOverlapPoint(d);
+    if (firstStart.present === false) {
+        if (firstEnd.present === false) {
+            return { kind: "Null" };
+        }
+        firstStart = copyOverlapPoint(firstEnd);
+        firstEnd = copyOverlapPoint(overlapMissingPoint());
+    }
+    else if (firstEnd.present && overlapPointOrder(firstStart, firstEnd) > 0) {
+        const saved: OverlapPoint = copyOverlapPoint(firstStart);
+        firstStart = copyOverlapPoint(firstEnd);
+        firstEnd = copyOverlapPoint(saved);
+    }
+    if (secondStart.present === false) {
+        if (secondEnd.present === false) {
+            return { kind: "Null" };
+        }
+        secondStart = copyOverlapPoint(secondEnd);
+        secondEnd = copyOverlapPoint(overlapMissingPoint());
+    }
+    else if (secondEnd.present && overlapPointOrder(secondStart, secondEnd) > 0) {
+        const saved: OverlapPoint = copyOverlapPoint(secondStart);
+        secondStart = copyOverlapPoint(secondEnd);
+        secondEnd = copyOverlapPoint(saved);
+    }
+    const order: number = overlapPointOrder(firstStart, secondStart);
+    if (order > 0) {
+        if (secondEnd.present === false) {
+            return { kind: "Null" };
+        }
+        if (overlapPointOrder(firstStart, secondEnd) < 0) {
+            return checkruntime.makeBoolValue(true);
+        }
+        if (firstEnd.present === false) {
+            return { kind: "Null" };
+        }
+        return checkruntime.makeBoolValue(false);
+    }
+    if (order < 0) {
+        if (firstEnd.present === false) {
+            return { kind: "Null" };
+        }
+        if (overlapPointOrder(secondStart, firstEnd) < 0) {
+            return checkruntime.makeBoolValue(true);
+        }
+        if (secondEnd.present === false) {
+            return { kind: "Null" };
+        }
+        return checkruntime.makeBoolValue(false);
+    }
+    if (firstEnd.present === false || secondEnd.present === false) {
+        return { kind: "Null" };
+    }
+    return checkruntime.makeBoolValue(true);
+}
+function overlapTimePoint(input: checkruntime.TimeValue): OverlapPoint {
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { present: true, time: value, zone: 0 };
+    }
+    return overlapMissingPoint();
+}
+function overlapTimetzPoint(input: checkruntime.TimetzValue): OverlapPoint {
+    if (input.kind === "Value") {
+        const value: checkruntime.TimetzPayload = input.value;
+        return { present: true, time: value.time, zone: value.zone };
+    }
+    return overlapMissingPoint();
+}
+function overlapTimestampPoint(input: checkruntime.TimestampValue): OverlapPoint {
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { present: true, time: value, zone: 0 };
+    }
+    return overlapMissingPoint();
+}
+function overlapTimestamptzPoint(input: checkruntime.TimestamptzValue): OverlapPoint {
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { present: true, time: value, zone: 0 };
+    }
+    return overlapMissingPoint();
+}
+export function overlapsTwwm(a: checkruntime.TimeValue, b: checkruntime.IntervalValue, c: checkruntime.TimeValue, d: checkruntime.IntervalValue): checkruntime.BoolValue {
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return { kind: "Error", value: error };
+    }
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return { kind: "Error", value: error };
+    }
+    if (c.kind === "Error") {
+        const error: checkruntime.SqlError = c.value;
+        return { kind: "Error", value: error };
+    }
+    if (d.kind === "Error") {
+        const error: checkruntime.SqlError = d.value;
+        return { kind: "Error", value: error };
+    }
+    const firstEnd: checkruntime.TimeValue = timePlIntervalOsxy(a, b);
+    const secondEnd: checkruntime.TimeValue = timePlIntervalOsxy(c, d);
+    return overlaps4anj(a, firstEnd, c, secondEnd);
+}
+export function overlaps3ghm(a: checkruntime.TimeValue, b: checkruntime.IntervalValue, c: checkruntime.TimeValue, d: checkruntime.TimeValue): checkruntime.BoolValue {
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return { kind: "Error", value: error };
+    }
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return { kind: "Error", value: error };
+    }
+    if (c.kind === "Error") {
+        const error: checkruntime.SqlError = c.value;
+        return { kind: "Error", value: error };
+    }
+    if (d.kind === "Error") {
+        const error: checkruntime.SqlError = d.value;
+        return { kind: "Error", value: error };
+    }
+    const firstEnd: checkruntime.TimeValue = timePlIntervalOsxy(a, b);
+    return overlaps4anj(a, firstEnd, c, d);
+}
+export function overlapsMibh(a: checkruntime.TimeValue, b: checkruntime.TimeValue, c: checkruntime.TimeValue, d: checkruntime.IntervalValue): checkruntime.BoolValue {
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return { kind: "Error", value: error };
+    }
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return { kind: "Error", value: error };
+    }
+    if (c.kind === "Error") {
+        const error: checkruntime.SqlError = c.value;
+        return { kind: "Error", value: error };
+    }
+    if (d.kind === "Error") {
+        const error: checkruntime.SqlError = d.value;
+        return { kind: "Error", value: error };
+    }
+    const secondEnd: checkruntime.TimeValue = timePlIntervalOsxy(c, d);
+    return overlaps4anj(a, b, c, secondEnd);
+}
+export function overlaps4anj(a: checkruntime.TimeValue, b: checkruntime.TimeValue, c: checkruntime.TimeValue, d: checkruntime.TimeValue): checkruntime.BoolValue {
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return { kind: "Error", value: error };
+    }
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return { kind: "Error", value: error };
+    }
+    if (c.kind === "Error") {
+        const error: checkruntime.SqlError = c.value;
+        return { kind: "Error", value: error };
+    }
+    if (d.kind === "Error") {
+        const error: checkruntime.SqlError = d.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimeValue(a, { kind: "Unknown" }) || checkruntime.equalTimeValue(b, { kind: "Unknown" }) || checkruntime.equalTimeValue(c, { kind: "Unknown" }) || checkruntime.equalTimeValue(d, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    const pointA: OverlapPoint = copyOverlapPoint(overlapTimePoint(a));
+    const pointB: OverlapPoint = copyOverlapPoint(overlapTimePoint(b));
+    const pointC: OverlapPoint = copyOverlapPoint(overlapTimePoint(c));
+    const pointD: OverlapPoint = copyOverlapPoint(overlapTimePoint(d));
+    return overlapPoints(pointA, pointB, pointC, pointD);
+}
+export function overlapsId87(a: checkruntime.TimestampValue, b: checkruntime.IntervalValue, c: checkruntime.TimestampValue, d: checkruntime.IntervalValue): checkruntime.BoolValue {
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return { kind: "Error", value: error };
+    }
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return { kind: "Error", value: error };
+    }
+    if (c.kind === "Error") {
+        const error: checkruntime.SqlError = c.value;
+        return { kind: "Error", value: error };
+    }
+    if (d.kind === "Error") {
+        const error: checkruntime.SqlError = d.value;
+        return { kind: "Error", value: error };
+    }
+    const firstEnd: checkruntime.TimestampValue = timestampPlIntervalZi2i(a, b);
+    const secondEnd: checkruntime.TimestampValue = timestampPlIntervalZi2i(c, d);
+    return overlapsCdbz(a, firstEnd, c, secondEnd);
+}
+export function overlapsLgwe(a: checkruntime.TimestampValue, b: checkruntime.IntervalValue, c: checkruntime.TimestampValue, d: checkruntime.TimestampValue): checkruntime.BoolValue {
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return { kind: "Error", value: error };
+    }
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return { kind: "Error", value: error };
+    }
+    if (c.kind === "Error") {
+        const error: checkruntime.SqlError = c.value;
+        return { kind: "Error", value: error };
+    }
+    if (d.kind === "Error") {
+        const error: checkruntime.SqlError = d.value;
+        return { kind: "Error", value: error };
+    }
+    const firstEnd: checkruntime.TimestampValue = timestampPlIntervalZi2i(a, b);
+    return overlapsCdbz(a, firstEnd, c, d);
+}
+export function overlapsIwr2(a: checkruntime.TimestampValue, b: checkruntime.TimestampValue, c: checkruntime.TimestampValue, d: checkruntime.IntervalValue): checkruntime.BoolValue {
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return { kind: "Error", value: error };
+    }
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return { kind: "Error", value: error };
+    }
+    if (c.kind === "Error") {
+        const error: checkruntime.SqlError = c.value;
+        return { kind: "Error", value: error };
+    }
+    if (d.kind === "Error") {
+        const error: checkruntime.SqlError = d.value;
+        return { kind: "Error", value: error };
+    }
+    const secondEnd: checkruntime.TimestampValue = timestampPlIntervalZi2i(c, d);
+    return overlapsCdbz(a, b, c, secondEnd);
+}
+export function overlapsCdbz(a: checkruntime.TimestampValue, b: checkruntime.TimestampValue, c: checkruntime.TimestampValue, d: checkruntime.TimestampValue): checkruntime.BoolValue {
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return { kind: "Error", value: error };
+    }
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return { kind: "Error", value: error };
+    }
+    if (c.kind === "Error") {
+        const error: checkruntime.SqlError = c.value;
+        return { kind: "Error", value: error };
+    }
+    if (d.kind === "Error") {
+        const error: checkruntime.SqlError = d.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(a, { kind: "Unknown" }) || checkruntime.equalTimestampValue(b, { kind: "Unknown" }) || checkruntime.equalTimestampValue(c, { kind: "Unknown" }) || checkruntime.equalTimestampValue(d, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    const pointA: OverlapPoint = copyOverlapPoint(overlapTimestampPoint(a));
+    const pointB: OverlapPoint = copyOverlapPoint(overlapTimestampPoint(b));
+    const pointC: OverlapPoint = copyOverlapPoint(overlapTimestampPoint(c));
+    const pointD: OverlapPoint = copyOverlapPoint(overlapTimestampPoint(d));
+    return overlapPoints(pointA, pointB, pointC, pointD);
+}
+export function overlapsXg7p(a: checkruntime.TimestamptzValue, b: checkruntime.TimestamptzValue, c: checkruntime.TimestamptzValue, d: checkruntime.TimestamptzValue): checkruntime.BoolValue {
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return { kind: "Error", value: error };
+    }
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return { kind: "Error", value: error };
+    }
+    if (c.kind === "Error") {
+        const error: checkruntime.SqlError = c.value;
+        return { kind: "Error", value: error };
+    }
+    if (d.kind === "Error") {
+        const error: checkruntime.SqlError = d.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestamptzValue(a, { kind: "Unknown" }) || checkruntime.equalTimestamptzValue(b, { kind: "Unknown" }) || checkruntime.equalTimestamptzValue(c, { kind: "Unknown" }) || checkruntime.equalTimestamptzValue(d, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    const pointA: OverlapPoint = copyOverlapPoint(overlapTimestamptzPoint(a));
+    const pointB: OverlapPoint = copyOverlapPoint(overlapTimestamptzPoint(b));
+    const pointC: OverlapPoint = copyOverlapPoint(overlapTimestamptzPoint(c));
+    const pointD: OverlapPoint = copyOverlapPoint(overlapTimestamptzPoint(d));
+    return overlapPoints(pointA, pointB, pointC, pointD);
+}
+export function overlapsO9q5(a: checkruntime.TimetzValue, b: checkruntime.TimetzValue, c: checkruntime.TimetzValue, d: checkruntime.TimetzValue): checkruntime.BoolValue {
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return { kind: "Error", value: error };
+    }
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return { kind: "Error", value: error };
+    }
+    if (c.kind === "Error") {
+        const error: checkruntime.SqlError = c.value;
+        return { kind: "Error", value: error };
+    }
+    if (d.kind === "Error") {
+        const error: checkruntime.SqlError = d.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimetzValue(a, { kind: "Unknown" }) || checkruntime.equalTimetzValue(b, { kind: "Unknown" }) || checkruntime.equalTimetzValue(c, { kind: "Unknown" }) || checkruntime.equalTimetzValue(d, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    const pointA: OverlapPoint = copyOverlapPoint(overlapTimetzPoint(a));
+    const pointB: OverlapPoint = copyOverlapPoint(overlapTimetzPoint(b));
+    const pointC: OverlapPoint = copyOverlapPoint(overlapTimetzPoint(c));
+    const pointD: OverlapPoint = copyOverlapPoint(overlapTimetzPoint(d));
+    return overlapPoints(pointA, pointB, pointC, pointD);
+}
 const temporalPrecisionError = 3452619;
 function temporalAdjustPrecision(value: bigint, precision: number): checkruntime.Int8Value {
     value = langruntime.checkedI64(value);
@@ -16025,6 +16364,55 @@ export function extractF4l3(units: checkruntime.TextValue, input: checkruntime.T
         }
     }
     return { kind: "Unknown" };
+}
+export function datePartNzwd(units: checkruntime.TextValue, input: checkruntime.TimestampValue): checkruntime.Float8Value {
+    const number: checkruntime.NumericValue = extractF4l3(units, input);
+    if (number.kind === "Error") {
+        const error: checkruntime.SqlError = number.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(number, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(number, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (units.kind === "Value") {
+        const unit: string = langruntime.checkedString(units.value);
+        if (input.kind === "Value") {
+            const time: bigint = langruntime.checkedI64(input.value);
+            if (!(time === (-9223372036854775808n)) && !(time === 9223372036854775807n)) {
+                const code: number = temporalExtractCode(unit);
+                let day: bigint = langruntime.checkedI64Divide(time, 86400000000n);
+                let clock: bigint = langruntime.checkedI64Remainder(time, 86400000000n);
+                if (clock < 0n) {
+                    day = langruntime.checkedI64(langruntime.checkedI64Subtract(day, 1n));
+                    clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
+                }
+                const seconds: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder((langruntime.checkedI64Divide(clock, 1000000n)), 60n)))));
+                const fraction: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(clock, 1000000n)))));
+                if (code === 2) {
+                    return checkruntime.makeFloat8Value(langruntime.f64Add(langruntime.f64Multiply((Number(langruntime.checkedI32(seconds))), 1000.0), langruntime.f64Divide((Number(langruntime.checkedI32(fraction))), 1000.0)));
+                }
+                if (code === 3) {
+                    return checkruntime.makeFloat8Value(langruntime.f64Add((Number(langruntime.checkedI32(seconds))), langruntime.f64Divide((Number(langruntime.checkedI32(fraction))), 1000000.0)));
+                }
+                if (code === 14) {
+                    const elapsed: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(clock, 1000000n)))));
+                    const julian: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Add(day, 2451545n)))));
+                    const result: number = langruntime.f64Add((Number(langruntime.checkedI32(julian))), langruntime.f64Divide((langruntime.f64Add((Number(langruntime.checkedI32(elapsed))), langruntime.f64Divide((Number(langruntime.checkedI32(fraction))), 1000000.0))), 86400.0));
+                    return checkruntime.makeFloat8Value(result);
+                }
+                if (code === 19) {
+                    if (time < 9222425352054775807n) {
+                        return checkruntime.makeFloat8Value(langruntime.f64Divide(intervalMathFloat(langruntime.checkedI64Add(time, 946684800000000n)), 1000000.0));
+                    }
+                    return checkruntime.makeFloat8Value(langruntime.f64Divide((langruntime.f64Add(intervalMathFloat(time), 946684800000000.0)), 1000000.0));
+                }
+            }
+        }
+    }
+    return float8Bkfn(number);
 }
 function textHasPrefix(text: string, prefix: string): boolean {
     text = langruntime.checkedString(text);

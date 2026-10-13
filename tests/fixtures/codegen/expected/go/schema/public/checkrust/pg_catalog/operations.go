@@ -14995,6 +14995,345 @@ func IntervalPlTimetz0g00(amount checkruntime.IntervalValue, input checkruntime.
 	return TimetzPlIntervalWmqy(input, amount)
 }
 
+type overlapPoint struct {
+	present bool
+	time    int64
+	zone    int
+}
+
+func copyoverlapPoint(value overlapPoint) overlapPoint {
+	return overlapPoint{present: value.present, time: value.time, zone: langruntime.CheckedI32(value.zone)}
+}
+func overlapMissingPoint() overlapPoint {
+	return overlapPoint{present: false, time: int64(0), zone: 0}
+}
+func overlapPointOrder(left overlapPoint, right overlapPoint) int {
+	left = copyoverlapPoint(left)
+	right = copyoverlapPoint(right)
+	a := clockWrappedAdd(left.time, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(left.zone))), int64(1000000)))
+	b := clockWrappedAdd(right.time, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(right.zone))), int64(1000000)))
+	order := clockOrder(a, b)
+	if order != 0 {
+		return order
+	}
+	return clockOrder(int64(langruntime.CheckedI32(left.zone)), int64(langruntime.CheckedI32(right.zone)))
+}
+func overlapPoints(a overlapPoint, b overlapPoint, c overlapPoint, d overlapPoint) checkruntime.BoolValue {
+	a = copyoverlapPoint(a)
+	b = copyoverlapPoint(b)
+	c = copyoverlapPoint(c)
+	d = copyoverlapPoint(d)
+	firstStart := a
+	firstEnd := b
+	secondStart := c
+	secondEnd := d
+	if firstStart.present == false {
+		if firstEnd.present == false {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+		}
+		firstStart = copyoverlapPoint(firstEnd)
+		firstEnd = copyoverlapPoint(overlapMissingPoint())
+	} else if firstEnd.present && overlapPointOrder(firstStart, firstEnd) > 0 {
+		saved := firstStart
+		firstStart = copyoverlapPoint(firstEnd)
+		firstEnd = copyoverlapPoint(saved)
+	}
+	if secondStart.present == false {
+		if secondEnd.present == false {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+		}
+		secondStart = copyoverlapPoint(secondEnd)
+		secondEnd = copyoverlapPoint(overlapMissingPoint())
+	} else if secondEnd.present && overlapPointOrder(secondStart, secondEnd) > 0 {
+		saved := secondStart
+		secondStart = copyoverlapPoint(secondEnd)
+		secondEnd = copyoverlapPoint(saved)
+	}
+	order := overlapPointOrder(firstStart, secondStart)
+	if order > 0 {
+		if secondEnd.present == false {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+		}
+		if overlapPointOrder(firstStart, secondEnd) < 0 {
+			return checkruntime.MakeBoolValue(true)
+		}
+		if firstEnd.present == false {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+		}
+		return checkruntime.MakeBoolValue(false)
+	}
+	if order < 0 {
+		if firstEnd.present == false {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+		}
+		if overlapPointOrder(secondStart, firstEnd) < 0 {
+			return checkruntime.MakeBoolValue(true)
+		}
+		if secondEnd.present == false {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+		}
+		return checkruntime.MakeBoolValue(false)
+	}
+	if firstEnd.present == false || secondEnd.present == false {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func overlapTimePoint(input checkruntime.TimeValue) overlapPoint {
+	if input.Kind == checkruntime.TimeValueValue {
+		value := input.Value
+		return overlapPoint{present: true, time: value, zone: 0}
+	}
+	return overlapMissingPoint()
+}
+func overlapTimetzPoint(input checkruntime.TimetzValue) overlapPoint {
+	if input.Kind == checkruntime.TimetzValueValue {
+		value := input.Value
+		return overlapPoint{present: true, time: value.Time, zone: value.Zone}
+	}
+	return overlapMissingPoint()
+}
+func overlapTimestampPoint(input checkruntime.TimestampValue) overlapPoint {
+	if input.Kind == checkruntime.TimestampValueValue {
+		value := input.Value
+		return overlapPoint{present: true, time: value, zone: 0}
+	}
+	return overlapMissingPoint()
+}
+func overlapTimestamptzPoint(input checkruntime.TimestamptzValue) overlapPoint {
+	if input.Kind == checkruntime.TimestamptzValueValue {
+		value := input.Value
+		return overlapPoint{present: true, time: value, zone: 0}
+	}
+	return overlapMissingPoint()
+}
+func OverlapsTwwm(a checkruntime.TimeValue, b checkruntime.IntervalValue, c checkruntime.TimeValue, d checkruntime.IntervalValue) checkruntime.BoolValue {
+	if a.Kind == checkruntime.TimeValueError {
+		error := a.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if b.Kind == checkruntime.IntervalValueError {
+		error := b.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if c.Kind == checkruntime.TimeValueError {
+		error := c.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if d.Kind == checkruntime.IntervalValueError {
+		error := d.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	firstEnd := TimePlIntervalOsxy(a, b)
+	secondEnd := TimePlIntervalOsxy(c, d)
+	return Overlaps4anj(a, firstEnd, c, secondEnd)
+}
+func Overlaps3ghm(a checkruntime.TimeValue, b checkruntime.IntervalValue, c checkruntime.TimeValue, d checkruntime.TimeValue) checkruntime.BoolValue {
+	if a.Kind == checkruntime.TimeValueError {
+		error := a.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if b.Kind == checkruntime.IntervalValueError {
+		error := b.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if c.Kind == checkruntime.TimeValueError {
+		error := c.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if d.Kind == checkruntime.TimeValueError {
+		error := d.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	firstEnd := TimePlIntervalOsxy(a, b)
+	return Overlaps4anj(a, firstEnd, c, d)
+}
+func OverlapsMibh(a checkruntime.TimeValue, b checkruntime.TimeValue, c checkruntime.TimeValue, d checkruntime.IntervalValue) checkruntime.BoolValue {
+	if a.Kind == checkruntime.TimeValueError {
+		error := a.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if b.Kind == checkruntime.TimeValueError {
+		error := b.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if c.Kind == checkruntime.TimeValueError {
+		error := c.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if d.Kind == checkruntime.IntervalValueError {
+		error := d.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	secondEnd := TimePlIntervalOsxy(c, d)
+	return Overlaps4anj(a, b, c, secondEnd)
+}
+func Overlaps4anj(a checkruntime.TimeValue, b checkruntime.TimeValue, c checkruntime.TimeValue, d checkruntime.TimeValue) checkruntime.BoolValue {
+	if a.Kind == checkruntime.TimeValueError {
+		error := a.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if b.Kind == checkruntime.TimeValueError {
+		error := b.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if c.Kind == checkruntime.TimeValueError {
+		error := c.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if d.Kind == checkruntime.TimeValueError {
+		error := d.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if a == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) || b == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) || c == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) || d == (checkruntime.TimeValue{Kind: checkruntime.TimeValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	pointA := overlapTimePoint(a)
+	pointB := overlapTimePoint(b)
+	pointC := overlapTimePoint(c)
+	pointD := overlapTimePoint(d)
+	return overlapPoints(pointA, pointB, pointC, pointD)
+}
+func OverlapsId87(a checkruntime.TimestampValue, b checkruntime.IntervalValue, c checkruntime.TimestampValue, d checkruntime.IntervalValue) checkruntime.BoolValue {
+	if a.Kind == checkruntime.TimestampValueError {
+		error := a.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if b.Kind == checkruntime.IntervalValueError {
+		error := b.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if c.Kind == checkruntime.TimestampValueError {
+		error := c.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if d.Kind == checkruntime.IntervalValueError {
+		error := d.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	firstEnd := TimestampPlIntervalZi2i(a, b)
+	secondEnd := TimestampPlIntervalZi2i(c, d)
+	return OverlapsCdbz(a, firstEnd, c, secondEnd)
+}
+func OverlapsLgwe(a checkruntime.TimestampValue, b checkruntime.IntervalValue, c checkruntime.TimestampValue, d checkruntime.TimestampValue) checkruntime.BoolValue {
+	if a.Kind == checkruntime.TimestampValueError {
+		error := a.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if b.Kind == checkruntime.IntervalValueError {
+		error := b.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if c.Kind == checkruntime.TimestampValueError {
+		error := c.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if d.Kind == checkruntime.TimestampValueError {
+		error := d.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	firstEnd := TimestampPlIntervalZi2i(a, b)
+	return OverlapsCdbz(a, firstEnd, c, d)
+}
+func OverlapsIwr2(a checkruntime.TimestampValue, b checkruntime.TimestampValue, c checkruntime.TimestampValue, d checkruntime.IntervalValue) checkruntime.BoolValue {
+	if a.Kind == checkruntime.TimestampValueError {
+		error := a.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if b.Kind == checkruntime.TimestampValueError {
+		error := b.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if c.Kind == checkruntime.TimestampValueError {
+		error := c.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if d.Kind == checkruntime.IntervalValueError {
+		error := d.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	secondEnd := TimestampPlIntervalZi2i(c, d)
+	return OverlapsCdbz(a, b, c, secondEnd)
+}
+func OverlapsCdbz(a checkruntime.TimestampValue, b checkruntime.TimestampValue, c checkruntime.TimestampValue, d checkruntime.TimestampValue) checkruntime.BoolValue {
+	if a.Kind == checkruntime.TimestampValueError {
+		error := a.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if b.Kind == checkruntime.TimestampValueError {
+		error := b.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if c.Kind == checkruntime.TimestampValueError {
+		error := c.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if d.Kind == checkruntime.TimestampValueError {
+		error := d.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if a == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || b == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || c == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || d == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	pointA := overlapTimestampPoint(a)
+	pointB := overlapTimestampPoint(b)
+	pointC := overlapTimestampPoint(c)
+	pointD := overlapTimestampPoint(d)
+	return overlapPoints(pointA, pointB, pointC, pointD)
+}
+func OverlapsXg7p(a checkruntime.TimestamptzValue, b checkruntime.TimestamptzValue, c checkruntime.TimestamptzValue, d checkruntime.TimestamptzValue) checkruntime.BoolValue {
+	if a.Kind == checkruntime.TimestamptzValueError {
+		error := a.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if b.Kind == checkruntime.TimestamptzValueError {
+		error := b.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if c.Kind == checkruntime.TimestamptzValueError {
+		error := c.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if d.Kind == checkruntime.TimestamptzValueError {
+		error := d.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if a == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) || b == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) || c == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) || d == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	pointA := overlapTimestamptzPoint(a)
+	pointB := overlapTimestamptzPoint(b)
+	pointC := overlapTimestamptzPoint(c)
+	pointD := overlapTimestamptzPoint(d)
+	return overlapPoints(pointA, pointB, pointC, pointD)
+}
+func OverlapsO9q5(a checkruntime.TimetzValue, b checkruntime.TimetzValue, c checkruntime.TimetzValue, d checkruntime.TimetzValue) checkruntime.BoolValue {
+	if a.Kind == checkruntime.TimetzValueError {
+		error := a.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if b.Kind == checkruntime.TimetzValueError {
+		error := b.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if c.Kind == checkruntime.TimetzValueError {
+		error := c.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if d.Kind == checkruntime.TimetzValueError {
+		error := d.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if a == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) || b == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) || c == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) || d == (checkruntime.TimetzValue{Kind: checkruntime.TimetzValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	pointA := overlapTimetzPoint(a)
+	pointB := overlapTimetzPoint(b)
+	pointC := overlapTimetzPoint(c)
+	pointD := overlapTimetzPoint(d)
+	return overlapPoints(pointA, pointB, pointC, pointD)
+}
+
 const temporalPrecisionError = 3452619
 
 func temporalAdjustPrecision(value int64, precision int) checkruntime.Int8Value {
@@ -15957,6 +16296,55 @@ func ExtractF4l3(units checkruntime.TextValue, input checkruntime.TimestampValue
 		}
 	}
 	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func DatePartNzwd(units checkruntime.TextValue, input checkruntime.TimestampValue) checkruntime.Float8Value {
+	number := ExtractF4l3(units, input)
+	if number.Kind == checkruntime.NumericValueError {
+		error := number.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if number == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if units.Kind == checkruntime.TextValueValue {
+		unit := langruntime.CheckedString(units.Value)
+		if input.Kind == checkruntime.TimestampValueValue {
+			time := input.Value
+			if time != (int64(-9223372036854775808)) && time != int64(9223372036854775807) {
+				code := temporalExtractCode(unit)
+				day := langruntime.CheckedI64Divide(time, int64(86400000000))
+				clock := langruntime.CheckedI64Remainder(time, int64(86400000000))
+				if clock < int64(0) {
+					day = langruntime.CheckedI64Subtract(day, int64(1))
+					clock = langruntime.CheckedI64Add(clock, int64(86400000000))
+				}
+				seconds := int(int32((langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(clock, int64(1000000))), int64(60)))))
+				fraction := int(int32((langruntime.CheckedI64Remainder(clock, int64(1000000)))))
+				if code == 2 {
+					return checkruntime.MakeFloat8Value(langruntime.F64Add(langruntime.F64Multiply((float64(seconds)), float64(1000.0)), langruntime.F64Divide((float64(fraction)), float64(1000.0))))
+				}
+				if code == 3 {
+					return checkruntime.MakeFloat8Value(langruntime.F64Add((float64(seconds)), langruntime.F64Divide((float64(fraction)), float64(1000000.0))))
+				}
+				if code == 14 {
+					elapsed := int(int32((langruntime.CheckedI64Divide(clock, int64(1000000)))))
+					julian := int(int32((langruntime.CheckedI64Add(day, int64(2451545)))))
+					result := langruntime.F64Add((float64(julian)), langruntime.F64Divide((langruntime.F64Add((float64(elapsed)), langruntime.F64Divide((float64(fraction)), float64(1000000.0)))), float64(86400.0)))
+					return checkruntime.MakeFloat8Value(result)
+				}
+				if code == 19 {
+					if time < int64(9222425352054775807) {
+						return checkruntime.MakeFloat8Value(langruntime.F64Divide(intervalMathFloat(langruntime.CheckedI64Add(time, int64(946684800000000))), float64(1000000.0)))
+					}
+					return checkruntime.MakeFloat8Value(langruntime.F64Divide((langruntime.F64Add(intervalMathFloat(time), float64(946684800000000.0))), float64(1000000.0)))
+				}
+			}
+		}
+	}
+	return Float8Bkfn(number)
 }
 func textHasPrefix(text string, prefix string) bool {
 	text = langruntime.CheckedString(text)

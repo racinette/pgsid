@@ -68,6 +68,18 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     metadata.args.length === 2 &&
     metadata.args[0] === 'pg_catalog.text' &&
     (metadata.args[1] === 'pg_catalog."timestamp"' || metadata.args[1] === 'pg_catalog.timestamptz')
+  const zonedCalendar =
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    metadata.strict &&
+    metadata.volatility === 'i' &&
+    !metadata.returnsSet &&
+    ['date_add', 'date_subtract'].includes(metadata.name) &&
+    metadata.args.length === 3 &&
+    metadata.args[0] === 'pg_catalog.timestamptz' &&
+    metadata.args[1] === 'pg_catalog."interval"' &&
+    metadata.args[2] === 'pg_catalog.text' &&
+    metadata.result === 'pg_catalog.timestamptz'
   const temporalField =
     metadata.kind === 'function' &&
     metadata.schema === 'pg_catalog' &&
@@ -95,9 +107,12 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         metadata.result === 'pg_catalog."numeric"') ||
       (metadata.name === 'date_part' &&
         metadata.args.length === 2 &&
-        ['pg_catalog."time"', 'pg_catalog.timetz', 'pg_catalog."interval"'].includes(
-          metadata.args[1]!,
-        ) &&
+        [
+          'pg_catalog."time"',
+          'pg_catalog.timetz',
+          'pg_catalog."interval"',
+          'pg_catalog."timestamp"',
+        ].includes(metadata.args[1]!) &&
         metadata.result === 'pg_catalog.float8'))
   const implementation =
     metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
@@ -292,6 +307,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     textWidth ||
     textSlice ||
     temporalField ||
+    zonedCalendar ||
     characterCode ||
     asciiConversion ||
     characterText ||

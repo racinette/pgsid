@@ -664,6 +664,31 @@ describe('world CHECK INSERT parity', () => {
         'event_bucket_records',
         ['event_local_bucket', 'event_instant_bucket', 'event_calendar_age'],
       ],
+      [
+        'zoned_calendar_adjustments',
+        ['zoned_calendar_add', 'zoned_calendar_subtract', 'zoned_calendar_return'],
+      ],
+      [
+        'local_shift_conflicts',
+        [
+          'local_conflict_endpoints',
+          'local_conflict_first_duration',
+          'local_conflict_second_duration',
+          'local_conflict_both_durations',
+        ],
+      ],
+      [
+        'calendar_shift_conflicts',
+        [
+          'calendar_conflict_endpoints',
+          'calendar_conflict_first_duration',
+          'calendar_conflict_second_duration',
+          'calendar_conflict_both_durations',
+        ],
+      ],
+      ['zoned_shift_conflicts', ['zoned_conflict_forward', 'zoned_conflict_reverse']],
+      ['instant_shift_conflicts', ['instant_conflict_forward', 'instant_conflict_reverse']],
+      ['calendar_field_records', ['calendar_field_value', 'calendar_field_wire']],
       ['clock_tolerances', ['tolerance_local', 'tolerance_zoned']],
       [
         'calendar_tolerances',
