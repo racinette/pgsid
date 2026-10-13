@@ -73,35 +73,6 @@ fn float8_compare(left: Float8Value, right: Float8Value) -> Int4Value {
     Int4Value::Unknown
 }
 
-fn float_comparison_finish(result: Int4Value, strategy: i32) -> BoolValue {
-    if let Int4Value::Error(error) = result {
-        return BoolValue::Error(error);
-    }
-    if result == Int4Value::Null {
-        return BoolValue::Null;
-    }
-    if let Int4Value::Value(order) = result {
-        if strategy == 0 {
-            return BoolValue::Value(order == 0);
-        }
-        if strategy == 1 {
-            return BoolValue::Value(order != 0);
-        }
-        if strategy == 2 {
-            return BoolValue::Value(order < 0);
-        }
-        if strategy == 3 {
-            return BoolValue::Value(order <= 0);
-        }
-        if strategy == 4 {
-            return BoolValue::Value(order > 0);
-        }
-        if strategy == 5 {
-            return BoolValue::Value(order >= 0);
-        }
-    };
-    BoolValue::Unknown
-}
 
 fn float8_integer(input: Float8Value) -> Int8Value {
     if let Float8Value::Error(error) = input {
@@ -227,99 +198,99 @@ pub fn sql__pg_catalog__btfloat8cmp__adn1(left: Float8Value, right: Float8Value)
 }
 
 pub fn sql__pg_catalog__float48eq__2e8s(left: Float4Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), right), 0)
+    value_order_finish(float8_compare(float4_widen(left), right), 0)
 }
 
 pub fn sql__pg_catalog__float48ge__61xk(left: Float4Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), right), 5)
+    value_order_finish(float8_compare(float4_widen(left), right), 5)
 }
 
 pub fn sql__pg_catalog__float48gt__w41b(left: Float4Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), right), 4)
+    value_order_finish(float8_compare(float4_widen(left), right), 4)
 }
 
 pub fn sql__pg_catalog__float48le__w73b(left: Float4Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), right), 3)
+    value_order_finish(float8_compare(float4_widen(left), right), 3)
 }
 
 pub fn sql__pg_catalog__float48lt__q05v(left: Float4Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), right), 2)
+    value_order_finish(float8_compare(float4_widen(left), right), 2)
 }
 
 pub fn sql__pg_catalog__float48ne__0nmh(left: Float4Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), right), 1)
+    value_order_finish(float8_compare(float4_widen(left), right), 1)
 }
 
 pub fn sql__pg_catalog__float4eq__36g8(left: Float4Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), float4_widen(right)), 0)
+    value_order_finish(float8_compare(float4_widen(left), float4_widen(right)), 0)
 }
 
 pub fn sql__pg_catalog__float4ge__74ah(left: Float4Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), float4_widen(right)), 5)
+    value_order_finish(float8_compare(float4_widen(left), float4_widen(right)), 5)
 }
 
 pub fn sql__pg_catalog__float4gt__t0ms(left: Float4Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), float4_widen(right)), 4)
+    value_order_finish(float8_compare(float4_widen(left), float4_widen(right)), 4)
 }
 
 pub fn sql__pg_catalog__float4le__g1uf(left: Float4Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), float4_widen(right)), 3)
+    value_order_finish(float8_compare(float4_widen(left), float4_widen(right)), 3)
 }
 
 pub fn sql__pg_catalog__float4lt__339k(left: Float4Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), float4_widen(right)), 2)
+    value_order_finish(float8_compare(float4_widen(left), float4_widen(right)), 2)
 }
 
 pub fn sql__pg_catalog__float4ne__frlm(left: Float4Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(float4_widen(left), float4_widen(right)), 1)
+    value_order_finish(float8_compare(float4_widen(left), float4_widen(right)), 1)
 }
 
 pub fn sql__pg_catalog__float84eq__be8b(left: Float8Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, float4_widen(right)), 0)
+    value_order_finish(float8_compare(left, float4_widen(right)), 0)
 }
 
 pub fn sql__pg_catalog__float84ge__fudn(left: Float8Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, float4_widen(right)), 5)
+    value_order_finish(float8_compare(left, float4_widen(right)), 5)
 }
 
 pub fn sql__pg_catalog__float84gt__gpd6(left: Float8Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, float4_widen(right)), 4)
+    value_order_finish(float8_compare(left, float4_widen(right)), 4)
 }
 
 pub fn sql__pg_catalog__float84le__5od9(left: Float8Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, float4_widen(right)), 3)
+    value_order_finish(float8_compare(left, float4_widen(right)), 3)
 }
 
 pub fn sql__pg_catalog__float84lt__f2id(left: Float8Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, float4_widen(right)), 2)
+    value_order_finish(float8_compare(left, float4_widen(right)), 2)
 }
 
 pub fn sql__pg_catalog__float84ne__xkja(left: Float8Value, right: Float4Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, float4_widen(right)), 1)
+    value_order_finish(float8_compare(left, float4_widen(right)), 1)
 }
 
 pub fn sql__pg_catalog__float8eq__tpae(left: Float8Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, right), 0)
+    value_order_finish(float8_compare(left, right), 0)
 }
 
 pub fn sql__pg_catalog__float8ge__la0k(left: Float8Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, right), 5)
+    value_order_finish(float8_compare(left, right), 5)
 }
 
 pub fn sql__pg_catalog__float8gt__m76q(left: Float8Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, right), 4)
+    value_order_finish(float8_compare(left, right), 4)
 }
 
 pub fn sql__pg_catalog__float8le__9qw7(left: Float8Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, right), 3)
+    value_order_finish(float8_compare(left, right), 3)
 }
 
 pub fn sql__pg_catalog__float8lt__vp07(left: Float8Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, right), 2)
+    value_order_finish(float8_compare(left, right), 2)
 }
 
 pub fn sql__pg_catalog__float8ne__bqr8(left: Float8Value, right: Float8Value) -> BoolValue {
-    float_comparison_finish(float8_compare(left, right), 1)
+    value_order_finish(float8_compare(left, right), 1)
 }
 
 pub fn sql__pg_catalog__float4__l0dp(input: Int2Value) -> Float4Value {

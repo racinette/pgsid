@@ -74,13 +74,19 @@ export function renderGoSchemaCheckArtifacts(
   const portableValueType = (name: string, oid: number | undefined): string | null => {
     if (catalogNumericType(name, oid, domains)) return 'NumericValue'
     const type = catalogTemporalType(name, oid, domains)
-    return type === 'pg_catalog.date'
-      ? 'DateValue'
-      : type === 'pg_catalog."timestamp"'
-        ? 'TimestampValue'
-        : type === 'pg_catalog.timestamptz'
-          ? 'TimestamptzValue'
-          : null
+    return type === 'pg_catalog."time"'
+      ? 'TimeValue'
+      : type === 'pg_catalog.timetz'
+        ? 'TimetzValue'
+        : type === 'pg_catalog."interval"'
+          ? 'IntervalValue'
+          : type === 'pg_catalog.date'
+            ? 'DateValue'
+            : type === 'pg_catalog."timestamp"'
+              ? 'TimestampValue'
+              : type === 'pg_catalog.timestamptz'
+                ? 'TimestamptzValue'
+                : null
   }
   const groups = catalogCheckGroups(tables, domains, selectedDomains, catalog.enums)
   if (!groups.length) return { checks: '', rust: null, rustFiles: null }
@@ -240,6 +246,9 @@ export function renderGoSchemaCheckArtifacts(
               'ByteaValue',
               'BitValue',
               'NumericValue',
+              'TimeValue',
+              'TimetzValue',
+              'IntervalValue',
               'DateValue',
               'TimestampValue',
               'TimestamptzValue',
@@ -250,49 +259,58 @@ export function renderGoSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'Float4Value'
-              ? 'checkRustFloat4'
-              : item.rustType === 'Float8Value'
-                ? 'checkRustFloat8'
-                : item.rustType === 'BitValue'
-                  ? 'checkRustBit'
-                  : item.rustType === 'UuidValue'
-                    ? 'checkRustUuid'
-                    : item.rustType === 'ByteaValue'
-                      ? 'checkRustBytea'
-                      : item.rustType === 'MacaddrValue'
-                        ? 'checkRustMacaddr'
-                        : item.rustType === 'Macaddr8Value'
-                          ? 'checkRustMacaddr8'
-                          : item.rustType === 'NetworkValue'
-                            ? 'checkRustNetwork'
-                            : item.rustType === 'NumericValue'
-                              ? 'checkRustNumeric'
-                              : item.rustType === 'DateValue'
-                                ? 'checkRustDate'
-                                : item.rustType === 'TimestampValue'
-                                  ? 'checkRustTimestamp'
-                                  : item.rustType === 'TimestamptzValue'
-                                    ? 'checkRustTimestamptz'
-                                    : item.nullness
-                                      ? 'checkRustNullness'
-                                      : item.enum
-                                        ? 'checkRustEnum'
-                                        : item.rustType === 'Int2Value'
-                                          ? 'checkRustInt2'
-                                          : item.rustType === 'Int4Value'
-                                            ? 'checkRustInt4'
-                                            : item.rustType === 'Int8Value'
-                                              ? 'checkRustInt8'
-                                              : item.rustType === 'TextValue' ||
-                                                  item.rustType === 'NetworkValue'
-                                                ? 'checkRustText'
-                                                : 'checkRustBool'
+            item.rustType === 'TimeValue'
+              ? 'checkRustTime'
+              : item.rustType === 'TimetzValue'
+                ? 'checkRustTimetz'
+                : item.rustType === 'IntervalValue'
+                  ? 'checkRustInterval'
+                  : item.rustType === 'Float4Value'
+                    ? 'checkRustFloat4'
+                    : item.rustType === 'Float8Value'
+                      ? 'checkRustFloat8'
+                      : item.rustType === 'BitValue'
+                        ? 'checkRustBit'
+                        : item.rustType === 'UuidValue'
+                          ? 'checkRustUuid'
+                          : item.rustType === 'ByteaValue'
+                            ? 'checkRustBytea'
+                            : item.rustType === 'MacaddrValue'
+                              ? 'checkRustMacaddr'
+                              : item.rustType === 'Macaddr8Value'
+                                ? 'checkRustMacaddr8'
+                                : item.rustType === 'NetworkValue'
+                                  ? 'checkRustNetwork'
+                                  : item.rustType === 'NumericValue'
+                                    ? 'checkRustNumeric'
+                                    : item.rustType === 'DateValue'
+                                      ? 'checkRustDate'
+                                      : item.rustType === 'TimestampValue'
+                                        ? 'checkRustTimestamp'
+                                        : item.rustType === 'TimestamptzValue'
+                                          ? 'checkRustTimestamptz'
+                                          : item.nullness
+                                            ? 'checkRustNullness'
+                                            : item.enum
+                                              ? 'checkRustEnum'
+                                              : item.rustType === 'Int2Value'
+                                                ? 'checkRustInt2'
+                                                : item.rustType === 'Int4Value'
+                                                  ? 'checkRustInt4'
+                                                  : item.rustType === 'Int8Value'
+                                                    ? 'checkRustInt8'
+                                                    : item.rustType === 'TextValue' ||
+                                                        item.rustType === 'NetworkValue'
+                                                      ? 'checkRustText'
+                                                      : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (item.rustType === 'ByteaValue') inputHelpers.add('checkPrimitive')
           if (item.rustType === 'Float4Value' || item.rustType === 'Float8Value')
             inputHelpers.add('checkInputFloat')
           if (
+            item.rustType !== 'TimeValue' &&
+            item.rustType !== 'TimetzValue' &&
+            item.rustType !== 'IntervalValue' &&
             item.rustType !== 'Float4Value' &&
             item.rustType !== 'Float8Value' &&
             item.rustType !== 'ByteaValue' &&
@@ -390,6 +408,9 @@ export function renderGoSchemaCheckArtifacts(
                 type === 'pg_catalog."bit"' ||
                 type === 'pg_catalog.varbit' ||
                 type === 'pg_catalog.uuid' ||
+                type === 'pg_catalog."time"' ||
+                type === 'pg_catalog.timetz' ||
+                type === 'pg_catalog."interval"' ||
                 type === 'pg_catalog.date' ||
                 type === 'pg_catalog."timestamp"' ||
                 type === 'pg_catalog.timestamptz'
@@ -533,7 +554,34 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
   }
 }
 
-const goRustAdapterSource = `func checkRustTimestamp[T any](field CheckOptional[T]) checkruntime.TimestampValue {
+const goRustAdapterSource = `func checkRustTime[T any](field CheckOptional[T]) checkruntime.TimeValue {
+  if !field.Set { return checkruntime.TimeUnknown() }
+  if field.Null { return checkruntime.TimeNull() }
+  if value, ok := any(field.V).(checkruntime.TimeValue); ok {
+    if value.Kind == checkruntime.TimeValueValue { return checkruntime.MakeTimeValue(value.Value) }
+    return value
+  }
+  return checkruntime.TimeUnknown()
+}
+func checkRustTimetz[T any](field CheckOptional[T]) checkruntime.TimetzValue {
+  if !field.Set { return checkruntime.TimetzUnknown() }
+  if field.Null { return checkruntime.TimetzNull() }
+  if value, ok := any(field.V).(checkruntime.TimetzValue); ok {
+    if value.Kind == checkruntime.TimetzValueValue { return checkruntime.MakeTimetzValue(value.Value.Time, value.Value.Zone) }
+    return value
+  }
+  return checkruntime.TimetzUnknown()
+}
+func checkRustInterval[T any](field CheckOptional[T]) checkruntime.IntervalValue {
+  if !field.Set { return checkruntime.IntervalUnknown() }
+  if field.Null { return checkruntime.IntervalNull() }
+  if value, ok := any(field.V).(checkruntime.IntervalValue); ok {
+    if value.Kind == checkruntime.IntervalValueValue && (value.Value.Months < -2147483648 || value.Value.Months > 2147483647 || value.Value.Days < -2147483648 || value.Value.Days > 2147483647) { return checkruntime.IntervalUnknown() }
+    return value
+  }
+  return checkruntime.IntervalUnknown()
+}
+func checkRustTimestamp[T any](field CheckOptional[T]) checkruntime.TimestampValue {
   if !field.Set { return checkruntime.TimestampUnknown() }
   if field.Null { return checkruntime.TimestampNull() }
   if value, ok := any(field.V).(checkruntime.TimestampValue); ok { return value }
@@ -715,6 +763,9 @@ func checkRustNullness[T any](field CheckOptional[T]) checkruntime.BoolValue {
       return checkruntime.NumericIsNull(value)
     }
     if value, ok := any(field.V).(checkruntime.DateValue); ok { return checkruntime.DateIsNull(value) }
+    if value, ok := any(field.V).(checkruntime.TimeValue); ok { return checkruntime.TimeIsNull(value) }
+    if value, ok := any(field.V).(checkruntime.TimetzValue); ok { return checkruntime.TimetzIsNull(value) }
+    if value, ok := any(field.V).(checkruntime.IntervalValue); ok { return checkruntime.IntervalIsNull(value) }
     if value, ok := any(field.V).(checkruntime.TimestampValue); ok { return checkruntime.TimestampIsNull(value) }
     if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok { return checkruntime.TimestamptzIsNull(value) }
   }

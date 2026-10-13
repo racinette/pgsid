@@ -98,6 +98,18 @@ import them. Keep schema-only helpers with their callables.
   for zero and 22003 for minimum divided by negative one; SQL remainder returns
   zero for a divisor of negative one, bypassing the Rust primitive. Narrow with
   `as i32` only after checking the SQL range.
+- Time values carry microseconds since midnight, including the distinct end-of-day
+  marker. Timetz adds signed seconds west of UTC; comparisons order the adjusted
+  clock then the offset. Interval values retain months, days and microseconds;
+  comparisons use thirty-day months without changing the stored components.
+  Infinity uses PostgreSQL's reserved component triples. Arithmetic preserves
+  component overflow, infinity errors and clock wrapping. Public clock and
+  interval inputs use checked payload wrappers rather than host date objects.
+  Clock text input supports colon-separated forms, fractional seconds, terminal
+  AM/PM and numeric offsets. Missing timetz offsets and named zones defer for
+  context; other unimplemented grammar remains separately visible in input-form
+  measurements. Interval text input and temporal precision modifiers defer.
+  Run the clock suites and shift schedule INSERT world.
 - Float4 and float8 wrappers carry signed IEEE bit words, preserving signed zero
   and NaN payloads through binary send. Comparisons use PostgreSQL's total order:
   NaNs are equal above infinity and both zeros compare equal. Float4 arithmetic

@@ -754,6 +754,41 @@ export function byteaneVolo(left: checkruntime.ByteaValue, right: checkruntime.B
     }
     return { kind: "Unknown" };
 }
+function binarySendBits(input: checkruntime.Int8Value, width: number): checkruntime.ByteaValue {
+    width = langruntime.checkedI32(width);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        let word: bigint = bits;
+        let divisor: bigint = 72057594037927936n;
+        if (width === 4) {
+            divisor = langruntime.checkedI64(16777216n);
+        }
+        let output: string = "";
+        while (divisor > 0n) {
+            let octet: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(word, divisor)))));
+            let remainder: bigint = langruntime.checkedI64Remainder(word, divisor);
+            if (remainder < 0n) {
+                octet = langruntime.checkedI32(langruntime.checkedSignedSubtract(octet, 1));
+                remainder = langruntime.checkedI64(langruntime.checkedI64Add(remainder, divisor));
+            }
+            if (octet < 0) {
+                octet = langruntime.checkedI32(langruntime.checkedSignedAdd(octet, 256));
+            }
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, octet));
+            word = langruntime.checkedI64(remainder);
+            divisor = langruntime.checkedI64(langruntime.checkedI64Divide(divisor, 256n));
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 function bitComparePayload(left: string, right: string): number {
     left = langruntime.checkedString(left);
     right = langruntime.checkedString(right);
@@ -5429,38 +5464,6 @@ function float8Compare(left: checkruntime.Float8Value, right: checkruntime.Float
     }
     return { kind: "Unknown" };
 }
-function floatComparisonFinish(result: checkruntime.Int4Value, strategy: number): checkruntime.BoolValue {
-    strategy = langruntime.checkedI32(strategy);
-    if (result.kind === "Error") {
-        const error: checkruntime.SqlError = result.value;
-        return { kind: "Error", value: error };
-    }
-    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
-        return { kind: "Null" };
-    }
-    if (result.kind === "Value") {
-        const order: number = langruntime.checkedI32(result.value);
-        if (strategy === 0) {
-            return { kind: "Value", value: order === 0 };
-        }
-        if (strategy === 1) {
-            return { kind: "Value", value: !(order === 0) };
-        }
-        if (strategy === 2) {
-            return { kind: "Value", value: order < 0 };
-        }
-        if (strategy === 3) {
-            return { kind: "Value", value: order <= 0 };
-        }
-        if (strategy === 4) {
-            return { kind: "Value", value: order > 0 };
-        }
-        if (strategy === 5) {
-            return { kind: "Value", value: order >= 0 };
-        }
-    }
-    return { kind: "Unknown" };
-}
 function float8Integer(input: checkruntime.Float8Value): checkruntime.Int8Value {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
@@ -5585,76 +5588,76 @@ export function btfloat8cmpAdn1(left: checkruntime.Float8Value, right: checkrunt
     return float8Compare(left, right);
 }
 export function float48eq2e8s(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), right), 0);
+    return valueOrderFinish(float8Compare(float4Widen(left), right), 0);
 }
 export function float48ge61xk(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), right), 5);
+    return valueOrderFinish(float8Compare(float4Widen(left), right), 5);
 }
 export function float48gtW41b(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), right), 4);
+    return valueOrderFinish(float8Compare(float4Widen(left), right), 4);
 }
 export function float48leW73b(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), right), 3);
+    return valueOrderFinish(float8Compare(float4Widen(left), right), 3);
 }
 export function float48ltQ05v(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), right), 2);
+    return valueOrderFinish(float8Compare(float4Widen(left), right), 2);
 }
 export function float48ne0nmh(left: checkruntime.Float4Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), right), 1);
+    return valueOrderFinish(float8Compare(float4Widen(left), right), 1);
 }
 export function float4eq36g8(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 0);
+    return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 0);
 }
 export function float4ge74ah(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 5);
+    return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 5);
 }
 export function float4gtT0ms(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 4);
+    return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 4);
 }
 export function float4leG1uf(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 3);
+    return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 3);
 }
 export function float4lt339k(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 2);
+    return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 2);
 }
 export function float4neFrlm(left: checkruntime.Float4Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(float4Widen(left), float4Widen(right)), 1);
+    return valueOrderFinish(float8Compare(float4Widen(left), float4Widen(right)), 1);
 }
 export function float84eqBe8b(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 0);
+    return valueOrderFinish(float8Compare(left, float4Widen(right)), 0);
 }
 export function float84geFudn(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 5);
+    return valueOrderFinish(float8Compare(left, float4Widen(right)), 5);
 }
 export function float84gtGpd6(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 4);
+    return valueOrderFinish(float8Compare(left, float4Widen(right)), 4);
 }
 export function float84le5od9(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 3);
+    return valueOrderFinish(float8Compare(left, float4Widen(right)), 3);
 }
 export function float84ltF2id(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 2);
+    return valueOrderFinish(float8Compare(left, float4Widen(right)), 2);
 }
 export function float84neXkja(left: checkruntime.Float8Value, right: checkruntime.Float4Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, float4Widen(right)), 1);
+    return valueOrderFinish(float8Compare(left, float4Widen(right)), 1);
 }
 export function float8eqTpae(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, right), 0);
+    return valueOrderFinish(float8Compare(left, right), 0);
 }
 export function float8geLa0k(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, right), 5);
+    return valueOrderFinish(float8Compare(left, right), 5);
 }
 export function float8gtM76q(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, right), 4);
+    return valueOrderFinish(float8Compare(left, right), 4);
 }
 export function float8le9qw7(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, right), 3);
+    return valueOrderFinish(float8Compare(left, right), 3);
 }
 export function float8ltVp07(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, right), 2);
+    return valueOrderFinish(float8Compare(left, right), 2);
 }
 export function float8neBqr8(left: checkruntime.Float8Value, right: checkruntime.Float8Value): checkruntime.BoolValue {
-    return floatComparisonFinish(float8Compare(left, right), 1);
+    return valueOrderFinish(float8Compare(left, right), 1);
 }
 export function float4L0dp(input: checkruntime.Int2Value): checkruntime.Float4Value {
     return integerFloat4(checkruntime.int2ToInt8(input));
@@ -6125,41 +6128,6 @@ export function numeric7rfd(input: checkruntime.Float4Value): checkruntime.Numer
 export function numericEv2s(input: checkruntime.Float8Value): checkruntime.NumericValue {
     return floatNumericDecimal(input, 15);
 }
-function floatSendBits(input: checkruntime.Int8Value, width: number): checkruntime.ByteaValue {
-    width = langruntime.checkedI32(width);
-    if (input.kind === "Error") {
-        const error: checkruntime.SqlError = input.value;
-        return { kind: "Error", value: error };
-    }
-    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
-        return { kind: "Null" };
-    }
-    if (input.kind === "Value") {
-        const bits: bigint = langruntime.checkedI64(input.value);
-        let word: bigint = bits;
-        let divisor: bigint = 72057594037927936n;
-        if (width === 4) {
-            divisor = langruntime.checkedI64(16777216n);
-        }
-        let output: string = "";
-        while (divisor > 0n) {
-            let octet: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Divide(word, divisor)))));
-            let remainder: bigint = langruntime.checkedI64Remainder(word, divisor);
-            if (remainder < 0n) {
-                octet = langruntime.checkedI32(langruntime.checkedSignedSubtract(octet, 1));
-                remainder = langruntime.checkedI64(langruntime.checkedI64Add(remainder, divisor));
-            }
-            if (octet < 0) {
-                octet = langruntime.checkedI32(langruntime.checkedSignedAdd(octet, 256));
-            }
-            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, octet));
-            word = langruntime.checkedI64(remainder);
-            divisor = langruntime.checkedI64(langruntime.checkedI64Divide(divisor, 256n));
-        }
-        return { kind: "Value", value: output };
-    }
-    return { kind: "Unknown" };
-}
 export function float4sendUk42(input: checkruntime.Float4Value): checkruntime.ByteaValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
@@ -6170,7 +6138,7 @@ export function float4sendUk42(input: checkruntime.Float4Value): checkruntime.By
     }
     if (input.kind === "Value") {
         const bits: number = langruntime.checkedI32(input.value);
-        return floatSendBits({ kind: "Value", value: BigInt(langruntime.checkedI32(bits)) }, 4);
+        return binarySendBits({ kind: "Value", value: BigInt(langruntime.checkedI32(bits)) }, 4);
     }
     return { kind: "Unknown" };
 }
@@ -6184,7 +6152,7 @@ export function float8send3bqt(input: checkruntime.Float8Value): checkruntime.By
     }
     if (input.kind === "Value") {
         const bits: bigint = langruntime.checkedI64(input.value);
-        return floatSendBits({ kind: "Value", value: bits }, 8);
+        return binarySendBits({ kind: "Value", value: bits }, 8);
     }
     return { kind: "Unknown" };
 }
@@ -16976,6 +16944,650 @@ function textTrimValue(value: checkruntime.TextValue, set: checkruntime.TextValu
     }
     return { kind: "Unknown" };
 }
+const clockRange = 3452552;
+function intervalInfinity(sign: number): checkruntime.IntervalValue {
+    sign = langruntime.checkedI32(sign);
+    if (sign < 0) {
+        return checkruntime.makeIntervalValue(langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1), langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1), -9223372036854775808n);
+    }
+    return checkruntime.makeIntervalValue(2147483647, 2147483647, 9223372036854775807n);
+}
+function clockWrappedAdd(left: bigint, right: bigint): bigint {
+    left = langruntime.checkedI64(left);
+    right = langruntime.checkedI64(right);
+    if (right > 0n && left > langruntime.checkedI64Subtract(9223372036854775807n, right)) {
+        return langruntime.checkedI64Add((langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(left, (langruntime.checkedI64Subtract(9223372036854775807n, right))), 1n)), (-9223372036854775808n));
+    }
+    if (right < 0n && left < langruntime.checkedI64Subtract((-9223372036854775808n), right)) {
+        return langruntime.checkedI64Add((langruntime.checkedI64Add(langruntime.checkedI64Subtract(left, (langruntime.checkedI64Subtract((-9223372036854775808n), right))), 9223372036854775807n)), 1n);
+    }
+    return langruntime.checkedI64Add(left, right);
+}
+function clockWrappedSubtract(left: bigint, right: bigint): bigint {
+    left = langruntime.checkedI64(left);
+    right = langruntime.checkedI64(right);
+    if (right === (-9223372036854775808n)) {
+        return clockWrappedAdd(clockWrappedAdd(left, 9223372036854775807n), 1n);
+    }
+    return clockWrappedAdd(left, langruntime.checkedI64Subtract(0n, right));
+}
+function clockIntervalValue(left: checkruntime.TimeValue, right: checkruntime.IntervalValue, subtract: boolean): checkruntime.TimeValue {
+    subtract = langruntime.checkedBool(subtract);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimeValue(left, { kind: "Unknown" }) || checkruntime.equalIntervalValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimeValue(left, { kind: "Null" }) || checkruntime.equalIntervalValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const clock: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const span: checkruntime.IntervalPayload = right.value;
+            if (!(intervalSpecial(span) === 0)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            let result: bigint = clockWrappedAdd(clock, span.time);
+            if (subtract) {
+                result = langruntime.checkedI64(clockWrappedSubtract(clock, span.time));
+            }
+            result = langruntime.checkedI64(langruntime.checkedI64Remainder(result, 86400000000n));
+            if (result < 0n) {
+                result = langruntime.checkedI64(langruntime.checkedI64Add(result, 86400000000n));
+            }
+            return checkruntime.makeTimeValue(result);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function intervalBinaryValue(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue, subtract: boolean): checkruntime.IntervalValue {
+    subtract = langruntime.checkedBool(subtract);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(left, { kind: "Unknown" }) || checkruntime.equalIntervalValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalIntervalValue(left, { kind: "Null" }) || checkruntime.equalIntervalValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.IntervalPayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.IntervalPayload = right.value;
+            const aSpecial: number = intervalSpecial(a);
+            let bSpecial: number = intervalSpecial(b);
+            if (subtract) {
+                bSpecial = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, bSpecial));
+            }
+            if (!(aSpecial === 0) || !(bSpecial === 0)) {
+                if (!(aSpecial === 0) && !(bSpecial === 0) && !(aSpecial === bSpecial)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+                if (!(aSpecial === 0)) {
+                    return intervalInfinity(aSpecial);
+                }
+                return intervalInfinity(bSpecial);
+            }
+            let months: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(a.months))), (BigInt(langruntime.checkedI32(b.months))));
+            let days: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(a.days))), (BigInt(langruntime.checkedI32(b.days))));
+            if (subtract) {
+                months = langruntime.checkedI64(langruntime.checkedI64Subtract((BigInt(langruntime.checkedI32(a.months))), (BigInt(langruntime.checkedI32(b.months)))));
+                days = langruntime.checkedI64(langruntime.checkedI64Subtract((BigInt(langruntime.checkedI32(a.days))), (BigInt(langruntime.checkedI32(b.days)))));
+            }
+            if (months < (-2147483648n) || months > 2147483647n || days < (-2147483648n) || days > 2147483647n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            if (subtract) {
+                if ((b.time > 0n && a.time < langruntime.checkedI64Add((-9223372036854775808n), b.time)) || (b.time < 0n && a.time > langruntime.checkedI64Add(9223372036854775807n, b.time))) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+                }
+            }
+            else if ((b.time > 0n && a.time > langruntime.checkedI64Subtract(9223372036854775807n, b.time)) || (b.time < 0n && a.time < langruntime.checkedI64Subtract((-9223372036854775808n), b.time))) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            let micros: bigint = 0n;
+            if (subtract) {
+                micros = langruntime.checkedI64(langruntime.checkedI64Subtract(a.time, b.time));
+            }
+            else {
+                micros = langruntime.checkedI64(langruntime.checkedI64Add(a.time, b.time));
+            }
+            const result: checkruntime.IntervalPayload = { months: Number(BigInt.asIntN(32, langruntime.checkedI64(months))), days: Number(BigInt.asIntN(32, langruntime.checkedI64(days))), time: micros };
+            if (!(intervalSpecial(result) === 0)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+            }
+            return { kind: "Value", value: result };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timePlIntervalOsxy(left: checkruntime.TimeValue, right: checkruntime.IntervalValue): checkruntime.TimeValue {
+    return clockIntervalValue(left, right, false);
+}
+export function timeMiInterval9t51(left: checkruntime.TimeValue, right: checkruntime.IntervalValue): checkruntime.TimeValue {
+    return clockIntervalValue(left, right, true);
+}
+export function timetzPlIntervalWmqy(left: checkruntime.TimetzValue, right: checkruntime.IntervalValue): checkruntime.TimetzValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimetzValue(left, { kind: "Unknown" }) || checkruntime.equalIntervalValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimetzValue(left, { kind: "Null" }) || checkruntime.equalIntervalValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const clock: checkruntime.TimetzPayload = left.value;
+        const result: checkruntime.TimeValue = clockIntervalValue(checkruntime.makeTimeValue(clock.time), right, false);
+        if (result.kind === "Error") {
+            const error: checkruntime.SqlError = result.value;
+            return { kind: "Error", value: error };
+        }
+        if (result.kind === "Value") {
+            const time: bigint = langruntime.checkedI64(result.value);
+            return checkruntime.makeTimetzValue(time, clock.zone);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timetzMiIntervalAdb2(left: checkruntime.TimetzValue, right: checkruntime.IntervalValue): checkruntime.TimetzValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimetzValue(left, { kind: "Unknown" }) || checkruntime.equalIntervalValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimetzValue(left, { kind: "Null" }) || checkruntime.equalIntervalValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const clock: checkruntime.TimetzPayload = left.value;
+        const result: checkruntime.TimeValue = clockIntervalValue(checkruntime.makeTimeValue(clock.time), right, true);
+        if (result.kind === "Error") {
+            const error: checkruntime.SqlError = result.value;
+            return { kind: "Error", value: error };
+        }
+        if (result.kind === "Value") {
+            const time: bigint = langruntime.checkedI64(result.value);
+            return checkruntime.makeTimetzValue(time, clock.zone);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function intervalPl2mgc(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.IntervalValue {
+    return intervalBinaryValue(left, right, false);
+}
+export function intervalMiNgfq(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.IntervalValue {
+    return intervalBinaryValue(left, right, true);
+}
+export function intervalUmK6pj(input: checkruntime.IntervalValue): checkruntime.IntervalValue {
+    return intervalBinaryValue(checkruntime.makeIntervalValue(0, 0, 0n), input, true);
+}
+export function timeMiTimeQauq(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.IntervalValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimeValue(left, { kind: "Unknown" }) || checkruntime.equalTimeValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimeValue(left, { kind: "Null" }) || checkruntime.equalTimeValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(right.value);
+            return checkruntime.makeIntervalValue(0, 0, langruntime.checkedI64Subtract(a, b));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function interval39db(input: checkruntime.TimeValue): checkruntime.IntervalValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimeValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const clock: bigint = langruntime.checkedI64(input.value);
+        return checkruntime.makeIntervalValue(0, 0, clock);
+    }
+    return { kind: "Unknown" };
+}
+export function time3hf3(input: checkruntime.TimetzValue): checkruntime.TimeValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimetzValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const clock: checkruntime.TimetzPayload = input.value;
+        return checkruntime.makeTimeValue(clock.time);
+    }
+    return { kind: "Unknown" };
+}
+export function timeAkgc(input: checkruntime.IntervalValue): checkruntime.TimeValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const span: checkruntime.IntervalPayload = input.value;
+        if (!(intervalSpecial(span) === 0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
+        }
+        let clock: bigint = langruntime.checkedI64Remainder(span.time, 86400000000n);
+        if (clock < 0n) {
+            clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
+        }
+        return checkruntime.makeTimeValue(clock);
+    }
+    return { kind: "Unknown" };
+}
+function intervalSpecial(value: checkruntime.IntervalPayload): number {
+    if (value.months === 2147483647 && value.days === 2147483647 && value.time === 9223372036854775807n) {
+        return 1;
+    }
+    if (value.months === (langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) && value.days === (langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) && value.time === (-9223372036854775808n)) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    return 0;
+}
+function clockOrder(left: bigint, right: bigint): number {
+    left = langruntime.checkedI64(left);
+    right = langruntime.checkedI64(right);
+    if (left < right) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left > right) {
+        return 1;
+    }
+    return 0;
+}
+function intervalOrder(left: checkruntime.IntervalPayload, right: checkruntime.IntervalPayload): number {
+    const aSpecial: number = intervalSpecial(left);
+    const bSpecial: number = intervalSpecial(right);
+    if (!(aSpecial === 0) || !(bSpecial === 0)) {
+        return clockOrder(BigInt(langruntime.checkedI32(aSpecial)), BigInt(langruntime.checkedI32(bSpecial)));
+    }
+    let aDays: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(left.months))), 30n), (BigInt(langruntime.checkedI32(left.days)))), langruntime.checkedI64Divide(left.time, 86400000000n));
+    let bDays: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(right.months))), 30n), (BigInt(langruntime.checkedI32(right.days)))), langruntime.checkedI64Divide(right.time, 86400000000n));
+    let aRemainder: bigint = langruntime.checkedI64Remainder(left.time, 86400000000n);
+    let bRemainder: bigint = langruntime.checkedI64Remainder(right.time, 86400000000n);
+    if (aRemainder < 0n) {
+        aDays = langruntime.checkedI64(langruntime.checkedI64Subtract(aDays, 1n));
+        aRemainder = langruntime.checkedI64(langruntime.checkedI64Add(aRemainder, 86400000000n));
+    }
+    if (bRemainder < 0n) {
+        bDays = langruntime.checkedI64(langruntime.checkedI64Subtract(bDays, 1n));
+        bRemainder = langruntime.checkedI64(langruntime.checkedI64Add(bRemainder, 86400000000n));
+    }
+    const days: number = clockOrder(aDays, bDays);
+    if (!(days === 0)) {
+        return days;
+    }
+    return clockOrder(aRemainder, bRemainder);
+}
+function timetzOrder(left: checkruntime.TimetzPayload, right: checkruntime.TimetzPayload): number {
+    const a: bigint = langruntime.checkedI64Add(left.time, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(left.zone))), 1000000n));
+    const b: bigint = langruntime.checkedI64Add(right.time, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(right.zone))), 1000000n));
+    const utc: number = clockOrder(a, b);
+    if (!(utc === 0)) {
+        return utc;
+    }
+    return clockOrder(BigInt(langruntime.checkedI32(left.zone)), BigInt(langruntime.checkedI32(right.zone)));
+}
+function timeValueOrder(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimeValue(left, { kind: "Unknown" }) || checkruntime.equalTimeValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimeValue(left, { kind: "Null" }) || checkruntime.equalTimeValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(right.value);
+            return checkruntime.makeInt4Value(clockOrder(a, b));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timeCmpRxkq(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.Int4Value {
+    return timeValueOrder(left, right);
+}
+export function timeEq6vbi(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.BoolValue {
+    return valueOrderFinish(timeValueOrder(left, right), 0);
+}
+export function timeGeDsjr(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.BoolValue {
+    return valueOrderFinish(timeValueOrder(left, right), 5);
+}
+export function timeGtSf2e(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.BoolValue {
+    return valueOrderFinish(timeValueOrder(left, right), 4);
+}
+export function timeLarger98xe(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.TimeValue {
+    const order: checkruntime.Int4Value = timeValueOrder(left, right);
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (value > 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function timeLeFpuk(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.BoolValue {
+    return valueOrderFinish(timeValueOrder(left, right), 3);
+}
+export function timeLtBga9(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.BoolValue {
+    return valueOrderFinish(timeValueOrder(left, right), 2);
+}
+export function timeNe1le4(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.BoolValue {
+    return valueOrderFinish(timeValueOrder(left, right), 1);
+}
+export function timeSmallerA0k2(left: checkruntime.TimeValue, right: checkruntime.TimeValue): checkruntime.TimeValue {
+    const order: checkruntime.Int4Value = timeValueOrder(left, right);
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (value < 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+function timetzValueOrder(left: checkruntime.TimetzValue, right: checkruntime.TimetzValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimetzValue(left, { kind: "Unknown" }) || checkruntime.equalTimetzValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimetzValue(left, { kind: "Null" }) || checkruntime.equalTimetzValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.TimetzPayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.TimetzPayload = right.value;
+            return checkruntime.makeInt4Value(timetzOrder(a, b));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timetzCmpWy50(left: checkruntime.TimetzValue, right: checkruntime.TimetzValue): checkruntime.Int4Value {
+    return timetzValueOrder(left, right);
+}
+export function timetzEqH04s(left: checkruntime.TimetzValue, right: checkruntime.TimetzValue): checkruntime.BoolValue {
+    return valueOrderFinish(timetzValueOrder(left, right), 0);
+}
+export function timetzGeWb7v(left: checkruntime.TimetzValue, right: checkruntime.TimetzValue): checkruntime.BoolValue {
+    return valueOrderFinish(timetzValueOrder(left, right), 5);
+}
+export function timetzGt4zis(left: checkruntime.TimetzValue, right: checkruntime.TimetzValue): checkruntime.BoolValue {
+    return valueOrderFinish(timetzValueOrder(left, right), 4);
+}
+export function timetzLargerYvok(left: checkruntime.TimetzValue, right: checkruntime.TimetzValue): checkruntime.TimetzValue {
+    const order: checkruntime.Int4Value = timetzValueOrder(left, right);
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (value > 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function timetzLeA2hu(left: checkruntime.TimetzValue, right: checkruntime.TimetzValue): checkruntime.BoolValue {
+    return valueOrderFinish(timetzValueOrder(left, right), 3);
+}
+export function timetzLtSkyw(left: checkruntime.TimetzValue, right: checkruntime.TimetzValue): checkruntime.BoolValue {
+    return valueOrderFinish(timetzValueOrder(left, right), 2);
+}
+export function timetzNe07by(left: checkruntime.TimetzValue, right: checkruntime.TimetzValue): checkruntime.BoolValue {
+    return valueOrderFinish(timetzValueOrder(left, right), 1);
+}
+export function timetzSmaller5wru(left: checkruntime.TimetzValue, right: checkruntime.TimetzValue): checkruntime.TimetzValue {
+    const order: checkruntime.Int4Value = timetzValueOrder(left, right);
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (value < 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+function intervalValueOrder(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(left, { kind: "Unknown" }) || checkruntime.equalIntervalValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalIntervalValue(left, { kind: "Null" }) || checkruntime.equalIntervalValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.IntervalPayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.IntervalPayload = right.value;
+            return checkruntime.makeInt4Value(intervalOrder(a, b));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function intervalCmpSwxt(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.Int4Value {
+    return intervalValueOrder(left, right);
+}
+export function intervalEq3wnh(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.BoolValue {
+    return valueOrderFinish(intervalValueOrder(left, right), 0);
+}
+export function intervalGeJ2eu(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.BoolValue {
+    return valueOrderFinish(intervalValueOrder(left, right), 5);
+}
+export function intervalGtQbkh(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.BoolValue {
+    return valueOrderFinish(intervalValueOrder(left, right), 4);
+}
+export function intervalLargerVd9t(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.IntervalValue {
+    const order: checkruntime.Int4Value = intervalValueOrder(left, right);
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (value > 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function intervalLeEp4r(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.BoolValue {
+    return valueOrderFinish(intervalValueOrder(left, right), 3);
+}
+export function intervalLtMyly(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.BoolValue {
+    return valueOrderFinish(intervalValueOrder(left, right), 2);
+}
+export function intervalNeA38a(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.BoolValue {
+    return valueOrderFinish(intervalValueOrder(left, right), 1);
+}
+export function intervalSmallerNs56(left: checkruntime.IntervalValue, right: checkruntime.IntervalValue): checkruntime.IntervalValue {
+    const order: checkruntime.Int4Value = intervalValueOrder(left, right);
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (value < 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function timeSend0qc6(input: checkruntime.TimeValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimeValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        const part0: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: value }, 8);
+        const output: checkruntime.ByteaValue = part0;
+        return output;
+    }
+    return { kind: "Unknown" };
+}
+export function timetzSendR9py(input: checkruntime.TimetzValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimetzValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.TimetzPayload = input.value;
+        const part0: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: value.time }, 8);
+        const part1: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: BigInt(langruntime.checkedI32(value.zone)) }, 4);
+        let output: checkruntime.ByteaValue = part0;
+        output = byteacatZitv(output, part1);
+        return output;
+    }
+    return { kind: "Unknown" };
+}
+export function intervalSendJxgl(input: checkruntime.IntervalValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.IntervalPayload = input.value;
+        const part0: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: value.time }, 8);
+        const part1: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: BigInt(langruntime.checkedI32(value.days)) }, 4);
+        const part2: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: BigInt(langruntime.checkedI32(value.months)) }, 4);
+        let output: checkruntime.ByteaValue = part0;
+        output = byteacatZitv(output, part1);
+        output = byteacatZitv(output, part2);
+        return output;
+    }
+    return { kind: "Unknown" };
+}
 export function timestampEqJd79(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
@@ -17588,6 +18200,38 @@ export function uuidExtractTimestampP52j(input: checkruntime.UuidValue): checkru
             return { kind: "Value", value: microseconds };
         }
         return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+function valueOrderFinish(result: checkruntime.Int4Value, strategy: number): checkruntime.BoolValue {
+    strategy = langruntime.checkedI32(strategy);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        if (strategy === 0) {
+            return { kind: "Value", value: order === 0 };
+        }
+        if (strategy === 1) {
+            return { kind: "Value", value: !(order === 0) };
+        }
+        if (strategy === 2) {
+            return { kind: "Value", value: order < 0 };
+        }
+        if (strategy === 3) {
+            return { kind: "Value", value: order <= 0 };
+        }
+        if (strategy === 4) {
+            return { kind: "Value", value: order > 0 };
+        }
+        if (strategy === 5) {
+            return { kind: "Value", value: order >= 0 };
+        }
     }
     return { kind: "Unknown" };
 }

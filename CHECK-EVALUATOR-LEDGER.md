@@ -166,6 +166,8 @@ exposes a prerequisite:
 - [x] Preserve lossless floating-point literals when reading catalog CHECKs
       and defaults, restoring the caller's rendering settings after the read.
 - [x] Floating point (`float4`, `float8`).
+- [x] Establish time, timetz, and interval payloads, comparisons, arithmetic,
+      core casts, binary output, and SQL-coerced public inputs.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.

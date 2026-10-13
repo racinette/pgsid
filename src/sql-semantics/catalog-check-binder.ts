@@ -104,6 +104,11 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     '"bit"': 'pg_catalog."bit"',
     varbit: 'pg_catalog.varbit',
     'bit varying': 'pg_catalog.varbit',
+    time: 'pg_catalog."time"',
+    'time without time zone': 'pg_catalog."time"',
+    timetz: 'pg_catalog.timetz',
+    'time with time zone': 'pg_catalog.timetz',
+    interval: 'pg_catalog."interval"',
     date: 'pg_catalog.date',
     timestamp: 'pg_catalog."timestamp"',
     'timestamp without time zone': 'pg_catalog."timestamp"',
@@ -120,6 +125,9 @@ export const catalogScalarType = (name: string): ScalarType | null => {
   if (/^(?:bit varying|varbit)\(\d+\)$/u.test(name)) return 'pg_catalog.varbit'
   if (name.startsWith('character varying(')) return 'pg_catalog."varchar"'
   if (name.startsWith('character(')) return 'pg_catalog.bpchar'
+  if (/^time\(\d+\) without time zone$/u.test(name)) return 'pg_catalog."time"'
+  if (/^time\(\d+\) with time zone$/u.test(name)) return 'pg_catalog.timetz'
+  if (/^interval(?:\(| )/u.test(name)) return 'pg_catalog."interval"'
   if (/^timestamp\(\d+\) without time zone$/u.test(name)) return 'pg_catalog."timestamp"'
   if (/^timestamp\(\d+\) with time zone$/u.test(name)) return 'pg_catalog.timestamptz'
   return names[name] ?? null
@@ -170,9 +178,19 @@ export function catalogTemporalType(
   name: string,
   oid: number | undefined,
   domains: readonly DomainInfo[],
-): 'pg_catalog.date' | 'pg_catalog."timestamp"' | 'pg_catalog.timestamptz' | null {
+):
+  | 'pg_catalog.date'
+  | 'pg_catalog."timestamp"'
+  | 'pg_catalog.timestamptz'
+  | 'pg_catalog."time"'
+  | 'pg_catalog.timetz'
+  | 'pg_catalog."interval"'
+  | null {
   const type = catalogBaseScalarType(name, oid, domains)
-  return type === 'pg_catalog.date' ||
+  return type === 'pg_catalog."time"' ||
+    type === 'pg_catalog.timetz' ||
+    type === 'pg_catalog."interval"' ||
+    type === 'pg_catalog.date' ||
     type === 'pg_catalog."timestamp"' ||
     type === 'pg_catalog.timestamptz'
     ? type
@@ -216,7 +234,10 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return null
   }
   if (
-    (type === 'pg_catalog.date' ||
+    (type === 'pg_catalog."time"' ||
+      type === 'pg_catalog.timetz' ||
+      type === 'pg_catalog."interval"' ||
+      type === 'pg_catalog.date' ||
       type === 'pg_catalog."timestamp"' ||
       type === 'pg_catalog.timestamptz') &&
     (literal.kind === 'null' || literal.kind === 'string')
@@ -1076,7 +1097,10 @@ export function bindCatalogCheck(
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
       if (
-        (type === 'pg_catalog.timestamptz' ||
+        (type === 'pg_catalog."time"' ||
+          type === 'pg_catalog.timetz' ||
+          type === 'pg_catalog."interval"' ||
+          type === 'pg_catalog.timestamptz' ||
           type === 'pg_catalog."timestamp"' ||
           type === 'pg_catalog."numeric"') &&
         Array.isArray(castType?.['typmods']) &&
@@ -1412,6 +1436,14 @@ export function bindCatalogCheck(
       ) {
         const text = materialize(operand, 'pg_catalog.text')
         return text ? { type, value: { kind: 'text-to-network', type, operand: text } } : unknown
+      }
+      if (
+        (type === 'pg_catalog."time"' || type === 'pg_catalog.timetz') &&
+        (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
+        operand.value
+      ) {
+        const text = materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-clock', type, operand: text } } : unknown
       }
       if (type === 'pg_catalog.date' && operand.type === 'pg_catalog.text' && operand.value)
         return {

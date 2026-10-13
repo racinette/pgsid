@@ -37,6 +37,15 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("Int8Value") => {
             Ok("Int8Value")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("TimeValue") => {
+            Ok("TimeValue")
+        }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("TimetzValue") => {
+            Ok("TimetzValue")
+        }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("IntervalValue") => {
+            Ok("IntervalValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("DateValue") => {
             Ok("DateValue")
         }
@@ -363,6 +372,9 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                 "Int2Value"
                     | "Int4Value"
                     | "Int8Value"
+                    | "TimeValue"
+                    | "TimetzValue"
+                    | "IntervalValue"
                     | "DateValue"
                     | "TimestampValue"
                     | "TimestamptzValue"
@@ -586,6 +598,20 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_clock_and_interval_values_without_payload_parameters() {
+        for ty in ["TimeValue", "TimetzValue", "IntervalValue"] {
+            let source = format!("pub fn evaluate_check(input: {ty}) -> CheckOutcome {{ let result = compare(input, input); check_from_bool(result) }}");
+            check_source(&source).unwrap();
+            for replacement in ["i64".to_owned(), format!("{ty}<i64>"), format!("mut {ty}")] {
+                assert!(check_source(
+                    &source.replace(&format!("input: {ty}"), &format!("input: {replacement}"))
+                )
+                .is_err());
+            }
+        }
+    }
+
+    #[test]
     fn accepts_scalar_case_result_locals() {
         for (ty, constructor) in [
             ("Int2Value", "int2_unknown"),
@@ -594,6 +620,9 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("Float4Value", "float4_unknown"),
             ("Float8Value", "float8_unknown"),
             ("EnumValue", "enum_unknown"),
+            ("TimeValue", "time_unknown"),
+            ("TimetzValue", "timetz_unknown"),
+            ("IntervalValue", "interval_unknown"),
             ("DateValue", "date_unknown"),
             ("TimestampValue", "timestamp_unknown"),
             ("TimestamptzValue", "timestamptz_unknown"),

@@ -52,13 +52,19 @@ export function renderTypescriptSchemaCheckArtifacts(
   const portableValueType = (name: string, oid: number | undefined): string | null => {
     if (catalogNumericType(name, oid, domains)) return 'NumericValue'
     const type = catalogTemporalType(name, oid, domains)
-    return type === 'pg_catalog.date'
-      ? 'DateValue'
-      : type === 'pg_catalog."timestamp"'
-        ? 'TimestampValue'
-        : type === 'pg_catalog.timestamptz'
-          ? 'TimestamptzValue'
-          : null
+    return type === 'pg_catalog."time"'
+      ? 'TimeValue'
+      : type === 'pg_catalog.timetz'
+        ? 'TimetzValue'
+        : type === 'pg_catalog."interval"'
+          ? 'IntervalValue'
+          : type === 'pg_catalog.date'
+            ? 'DateValue'
+            : type === 'pg_catalog."timestamp"'
+              ? 'TimestampValue'
+              : type === 'pg_catalog.timestamptz'
+                ? 'TimestamptzValue'
+                : null
   }
   const groups = catalogCheckGroups(tables, domains, selectedDomains, options.enums)
   if (!groups.length) return { checks: '', rust: null, rustFiles: null }
@@ -137,6 +143,9 @@ export function renderTypescriptSchemaCheckArtifacts(
               'ByteaValue',
               'BitValue',
               'NumericValue',
+              'TimeValue',
+              'TimetzValue',
+              'IntervalValue',
               'DateValue',
               'TimestampValue',
               'TimestamptzValue',
@@ -147,45 +156,54 @@ export function renderTypescriptSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'Float4Value'
-              ? 'checkRustFloat4'
-              : item.rustType === 'Float8Value'
-                ? 'checkRustFloat8'
-                : item.rustType === 'BitValue'
-                  ? 'checkRustBit'
-                  : item.rustType === 'UuidValue'
-                    ? 'checkRustUuid'
-                    : item.rustType === 'ByteaValue'
-                      ? 'checkRustBytea'
-                      : item.rustType === 'MacaddrValue'
-                        ? 'checkRustMacaddr'
-                        : item.rustType === 'Macaddr8Value'
-                          ? 'checkRustMacaddr8'
-                          : item.rustType === 'NetworkValue'
-                            ? 'checkRustNetwork'
-                            : item.rustType === 'NumericValue'
-                              ? 'checkRustNumeric'
-                              : item.rustType === 'DateValue'
-                                ? 'checkRustDate'
-                                : item.rustType === 'TimestampValue'
-                                  ? 'checkRustTimestamp'
-                                  : item.rustType === 'TimestamptzValue'
-                                    ? 'checkRustTimestamptz'
-                                    : item.nullness
-                                      ? 'checkRustNullness'
-                                      : item.enum
-                                        ? 'checkRustEnum'
-                                        : item.rustType === 'Int2Value'
-                                          ? 'checkRustInt2'
-                                          : item.rustType === 'Int4Value'
-                                            ? 'checkRustInt4'
-                                            : item.rustType === 'Int8Value'
-                                              ? 'checkRustInt8'
-                                              : item.rustType === 'TextValue'
-                                                ? 'checkRustText'
-                                                : 'checkRustBool'
+            item.rustType === 'TimeValue'
+              ? 'checkRustTime'
+              : item.rustType === 'TimetzValue'
+                ? 'checkRustTimetz'
+                : item.rustType === 'IntervalValue'
+                  ? 'checkRustInterval'
+                  : item.rustType === 'Float4Value'
+                    ? 'checkRustFloat4'
+                    : item.rustType === 'Float8Value'
+                      ? 'checkRustFloat8'
+                      : item.rustType === 'BitValue'
+                        ? 'checkRustBit'
+                        : item.rustType === 'UuidValue'
+                          ? 'checkRustUuid'
+                          : item.rustType === 'ByteaValue'
+                            ? 'checkRustBytea'
+                            : item.rustType === 'MacaddrValue'
+                              ? 'checkRustMacaddr'
+                              : item.rustType === 'Macaddr8Value'
+                                ? 'checkRustMacaddr8'
+                                : item.rustType === 'NetworkValue'
+                                  ? 'checkRustNetwork'
+                                  : item.rustType === 'NumericValue'
+                                    ? 'checkRustNumeric'
+                                    : item.rustType === 'DateValue'
+                                      ? 'checkRustDate'
+                                      : item.rustType === 'TimestampValue'
+                                        ? 'checkRustTimestamp'
+                                        : item.rustType === 'TimestamptzValue'
+                                          ? 'checkRustTimestamptz'
+                                          : item.nullness
+                                            ? 'checkRustNullness'
+                                            : item.enum
+                                              ? 'checkRustEnum'
+                                              : item.rustType === 'Int2Value'
+                                                ? 'checkRustInt2'
+                                                : item.rustType === 'Int4Value'
+                                                  ? 'checkRustInt4'
+                                                  : item.rustType === 'Int8Value'
+                                                    ? 'checkRustInt8'
+                                                    : item.rustType === 'TextValue'
+                                                      ? 'checkRustText'
+                                                      : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
+            item.rustType !== 'TimeValue' &&
+            item.rustType !== 'TimetzValue' &&
+            item.rustType !== 'IntervalValue' &&
             item.rustType !== 'Float4Value' &&
             item.rustType !== 'Float8Value' &&
             item.rustType !== 'NetworkValue' &&
@@ -287,6 +305,9 @@ export function renderTypescriptSchemaCheckArtifacts(
                 type === 'pg_catalog."bit"' ||
                 type === 'pg_catalog.varbit' ||
                 type === 'pg_catalog.uuid' ||
+                type === 'pg_catalog."time"' ||
+                type === 'pg_catalog.timetz' ||
+                type === 'pg_catalog."interval"' ||
                 type === 'pg_catalog.date' ||
                 type === 'pg_catalog."timestamp"' ||
                 type === 'pg_catalog.timestamptz'
@@ -520,7 +541,34 @@ export function renderTypescriptSchemaCheckArtifacts(
   }
 }
 
-const typescriptRustAdapterSource = `function checkRustTimestamp(row: object, name: string): _checkRust.TimestampValue {
+const typescriptRustAdapterSource = `function checkRustTime(row: object, name: string): _checkRust.TimeValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timeUnknown()
+  if (value === null) return _checkRust.timeNull()
+  if (typeof value !== 'object' || !('kind' in value)) return _checkRust.timeUnknown()
+  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimeValue
+  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint') return _checkRust.makeTimeValue(value.value)
+  return _checkRust.timeUnknown()
+}
+function checkRustTimetz(row: object, name: string): _checkRust.TimetzValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timetzUnknown()
+  if (value === null) return _checkRust.timetzNull()
+  if (typeof value !== 'object' || !('kind' in value)) return _checkRust.timetzUnknown()
+  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimetzValue
+  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'time' in value.value && 'zone' in value.value && typeof value.value.time === 'bigint' && typeof value.value.zone === 'number' && Number.isInteger(value.value.zone)) return _checkRust.makeTimetzValue(value.value.time, value.value.zone)
+  return _checkRust.timetzUnknown()
+}
+function checkRustInterval(row: object, name: string): _checkRust.IntervalValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.intervalUnknown()
+  if (value === null) return _checkRust.intervalNull()
+  if (typeof value !== 'object' || !('kind' in value)) return _checkRust.intervalUnknown()
+  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.IntervalValue
+  if (value.kind === 'Value' && 'value' in value && value.value && typeof value.value === 'object' && 'time' in value.value && 'months' in value.value && 'days' in value.value && typeof value.value.time === 'bigint' && value.value.time >= -9223372036854775808n && value.value.time <= 9223372036854775807n && typeof value.value.months === 'number' && Number.isInteger(value.value.months) && value.value.months >= -2147483648 && value.value.months <= 2147483647 && typeof value.value.days === 'number' && Number.isInteger(value.value.days) && value.value.days >= -2147483648 && value.value.days <= 2147483647) return _checkRust.makeIntervalValue(value.value.months, value.value.days, value.value.time)
+  return _checkRust.intervalUnknown()
+}
+function checkRustTimestamp(row: object, name: string): _checkRust.TimestampValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timestampUnknown()
   if (value === null) return _checkRust.timestampNull()

@@ -1040,3 +1040,137 @@ pub fn float8_from_case_guard(value: CheckOutcome) -> Float8Value {
     }
     Float8Value::Unknown
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum TimeValue {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+
+pub fn time_unknown() -> TimeValue {
+    TimeValue::Unknown
+}
+pub fn time_null() -> TimeValue {
+    TimeValue::Null
+}
+
+pub fn make_time_value(time: i64) -> TimeValue {
+    if time < 0i64 || time > 86400000000i64 {
+        return TimeValue::Unknown;
+    }
+    TimeValue::Value(time)
+}
+
+pub fn time_is_null(input: TimeValue) -> BoolValue {
+    if let TimeValue::Error(error) = input {
+        return BoolValue::Error(error);
+    }
+    if input == TimeValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(input == TimeValue::Null)
+}
+
+pub fn time_from_case_guard(input: CheckOutcome) -> TimeValue {
+    if let CheckOutcome::Error(error) = input {
+        return TimeValue::Error(error);
+    }
+    TimeValue::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct TimetzPayload {
+    pub time: i64,
+    pub zone: i32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum TimetzValue {
+    Unknown,
+    Null,
+    Value(TimetzPayload),
+    Error(SqlError),
+}
+
+pub fn timetz_unknown() -> TimetzValue {
+    TimetzValue::Unknown
+}
+pub fn timetz_null() -> TimetzValue {
+    TimetzValue::Null
+}
+
+pub fn make_timetz_value(time: i64, zone: i32) -> TimetzValue {
+    if time < 0i64 || time > 86400000000i64 || zone <= -57600 || zone >= 57600 {
+        return TimetzValue::Unknown;
+    }
+    TimetzValue::Value(TimetzPayload {
+        time: time,
+        zone: zone,
+    })
+}
+
+pub fn timetz_is_null(input: TimetzValue) -> BoolValue {
+    if let TimetzValue::Error(error) = input {
+        return BoolValue::Error(error);
+    }
+    if input == TimetzValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(input == TimetzValue::Null)
+}
+
+pub fn timetz_from_case_guard(input: CheckOutcome) -> TimetzValue {
+    if let CheckOutcome::Error(error) = input {
+        return TimetzValue::Error(error);
+    }
+    TimetzValue::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct IntervalPayload {
+    pub months: i32,
+    pub days: i32,
+    pub time: i64,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum IntervalValue {
+    Unknown,
+    Null,
+    Value(IntervalPayload),
+    Error(SqlError),
+}
+
+pub fn interval_unknown() -> IntervalValue {
+    IntervalValue::Unknown
+}
+pub fn interval_null() -> IntervalValue {
+    IntervalValue::Null
+}
+
+pub fn make_interval_value(months: i32, days: i32, time: i64) -> IntervalValue {
+    IntervalValue::Value(IntervalPayload {
+        months: months,
+        days: days,
+        time: time,
+    })
+}
+
+pub fn interval_is_null(input: IntervalValue) -> BoolValue {
+    if let IntervalValue::Error(error) = input {
+        return BoolValue::Error(error);
+    }
+    if input == IntervalValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(input == IntervalValue::Null)
+}
+
+pub fn interval_from_case_guard(input: CheckOutcome) -> IntervalValue {
+    if let CheckOutcome::Error(error) = input {
+        return IntervalValue::Error(error);
+    }
+    IntervalValue::Unknown
+}

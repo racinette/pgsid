@@ -15,7 +15,16 @@ import { enumLabelOid, type EnumDefinition } from '../../src/sql-semantics/expre
 import { go, printGoFile, type GoExpression, type GoStatement } from '../../src/codegen/go/ast.js'
 
 export type Input =
-  | { kind: 'Value'; value: number | bigint | boolean | string }
+  | {
+      kind: 'Value'
+      value:
+        | number
+        | bigint
+        | boolean
+        | string
+        | { time: bigint; zone: number }
+        | { time: bigint; months: number; days: number }
+    }
   | { kind: 'Null' }
   | { kind: 'Unknown' }
   | { kind: 'Error'; value: { state: number } }
@@ -61,39 +70,45 @@ export async function runCheckParity(
     return result[0]!.toLowerCase() + result.slice(1)
   }
   const prefixOf = (type: string): string =>
-    type === 'pg_catalog.float4' || type === 'pg_catalog.float8'
-      ? type.slice('pg_catalog.'.length)
-      : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
-        ? 'bit'
-        : type === 'pg_catalog.uuid'
-          ? 'uuid'
-          : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
-            ? 'network'
-            : type === 'pg_catalog.macaddr'
-              ? 'macaddr'
-              : type === 'pg_catalog.macaddr8'
-                ? 'macaddr8'
-                : type === 'pg_catalog.bytea'
-                  ? 'bytea'
-                  : type.startsWith('enum:')
-                    ? 'enum'
-                    : type === 'pg_catalog.int2'
-                      ? 'int2'
-                      : type === 'pg_catalog.int4'
-                        ? 'int4'
-                        : type === 'pg_catalog.int8'
-                          ? 'int8'
-                          : type === 'pg_catalog."numeric"'
-                            ? 'numeric'
-                            : type === 'pg_catalog."timestamp"'
-                              ? 'timestamp'
-                              : type === 'pg_catalog.timestamptz'
-                                ? 'timestamptz'
-                                : type === 'pg_catalog.date'
-                                  ? 'date'
-                                  : type === 'pg_catalog.bool'
-                                    ? 'bool'
-                                    : 'text'
+    type === 'pg_catalog."time"'
+      ? 'time'
+      : type === 'pg_catalog.timetz'
+        ? 'timetz'
+        : type === 'pg_catalog."interval"'
+          ? 'interval'
+          : type === 'pg_catalog.float4' || type === 'pg_catalog.float8'
+            ? type.slice('pg_catalog.'.length)
+            : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
+              ? 'bit'
+              : type === 'pg_catalog.uuid'
+                ? 'uuid'
+                : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
+                  ? 'network'
+                  : type === 'pg_catalog.macaddr'
+                    ? 'macaddr'
+                    : type === 'pg_catalog.macaddr8'
+                      ? 'macaddr8'
+                      : type === 'pg_catalog.bytea'
+                        ? 'bytea'
+                        : type.startsWith('enum:')
+                          ? 'enum'
+                          : type === 'pg_catalog.int2'
+                            ? 'int2'
+                            : type === 'pg_catalog.int4'
+                              ? 'int4'
+                              : type === 'pg_catalog.int8'
+                                ? 'int8'
+                                : type === 'pg_catalog."numeric"'
+                                  ? 'numeric'
+                                  : type === 'pg_catalog."timestamp"'
+                                    ? 'timestamp'
+                                    : type === 'pg_catalog.timestamptz'
+                                      ? 'timestamptz'
+                                      : type === 'pg_catalog.date'
+                                        ? 'date'
+                                        : type === 'pg_catalog.bool'
+                                          ? 'bool'
+                                          : 'text'
   const inputCode = (input: Input, type: string, definition?: EnumDefinition): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -114,10 +129,21 @@ export async function runCheckParity(
             : String(bits)
       return `make_${prefix}_bits(${literal})`
     }
+    if (typeof input.value === 'object') {
+      const parts = input.value
+      const args =
+        'zone' in parts
+          ? `${parts.time}i64, ${parts.zone}`
+          : `${parts.months === -2147483648 ? '-2147483647 - 1' : parts.months}, ${parts.days === -2147483648 ? '-2147483647 - 1' : parts.days}, ${parts.time}i64`
+      return `make_${prefix}_value(${args})`
+    }
     const literal =
       typeof input.value === 'string'
         ? rustStringLiteral(input.value)
-        : prefix === 'int8' || prefix === 'timestamp' || prefix === 'timestamptz'
+        : prefix === 'time' ||
+            prefix === 'int8' ||
+            prefix === 'timestamp' ||
+            prefix === 'timestamptz'
           ? `${input.value}i64`
           : String(input.value)
     return `make_${prefix}_value(${literal})`
@@ -149,6 +175,15 @@ export async function runCheckParity(
     }
     if (prefix === 'Float4' || prefix === 'Float8')
       return go.call(runtime('Make' + prefix + 'Bits'), [go.number(input.value as number | bigint)])
+    if (typeof input.value === 'object') {
+      const parts = input.value
+      return go.call(
+        runtime('Make' + prefix + 'Value'),
+        'zone' in parts
+          ? [go.number(parts.time), go.number(parts.zone)]
+          : [go.number(parts.months), go.number(parts.days), go.number(parts.time)],
+      )
+    }
     const value =
       typeof input.value === 'string'
         ? go.string(input.value)
@@ -325,7 +360,23 @@ export async function runCheckParity(
         if (input.type === 'pg_catalog.float4' && value.kind === 'Value')
           return generated.makeFloat4Bits(Number(value.value))
         if (input.type === 'pg_catalog.float8' && value.kind === 'Value')
-          return generated.makeFloat8Bits(BigInt(value.value))
+          return generated.makeFloat8Bits(BigInt(value.value as number | bigint))
+        if (input.type === 'pg_catalog."time"' && value.kind === 'Value')
+          return generated.makeTimeValue(value.value)
+        if (
+          input.type === 'pg_catalog.timetz' &&
+          value.kind === 'Value' &&
+          typeof value.value === 'object' &&
+          'zone' in value.value
+        )
+          return generated.makeTimetzValue(value.value.time, value.value.zone)
+        if (
+          input.type === 'pg_catalog."interval"' &&
+          value.kind === 'Value' &&
+          typeof value.value === 'object' &&
+          'months' in value.value
+        )
+          return generated.makeIntervalValue(value.value.months, value.value.days, value.value.time)
         if (input.type === 'pg_catalog.uuid' && value.kind === 'Value')
           return generated.makeUuidValue(value.value)
         if (input.type === 'pg_catalog.macaddr' && value.kind === 'Value')
