@@ -202,8 +202,12 @@ export async function runCheckParity(
     let source: string
     try {
       source = printGoFile({
-        package: 'generated',
-        imports: [{ path: 'testing' }, { path: moduleName + '/checkruntime' }],
+        package: 'parity',
+        imports: [
+          { path: 'testing' },
+          { alias: 'generated', path: moduleName },
+          { path: moduleName + '/checkruntime' },
+        ],
         declarations: [
           go.function(
             'TestChecks' + index,
@@ -216,7 +220,9 @@ export async function runCheckParity(
     } catch (cause) {
       throw new Error(`Render Go parity batch ${index} in ${moduleName}`, { cause })
     }
-    await writeFile(join(directory, `go/checks_${index}_test.go`), source)
+    const batchDirectory = join(directory, 'go', 'parity', `batch_${Math.floor(index / 20)}`)
+    await mkdir(batchDirectory, { recursive: true })
+    await writeFile(join(batchDirectory, `checks_${index}_test.go`), source)
     goAssertions.length = 0
   }
   for (const [index, fixture] of fixtures.entries()) {
@@ -268,7 +274,7 @@ export async function runCheckParity(
           [actual],
           [
             go.call(
-              go.ident(pascal(check.entryName)),
+              go.selector(go.ident('generated'), pascal(check.entryName)),
               check.inputs.map((input) =>
                 goInput(
                   projectedInput(fixture.row[input.name]!, input.nullness),
@@ -328,7 +334,7 @@ export async function runCheckParity(
     await writeFile(path, source)
   }
   await writeFile(join(directory, 'go/go.mod'), `module ${moduleName}\n\ngo 1.25\n`)
-  await run('go', ['test', './...'], {
+  await run('go', ['test', '-p', '1', './...'], {
     cwd: join(directory, 'go'),
     env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
   })
