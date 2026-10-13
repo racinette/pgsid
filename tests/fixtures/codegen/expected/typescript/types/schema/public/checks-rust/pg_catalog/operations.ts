@@ -13726,11 +13726,420 @@ export function pointSendKuoa(input: checkruntime.PointValue): checkruntime.Byte
     }
     if (input.kind === "Value") {
         const point: checkruntime.PointPayload = input.value;
+        if (point.wireKnown === false) {
+            return { kind: "Unknown" };
+        }
         const x: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: point.x }, 8);
         const y: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: point.y }, 8);
         return byteacatZitv(x, y);
     }
     return { kind: "Unknown" };
+}
+interface GeometryInputText {
+    chars: string[];
+}
+function copyGeometryInputText(value: GeometryInputText): GeometryInputText {
+    return { chars: langruntime.checkedChars(value.chars) };
+}
+interface GeometryInputNumber {
+    value: checkruntime.Float8Value;
+    end: number;
+}
+function copyGeometryInputNumber(value: GeometryInputNumber): GeometryInputNumber {
+    return { value: value.value, end: langruntime.checkedIndex(value.end) };
+}
+function geometryInputWord(source: GeometryInputText, start: number, word: string): boolean {
+    start = langruntime.checkedIndex(start);
+    word = langruntime.checkedString(word);
+    const letters: string[] = Array.from(word);
+    if (langruntime.checkedAdd(start, letters.length) > source.chars.length) {
+        return false;
+    }
+    let index: number = 0;
+    while (index < letters.length) {
+        if (!(langruntime.asciiLowercase(langruntime.indexChar(source.chars, langruntime.checkedIndex(langruntime.checkedAdd(start, index)))) === langruntime.indexChar(letters, langruntime.checkedIndex(index)))) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+function geometryInputSpace(source: GeometryInputText, start: number): number {
+    start = langruntime.checkedIndex(start);
+    let index: number = start;
+    while (index < source.chars.length && checkruntime.numericSpace(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)))) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return index;
+}
+function geometryInputDigit(value: string): boolean {
+    value = langruntime.checkedChar(value);
+    const code: number = langruntime.checkedChar(value).codePointAt(0)!;
+    return code >= 48 && code <= 57;
+}
+function geometryReadNumber(source: GeometryInputText, begin: number): GeometryInputNumber {
+    begin = langruntime.checkedIndex(begin);
+    const start: number = geometryInputSpace(source, begin);
+    let index: number = start;
+    if (index < source.chars.length && (langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "-")) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const unsigned: number = index;
+    if (geometryInputWord(source, unsigned, "0x")) {
+        return { value: { kind: "Unknown" }, end: index };
+    }
+    if (geometryInputWord(source, unsigned, "infinity")) {
+        index = langruntime.checkedAdd(index, 8);
+    }
+    else if (geometryInputWord(source, unsigned, "inf")) {
+        index = langruntime.checkedAdd(index, 3);
+    }
+    else if (geometryInputWord(source, unsigned, "nan")) {
+        index = langruntime.checkedAdd(index, 3);
+        if (!(unsigned === start) || (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "(")) {
+            return { value: { kind: "Unknown" }, end: index };
+        }
+    }
+    else {
+        let digits: number = 0;
+        while (index < source.chars.length && geometryInputDigit(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+            digits = langruntime.checkedAdd(digits, 1);
+        }
+        if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ".") {
+            index = langruntime.checkedAdd(index, 1);
+            while (index < source.chars.length && geometryInputDigit(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)))) {
+                index = langruntime.checkedAdd(index, 1);
+                digits = langruntime.checkedAdd(digits, 1);
+            }
+        }
+        if (digits === 0) {
+            return { value: { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) }, end: index };
+        }
+        if (index < source.chars.length && langruntime.asciiLowercase(langruntime.indexChar(source.chars, langruntime.checkedIndex(index))) === "e") {
+            const saved: number = index;
+            index = langruntime.checkedAdd(index, 1);
+            if (index < source.chars.length && (langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "-")) {
+                index = langruntime.checkedAdd(index, 1);
+            }
+            const exponent: number = index;
+            while (index < source.chars.length && geometryInputDigit(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)))) {
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (index === exponent) {
+                index = langruntime.checkedIndex(saved);
+            }
+        }
+    }
+    let token: string = "";
+    let at: number = start;
+    while (at < index) {
+        token = token + langruntime.checkedChar(langruntime.indexChar(source.chars, langruntime.checkedIndex(at)));
+        at = langruntime.checkedAdd(at, 1);
+    }
+    const value: checkruntime.Float8Value = float8FromText(checkruntime.makeTextValue(token));
+    return { value: value, end: geometryInputSpace(source, index) };
+}
+function pointParse(value: string): checkruntime.PointValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 4096) {
+        return { kind: "Unknown" };
+    }
+    const source: GeometryInputText = { chars: chars };
+    let index: number = geometryInputSpace(source, 0);
+    let parenthesized: boolean = false;
+    if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "(") {
+        parenthesized = langruntime.checkedBool(true);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const first: GeometryInputNumber = copyGeometryInputNumber(geometryReadNumber(source, index));
+    const firstValue: checkruntime.Float8Value = first.value;
+    if (firstValue.kind === "Error") {
+        const error: checkruntime.SqlError = firstValue.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(firstValue, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    index = langruntime.checkedIndex(first.end);
+    if (index >= source.chars.length || !(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ",")) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+    }
+    index = langruntime.checkedAdd(index, 1);
+    const second: GeometryInputNumber = copyGeometryInputNumber(geometryReadNumber(source, index));
+    const secondValue: checkruntime.Float8Value = second.value;
+    if (secondValue.kind === "Error") {
+        const error: checkruntime.SqlError = secondValue.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(secondValue, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    index = langruntime.checkedIndex(second.end);
+    if (parenthesized) {
+        if (index >= source.chars.length || !(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ")")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+        }
+        index = langruntime.checkedIndex(geometryInputSpace(source, langruntime.checkedAdd(index, 1)));
+    }
+    if (!(index === source.chars.length)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+    }
+    return pointDb27(firstValue, secondValue);
+}
+export function pointFromText(input: checkruntime.TextValue): checkruntime.PointValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return pointParse(value);
+    }
+    return { kind: "Unknown" };
+}
+function pointArithmeticResult(x: checkruntime.Float8Value, y: checkruntime.Float8Value): checkruntime.PointValue {
+    const result: checkruntime.PointValue = pointDb27(x, y);
+    if (result.kind === "Value") {
+        const value: checkruntime.PointPayload = result.value;
+        const first: number = checkruntime.float8Number(value.x);
+        const second: number = checkruntime.float8Number(value.y);
+        if (!(first === first) || !(second === second)) {
+            return { kind: "Value", value: { x: value.x, y: value.y, wireKnown: false } };
+        }
+    }
+    return result;
+}
+function geometricCoordinateEqual(a: number, b: number): boolean {
+    a = langruntime.checkedF64(a);
+    b = langruntime.checkedF64(b);
+    return a === b || langruntime.f64Abs((langruntime.f64Subtract(a, b))) <= 0.000001;
+}
+function pointCoordinateRelation(left: checkruntime.PointValue, right: checkruntime.PointValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(left, { kind: "Unknown" }) || checkruntime.equalPointValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(left, { kind: "Null" }) || checkruntime.equalPointValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PointPayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.PointPayload = right.value;
+            let first: number = checkruntime.float8Number(a.x);
+            let second: number = checkruntime.float8Number(b.x);
+            if (mode >= 3) {
+                first = langruntime.checkedF64(checkruntime.float8Number(a.y));
+                second = langruntime.checkedF64(checkruntime.float8Number(b.y));
+            }
+            if (mode === 0 || mode === 3) {
+                return checkruntime.makeBoolValue(langruntime.f64Add(first, 0.000001) < second);
+            }
+            if (mode === 1 || mode === 4) {
+                return checkruntime.makeBoolValue(first > langruntime.f64Add(second, 0.000001));
+            }
+            return checkruntime.makeBoolValue(geometricCoordinateEqual(first, second));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function pointLeftIpjy(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.BoolValue {
+    return pointCoordinateRelation(left, right, 0);
+}
+export function pointRightSgly(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.BoolValue {
+    return pointCoordinateRelation(left, right, 1);
+}
+export function pointVertV6kr(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.BoolValue {
+    return pointCoordinateRelation(left, right, 2);
+}
+export function isverticalF50i(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.BoolValue {
+    return pointCoordinateRelation(left, right, 2);
+}
+export function pointBelowJsjs(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.BoolValue {
+    return pointCoordinateRelation(left, right, 3);
+}
+export function pointAbovePdwh(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.BoolValue {
+    return pointCoordinateRelation(left, right, 4);
+}
+export function pointHorizTsjw(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.BoolValue {
+    return pointCoordinateRelation(left, right, 5);
+}
+export function ishorizontalKubm(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.BoolValue {
+    return pointCoordinateRelation(left, right, 5);
+}
+function pointArithmetic(left: checkruntime.PointValue, right: checkruntime.PointValue, mode: number): checkruntime.PointValue {
+    mode = langruntime.checkedI32(mode);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(left, { kind: "Unknown" }) || checkruntime.equalPointValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(left, { kind: "Null" }) || checkruntime.equalPointValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PointPayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.PointPayload = right.value;
+            const ax: checkruntime.Float8Value = checkruntime.makeFloat8Bits(a.x);
+            const ay: checkruntime.Float8Value = checkruntime.makeFloat8Bits(a.y);
+            const bx: checkruntime.Float8Value = checkruntime.makeFloat8Bits(b.x);
+            const by: checkruntime.Float8Value = checkruntime.makeFloat8Bits(b.y);
+            if (mode === 0) {
+                return pointArithmeticResult(float8plG3ou(ax, bx), float8plG3ou(ay, by));
+            }
+            if (mode === 1) {
+                return pointArithmeticResult(float8miR1nu(ax, bx), float8miR1nu(ay, by));
+            }
+            const xx: checkruntime.Float8Value = float8mulD3nd(ax, bx);
+            const yy: checkruntime.Float8Value = float8mulD3nd(ay, by);
+            const xy: checkruntime.Float8Value = float8mulD3nd(ax, by);
+            const yx: checkruntime.Float8Value = float8mulD3nd(ay, bx);
+            if (mode === 2) {
+                return pointArithmeticResult(float8miR1nu(xx, yy), float8plG3ou(xy, yx));
+            }
+            const denominator: checkruntime.Float8Value = float8plG3ou(float8mulD3nd(bx, bx), float8mulD3nd(by, by));
+            if (denominator.kind === "Error") {
+                const error: checkruntime.SqlError = denominator.value;
+                return { kind: "Error", value: error };
+            }
+            const real: checkruntime.Float8Value = float8divKumj(float8plG3ou(xx, yy), denominator);
+            const imaginary: checkruntime.Float8Value = float8divKumj(float8miR1nu(yx, xy), denominator);
+            return pointArithmeticResult(real, imaginary);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function pointAddGn1v(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.PointValue {
+    return pointArithmetic(left, right, 0);
+}
+export function pointSubO53k(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.PointValue {
+    return pointArithmetic(left, right, 1);
+}
+export function pointMul9izx(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.PointValue {
+    return pointArithmetic(left, right, 2);
+}
+export function pointDivBtbo(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.PointValue {
+    return pointArithmetic(left, right, 3);
+}
+function geometricHypot(first: checkruntime.Float8Value, second: checkruntime.Float8Value): checkruntime.Float8Value {
+    if (first.kind === "Error") {
+        const error: checkruntime.SqlError = first.value;
+        return { kind: "Error", value: error };
+    }
+    if (second.kind === "Error") {
+        const error: checkruntime.SqlError = second.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(first, { kind: "Unknown" }) || checkruntime.equalFloat8Value(second, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(first, { kind: "Null" }) || checkruntime.equalFloat8Value(second, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (first.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(first.value);
+        if (second.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(second.value);
+            let x: number = langruntime.f64Abs(checkruntime.float8Number(a));
+            let y: number = langruntime.f64Abs(checkruntime.float8Number(b));
+            const infinity: number = langruntime.f64Divide(1.0, 0.0);
+            if (x === infinity || y === infinity) {
+                return checkruntime.makeFloat8Bits(9218868437227405312n);
+            }
+            if (!(x === x) || !(y === y)) {
+                return checkruntime.makeFloat8Bits(9221120237041090560n);
+            }
+            if (x < y) {
+                const saved: number = x;
+                x = langruntime.checkedF64(y);
+                y = langruntime.checkedF64(saved);
+            }
+            if (y === 0.0) {
+                return checkruntime.makeFloat8Value(x);
+            }
+            const ratio: number = langruntime.f64Divide(y, x);
+            const squared: number = langruntime.f64Multiply(ratio, ratio);
+            const root: number = langruntime.f64Sqrt((langruntime.f64Add(1.0, squared)));
+            const result: number = langruntime.f64Multiply(x, root);
+            if (result === infinity || result === 0.0) {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+            }
+            return checkruntime.makeFloat8Value(result);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function pointMeasurement(left: checkruntime.PointValue, right: checkruntime.PointValue, slope: boolean): checkruntime.Float8Value {
+    slope = langruntime.checkedBool(slope);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(left, { kind: "Unknown" }) || checkruntime.equalPointValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(left, { kind: "Null" }) || checkruntime.equalPointValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PointPayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.PointPayload = right.value;
+            if (slope) {
+                if (geometricCoordinateEqual(checkruntime.float8Number(a.x), checkruntime.float8Number(b.x))) {
+                    return checkruntime.makeFloat8Bits(9218868437227405312n);
+                }
+                if (geometricCoordinateEqual(checkruntime.float8Number(a.y), checkruntime.float8Number(b.y))) {
+                    return checkruntime.makeFloat8Bits(0n);
+                }
+            }
+            const x: checkruntime.Float8Value = float8miR1nu(checkruntime.makeFloat8Bits(a.x), checkruntime.makeFloat8Bits(b.x));
+            const y: checkruntime.Float8Value = float8miR1nu(checkruntime.makeFloat8Bits(a.y), checkruntime.makeFloat8Bits(b.y));
+            if (slope) {
+                const result: checkruntime.Float8Value = float8divKumj(y, x);
+                if (result.kind === "Value") {
+                    const bits: bigint = langruntime.checkedI64(result.value);
+                    const value: number = checkruntime.float8Number(bits);
+                    if (!(value === value)) {
+                        return { kind: "Unknown" };
+                    }
+                }
+                return result;
+            }
+            return geometricHypot(x, y);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function pointDistance2haq(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.Float8Value {
+    return pointMeasurement(left, right, false);
+}
+export function slopeXxph(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.Float8Value {
+    return pointMeasurement(left, right, true);
 }
 export function int24eqCfkl(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);

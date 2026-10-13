@@ -497,6 +497,7 @@ describe('world CHECK INSERT parity', () => {
       { kind: 'Value', value: { x: -9223372036854775809n, y: 0n } },
       { kind: 'Value', value: { x: 0n, y: 9223372036854775808n } },
       { kind: 'Value', value: { x: 0n, y: -9223372036854775809n } },
+      { kind: 'Value', value: { x: 0n, y: 0n, wireKnown: 'yes' } },
     ]) {
       const results = evaluate({ ...baseline, candidate_point: candidate })
       expect(results).toHaveLength(3)
@@ -523,6 +524,32 @@ describe('world CHECK INSERT parity', () => {
       survey_coalesced: { certain: true, value: true },
       survey_same_position: { certain: true, value: null },
       survey_selection: { certain: true, value: null },
+    })
+  })
+
+  it('retains point semantics when computed NaN wire bits are unavailable', () => {
+    const table = catalog.tables.find(
+      (table) => table.schema === 'world_027_survey_positions' && table.name === 'survey_matches',
+    )!
+    const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
+    const point = { kind: 'Value', value: { x: 0x7ff8000000000000n, y: 0n, wireKnown: false } }
+    const results = Object.fromEntries(
+      normalized(
+        evaluate({
+          candidate_point: point,
+          reference_point: point,
+          recorded_match: true,
+          choose_candidate: true,
+          recorded_selection: new Uint8Array(16),
+          recorded_coalesced: new Uint8Array(16),
+          skip_validation: false,
+        }),
+      ).map(({ constraint, result }) => [constraint, result]),
+    )
+    expect(results).toEqual({
+      survey_same_position: { certain: true, value: true },
+      survey_selection: { certain: false },
+      survey_coalesced: { certain: false },
     })
   })
 
@@ -807,6 +834,27 @@ describe('world CHECK INSERT parity', () => {
         '027_survey_positions',
         'survey_matches',
         ['survey_same_position', 'survey_selection', 'survey_coalesced'],
+      ],
+      ['027_survey_positions', 'survey_offsets', ['offset_sum', 'offset_difference']],
+      ['027_survey_positions', 'survey_transforms', ['transform_product', 'transform_quotient']],
+      [
+        '027_survey_positions',
+        'survey_measurements',
+        [
+          'measurement_distance',
+          'measurement_slope',
+          'measurement_left',
+          'measurement_right',
+          'measurement_above',
+          'measurement_below',
+          'measurement_horizontal',
+          'measurement_vertical',
+        ],
+      ],
+      [
+        '027_survey_positions',
+        'survey_imports',
+        ['import_position', 'import_wire', 'import_origin'],
       ],
     ] as const) {
       for (const name of names) {

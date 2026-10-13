@@ -1179,6 +1179,7 @@ pub fn interval_from_case_guard(input: CheckOutcome) -> IntervalValue {
 pub struct PointPayload {
     pub x: i64,
     pub y: i64,
+    pub wire_known: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1196,7 +1197,11 @@ pub fn point_null() -> PointValue {
     PointValue::Null
 }
 pub fn make_point_bits(x: i64, y: i64) -> PointValue {
-    PointValue::Value(PointPayload { x, y })
+    PointValue::Value(PointPayload {
+        x,
+        y,
+        wire_known: true,
+    })
 }
 pub fn make_point_value(x: f64, y: f64) -> PointValue {
     let x_bits = x.to_bits() as i64;

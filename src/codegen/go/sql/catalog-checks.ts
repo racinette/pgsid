@@ -565,7 +565,6 @@ const goRustAdapterSource = `func checkRustPoint[T any](field CheckOptional[T]) 
   if !field.Set { return checkruntime.PointUnknown() }
   if field.Null { return checkruntime.PointNull() }
   if value, ok := any(field.V).(checkruntime.PointValue); ok {
-    if value.Kind == checkruntime.PointValueValue { return checkruntime.MakePointBits(value.Value.X, value.Value.Y) }
     return value
   }
   return checkruntime.PointUnknown()

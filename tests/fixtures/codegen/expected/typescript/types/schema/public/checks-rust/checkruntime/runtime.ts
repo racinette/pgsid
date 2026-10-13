@@ -1377,9 +1377,10 @@ export function intervalFromCaseGuard(input: CheckOutcome): IntervalValue {
 export interface PointPayload {
     readonly x: bigint;
     readonly y: bigint;
+    readonly wireKnown: boolean;
 }
 function equalPointPayload(left: PointPayload, right: PointPayload): boolean {
-    return left.x === right.x && left.y === right.y;
+    return left.x === right.x && left.y === right.y && left.wireKnown === right.wireKnown;
 }
 export type PointValue = {
     readonly kind: "Unknown";
@@ -1410,7 +1411,7 @@ export function pointNull(): PointValue {
 export function makePointBits(x: bigint, y: bigint): PointValue {
     x = langruntime.checkedI64(x);
     y = langruntime.checkedI64(y);
-    return { kind: "Value", value: { x: x, y: y } };
+    return { kind: "Value", value: { x: x, y: y, wireKnown: true } };
 }
 export function makePointValue(x: number, y: number): PointValue {
     x = langruntime.checkedF64(x);

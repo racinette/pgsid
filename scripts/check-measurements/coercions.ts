@@ -1,3 +1,7 @@
+import {
+  pointInputForms,
+  deferredPointPlatformForms,
+} from '../../tests/sql-semantics/check-point-input-forms.js'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
@@ -25,6 +29,16 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.point',
+    suite: 'tests/sql-semantics/check-point-input.test.ts',
+    handled: pointInputForms,
+    deferred: deferredPointPlatformForms,
+    platformDependent: deferredPointPlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+  },
   {
     type: 'pg_catalog."interval"',
     suite: 'tests/sql-semantics/check-interval-input.test.ts',
@@ -67,7 +81,11 @@ export async function measureCoercions(pg: PGlite) {
     ).rows.map((type) => type.identity),
   )
   const probe = async (source: string, target: string) => {
-    const sql = `CAST(value AS ${target}) IS NOT DISTINCT FROM CAST(value AS ${target})`
+    const cast = `CAST(value AS ${target})`
+    const sql =
+      target === 'pg_catalog.point'
+        ? `point_send(${cast}) IS NOT DISTINCT FROM point_send(${cast})`
+        : `${cast} IS NOT DISTINCT FROM ${cast}`
     const columns = [
       {
         name: 'value',

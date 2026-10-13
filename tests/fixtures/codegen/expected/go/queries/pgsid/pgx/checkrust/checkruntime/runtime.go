@@ -1257,8 +1257,9 @@ func IntervalFromCaseGuard(input CheckOutcome) IntervalValue {
 }
 
 type PointPayload struct {
-	X int64
-	Y int64
+	X         int64
+	Y         int64
+	WireKnown bool
 }
 type PointValueKind uint8
 
@@ -1282,7 +1283,7 @@ func PointNull() PointValue {
 	return PointValue{Kind: PointValueNull}
 }
 func MakePointBits(x int64, y int64) PointValue {
-	return PointValue{Kind: PointValueValue, Value: PointPayload{X: x, Y: y}}
+	return PointValue{Kind: PointValueValue, Value: PointPayload{X: x, Y: y, WireKnown: true}}
 }
 func MakePointValue(x float64, y float64) PointValue {
 	xBits := langruntime.F64ToI64Bits(x)
