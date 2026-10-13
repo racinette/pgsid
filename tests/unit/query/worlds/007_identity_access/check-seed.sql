@@ -25,3 +25,27 @@ INSERT INTO revocation_requests (tenant_id, request_id, grant_id, requested_by, 
 INSERT INTO audit_events (event_id, tenant_id, subject_principal_id, event_kind, occurred_at, actor_label, detail) VALUES (10000, 1, 10, 'grant_removed', '2026-08-02 10:00+00', 'Daria', NULL);
 -- name: audit_detail_repeats_actor
 INSERT INTO audit_events (event_id, tenant_id, subject_principal_id, event_kind, occurred_at, actor_label, detail) VALUES (10000, 1, 10, 'grant_removed', '2026-08-02 10:00+00', 'Daria', 'Daria');
+-- name: membership_note_describes_source
+INSERT INTO group_memberships (tenant_id, group_id, principal_id, granted_at, source_note) VALUES (1, 100, 13, '2026-08-02 10:00+00', 'manual review');
+-- name: membership_note_repeats_principal
+INSERT INTO group_memberships (tenant_id, group_id, principal_id, granted_at, source_note) VALUES (1, 100, 13, '2026-08-02 10:00+00', '13');
+-- name: membership_without_source_note
+INSERT INTO group_memberships (tenant_id, group_id, principal_id, granted_at, source_note) VALUES (1, 100, 13, '2026-08-02 10:00+00', NULL);
+
+-- name: tenant_with_identity_and_no_suspension
+INSERT INTO tenants (id, tenant_slug, display_name, created_at, suspended_at, support_note) VALUES (10000, 'check-lab', 'Check Laboratory', '2026-01-01 08:00+00', NULL, NULL);
+
+-- name: tenant_suspended_at_creation
+INSERT INTO tenants (id, tenant_slug, display_name, created_at, suspended_at, support_note) VALUES (10000, 'check-lab', 'Check Laboratory', '2026-01-01 08:00+00', '2026-01-01 08:00+00', 'support desk');
+
+-- name: tenant_without_slug
+INSERT INTO tenants (id, tenant_slug, display_name, created_at, suspended_at, support_note) VALUES (10000, '', 'Check Laboratory', '2026-01-01 08:00+00', NULL, NULL);
+
+-- name: tenant_without_display_name
+INSERT INTO tenants (id, tenant_slug, display_name, created_at, suspended_at, support_note) VALUES (10000, 'check-lab', '', '2026-01-01 08:00+00', NULL, NULL);
+
+-- name: tenant_support_note_repeats_slug
+INSERT INTO tenants (id, tenant_slug, display_name, created_at, suspended_at, support_note) VALUES (10000, 'check-lab', 'Check Laboratory', '2026-01-01 08:00+00', NULL, 'check-lab');
+
+-- name: tenant_suspended_before_creation
+INSERT INTO tenants (id, tenant_slug, display_name, created_at, suspended_at, support_note) VALUES (10000, 'check-lab', 'Check Laboratory', '2026-01-01 08:00+00', '2026-01-01 07:59:59.999999+00', NULL);

@@ -542,6 +542,7 @@ export interface EnumInfo {
   values: string[]
   /** pg_enum label identities, aligned with values in catalog sort order. */
   valueOids?: number[]
+  outputFunction?: string
 }
 
 export interface DomainInfo {
@@ -551,6 +552,7 @@ export interface DomainInfo {
   oid: number
   baseTypeOid: number
   baseTypeName: string
+  baseTypeMod?: number
   /** Whether the base type, after unwrapping domains, has row NULL semantics. */
   isRowType?: boolean
   /** Whether text values of this domain use the C collation. */

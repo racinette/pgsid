@@ -366,6 +366,12 @@ fn infer_expr_type(
     locals: &Bindings,
     semantics: &Semantics,
 ) -> Result<Option<String>> {
+    if let Some((input, _, expected, result)) = crate::syntax::float_bits(value) {
+        if infer_expr_type(input, locals, semantics)?.as_deref() != Some(expected) {
+            return Err(format!("float bit conversion requires {expected}"));
+        }
+        return Ok(Some(result.into()));
+    }
     match value {
         Expr::Path(path) if path.path.segments.len() == 1 => Ok(locals
             .get(&path_name(&path.path))

@@ -27,6 +27,40 @@ try {
   }
   const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
   const sources = new Map<string, string>()
+  const callableIds = new Set(
+    [...catalog.functions, ...catalog.operators].map(({ metadata }) => callableIdentity(metadata)),
+  )
+  const btreeKeys = new Set<string>()
+  const ioKeys = new Set<string>()
+  for (const io of catalog.typeIO) {
+    if (ioKeys.has(io.identity)) throw new Error(`Duplicate type I/O identity: ${io.identity}`)
+    ioKeys.add(io.identity)
+    for (const identity of [io.input, io.output])
+      if (identity !== null && !callableIds.has(identity))
+        throw new Error(`Type I/O references an absent callable: ${identity}`)
+  }
+  sources.set(
+    'type-io.generated.ts',
+    `export const PG18_TYPE_IO = ${JSON.stringify(Object.fromEntries(catalog.typeIO.map((io) => [io.identity, io] as const).sort(([a], [b]) => compare(a, b))))} as const`,
+  )
+  for (const comparison of catalog.btreeComparisons) {
+    const key = JSON.stringify([comparison.operator, comparison.family, comparison.strategy])
+    if (btreeKeys.has(key)) throw new Error(`Duplicate B-tree comparison: ${key}`)
+    btreeKeys.add(key)
+    if (
+      !callableIds.has(comparison.operator) ||
+      (comparison.comparator !== null && !callableIds.has(comparison.comparator))
+    )
+      throw new Error(`B-tree comparison references an absent callable: ${key}`)
+  }
+  sources.set(
+    'btree-comparisons.generated.ts',
+    `export const PG18_BTREE_COMPARISONS = ${JSON.stringify(catalog.btreeComparisons)} as const`,
+  )
+  sources.set(
+    'type-resolution.generated.ts',
+    `export const PG18_TYPE_RESOLUTION = ${JSON.stringify(Object.fromEntries(catalog.types.map((type) => [type.identity, type] as const).sort(([a], [b]) => compare(a, b))))} as const`,
+  )
   const casts = new Map<string, (typeof catalog.casts)[number]>()
   for (const cast of catalog.casts) {
     const key = JSON.stringify([cast.source, cast.target])

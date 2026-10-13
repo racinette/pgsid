@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
 import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
+import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { callableIdentity } from '../../src/postgres/builtins/catalog.js'
 import { builtinMetadata } from '../../src/postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../src/postgres/builtins/taxonomy.js'
@@ -103,14 +104,15 @@ export async function measureSurface(pg: PGlite) {
     group.checks.map(({ plan }) => {
       const identity = `${group.source.schema}.${group.source.name}.${plan.name}`
       const outcome = outcomeByConstraint.get(identity)
+      const table = catalog.tables.find(
+        (table) => table.schema === group.source.schema && table.name === group.source.name,
+      )!
       return {
         identity,
-        definition: catalog.tables
-          .find(
-            (table) => table.schema === group.source.schema && table.name === group.source.name,
-          )!
-          .constraints.find((constraint) => constraint.name === plan.name)!.definition,
-        ...inspectExpression(plan.expression),
+        definition: table.constraints.find((constraint) => constraint.name === plan.name)!
+          .definition,
+        ...inspectExpression(plan.expression, table.columns),
+        writeRewrites: table.writeRewritesTree,
         outcomes: outcome ?? null,
         unknownCases: outcomes.cases
           .filter((row) =>
@@ -138,9 +140,12 @@ export async function measureSurface(pg: PGlite) {
     { name: 'flag', typeName: 'boolean' },
     { name: 'a', typeName: 'integer' },
     { name: 'b', typeName: 'integer' },
+    { name: 'stage', typeName: enumName },
+    { name: 'label', typeName: 'text', collationIsC: true },
   ]
+  const expressionEnums = (await snapshotCatalog(pg)).enums
   await pg.exec(
-    'CREATE TABLE public.check_measurement_expressions (flag boolean, a integer, b integer)',
+    `CREATE TABLE public.check_measurement_expressions (flag boolean, a integer, b integer, stage ${enumName}, label text COLLATE "C")`,
   )
   const expressions = []
   for (const sql of [
@@ -156,6 +161,8 @@ export async function measureSurface(pg: PGlite) {
     'GREATEST(a, b) > 0',
     'LEAST(a, b) > 0',
     'ROW(a, b) < ROW(b, a)',
+    'a::text IS NOT DISTINCT FROM b::text',
+    'stage::text IS NOT DISTINCT FROM label',
   ]) {
     await pg.exec(
       `ALTER TABLE public.check_measurement_expressions ADD CONSTRAINT probe CHECK (${sql})`,
@@ -164,9 +171,13 @@ export async function measureSurface(pg: PGlite) {
       await pg.query<{ definition: string }>(`SELECT pg_get_constraintdef(oid) AS definition
       FROM pg_constraint WHERE conrelid = 'public.check_measurement_expressions'::regclass AND conname = 'probe'`)
     ).rows[0]!.definition
-    const plan = lowerTableCheck({ columns }, { name: 'probe', type: 'check', definition: stored })
+    const plan = lowerTableCheck(
+      { columns },
+      { name: 'probe', type: 'check', definition: stored },
+      expressionEnums,
+    )
     assert.ok(plan)
-    const raw = bindProbe(sql, columns)
+    const raw = bindProbe(sql, columns, expressionEnums)
     const boundStored = inspectExpression(plan.expression)
     expressions.push({
       sql,

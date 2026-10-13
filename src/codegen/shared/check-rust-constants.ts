@@ -76,8 +76,31 @@ function prepare(expression: EvalExpression): Preparation | null {
       },
       operands: expression.operands,
     })
-  if (expression.kind === 'membership') {
-    const operands = prepareAll([expression.subject, ...expression.groups.flat()])
+  if (expression.kind === 'nullif') {
+    const operands = prepareAll(expression.operands)
+    if (!operands) return null
+    const nullResult = operands[0]!.null
+    return nullResult || operands.every((operand) => operand.constant)
+      ? constant(expression, nullResult)
+      : {
+          constant: false,
+          null: false,
+          expressions: operands.flatMap((operand) => operand.expressions),
+        }
+  }
+  if (
+    expression.kind === 'membership' ||
+    expression.kind === 'distinct' ||
+    expression.kind === 'minmax' ||
+    expression.kind === 'row-compare'
+  ) {
+    const operands = prepareAll(
+      expression.kind === 'row-compare'
+        ? expression.pairs.flatMap((pair) => pair.operands)
+        : expression.kind !== 'membership'
+          ? expression.operands
+          : [expression.subject, ...expression.groups.flat()],
+    )
     if (!operands) return null
     return operands.every((operand) => operand.constant)
       ? constant(expression)
@@ -111,6 +134,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'text-to-network' ||
     expression.kind === 'text-to-mac' ||
     expression.kind === 'mac-to-text' ||
+    expression.kind === 'io-to-text' ||
     expression.kind === 'text-to-uuid' ||
     expression.kind === 'text-to-bytea' ||
     expression.kind === 'uuid-to-text' ||
@@ -244,4 +268,11 @@ export function strictNullPreparation(
       return null
   } else if (expression.call.kind !== 'cast') return null
   return prepared.flatMap((operand) => operand.expressions)
+}
+
+export function nullifNullPreparation(
+  expression: Extract<EvalExpression, { kind: 'nullif' }>,
+): readonly ConstantPreparation[] | null {
+  const operands = prepareAll(expression.operands)
+  return operands?.[0]?.null ? operands.flatMap((operand) => operand.expressions) : null
 }

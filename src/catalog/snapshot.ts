@@ -212,6 +212,9 @@ interface EnumTypeRow {
   oid: number
   schema: string
   name: string
+  output_schema: string
+  output_name: string
+  output_args: string[]
 }
 
 interface EnumValueRow {
@@ -227,6 +230,7 @@ interface DomainRow {
   name: string
   base_type_oid: number
   base_type_name: string
+  base_type_mod: number
   is_row_type: boolean
   collation_is_c: boolean | null
   collation_deterministic: boolean | null
@@ -506,37 +510,39 @@ function bySchemaName<T extends { schema: string; name: string }>(a: T, b: T): n
  * query typechecking, codegen, selective re-typecheck, and future linting.
  */
 export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
-  return withEmptySearchPath(pg, () => readCatalog(pg))
+  return withCatalogRendering(pg, () => readCatalog(pg))
 }
 
 /**
- * Run `read` with an empty `search_path`, restoring the session's own value
- * afterwards.
- *
- * Every name in a snapshot is rendered by PostgreSQL — `format_type` for a
- * column's type, `pg_get_viewdef`, `pg_get_constraintdef`, `pg_get_expr` for a
- * default, `pg_get_function_result` — and each of them omits the schema
- * qualifier for whatever the current `search_path` makes visible. The same
- * unchanged database therefore describes itself differently depending on
- * session state: a column is `app.pct` from one session and `pct` from another,
- * and a view is `FROM app.t` or `FROM t`.
- *
- * Those strings are what the diff compares and what the nullability walk
- * resolves, so a name that shifts with session state is not an identity.
- * Emptying the path removes the choice rather than guessing which value was in
- * effect: `pg_catalog` is searched implicitly whatever the setting, so
- * built-ins keep their standard names (`integer`, not `pg_catalog.int4`) and
- * everything else comes out fully qualified.
+ * Render qualified names and constants with ISO/UTC dates and lossless floats.
+ * Restore the caller's settings after the read; these settings affect literal
+ * values embedded in constraint and default expressions.
  */
-async function withEmptySearchPath<T>(pg: PGlite, read: () => Promise<T>): Promise<T> {
-  const saved = (await pg.query<{ search_path: string }>('SHOW search_path;')).rows[0]?.search_path
-  await pg.query("SELECT set_config('search_path', '', false);")
+async function withCatalogRendering<T>(pg: PGlite, read: () => Promise<T>): Promise<T> {
+  const saved = (
+    await pg.query<{
+      search_path: string
+      date_style: string
+      time_zone: string
+      float_digits: string
+    }>(
+      `SELECT current_setting('search_path') AS search_path,
+      current_setting('DateStyle') AS date_style,current_setting('TimeZone') AS time_zone,
+      current_setting('extra_float_digits') AS float_digits`,
+    )
+  ).rows[0]!
+  await pg.query(`SELECT set_config('search_path','',false),
+    set_config('DateStyle','ISO, MDY',false),set_config('TimeZone','UTC',false),
+    set_config('extra_float_digits','3',false)`)
   try {
     return await read()
   } finally {
-    // Passing the value as a parameter means a path containing quotes — the
-    // default is `"$user", public` — needs no escaping on the way back.
-    await pg.query("SELECT set_config('search_path', $1, false);", [saved ?? ''])
+    await pg.query(
+      `SELECT set_config('search_path',$1,false),
+      set_config('DateStyle',$2,false),set_config('TimeZone',$3,false),
+      set_config('extra_float_digits',$4,false)`,
+      [saved.search_path, saved.date_style, saved.time_zone, saved.float_digits],
+    )
   }
 }
 
@@ -996,6 +1002,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       values: enumValuesByType.get(e.oid) ?? [],
       valueOids: enumOidsByType.get(e.oid) ?? [],
       oid: e.oid,
+      outputFunction: `function:${JSON.stringify([e.output_schema, e.output_name])}(${e.output_args.join(',')})`,
     }))
     .sort(bySchemaName)
 
@@ -1007,6 +1014,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       oid: d.oid,
       baseTypeOid: d.base_type_oid,
       baseTypeName: d.base_type_name,
+      baseTypeMod: d.base_type_mod,
       isRowType: d.is_row_type,
       collationIsC: d.collation_is_c,
       collationDeterministic: d.collation_deterministic,
@@ -1872,9 +1880,15 @@ async function queryOperators(pg: PGlite): Promise<OperatorRow[]> {
 
 async function queryEnumTypes(pg: PGlite): Promise<EnumTypeRow[]> {
   const res = await pg.query<EnumTypeRow>(
-    `SELECT t.oid, n.nspname AS schema, t.typname AS name
+    `SELECT t.oid, n.nspname AS schema, t.typname AS name,
+       pn.nspname AS output_schema, p.proname AS output_name,
+       (SELECT array_agg(quote_ident(an.nspname) || '.' || quote_ident(a.typname) ORDER BY u.ord)
+        FROM unnest(p.proargtypes) WITH ORDINALITY u(oid, ord)
+        JOIN pg_type a ON a.oid = u.oid JOIN pg_namespace an ON an.oid = a.typnamespace) AS output_args
      FROM pg_type t
      JOIN pg_namespace n ON n.oid = t.typnamespace
+     JOIN pg_proc p ON p.oid = t.typoutput
+     JOIN pg_namespace pn ON pn.oid = p.pronamespace
      WHERE t.typtype = 'e' AND ${USER_NS}
      ORDER BY n.nspname, t.typname;`,
   )
@@ -1897,6 +1911,7 @@ async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
      SELECT t.oid, n.nspname AS schema, t.typname AS name,
             t.typbasetype AS base_type_oid,
             format_type(t.typbasetype, null) AS base_type_name,
+            t.typtypmod AS base_type_mod,
             shape.is_row_type,
             CASE WHEN t.typcollation = 0 THEN NULL
                  ELSE t.typcollation = 'pg_catalog."C"'::regcollation

@@ -1,3 +1,40 @@
+pub fn enum_to_text(input: EnumValue, labels: &str, count: i32) -> TextValue {
+    if let EnumValue::Error(error) = input {
+        return TextValue::Error(error);
+    }
+    if input == EnumValue::Unknown {
+        return TextValue::Unknown;
+    }
+    if input == EnumValue::Null {
+        return TextValue::Null;
+    }
+    if let EnumValue::Value(value) = input {
+        if value.ordinal < 0 || value.ordinal >= count {
+            return TextValue::Unknown;
+        }
+        let chars: Vec<char> = labels.chars().collect();
+        let mut index: usize = 0;
+        let mut ordinal: i32 = 0;
+        let mut output = String::new();
+        while index < chars.len() {
+            let character = chars[index];
+            if character == '\0' {
+                if ordinal == value.ordinal {
+                    return TextValue::Value(output);
+                }
+                ordinal = ordinal + 1;
+            } else if ordinal == value.ordinal {
+                output.push(character);
+            }
+            index += 1;
+        }
+        if ordinal == value.ordinal {
+            return TextValue::Value(output);
+        }
+    }
+    TextValue::Unknown
+}
+
 pub fn sql__pg_catalog__enum_eq__w63e(left: EnumValue, right: EnumValue) -> BoolValue {
     if let EnumValue::Error(error) = left {
         return BoolValue::Error(error);

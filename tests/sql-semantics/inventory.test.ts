@@ -14,10 +14,15 @@ import {
   builtinMetadata,
   operatorMetadata,
   functionMetadata,
+  builtinBtreeComparisons,
+  builtinTypeIO,
 } from '../../src/postgres/builtins/inventory.js'
 import { builtinDomain } from '../../src/postgres/builtins/taxonomy.js'
 import { PG18_TYPE_NAMES } from '../../src/postgres/builtins/type-names.generated.js'
 import { PG18_BUILTIN_CASTS } from '../../src/postgres/builtins/casts.generated.js'
+import { PG18_TYPE_RESOLUTION } from '../../src/postgres/builtins/type-resolution.generated.js'
+import { PG18_BTREE_COMPARISONS } from '../../src/postgres/builtins/btree-comparisons.generated.js'
+import { PG18_TYPE_IO } from '../../src/postgres/builtins/type-io.generated.js'
 import type {
   CallableEmitter,
   CallableOperands,
@@ -59,6 +64,67 @@ describe('PostgreSQL builtin inventory', () => {
         expect(builtinDomain(row, PG18_TYPE_NAMES)).toBe(domain)
       }
     }
+  })
+
+  it('matches catalog type categories and preferred coercion targets', () => {
+    expect(new Set(catalog.types.map((type) => type.identity)).size).toBe(catalog.types.length)
+    expect(Object.fromEntries(catalog.types.map((type) => [type.identity, type]))).toEqual(
+      PG18_TYPE_RESOLUTION,
+    )
+    for (const [identity, category, preferred] of [
+      ['pg_catalog.text', 'S', true],
+      ['pg_catalog.bpchar', 'S', false],
+      ['pg_catalog.name', 'S', false],
+      ['pg_catalog.float8', 'N', true],
+      ['pg_catalog."numeric"', 'N', false],
+    ] as const)
+      expect(catalog.types.find((type) => type.identity === identity)).toEqual({
+        identity,
+        category,
+        preferred,
+      })
+  })
+
+  it('matches B-tree families, strategies and underlying comparison functions', () => {
+    expect(catalog.btreeComparisons).toEqual(PG18_BTREE_COMPARISONS)
+    for (const entry of catalog.btreeComparisons) {
+      expect(builtinMetadata(entry.operator).kind).toBe('operator')
+      if (entry.comparator !== null) {
+        const comparator = functionMetadata(entry.comparator)
+        expect(comparator.result).toBe('pg_catalog.int4')
+        expect(comparator.strict).toBe(true)
+      }
+      expect(builtinBtreeComparisons(entry.operator)).toContainEqual(entry)
+    }
+    const mixed = builtinBtreeComparisons(
+      'operator:["pg_catalog","<"](pg_catalog.int2,pg_catalog.int4)',
+    )
+    expect(mixed).toEqual([
+      {
+        operator: 'operator:["pg_catalog","<"](pg_catalog.int2,pg_catalog.int4)',
+        family: 'pg_catalog.integer_ops',
+        strategy: 1,
+        comparator: 'function:["pg_catalog","btint24cmp"](pg_catalog.int2,pg_catalog.int4)',
+      },
+    ])
+  })
+
+  it('matches type input/output identities independently of explicit cast links', () => {
+    expect(new Set(catalog.typeIO.map((io) => io.identity)).size).toBe(catalog.typeIO.length)
+    expect(Object.fromEntries(catalog.typeIO.map((io) => [io.identity, io]))).toEqual(PG18_TYPE_IO)
+    for (const io of catalog.typeIO) {
+      expect(builtinTypeIO(io.identity)).toEqual(io)
+      for (const identity of [io.input, io.output])
+        if (identity !== null) expect(functionMetadata(identity).kind).toBe('function')
+    }
+    for (const type of ['int2', 'int4', 'int8']) {
+      const identity = `pg_catalog.${type}`
+      expect(builtinCast(identity, 'pg_catalog.text')).toBeNull()
+      expect(builtinTypeIO(identity)?.output).toBe(
+        `function:["pg_catalog","${type}out"](${identity})`,
+      )
+    }
+    expect(builtinTypeIO('public.missing')).toBeNull()
   })
 
   it('uses the pinned catalog conversion functions for numeric casts', async () => {

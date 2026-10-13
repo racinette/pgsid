@@ -1,5 +1,5 @@
 import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-names.js'
-import { builtinCast, builtinMetadata } from '../../postgres/builtins/inventory.js'
+import { builtinCast, builtinMetadata, builtinTypeIO } from '../../postgres/builtins/inventory.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
@@ -8,6 +8,7 @@ import {
   constantCheckExpression,
   constantScalarExpression,
   strictNullPreparation,
+  nullifNullPreparation,
   type ConstantPreparation,
 } from './check-rust-constants.js'
 import {
@@ -72,6 +73,7 @@ export function emitCheckRustEvaluator(
   let preparationLines = constantLines
   const preparationState = 'constant_preparation'
   let preparationDepth = 0
+  let constantOperandDepth = 0
   const capturePreparation = <T>(emit: () => T): { value: T; lines: string[] } => {
     const outer = preparationLines
     const lines: string[] = []
@@ -161,12 +163,40 @@ export function emitCheckRustEvaluator(
     ['TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(rustType(operand.type))
       ? `${operand.name}.clone()`
       : operand.name
+  const scalarType = (operand: EvalExpression): string =>
+    operand.kind === 'certain'
+      ? operand.expression.type
+      : operand.kind === 'call'
+        ? operand.call.type
+        : operand.kind === 'regex-count'
+          ? 'pg_catalog.int4'
+          : operand.type
 
   const emitScalar = (
     node: EvalExpression,
     bindings: string[],
     used: Set<string>,
   ): { name: string; type: string } => {
+    if (
+      constantOperandDepth > 0 &&
+      preparationDepth === 0 &&
+      node.kind !== 'certain' &&
+      constantScalarExpression(node)
+    ) {
+      preparationDepth++
+      let value: { name: string; type: string }
+      try {
+        value = emitScalar(node, preparationLines, used)
+      } finally {
+        preparationDepth--
+      }
+      const kind = rustType(value.type)
+      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const name = fresh('prepared_operand')
+      constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
+      preparationLines.push(`${name} = ${ownedOperand(value)};`)
+      return { name, type: value.type }
+    }
     const value = emitScalarInner(node, bindings, used)
     if (preparationDepth > 0) {
       const prefix = rustType(value.type).slice(0, -'Value'.length).toLowerCase()
@@ -180,6 +210,18 @@ export function emitCheckRustEvaluator(
     }
     return value
   }
+  const emitPreparedOperand = (
+    node: EvalExpression,
+    bindings: string[],
+    used: Set<string>,
+  ): { name: string; type: string } => {
+    constantOperandDepth++
+    try {
+      return emitScalar(node, bindings, used)
+    } finally {
+      constantOperandDepth--
+    }
+  }
   const emitScalarInner = (
     node: EvalExpression,
     bindings: string[],
@@ -189,6 +231,70 @@ export function emitCheckRustEvaluator(
       const name = fresh('value')
       bindings.push(`let ${name} = ${call};`)
       return name
+    }
+    const emitConstantNull = (
+      type: string,
+      preparation: readonly ConstantPreparation[],
+    ): { name: string; type: string } => {
+      const kind = rustType(type)
+      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const guard = fresh('constant_guard')
+      const initial = fresh('constant_start')
+      preparationLines.push(`let ${initial} = make_bool_value(true);`)
+      preparationLines.push(`let mut ${guard}: CheckOutcome = check_from_bool(${initial});`)
+      const prepareExpression = (step: ConstantPreparation): void => {
+        let value: { name: string; type: string }
+        preparationDepth++
+        try {
+          value = emitScalar(step.expression, preparationLines, used)
+        } finally {
+          preparationDepth--
+        }
+        const operandPrefix = rustType(value.type).slice(0, -'Value'.length).toLowerCase()
+        const state = fresh('constant_state')
+        if (step.kind === 'value' || step.test === 'null') {
+          const nullness = fresh('constant_nullness')
+          preparationLines.push(
+            `let ${nullness} = ${operandPrefix}_is_null(${ownedOperand(value)});`,
+            `let ${state} = check_from_bool(${nullness});`,
+          )
+        } else {
+          if (value.type !== 'pg_catalog.bool')
+            throw new UnsupportedCheckRustExpression('Constant preparation guard must return bool')
+          preparationLines.push(`let ${state} = check_from_bool(${value.name});`)
+        }
+        preparationLines.push(`${guard} = constant_finish(${guard}, ${state});`)
+        if (step.kind === 'guard') {
+          const selected = capturePreparation(() => step.selected.forEach(prepareExpression))
+          const otherwise = capturePreparation(() => step.otherwise.forEach(prepareExpression))
+          const condition =
+            step.test === 'and'
+              ? `and_stops(${state}) == false`
+              : step.test === 'or'
+                ? `or_stops(${state}) == false`
+                : `case_guard_takes(${state})`
+          preparationLines.push(
+            `if case_guard_stops(${state}) == false {`,
+            `    if ${condition} {`,
+            ...indent(indent(selected.lines)),
+            '    } else {',
+            ...indent(indent(otherwise.lines)),
+            '    };',
+            '};',
+          )
+        }
+      }
+      preparation.forEach(prepareExpression)
+      const name = fresh('constant_null')
+      constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
+      preparationLines.push(
+        `${name} = ${prefix}_null();`,
+        `if case_guard_stops(${guard}) {`,
+        `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${guard});`,
+        '};',
+        `${preparationState} = constant_finish(${preparationState}, ${guard});`,
+      )
+      return { name, type }
     }
     const emitCall = (
       call: Extract<EvalExpression, { kind: 'call' }>['call'],
@@ -310,6 +416,44 @@ export function emitCheckRustEvaluator(
       if (operand.type !== 'pg_catalog."bit"' && operand.type !== 'pg_catalog.varbit')
         throw new UnsupportedCheckRustExpression('A bit output cast requires a bit value')
       return { name: bind(`bit_to_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'io-to-text') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const output = node.enum?.outputFunction ?? builtinTypeIO(operand.type)?.output
+      if (!output || output !== node.output)
+        throw new UnsupportedCheckRustExpression('Text output needs its catalog I/O identity')
+      const metadata = builtinMetadata(output)
+      if (
+        metadata.kind !== 'function' ||
+        metadata.result !== 'pg_catalog.cstring' ||
+        !metadata.strict ||
+        metadata.args.length !== 1 ||
+        metadata.args[0] !== (node.enum ? 'pg_catalog.anyenum' : operand.type)
+      )
+        throw new UnsupportedCheckRustExpression('Unsupported text output function')
+      if (node.enum) {
+        if (
+          operand.type !== enumType(node.enum) ||
+          node.enum.values.length > 2147483647 ||
+          node.enum.values.some((label) => label.includes('\0'))
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Enum text output needs its concrete label definition',
+          )
+        return {
+          name: bind(
+            `enum_to_text(${operand.name}, ${rustStringLiteral(node.enum.values.join('\0'))}, ${node.enum.values.length})`,
+          ),
+          type: node.type,
+        }
+      }
+      if (
+        !['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'].includes(operand.type) ||
+        metadata.volatility !== 'i'
+      )
+        throw new UnsupportedCheckRustExpression('Unsupported scalar text output')
+      const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
+      return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
     if (node.kind === 'text-to-bit') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -537,7 +681,7 @@ export function emitCheckRustEvaluator(
           type: node.type,
         }
       }
-      const operand = emitScalar(node.operand, bindings, used)
+      const operand = emitPreparedOperand(node.operand, bindings, used)
       const kind = rustType(operand.type)
       const helper = kind.slice(0, -'Value'.length).toLowerCase() + '_is_null'
       const result = bind(`${helper}(${ownedOperand(operand)})`)
@@ -549,82 +693,66 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'call') {
       const preparation = strictNullPreparation(node)
       if (preparation) {
-        const kind = rustType(node.call.type)
-        const prefix = kind.slice(0, -'Value'.length).toLowerCase()
-        const guard = fresh('constant_guard')
-        const initial = fresh('constant_start')
-        preparationLines.push(`let ${initial} = make_bool_value(true);`)
-        preparationLines.push(`let mut ${guard}: CheckOutcome = check_from_bool(${initial});`)
-        const prepareExpression = (step: ConstantPreparation): void => {
-          let value: { name: string; type: string }
-          preparationDepth++
-          try {
-            value = emitScalar(step.expression, preparationLines, used)
-          } finally {
-            preparationDepth--
-          }
-          const operandPrefix = rustType(value.type).slice(0, -'Value'.length).toLowerCase()
-          const state = fresh('constant_state')
-          if (step.kind === 'value' || step.test === 'null') {
-            const nullness = fresh('constant_nullness')
-            preparationLines.push(
-              `let ${nullness} = ${operandPrefix}_is_null(${ownedOperand(value)});`,
-              `let ${state} = check_from_bool(${nullness});`,
-            )
-          } else {
-            if (value.type !== 'pg_catalog.bool')
-              throw new UnsupportedCheckRustExpression(
-                'Constant preparation guard must return bool',
-              )
-            preparationLines.push(`let ${state} = check_from_bool(${value.name});`)
-          }
-          preparationLines.push(`${guard} = constant_finish(${guard}, ${state});`)
-          if (step.kind === 'guard') {
-            const selected = capturePreparation(() => step.selected.forEach(prepareExpression))
-            const otherwise = capturePreparation(() => step.otherwise.forEach(prepareExpression))
-            const condition =
-              step.test === 'and'
-                ? `and_stops(${state}) == false`
-                : step.test === 'or'
-                  ? `or_stops(${state}) == false`
-                  : `case_guard_takes(${state})`
-            preparationLines.push(
-              `if case_guard_stops(${state}) == false {`,
-              `    if ${condition} {`,
-              ...indent(indent(selected.lines)),
-              '    } else {',
-              ...indent(indent(otherwise.lines)),
-              '    };',
-              '};',
-            )
-          }
-        }
-        preparation.forEach(prepareExpression)
-        const name = fresh('constant_null')
-        constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
-        preparationLines.push(
-          `${name} = ${prefix}_null();`,
-          `if case_guard_stops(${guard}) {`,
-          `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${guard});`,
-          '};',
-          `${preparationState} = constant_finish(${preparationState}, ${guard});`,
-        )
+        const folded = emitConstantNull(node.call.type, preparation)
         return emitCall(
           node.call,
           node.operands.map((operand) => ({
             name: 'constant_operand',
-            type:
-              operand.kind === 'certain'
-                ? operand.expression.type
-                : operand.kind === 'call'
-                  ? operand.call.type
-                  : operand.kind === 'regex-count'
-                    ? 'pg_catalog.int4'
-                    : operand.type,
+            type: scalarType(operand),
           })),
           bindings,
-          { name, type: node.call.type },
+          folded,
         )
+      }
+      if (
+        preparationDepth === 0 &&
+        node.operands.some(
+          (operand) => operand.kind !== 'certain' && constantScalarExpression(operand),
+        )
+      ) {
+        const guard = fresh('constant_operand_null')
+        constantDeclarations.push(`let mut ${guard}: CheckOutcome = check_unknown();`)
+        const initial = fresh('constant_operand_start')
+        preparationLines.push(
+          `let ${initial} = make_bool_value(false);`,
+          `${guard} = check_from_bool(${initial});`,
+        )
+        const lines: string[] = []
+        const operands = node.operands.map((operand) => {
+          if (!constantScalarExpression(operand)) return emitScalar(operand, lines, used)
+          preparationDepth++
+          let value: { name: string; type: string }
+          try {
+            value = emitScalar(operand, preparationLines, used)
+          } finally {
+            preparationDepth--
+          }
+          const kind = rustType(value.type)
+          const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+          const name = fresh('constant_argument')
+          constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
+          const nullness = fresh('constant_argument_nullness')
+          const state = fresh('constant_argument_state')
+          preparationLines.push(
+            `${name} = ${ownedOperand(value)};`,
+            `let ${nullness} = ${prefix}_is_null(${ownedOperand({ name, type: value.type })});`,
+            `let ${state} = check_from_bool(${nullness});`,
+            `${guard} = or_finish(${guard}, ${state});`,
+          )
+          return { name, type: value.type }
+        })
+        const value = emitCall(node.call, operands, lines)
+        const kind = rustType(value.type)
+        const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+        const name = fresh('prepared_call')
+        bindings.push(
+          `let mut ${name}: ${kind} = ${prefix}_null();`,
+          `if case_guard_takes(${guard}) == false {`,
+          ...indent(lines),
+          `    ${name} = ${ownedOperand(value)};`,
+          '};',
+        )
+        return { name, type: value.type }
       }
       return emitCall(
         node.call,
@@ -640,6 +768,66 @@ export function emitCheckRustEvaluator(
       bindings.push(...outcome.lines)
       for (const input of outcome.inputs) used.add(input)
       return { name: bind(`bool_from_check(${outcome.name})`), type: node.type }
+    }
+    if (node.kind === 'distinct') {
+      const operands = node.operands.map((operand) => emitPreparedOperand(operand, bindings, used))
+      const nulls = operands.map((operand) => {
+        const helper = rustType(operand.type).slice(0, -'Value'.length).toLowerCase() + '_is_null'
+        return bind(`${helper}(${ownedOperand(operand)})`)
+      })
+      const name = fresh('distinct_result')
+      bindings.push(`let mut ${name}: CheckOutcome = distinct_nulls_finish(${nulls.join(', ')});`)
+      const lines: string[] = []
+      const comparison = emitCall(node.comparison, operands, lines)
+      const outcome = fresh('distinct_comparison')
+      bindings.push(
+        `if distinct_needs_comparison(${nulls.join(', ')}) {`,
+        ...indent(lines),
+        `    let ${outcome} = check_from_bool(${comparison.name});`,
+        `    ${name} = not_finish(${outcome});`,
+        '}',
+      )
+      const result = node.negated ? bind(`not_finish(${name})`) : name
+      return { name: bind(`bool_from_check(${result})`), type: node.type }
+    }
+    if (node.kind === 'nullif') {
+      if (scalarType(node.operands[0]) !== node.type)
+        throw new UnsupportedCheckRustExpression(
+          'NULLIF result type must match its coerced first operand',
+        )
+      const preparation = nullifNullPreparation(node)
+      if (preparation) {
+        emitCall(
+          node.comparison,
+          node.operands.map((operand) => ({ name: 'constant_operand', type: scalarType(operand) })),
+          [],
+          { name: 'constant_comparison', type: 'pg_catalog.bool' },
+        )
+        return emitConstantNull(node.type, preparation)
+      }
+      const first = emitPreparedOperand(node.operands[0], bindings, used)
+      const lines: string[] = []
+      const second = emitPreparedOperand(node.operands[1], lines, used)
+      const comparison = emitCall(node.comparison, [first, second], lines)
+      const guard = fresh('nullif_comparison')
+      lines.push(`let ${guard} = check_from_bool(${comparison.name});`)
+      const kind = rustType(node.type)
+      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const name = fresh('nullif_result')
+      lines.push(
+        `if case_guard_stops(${guard}) {`,
+        `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${guard});`,
+        `} else if case_guard_takes(${guard}) {`,
+        `    ${name} = ${prefix}_null();`,
+        '};',
+      )
+      bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
+      if (preparationDepth === 0 && constantScalarExpression(node.operands[0])) {
+        const nullness = bind(`${prefix}_is_null(${ownedOperand(first)})`)
+        const guard = bind(`check_from_bool(${nullness})`)
+        bindings.push(`if case_guard_takes(${guard}) == false {`, ...indent(lines), '};')
+      } else bindings.push(...lines)
+      return { name, type: node.type }
     }
     if (node.kind === 'membership') {
       if (!node.groups.length || node.groups.some((group) => !group.length))
@@ -679,6 +867,93 @@ export function emitCheckRustEvaluator(
         )
       }
       return { name: bind(`bool_from_check(${name})`), type: node.type }
+    }
+    if (node.kind === 'row-compare') {
+      if (node.pairs.length < 2)
+        throw new UnsupportedCheckRustExpression('Row ordering needs multiple fields')
+      const pairs = node.pairs.map((pair) => ({
+        ...pair,
+        operands: pair.operands.map((operand) => {
+          const lines: string[] = []
+          const prepared = capturePreparation(() => emitPreparedOperand(operand, lines, used))
+          preparationLines.push(...prepared.lines)
+          if (constantScalarExpression(operand)) {
+            bindings.push(...lines)
+            lines.length = 0
+          }
+          return { value: prepared.value, lines }
+        }),
+      }))
+      const name = fresh('row_ordering')
+      bindings.push(`let mut ${name}: Int4Value = make_int4_value(0);`)
+      for (const pair of pairs) {
+        const lines = pair.operands.flatMap((operand) => operand.lines)
+        const comparison = emitCall(
+          pair.comparison,
+          pair.operands.map((operand) => operand.value),
+          lines,
+        )
+        if (comparison.type !== 'pg_catalog.int4')
+          throw new UnsupportedCheckRustExpression('Row comparator must return int4')
+        bindings.push(
+          `if row_compare_continues(${name}) {`,
+          ...indent(lines),
+          `    ${name} = ${comparison.name};`,
+          '};',
+        )
+      }
+      return { name: bind(`row_compare_finish(${name}, ${node.strategy})`), type: node.type }
+    }
+    if (node.kind === 'minmax') {
+      if (
+        !node.operands.length ||
+        node.operands.some((operand) => scalarType(operand) !== node.type)
+      )
+        throw new UnsupportedCheckRustExpression('Invalid GREATEST/LEAST arguments')
+      const kind = rustType(node.type)
+      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const operands = node.operands.map((operand) => emitPreparedOperand(operand, bindings, used))
+      if (operands.length === 1) return operands[0]!
+      const name = fresh('minmax_result')
+      const selected = { name, type: node.type }
+      bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(operands[0]!)};`)
+      for (const operand of operands.slice(1)) {
+        const leftNull = bind(`${prefix}_is_null(${ownedOperand(selected)})`)
+        const rightNull = bind(`${prefix}_is_null(${ownedOperand(operand)})`)
+        const guard = fresh('minmax_choice')
+        bindings.push(
+          `let mut ${guard}: CheckOutcome = minmax_nulls_choose_right(${leftNull}, ${rightNull});`,
+        )
+        const lines: string[] = []
+        const metadata =
+          node.comparison.signature === null ? null : builtinMetadata(node.comparison.signature)
+        if (!metadata || metadata.args.length !== 2)
+          throw new UnsupportedCheckRustExpression('GREATEST/LEAST needs catalog ordering')
+        const compared = [selected, operand].map((value, index) => {
+          const type =
+            metadata.args[index] === 'pg_catalog.anyenum' ? node.type : metadata.args[index]!
+          return type === value.type
+            ? value
+            : emitCall(
+                { kind: 'cast', signature: null, type: type as typeof node.type },
+                [value],
+                lines,
+              )
+        })
+        const comparison = emitCall(node.comparison, compared, lines)
+        bindings.push(
+          `if distinct_needs_comparison(${leftNull}, ${rightNull}) {`,
+          ...indent(lines),
+          `    ${guard} = check_from_bool(${comparison.name});`,
+          '};',
+          `if case_guard_stops(${guard}) {`,
+          `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${guard});`,
+          `} else if case_guard_takes(${guard}) {`,
+          `    ${name} = ${ownedOperand(operand)};`,
+          '};',
+        )
+      }
+      return selected
     }
     if (node.kind === 'coalesce') {
       if (!node.operands.length)
@@ -812,6 +1087,20 @@ export function emitCheckRustEvaluator(
 
   type Emitted = { lines: string[]; name: string; inputs: Set<string> }
   const emit = (node: EvalBoolExpression): Emitted => {
+    if (node.kind === 'eval-test') {
+      const operand = emit(node.operand)
+      const tested = fresh('test_result')
+      const name = node.negated ? fresh('negated_test_result') : tested
+      return {
+        lines: [
+          ...operand.lines,
+          `let ${tested} = is_${node.test}_finish(${operand.name});`,
+          ...(node.negated ? [`let ${name} = not_finish(${tested});`] : []),
+        ],
+        name,
+        inputs: operand.inputs,
+      }
+    }
     if (node.kind === 'eval-boolean-logic') {
       if (node.operation === 'not') {
         if (node.operands.length !== 1)

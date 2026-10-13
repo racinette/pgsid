@@ -4,6 +4,9 @@ import { callableIdentity, readBuiltinCatalog } from '../../src/postgres/builtin
 import type { BuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
 import { PG18_BUILTINS_VERSION } from '../../src/postgres/builtins/groups.generated.js'
 import { PG18_BUILTIN_CASTS } from '../../src/postgres/builtins/casts.generated.js'
+import { PG18_TYPE_RESOLUTION } from '../../src/postgres/builtins/type-resolution.generated.js'
+import { PG18_BTREE_COMPARISONS } from '../../src/postgres/builtins/btree-comparisons.generated.js'
+import { PG18_TYPE_IO } from '../../src/postgres/builtins/type-io.generated.js'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../src/postgres/builtins/taxonomy.js'
 
@@ -34,6 +37,37 @@ export function verifyCatalog(catalog: BuiltinCatalog): void {
     Object.fromEntries(casts),
     PG18_BUILTIN_CASTS,
     'Live cast links differ from the generated inventory',
+  )
+  const types = catalog.types.map((type) => [type.identity, type] as const)
+  assert.equal(
+    new Set(types.map(([identity]) => identity)).size,
+    types.length,
+    'Duplicate type identity',
+  )
+  assert.deepEqual(
+    Object.fromEntries(types),
+    PG18_TYPE_RESOLUTION,
+    'Live type resolution metadata differs from the generated inventory',
+  )
+  const btreeKeys = catalog.btreeComparisons.map((entry) =>
+    JSON.stringify([entry.operator, entry.family, entry.strategy]),
+  )
+  const io = catalog.typeIO.map((entry) => [entry.identity, entry] as const)
+  assert.equal(
+    new Set(io.map(([identity]) => identity)).size,
+    io.length,
+    'Duplicate type I/O identity',
+  )
+  assert.deepEqual(
+    Object.fromEntries(io),
+    PG18_TYPE_IO,
+    'Live type I/O links differ from the generated inventory',
+  )
+  assert.equal(new Set(btreeKeys).size, btreeKeys.length, 'Duplicate B-tree comparison')
+  assert.deepEqual(
+    catalog.btreeComparisons,
+    PG18_BTREE_COMPARISONS,
+    'Live B-tree comparison links differ from the generated inventory',
   )
 }
 

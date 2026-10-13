@@ -24,6 +24,88 @@ fn path(path: &syn::Path, max_segments: usize) -> Result {
     Ok(())
 }
 
+fn unparenthesized(mut value: &Expr) -> Option<&Expr> {
+    loop {
+        match value {
+            Expr::Paren(node) if node.attrs.is_empty() => value = &node.expr,
+            Expr::Group(node) if node.attrs.is_empty() => value = &node.expr,
+            Expr::Paren(_) | Expr::Group(_) => return None,
+            _ => return Some(value),
+        }
+    }
+}
+
+fn cast_value<'a>(value: &'a Expr, target: &str) -> Option<&'a Expr> {
+    let Expr::Cast(cast) = unparenthesized(value)? else {
+        return None;
+    };
+    if !cast.attrs.is_empty()
+        || !matches!(&*cast.ty, Type::Path(name) if name.qself.is_none() && name.path.is_ident(target))
+    {
+        return None;
+    }
+    Some(&cast.expr)
+}
+
+fn bits_constructor<'a>(value: &'a Expr, owner: &str, word: &str) -> Option<&'a Expr> {
+    let Expr::Call(call) = unparenthesized(value)? else {
+        return None;
+    };
+    let Expr::Path(callee) = &*call.func else {
+        return None;
+    };
+    if !call.attrs.is_empty()
+        || call.args.len() != 1
+        || !callee.attrs.is_empty()
+        || callee.qself.is_some()
+        || path(&callee.path, 2).is_err()
+        || callee.path.segments.len() != 2
+        || callee.path.segments[0].ident != owner
+        || callee.path.segments[1].ident != "from_bits"
+    {
+        return None;
+    }
+    cast_value(&call.args[0], word)
+}
+
+pub(crate) fn float_bits(
+    value: &Expr,
+) -> Option<(&Expr, &'static str, &'static str, &'static str)> {
+    if let Some(bits) = bits_constructor(value, "f64", "u64") {
+        return Some((bits, "decode-double", "i64", "f64"));
+    }
+    if let Some(inner) = cast_value(value, "f64") {
+        if let Some(bits) = bits_constructor(inner, "f32", "u32") {
+            return Some((bits, "decode-single", "i32", "f64"));
+        }
+    }
+    for (target, operation, result) in [
+        ("i64", "encode-double", "i64"),
+        ("i32", "encode-single", "i32"),
+    ] {
+        let Some(inner) = cast_value(value, target) else {
+            continue;
+        };
+        let Expr::MethodCall(call) = unparenthesized(inner)? else {
+            continue;
+        };
+        if !call.attrs.is_empty()
+            || call.method != "to_bits"
+            || call.turbofish.is_some()
+            || !call.args.is_empty()
+        {
+            continue;
+        }
+        if target == "i64" {
+            return Some((&call.receiver, operation, "f64", result));
+        }
+        if let Some(input) = cast_value(&call.receiver, "f32") {
+            return Some((input, operation, "f64", result));
+        }
+    }
+    None
+}
+
 pub(crate) fn character_from_codepoint(call: &syn::ExprMethodCall) -> Option<(&Expr, &Expr)> {
     if !call.attrs.is_empty()
         || call.turbofish.is_some()
@@ -209,6 +291,9 @@ fn pat(pat: &Pat) -> Result {
 }
 
 fn expr(expr: &Expr) -> Result {
+    if let Some((value, _, _, _)) = float_bits(expr) {
+        return self::expr(value);
+    }
     match expr {
         Expr::Path(node) if node.attrs.is_empty() && node.qself.is_none() => path(&node.path, 2),
         Expr::Lit(node)

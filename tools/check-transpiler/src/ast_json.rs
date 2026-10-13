@@ -381,6 +381,9 @@ fn if_expr(node: &syn::ExprIf) -> Result<Value> {
 }
 
 fn expr(value: &Expr) -> Result<Value> {
+    if let Some((input, operation, _, _)) = crate::syntax::float_bits(value) {
+        return Ok(json!({"kind":"float-bits","operation":operation,"value":expr(input)?}));
+    }
     match value {
         Expr::Path(node) => Ok(json!({ "kind": "path", "segments": segments(&node.path) })),
         Expr::Lit(node) => match &node.lit {
@@ -1312,6 +1315,70 @@ mod immutable_record_rebinding_tests {
             "#[derive(Clone)] struct Work { value:String } pub fn f(input:Work)->Work { let mut work=input; work.value=String::new(); work }",
             "#[derive(Clone)] struct Work { value:String } pub fn f(input:Work)->Work { let work=input; work=Work {value:String::new()}; work }",
         ] { assert!(parse(source).is_err(), "{source}"); }
+    }
+}
+
+#[cfg(test)]
+mod float_bits_tests {
+    use super::parse;
+
+    #[test]
+    fn preserves_signed_ieee_carriers_without_admitting_unsigned_primitives() {
+        let source = include_str!("../float_bits_smoke.rs");
+        let ast: serde_json::Value = serde_json::from_str(&parse(source).unwrap()).unwrap();
+        for (index, operation) in [
+            "decode-double",
+            "encode-double",
+            "decode-single",
+            "encode-single",
+        ]
+        .iter()
+        .enumerate()
+        {
+            let expression = &ast["items"][index]["body"][0]["value"];
+            assert_eq!(expression["kind"], "float-bits");
+            assert_eq!(expression["operation"], *operation);
+            assert_eq!(expression["value"]["kind"], "path");
+        }
+        for source in [
+            "pub fn f(x:i64)->f64 {(f64::from_bits((x as u64)))}",
+            "pub fn f(x:i32)->f64 {(f32::from_bits((x as u32))) as f64}",
+            "pub fn f(x:f64)->i64 {(x.to_bits()) as i64}",
+            "pub fn f(x:f64)->i32 {((x as f32).to_bits()) as i32}",
+        ] {
+            assert!(parse(source).is_ok(), "{source}");
+        }
+    }
+
+    #[test]
+    fn rejects_other_widths_types_and_conversion_shapes() {
+        for source in [
+            "pub fn f(x:i32)->f64 {f64::from_bits(x as u64)}",
+            "pub fn f(x:i64)->f64 {f32::from_bits(x as u32) as f64}",
+            "pub fn f(x:bool)->i64 {x.to_bits() as i64}",
+            "pub fn f(x:i32)->i32 {(x as f32).to_bits() as i32}",
+            "pub fn f(x:f64)->i32 {x.to_bits() as i32}",
+            "pub fn f(x:f64)->i64 {(x as f32).to_bits() as i64}",
+            "pub fn f(x:f64)->f64 {x as f32}",
+            "pub fn f(x:f32)->f64 {x as f64}",
+            "pub fn f(x:i32)->f32 {f32::from_bits(x as u32)}",
+            "pub fn f(x:i64)->f64 {f64::from_bits(x)}",
+            "pub fn f(x:i64)->f64 {f64::from_bits(x as u32)}",
+            "pub fn f(x:i32)->f64 {f32::from_bits(x as u64) as f64}",
+            "pub fn f(x:i64)->f64 {f64::from_bits::<u64>(x as u64)}",
+            "pub fn f(x:i64)->f64 {f64::from_bits(x as u64, x as u64)}",
+            "pub fn f(x:f64)->i64 {x.to_bits(0) as i64}",
+            "pub fn f(x:f64)->i64 {x.to_bits::<u64>() as i64}",
+            "pub fn f(x:i64)->u64 {x as u64}",
+            "pub fn f(x:i32)->u32 {x as u32}",
+            "pub fn f(x:f64)->i64 {x as i64}",
+            "pub fn f(x:u64)->f64 {f64::from_bits(x)}",
+            "struct V {x:f64} pub fn f()->bool {true}",
+            "enum V {Value(f64)} pub fn f()->bool {true}",
+            "pub fn f(x:i64)->f64 {f64::from_bits((#[allow(unused)] x) as u64)}",
+        ] {
+            assert!(parse(source).is_err(), "{source}");
+        }
     }
 }
 

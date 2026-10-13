@@ -33,8 +33,37 @@ export type EvalExpression =
       operation: 'and' | 'or'
     }
   | { kind: 'null-test'; type: 'pg_catalog.bool'; negated: boolean; operand: EvalExpression }
+  | {
+      kind: 'distinct'
+      type: 'pg_catalog.bool'
+      negated: boolean
+      operands: readonly [EvalExpression, EvalExpression]
+      comparison: SqlCallableExpression
+    }
   | { kind: 'input-null-test'; type: 'pg_catalog.bool'; negated: boolean; name: string }
+  | {
+      kind: 'nullif'
+      type: ScalarType
+      operands: readonly [EvalExpression, EvalExpression]
+      comparison: SqlCallableExpression
+    }
   | { kind: 'coalesce'; type: ScalarType; operands: readonly EvalExpression[] }
+  | {
+      kind: 'row-compare'
+      type: 'pg_catalog.bool'
+      strategy: 1 | 2 | 4 | 5
+      pairs: readonly {
+        operands: readonly [EvalExpression, EvalExpression]
+        comparison: SqlCallableExpression
+      }[]
+    }
+  | {
+      kind: 'minmax'
+      type: ScalarType
+      operation: 'greatest' | 'least'
+      operands: readonly EvalExpression[]
+      comparison: SqlCallableExpression
+    }
   | {
       kind: 'text-to-network'
       type: 'pg_catalog.inet' | 'pg_catalog.cidr'
@@ -46,6 +75,13 @@ export type EvalExpression =
       operand: EvalExpression
     }
   | { kind: 'mac-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
+  | {
+      kind: 'io-to-text'
+      type: 'pg_catalog.text'
+      operand: EvalExpression
+      output: string
+      enum?: EnumDefinition
+    }
   | { kind: 'text-to-uuid'; type: 'pg_catalog.uuid'; operand: EvalExpression }
   | { kind: 'text-to-bytea'; type: 'pg_catalog.bytea'; operand: EvalExpression }
   | { kind: 'uuid-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
@@ -202,12 +238,17 @@ export function emitEvalExpression<Ast>(
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }
     if (
+      node.kind === 'distinct' ||
+      node.kind === 'nullif' ||
+      node.kind === 'minmax' ||
+      node.kind === 'row-compare' ||
       node.kind === 'text-to-date' ||
       node.kind === 'text-to-timestamp' ||
       node.kind === 'text-to-timestamptz' ||
       node.kind === 'text-to-network' ||
       node.kind === 'text-to-mac' ||
       node.kind === 'mac-to-text' ||
+      node.kind === 'io-to-text' ||
       node.kind === 'text-to-uuid' ||
       node.kind === 'text-to-bytea' ||
       node.kind === 'uuid-to-text' ||

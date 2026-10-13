@@ -30,3 +30,17 @@ INSERT INTO grid_incidents (id, node_id, reading_id, status, severity, opened_at
 INSERT INTO dispatch_actions (id, incident_id, operator_name, dispatched_at, suppression_reason) VALUES (10000, 1, 'North Desk', '2026-08-02 10:00+00', NULL);
 -- name: missing_reading_without_note
 INSERT INTO meter_readings (id, meter_id, observed_at, quality, demand_mw, voltage_kv, note) VALUES (10000, 1, '2026-08-02 10:00+00', 'missing', NULL, NULL, NULL);
+-- name: missing_reading_note_describes_evidence
+INSERT INTO meter_readings (id, meter_id, observed_at, quality, demand_mw, voltage_kv, note) VALUES (10000, 1, '2026-08-02 10:00+00', 'missing', NULL, NULL, 'telemetry gap');
+-- name: missing_reading_note_repeats_quality
+INSERT INTO meter_readings (id, meter_id, observed_at, quality, demand_mw, voltage_kv, note) VALUES (10000, 1, '2026-08-02 10:00+00', 'missing', NULL, NULL, 'missing');
+-- name: missing_reading_note_has_different_case
+INSERT INTO meter_readings (id, meter_id, observed_at, quality, demand_mw, voltage_kv, note) VALUES (10000, 1, '2026-08-02 10:00+00', 'missing', NULL, NULL, 'Missing');
+-- name: accepted_reading_note_describes_evidence
+INSERT INTO meter_readings (id, meter_id, observed_at, quality, demand_mw, voltage_kv, note) VALUES (10000, 1, '2026-08-02 10:00+00', 'accepted', 10, 110, 'validated telemetry');
+-- name: accepted_reading_note_repeats_quality
+INSERT INTO meter_readings (id, meter_id, observed_at, quality, demand_mw, voltage_kv, note) VALUES (10000, 1, '2026-08-02 10:00+00', 'accepted', 10, 110, 'accepted');
+-- name: suppressed_reading_note_describes_evidence
+INSERT INTO meter_readings (id, meter_id, observed_at, quality, demand_mw, voltage_kv, suppressed_at, note) VALUES (10000, 1, '2026-08-02 10:00+00', 'suppressed', NULL, NULL, '2026-08-02 11:00+00', 'maintenance');
+-- name: suppressed_reading_note_repeats_quality
+INSERT INTO meter_readings (id, meter_id, observed_at, quality, demand_mw, voltage_kv, suppressed_at, note) VALUES (10000, 1, '2026-08-02 10:00+00', 'suppressed', NULL, NULL, '2026-08-02 11:00+00', 'suppressed');

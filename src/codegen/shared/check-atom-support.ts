@@ -38,6 +38,7 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
       value.kind === 'text-to-network' ||
       value.kind === 'text-to-mac' ||
       value.kind === 'mac-to-text' ||
+      value.kind === 'io-to-text' ||
       value.kind === 'text-to-uuid' ||
       value.kind === 'text-to-bytea' ||
       value.kind === 'uuid-to-text' ||
@@ -60,6 +61,27 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
         subject: scalar(value.subject),
         groups: value.groups.map((group) => group.map(scalar)),
       }
+    if (value.kind === 'distinct' || value.kind === 'nullif')
+      return value.comparison.signature !== null && portable(value.comparison.signature, rustNames)
+        ? { ...value, operands: [scalar(value.operands[0]), scalar(value.operands[1])] }
+        : { kind: 'uncertain', type: value.type }
+    if (value.kind === 'minmax')
+      return value.comparison.signature !== null && portable(value.comparison.signature, rustNames)
+        ? { ...value, operands: value.operands.map(scalar) }
+        : { kind: 'uncertain', type: value.type }
+    if (value.kind === 'row-compare')
+      return value.pairs.every(
+        (pair) =>
+          pair.comparison.signature !== null && portable(pair.comparison.signature, rustNames),
+      )
+        ? {
+            ...value,
+            pairs: value.pairs.map((pair) => ({
+              ...pair,
+              operands: [scalar(pair.operands[0]), scalar(pair.operands[1])],
+            })),
+          }
+        : { kind: 'uncertain', type: value.type }
     if (value.kind === 'null-test') return { ...value, operand: scalar(value.operand) }
     if (value.kind === 'case')
       return {

@@ -18,8 +18,9 @@ Measure each boundary separately:
 | Evidence                                 | What it measures                                                                      |
 | ---------------------------------------- | ------------------------------------------------------------------------------------- |
 | `artifacts/check-surface/report.json`    | Catalog overloads, operator aliases, binding probes, and uncertain corpus expressions |
-| `artifacts/check-type-audit/report.json` | Base-type representation and basic expression preparation                             |
+| `artifacts/check-type-audit/report.json` | Catalog type representations, row shape, and basic expression preparation             |
 | `artifacts/check-worlds/report.json`     | Actual INSERT outcomes, Unknown results, and unexercised constraints                  |
+| `artifacts/check-coercions/report.json`  | Explicit cast pairs and runtime text conversions, compared in raw/stored CHECKs       |
 
 Generated artifacts are ignored by Git. The census and type-audit producers live
 under maintained `scripts/check-measurements/`.
@@ -35,9 +36,13 @@ executed outcomes, rather than preparation success alone. Legacy target bindings
 and catalog function counts are separate from Rust CHECK coverage; dedicated
 regex paths can work without a catalog-named implementation.
 
-The type report separates nullness from portable value representation. The
-surface report verifies live callable and cast identities, records raw/stored
-expression probes, and joins bound corpus expressions to executed world outcomes.
+The type report separates nullness from portable value representation and uses
+catalog row shape for column probes. Column admission is probed in PostgreSQL;
+rejected types remain inventoried without column probes. The surface report
+verifies live callable and cast identities, records raw/stored expression probes,
+and joins bound corpus expressions to executed world outcomes. Required generated
+inputs and write hooks remain visible beside those outcomes. Values before a
+BEFORE ROW hook can differ from the values PostgreSQL checks.
 Callable candidates, context requirements, new representations, and expression
 gaps remain separate. Surface measurement rejects world outcomes whose input
 fingerprint differs from the current corpus.
@@ -54,13 +59,13 @@ from ignored artifacts. Keep generated results separate from maintained sources.
 
 ## Close expression gaps on represented values
 
-- [ ] Boolean tests: `IS TRUE`, `IS FALSE`, `IS UNKNOWN`, and their negations.
-- [ ] Null-safe equality: `IS DISTINCT FROM` and `IS NOT DISTINCT FROM`.
-- [ ] `NULLIF`, including catalog equality resolution and result typing.
-- [ ] `GREATEST` and `LEAST`, including common types and PostgreSQL NULL rules.
-- [ ] Row comparisons, including element ordering and NULL behavior.
+- [x] Boolean tests: `IS TRUE`, `IS FALSE`, `IS UNKNOWN`, and their negations.
+- [x] Null-safe equality: `IS DISTINCT FROM` and `IS NOT DISTINCT FROM`.
+- [x] `NULLIF`, including catalog equality resolution and result typing.
+- [x] `GREATEST` and `LEAST`, including common types and PostgreSQL NULL rules.
+- [x] Row comparisons, including element ordering and NULL behavior.
 
-Start with Boolean tests. Verify each form independently, including NULL,
+Verify each form independently, including NULL,
 Unknown, SQL errors, type resolution, and evaluation behavior. Compare raw SQL
 and stored CHECK definitions. Unknown has no PostgreSQL counterpart and needs
 explicit partial-input cases in addition to database comparisons.
@@ -72,12 +77,12 @@ are a separate prerequisite if a row-comparison slice requires them.
 
 ## Resolve uncertain corpus expressions
 
-- [ ] Investigate casts from timestamptz to date in the energy-grid world.
-- [ ] Investigate enum-to-text comparisons in the energy-grid world.
-- [ ] Investigate integer-to-text comparisons in the identity-access,
+- [x] Investigate casts from timestamptz to date in the energy-grid world.
+- [x] Investigate enum-to-text comparisons in the energy-grid world.
+- [x] Investigate integer-to-text comparisons in the identity-access,
       inventory-allocation, and lab-calibration worlds.
-- [ ] Investigate timestamp-to-text comparisons in the claim-routing world.
-- [ ] Diagnose the Unknown result for
+- [x] Investigate timestamp-to-text comparisons in the claim-routing world.
+- [x] Diagnose the Unknown result for
       `008_inventory_allocation/movement_increases_quantity`, constraint
       `movement_classification_inputs`.
 
@@ -92,9 +97,9 @@ assumption about server settings.
 
 ## Expand world INSERT coverage
 
-- [ ] Add named INSERTs for the report's unexercised constraints, starting with
+- [x] Add named INSERTs for the report's unexercised constraints, starting with
       constraints already fully bound on represented values.
-- [ ] Add passing, rejecting, NULL, boundary, and reached-error cases as relevant;
+- [x] Add passing, rejecting, NULL, boundary, and reached-error cases as relevant;
       include branch cases that demonstrate skipped errors.
 - [ ] Keep new supported expression and callable slices covered by world INSERTs.
 
@@ -108,9 +113,15 @@ unexercised cases explicitly rather than treating them as passes.
 
 ## Complete parsing and coercion boundaries
 
+- [x] Measure explicit catalog cast pairs on represented values and their runtime
+      text input/output paths, separating PostgreSQL admission from raw/stored binding.
+- [x] Bind catalog function casts from Boolean, inet, and cidr to character types,
+      including actual argument types, width modifiers, domains, and expression composition.
 - [ ] Inventory unsupported input forms and coercions for represented types.
-- [ ] Expand temporal text parsing in bounded, independently testable slices.
-- [ ] Assess precision modifiers, assignment coercion, and raw query-parameter
+- [x] Share handled and deferred temporal input-form cases between their parity
+      suites and the coercion report, retaining the executing owner of each list.
+- [x] Expand temporal text parsing in bounded, independently testable slices.
+- [x] Assess precision modifiers, assignment coercion, and raw query-parameter
       conversion separately from already SQL-coerced row inputs.
 - [ ] Verify casts through catalog links, including domains and mixed-type
       expressions, without selecting overloads by implementation availability.
@@ -144,23 +155,47 @@ and internal/cstring interfaces are not an automatic CHECK implementation queue.
 
 ## Expand value representations
 
-Choose the next family after the preceding expression and corpus work. This is
-an assessment queue, not authorization to implement every family at once:
+Implement the remaining concrete PostgreSQL value families after the preceding
+expression and corpus work. Complete one bounded slice through the completion
+gate before expanding it. Use this dependency order unless implementation
+exposes a prerequisite:
 
+- [x] Establish IEEE bit conversion primitives before floating-point values,
+      casts, comparisons, and binary I/O.
+- [x] Preserve lossless floating-point literals when reading catalog CHECKs
+      and defaults, restoring the caller's rendering settings after the read.
 - [ ] Floating point (`float4`, `float8`).
 - [ ] Time and interval (`time`, `timetz`, `interval`).
-- [ ] JSON and JSONB, with JSONPath assessed separately.
+- [ ] JSON and JSONB.
+- [ ] JSONPath, after JSON value operations.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
-- [ ] Ranges and multiranges.
-- [ ] Geometry, full-text search, XML values, money, and catalog-oriented types.
+- [ ] Ranges and multiranges, after their subtype operations.
+- [ ] Composite values, including field identity, access, and row NULL semantics.
+- [ ] Geometry, after public floating-point support.
+- [ ] Full-text search values and operations, with configuration requirements explicit.
+- [ ] XML values, with document/content and execution-context requirements explicit.
+- [ ] Money, with scale and locale requirements explicit.
+- [ ] Catalog/system values, separating portable payload operations from database lookup.
+- [ ] Classify remaining internal and pseudo-types, with tested context requirements
+      or exclusion from the public value contract.
 
 Use the type audit to enumerate the entire remaining surface, including internal
 types. XML text predicates do not establish an XML value representation; private
 floating-point helpers do not establish public SQL float support.
 
-Done per family when its portable values, input conversion, literals, casts,
-core operations, expression composition, and world INSERT parity work together.
+Done per family when its portable values, SQL-coerced row input conversion,
+literals, catalog-resolved casts, applicable comparisons, core operations,
+expression composition, and world INSERT parity work together. Preserve distinct
+SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsing,
+session-dependent behavior, and unimplemented callables visible in the reports;
+representation support alone does not complete them.
+
+Assess recursive values and ownership before arrays, JSON, and composites.
 Establish representation or dialect changes before porting dependent callables.
+Catalog identities and pseudo-types are not independent implementation tasks:
+array instances share a family, and polymorphic signatures resolve to concrete
+values. Database lookups and internal server interfaces require explicit
+requirements rather than fabricated local results.
 
 ## Completion gate for implementation tasks
 
@@ -172,4 +207,4 @@ For each implementation task, run the applicable `AGENTS.md` gates: rebuild
 assets, execute the full CHECK gate, verify codegen goldens, and run typecheck,
 maintained-code lint/format, and corpus health checks. Include parser/transpiler
 checks when those foundations change. Refresh measurements after the verified
-change and update this ledger. Commit only when requested.
+change and update this ledger. Commit each verified slice.

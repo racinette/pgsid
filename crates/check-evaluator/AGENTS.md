@@ -254,7 +254,8 @@ import them. Keep schema-only helpers with their callables.
 - Text-to-date casts and date literals use the same maintained Rust parser.
   Its supported forms are year-first ISO dates with at least four year digits,
   one or two month/day digits, optional case-insensitive BC/AD suffixes, ASCII
-  whitespace, and signed infinities. Invalid supported calendar values return
+  whitespace, signed infinities, and the context-independent `epoch` token.
+  Invalid supported calendar values return
   SQLSTATE 22008; empty text and a missing final day return 22007. Other forms
   and text longer than PostgreSQL's date input buffer remain unknown. Do not
   parse dates with a target's native date library or assume a session DateStyle.
@@ -293,17 +294,20 @@ import them. Keep schema-only helpers with their callables.
   fields as timestamptz, plus a date alone and a time without an offset. An
   explicit Z or numeric offset is validated and then ignored, matching
   PostgreSQL. Both parsers share calendar construction and text decoding in
-  Rust. Named zones, context-dependent spellings, longer fractions, precision
+  Rust. Fractional input uses nearest-even microsecond rounding and can carry
+  into the next day; epoch denotes the Unix epoch without session interpretation.
+  Named zones, context-dependent spellings, precision
   coercions, other formats, and oversized text remain unknown.
 - Text-to-timestamptz casts and literals use the same Rust parser. It accepts
   year-first ISO dates with at least four year digits, a time separated by T
   or ASCII whitespace, and an explicit Z or numeric offset. Fractional seconds
-  accept one through six digits; seconds may be omitted. Numeric offsets accept
+  round to microseconds using nearest-even binary fractional conversion;
+  seconds may be omitted. Numeric offsets accept
   hour, compact hour/minute, or colon-separated hour/minute/second forms.
-  BC/AD suffixes, ASCII whitespace, and signed infinities are supported.
+  BC/AD suffixes, ASCII whitespace, signed infinities, and epoch are supported.
   Invalid supported calendar/time values return 22008, offsets return 22009,
   and empty text returns 22007. Named or implicit timezones, other formats,
-  longer fractions, timestamp precision modifiers, and oversized input remain
+  timestamp precision modifiers and oversized input remain
   unknown. Range checks apply after offset adjustment. Keep timezone databases,
   session settings, and native date libraries out of target adapters.
 - Extend world schema and `check-seed.sql` fixtures with accepted, rejected, and
