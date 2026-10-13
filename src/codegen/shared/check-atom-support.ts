@@ -32,6 +32,7 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
   const rustNames = checkRustCallableNames()
   const scalar = (value: EvalExpression): EvalExpression => {
     if (
+      value.kind === 'clock-to-text' ||
       value.kind === 'text-to-interval' ||
       value.kind === 'text-to-clock' ||
       value.kind === 'text-to-date' ||

@@ -66,6 +66,9 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/time_core.rs");
     include!("operations/pg_catalog/time_arithmetic.rs");
     include!("operations/pg_catalog/time_constructors.rs");
+    include!("operations/pg_catalog/interval_math.rs");
+    include!("operations/pg_catalog/interval_calendar.rs");
+    include!("operations/pg_catalog/time_output.rs");
     include!("operations/pg_catalog/float_core.rs");
     include!("operations/pg_catalog/float_arithmetic.rs");
     include!("operations/pg_catalog/float_input.rs");

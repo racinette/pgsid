@@ -171,6 +171,8 @@ exposes a prerequisite:
 - [x] Establish interval unit, clock, and ISO designator input, lossless catalog
       literals, and explicit IntervalStyle requirements.
 - [x] Establish compact interval grammar, clock precision and scalar time constructors.
+- [x] Establish interval scaling, calendar arithmetic, precision-aware literals,
+      and clock input/output.
 - [ ] Time and interval (`time`, `timetz`, `interval`).
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.

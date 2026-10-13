@@ -132,6 +132,7 @@ describe('portable Rust CHECK dates', () => {
       "a > '2000-01-01'::timestamp",
       'a + 1 > b',
       'a::timestamp >= b::timestamp',
+      "a + interval '1 day' > b",
     ]) {
       const expression = bind(sql)
       expect(expression.kind, sql).not.toBe('uncertain')
@@ -144,12 +145,8 @@ describe('portable Rust CHECK dates', () => {
       expect(group.checks[0]!.kind, sql).toBe('supported')
     }
   })
-  it('defers session-dependent timestamps and unrepresented interval arithmetic', () => {
-    for (const sql of [
-      "a > '2000-01-01+00'::timestamptz",
-      'a::timestamptz IS NOT NULL',
-      "a + interval '1 day' > b",
-    ]) {
+  it('defers session-dependent timestamp conversions', () => {
+    for (const sql of ["a > '2000-01-01+00'::timestamptz", 'a::timestamptz IS NOT NULL']) {
       const expression = bind(sql)
       const group = prepareCheckRustGroup([
         {

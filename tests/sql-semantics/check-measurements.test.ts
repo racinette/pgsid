@@ -150,6 +150,11 @@ describe('CHECK measurement boundaries', () => {
       const input = report.textInput.find((entry) => entry.type === type)!
       expect(input.probe.raw.fullyBound).toBe(true)
       expect(input.probe.stored!.fullyBound).toBe(true)
+      const output = report.textOutput.find((entry) => entry.type === type)!
+      expect(output.probe.raw.fullyBound).toBe(true)
+      expect(output.probe.stored!.fullyBound).toBe(true)
+      const forms = report.inputForms.types.find((forms) => forms.type === type)!
+      expect(forms).toMatchObject({ unimplementedGrammar: [] })
     }
     const intervalInput = report.textInput.find((entry) => entry.type === 'pg_catalog."interval"')!
     expect(intervalInput.probe.raw.fullyBound).toBe(true)

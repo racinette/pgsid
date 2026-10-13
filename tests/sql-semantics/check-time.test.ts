@@ -305,7 +305,10 @@ describe('time, timetz and interval CHECK values', () => {
       CONSTRAINT span_equal CHECK (span = local_time::interval),
       CONSTRAINT local_precision CHECK (local_time::time(0) = pg_catalog.time(local_time,0)),
       CONSTRAINT zoned_precision CHECK (zoned_time::timetz(3) = pg_catalog.timetz(zoned_time,3)),
-      CONSTRAINT span_finite CHECK (isfinite(span)))`)
+      CONSTRAINT span_finite CHECK (isfinite(span)),
+      CONSTRAINT local_output_roundtrip CHECK (local_time::text::time = local_time),
+      CONSTRAINT zoned_output_roundtrip CHECK (zoned_time::text::timetz = zoned_time),
+      CONSTRAINT span_justify CHECK (justify_interval(span) = span))`)
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find((table) => table.name === 'clock_public')!
     const ts = renderTypescriptSchemaCheckArtifacts([table], catalog.domains)
@@ -375,8 +378,11 @@ describe('time, timetz and interval CHECK values', () => {
           local_precision: boolean | null
           zoned_precision: boolean | null
           span_finite: boolean | null
+          local_output_roundtrip: boolean | null
+          zoned_output_roundtrip: boolean | null
+          span_justify: boolean | null
         }>(
-          'SELECT $1::time = $2::timetz::time local_equal, $3::interval = $1::time::interval span_equal, $1::time::time(0) = pg_catalog.time($1::time,0) local_precision, $2::timetz::timetz(3) = pg_catalog.timetz($2::timetz,3) zoned_precision, isfinite($3::interval) span_finite',
+          'SELECT $1::time = $2::timetz::time local_equal, $3::interval = $1::time::interval span_equal, $1::time::time(0) = pg_catalog.time($1::time,0) local_precision, $2::timetz::timetz(3) = pg_catalog.timetz($2::timetz,3) zoned_precision, isfinite($3::interval) span_finite, $1::time::text::time = $1::time local_output_roundtrip, $2::timetz::text::timetz = $2::timetz zoned_output_roundtrip, justify_interval($3::interval) = $3::interval span_justify',
           texts,
         )
       ).rows[0]!
