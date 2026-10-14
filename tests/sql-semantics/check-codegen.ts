@@ -10,6 +10,7 @@ export type GoCheckCase = {
   floatColumns?: readonly string[]
   pointColumns?: readonly string[]
   lineColumns?: readonly string[]
+  lsegColumns?: readonly string[]
   numericColumns?: readonly string[]
   timeColumns?: readonly string[]
   timetzColumns?: readonly string[]
@@ -46,6 +47,7 @@ export function renderGoCheckTests(
       floatColumns,
       pointColumns,
       lineColumns,
+      lsegColumns,
       timeColumns,
       timetzColumns,
       intervalColumns,
@@ -68,6 +70,18 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && lsegColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const lseg = value as { x1: bigint; y1: bigint; x2: bigint; y2: bigint } | null
+        const wrapped = go.call(
+          go.selector(go.ident('checkruntime'), lseg === null ? 'LsegNull' : 'MakeLsegBits'),
+          lseg === null
+            ? []
+            : [go.number(lseg.x1), go.number(lseg.y1), go.number(lseg.x2), go.number(lseg.y2)],
+        )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (options.dateRuntime && lineColumns?.includes(column.name)) {

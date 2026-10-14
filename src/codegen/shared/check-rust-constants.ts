@@ -140,6 +140,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'io-to-text' ||
     expression.kind === 'text-to-point' ||
     expression.kind === 'text-to-line' ||
+    expression.kind === 'text-to-lseg' ||
     expression.kind === 'text-to-uuid' ||
     expression.kind === 'text-to-bytea' ||
     expression.kind === 'uuid-to-text' ||

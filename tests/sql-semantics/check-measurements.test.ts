@@ -204,6 +204,20 @@ describe('CHECK measurement boundaries', () => {
     expect(pointInput.probe.postgres.accepted).toBe(true)
     expect(pointInput.probe.raw.fullyBound).toBe(true)
     expect(pointInput.probe.stored!.fullyBound).toBe(true)
+    const lsegInput = report.textInput.find((entry) => entry.type === 'pg_catalog.lseg')!
+    expect(lsegInput.input).toContain('lseg_in')
+    expect(lsegInput.probe.postgres.accepted).toBe(true)
+    expect(lsegInput.probe.raw.fullyBound).toBe(true)
+    expect(lsegInput.probe.stored!.fullyBound).toBe(true)
+    const lsegForms = report.inputForms.types.find((forms) => forms.type === 'pg_catalog.lseg')!
+    expect(lsegForms).toMatchObject({
+      contextRequired: [],
+      unimplementedGrammar: [],
+      inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+      computedNanBinaryOutput: 'Unknown',
+      platformDependent: expect.arrayContaining(['[(0x1p0,0),(1,1)]']),
+    })
+    expect(lsegForms.handled).toEqual(expect.arrayContaining(['[(0,0),(0,0)]', '[(3,4),(0,0)]']))
     const lineInput = report.textInput.find((entry) => entry.type === 'pg_catalog.line')!
     expect(lineInput.input).toContain('line_in')
     expect(lineInput.probe.raw.fullyBound).toBe(true)

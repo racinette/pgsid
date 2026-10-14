@@ -1510,6 +1510,66 @@ export function lineFromCaseGuard(input: CheckOutcome): LineValue {
     }
     return { kind: "Unknown" };
 }
+export interface LsegPayload {
+    readonly x1: bigint;
+    readonly y1: bigint;
+    readonly x2: bigint;
+    readonly y2: bigint;
+    readonly wireKnown: boolean;
+}
+function equalLsegPayload(left: LsegPayload, right: LsegPayload): boolean {
+    return left.x1 === right.x1 && left.y1 === right.y1 && left.x2 === right.x2 && left.y2 === right.y2 && left.wireKnown === right.wireKnown;
+}
+export type LsegValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: LsegPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalLsegValue(left: LsegValue, right: LsegValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalLsegPayload(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function lsegUnknown(): LsegValue {
+    return { kind: "Unknown" };
+}
+export function lsegNull(): LsegValue {
+    return { kind: "Null" };
+}
+export function makeLsegBits(x1: bigint, y1: bigint, x2: bigint, y2: bigint): LsegValue {
+    x1 = langruntime.checkedI64(x1);
+    y1 = langruntime.checkedI64(y1);
+    x2 = langruntime.checkedI64(x2);
+    y2 = langruntime.checkedI64(y2);
+    return { kind: "Value", value: { x1: x1, y1: y1, x2: x2, y2: y2, wireKnown: true } };
+}
+export function lsegIsNull(input: LsegValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalLsegValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalLsegValue(input, { kind: "Null" }));
+}
+export function lsegFromCaseGuard(input: CheckOutcome): LsegValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

@@ -1369,6 +1369,55 @@ func LineFromCaseGuard(input CheckOutcome) LineValue {
 	return LineValue{Kind: LineValueUnknown}
 }
 
+type LsegPayload struct {
+	X1        int64
+	Y1        int64
+	X2        int64
+	Y2        int64
+	WireKnown bool
+}
+type LsegValueKind uint8
+
+const (
+	LsegValueUnknown LsegValueKind = iota
+	LsegValueNull
+	LsegValueValue
+	LsegValueError
+)
+
+type LsegValue struct {
+	Kind  LsegValueKind
+	Value LsegPayload
+	Error SqlError
+}
+
+func LsegUnknown() LsegValue {
+	return LsegValue{Kind: LsegValueUnknown}
+}
+func LsegNull() LsegValue {
+	return LsegValue{Kind: LsegValueNull}
+}
+func MakeLsegBits(x1 int64, y1 int64, x2 int64, y2 int64) LsegValue {
+	return LsegValue{Kind: LsegValueValue, Value: LsegPayload{X1: x1, Y1: y1, X2: x2, Y2: y2, WireKnown: true}}
+}
+func LsegIsNull(input LsegValue) BoolValue {
+	if input.Kind == LsegValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (LsegValue{Kind: LsegValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (LsegValue{Kind: LsegValueNull}))
+}
+func LsegFromCaseGuard(input CheckOutcome) LsegValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return LsegValue{Kind: LsegValueError, Error: error}
+	}
+	return LsegValue{Kind: LsegValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

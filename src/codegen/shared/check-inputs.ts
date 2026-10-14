@@ -5,6 +5,7 @@ import { catalogCheckGroups } from '../../sql-semantics/catalog-checks.js'
 import {
   catalogPointType,
   catalogLineType,
+  catalogLsegType,
   catalogScalarType,
   catalogTemporalType,
 } from '../../sql-semantics/catalog-check-binder.js'
@@ -226,6 +227,7 @@ export function planCheckInputs(
     if (catalogTemporalType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogPointType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogLineType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogLsegType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalog && inputNeedsCoercion(column, catalog)) return []
     return [{ name, parameter: source.number }]
   })

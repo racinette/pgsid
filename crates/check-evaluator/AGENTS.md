@@ -418,6 +418,12 @@ import them. Keep schema-only helpers with their callables.
   timestamp precision modifiers and oversized input remain
   unknown. Range checks apply after offset adjustment. Keep timezone databases,
   session settings, and native date libraries out of target adapters.
+- Line segments retain both endpoints in their original order, including coincident
+  endpoints. Equality compares corresponding points; ordering compares lengths
+  with geometric tolerance. Midpoints preserve checked addition before division.
+  SQL-coerced public inputs retain four IEEE carriers and binary precision metadata.
+  Point-pair text decoding shares the geometric grammar without line degeneracy
+  checks. Run the line-segment and raw write suites and the axis guide INSERT world.
 - Extend world schema and `check-seed.sql` fixtures with accepted, rejected, and
   NULL inputs when adding CHECK behavior. Reuse a relevant existing world or add
   a focused world whose schema declares `-- @world checks`. Run
