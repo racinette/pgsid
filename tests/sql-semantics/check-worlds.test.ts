@@ -930,6 +930,25 @@ describe('world CHECK INSERT parity', () => {
         'guide_segment_constructions',
         ['segment_construct_same', 'segment_construct_wire'],
       ],
+      [
+        '028_axis_guides',
+        'guide_segment_crossings',
+        [
+          'segment_cross_intersects',
+          'segment_cross_point',
+          'segment_cross_distance',
+          'segment_cross_closest',
+          'segment_cross_line_intersects',
+          'segment_cross_on_line',
+          'segment_cross_line_distance',
+          'segment_cross_line_closest',
+        ],
+      ],
+      [
+        '028_axis_guides',
+        'guide_segment_projections',
+        ['segment_project_on', 'segment_project_closest', 'segment_project_distance'],
+      ],
 
       [
         '025_sensor_measurements',

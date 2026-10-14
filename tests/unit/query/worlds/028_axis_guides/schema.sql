@@ -147,3 +147,43 @@ CREATE TABLE guide_segment_constructions (
   CONSTRAINT segment_construct_same CHECK (CASE WHEN skip_validation THEN true ELSE lseg_eq(lseg(first_text::point,second_text::point),recorded_segment) END),
   CONSTRAINT segment_construct_wire CHECK (CASE WHEN skip_validation THEN true ELSE lseg_send(lseg(first_text::point,second_text::point)) = recorded_wire END)
 );
+
+CREATE TABLE guide_segment_crossings (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  first_text text,
+  second_text text,
+  axis_text text,
+  recorded_crossing boolean,
+  recorded_point point,
+  recorded_distance float8,
+  recorded_closest point,
+  recorded_line_crossing boolean,
+  recorded_on_line boolean,
+  recorded_line_distance float8,
+  recorded_line_closest point,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT segment_cross_intersects CHECK (CASE WHEN skip_validation THEN true ELSE lseg_intersect(first_text::lseg,second_text::lseg) = recorded_crossing END),
+  CONSTRAINT segment_cross_point CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(lseg_interpt(first_text::lseg,second_text::lseg),recorded_point) END),
+  CONSTRAINT segment_cross_distance CHECK (CASE WHEN skip_validation THEN true ELSE lseg_distance(first_text::lseg,second_text::lseg) = recorded_distance END),
+  CONSTRAINT segment_cross_closest CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(close_lseg(first_text::lseg,second_text::lseg),recorded_closest) END),
+  CONSTRAINT segment_cross_line_intersects CHECK (CASE WHEN skip_validation THEN true ELSE inter_sl(first_text::lseg,axis_text::line) = recorded_line_crossing END),
+  CONSTRAINT segment_cross_on_line CHECK (CASE WHEN skip_validation THEN true ELSE on_sl(first_text::lseg,axis_text::line) = recorded_on_line END),
+  CONSTRAINT segment_cross_line_distance CHECK (CASE WHEN skip_validation THEN true ELSE dist_sl(first_text::lseg,axis_text::line) = recorded_line_distance AND dist_ls(axis_text::line,first_text::lseg) = recorded_line_distance END),
+  CONSTRAINT segment_cross_line_closest CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(close_ls(axis_text::line,first_text::lseg),recorded_line_closest) END)
+);
+CREATE TABLE guide_segment_projections (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  point_text text,
+  segment_text text,
+  recorded_on_segment boolean,
+  recorded_closest point,
+  recorded_distance float8,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT segment_project_on CHECK (CASE WHEN skip_validation THEN true ELSE on_ps(point_text::point,segment_text::lseg) = recorded_on_segment END),
+  CONSTRAINT segment_project_closest CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(close_ps(point_text::point,segment_text::lseg),recorded_closest) END),
+  CONSTRAINT segment_project_distance CHECK (CASE WHEN skip_validation THEN true ELSE dist_ps(point_text::point,segment_text::lseg) = recorded_distance AND dist_sp(segment_text::lseg,point_text::point) = recorded_distance END)
+);

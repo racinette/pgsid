@@ -199,7 +199,7 @@ exposes a prerequisite:
       and closest-point projection.
 - [x] Establish line-segment endpoint payloads, public inputs, construction,
       parsing, literals, comparisons, length, midpoint and orientation.
-- [ ] Establish line-segment intersections, containment, distances and closest points.
+- [x] Establish line-segment intersections, containment, distances and closest points.
 - [ ] Establish box corner payloads, public inputs, parsing, construction,
       comparisons, dimensions, centers and diagonal conversion.
 - [ ] Establish box relations, intersection, bounding union, arithmetic and closest points.
