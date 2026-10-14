@@ -383,6 +383,19 @@ export function textUnknown(): TextValue {
 export function textNull(): TextValue {
     return { kind: "Null" };
 }
+export function makeNameTextValue(value: string): TextValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let index: number = 0;
+    while (index < chars.length) {
+        const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (code === 0 || (code >= 55296 && code <= 57343)) {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: value };
+}
 export function makeTextValue(value: string): TextValue {
     value = langruntime.checkedString(value);
     return { kind: "Value", value: value };

@@ -1,3 +1,7 @@
+import {
+  nameInputForms,
+  nameContextInputForms,
+} from '../../tests/sql-semantics/check-name-input-forms.js'
 import { internalCharInputForms } from '../../tests/sql-semantics/check-internal-char-input-forms.js'
 import { oidAliasInputForms } from '../../tests/sql-semantics/check-oid-aliases-input-forms.js'
 import {
@@ -66,6 +70,17 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.name',
+    suite: 'tests/sql-semantics/check-name.test.ts',
+    handled: nameInputForms,
+    deferred: nameContextInputForms,
+    platformDependent: [],
+    contextRequired: nameContextInputForms,
+    unimplementedGrammar: [],
+    textCastRequirement:
+      'The deployment max_identifier_length build setting is required to truncate nonempty input; explicitly supplied limits are evaluated in Rust.',
+  },
   {
     type: 'pg_catalog."char"',
     suite: 'tests/sql-semantics/check-internal-char.test.ts',

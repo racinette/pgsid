@@ -12901,6 +12901,180 @@ func moneyWords(input checkruntime.MoneyValue) checkruntime.TextValue {
 func CashWordsAtzl(input checkruntime.MoneyValue) checkruntime.TextValue {
 	return moneyWords(input)
 }
+func NameFromTextWithLimit(input checkruntime.TextValue, limit checkruntime.Int4Value) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if limit.Kind == checkruntime.Int4ValueError {
+		error := limit.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		if len(chars) == 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
+		}
+		if limit.Kind == checkruntime.Int4ValueValue {
+			maximum := langruntime.CheckedI32(limit.Value)
+			if maximum < 0 {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+			output := langruntime.NewTextBuffer("")
+			bytes := 0
+			index := 0
+			for index < len(chars) {
+				code := int(langruntime.CheckedChar(chars[index]))
+				width := 1
+				if code >= 65536 {
+					width = langruntime.CheckedI32(4)
+				} else if code >= 2048 {
+					width = langruntime.CheckedI32(3)
+				} else if code >= 128 {
+					width = langruntime.CheckedI32(2)
+				}
+				if bytes > langruntime.CheckedSignedSubtract(maximum, width) {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+				}
+				output = append(output, string(langruntime.CheckedChar(chars[index]))...)
+				bytes = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bytes, width))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func NameFromText(input checkruntime.TextValue) checkruntime.TextValue {
+	return NameFromTextWithLimit(input, checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown})
+}
+func nameRelation(left checkruntime.TextValue, right checkruntime.TextValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	order := textBinaryCompare(left, right, false)
+	if order.Kind == checkruntime.Int4ValueError {
+		error := order.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if order == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if order.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(order.Value)
+		if mode == 0 {
+			return checkruntime.MakeBoolValue(value == 0)
+		}
+		if mode == 1 {
+			return checkruntime.MakeBoolValue(value != 0)
+		}
+		if mode == 2 {
+			return checkruntime.MakeBoolValue(value < 0)
+		}
+		if mode == 3 {
+			return checkruntime.MakeBoolValue(value <= 0)
+		}
+		if mode == 4 {
+			return checkruntime.MakeBoolValue(value > 0)
+		}
+		return checkruntime.MakeBoolValue(value >= 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Bpchar8cer(input checkruntime.TextValue) checkruntime.TextValue {
+	return input
+}
+func HashnameVua3(input checkruntime.TextValue) checkruntime.Int4Value {
+	return textHashValue(input, false)
+}
+func HashnameextendedP8gv(input checkruntime.TextValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	return textHashExtended(input, seed, false)
+}
+func NameIqr4(input checkruntime.TextValue) checkruntime.TextValue {
+	return NameFromText(input)
+}
+func Name4szz(input checkruntime.TextValue) checkruntime.TextValue {
+	return NameFromText(TextVc4r(input))
+}
+func NameI5b4(input checkruntime.TextValue) checkruntime.TextValue {
+	return NameFromText(input)
+}
+func Nameeq50k8(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 0)
+}
+func NameeqtextDmg4(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 0)
+}
+func Namege6kwe(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 5)
+}
+func NamegetextFuvb(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 5)
+}
+func NamegtGk5q(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 4)
+}
+func NamegttextBgcx(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 4)
+}
+func NameleHmxv(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 3)
+}
+func NameletextYryz(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 3)
+}
+func Namelt8o7k(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 2)
+}
+func NamelttextNifk(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 2)
+}
+func NameneW7jp(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 1)
+}
+func NamenetextCsba(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 1)
+}
+func TextCoz1(input checkruntime.TextValue) checkruntime.TextValue {
+	return input
+}
+func TexteqnameSl3r(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 0)
+}
+func TextgenameCevq(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 5)
+}
+func TextgtnameMv7w(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 4)
+}
+func TextlenameLsnn(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 3)
+}
+func TextltnameK4hb(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 2)
+}
+func TextnenameGszv(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	return nameRelation(left, right, 1)
+}
+func VarcharEr5y(input checkruntime.TextValue) checkruntime.TextValue {
+	return input
+}
+func NamesendY7mk(input checkruntime.TextValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: textBinaryHex(value, false)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 
 const sqlstateInvalidParameterValue = 3452619
 

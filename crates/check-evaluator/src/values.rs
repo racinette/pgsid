@@ -310,6 +310,17 @@ pub fn text_null() -> TextValue {
     TextValue::Null
 }
 
+pub fn make_name_text_value(value: &str) -> TextValue {
+    let chars: Vec<char> = value.chars().collect();
+    let mut index: usize = 0;
+    while index < chars.len() {
+        let code = chars[index] as i32;
+        if code == 0 || (code >= 55296 && code <= 57343) { return TextValue::Unknown; };
+        index += 1;
+    };
+    TextValue::Value(value.to_owned())
+}
+
 pub fn make_text_value(value: &str) -> TextValue {
     TextValue::Value(value.to_owned())
 }

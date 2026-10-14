@@ -12976,6 +12976,182 @@ function moneyWords(input: checkruntime.MoneyValue): checkruntime.TextValue {
 export function cashWordsAtzl(input: checkruntime.MoneyValue): checkruntime.TextValue {
     return moneyWords(input);
 }
+export function nameFromTextWithLimit(input: checkruntime.TextValue, limit: checkruntime.Int4Value): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (limit.kind === "Error") {
+        const error: checkruntime.SqlError = limit.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        if (chars.length === 0) {
+            return { kind: "Value", value: text };
+        }
+        if (limit.kind === "Value") {
+            const maximum: number = langruntime.checkedI32(limit.value);
+            if (maximum < 0) {
+                return { kind: "Unknown" };
+            }
+            let output: string = "";
+            let bytes: number = 0;
+            let index: number = 0;
+            while (index < chars.length) {
+                const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+                let width: number = 1;
+                if (code >= 65536) {
+                    width = langruntime.checkedI32(4);
+                }
+                else if (code >= 2048) {
+                    width = langruntime.checkedI32(3);
+                }
+                else if (code >= 128) {
+                    width = langruntime.checkedI32(2);
+                }
+                if (bytes > langruntime.checkedSignedSubtract(maximum, width)) {
+                    return { kind: "Value", value: output };
+                }
+                output = output + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                bytes = langruntime.checkedI32(langruntime.checkedSignedAdd(bytes, width));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return { kind: "Value", value: output };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function nameFromText(input: checkruntime.TextValue): checkruntime.TextValue {
+    return nameFromTextWithLimit(input, { kind: "Unknown" });
+}
+function nameRelation(left: checkruntime.TextValue, right: checkruntime.TextValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    const order: checkruntime.Int4Value = textBinaryCompare(left, right, false);
+    if (order.kind === "Error") {
+        const error: checkruntime.SqlError = order.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(order, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (order.kind === "Value") {
+        const value: number = langruntime.checkedI32(order.value);
+        if (mode === 0) {
+            return checkruntime.makeBoolValue(value === 0);
+        }
+        if (mode === 1) {
+            return checkruntime.makeBoolValue(!(value === 0));
+        }
+        if (mode === 2) {
+            return checkruntime.makeBoolValue(value < 0);
+        }
+        if (mode === 3) {
+            return checkruntime.makeBoolValue(value <= 0);
+        }
+        if (mode === 4) {
+            return checkruntime.makeBoolValue(value > 0);
+        }
+        return checkruntime.makeBoolValue(value >= 0);
+    }
+    return { kind: "Unknown" };
+}
+export function bpchar8cer(input: checkruntime.TextValue): checkruntime.TextValue {
+    return input;
+}
+export function hashnameVua3(input: checkruntime.TextValue): checkruntime.Int4Value {
+    return textHashValue(input, false);
+}
+export function hashnameextendedP8gv(input: checkruntime.TextValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+    return textHashExtended(input, seed, false);
+}
+export function nameIqr4(input: checkruntime.TextValue): checkruntime.TextValue {
+    return nameFromText(input);
+}
+export function name4szz(input: checkruntime.TextValue): checkruntime.TextValue {
+    return nameFromText(textVc4r(input));
+}
+export function nameI5b4(input: checkruntime.TextValue): checkruntime.TextValue {
+    return nameFromText(input);
+}
+export function nameeq50k8(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 0);
+}
+export function nameeqtextDmg4(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 0);
+}
+export function namege6kwe(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 5);
+}
+export function namegetextFuvb(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 5);
+}
+export function namegtGk5q(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 4);
+}
+export function namegttextBgcx(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 4);
+}
+export function nameleHmxv(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 3);
+}
+export function nameletextYryz(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 3);
+}
+export function namelt8o7k(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 2);
+}
+export function namelttextNifk(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 2);
+}
+export function nameneW7jp(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 1);
+}
+export function namenetextCsba(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 1);
+}
+export function textCoz1(input: checkruntime.TextValue): checkruntime.TextValue {
+    return input;
+}
+export function texteqnameSl3r(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 0);
+}
+export function textgenameCevq(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 5);
+}
+export function textgtnameMv7w(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 4);
+}
+export function textlenameLsnn(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 3);
+}
+export function textltnameK4hb(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 2);
+}
+export function textnenameGszv(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    return nameRelation(left, right, 1);
+}
+export function varcharEr5y(input: checkruntime.TextValue): checkruntime.TextValue {
+    return input;
+}
+export function namesendY7mk(input: checkruntime.TextValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: textBinaryHex(value, false) };
+    }
+    return { kind: "Unknown" };
+}
 const sqlstateInvalidParameterValue = 3452619;
 function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {
     if (left.kind === "Error") {

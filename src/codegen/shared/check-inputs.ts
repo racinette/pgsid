@@ -122,6 +122,7 @@ const inputNeedsCoercion = (column: ColumnInfo, catalog: CatalogSnapshot): boole
   }
   const type = catalogScalarType(name)
   return (
+    type === 'pg_catalog.name' ||
     type === 'pg_catalog."bit"' ||
     type === 'pg_catalog.varbit' ||
     type === 'pg_catalog.float4' ||

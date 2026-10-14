@@ -531,6 +531,15 @@ import them. Keep schema-only helpers with their callables.
   relation and snapshot state. Run tuple-pointer parity, public payload, raw write
   and heap record INSERT suites.
 
+- Name values preserve nominal SQL identity over owned text and already SQL-coerced
+  UTF8 row contents. C relations preserve trailing spaces; hashes use those bytes
+  independently of collation. Conversions out retain contents. Nonempty input
+  truncation requires the deployment build's maximum identifier byte length;
+  explicit limits clip at UTF8 boundaries. Empty text and NULL do not need a limit.
+  Public inputs reject NUL and malformed encodings before runtime construction;
+  raw query parameters defer assignment coercion. Run name core, payload, raw write
+  and identifier-name INSERT suites.
+
 - Internal char values carry unsigned bytes, separately from SQL char(n).
   Comparisons use unsigned order; integer casts use signed eight-bit values.
   Text input accepts wrapped three-digit octal escapes or the first UTF8 byte;

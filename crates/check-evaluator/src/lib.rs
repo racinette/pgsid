@@ -96,6 +96,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/circle_operations.rs");
     include!("operations/pg_catalog/money_core.rs");
     include!("operations/pg_catalog/internal_char.rs");
+    include!("operations/pg_catalog/name_core.rs");
     include!("operations/pg_catalog/oid_core.rs");
     include!("operations/pg_catalog/oid_input.rs");
     include!("operations/pg_catalog/oid_aliases.rs");

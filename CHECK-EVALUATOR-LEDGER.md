@@ -228,6 +228,8 @@ exposes a prerequisite:
       portable hashes and explicit native-layout and heap-state requirements.
 - [x] Establish catalog OID aliases with nominal SQL identity, numeric operations,
       catalog-resolved casts and explicit deferral without deployment catalog access.
+- [x] Establish name values, C relations, hashes, conversions, SQL-coerced public
+      inputs and explicit build-limit requirements for text truncation.
 - [x] Remove generation-time enum OIDs from emitted literals and public label
       adapters, and verify hash deferral across independent databases.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
