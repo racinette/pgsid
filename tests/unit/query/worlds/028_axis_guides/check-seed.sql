@@ -364,3 +364,100 @@ INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text
 INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_wrong_closest','(2,3)','[(0,0),(4,0)]',false,'(99,99)',3,false);
 -- name: segment_project_wrong_distance
 INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_wrong_distance','(2,3)','[(0,0),(4,0)]',false,'(2,0)',4,false);
+
+-- name: region_ordinary
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_ordinary','((0,0),(3,4))','\x4008000000000000401000000000000000000000000000000000000000000000',12,3,4,'(1.5,2)','[(3,4),(0,0)]',true,false);
+-- name: region_reversed
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_reversed','((3,4),(0,0))','\x4008000000000000401000000000000000000000000000000000000000000000',12,3,4,'(1.5,2)','[(3,4),(0,0)]',true,false);
+-- name: region_mixed_corners
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_mixed_corners','((3,0),(0,4))','\x4008000000000000401000000000000000000000000000000000000000000000',12,3,4,'(1.5,2)','[(3,4),(0,0)]',true,false);
+-- name: region_coincident
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_coincident','((0,0),(0,0))','\x0000000000000000000000000000000000000000000000000000000000000000',0,0,0,'(0,0)','[(0,0),(0,0)]',true,false);
+-- name: region_signed_zero
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_signed_zero','((-0,0),(0,-0))','\x8000000000000000000000000000000000000000000000008000000000000000',0,0,0,'(0,0)','[(-0,0),(0,-0)]',true,false);
+-- name: region_nan
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_nan','((NaN,1),(0,0))',NULL,'NaN','NaN',1,'(NaN,0.5)','[(NaN,1),(0,0)]',true,false);
+-- name: region_infinite
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_infinite','((Infinity,Infinity),(0,0))',NULL,'Infinity','Infinity','Infinity','(Infinity,Infinity)','[(Infinity,Infinity),(0,0)]',true,false);
+-- name: region_missing
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_missing',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: region_nullable_reports
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_nullable_reports','((0,0),(3,4))',NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: region_center_overflow
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_center_overflow','((1e308,1),(1e308,1))',NULL,0,0,0,NULL,NULL,true,false);
+-- name: region_width_overflow
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_width_overflow','((1e308,0),(-1e308,0))',NULL,NULL,NULL,0,'(0,0)',NULL,true,false);
+-- name: region_height_overflow
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_height_overflow','((0,1e308),(0,-1e308))',NULL,NULL,0,NULL,'(0,0)',NULL,true,false);
+-- name: region_area_overflow
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_area_overflow','((1e200,1e200),(0,0))',NULL,NULL,1e+200,1e+200,NULL,NULL,true,false);
+-- name: region_area_underflow
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_area_underflow','((1e-320,1e-320),(0,0))',NULL,NULL,NULL,NULL,NULL,NULL,true,false);
+-- name: region_skipped_overflow
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_skipped_overflow','((1e308,1),(1e308,1))','\x00',1,1,1,'(99,99)','[(99,99),(99,99)]',false,true);
+-- name: region_wrong_wire
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_wrong_wire','((0,0),(3,4))','\x00',12,3,4,'(1.5,2)','[(3,4),(0,0)]',true,false);
+-- name: region_wrong_area
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_wrong_area','((0,0),(3,4))','\x4008000000000000401000000000000000000000000000000000000000000000',13,3,4,'(1.5,2)','[(3,4),(0,0)]',true,false);
+-- name: region_wrong_width
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_wrong_width','((0,0),(3,4))','\x4008000000000000401000000000000000000000000000000000000000000000',12,4,4,'(1.5,2)','[(3,4),(0,0)]',true,false);
+-- name: region_wrong_height
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_wrong_height','((0,0),(3,4))','\x4008000000000000401000000000000000000000000000000000000000000000',12,3,5,'(1.5,2)','[(3,4),(0,0)]',true,false);
+-- name: region_wrong_center
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_wrong_center','((0,0),(3,4))','\x4008000000000000401000000000000000000000000000000000000000000000',12,3,4,'(99,99)','[(3,4),(0,0)]',true,false);
+-- name: region_wrong_diagonal
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_wrong_diagonal','((0,0),(3,4))','\x4008000000000000401000000000000000000000000000000000000000000000',12,3,4,'(1.5,2)','[(0,0),(3,4)]',true,false);
+-- name: region_wrong_present
+INSERT INTO guide_regions (id,guide_id,label,region,recorded_wire,recorded_area,recorded_width,recorded_height,recorded_center,recorded_diagonal,recorded_present,skip_validation) VALUES (100,1,'region_wrong_present','((0,0),(3,4))','\x4008000000000000401000000000000000000000000000000000000000000000',12,3,4,'(1.5,2)','[(3,4),(0,0)]',false,false);
+-- name: region_import_unwrapped
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_unwrapped','0,0,3,4','((3,4),(0,0))','\x4008000000000000401000000000000000000000000000000000000000000000',false);
+-- name: region_import_mixed
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_mixed','(3,0),(0,4)','((3,4),(0,0))','\x4008000000000000401000000000000000000000000000000000000000000000',false);
+-- name: region_import_parenthesized
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_parenthesized','((0,0),(3,4))','((3,4),(0,0))','\x4008000000000000401000000000000000000000000000000000000000000000',false);
+-- name: region_import_missing
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_missing',NULL,NULL,NULL,false);
+-- name: region_import_nullable
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_nullable','0,0,3,4',NULL,NULL,false);
+-- name: region_import_wrong_same
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_wrong_same','0,0,3,4','((99,99),(0,0))','\x4008000000000000401000000000000000000000000000000000000000000000',false);
+-- name: region_import_wrong_wire
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_wrong_wire','0,0,3,4','((3,4),(0,0))','\x00',false);
+-- name: region_import_rejects_open
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_rejects_open','[(0,0),(3,4)]',NULL,NULL,false);
+-- name: region_import_invalid
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_invalid','((bad,0),(0,0))',NULL,NULL,false);
+-- name: region_import_overflow
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_overflow','((1e400,bad),(0,0))',NULL,NULL,false);
+-- name: region_import_skipped
+INSERT INTO guide_region_imports (id,guide_id,label,source_text,recorded_region,recorded_wire,skip_validation) VALUES (100,1,'region_import_skipped','((bad,0),(0,0))','((99,99),(0,0))','\x00',true);
+-- name: region_relation_identical
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_identical','((0,0),(3,4))','((0,0),(3,4))',true,true,false,true,false,true,0,false);
+-- name: region_relation_equal_area
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_equal_area','((0,0),(3,4))','((0,0),(6,2))',false,true,false,true,false,true,NULL,false);
+-- name: region_relation_translated
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_translated','((0,0),(3,4))','((3,0),(6,4))',false,true,false,true,false,true,3,false);
+-- name: region_relation_smaller
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_smaller','((0,0),(1,1))','((0,0),(2,2))',false,false,true,true,false,false,NULL,false);
+-- name: region_relation_zero_area
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_zero_area','((0,0),(0,0))','((3,4),(3,4))',false,true,false,true,false,true,5,false);
+-- name: region_relation_nan
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_nan','((NaN,1),(0,0))','((NaN,1),(0,0))',true,false,false,false,false,false,'NaN',false);
+-- name: region_relation_tolerance
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_tolerance','((0,0),(1,1))','((0,0),(1.0000005,1))',true,true,false,true,false,true,NULL,false);
+-- name: region_relation_missing
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_missing',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: region_relation_nullable
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_nullable','((0,0),(3,4))','((3,0),(6,4))',NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: region_relation_center_overflow
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_center_overflow','((1e308,1),(1e308,1))','((0,0),(0,0))',NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: region_relation_area_overflow
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_area_overflow','((1e200,1e200),(0,0))','((0,0),(3,4))',NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: region_relation_skipped
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_skipped','((1e308,1),(1e308,1))','((0,0),(0,0))',true,true,true,true,true,true,1,true);
+-- name: region_relation_wrong_same
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_wrong_same','((0,0),(3,4))','((3,0),(6,4))',true,true,false,true,false,true,3,false);
+-- name: region_relation_wrong_area
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_wrong_area','((0,0),(3,4))','((3,0),(6,4))',false,false,false,true,false,true,3,false);
+-- name: region_relation_wrong_distance
+INSERT INTO guide_region_relations (id,guide_id,label,first_region,second_region,recorded_same,recorded_equal,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_distance,skip_validation) VALUES (100,1,'region_relation_wrong_distance','((0,0),(3,4))','((3,0),(6,4))',false,true,false,true,false,true,4,false);

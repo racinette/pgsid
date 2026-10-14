@@ -1418,6 +1418,55 @@ func LsegFromCaseGuard(input CheckOutcome) LsegValue {
 	return LsegValue{Kind: LsegValueUnknown}
 }
 
+type BoxPayload struct {
+	HighX     int64
+	HighY     int64
+	LowX      int64
+	LowY      int64
+	WireKnown bool
+}
+type BoxValueKind uint8
+
+const (
+	BoxValueUnknown BoxValueKind = iota
+	BoxValueNull
+	BoxValueValue
+	BoxValueError
+)
+
+type BoxValue struct {
+	Kind  BoxValueKind
+	Value BoxPayload
+	Error SqlError
+}
+
+func BoxUnknown() BoxValue {
+	return BoxValue{Kind: BoxValueUnknown}
+}
+func BoxNull() BoxValue {
+	return BoxValue{Kind: BoxValueNull}
+}
+func MakeBoxBits(highX int64, highY int64, lowX int64, lowY int64) BoxValue {
+	return BoxValue{Kind: BoxValueValue, Value: BoxPayload{HighX: highX, HighY: highY, LowX: lowX, LowY: lowY, WireKnown: true}}
+}
+func BoxIsNull(input BoxValue) BoolValue {
+	if input.Kind == BoxValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (BoxValue{Kind: BoxValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (BoxValue{Kind: BoxValueNull}))
+}
+func BoxFromCaseGuard(input CheckOutcome) BoxValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return BoxValue{Kind: BoxValueError, Error: error}
+	}
+	return BoxValue{Kind: BoxValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

@@ -1299,17 +1299,79 @@ pub enum LsegValue {
     Value(LsegPayload),
     Error(SqlError),
 }
-pub fn lseg_unknown() -> LsegValue { LsegValue::Unknown }
-pub fn lseg_null() -> LsegValue { LsegValue::Null }
+pub fn lseg_unknown() -> LsegValue {
+    LsegValue::Unknown
+}
+pub fn lseg_null() -> LsegValue {
+    LsegValue::Null
+}
 pub fn make_lseg_bits(x1: i64, y1: i64, x2: i64, y2: i64) -> LsegValue {
-    LsegValue::Value(LsegPayload { x1, y1, x2, y2, wire_known: true })
+    LsegValue::Value(LsegPayload {
+        x1,
+        y1,
+        x2,
+        y2,
+        wire_known: true,
+    })
 }
 pub fn lseg_is_null(input: LsegValue) -> BoolValue {
-    if let LsegValue::Error(error) = input { return BoolValue::Error(error); };
-    if input == LsegValue::Unknown { return BoolValue::Unknown; };
+    if let LsegValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == LsegValue::Unknown {
+        return BoolValue::Unknown;
+    };
     make_bool_value(input == LsegValue::Null)
 }
 pub fn lseg_from_case_guard(input: CheckOutcome) -> LsegValue {
-    if let CheckOutcome::Error(error) = input { return LsegValue::Error(error); };
+    if let CheckOutcome::Error(error) = input {
+        return LsegValue::Error(error);
+    };
     LsegValue::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct BoxPayload {
+    pub high_x: i64,
+    pub high_y: i64,
+    pub low_x: i64,
+    pub low_y: i64,
+    pub wire_known: bool,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum BoxValue {
+    Unknown,
+    Null,
+    Value(BoxPayload),
+    Error(SqlError),
+}
+pub fn box_unknown() -> BoxValue {
+    BoxValue::Unknown
+}
+pub fn box_null() -> BoxValue {
+    BoxValue::Null
+}
+pub fn make_box_bits(high_x: i64, high_y: i64, low_x: i64, low_y: i64) -> BoxValue {
+    BoxValue::Value(BoxPayload {
+        high_x,
+        high_y,
+        low_x,
+        low_y,
+        wire_known: true,
+    })
+}
+pub fn box_is_null(input: BoxValue) -> BoolValue {
+    if let BoxValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == BoxValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == BoxValue::Null)
+}
+pub fn box_from_case_guard(input: CheckOutcome) -> BoxValue {
+    if let CheckOutcome::Error(error) = input {
+        return BoxValue::Error(error);
+    };
+    BoxValue::Unknown
 }

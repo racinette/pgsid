@@ -431,6 +431,16 @@ import them. Keep schema-only helpers with their callables.
   and each reached distance error. Selecting a precise endpoint recovers its
   binary representation when the other endpoint has unavailable NaN bits.
   Run the segment operation suite and crossing/projection INSERT cases.
+- Box corners retain IEEE carriers without requiring canonical corner order.
+  Stored expression results may retain inverted bounds or a lower NaN coordinate.
+  Input keeps the first corner on coordinate ties; construction keeps the second.
+  Area comparisons and corner identity use distinct geometric semantics.
+  Width, height, area and center preserve checked intermediate arithmetic;
+  center distance uses the geometric hypotenuse. Diagonal conversion retains
+  corner order. Computed NaNs keep semantic results and defer binary precision.
+  Text accepts closed point-pair grammar, rejecting open brackets before decoding
+  coordinates. Unconstrained domains, literal preparation and lazy casts use the
+  geometric input boundary. Run the box and raw write suites and region INSERTs.
 - Extend world schema and `check-seed.sql` fixtures with accepted, rejected, and
   NULL inputs when adding CHECK behavior. Reuse a relevant existing world or add
   a focused world whose schema declares `-- @world checks`. Run

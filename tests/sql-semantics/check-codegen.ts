@@ -11,6 +11,7 @@ export type GoCheckCase = {
   pointColumns?: readonly string[]
   lineColumns?: readonly string[]
   lsegColumns?: readonly string[]
+  boxColumns?: readonly string[]
   numericColumns?: readonly string[]
   timeColumns?: readonly string[]
   timetzColumns?: readonly string[]
@@ -48,6 +49,7 @@ export function renderGoCheckTests(
       pointColumns,
       lineColumns,
       lsegColumns,
+      boxColumns,
       timeColumns,
       timetzColumns,
       intervalColumns,
@@ -70,6 +72,23 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && boxColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const box = value as { highX: bigint; highY: bigint; lowX: bigint; lowY: bigint } | null
+        const wrapped = go.call(
+          go.selector(go.ident('checkruntime'), box === null ? 'BoxNull' : 'MakeBoxBits'),
+          box === null
+            ? []
+            : [
+                go.number(box.highX),
+                go.number(box.highY),
+                go.number(box.lowX),
+                go.number(box.lowY),
+              ],
+        )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (options.dateRuntime && lsegColumns?.includes(column.name)) {
