@@ -1283,3 +1283,33 @@ pub fn line_from_case_guard(input: CheckOutcome) -> LineValue {
     };
     LineValue::Unknown
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct LsegPayload {
+    pub x1: i64,
+    pub y1: i64,
+    pub x2: i64,
+    pub y2: i64,
+    pub wire_known: bool,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum LsegValue {
+    Unknown,
+    Null,
+    Value(LsegPayload),
+    Error(SqlError),
+}
+pub fn lseg_unknown() -> LsegValue { LsegValue::Unknown }
+pub fn lseg_null() -> LsegValue { LsegValue::Null }
+pub fn make_lseg_bits(x1: i64, y1: i64, x2: i64, y2: i64) -> LsegValue {
+    LsegValue::Value(LsegPayload { x1, y1, x2, y2, wire_known: true })
+}
+pub fn lseg_is_null(input: LsegValue) -> BoolValue {
+    if let LsegValue::Error(error) = input { return BoolValue::Error(error); };
+    if input == LsegValue::Unknown { return BoolValue::Unknown; };
+    make_bool_value(input == LsegValue::Null)
+}
+pub fn lseg_from_case_guard(input: CheckOutcome) -> LsegValue {
+    if let CheckOutcome::Error(error) = input { return LsegValue::Error(error); };
+    LsegValue::Unknown
+}

@@ -202,3 +202,90 @@ INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,
 INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Skipped projection overflow','(1e308,1e308)','{1e308,1,1e308}',true,'(99,99)','\x00',true);
 -- name: projection_missing_axis
 INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Missing projection axis','(3,4)',NULL,NULL,NULL,NULL,false);
+
+-- name: segment_import_ordinary
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_ordinary','[(0,0),(3,4)]','\x0000000000000000000000000000000040080000000000004010000000000000',5,'(1.5,2)',false,false,true,false);
+-- name: segment_import_reverse
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_reverse','[(3,4),(0,0)]','\x4008000000000000401000000000000000000000000000000000000000000000',5,'(1.5,2)',false,false,true,false);
+-- name: segment_import_coincident
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_coincident','[(0,0),(0,0)]','\x0000000000000000000000000000000000000000000000000000000000000000',0,'(0,0)',true,true,true,false);
+-- name: segment_import_unwrapped
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_unwrapped','0,0,3,4','\x0000000000000000000000000000000040080000000000004010000000000000',5,'(1.5,2)',false,false,true,false);
+-- name: segment_import_horizontal
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_horizontal','[(0,0),(3,0)]','\x0000000000000000000000000000000040080000000000000000000000000000',3,'(1.5,0)',true,false,true,false);
+-- name: segment_import_vertical
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_vertical','[(0,0),(0,4)]','\x0000000000000000000000000000000000000000000000004010000000000000',4,'(0,2)',false,true,true,false);
+-- name: segment_import_nan
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_nan','[(NaN,1),(0,0)]',NULL,'NaN','(NaN,0.5)',false,false,true,false);
+-- name: segment_import_missing
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_missing',NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: segment_import_nullable
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_nullable','[(0,0),(3,4)]',NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: segment_import_invalid
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_invalid','[(bad,0),(0,0)]',NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: segment_import_midpoint_overflow
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_midpoint_overflow','[(1e308,0),(1e308,0)]',NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: segment_import_length_overflow
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_length_overflow','[(1e308,0),(-1e308,0)]',NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: segment_import_skipped
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_skipped','[(bad,0),(0,0)]',NULL,NULL,NULL,NULL,NULL,NULL,true);
+-- name: segment_import_wrong_wire
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_wrong_wire','[(0,0),(3,4)]','\x00',5,'(1.5,2)',false,false,true,false);
+-- name: segment_import_wrong_length
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_wrong_length','[(0,0),(3,4)]','\x0000000000000000000000000000000040080000000000004010000000000000',6,'(1.5,2)',false,false,true,false);
+-- name: segment_import_wrong_center
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_wrong_center','[(0,0),(3,4)]','\x0000000000000000000000000000000040080000000000004010000000000000',5,'(99,99)',false,false,true,false);
+-- name: segment_import_wrong_horizontal
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_wrong_horizontal','[(0,0),(3,4)]','\x0000000000000000000000000000000040080000000000004010000000000000',5,'(1.5,2)',true,false,true,false);
+-- name: segment_import_wrong_vertical
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_wrong_vertical','[(0,0),(3,4)]','\x0000000000000000000000000000000040080000000000004010000000000000',5,'(1.5,2)',false,true,true,false);
+-- name: segment_import_wrong_present
+INSERT INTO guide_segment_imports (id,guide_id,label,source_text,recorded_wire,recorded_length,recorded_center,recorded_horizontal,recorded_vertical,recorded_present,skip_validation) VALUES (100,1,'segment_import_wrong_present','[(0,0),(3,4)]','\x0000000000000000000000000000000040080000000000004010000000000000',5,'(1.5,2)',false,false,false,false);
+-- name: segment_relation_identical
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_identical','[(0,0),(3,4)]','[(0,0),(3,4)]',true,false,true,false,true,true,false,true,'\x0000000000000000000000000000000040080000000000004010000000000000',false);
+-- name: segment_relation_reversed
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_reversed','[(0,0),(3,4)]','[(3,4),(0,0)]',false,false,true,false,true,true,false,false,'\x4008000000000000401000000000000000000000000000000000000000000000',false);
+-- name: segment_relation_perpendicular
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_perpendicular','[(0,0),(3,0)]','[(0,0),(0,4)]',false,true,true,false,false,false,true,true,'\x0000000000000000000000000000000040080000000000000000000000000000',false);
+-- name: segment_relation_zero
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_zero','[(0,0),(0,0)]','[(0,0),(0,0)]',true,false,true,false,true,true,false,true,'\x0000000000000000000000000000000000000000000000000000000000000000',false);
+-- name: segment_relation_nan
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_nan','[(NaN,1),(0,0)]','[(0,0),(3,4)]',false,false,false,false,false,false,false,false,'\x0000000000000000000000000000000040080000000000004010000000000000',false);
+-- name: segment_relation_missing
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_missing',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,true,NULL,false);
+-- name: segment_relation_nullable
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_nullable','[(0,0),(3,4)]','[(0,0),(3,4)]',NULL,NULL,NULL,NULL,NULL,NULL,NULL,true,NULL,false);
+-- name: segment_relation_invalid
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_invalid','bad','[(0,0),(3,4)]',NULL,NULL,NULL,NULL,NULL,NULL,NULL,true,NULL,false);
+-- name: segment_relation_overflow
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_overflow','[(1e308,0),(-1e308,0)]','[(0,0),(3,4)]',NULL,NULL,NULL,NULL,NULL,NULL,NULL,true,NULL,false);
+-- name: segment_relation_skipped
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_skipped','bad','bad',true,true,true,true,true,true,true,true,'\x00',true);
+-- name: segment_relation_wrong_same
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_wrong_same','[(0,0),(3,4)]','[(0,0),(3,4)]',false,false,true,false,true,true,false,true,'\x0000000000000000000000000000000040080000000000004010000000000000',false);
+-- name: segment_relation_wrong_length
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_wrong_length','[(0,0),(3,4)]','[(0,0),(3,4)]',true,true,true,false,true,true,false,true,'\x0000000000000000000000000000000040080000000000004010000000000000',false);
+-- name: segment_relation_wrong_parallel
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_wrong_parallel','[(0,0),(3,4)]','[(0,0),(3,4)]',true,false,true,false,true,false,false,true,'\x0000000000000000000000000000000040080000000000004010000000000000',false);
+-- name: segment_relation_wrong_perpendicular
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_wrong_perpendicular','[(0,0),(3,4)]','[(0,0),(3,4)]',true,false,true,false,true,true,true,true,'\x0000000000000000000000000000000040080000000000004010000000000000',false);
+-- name: segment_relation_wrong_selected
+INSERT INTO guide_segment_relations (id,guide_id,label,first_text,second_text,recorded_same,recorded_less,recorded_le,recorded_greater,recorded_ge,recorded_parallel,recorded_perpendicular,prefer_first,recorded_wire,skip_validation) VALUES (100,1,'segment_relation_wrong_selected','[(0,0),(3,4)]','[(0,0),(3,4)]',true,false,true,false,true,true,false,true,'\x00',false);
+-- name: segment_construct_ordinary
+INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_ordinary','(0,0)','(3,4)','[(0,0),(3,4)]','\x0000000000000000000000000000000040080000000000004010000000000000',false);
+-- name: segment_construct_coincident
+INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_coincident','(0,0)','(0,0)','[(0,0),(0,0)]','\x0000000000000000000000000000000000000000000000000000000000000000',false);
+-- name: segment_construct_reverse
+INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_reverse','(3,4)','(0,0)','[(3,4),(0,0)]','\x4008000000000000401000000000000000000000000000000000000000000000',false);
+-- name: segment_construct_missing
+INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_missing',NULL,'(3,4)',NULL,NULL,false);
+-- name: segment_construct_nullable
+INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_nullable','(0,0)','(3,4)',NULL,NULL,false);
+-- name: segment_construct_invalid
+INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_invalid','bad','(3,4)',NULL,NULL,false);
+-- name: segment_construct_skipped
+INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_skipped','bad','bad',NULL,'\x00',true);
+-- name: segment_construct_wrong_same
+INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_wrong_same','(0,0)','(3,4)','[(3,4),(0,0)]','\x0000000000000000000000000000000040080000000000004010000000000000',false);
+-- name: segment_construct_wrong_wire
+INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_wrong_wire','(0,0)','(3,4)','[(0,0),(3,4)]','\x00',false);

@@ -8919,6 +8919,22 @@ function lineParse(value: string): checkruntime.LineValue {
     if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "{") {
         return lineParseCoefficients(source, langruntime.checkedAdd(index, 1));
     }
+    const pair: GeometryInputPair = copyGeometryInputPair(geometryReadPair(source, index));
+    return lineFromPoints(pair.first, pair.second, floatInputInvalid);
+}
+interface GeometryInputPair {
+    first: checkruntime.PointValue;
+    second: checkruntime.PointValue;
+}
+function copyGeometryInputPair(value: GeometryInputPair): GeometryInputPair {
+    return { first: value.first, second: value.second };
+}
+function geometryPairFailure(value: checkruntime.PointValue): GeometryInputPair {
+    return { first: value, second: { kind: "Unknown" } };
+}
+function geometryReadPair(source: GeometryInputText, begin: number): GeometryInputPair {
+    begin = langruntime.checkedIndex(begin);
+    let index: number = begin;
     let depth: number = 0;
     let open: boolean = false;
     if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "[") {
@@ -8945,10 +8961,10 @@ function lineParse(value: string): checkruntime.LineValue {
     const firstValue: checkruntime.PointValue = first.value;
     if (firstValue.kind === "Error") {
         const error: checkruntime.SqlError = firstValue.value;
-        return { kind: "Error", value: error };
+        return geometryPairFailure({ kind: "Error", value: error });
     }
     if (checkruntime.equalPointValue(firstValue, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
+        return geometryPairFailure({ kind: "Unknown" });
     }
     index = langruntime.checkedIndex(first.end);
     if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ",") {
@@ -8958,10 +8974,10 @@ function lineParse(value: string): checkruntime.LineValue {
     const secondValue: checkruntime.PointValue = second.value;
     if (secondValue.kind === "Error") {
         const error: checkruntime.SqlError = secondValue.value;
-        return { kind: "Error", value: error };
+        return geometryPairFailure({ kind: "Error", value: error });
     }
     if (checkruntime.equalPointValue(secondValue, { kind: "Unknown" })) {
-        return { kind: "Unknown" };
+        return geometryPairFailure({ kind: "Unknown" });
     }
     index = langruntime.checkedIndex(second.end);
     if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ",") {
@@ -8969,14 +8985,14 @@ function lineParse(value: string): checkruntime.LineValue {
     }
     if (depth === 1) {
         if (index >= source.chars.length || (!(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ")") && (open === false || !(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "]")))) {
-            return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+            return geometryPairFailure({ kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) });
         }
         index = langruntime.checkedIndex(geometryInputSpace(source, langruntime.checkedAdd(index, 1)));
     }
     if (!(index === source.chars.length)) {
-        return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+        return geometryPairFailure({ kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) });
     }
-    return lineFromPoints(firstValue, secondValue, floatInputInvalid);
+    return { first: firstValue, second: secondValue };
 }
 export function lineFromText(input: checkruntime.TextValue): checkruntime.LineValue {
     if (input.kind === "Error") {
@@ -9331,6 +9347,310 @@ export function onPl5c6f(point: checkruntime.PointValue, line: checkruntime.Line
                 return checkruntime.makeBoolValue(langruntime.f64Abs(checkruntime.float8Number(bits)) <= 0.000001);
             }
         }
+    }
+    return { kind: "Unknown" };
+}
+function lsegEndpoint(input: checkruntime.LsegValue, second: boolean): checkruntime.PointValue {
+    second = langruntime.checkedBool(second);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.LsegPayload = input.value;
+        let x: bigint = value.x1;
+        let y: bigint = value.y1;
+        if (second) {
+            x = langruntime.checkedI64(value.x2);
+            y = langruntime.checkedI64(value.y2);
+        }
+        return { kind: "Value", value: { x: x, y: y, wireKnown: value.wireKnown } };
+    }
+    return { kind: "Unknown" };
+}
+export function lsegL9bc(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.LsegValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(left, { kind: "Unknown" }) || checkruntime.equalPointValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(left, { kind: "Null" }) || checkruntime.equalPointValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PointPayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.PointPayload = right.value;
+            return { kind: "Value", value: { x1: a.x, y1: a.y, x2: b.x, y2: b.y, wireKnown: a.wireKnown && b.wireKnown } };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function lsegSendKc2a(input: checkruntime.LsegValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.LsegPayload = input.value;
+        if (value.wireKnown === false) {
+            return { kind: "Unknown" };
+        }
+        const first: checkruntime.ByteaValue = pointSendKuoa(lsegEndpoint(input, false));
+        const second: checkruntime.ByteaValue = pointSendKuoa(lsegEndpoint(input, true));
+        return byteacatZitv(first, second);
+    }
+    return { kind: "Unknown" };
+}
+function lsegEqual(left: checkruntime.LsegValue, right: checkruntime.LsegValue, different: boolean): checkruntime.BoolValue {
+    different = langruntime.checkedBool(different);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(left, { kind: "Unknown" }) || checkruntime.equalLsegValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLsegValue(left, { kind: "Null" }) || checkruntime.equalLsegValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const first: checkruntime.BoolValue = pointEq5be0(lsegEndpoint(left, false), lsegEndpoint(right, false));
+    if (checkruntime.equalBoolValue(first, { kind: "Value", value: false })) {
+        return checkruntime.makeBoolValue(different);
+    }
+    const second: checkruntime.BoolValue = pointEq5be0(lsegEndpoint(left, true), lsegEndpoint(right, true));
+    if (second.kind === "Value") {
+        const value: boolean = langruntime.checkedBool(second.value);
+        return checkruntime.makeBoolValue(!(value === different));
+    }
+    return second;
+}
+function lsegLengthValue(input: checkruntime.LsegValue): checkruntime.Float8Value {
+    return pointDistance2haq(lsegEndpoint(input, false), lsegEndpoint(input, true));
+}
+function lsegLengthRelation(left: checkruntime.LsegValue, right: checkruntime.LsegValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(left, { kind: "Unknown" }) || checkruntime.equalLsegValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLsegValue(left, { kind: "Null" }) || checkruntime.equalLsegValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const first: checkruntime.Float8Value = lsegLengthValue(left);
+    if (first.kind === "Error") {
+        const error: checkruntime.SqlError = first.value;
+        return { kind: "Error", value: error };
+    }
+    const second: checkruntime.Float8Value = lsegLengthValue(right);
+    if (second.kind === "Error") {
+        const error: checkruntime.SqlError = second.value;
+        return { kind: "Error", value: error };
+    }
+    const a: checkruntime.Float8Value = checkruntime.float8Semantic(first);
+    const b: checkruntime.Float8Value = checkruntime.float8Semantic(second);
+    if (a.kind === "Value") {
+        const aa: bigint = langruntime.checkedI64(a.value);
+        if (b.kind === "Value") {
+            const bb: bigint = langruntime.checkedI64(b.value);
+            const x: number = checkruntime.float8Number(aa);
+            const y: number = checkruntime.float8Number(bb);
+            if (mode === 0) {
+                return checkruntime.makeBoolValue(langruntime.f64Add(x, 0.000001) < y);
+            }
+            if (mode === 1) {
+                return checkruntime.makeBoolValue(x <= langruntime.f64Add(y, 0.000001));
+            }
+            if (mode === 2) {
+                return checkruntime.makeBoolValue(x > langruntime.f64Add(y, 0.000001));
+            }
+            return checkruntime.makeBoolValue(langruntime.f64Add(x, 0.000001) >= y);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function lsegMidpoint(input: checkruntime.LsegValue): checkruntime.PointValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.LsegPayload = input.value;
+        const two: checkruntime.Float8Value = checkruntime.makeFloat8Value(2.0);
+        const x: checkruntime.Float8Value = float8divKumj(float8plG3ou(checkruntime.makeFloat8Bits(value.x1), checkruntime.makeFloat8Bits(value.x2)), two);
+        const y: checkruntime.Float8Value = float8divKumj(float8plG3ou(checkruntime.makeFloat8Bits(value.y1), checkruntime.makeFloat8Bits(value.y2)), two);
+        return pointArithmeticResult(x, y);
+    }
+    return { kind: "Unknown" };
+}
+function lsegOrientation(input: checkruntime.LsegValue, vertical: boolean): checkruntime.BoolValue {
+    vertical = langruntime.checkedBool(vertical);
+    if (vertical) {
+        return pointVertV6kr(lsegEndpoint(input, false), lsegEndpoint(input, true));
+    }
+    return pointHorizTsjw(lsegEndpoint(input, false), lsegEndpoint(input, true));
+}
+function lsegSlope(input: checkruntime.LsegValue, inverse: boolean): checkruntime.Float8Value {
+    inverse = langruntime.checkedBool(inverse);
+    if (inverse === false) {
+        return slopeXxph(lsegEndpoint(input, false), lsegEndpoint(input, true));
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.LsegPayload = input.value;
+        if (geometricCoordinateEqual(checkruntime.float8Number(value.x1), checkruntime.float8Number(value.x2))) {
+            return checkruntime.makeFloat8Bits(0n);
+        }
+        if (geometricCoordinateEqual(checkruntime.float8Number(value.y1), checkruntime.float8Number(value.y2))) {
+            return checkruntime.makeFloat8Bits(9218868437227405312n);
+        }
+        const x: checkruntime.Float8Value = float8miR1nu(checkruntime.makeFloat8Bits(value.x1), checkruntime.makeFloat8Bits(value.x2));
+        const y: checkruntime.Float8Value = float8miR1nu(checkruntime.makeFloat8Bits(value.y2), checkruntime.makeFloat8Bits(value.y1));
+        return float8divKumj(x, y);
+    }
+    return { kind: "Unknown" };
+}
+function lsegDirectionRelation(left: checkruntime.LsegValue, right: checkruntime.LsegValue, perpendicular: boolean): checkruntime.BoolValue {
+    perpendicular = langruntime.checkedBool(perpendicular);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(left, { kind: "Unknown" }) || checkruntime.equalLsegValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLsegValue(left, { kind: "Null" }) || checkruntime.equalLsegValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const first: checkruntime.Float8Value = lsegSlope(left, false);
+    if (first.kind === "Error") {
+        const error: checkruntime.SqlError = first.value;
+        return { kind: "Error", value: error };
+    }
+    const second: checkruntime.Float8Value = lsegSlope(right, perpendicular);
+    if (second.kind === "Error") {
+        const error: checkruntime.SqlError = second.value;
+        return { kind: "Error", value: error };
+    }
+    const a: checkruntime.Float8Value = checkruntime.float8Semantic(first);
+    const b: checkruntime.Float8Value = checkruntime.float8Semantic(second);
+    if (a.kind === "Value") {
+        const aa: bigint = langruntime.checkedI64(a.value);
+        if (b.kind === "Value") {
+            const bb: bigint = langruntime.checkedI64(b.value);
+            return checkruntime.makeBoolValue(geometricCoordinateEqual(checkruntime.float8Number(aa), checkruntime.float8Number(bb)));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function lsegEqN70t(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegEqual(left, right, false);
+}
+export function lsegNe92bg(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegEqual(left, right, true);
+}
+export function lsegLt0qau(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegLengthRelation(left, right, 0);
+}
+export function lsegLe9ys9(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegLengthRelation(left, right, 1);
+}
+export function lsegGt3lw7(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegLengthRelation(left, right, 2);
+}
+export function lsegGe01d3(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegLengthRelation(left, right, 3);
+}
+export function lsegLengthGiky(input: checkruntime.LsegValue): checkruntime.Float8Value {
+    return lsegLengthValue(input);
+}
+export function lengthX073(input: checkruntime.LsegValue): checkruntime.Float8Value {
+    return lsegLengthValue(input);
+}
+export function lsegCenterBvk0(input: checkruntime.LsegValue): checkruntime.PointValue {
+    return lsegMidpoint(input);
+}
+export function point2g95(input: checkruntime.LsegValue): checkruntime.PointValue {
+    return lsegMidpoint(input);
+}
+export function lsegHorizontalZy1e(input: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegOrientation(input, false);
+}
+export function ishorizontal7dxs(input: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegOrientation(input, false);
+}
+export function lsegVerticalJrht(input: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegOrientation(input, true);
+}
+export function isvertical9238(input: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegOrientation(input, true);
+}
+export function lsegParallel8wqn(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegDirectionRelation(left, right, false);
+}
+export function isparallelR9lg(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegDirectionRelation(left, right, false);
+}
+export function lsegPerpRoic(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegDirectionRelation(left, right, true);
+}
+export function isperpGnoe(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    return lsegDirectionRelation(left, right, true);
+}
+export function lsegFromText(input: checkruntime.TextValue): checkruntime.LsegValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        if (chars.length > 4096) {
+            return { kind: "Unknown" };
+        }
+        const source: GeometryInputText = { chars: chars };
+        const index: number = geometryInputSpace(source, 0);
+        const pair: GeometryInputPair = copyGeometryInputPair(geometryReadPair(source, index));
+        return lsegL9bc(pair.first, pair.second);
     }
     return { kind: "Unknown" };
 }

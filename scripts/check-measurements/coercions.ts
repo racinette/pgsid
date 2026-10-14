@@ -1,4 +1,8 @@
 import {
+  lsegInputForms,
+  deferredLsegPlatformForms,
+} from '../../tests/sql-semantics/check-lseg-input-forms.js'
+import {
   pointInputForms,
   deferredPointPlatformForms,
 } from '../../tests/sql-semantics/check-point-input-forms.js'
@@ -33,6 +37,17 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.lseg',
+    suite: 'tests/sql-semantics/check-lseg.test.ts',
+    handled: lsegInputForms,
+    deferred: deferredLsegPlatformForms,
+    platformDependent: deferredLsegPlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+    computedNanBinaryOutput: 'Unknown',
+  },
   {
     type: 'pg_catalog.line',
     suite: 'tests/sql-semantics/check-line-input.test.ts',

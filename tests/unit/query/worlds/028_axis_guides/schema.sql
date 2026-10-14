@@ -91,3 +91,59 @@ CREATE TABLE guide_projections (
   CONSTRAINT projection_closest CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(close_pl(position,axis),recorded_closest) END),
   CONSTRAINT projection_distance CHECK (CASE WHEN skip_validation THEN true ELSE float8send(dist_pl(position,axis)) = recorded_distance AND float8send(dist_lp(axis,position)) = recorded_distance END)
 );
+
+CREATE DOMAIN imported_segment AS lseg;
+CREATE DOMAIN survey_segment AS imported_segment;
+CREATE TABLE guide_segment_imports (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  source_text text,
+  recorded_wire bytea,
+  recorded_length float8,
+  recorded_center point,
+  recorded_horizontal boolean,
+  recorded_vertical boolean,
+  recorded_present boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT segment_import_wire CHECK (CASE WHEN skip_validation THEN true ELSE lseg_send(source_text::survey_segment) = recorded_wire END),
+  CONSTRAINT segment_import_length CHECK (CASE WHEN skip_validation THEN true ELSE lseg_length(source_text::lseg) = recorded_length AND length(source_text::lseg) = recorded_length END),
+  CONSTRAINT segment_import_center CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(lseg_center(source_text::lseg),recorded_center) AND point_eq(point(source_text::lseg),recorded_center) END),
+  CONSTRAINT segment_import_horizontal CHECK (CASE WHEN skip_validation THEN true ELSE lseg_horizontal(source_text::lseg) = recorded_horizontal AND ishorizontal(source_text::lseg) = recorded_horizontal END),
+  CONSTRAINT segment_import_vertical CHECK (CASE WHEN skip_validation THEN true ELSE lseg_vertical(source_text::lseg) = recorded_vertical AND isvertical(source_text::lseg) = recorded_vertical END),
+  CONSTRAINT segment_import_present CHECK (CASE WHEN skip_validation THEN true ELSE (source_text::lseg IS NOT NULL) = recorded_present END)
+);
+CREATE TABLE guide_segment_relations (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  first_text text,
+  second_text text,
+  recorded_same boolean,
+  recorded_less boolean,
+  recorded_le boolean,
+  recorded_greater boolean,
+  recorded_ge boolean,
+  recorded_parallel boolean,
+  recorded_perpendicular boolean,
+  prefer_first boolean NOT NULL,
+  recorded_wire bytea,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT segment_relation_same CHECK (CASE WHEN skip_validation THEN true ELSE lseg_eq(first_text::lseg,second_text::lseg) = recorded_same AND lseg_ne(first_text::lseg,second_text::lseg) = NOT recorded_same END),
+  CONSTRAINT segment_relation_length CHECK (CASE WHEN skip_validation THEN true ELSE (first_text::lseg < second_text::lseg) = recorded_less AND (first_text::lseg <= second_text::lseg) = recorded_le AND (first_text::lseg > second_text::lseg) = recorded_greater AND (first_text::lseg >= second_text::lseg) = recorded_ge END),
+  CONSTRAINT segment_relation_parallel CHECK (CASE WHEN skip_validation THEN true ELSE lseg_parallel(first_text::lseg,second_text::lseg) = recorded_parallel AND isparallel(first_text::lseg,second_text::lseg) = recorded_parallel END),
+  CONSTRAINT segment_relation_perpendicular CHECK (CASE WHEN skip_validation THEN true ELSE lseg_perp(first_text::lseg,second_text::lseg) = recorded_perpendicular AND isperp(first_text::lseg,second_text::lseg) = recorded_perpendicular END),
+  CONSTRAINT segment_relation_selected CHECK (CASE WHEN skip_validation THEN true ELSE lseg_send(CASE WHEN prefer_first THEN first_text::survey_segment ELSE second_text::lseg END) = recorded_wire END)
+);
+CREATE TABLE guide_segment_constructions (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  first_text text,
+  second_text text,
+  recorded_segment survey_segment,
+  recorded_wire bytea,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT segment_construct_same CHECK (CASE WHEN skip_validation THEN true ELSE lseg_eq(lseg(first_text::point,second_text::point),recorded_segment) END),
+  CONSTRAINT segment_construct_wire CHECK (CASE WHEN skip_validation THEN true ELSE lseg_send(lseg(first_text::point,second_text::point)) = recorded_wire END)
+);

@@ -44,6 +44,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.float8') return 'Float8Value'
   if (type === 'pg_catalog.point') return 'PointValue'
   if (type === 'pg_catalog.line') return 'LineValue'
+  if (type === 'pg_catalog.lseg') return 'LsegValue'
   if (type === 'pg_catalog."numeric"') return 'NumericValue'
   if (type === 'pg_catalog."time"') return 'TimeValue'
   if (type === 'pg_catalog.timetz') return 'TimetzValue'
@@ -491,7 +492,11 @@ export function emitCheckRustEvaluator(
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
-    if (node.kind === 'text-to-point' || node.kind === 'text-to-line') {
+    if (
+      node.kind === 'text-to-point' ||
+      node.kind === 'text-to-line' ||
+      node.kind === 'text-to-lseg'
+    ) {
       const operand = emitScalar(node.operand, bindings, used)
       const io = builtinTypeIO(node.type)?.input
       if (
@@ -502,7 +507,12 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           'Geometric input requires text and its catalog I/O identity',
         )
-      const helper = node.kind === 'text-to-line' ? 'line_from_text' : 'point_from_text'
+      const helper =
+        node.kind === 'text-to-lseg'
+          ? 'lseg_from_text'
+          : node.kind === 'text-to-line'
+            ? 'line_from_text'
+            : 'point_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'text-to-float') {
@@ -669,6 +679,11 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`line_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'lseg') {
+        if (value.value === null) return { name: bind('lseg_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`lseg_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'point') {
         if (value.value === null) return { name: bind('point_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -800,6 +815,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.float8',
           'pg_catalog.point',
           'pg_catalog.line',
+          'pg_catalog.lseg',
           'pg_catalog."numeric"',
           'pg_catalog."time"',
           'pg_catalog.timetz',

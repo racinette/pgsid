@@ -8871,6 +8871,24 @@ func lineParse(value string) checkruntime.LineValue {
 	if index < len(source.chars) && source.chars[index] == '{' {
 		return lineParseCoefficients(&source, langruntime.CheckedAdd(index, 1))
 	}
+	pair := geometryReadPair(&source, index)
+	return lineFromPoints(pair.first, pair.second, floatInputInvalid)
+}
+
+type geometryInputPair struct {
+	first  checkruntime.PointValue
+	second checkruntime.PointValue
+}
+
+func copygeometryInputPair(value geometryInputPair) geometryInputPair {
+	return geometryInputPair{first: value.first, second: value.second}
+}
+func geometryPairFailure(value checkruntime.PointValue) geometryInputPair {
+	return geometryInputPair{first: value, second: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}}
+}
+func geometryReadPair(source *geometryInputText, begin int) geometryInputPair {
+	begin = langruntime.CheckedIndex(begin)
+	index := begin
 	depth := 0
 	open := false
 	if index < len(source.chars) && source.chars[index] == '[' {
@@ -8878,7 +8896,7 @@ func lineParse(value string) checkruntime.LineValue {
 		open = true
 		index = langruntime.CheckedAdd(index, 1)
 	} else if index < len(source.chars) && source.chars[index] == '(' {
-		next := geometryInputSpace(&source, langruntime.CheckedAdd(index, 1))
+		next := geometryInputSpace(source, langruntime.CheckedAdd(index, 1))
 		laterParenthesis := false
 		scan := langruntime.CheckedAdd(index, 1)
 		for scan < len(source.chars) {
@@ -8892,27 +8910,27 @@ func lineParse(value string) checkruntime.LineValue {
 			index = langruntime.CheckedIndex(next)
 		}
 	}
-	first := geometryReadPoint(&source, index)
+	first := geometryReadPoint(source, index)
 	firstValue := first.value
 	if firstValue.Kind == checkruntime.PointValueError {
 		error := firstValue.Error
-		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+		return geometryPairFailure(checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error})
 	}
 	if firstValue == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
-		return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+		return geometryPairFailure(checkruntime.PointValue{Kind: checkruntime.PointValueUnknown})
 	}
 	index = langruntime.CheckedIndex(first.end)
 	if index < len(source.chars) && source.chars[index] == ',' {
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	second := geometryReadPoint(&source, index)
+	second := geometryReadPoint(source, index)
 	secondValue := second.value
 	if secondValue.Kind == checkruntime.PointValueError {
 		error := secondValue.Error
-		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+		return geometryPairFailure(checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error})
 	}
 	if secondValue == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
-		return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+		return geometryPairFailure(checkruntime.PointValue{Kind: checkruntime.PointValueUnknown})
 	}
 	index = langruntime.CheckedIndex(second.end)
 	if index < len(source.chars) && source.chars[index] == ',' {
@@ -8920,14 +8938,14 @@ func lineParse(value string) checkruntime.LineValue {
 	}
 	if depth == 1 {
 		if index >= len(source.chars) || (source.chars[index] != ')' && (open == false || source.chars[index] != ']')) {
-			return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+			return geometryPairFailure(checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)})
 		}
-		index = langruntime.CheckedIndex(geometryInputSpace(&source, langruntime.CheckedAdd(index, 1)))
+		index = langruntime.CheckedIndex(geometryInputSpace(source, langruntime.CheckedAdd(index, 1)))
 	}
 	if index != len(source.chars) {
-		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+		return geometryPairFailure(checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)})
 	}
-	return lineFromPoints(firstValue, secondValue, floatInputInvalid)
+	return geometryInputPair{first: firstValue, second: secondValue}
 }
 func LineFromText(input checkruntime.TextValue) checkruntime.LineValue {
 	if input.Kind == checkruntime.TextValueError {
@@ -9284,6 +9302,305 @@ func OnPl5c6f(point checkruntime.PointValue, line checkruntime.LineValue) checkr
 		}
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func lsegEndpoint(input checkruntime.LsegValue, second bool) checkruntime.PointValue {
+	if input.Kind == checkruntime.LsegValueError {
+		error := input.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if input == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if input.Kind == checkruntime.LsegValueValue {
+		value := input.Value
+		x := value.X1
+		y := value.Y1
+		if second {
+			x = value.X2
+			y = value.Y2
+		}
+		return checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: checkruntime.PointPayload{X: x, Y: y, WireKnown: value.WireKnown}}
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func LsegL9bc(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.LsegValue {
+	if left.Kind == checkruntime.PointValueError {
+		error := left.Error
+		return checkruntime.LsegValue{Kind: checkruntime.LsegValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PointValueError {
+		error := right.Error
+		return checkruntime.LsegValue{Kind: checkruntime.LsegValueError, Error: error}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}
+	}
+	if left.Kind == checkruntime.PointValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.PointValueValue {
+			b := right.Value
+			return checkruntime.LsegValue{Kind: checkruntime.LsegValueValue, Value: checkruntime.LsegPayload{X1: a.X, Y1: a.Y, X2: b.X, Y2: b.Y, WireKnown: a.WireKnown && b.WireKnown}}
+		}
+	}
+	return checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}
+}
+func LsegSendKc2a(input checkruntime.LsegValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.LsegValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.LsegValueValue {
+		value := input.Value
+		if value.WireKnown == false {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+		}
+		first := PointSendKuoa(lsegEndpoint(input, false))
+		second := PointSendKuoa(lsegEndpoint(input, true))
+		return ByteacatZitv(first, second)
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func lsegEqual(left checkruntime.LsegValue, right checkruntime.LsegValue, different bool) checkruntime.BoolValue {
+	if left.Kind == checkruntime.LsegValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.LsegValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) || right == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) || right == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	first := PointEq5be0(lsegEndpoint(left, false), lsegEndpoint(right, false))
+	if first == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return checkruntime.MakeBoolValue(different)
+	}
+	second := PointEq5be0(lsegEndpoint(left, true), lsegEndpoint(right, true))
+	if second.Kind == checkruntime.BoolValueValue {
+		value := second.Value
+		return checkruntime.MakeBoolValue(value != different)
+	}
+	return second
+}
+func lsegLengthValue(input checkruntime.LsegValue) checkruntime.Float8Value {
+	return PointDistance2haq(lsegEndpoint(input, false), lsegEndpoint(input, true))
+}
+func lsegLengthRelation(left checkruntime.LsegValue, right checkruntime.LsegValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	if left.Kind == checkruntime.LsegValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.LsegValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) || right == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) || right == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	first := lsegLengthValue(left)
+	if first.Kind == checkruntime.Float8ValueError {
+		error := first.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	second := lsegLengthValue(right)
+	if second.Kind == checkruntime.Float8ValueError {
+		error := second.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	a := checkruntime.Float8Semantic(first)
+	b := checkruntime.Float8Semantic(second)
+	if a.Kind == checkruntime.Float8ValueValue {
+		aa := a.Value
+		if b.Kind == checkruntime.Float8ValueValue {
+			bb := b.Value
+			x := checkruntime.Float8Number(aa)
+			y := checkruntime.Float8Number(bb)
+			if mode == 0 {
+				return checkruntime.MakeBoolValue(langruntime.F64Add(x, float64(0.000001)) < y)
+			}
+			if mode == 1 {
+				return checkruntime.MakeBoolValue(x <= langruntime.F64Add(y, float64(0.000001)))
+			}
+			if mode == 2 {
+				return checkruntime.MakeBoolValue(x > langruntime.F64Add(y, float64(0.000001)))
+			}
+			return checkruntime.MakeBoolValue(langruntime.F64Add(x, float64(0.000001)) >= y)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func lsegMidpoint(input checkruntime.LsegValue) checkruntime.PointValue {
+	if input.Kind == checkruntime.LsegValueError {
+		error := input.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if input == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if input.Kind == checkruntime.LsegValueValue {
+		value := input.Value
+		two := checkruntime.MakeFloat8Value(float64(2.0))
+		x := Float8divKumj(Float8plG3ou(checkruntime.MakeFloat8Bits(value.X1), checkruntime.MakeFloat8Bits(value.X2)), two)
+		y := Float8divKumj(Float8plG3ou(checkruntime.MakeFloat8Bits(value.Y1), checkruntime.MakeFloat8Bits(value.Y2)), two)
+		return pointArithmeticResult(x, y)
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func lsegOrientation(input checkruntime.LsegValue, vertical bool) checkruntime.BoolValue {
+	if vertical {
+		return PointVertV6kr(lsegEndpoint(input, false), lsegEndpoint(input, true))
+	}
+	return PointHorizTsjw(lsegEndpoint(input, false), lsegEndpoint(input, true))
+}
+func lsegSlope(input checkruntime.LsegValue, inverse bool) checkruntime.Float8Value {
+	if inverse == false {
+		return SlopeXxph(lsegEndpoint(input, false), lsegEndpoint(input, true))
+	}
+	if input.Kind == checkruntime.LsegValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if input == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if input.Kind == checkruntime.LsegValueValue {
+		value := input.Value
+		if geometricCoordinateEqual(checkruntime.Float8Number(value.X1), checkruntime.Float8Number(value.X2)) {
+			return checkruntime.MakeFloat8Bits(int64(0))
+		}
+		if geometricCoordinateEqual(checkruntime.Float8Number(value.Y1), checkruntime.Float8Number(value.Y2)) {
+			return checkruntime.MakeFloat8Bits(int64(9218868437227405312))
+		}
+		x := Float8miR1nu(checkruntime.MakeFloat8Bits(value.X1), checkruntime.MakeFloat8Bits(value.X2))
+		y := Float8miR1nu(checkruntime.MakeFloat8Bits(value.Y2), checkruntime.MakeFloat8Bits(value.Y1))
+		return Float8divKumj(x, y)
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func lsegDirectionRelation(left checkruntime.LsegValue, right checkruntime.LsegValue, perpendicular bool) checkruntime.BoolValue {
+	if left.Kind == checkruntime.LsegValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.LsegValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) || right == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) || right == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	first := lsegSlope(left, false)
+	if first.Kind == checkruntime.Float8ValueError {
+		error := first.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	second := lsegSlope(right, perpendicular)
+	if second.Kind == checkruntime.Float8ValueError {
+		error := second.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	a := checkruntime.Float8Semantic(first)
+	b := checkruntime.Float8Semantic(second)
+	if a.Kind == checkruntime.Float8ValueValue {
+		aa := a.Value
+		if b.Kind == checkruntime.Float8ValueValue {
+			bb := b.Value
+			return checkruntime.MakeBoolValue(geometricCoordinateEqual(checkruntime.Float8Number(aa), checkruntime.Float8Number(bb)))
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func LsegEqN70t(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegEqual(left, right, false)
+}
+func LsegNe92bg(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegEqual(left, right, true)
+}
+func LsegLt0qau(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegLengthRelation(left, right, 0)
+}
+func LsegLe9ys9(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegLengthRelation(left, right, 1)
+}
+func LsegGt3lw7(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegLengthRelation(left, right, 2)
+}
+func LsegGe01d3(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegLengthRelation(left, right, 3)
+}
+func LsegLengthGiky(input checkruntime.LsegValue) checkruntime.Float8Value {
+	return lsegLengthValue(input)
+}
+func LengthX073(input checkruntime.LsegValue) checkruntime.Float8Value {
+	return lsegLengthValue(input)
+}
+func LsegCenterBvk0(input checkruntime.LsegValue) checkruntime.PointValue {
+	return lsegMidpoint(input)
+}
+func Point2g95(input checkruntime.LsegValue) checkruntime.PointValue {
+	return lsegMidpoint(input)
+}
+func LsegHorizontalZy1e(input checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegOrientation(input, false)
+}
+func Ishorizontal7dxs(input checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegOrientation(input, false)
+}
+func LsegVerticalJrht(input checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegOrientation(input, true)
+}
+func Isvertical9238(input checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegOrientation(input, true)
+}
+func LsegParallel8wqn(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegDirectionRelation(left, right, false)
+}
+func IsparallelR9lg(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegDirectionRelation(left, right, false)
+}
+func LsegPerpRoic(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegDirectionRelation(left, right, true)
+}
+func IsperpGnoe(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	return lsegDirectionRelation(left, right, true)
+}
+func LsegFromText(input checkruntime.TextValue) checkruntime.LsegValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.LsegValue{Kind: checkruntime.LsegValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		if len(chars) > 4096 {
+			return checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}
+		}
+		source := geometryInputText{chars: chars}
+		index := geometryInputSpace(&source, 0)
+		pair := geometryReadPair(&source, index)
+		return LsegL9bc(pair.first, pair.second)
+	}
+	return checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}
 }
 
 const macConversionOutOfRange = 3452547

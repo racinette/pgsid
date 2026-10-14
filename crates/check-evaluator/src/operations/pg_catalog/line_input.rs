@@ -230,6 +230,22 @@ fn line_parse(value: &str) -> LineValue {
     if index < source.chars.len() && source.chars[index] == '{' {
         return line_parse_coefficients(&source, index + 1);
     };
+    let pair = geometry_read_pair(&source, index);
+    line_from_points(pair.first, pair.second, FLOAT_INPUT_INVALID)
+}
+#[derive(Clone, Copy)]
+struct GeometryInputPair {
+    first: PointValue,
+    second: PointValue,
+}
+fn geometry_pair_failure(value: PointValue) -> GeometryInputPair {
+    GeometryInputPair {
+        first: value,
+        second: PointValue::Unknown,
+    }
+}
+fn geometry_read_pair(source: &GeometryInputText, begin: usize) -> GeometryInputPair {
+    let mut index = begin;
     let mut depth = 0;
     let mut open = false;
     if index < source.chars.len() && source.chars[index] == '[' {
@@ -237,7 +253,7 @@ fn line_parse(value: &str) -> LineValue {
         open = true;
         index += 1;
     } else if index < source.chars.len() && source.chars[index] == '(' {
-        let next = geometry_input_space(&source, index + 1);
+        let next = geometry_input_space(source, index + 1);
         let mut later_parenthesis = false;
         let mut scan = index + 1;
         while scan < source.chars.len() {
@@ -251,25 +267,25 @@ fn line_parse(value: &str) -> LineValue {
             index = next;
         };
     };
-    let first = geometry_read_point(&source, index);
+    let first = geometry_read_point(source, index);
     let first_value = first.value;
     if let PointValue::Error(error) = first_value {
-        return LineValue::Error(error);
+        return geometry_pair_failure(PointValue::Error(error));
     };
     if first_value == PointValue::Unknown {
-        return LineValue::Unknown;
+        return geometry_pair_failure(PointValue::Unknown);
     };
     index = first.end;
     if index < source.chars.len() && source.chars[index] == ',' {
         index += 1;
     };
-    let second = geometry_read_point(&source, index);
+    let second = geometry_read_point(source, index);
     let second_value = second.value;
     if let PointValue::Error(error) = second_value {
-        return LineValue::Error(error);
+        return geometry_pair_failure(PointValue::Error(error));
     };
     if second_value == PointValue::Unknown {
-        return LineValue::Unknown;
+        return geometry_pair_failure(PointValue::Unknown);
     };
     index = second.end;
     if index < source.chars.len() && source.chars[index] == ',' {
@@ -279,14 +295,17 @@ fn line_parse(value: &str) -> LineValue {
         if index >= source.chars.len()
             || (source.chars[index] != ')' && (open == false || source.chars[index] != ']'))
         {
-            return LineValue::Error(make_sql_error(FLOAT_INPUT_INVALID));
+            return geometry_pair_failure(PointValue::Error(make_sql_error(FLOAT_INPUT_INVALID)));
         };
-        index = geometry_input_space(&source, index + 1);
+        index = geometry_input_space(source, index + 1);
     };
     if index != source.chars.len() {
-        return LineValue::Error(make_sql_error(FLOAT_INPUT_INVALID));
+        return geometry_pair_failure(PointValue::Error(make_sql_error(FLOAT_INPUT_INVALID)));
     };
-    line_from_points(first_value, second_value, FLOAT_INPUT_INVALID)
+    GeometryInputPair {
+        first: first_value,
+        second: second_value,
+    }
 }
 pub fn line_from_text(input: TextValue) -> LineValue {
     if let TextValue::Error(error) = input {
