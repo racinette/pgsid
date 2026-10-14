@@ -108,7 +108,8 @@ pub fn sql__pg_catalog__make_time__6c3q(
     }
     if let Int4Value::Value(h) = hour {
         if let Int4Value::Value(m) = minute {
-            if let Float8Value::Value(bits) = second {
+            let known_second = float8_semantic(second);
+            if let Float8Value::Value(bits) = known_second {
                 let s = float8_number(bits);
                 if h < 0 || h > 24 || m < 0 || m > 59 || s != s || s < -1.0f64 || s > 61.0f64 {
                     return TimeValue::Error(make_sql_error(CLOCK_RANGE));

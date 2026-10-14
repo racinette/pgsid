@@ -1103,6 +1103,8 @@ export type Float4Value = {
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
+} | {
+    readonly kind: "UnspecifiedNan";
 };
 export function equalFloat4Value(left: Float4Value, right: Float4Value): boolean {
     if (left.kind !== right.kind)
@@ -1163,6 +1165,8 @@ export type Float8Value = {
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
+} | {
+    readonly kind: "UnspecifiedNan";
 };
 export function equalFloat8Value(left: Float8Value, right: Float8Value): boolean {
     if (left.kind !== right.kind)
@@ -1172,6 +1176,12 @@ export function equalFloat8Value(left: Float8Value, right: Float8Value): boolean
     if (left.kind === "Error" && right.kind === "Error")
         return equalSqlError(left.value, right.value);
     return true;
+}
+export function float8Semantic(input: Float8Value): Float8Value {
+    if (equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return makeFloat8Bits(9221120237041090560n);
+    }
+    return input;
 }
 export function float8Unknown(): Float8Value {
     return { kind: "Unknown" };

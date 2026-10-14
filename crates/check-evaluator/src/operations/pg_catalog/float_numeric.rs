@@ -5,7 +5,8 @@ fn float_numeric_decimal(input: Float8Value, precision: usize) -> NumericValue {
     if input == Float8Value::Null {
         return NumericValue::Null;
     }
-    if let Float8Value::Value(bits) = input {
+    let known_input = float8_semantic(input);
+    if let Float8Value::Value(bits) = known_input {
         let value = float8_number(bits);
         if value != value {
             return make_numeric_value("NaN");

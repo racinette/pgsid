@@ -636,9 +636,9 @@ function checkRustFloat4(row: object, name: string): _checkRust.Float4Value {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.float4Unknown()
   if (value === null) return _checkRust.float4Null()
-  if (typeof value === 'number') return _checkRust.makeFloat4Value(value)
+  if (typeof value === 'number') return Number.isNaN(value) ? { kind: 'UnspecifiedNan' } : _checkRust.makeFloat4Value(value)
   if (typeof value !== 'object' || !('kind' in value)) return _checkRust.float4Unknown()
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.Float4Value
+  if (value.kind === 'UnspecifiedNan' || value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.Float4Value
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'number' && Number.isInteger(value.value) && value.value >= -2147483648 && value.value <= 2147483647) return _checkRust.makeFloat4Bits(value.value)
   return _checkRust.float4Unknown()
 }
@@ -646,9 +646,9 @@ function checkRustFloat8(row: object, name: string): _checkRust.Float8Value {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.float8Unknown()
   if (value === null) return _checkRust.float8Null()
-  if (typeof value === 'number') return _checkRust.makeFloat8Value(value)
+  if (typeof value === 'number') return Number.isNaN(value) ? { kind: 'UnspecifiedNan' } : _checkRust.makeFloat8Value(value)
   if (typeof value !== 'object' || !('kind' in value)) return _checkRust.float8Unknown()
-  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.Float8Value
+  if (value.kind === 'UnspecifiedNan' || value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.Float8Value
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeFloat8Bits(value.value)
   return _checkRust.float8Unknown()
 }

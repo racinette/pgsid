@@ -30,7 +30,8 @@ fn interval_scaled(input: IntervalValue, factor: Float8Value, divide: bool) -> I
         return IntervalValue::Null;
     };
     if let IntervalValue::Value(span) = input {
-        if let Float8Value::Value(bits) = factor {
+        let known_factor = float8_semantic(factor);
+        if let Float8Value::Value(bits) = known_factor {
             let number = float8_number(bits);
             if divide && number == 0.0f64 {
                 return IntervalValue::Error(make_sql_error(INTERVAL_MATH_DIVISION_ZERO));
@@ -287,7 +288,8 @@ pub fn sql__pg_catalog__make_interval__nlc1(
     if let Int4Value::Value(n) = days { d = n; }
     if let Int4Value::Value(n) = hours { h = n; }
     if let Int4Value::Value(n) = minutes { min = n; }
-    if let Float8Value::Value(bits) = seconds { sec = float8_number(bits); }
+    let known_seconds = float8_semantic(seconds);
+    if let Float8Value::Value(bits) = known_seconds { sec = float8_number(bits); }
     if sec != sec || sec.abs() == float8_number(9218868437227405312i64) {
         return IntervalValue::Error(make_sql_error(CLOCK_RANGE));
     };

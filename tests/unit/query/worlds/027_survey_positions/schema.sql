@@ -1,5 +1,17 @@
 -- @world checks
 CREATE DOMAIN survey_point AS point;
+CREATE TABLE survey_slope_reports (
+  id integer PRIMARY KEY,
+  label text NOT NULL,
+  origin survey_point,
+  destination point,
+  recorded_nan boolean,
+  recorded_present boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT slope_nan CHECK (CASE WHEN skip_validation THEN true ELSE (slope(origin,destination) = 'NaN'::float8) = recorded_nan END),
+  CONSTRAINT slope_present CHECK (CASE WHEN skip_validation THEN true ELSE (slope(origin,destination) IS NOT NULL) = recorded_present END),
+  CONSTRAINT slope_scalar_cast CHECK (CASE WHEN skip_validation THEN true ELSE (slope(origin,destination)::float4::numeric = 'NaN'::numeric) = recorded_nan END)
+);
 CREATE TABLE survey_locations (
   id integer PRIMARY KEY,
   label text NOT NULL,
