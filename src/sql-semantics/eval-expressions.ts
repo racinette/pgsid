@@ -93,6 +93,7 @@ export type EvalExpression =
   | { kind: 'text-to-money'; type: 'pg_catalog.money'; operand: EvalExpression }
   | { kind: 'text-to-xid'; type: 'pg_catalog.xid'; operand: EvalExpression }
   | { kind: 'text-to-cid'; type: 'pg_catalog.cid'; operand: EvalExpression }
+  | { kind: 'text-to-pg_lsn'; type: 'pg_catalog.pg_lsn'; operand: EvalExpression }
   | { kind: 'text-to-xid8'; type: 'pg_catalog.xid8'; operand: EvalExpression }
   | { kind: 'text-to-oid'; type: 'pg_catalog.oid'; operand: EvalExpression }
   | { kind: 'text-to-circle'; type: 'pg_catalog.circle'; operand: EvalExpression }
@@ -258,6 +259,7 @@ export function emitEvalExpression<Ast>(
           node.expression.kind === 'money' ||
           node.expression.kind === 'xid' ||
           node.expression.kind === 'cid' ||
+          node.expression.kind === 'pg_lsn' ||
           node.expression.kind === 'xid8' ||
           node.expression.kind === 'oid' ||
           node.expression.kind === 'circle' ||
@@ -300,6 +302,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'text-to-money' ||
       node.kind === 'text-to-xid' ||
       node.kind === 'text-to-cid' ||
+      node.kind === 'text-to-pg_lsn' ||
       node.kind === 'text-to-xid8' ||
       node.kind === 'text-to-oid' ||
       node.kind === 'text-to-circle' ||

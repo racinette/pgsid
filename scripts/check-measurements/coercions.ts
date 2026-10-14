@@ -1,3 +1,4 @@
+import { pgLsnInputForms } from '../../tests/sql-semantics/check-pg-lsn-input-forms.js'
 import {
   identifier32InputForms,
   deferredIdentifier32PlatformForms,
@@ -59,6 +60,16 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.pg_lsn',
+    suite: 'tests/sql-semantics/check-pg-lsn.test.ts',
+    handled: pgLsnInputForms,
+    deferred: [],
+    platformDependent: [],
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 17, outcome: '22P02' },
+  },
   {
     type: 'pg_catalog.xid',
     suite: 'tests/sql-semantics/check-system-identifiers.test.ts',

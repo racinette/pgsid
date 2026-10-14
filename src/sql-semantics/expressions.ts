@@ -20,6 +20,7 @@ export type LsegType = 'pg_catalog.lseg'
 export type MoneyType = 'pg_catalog.money'
 export type XidType = 'pg_catalog.xid'
 export type CidType = 'pg_catalog.cid'
+export type PgLsnType = 'pg_catalog.pg_lsn'
 export type Xid8Type = 'pg_catalog.xid8'
 export type OidType = 'pg_catalog.oid'
 export type CircleType = 'pg_catalog.circle'
@@ -58,6 +59,7 @@ export type ScalarType =
   | MoneyType
   | XidType
   | CidType
+  | PgLsnType
   | Xid8Type
   | OidType
   | CircleType
@@ -305,6 +307,7 @@ export type SqlExpression =
   | { kind: 'money'; type: MoneyType; value: string | null; units?: string }
   | { kind: 'xid'; type: XidType; value: string | null }
   | { kind: 'cid'; type: CidType; value: string | null }
+  | { kind: 'pg_lsn'; type: PgLsnType; value: string | null }
   | { kind: 'xid8'; type: Xid8Type; value: string | null }
   | { kind: 'oid'; type: OidType; value: string | null }
   | { kind: 'circle'; type: CircleType; value: string | null }
@@ -971,6 +974,10 @@ export function emitSqlExpression<Ast>(
     }
     if (node.kind === 'cid') {
       if (node.value !== null) throw new Error('Cid literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'pg_lsn') {
+      if (node.value !== null) throw new Error('PgLsn literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'xid8') {
