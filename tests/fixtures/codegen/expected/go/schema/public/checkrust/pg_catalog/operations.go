@@ -5588,6 +5588,577 @@ func Chr23bn(input checkruntime.Int4Value) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+func circleFromCenterRadius(center checkruntime.PointValue, radius checkruntime.Float8Value) checkruntime.CircleValue {
+	if center.Kind == checkruntime.PointValueError {
+		error := center.Error
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+	}
+	if radius.Kind == checkruntime.Float8ValueError {
+		error := radius.Error
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+	}
+	if center == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || radius == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}
+	}
+	if center == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || radius == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}
+	}
+	semantic := checkruntime.Float8Semantic(radius)
+	if center.Kind == checkruntime.PointValueValue {
+		point := center.Value
+		if semantic.Kind == checkruntime.Float8ValueValue {
+			bits := semantic.Value
+			return checkruntime.CircleValue{Kind: checkruntime.CircleValueValue, Value: checkruntime.CirclePayload{X: point.X, Y: point.Y, Radius: bits, WireKnown: point.WireKnown && radius != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan})}}
+		}
+	}
+	return checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}
+}
+func circleCenterValue(input checkruntime.CircleValue) checkruntime.PointValue {
+	if input.Kind == checkruntime.CircleValueError {
+		error := input.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if input == (checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if input.Kind == checkruntime.CircleValueValue {
+		value := input.Value
+		return checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: checkruntime.PointPayload{X: value.X, Y: value.Y, WireKnown: value.WireKnown || (checkruntime.Float8Number(value.X) == checkruntime.Float8Number(value.X) && checkruntime.Float8Number(value.Y) == checkruntime.Float8Number(value.Y))}}
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func circleRadiusValue(input checkruntime.CircleValue) checkruntime.Float8Value {
+	if input.Kind == checkruntime.CircleValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if input == (checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if input.Kind == checkruntime.CircleValueValue {
+		value := input.Value
+		number := checkruntime.Float8Number(value.Radius)
+		if value.WireKnown == false && number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		return checkruntime.MakeFloat8Bits(value.Radius)
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func circleAreaValue(input checkruntime.CircleValue) checkruntime.Float8Value {
+	radius := circleRadiusValue(input)
+	return boxComputedScalar(Float8mulD3nd(Float8mulD3nd(radius, radius), checkruntime.MakeFloat8Value(float64(3.141592653589793))))
+}
+func circlePairStatus(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.CircleValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.CircleValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}) || right == (checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}) || right == (checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func circleAreaRelation(left checkruntime.CircleValue, right checkruntime.CircleValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	status := circlePairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	first := circleAreaValue(left)
+	if first.Kind == checkruntime.Float8ValueError {
+		error := first.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	second := circleAreaValue(right)
+	if second.Kind == checkruntime.Float8ValueError {
+		error := second.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	a := checkruntime.Float8Semantic(first)
+	b := checkruntime.Float8Semantic(second)
+	if a.Kind == checkruntime.Float8ValueValue {
+		aa := a.Value
+		if b.Kind == checkruntime.Float8ValueValue {
+			bb := b.Value
+			x := checkruntime.Float8Number(aa)
+			y := checkruntime.Float8Number(bb)
+			if mode == 0 {
+				return checkruntime.MakeBoolValue(geometricCoordinateEqual(x, y))
+			}
+			if mode == 1 {
+				return checkruntime.MakeBoolValue(langruntime.F64Add(x, float64(0.000001)) < y)
+			}
+			if mode == 2 {
+				return checkruntime.MakeBoolValue(x > langruntime.F64Add(y, float64(0.000001)))
+			}
+			if mode == 3 {
+				return checkruntime.MakeBoolValue(x <= langruntime.F64Add(y, float64(0.000001)))
+			}
+			if mode == 4 {
+				return checkruntime.MakeBoolValue(langruntime.F64Add(x, float64(0.000001)) >= y)
+			}
+			return checkruntime.MakeBoolValue(x != y && langruntime.F64Abs((langruntime.F64Subtract(x, y))) > float64(0.000001))
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func circleSameValue(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	status := circlePairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	a := checkruntime.Float8Semantic(circleRadiusValue(left))
+	b := checkruntime.Float8Semantic(circleRadiusValue(right))
+	if a.Kind == checkruntime.Float8ValueValue {
+		aa := a.Value
+		if b.Kind == checkruntime.Float8ValueValue {
+			bb := b.Value
+			x := checkruntime.Float8Number(aa)
+			y := checkruntime.Float8Number(bb)
+			if (x != x && y != y) || geometricCoordinateEqual(x, y) {
+				return PointEq5be0(circleCenterValue(left), circleCenterValue(right))
+			}
+			return checkruntime.MakeBoolValue(false)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func circleBinary(input checkruntime.CircleValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.CircleValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.CircleValueValue {
+		value := input.Value
+		if value.WireKnown == false {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+		}
+		return ByteacatZitv(PointSendKuoa(circleCenterValue(input)), Float8send3bqt(circleRadiusValue(input)))
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func circleInscribedBox(input checkruntime.CircleValue) checkruntime.BoxValue {
+	if input.Kind == checkruntime.CircleValueError {
+		error := input.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if input == (checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}
+	}
+	if input.Kind == checkruntime.CircleValueValue {
+		center := circleCenterValue(input)
+		if center.Kind == checkruntime.PointValueValue {
+			point := center.Value
+			delta := Float8divKumj(circleRadiusValue(input), checkruntime.MakeFloat8Value(float64(1.4142135623730951)))
+			x := lineOriginCoordinate(point, false)
+			y := lineOriginCoordinate(point, true)
+			return boxFromScalars(boxComputedScalar(Float8plG3ou(x, delta)), boxComputedScalar(Float8plG3ou(y, delta)), boxComputedScalar(Float8miR1nu(x, delta)), boxComputedScalar(Float8miR1nu(y, delta)))
+		}
+	}
+	return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+}
+func circleFromBox(input checkruntime.BoxValue) checkruntime.CircleValue {
+	center := boxMidpoint(input)
+	radius := PointDistance2haq(center, boxEndpoint(input, false))
+	return circleFromCenterRadius(center, radius)
+}
+func CircleSendFf2a(input checkruntime.CircleValue) checkruntime.ByteaValue {
+	return circleBinary(input)
+}
+func Area73c3(input checkruntime.CircleValue) checkruntime.Float8Value {
+	return circleAreaValue(input)
+}
+func BoxPdgq(input checkruntime.CircleValue) checkruntime.BoxValue {
+	return circleInscribedBox(input)
+}
+func CenterRr17(input checkruntime.CircleValue) checkruntime.PointValue {
+	return circleCenterValue(input)
+}
+func Circle7fah(input checkruntime.BoxValue) checkruntime.CircleValue {
+	return circleFromBox(input)
+}
+func CircleE6o0(center checkruntime.PointValue, radius checkruntime.Float8Value) checkruntime.CircleValue {
+	return circleFromCenterRadius(center, radius)
+}
+func CircleCenter48y8(input checkruntime.CircleValue) checkruntime.PointValue {
+	return circleCenterValue(input)
+}
+func CircleEqWkhc(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circleAreaRelation(left, right, 0)
+}
+func CircleGe66rr(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circleAreaRelation(left, right, 4)
+}
+func CircleGtP2vj(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circleAreaRelation(left, right, 2)
+}
+func CircleLe1z8z(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circleAreaRelation(left, right, 3)
+}
+func CircleLtKxb1(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circleAreaRelation(left, right, 1)
+}
+func CircleNeOfb9(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circleAreaRelation(left, right, 5)
+}
+func CircleSame1h7o(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circleSameValue(left, right)
+}
+func DiameterE50j(input checkruntime.CircleValue) checkruntime.Float8Value {
+	return boxComputedScalar(Float8mulD3nd(circleRadiusValue(input), checkruntime.MakeFloat8Value(float64(2.0))))
+}
+func Point89o1(input checkruntime.CircleValue) checkruntime.PointValue {
+	return circleCenterValue(input)
+}
+func Radius0qp3(input checkruntime.CircleValue) checkruntime.Float8Value {
+	return circleRadiusValue(input)
+}
+func circleParse(value string) checkruntime.CircleValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	if len(chars) > 4096 {
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}
+	}
+	source := geometryInputText{chars: chars}
+	index := geometryInputSpace(&source, 0)
+	depth := 0
+	if index < len(source.chars) && source.chars[index] == '<' {
+		depth = langruntime.CheckedIndex(1)
+		index = langruntime.CheckedAdd(index, 1)
+	} else if index < len(source.chars) && source.chars[index] == '(' {
+		next := geometryInputSpace(&source, langruntime.CheckedAdd(index, 1))
+		if next < len(source.chars) && source.chars[next] == '(' {
+			depth = langruntime.CheckedIndex(1)
+			index = langruntime.CheckedIndex(next)
+		}
+	}
+	center := geometryReadPoint(&source, index)
+	point := center.value
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}
+	}
+	index = langruntime.CheckedIndex(center.end)
+	if index < len(source.chars) && source.chars[index] == ',' {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	radius := geometryReadNumber(&source, index)
+	scalar := radius.value
+	if scalar.Kind == checkruntime.Float8ValueError {
+		error := scalar.Error
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+	}
+	if scalar == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}
+	}
+	if scalar.Kind == checkruntime.Float8ValueValue {
+		bits := scalar.Value
+		if checkruntime.Float8Number(bits) < float64(0.0) {
+			return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+		}
+	}
+	index = langruntime.CheckedIndex(radius.end)
+	if depth == 1 {
+		if index >= len(source.chars) || (source.chars[index] != ')' && source.chars[index] != '>') {
+			return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+		}
+		index = langruntime.CheckedIndex(geometryInputSpace(&source, langruntime.CheckedAdd(index, 1)))
+	}
+	if index != len(source.chars) {
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+	}
+	return circleFromCenterRadius(point, scalar)
+}
+func CircleFromText(input checkruntime.TextValue) checkruntime.CircleValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return circleParse(value)
+	}
+	return checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}
+}
+func circleFuzzyRelation(left checkruntime.Float8Value, right checkruntime.Float8Value, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	if left.Kind == checkruntime.Float8ValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Float8ValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || right == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || right == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	first := checkruntime.Float8Semantic(left)
+	second := checkruntime.Float8Semantic(right)
+	if first.Kind == checkruntime.Float8ValueValue {
+		a := first.Value
+		if second.Kind == checkruntime.Float8ValueValue {
+			b := second.Value
+			x := checkruntime.Float8Number(a)
+			y := checkruntime.Float8Number(b)
+			if mode == 0 {
+				return checkruntime.MakeBoolValue(langruntime.F64Add(x, float64(0.000001)) < y)
+			}
+			if mode == 1 {
+				return checkruntime.MakeBoolValue(x > langruntime.F64Add(y, float64(0.000001)))
+			}
+			if mode == 2 {
+				return checkruntime.MakeBoolValue(x <= langruntime.F64Add(y, float64(0.000001)))
+			}
+			if mode == 3 {
+				return checkruntime.MakeBoolValue(langruntime.F64Add(x, float64(0.000001)) >= y)
+			}
+			return checkruntime.MakeBoolValue(x <= y)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func circleEdge(input checkruntime.CircleValue, vertical bool, low bool) checkruntime.Float8Value {
+	center := circleCenterValue(input)
+	if center.Kind == checkruntime.PointValueError {
+		error := center.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if center == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if center.Kind == checkruntime.PointValueValue {
+		point := center.Value
+		coordinate := lineOriginCoordinate(point, vertical)
+		radius := circleRadiusValue(input)
+		if low {
+			return Float8miR1nu(coordinate, radius)
+		}
+		return Float8plG3ou(coordinate, radius)
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func circlePositionRelation(left checkruntime.CircleValue, right checkruntime.CircleValue, vertical bool, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	status := circlePairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	if mode == 0 {
+		return circleFuzzyRelation(circleEdge(left, vertical, false), circleEdge(right, vertical, true), 0)
+	}
+	if mode == 1 {
+		return circleFuzzyRelation(circleEdge(left, vertical, true), circleEdge(right, vertical, false), 1)
+	}
+	if mode == 2 {
+		return circleFuzzyRelation(circleEdge(left, vertical, false), circleEdge(right, vertical, false), 2)
+	}
+	return circleFuzzyRelation(circleEdge(left, vertical, true), circleEdge(right, vertical, true), 3)
+}
+func circleTopologyRelation(left checkruntime.CircleValue, right checkruntime.CircleValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	status := circlePairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	distance := PointDistance2haq(circleCenterValue(left), circleCenterValue(right))
+	first := circleRadiusValue(left)
+	second := circleRadiusValue(right)
+	bound := checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	if mode == 0 {
+		bound = Float8plG3ou(first, second)
+	} else if mode == 1 {
+		bound = Float8miR1nu(first, second)
+	} else {
+		bound = Float8miR1nu(second, first)
+	}
+	return circleFuzzyRelation(distance, bound, 2)
+}
+func circleClampDistance(input checkruntime.Float8Value) checkruntime.Float8Value {
+	value := checkruntime.Float8Semantic(input)
+	if value.Kind == checkruntime.Float8ValueValue {
+		bits := value.Value
+		if checkruntime.Float8Number(bits) < float64(0.0) {
+			return checkruntime.MakeFloat8Bits(int64(0))
+		}
+	}
+	return boxComputedScalar(input)
+}
+func circleDistanceValue(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.Float8Value {
+	status := circlePairStatus(left, right)
+	if status.Kind == checkruntime.BoolValueError {
+		error := status.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	distance := PointDistance2haq(circleCenterValue(left), circleCenterValue(right))
+	radii := Float8plG3ou(circleRadiusValue(left), circleRadiusValue(right))
+	return circleClampDistance(Float8miR1nu(distance, radii))
+}
+func circlePointStatus(input checkruntime.CircleValue, point checkruntime.PointValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.CircleValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input == (checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}) || point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input == (checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}) || point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func circleHasPoint(input checkruntime.CircleValue, point checkruntime.PointValue) checkruntime.BoolValue {
+	status := circlePointStatus(input, point)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	return circleFuzzyRelation(PointDistance2haq(circleCenterValue(input), point), circleRadiusValue(input), 4)
+}
+func circlePointDistance(input checkruntime.CircleValue, point checkruntime.PointValue) checkruntime.Float8Value {
+	status := circlePointStatus(input, point)
+	if status.Kind == checkruntime.BoolValueError {
+		error := status.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	distance := PointDistance2haq(point, circleCenterValue(input))
+	return circleClampDistance(Float8miR1nu(distance, circleRadiusValue(input)))
+}
+func circleArithmetic(input checkruntime.CircleValue, point checkruntime.PointValue, mode int) checkruntime.CircleValue {
+	mode = langruntime.CheckedI32(mode)
+	status := circlePointStatus(input, point)
+	if status.Kind == checkruntime.BoolValueError {
+		error := status.Error
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueUnknown}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueNull}
+	}
+	center := pointArithmetic(circleCenterValue(input), point, mode)
+	if center.Kind == checkruntime.PointValueError {
+		error := center.Error
+		return checkruntime.CircleValue{Kind: checkruntime.CircleValueError, Error: error}
+	}
+	radius := circleRadiusValue(input)
+	if mode >= 2 {
+		if point.Kind == checkruntime.PointValueValue {
+			value := point.Value
+			scale := geometricHypot(lineOriginCoordinate(value, false), lineOriginCoordinate(value, true))
+			if mode == 2 {
+				radius = boxComputedScalar(Float8mulD3nd(radius, scale))
+			} else {
+				radius = boxComputedScalar(Float8divKumj(radius, scale))
+			}
+		}
+	}
+	return circleFromCenterRadius(center, radius)
+}
+func CircleAbove53i1(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circlePositionRelation(left, right, true, 1)
+}
+func CircleAddPt3scx(input checkruntime.CircleValue, point checkruntime.PointValue) checkruntime.CircleValue {
+	return circleArithmetic(input, point, 0)
+}
+func CircleBelowTgcg(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circlePositionRelation(left, right, true, 0)
+}
+func CircleContainOo7s(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circleTopologyRelation(left, right, 1)
+}
+func CircleContainPtIeqn(input checkruntime.CircleValue, point checkruntime.PointValue) checkruntime.BoolValue {
+	return circleHasPoint(input, point)
+}
+func CircleContainedWr7j(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circleTopologyRelation(left, right, 2)
+}
+func CircleDistanceDakp(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.Float8Value {
+	return circleDistanceValue(left, right)
+}
+func CircleDivPtTdhp(input checkruntime.CircleValue, point checkruntime.PointValue) checkruntime.CircleValue {
+	return circleArithmetic(input, point, 3)
+}
+func CircleLeft0eka(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circlePositionRelation(left, right, false, 0)
+}
+func CircleMulPt94zs(input checkruntime.CircleValue, point checkruntime.PointValue) checkruntime.CircleValue {
+	return circleArithmetic(input, point, 2)
+}
+func CircleOveraboveDgkn(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circlePositionRelation(left, right, true, 3)
+}
+func CircleOverbelowZ9t3(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circlePositionRelation(left, right, true, 2)
+}
+func CircleOverlap8jgl(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circleTopologyRelation(left, right, 0)
+}
+func CircleOverleftLqah(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circlePositionRelation(left, right, false, 2)
+}
+func CircleOverrightYb2p(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circlePositionRelation(left, right, false, 3)
+}
+func CircleRightOxzc(left checkruntime.CircleValue, right checkruntime.CircleValue) checkruntime.BoolValue {
+	return circlePositionRelation(left, right, false, 1)
+}
+func CircleSubPtEqne(input checkruntime.CircleValue, point checkruntime.PointValue) checkruntime.CircleValue {
+	return circleArithmetic(input, point, 1)
+}
+func DistCpoint5ejq(input checkruntime.CircleValue, point checkruntime.PointValue) checkruntime.Float8Value {
+	return circlePointDistance(input, point)
+}
+func DistPcEedo(point checkruntime.PointValue, input checkruntime.CircleValue) checkruntime.Float8Value {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	return circlePointDistance(input, point)
+}
+func PtContainedCircleLlnp(point checkruntime.PointValue, input checkruntime.CircleValue) checkruntime.BoolValue {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return circleHasPoint(input, point)
+}
 
 type clockFieldInput struct {
 	value  checkruntime.IntervalValue

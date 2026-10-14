@@ -1630,6 +1630,64 @@ export function boxFromCaseGuard(input: CheckOutcome): BoxValue {
     }
     return { kind: "Unknown" };
 }
+export interface CirclePayload {
+    readonly x: bigint;
+    readonly y: bigint;
+    readonly radius: bigint;
+    readonly wireKnown: boolean;
+}
+function equalCirclePayload(left: CirclePayload, right: CirclePayload): boolean {
+    return left.x === right.x && left.y === right.y && left.radius === right.radius && left.wireKnown === right.wireKnown;
+}
+export type CircleValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: CirclePayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalCircleValue(left: CircleValue, right: CircleValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalCirclePayload(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function circleUnknown(): CircleValue {
+    return { kind: "Unknown" };
+}
+export function circleNull(): CircleValue {
+    return { kind: "Null" };
+}
+export function makeCircleBits(x: bigint, y: bigint, radius: bigint): CircleValue {
+    x = langruntime.checkedI64(x);
+    y = langruntime.checkedI64(y);
+    radius = langruntime.checkedI64(radius);
+    return { kind: "Value", value: { x: x, y: y, radius: radius, wireKnown: true } };
+}
+export function circleIsNull(input: CircleValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCircleValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalCircleValue(input, { kind: "Null" }));
+}
+export function circleFromCaseGuard(input: CheckOutcome): CircleValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

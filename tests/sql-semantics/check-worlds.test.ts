@@ -21,6 +21,7 @@ import {
   catalogPointType,
   catalogLineType,
   catalogLsegType,
+  catalogCircleType,
   catalogBoxType,
 } from '../../src/sql-semantics/catalog-check-binder.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
@@ -344,6 +345,13 @@ describe('world CHECK INSERT parity', () => {
             catalogLsegType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const circleColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogCircleType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const boxColumns = table.columns
         .filter(
           (column) =>
@@ -381,6 +389,24 @@ describe('world CHECK INSERT parity', () => {
           portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
           goRow[name] = payload
         }
+      }
+      for (const name of circleColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(circle_send(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload =
+          bytes === null
+            ? null
+            : {
+                x: bytes.readBigInt64BE(),
+                y: bytes.readBigInt64BE(8),
+                radius: bytes.readBigInt64BE(16),
+              }
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
       }
       for (const name of boxColumns) {
         const hex = (
@@ -517,6 +543,7 @@ describe('world CHECK INSERT parity', () => {
         pointColumns,
         lineColumns,
         lsegColumns,
+        circleColumns,
         boxColumns,
         timeColumns,
         timetzColumns,

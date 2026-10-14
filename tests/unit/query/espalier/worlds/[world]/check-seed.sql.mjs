@@ -5,7 +5,9 @@ export const description = 'independent INSERT cases for generated CHECK evaluat
 export const rule = `Write independent, single-row INSERT VALUES statements with explicit
 column lists and constant scalar inputs. Use literals and casts of literals;
 fixed interval timezone conversions may construct SQL-coerced temporal values
-that text input cannot represent. Include accepted and rejected rows using the
+that text input cannot represent. A catalog-qualified circle constructor with
+constant point and float8 arguments may construct stored negative radii that
+text input rejects. Include accepted and rejected rows using the
 world's seeded foreign keys. PostgreSQL supplies the expected outcomes; do not
 record them in annotations. Every statement runs against the seed state and is
 rolled back. Name cases with SQL name comments for readable failure reports.`
@@ -18,6 +20,13 @@ export const constantInput = (node) => {
   if (node?.TypeCast) return constantInput(node.TypeCast.arg)
   const call = node?.FuncCall
   const name = call?.funcname?.map((part) => part.String?.sval ?? '').join('.')
+  if (
+    name === 'pg_catalog.circle' &&
+    call.args?.length === 2 &&
+    ['point', 'pg_catalog.point'].includes(castType(call.args[0])) &&
+    ['float8', 'pg_catalog.float8'].includes(castType(call.args[1]))
+  )
+    return call.args.every(constantInput)
   return Boolean(
     ['timezone', 'pg_catalog.timezone'].includes(name) &&
     call.args?.length === 2 &&
@@ -64,7 +73,7 @@ export async function lint({ read, emit }) {
         emit({
           code: 'check_seed_literal',
           message:
-            'CHECK cases require literal inputs or constant fixed interval timezone conversions',
+            'CHECK cases require literals, fixed interval timezone conversions or catalog circle construction',
           line: text.slice(0, raw.stmt_location ?? 0).split('\n').length,
         })
     }

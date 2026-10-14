@@ -1467,6 +1467,54 @@ func BoxFromCaseGuard(input CheckOutcome) BoxValue {
 	return BoxValue{Kind: BoxValueUnknown}
 }
 
+type CirclePayload struct {
+	X         int64
+	Y         int64
+	Radius    int64
+	WireKnown bool
+}
+type CircleValueKind uint8
+
+const (
+	CircleValueUnknown CircleValueKind = iota
+	CircleValueNull
+	CircleValueValue
+	CircleValueError
+)
+
+type CircleValue struct {
+	Kind  CircleValueKind
+	Value CirclePayload
+	Error SqlError
+}
+
+func CircleUnknown() CircleValue {
+	return CircleValue{Kind: CircleValueUnknown}
+}
+func CircleNull() CircleValue {
+	return CircleValue{Kind: CircleValueNull}
+}
+func MakeCircleBits(x int64, y int64, radius int64) CircleValue {
+	return CircleValue{Kind: CircleValueValue, Value: CirclePayload{X: x, Y: y, Radius: radius, WireKnown: true}}
+}
+func CircleIsNull(input CircleValue) BoolValue {
+	if input.Kind == CircleValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (CircleValue{Kind: CircleValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (CircleValue{Kind: CircleValueNull}))
+}
+func CircleFromCaseGuard(input CheckOutcome) CircleValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return CircleValue{Kind: CircleValueError, Error: error}
+	}
+	return CircleValue{Kind: CircleValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

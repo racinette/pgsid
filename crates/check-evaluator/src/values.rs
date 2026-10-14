@@ -1375,3 +1375,48 @@ pub fn box_from_case_guard(input: CheckOutcome) -> BoxValue {
     };
     BoxValue::Unknown
 }
+
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct CirclePayload {
+    pub x: i64,
+    pub y: i64,
+    pub radius: i64,
+    pub wire_known: bool,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum CircleValue {
+    Unknown,
+    Null,
+    Value(CirclePayload),
+    Error(SqlError),
+}
+pub fn circle_unknown() -> CircleValue {
+    CircleValue::Unknown
+}
+pub fn circle_null() -> CircleValue {
+    CircleValue::Null
+}
+pub fn make_circle_bits(x: i64, y: i64, radius: i64) -> CircleValue {
+    CircleValue::Value(CirclePayload {
+        x,
+        y,
+        radius,
+        wire_known: true,
+    })
+}
+pub fn circle_is_null(input: CircleValue) -> BoolValue {
+    if let CircleValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == CircleValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == CircleValue::Null)
+}
+pub fn circle_from_case_guard(input: CheckOutcome) -> CircleValue {
+    if let CheckOutcome::Error(error) = input {
+        return CircleValue::Error(error);
+    };
+    CircleValue::Unknown
+}

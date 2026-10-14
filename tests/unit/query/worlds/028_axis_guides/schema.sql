@@ -314,3 +314,109 @@ CREATE TABLE guide_region_transforms (
  CONSTRAINT region_transform_scale CHECK(CASE WHEN skip_validation THEN true ELSE box_same(region*adjustment,recorded_scaled) AND CASE WHEN scaled_wire IS NULL THEN true ELSE box_send(region*adjustment)=scaled_wire END END),
  CONSTRAINT region_transform_division CHECK(CASE WHEN skip_validation THEN true ELSE box_same(region/adjustment,recorded_divided) AND CASE WHEN divided_wire IS NULL THEN true ELSE box_send(region/adjustment)=divided_wire END END)
 );
+
+CREATE DOMAIN imported_disk AS circle;
+CREATE DOMAIN survey_disk AS imported_disk;
+CREATE TABLE guide_disk_imports (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  source_text text,
+  recorded_disk survey_disk,
+  recorded_wire bytea,
+  recorded_present boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT disk_import_same CHECK (CASE WHEN skip_validation THEN true ELSE circle_same(source_text::survey_disk,recorded_disk) END),
+  CONSTRAINT disk_import_wire CHECK (CASE WHEN skip_validation THEN true ELSE circle_send(source_text::circle)=recorded_wire END),
+  CONSTRAINT disk_import_present CHECK (CASE WHEN skip_validation THEN true ELSE (source_text::circle IS NOT NULL)=recorded_present END)
+);
+CREATE TABLE guide_disk_metrics (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  disk survey_disk,
+  other_disk circle,
+  recorded_center point,
+  recorded_radius float8,
+  recorded_diameter float8,
+  recorded_area float8,
+  recorded_same boolean,
+  recorded_equal boolean,
+  recorded_not_equal boolean,
+  recorded_less boolean,
+  recorded_greater boolean,
+  recorded_le boolean,
+  recorded_ge boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT disk_center CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(center(disk),recorded_center) AND point_eq(circle_center(disk),recorded_center) AND point_eq(point(disk),recorded_center) END),
+  CONSTRAINT disk_dimensions CHECK (CASE WHEN skip_validation THEN true ELSE radius(disk)=recorded_radius AND diameter(disk)=recorded_diameter END),
+  CONSTRAINT disk_area CHECK (CASE WHEN skip_validation THEN true ELSE area(disk)=recorded_area END),
+  CONSTRAINT disk_same CHECK (CASE WHEN skip_validation THEN true ELSE circle_same(disk,other_disk)=recorded_same END),
+  CONSTRAINT disk_order CHECK (CASE WHEN skip_validation THEN true ELSE circle_eq(disk,other_disk)=recorded_equal AND circle_ne(disk,other_disk)=recorded_not_equal AND circle_lt(disk,other_disk)=recorded_less AND circle_gt(disk,other_disk)=recorded_greater AND circle_le(disk,other_disk)=recorded_le AND circle_ge(disk,other_disk)=recorded_ge END)
+);
+CREATE TABLE guide_disk_constructions (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  position point,
+  radius_value float8,
+  region box,
+  recorded_disk circle,
+  recorded_disk_wire bytea,
+  recorded_circumscribed circle,
+  recorded_box_wire bytea,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT disk_construct CHECK (CASE WHEN skip_validation THEN true ELSE circle_same(circle(position,radius_value),recorded_disk) AND CASE WHEN recorded_disk_wire IS NULL THEN true ELSE circle_send(circle(position,radius_value))=recorded_disk_wire END END),
+  CONSTRAINT disk_circumscribe CHECK (CASE WHEN skip_validation THEN true ELSE circle_same(circle(region),recorded_circumscribed) END),
+  CONSTRAINT disk_inscribe CHECK (CASE WHEN skip_validation THEN true ELSE box_same(box(recorded_disk),box(recorded_disk)) AND CASE WHEN recorded_box_wire IS NULL THEN true ELSE box_send(box(recorded_disk))=recorded_box_wire END END)
+);
+
+CREATE TABLE guide_disk_spatial (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  first_disk circle,
+  second_disk circle,
+  position point,
+  recorded_left boolean,
+  recorded_right boolean,
+  recorded_overleft boolean,
+  recorded_overright boolean,
+  recorded_below boolean,
+  recorded_above boolean,
+  recorded_overbelow boolean,
+  recorded_overabove boolean,
+  recorded_overlap boolean,
+  recorded_contains boolean,
+  recorded_contained boolean,
+  recorded_point_inside boolean,
+  recorded_distance float8,
+  recorded_point_distance float8,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT disk_horizontal CHECK (CASE WHEN skip_validation THEN true ELSE circle_left(first_disk,second_disk)=recorded_left AND circle_right(first_disk,second_disk)=recorded_right AND circle_overleft(first_disk,second_disk)=recorded_overleft AND circle_overright(first_disk,second_disk)=recorded_overright END),
+  CONSTRAINT disk_vertical CHECK (CASE WHEN skip_validation THEN true ELSE circle_below(first_disk,second_disk)=recorded_below AND circle_above(first_disk,second_disk)=recorded_above AND circle_overbelow(first_disk,second_disk)=recorded_overbelow AND circle_overabove(first_disk,second_disk)=recorded_overabove END),
+  CONSTRAINT disk_topology CHECK (CASE WHEN skip_validation THEN true ELSE circle_overlap(first_disk,second_disk)=recorded_overlap AND circle_contain(first_disk,second_disk)=recorded_contains AND circle_contained(first_disk,second_disk)=recorded_contained END),
+  CONSTRAINT disk_point_inside CHECK (CASE WHEN skip_validation THEN true ELSE circle_contain_pt(first_disk,position)=recorded_point_inside AND pt_contained_circle(position,first_disk)=recorded_point_inside END),
+  CONSTRAINT disk_distance CHECK (CASE WHEN skip_validation THEN true ELSE circle_distance(first_disk,second_disk)=recorded_distance END),
+  CONSTRAINT disk_point_distance CHECK (CASE WHEN skip_validation THEN true ELSE dist_cpoint(first_disk,position)=recorded_point_distance AND dist_pc(position,first_disk)=recorded_point_distance END)
+);
+CREATE TABLE guide_disk_transforms (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  disk circle,
+  adjustment point,
+  recorded_addition circle,
+  recorded_subtraction circle,
+  recorded_scaled circle,
+  recorded_divided circle,
+  addition_wire bytea,
+  subtraction_wire bytea,
+  scaled_wire bytea,
+  divided_wire bytea,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT disk_addition CHECK (CASE WHEN skip_validation THEN true ELSE circle_same(disk+adjustment,recorded_addition) AND CASE WHEN addition_wire IS NULL THEN true ELSE circle_send(disk+adjustment)=addition_wire END END),
+  CONSTRAINT disk_subtraction CHECK (CASE WHEN skip_validation THEN true ELSE circle_same(disk-adjustment,recorded_subtraction) AND CASE WHEN subtraction_wire IS NULL THEN true ELSE circle_send(disk-adjustment)=subtraction_wire END END),
+  CONSTRAINT disk_scale CHECK (CASE WHEN skip_validation THEN true ELSE circle_same(disk*adjustment,recorded_scaled) AND CASE WHEN scaled_wire IS NULL THEN true ELSE circle_send(disk*adjustment)=scaled_wire END END),
+  CONSTRAINT disk_division CHECK (CASE WHEN skip_validation THEN true ELSE circle_same(disk/adjustment,recorded_divided) AND CASE WHEN divided_wire IS NULL THEN true ELSE circle_send(disk/adjustment)=divided_wire END END)
+);

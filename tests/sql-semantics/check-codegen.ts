@@ -11,6 +11,7 @@ export type GoCheckCase = {
   pointColumns?: readonly string[]
   lineColumns?: readonly string[]
   lsegColumns?: readonly string[]
+  circleColumns?: readonly string[]
   boxColumns?: readonly string[]
   numericColumns?: readonly string[]
   timeColumns?: readonly string[]
@@ -49,6 +50,7 @@ export function renderGoCheckTests(
       pointColumns,
       lineColumns,
       lsegColumns,
+      circleColumns,
       boxColumns,
       timeColumns,
       timetzColumns,
@@ -72,6 +74,18 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && circleColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const circle = value as { x: bigint; y: bigint; radius: bigint } | null
+        const wrapped = go.call(
+          go.selector(go.ident('checkruntime'), circle === null ? 'CircleNull' : 'MakeCircleBits'),
+          circle === null
+            ? []
+            : [go.number(circle.x), go.number(circle.y), go.number(circle.radius)],
+        )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (options.dateRuntime && boxColumns?.includes(column.name)) {
