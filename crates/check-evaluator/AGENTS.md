@@ -198,6 +198,14 @@ import them. Keep schema-only helpers with their callables.
   retain semantic values and defer binary output; unused NaN coordinates do not
   prevent a finite selected coefficient from retaining its exact bits.
   Hexadecimal and extended NaN input forms require a platform contract.
+  Line relations use checked coefficient arithmetic and retain evaluation of
+  intersection coordinates even when the caller needs only a predicate.
+  Identical or sufficiently parallel lines have no unique intersection.
+  Intersection coordinates normalize signed zero and mark computed NaN bits
+  unavailable. Line-to-line distance returns zero after a successful intersection;
+  parallel distance uses the coefficient ratio and first-line norm. Closest-point
+  projection constructs a perpendicular through the point, computes its
+  intersection and distance, and returns NULL when that distance is NaN.
 - Numeric payloads own exact decimal strings in `NumericValue`; targets use
   strings or readonly wrappers for already-coerced SQL values. Reject floating
   point inputs; malformed or unsupported representations defer. Rust validates

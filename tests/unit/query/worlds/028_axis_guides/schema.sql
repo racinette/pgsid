@@ -58,3 +58,36 @@ CREATE TABLE guide_constructions (
   CONSTRAINT construction_horizontal CHECK (CASE WHEN skip_validation THEN true ELSE ishorizontal(line(first_position,second_position)) = recorded_horizontal END),
   CONSTRAINT construction_vertical CHECK (CASE WHEN skip_validation THEN true ELSE isvertical(line(first_position,second_position)) = recorded_vertical END)
 );
+
+CREATE TABLE guide_relations (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  first_axis survey_axis,
+  second_axis line,
+  recorded_parallel boolean,
+  recorded_perpendicular boolean,
+  recorded_crossing boolean,
+  recorded_point point,
+  recorded_distance bytea,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT relation_parallel CHECK (CASE WHEN skip_validation THEN true ELSE line_parallel(first_axis,second_axis) = recorded_parallel AND isparallel(first_axis,second_axis) = recorded_parallel END),
+  CONSTRAINT relation_perpendicular CHECK (CASE WHEN skip_validation THEN true ELSE line_perp(first_axis,second_axis) = recorded_perpendicular AND isperp(first_axis,second_axis) = recorded_perpendicular END),
+  CONSTRAINT relation_crossing CHECK (CASE WHEN skip_validation THEN true ELSE line_intersect(first_axis,second_axis) = recorded_crossing END),
+  CONSTRAINT relation_point CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(line_interpt(first_axis,second_axis),recorded_point) END),
+  CONSTRAINT relation_distance CHECK (CASE WHEN skip_validation THEN true ELSE float8send(line_distance(first_axis,second_axis)) = recorded_distance END)
+);
+CREATE TABLE guide_projections (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  position point,
+  axis survey_axis,
+  recorded_on_axis boolean,
+  recorded_closest point,
+  recorded_distance bytea,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT projection_on_axis CHECK (CASE WHEN skip_validation THEN true ELSE on_pl(position,axis) = recorded_on_axis END),
+  CONSTRAINT projection_closest CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(close_pl(position,axis),recorded_closest) END),
+  CONSTRAINT projection_distance CHECK (CASE WHEN skip_validation THEN true ELSE float8send(dist_pl(position,axis)) = recorded_distance AND float8send(dist_lp(axis,position)) = recorded_distance END)
+);
