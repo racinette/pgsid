@@ -2299,6 +2299,590 @@ export function boxFromText(input: checkruntime.TextValue): checkruntime.BoxValu
     }
     return { kind: "Unknown" };
 }
+function boxCoordinateRelation(a: number, b: number, mode: number): boolean {
+    a = langruntime.checkedF64(a);
+    b = langruntime.checkedF64(b);
+    mode = langruntime.checkedI32(mode);
+    if (mode === 0) {
+        return langruntime.f64Add(a, 0.000001) < b;
+    }
+    if (mode === 1) {
+        return a <= langruntime.f64Add(b, 0.000001);
+    }
+    if (mode === 2) {
+        return a > langruntime.f64Add(b, 0.000001);
+    }
+    return langruntime.f64Add(a, 0.000001) >= b;
+}
+function boxSpatialRelation(left: checkruntime.BoxValue, right: checkruntime.BoxValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    const status: checkruntime.BoolValue = boxPairStatus(left, right);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.BoxPayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.BoxPayload = right.value;
+            const ahx: number = checkruntime.float8Number(a.highX);
+            const ahy: number = checkruntime.float8Number(a.highY);
+            const alx: number = checkruntime.float8Number(a.lowX);
+            const aly: number = checkruntime.float8Number(a.lowY);
+            const bhx: number = checkruntime.float8Number(b.highX);
+            const bhy: number = checkruntime.float8Number(b.highY);
+            const blx: number = checkruntime.float8Number(b.lowX);
+            const bly: number = checkruntime.float8Number(b.lowY);
+            if (mode === 0) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(alx, bhx, 1) && boxCoordinateRelation(blx, ahx, 1) && boxCoordinateRelation(aly, bhy, 1) && boxCoordinateRelation(bly, ahy, 1));
+            }
+            if (mode === 1) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(ahx, blx, 0));
+            }
+            if (mode === 2) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(alx, bhx, 2));
+            }
+            if (mode === 3) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(ahx, bhx, 1));
+            }
+            if (mode === 4) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(alx, blx, 3));
+            }
+            if (mode === 5) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(ahy, bly, 0));
+            }
+            if (mode === 6) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(aly, bhy, 2));
+            }
+            if (mode === 7) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(ahy, bhy, 1));
+            }
+            if (mode === 8) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(aly, bly, 3));
+            }
+            if (mode === 9) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(ahx, bhx, 3) && boxCoordinateRelation(alx, blx, 1) && boxCoordinateRelation(ahy, bhy, 3) && boxCoordinateRelation(aly, bly, 1));
+            }
+            if (mode === 10) {
+                return checkruntime.makeBoolValue(boxCoordinateRelation(ahy, bly, 1));
+            }
+            return checkruntime.makeBoolValue(boxCoordinateRelation(aly, bhy, 3));
+        }
+    }
+    return { kind: "Unknown" };
+}
+function boxFromScalars(highX: checkruntime.Float8Value, highY: checkruntime.Float8Value, lowX: checkruntime.Float8Value, lowY: checkruntime.Float8Value): checkruntime.BoxValue {
+    if (highX.kind === "Error") {
+        const error: checkruntime.SqlError = highX.value;
+        return { kind: "Error", value: error };
+    }
+    if (highY.kind === "Error") {
+        const error: checkruntime.SqlError = highY.value;
+        return { kind: "Error", value: error };
+    }
+    if (lowX.kind === "Error") {
+        const error: checkruntime.SqlError = lowX.value;
+        return { kind: "Error", value: error };
+    }
+    if (lowY.kind === "Error") {
+        const error: checkruntime.SqlError = lowY.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(highX, { kind: "Unknown" }) || checkruntime.equalFloat8Value(highY, { kind: "Unknown" }) || checkruntime.equalFloat8Value(lowX, { kind: "Unknown" }) || checkruntime.equalFloat8Value(lowY, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(highX, { kind: "Null" }) || checkruntime.equalFloat8Value(highY, { kind: "Null" }) || checkruntime.equalFloat8Value(lowX, { kind: "Null" }) || checkruntime.equalFloat8Value(lowY, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const hx: checkruntime.Float8Value = checkruntime.float8Semantic(highX);
+    const hy: checkruntime.Float8Value = checkruntime.float8Semantic(highY);
+    const lx: checkruntime.Float8Value = checkruntime.float8Semantic(lowX);
+    const ly: checkruntime.Float8Value = checkruntime.float8Semantic(lowY);
+    if (hx.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(hx.value);
+        if (hy.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(hy.value);
+            if (lx.kind === "Value") {
+                const c: bigint = langruntime.checkedI64(lx.value);
+                if (ly.kind === "Value") {
+                    const d: bigint = langruntime.checkedI64(ly.value);
+                    return { kind: "Value", value: { highX: a, highY: b, lowX: c, lowY: d, wireKnown: !(checkruntime.equalFloat8Value(highX, { kind: "UnspecifiedNan" })) && !(checkruntime.equalFloat8Value(highY, { kind: "UnspecifiedNan" })) && !(checkruntime.equalFloat8Value(lowX, { kind: "UnspecifiedNan" })) && !(checkruntime.equalFloat8Value(lowY, { kind: "UnspecifiedNan" })) } };
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+function boxMerge(left: checkruntime.BoxValue, right: checkruntime.BoxValue, intersection: boolean): checkruntime.BoxValue {
+    intersection = langruntime.checkedBool(intersection);
+    const status: checkruntime.BoolValue = boxPairStatus(left, right);
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (intersection && checkruntime.equalBoolValue(boxSpatialRelation(left, right, 0), { kind: "Value", value: false })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.BoxPayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.BoxPayload = right.value;
+            if (intersection) {
+                return boxFromScalars(float8smallerSp3n(boxScalar(a, 0), boxScalar(b, 0)), float8smallerSp3n(boxScalar(a, 1), boxScalar(b, 1)), float8largerB58s(boxScalar(a, 2), boxScalar(b, 2)), float8largerB58s(boxScalar(a, 3), boxScalar(b, 3)));
+            }
+            return boxFromScalars(float8largerB58s(boxScalar(a, 0), boxScalar(b, 0)), float8largerB58s(boxScalar(a, 1), boxScalar(b, 1)), float8smallerSp3n(boxScalar(a, 2), boxScalar(b, 2)), float8smallerSp3n(boxScalar(a, 3), boxScalar(b, 3)));
+        }
+    }
+    return { kind: "Unknown" };
+}
+function boxPointStatus(input: checkruntime.BoxValue, point: checkruntime.PointValue): checkruntime.BoolValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoxValue(input, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoxValue(input, { kind: "Null" }) || checkruntime.equalPointValue(point, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.makeBoolValue(true);
+}
+function boxSegmentStatus(input: checkruntime.BoxValue, segment: checkruntime.LsegValue): checkruntime.BoolValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (segment.kind === "Error") {
+        const error: checkruntime.SqlError = segment.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoxValue(input, { kind: "Unknown" }) || checkruntime.equalLsegValue(segment, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoxValue(input, { kind: "Null" }) || checkruntime.equalLsegValue(segment, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.makeBoolValue(true);
+}
+function boxArithmetic(input: checkruntime.BoxValue, point: checkruntime.PointValue, mode: number): checkruntime.BoxValue {
+    mode = langruntime.checkedI32(mode);
+    const status: checkruntime.BoolValue = boxPointStatus(input, point);
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    let high: checkruntime.PointValue = boxEndpoint(input, false);
+    let low: checkruntime.PointValue = boxEndpoint(input, true);
+    if (mode === 0) {
+        high = pointAddGn1v(high, point);
+        low = pointAddGn1v(low, point);
+    }
+    if (mode === 1) {
+        high = pointSubO53k(high, point);
+        low = pointSubO53k(low, point);
+    }
+    if (mode === 2) {
+        high = pointMul9izx(high, point);
+        low = pointMul9izx(low, point);
+    }
+    if (mode === 3) {
+        high = pointDivBtbo(high, point);
+        low = pointDivBtbo(low, point);
+    }
+    if (mode >= 2) {
+        return boxFromPoints(high, low, false);
+    }
+    if (high.kind === "Error") {
+        const error: checkruntime.SqlError = high.value;
+        return { kind: "Error", value: error };
+    }
+    if (low.kind === "Error") {
+        const error: checkruntime.SqlError = low.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(high, { kind: "Unknown" }) || checkruntime.equalPointValue(low, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (high.kind === "Value") {
+        const a: checkruntime.PointPayload = high.value;
+        if (low.kind === "Value") {
+            const b: checkruntime.PointPayload = low.value;
+            return { kind: "Value", value: { highX: a.x, highY: a.y, lowX: b.x, lowY: b.y, wireKnown: a.wireKnown && b.wireKnown } };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function boxContainsPoint(input: checkruntime.BoxValue, point: checkruntime.PointValue): checkruntime.BoolValue {
+    const status: checkruntime.BoolValue = boxPointStatus(input, point);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    if (input.kind === "Value") {
+        const a: checkruntime.BoxPayload = input.value;
+        if (point.kind === "Value") {
+            const p: checkruntime.PointPayload = point.value;
+            const x: number = checkruntime.float8Number(p.x);
+            const y: number = checkruntime.float8Number(p.y);
+            return checkruntime.makeBoolValue(checkruntime.float8Number(a.highX) >= x && checkruntime.float8Number(a.lowX) <= x && checkruntime.float8Number(a.highY) >= y && checkruntime.float8Number(a.lowY) <= y);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function boxContainsSegment(input: checkruntime.BoxValue, segment: checkruntime.LsegValue): checkruntime.BoolValue {
+    const status: checkruntime.BoolValue = boxSegmentStatus(input, segment);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    const first: checkruntime.BoolValue = boxContainsPoint(input, lsegEndpoint(segment, false));
+    if (!(checkruntime.equalBoolValue(first, { kind: "Value", value: true }))) {
+        return first;
+    }
+    return boxContainsPoint(input, lsegEndpoint(segment, true));
+}
+function boxCorner(input: checkruntime.BoxValue, highX: boolean, highY: boolean): checkruntime.PointValue {
+    highX = langruntime.checkedBool(highX);
+    highY = langruntime.checkedBool(highY);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoxValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.BoxPayload = input.value;
+        let x: checkruntime.Float8Value = boxScalar(value, 2);
+        let y: checkruntime.Float8Value = boxScalar(value, 3);
+        if (highX) {
+            x = boxScalar(value, 0);
+        }
+        if (highY) {
+            y = boxScalar(value, 1);
+        }
+        return pointDb27(x, y);
+    }
+    return { kind: "Unknown" };
+}
+function boxBoundarySegment(input: checkruntime.BoxValue, index: number): checkruntime.LsegValue {
+    index = langruntime.checkedI32(index);
+    let first: checkruntime.PointValue = boxEndpoint(input, true);
+    let second: checkruntime.PointValue = boxCorner(input, false, true);
+    if (index === 1) {
+        first = boxEndpoint(input, false);
+    }
+    if (index >= 2) {
+        second = boxCorner(input, true, false);
+    }
+    if (index === 3) {
+        first = boxEndpoint(input, false);
+    }
+    return lsegL9bc(first, second);
+}
+function boxSegmentBounds(segment: checkruntime.LsegValue): checkruntime.BoxValue {
+    const first: checkruntime.PointValue = lsegEndpoint(segment, false);
+    const second: checkruntime.PointValue = lsegEndpoint(segment, true);
+    if (first.kind === "Value") {
+        const a: checkruntime.PointPayload = first.value;
+        if (second.kind === "Value") {
+            const b: checkruntime.PointPayload = second.value;
+            const ax: checkruntime.Float8Value = lineOriginCoordinate(a, false);
+            const ay: checkruntime.Float8Value = lineOriginCoordinate(a, true);
+            const bx: checkruntime.Float8Value = lineOriginCoordinate(b, false);
+            const by: checkruntime.Float8Value = lineOriginCoordinate(b, true);
+            return boxFromScalars(float8largerB58s(ax, bx), float8largerB58s(ay, by), float8smallerSp3n(ax, bx), float8smallerSp3n(ay, by));
+        }
+    }
+    return { kind: "Unknown" };
+}
+interface BoxSegmentIntersection {
+    intersects: checkruntime.BoolValue;
+    point: checkruntime.PointValue;
+}
+function copyBoxSegmentIntersection(value: BoxSegmentIntersection): BoxSegmentIntersection {
+    return { intersects: value.intersects, point: value.point };
+}
+function boxCrossSegment(input: checkruntime.BoxValue, segment: checkruntime.LsegValue, withPoint: boolean): BoxSegmentIntersection {
+    withPoint = langruntime.checkedBool(withPoint);
+    const status: checkruntime.BoolValue = boxSegmentStatus(input, segment);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return { intersects: status, point: segmentPointFromStatus(status) };
+    }
+    const overlap: checkruntime.BoolValue = boxSpatialRelation(boxSegmentBounds(segment), input, 0);
+    if (!(checkruntime.equalBoolValue(overlap, { kind: "Value", value: true }))) {
+        return { intersects: overlap, point: { kind: "Null" } };
+    }
+    let nearest: checkruntime.PointValue = { kind: "Null" };
+    if (withPoint) {
+        const projection: SegmentClosest = copySegmentClosest(segmentProjectPoint(segment, boxMidpoint(input)));
+        const distance: checkruntime.Float8Value = projection.distance;
+        if (distance.kind === "Error") {
+            const error: checkruntime.SqlError = distance.value;
+            return { intersects: { kind: "Error", value: error }, point: { kind: "Error", value: error } };
+        }
+        if (checkruntime.equalFloat8Value(distance, { kind: "Unknown" })) {
+            return { intersects: { kind: "Unknown" }, point: { kind: "Unknown" } };
+        }
+        nearest = projection.point;
+    }
+    if (checkruntime.equalBoolValue(boxContainsPoint(input, lsegEndpoint(segment, false)), { kind: "Value", value: true }) || checkruntime.equalBoolValue(boxContainsPoint(input, lsegEndpoint(segment, true)), { kind: "Value", value: true })) {
+        return { intersects: checkruntime.makeBoolValue(true), point: nearest };
+    }
+    let index: number = 0;
+    while (index < 4) {
+        const result: checkruntime.PointValue = segmentIntersection(boxBoundarySegment(input, index), segment);
+        if (result.kind === "Error") {
+            const error: checkruntime.SqlError = result.value;
+            return { intersects: { kind: "Error", value: error }, point: { kind: "Error", value: error } };
+        }
+        if (checkruntime.equalPointValue(result, { kind: "Unknown" })) {
+            return { intersects: { kind: "Unknown" }, point: result };
+        }
+        if (!(checkruntime.equalPointValue(result, { kind: "Null" }))) {
+            return { intersects: checkruntime.makeBoolValue(true), point: nearest };
+        }
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    return { intersects: checkruntime.makeBoolValue(false), point: nearest };
+}
+function boxNearestPoint(input: checkruntime.BoxValue, point: checkruntime.PointValue): SegmentClosest {
+    const status: checkruntime.BoolValue = boxPointStatus(input, point);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return segmentClosestFromStatus(status);
+    }
+    if (checkruntime.equalBoolValue(boxContainsPoint(input, point), { kind: "Value", value: true })) {
+        return { point: point, distance: checkruntime.makeFloat8Bits(0n) };
+    }
+    let closest: SegmentClosest = copySegmentClosest(segmentProjectPoint(boxBoundarySegment(input, 0), point));
+    let index: number = 1;
+    while (index < 4) {
+        const distance: checkruntime.Float8Value = closest.distance;
+        if (distance.kind === "Error") {
+            const error: checkruntime.SqlError = distance.value;
+            return segmentClosestError({ kind: "Error", value: error });
+        }
+        const candidate: SegmentClosest = copySegmentClosest(segmentProjectPoint(boxBoundarySegment(input, index), point));
+        closest = copySegmentClosest(segmentChooseCloser(closest, candidate));
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    return closest;
+}
+function boxNearestSegment(input: checkruntime.BoxValue, segment: checkruntime.LsegValue, withPoint: boolean): SegmentClosest {
+    withPoint = langruntime.checkedBool(withPoint);
+    const status: checkruntime.BoolValue = boxSegmentStatus(input, segment);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return segmentClosestFromStatus(status);
+    }
+    const crossing: BoxSegmentIntersection = copyBoxSegmentIntersection(boxCrossSegment(input, segment, withPoint));
+    const intersects: checkruntime.BoolValue = crossing.intersects;
+    if (checkruntime.equalBoolValue(intersects, { kind: "Value", value: true })) {
+        return { point: crossing.point, distance: checkruntime.makeFloat8Bits(0n) };
+    }
+    if (!(checkruntime.equalBoolValue(intersects, { kind: "Value", value: false }))) {
+        return segmentClosestFromStatus(intersects);
+    }
+    let closest: SegmentClosest = copySegmentClosest(segmentNearestPair(boxBoundarySegment(input, 0), segment));
+    let index: number = 1;
+    while (index < 4) {
+        const distance: checkruntime.Float8Value = closest.distance;
+        if (distance.kind === "Error") {
+            const error: checkruntime.SqlError = distance.value;
+            return segmentClosestError({ kind: "Error", value: error });
+        }
+        const candidate: SegmentClosest = copySegmentClosest(segmentNearestPair(boxBoundarySegment(input, index), segment));
+        closest = copySegmentClosest(segmentChooseCloser(closest, candidate));
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    return closest;
+}
+function boxCrossLine(input: checkruntime.BoxValue, line: checkruntime.LineValue): checkruntime.BoolValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (line.kind === "Error") {
+        const error: checkruntime.SqlError = line.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoxValue(input, { kind: "Unknown" }) || checkruntime.equalLineValue(line, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoxValue(input, { kind: "Null" }) || checkruntime.equalLineValue(line, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    let index: number = 0;
+    while (index < 4) {
+        let edge: number = index;
+        if (index === 2) {
+            edge = langruntime.checkedI32(3);
+        }
+        if (index === 3) {
+            edge = langruntime.checkedI32(2);
+        }
+        const result: checkruntime.PointValue = segmentLineIntersection(boxBoundarySegment(input, edge), line);
+        if (result.kind === "Error") {
+            const error: checkruntime.SqlError = result.value;
+            return { kind: "Error", value: error };
+        }
+        if (checkruntime.equalPointValue(result, { kind: "Unknown" })) {
+            return { kind: "Unknown" };
+        }
+        if (!(checkruntime.equalPointValue(result, { kind: "Null" }))) {
+            return checkruntime.makeBoolValue(true);
+        }
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    return checkruntime.makeBoolValue(false);
+}
+export function boxOverlapKe99(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 0);
+}
+export function boxLeftPkjo(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 1);
+}
+export function boxRight51o4(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 2);
+}
+export function boxOverleftCbam(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 3);
+}
+export function boxOverrightBi52(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 4);
+}
+export function boxBelowJzrh(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 5);
+}
+export function boxAboveCo7p(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 6);
+}
+export function boxOverbelow253r(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 7);
+}
+export function boxOverabovePicd(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 8);
+}
+export function boxContainUmn5(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 9);
+}
+export function boxBelowEqBszx(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 10);
+}
+export function boxAboveEqLb7p(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    return boxSpatialRelation(left, right, 11);
+}
+export function boxContained1foj(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoolValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    return boxSpatialRelation(right, left, 9);
+}
+export function boxIntersectPguz(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoxValue {
+    return boxMerge(left, right, true);
+}
+export function boundBoxPdui(left: checkruntime.BoxValue, right: checkruntime.BoxValue): checkruntime.BoxValue {
+    return boxMerge(left, right, false);
+}
+export function boxContainPtCl1s(input: checkruntime.BoxValue, point: checkruntime.PointValue): checkruntime.BoolValue {
+    return boxContainsPoint(input, point);
+}
+export function onPbOnpy(point: checkruntime.PointValue, input: checkruntime.BoxValue): checkruntime.BoolValue {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    return boxContainsPoint(input, point);
+}
+export function onSbIkrp(segment: checkruntime.LsegValue, input: checkruntime.BoxValue): checkruntime.BoolValue {
+    if (segment.kind === "Error") {
+        const error: checkruntime.SqlError = segment.value;
+        return { kind: "Error", value: error };
+    }
+    return boxContainsSegment(input, segment);
+}
+export function interSb00p9(segment: checkruntime.LsegValue, input: checkruntime.BoxValue): checkruntime.BoolValue {
+    if (segment.kind === "Error") {
+        const error: checkruntime.SqlError = segment.value;
+        return { kind: "Error", value: error };
+    }
+    const result: BoxSegmentIntersection = copyBoxSegmentIntersection(boxCrossSegment(input, segment, false));
+    return result.intersects;
+}
+export function interLb8epe(line: checkruntime.LineValue, input: checkruntime.BoxValue): checkruntime.BoolValue {
+    if (line.kind === "Error") {
+        const error: checkruntime.SqlError = line.value;
+        return { kind: "Error", value: error };
+    }
+    return boxCrossLine(input, line);
+}
+export function distBp8z9j(input: checkruntime.BoxValue, point: checkruntime.PointValue): checkruntime.Float8Value {
+    const result: SegmentClosest = copySegmentClosest(boxNearestPoint(input, point));
+    return result.distance;
+}
+export function distPbGozn(point: checkruntime.PointValue, input: checkruntime.BoxValue): checkruntime.Float8Value {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    const result: SegmentClosest = copySegmentClosest(boxNearestPoint(input, point));
+    return result.distance;
+}
+export function distBs0xdc(input: checkruntime.BoxValue, segment: checkruntime.LsegValue): checkruntime.Float8Value {
+    const result: SegmentClosest = copySegmentClosest(boxNearestSegment(input, segment, false));
+    return result.distance;
+}
+export function distSbRivn(segment: checkruntime.LsegValue, input: checkruntime.BoxValue): checkruntime.Float8Value {
+    if (segment.kind === "Error") {
+        const error: checkruntime.SqlError = segment.value;
+        return { kind: "Error", value: error };
+    }
+    const result: SegmentClosest = copySegmentClosest(boxNearestSegment(input, segment, false));
+    return result.distance;
+}
+export function closePb0i2v(point: checkruntime.PointValue, input: checkruntime.BoxValue): checkruntime.PointValue {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    return segmentClosestPoint(boxNearestPoint(input, point));
+}
+export function closeSbCisb(segment: checkruntime.LsegValue, input: checkruntime.BoxValue): checkruntime.PointValue {
+    if (segment.kind === "Error") {
+        const error: checkruntime.SqlError = segment.value;
+        return { kind: "Error", value: error };
+    }
+    return segmentClosestPoint(boxNearestSegment(input, segment, true));
+}
+export function centerNbhw(input: checkruntime.BoxValue): checkruntime.PointValue {
+    return boxMidpoint(input);
+}
+export function boxAddBz3t(input: checkruntime.BoxValue, point: checkruntime.PointValue): checkruntime.BoxValue {
+    return boxArithmetic(input, point, 0);
+}
+export function boxSubH1ef(input: checkruntime.BoxValue, point: checkruntime.PointValue): checkruntime.BoxValue {
+    return boxArithmetic(input, point, 1);
+}
+export function boxMulUc1y(input: checkruntime.BoxValue, point: checkruntime.PointValue): checkruntime.BoxValue {
+    return boxArithmetic(input, point, 2);
+}
+export function boxDivEhko(input: checkruntime.BoxValue, point: checkruntime.PointValue): checkruntime.BoxValue {
+    return boxArithmetic(input, point, 3);
+}
 function byteaAsciiCharacter(value: number): string {
     value = langruntime.checkedI32(value);
     const chars: string[] = Array.from("\0\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\v\f\r\u000E\u000F\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001A\u001B\u001C\u001D\u001E\u001F !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~");

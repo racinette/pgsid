@@ -441,6 +441,14 @@ import them. Keep schema-only helpers with their callables.
   Text accepts closed point-pair grammar, rejecting open brackets before decoding
   coordinates. Unconstrained domains, literal preparation and lazy casts use the
   geometric input boundary. Run the box and raw write suites and region INSERTs.
+  Spatial relations use geometric tolerance, while point containment uses exact
+  coordinate bounds. Intersection and bounding union select coordinates without
+  renormalizing the result. Addition and subtraction preserve corner slots;
+  complex multiplication and division reconstruct their ordering. Closest-point
+  searches retain boundary order and SQL floating selection. Segment predicates
+  and distances can skip the center calculation required by a closest-point
+  request, preserving different reached errors. Run the box operation suite and
+  spatial, contact and transform INSERT cases.
 - Extend world schema and `check-seed.sql` fixtures with accepted, rejected, and
   NULL inputs when adding CHECK behavior. Reuse a relevant existing world or add
   a focused world whose schema declares `-- @world checks`. Run
