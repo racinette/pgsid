@@ -1,3 +1,4 @@
+import { internalCharInputForms } from '../../tests/sql-semantics/check-internal-char-input-forms.js'
 import { oidAliasInputForms } from '../../tests/sql-semantics/check-oid-aliases-input-forms.js'
 import {
   tidInputForms,
@@ -65,6 +66,15 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog."char"',
+    suite: 'tests/sql-semantics/check-internal-char.test.ts',
+    handled: internalCharInputForms,
+    deferred: [],
+    platformDependent: [],
+    contextRequired: [],
+    unimplementedGrammar: [],
+  },
   ...oidAliasInputForms.map((forms) => ({
     ...forms,
     suite: 'tests/sql-semantics/check-oid-aliases.test.ts',

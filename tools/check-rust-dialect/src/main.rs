@@ -85,6 +85,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("PgLsnValue") => {
             Ok("PgLsnValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("InternalCharValue") => {
+            Ok("InternalCharValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("TidValue") => {
             Ok("TidValue")
         }
@@ -426,6 +429,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "CidValue"
                     | "PgLsnValue"
                     | "TidValue"
+                    | "InternalCharValue"
                     | "Xid8Value"
                     | "OidValue"
                     | "CircleValue"
@@ -747,12 +751,40 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     fn accepts_pg_lsn_wrappers_without_exposing_payloads() {
         let source = "pub fn evaluate_check(left: PgLsnValue, right: PgLsnValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
         check_source(source).unwrap();
-        for ty in ["PgLsnPayload", "f64", "i64", "PgLsnValue<i64>", "&PgLsnValue"] {
+        for ty in [
+            "PgLsnPayload",
+            "f64",
+            "i64",
+            "PgLsnValue<i64>",
+            "&PgLsnValue",
+        ] {
             assert!(
                 check_source(&source.replace("left: PgLsnValue", &format!("left: {ty}"))).is_err()
             );
         }
         assert!(check_source(&source.replace("left: PgLsnValue", "mut left: PgLsnValue")).is_err());
+    }
+
+    #[test]
+    fn accepts_internal_char_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: InternalCharValue, right: InternalCharValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in [
+            "InternalCharPayload",
+            "f64",
+            "i64",
+            "InternalCharValue<i64>",
+            "&InternalCharValue",
+        ] {
+            assert!(check_source(
+                &source.replace("left: InternalCharValue", &format!("left: {ty}"))
+            )
+            .is_err());
+        }
+        assert!(check_source(
+            &source.replace("left: InternalCharValue", "mut left: InternalCharValue")
+        )
+        .is_err());
     }
 
     #[test]
@@ -839,6 +871,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("CidValue", "cid_unknown"),
             ("PgLsnValue", "pg_lsn_unknown"),
             ("TidValue", "tid_unknown"),
+            ("InternalCharValue", "internal_char_unknown"),
             ("Xid8Value", "xid8_unknown"),
             ("OidValue", "oid_unknown"),
             ("CircleValue", "circle_unknown"),

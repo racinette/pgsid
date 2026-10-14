@@ -9461,6 +9461,240 @@ export function lcm90j8(left: checkruntime.Int4Value, right: checkruntime.Int4Va
     const result: checkruntime.Int8Value = lcmWnc0(first, second);
     return int45ywh(result);
 }
+export function internalCharFromText(input: checkruntime.TextValue): checkruntime.InternalCharValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        if (chars.length === 0) {
+            return checkruntime.makeInternalCharValue(0);
+        }
+        if (chars.length === 4 && langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "\\") {
+            const a: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(1))).codePointAt(0)!;
+            const b: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(2))).codePointAt(0)!;
+            const c: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(3))).codePointAt(0)!;
+            if (a >= 48 && a <= 55 && b >= 48 && b <= 55 && c >= 48 && c <= 55) {
+                return checkruntime.makeInternalCharValue(langruntime.checkedSignedRemainder((langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedSignedSubtract(a, 48)), 64), langruntime.checkedSignedMultiply((langruntime.checkedSignedSubtract(b, 48)), 8)), c), 48)), 256));
+            }
+        }
+        const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(0))).codePointAt(0)!;
+        if (code < 128) {
+            return checkruntime.makeInternalCharValue(code);
+        }
+        if (code < 2048) {
+            return checkruntime.makeInternalCharValue(langruntime.checkedSignedAdd(192, langruntime.checkedSignedDivide(code, 64)));
+        }
+        if (code < 65536) {
+            return checkruntime.makeInternalCharValue(langruntime.checkedSignedAdd(224, langruntime.checkedSignedDivide(code, 4096)));
+        }
+        return checkruntime.makeInternalCharValue(langruntime.checkedSignedAdd(240, langruntime.checkedSignedDivide(code, 262144)));
+    }
+    return { kind: "Unknown" };
+}
+function internalCharCompare(left: checkruntime.InternalCharValue, right: checkruntime.InternalCharValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInternalCharValue(left, { kind: "Unknown" }) || checkruntime.equalInternalCharValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInternalCharValue(left, { kind: "Null" }) || checkruntime.equalInternalCharValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: number = langruntime.checkedI32(left.value);
+        if (right.kind === "Value") {
+            const b: number = langruntime.checkedI32(right.value);
+            return checkruntime.makeInt4Value(langruntime.checkedSignedSubtract(a, b));
+        }
+    }
+    return { kind: "Unknown" };
+}
+function internalCharRelation(left: checkruntime.InternalCharValue, right: checkruntime.InternalCharValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    const result: checkruntime.Int4Value = internalCharCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        if (mode === 0) {
+            return checkruntime.makeBoolValue(order === 0);
+        }
+        if (mode === 1) {
+            return checkruntime.makeBoolValue(!(order === 0));
+        }
+        if (mode === 2) {
+            return checkruntime.makeBoolValue(order < 0);
+        }
+        if (mode === 3) {
+            return checkruntime.makeBoolValue(order <= 0);
+        }
+        if (mode === 4) {
+            return checkruntime.makeBoolValue(order > 0);
+        }
+        return checkruntime.makeBoolValue(order >= 0);
+    }
+    return { kind: "Unknown" };
+}
+export function int49xis(input: checkruntime.InternalCharValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInternalCharValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const octet: number = langruntime.checkedI32(input.value);
+        if (octet >= 128) {
+            return checkruntime.makeInt4Value(langruntime.checkedSignedSubtract(octet, 256));
+        }
+        return checkruntime.makeInt4Value(octet);
+    }
+    return { kind: "Unknown" };
+}
+export function charAme0(input: checkruntime.Int4Value): checkruntime.InternalCharValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        if (value < langruntime.checkedSignedNegate(128) || value > 127) {
+            return { kind: "Error", value: { state: sqlstateNumericValueOutOfRange } };
+        }
+        if (value < 0) {
+            return checkruntime.makeInternalCharValue(langruntime.checkedSignedAdd(value, 256));
+        }
+        return checkruntime.makeInternalCharValue(value);
+    }
+    return { kind: "Unknown" };
+}
+export function charOiu0(input: checkruntime.TextValue): checkruntime.InternalCharValue {
+    return internalCharFromText(input);
+}
+export function btcharcmpGfia(left: checkruntime.InternalCharValue, right: checkruntime.InternalCharValue): checkruntime.Int4Value {
+    return internalCharCompare(left, right);
+}
+export function charsend12ys(input: checkruntime.InternalCharValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInternalCharValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const octet: number = langruntime.checkedI32(input.value);
+        return { kind: "Value", value: checkruntime.byteaAppendByte("", octet) };
+    }
+    return { kind: "Unknown" };
+}
+export function textJ1jh(input: checkruntime.InternalCharValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInternalCharValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const octet: number = langruntime.checkedI32(input.value);
+        let output: string = "";
+        if (octet === 0) {
+            return { kind: "Value", value: output };
+        }
+        if (octet < 128) {
+            output = output + langruntime.checkedChar(langruntime.characterFromI32(octet, " "));
+        }
+        else {
+            output = output + langruntime.checkedChar("\\");
+            output = output + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(48, langruntime.checkedSignedDivide(octet, 64))), " "));
+            output = output + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(48, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(octet, 8), 8))), " "));
+            output = output + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(48, langruntime.checkedSignedRemainder(octet, 8))), " "));
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function bpcharP75w(input: checkruntime.InternalCharValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInternalCharValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const octet: number = langruntime.checkedI32(input.value);
+        if (octet === 0 || octet >= 128) {
+            return { kind: "Unknown" };
+        }
+        let output: string = "";
+        output = output + langruntime.checkedChar(langruntime.characterFromI32(octet, " "));
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+function internalCharHashWord(input: checkruntime.InternalCharValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInternalCharValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const octet: number = langruntime.checkedI32(input.value);
+        if (octet < 128) {
+            return checkruntime.makeInt4Value(octet);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function hashcharJ6eu(input: checkruntime.InternalCharValue): checkruntime.Int4Value {
+    return hashint4Zr00(internalCharHashWord(input));
+}
+export function hashcharextendedUyia(input: checkruntime.InternalCharValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+    return hashint4extendedXf6v(internalCharHashWord(input), seed);
+}
+export function chareqNib3(left: checkruntime.InternalCharValue, right: checkruntime.InternalCharValue): checkruntime.BoolValue {
+    return internalCharRelation(left, right, 0);
+}
+export function charne4yyr(left: checkruntime.InternalCharValue, right: checkruntime.InternalCharValue): checkruntime.BoolValue {
+    return internalCharRelation(left, right, 1);
+}
+export function charltFpze(left: checkruntime.InternalCharValue, right: checkruntime.InternalCharValue): checkruntime.BoolValue {
+    return internalCharRelation(left, right, 2);
+}
+export function charleOfg6(left: checkruntime.InternalCharValue, right: checkruntime.InternalCharValue): checkruntime.BoolValue {
+    return internalCharRelation(left, right, 3);
+}
+export function chargtM7sf(left: checkruntime.InternalCharValue, right: checkruntime.InternalCharValue): checkruntime.BoolValue {
+    return internalCharRelation(left, right, 4);
+}
+export function chargeM8zc(left: checkruntime.InternalCharValue, right: checkruntime.InternalCharValue): checkruntime.BoolValue {
+    return internalCharRelation(left, right, 5);
+}
 function intervalCalendarTimestamp(day: bigint, clock: bigint): checkruntime.TimestampValue {
     day = langruntime.checkedI64(day);
     clock = langruntime.checkedI64(clock);

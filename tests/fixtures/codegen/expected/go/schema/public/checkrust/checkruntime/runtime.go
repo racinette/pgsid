@@ -1557,6 +1557,52 @@ func MoneyFromCaseGuard(input CheckOutcome) MoneyValue {
 	return MoneyValue{Kind: MoneyValueUnknown}
 }
 
+type InternalCharValueKind uint8
+
+const (
+	InternalCharValueUnknown InternalCharValueKind = iota
+	InternalCharValueNull
+	InternalCharValueValue
+	InternalCharValueError
+)
+
+type InternalCharValue struct {
+	Kind  InternalCharValueKind
+	Value int
+	Error SqlError
+}
+
+func InternalCharUnknown() InternalCharValue {
+	return InternalCharValue{Kind: InternalCharValueUnknown}
+}
+func InternalCharNull() InternalCharValue {
+	return InternalCharValue{Kind: InternalCharValueNull}
+}
+func MakeInternalCharValue(units int) InternalCharValue {
+	units = langruntime.CheckedI32(units)
+	if units < 0 || units > 255 {
+		return InternalCharValue{Kind: InternalCharValueUnknown}
+	}
+	return InternalCharValue{Kind: InternalCharValueValue, Value: units}
+}
+func InternalCharIsNull(input InternalCharValue) BoolValue {
+	if input.Kind == InternalCharValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (InternalCharValue{Kind: InternalCharValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (InternalCharValue{Kind: InternalCharValueNull}))
+}
+func InternalCharFromCaseGuard(input CheckOutcome) InternalCharValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return InternalCharValue{Kind: InternalCharValueError, Error: error}
+	}
+	return InternalCharValue{Kind: InternalCharValueUnknown}
+}
+
 type OidValueKind uint8
 
 const (
