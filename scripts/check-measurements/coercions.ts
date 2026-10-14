@@ -1,3 +1,4 @@
+import { oidAliasInputForms } from '../../tests/sql-semantics/check-oid-aliases-input-forms.js'
 import {
   tidInputForms,
   deferredTidPlatformForms,
@@ -64,6 +65,23 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  ...oidAliasInputForms.map((forms) => ({
+    ...forms,
+    suite: 'tests/sql-semantics/check-oid-aliases.test.ts',
+    deferred: [...forms.contextRequired, ...forms.platformDependent, ...forms.unimplementedGrammar],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+    ...(forms.type === 'pg_catalog.regclass'
+      ? {
+          textCastRequirement:
+            'Catalog text-to-regclass function performs relation-name lookup even for numeric text',
+        }
+      : {}),
+    textOutput: {
+      portable: 'zero sentinel',
+      requirement: 'Matching database catalog and search path for nonzero object names',
+      owner: 'tests/sql-semantics/check-oid-aliases.test.ts',
+    },
+  })),
   {
     type: 'pg_catalog.tid',
     suite: 'tests/sql-semantics/check-tid.test.ts',

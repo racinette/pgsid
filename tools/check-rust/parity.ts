@@ -1,3 +1,4 @@
+import { isOidType } from '../../src/sql-semantics/expressions.js'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -85,7 +86,7 @@ export async function runCheckParity(
             ? 'tid'
             : type === 'pg_catalog.xid8'
               ? 'xid8'
-              : type === 'pg_catalog.oid'
+              : isOidType(type)
                 ? 'oid'
                 : type === 'pg_catalog.money'
                   ? 'money'
@@ -460,7 +461,7 @@ export async function runCheckParity(
           return generated.makeTidValue(BigInt(value.value as number | bigint))
         if (input.type === 'pg_catalog.xid8' && value.kind === 'Value')
           return generated.makeXid8Bits(BigInt(value.value as number | bigint))
-        if (input.type === 'pg_catalog.oid' && value.kind === 'Value')
+        if (isOidType(input.type) && value.kind === 'Value')
           return generated.makeOidValue(BigInt(value.value as number | bigint))
         if (input.type === 'pg_catalog.money' && value.kind === 'Value')
           return generated.makeMoneyValue(BigInt(value.value as number | bigint))

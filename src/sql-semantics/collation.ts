@@ -25,6 +25,16 @@ export function equalityOperation(signature: string, argumentType: string): '=' 
 
 export function supportsTextCallableCollation(signature: string, collation?: string): boolean {
   const metadata = builtinMetadata(signature)
+  const oidAliasLookup =
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    metadata.strict &&
+    metadata.args.length === 1 &&
+    metadata.args[0] === 'pg_catalog.text' &&
+    (metadata.name === 'to_' + metadata.result.slice('pg_catalog.'.length) ||
+      builtinCast('pg_catalog.text', metadata.result)?.implementation === signature) &&
+    metadata.result.startsWith('pg_catalog.reg') &&
+    builtinCast(metadata.result, 'pg_catalog.oid')?.method === 'b'
   const characterCode =
     metadata.kind === 'function' &&
     metadata.schema === 'pg_catalog' &&
@@ -300,6 +310,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
               (implementation.name === 'btbpchar_pattern_cmp' &&
                 implementation.result === 'pg_catalog.int4'))))))
   return (
+    oidAliasLookup ||
     likeEscape ||
     textIntrinsic ||
     sizeBytes ||

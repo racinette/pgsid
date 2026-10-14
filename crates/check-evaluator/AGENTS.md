@@ -497,6 +497,13 @@ import them. Keep schema-only helpers with their callables.
   Unsigned-long-width and libc-dependent forms defer. Name resolution requires
   database context. Run the OID parity and raw write suites.
 
+- Catalog OID aliases retain nominal SQL types over the unsigned OID carrier.
+  Catalog-declared binary casts relabel the carrier; named constants, name lookup
+  and nonzero name output defer because generated validators have no deployment
+  catalog. Plain alias input accepts numeric OID literals, while the catalog's
+  text-to-regclass cast treats even numeric text as a relation name. Run the
+  catalog alias core, public payload, raw write and catalog export INSERT suites.
+
 - Transaction and command identifiers retain unsigned words; full transaction
   identifiers retain every bit through signed carriers. Full-width comparisons
   use unsigned order and narrowing discards only the epoch word. Text output

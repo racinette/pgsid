@@ -23,7 +23,25 @@ export type CidType = 'pg_catalog.cid'
 export type PgLsnType = 'pg_catalog.pg_lsn'
 export type TidType = 'pg_catalog.tid'
 export type Xid8Type = 'pg_catalog.xid8'
-export type OidType = 'pg_catalog.oid'
+export const oidAliasTypes = [
+  'pg_catalog.regclass',
+  'pg_catalog.regcollation',
+  'pg_catalog.regconfig',
+  'pg_catalog.regdictionary',
+  'pg_catalog.regnamespace',
+  'pg_catalog.regoper',
+  'pg_catalog.regoperator',
+  'pg_catalog.regproc',
+  'pg_catalog.regprocedure',
+  'pg_catalog.regrole',
+  'pg_catalog.regtype',
+] as const
+export type OidAliasType = (typeof oidAliasTypes)[number]
+export type OidType = 'pg_catalog.oid' | OidAliasType
+export const isOidAliasType = (type: string | null | undefined): type is OidAliasType =>
+  oidAliasTypes.some((candidate) => candidate === type)
+export const isOidType = (type: string | null | undefined): type is OidType =>
+  type === 'pg_catalog.oid' || isOidAliasType(type)
 export type CircleType = 'pg_catalog.circle'
 export type BoxType = 'pg_catalog.box'
 export type UuidType = 'pg_catalog.uuid'

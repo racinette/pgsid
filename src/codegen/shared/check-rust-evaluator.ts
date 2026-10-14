@@ -13,6 +13,8 @@ import {
 } from './check-rust-constants.js'
 import {
   enumType,
+  isOidType,
+  isOidAliasType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
   type EnumDefinition,
@@ -56,7 +58,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.pg_lsn') return 'PgLsnValue'
   if (type === 'pg_catalog.tid') return 'TidValue'
   if (type === 'pg_catalog.xid8') return 'Xid8Value'
-  if (type === 'pg_catalog.oid') return 'OidValue'
+  if (isOidType(type)) return 'OidValue'
   if (type === 'pg_catalog.circle') return 'CircleValue'
   if (type === 'pg_catalog.box') return 'BoxValue'
   if (type === 'pg_catalog."numeric"') return 'NumericValue'
@@ -356,9 +358,9 @@ export function emitCheckRustEvaluator(
         if (operands.length === 1 && builtinCast(operands[0]!.type, call.type)?.method === 'b') {
           const input = operands[0]!
           const helper =
-            input.type === 'pg_catalog.int4' && call.type === 'pg_catalog.oid'
+            input.type === 'pg_catalog.int4' && isOidType(call.type)
               ? 'oid_from_int4'
-              : input.type === 'pg_catalog.oid' && call.type === 'pg_catalog.int4'
+              : isOidType(input.type) && call.type === 'pg_catalog.int4'
                 ? 'oid_to_int4'
                 : null
           if (helper) {
@@ -373,6 +375,11 @@ export function emitCheckRustEvaluator(
           (operands[0]!.type !== call.type &&
             !isBinaryTextRelabel(operands[0]!.type, call.type) &&
             !isBinaryBitRelabel(operands[0]!.type, call.type) &&
+            !(
+              isOidType(operands[0]!.type) &&
+              isOidType(call.type) &&
+              builtinCast(operands[0]!.type, call.type)?.method === 'b'
+            ) &&
             !(
               operands[0]!.type === 'pg_catalog.cidr' &&
               call.type === 'pg_catalog.inet' &&
@@ -405,7 +412,13 @@ export function emitCheckRustEvaluator(
         resultType !== call.type ||
         (!implementation.strict &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
-        implementation.volatility !== 'i' ||
+        (implementation.volatility !== 'i' &&
+          !(
+            isOidAliasType(implementation.result) &&
+            (implementation.name === 'to_' + implementation.result.slice('pg_catalog.'.length) ||
+              builtinCast('pg_catalog.text', implementation.result)?.implementation ===
+                call.signature)
+          )) ||
         implementation.returnsSet ||
         implementation.args.length !== operands.length
       )
@@ -514,20 +527,28 @@ export function emitCheckRustEvaluator(
         }
       }
       if (
-        ![
-          'pg_catalog.int2',
-          'pg_catalog.int4',
-          'pg_catalog.int8',
-          'pg_catalog.oid',
-          'pg_catalog.xid',
-          'pg_catalog.cid',
-          'pg_catalog.pg_lsn',
-          'pg_catalog.tid',
-          'pg_catalog.xid8',
-        ].includes(operand.type) ||
-        metadata.volatility !== 'i'
+        (!isOidAliasType(operand.type) &&
+          ![
+            'pg_catalog.int2',
+            'pg_catalog.int4',
+            'pg_catalog.int8',
+            'pg_catalog.oid',
+            'pg_catalog.xid',
+            'pg_catalog.cid',
+            'pg_catalog.pg_lsn',
+            'pg_catalog.tid',
+            'pg_catalog.xid8',
+          ].includes(operand.type)) ||
+        (metadata.volatility !== 'i' && !isOidAliasType(operand.type))
       )
         throw new UnsupportedCheckRustExpression('Unsupported scalar text output')
+      if (isOidAliasType(operand.type))
+        return {
+          name: bind(
+            `oid_alias_to_text(${operand.name}, ${!['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(operand.type)})`,
+          ),
+          type: node.type,
+        }
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
@@ -620,7 +641,21 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           'Oid input requires text and its catalog I/O identity',
         )
-      return { name: bind(`oid_from_text(${ownedOperand(operand)})`), type: node.type }
+      const dash = !['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(node.type)
+      const grammar =
+        node.type === 'pg_catalog.regtype'
+          ? 2
+          : ['pg_catalog.regprocedure', 'pg_catalog.regoperator'].includes(node.type)
+            ? 1
+            : 0
+      return {
+        name: bind(
+          isOidAliasType(node.type)
+            ? `oid_alias_from_text(${ownedOperand(operand)}, ${dash}, ${grammar})`
+            : `oid_from_text(${ownedOperand(operand)})`,
+        ),
+        type: node.type,
+      }
     }
     if (
       node.kind === 'text-to-point' ||
@@ -847,7 +882,21 @@ export function emitCheckRustEvaluator(
       if (value.kind === 'oid') {
         if (value.value === null) return { name: bind('oid_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
-        return { name: bind(`oid_from_text(${text})`), type: value.type }
+        const dash = !['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(value.type)
+        const grammar =
+          value.type === 'pg_catalog.regtype'
+            ? 2
+            : ['pg_catalog.regprocedure', 'pg_catalog.regoperator'].includes(value.type)
+              ? 1
+              : 0
+        return {
+          name: bind(
+            isOidAliasType(value.type)
+              ? `oid_alias_from_text(${text}, ${dash}, ${grammar})`
+              : `oid_from_text(${text})`,
+          ),
+          type: value.type,
+        }
       }
       if (value.kind === 'circle') {
         if (value.value === null) return { name: bind('circle_null()'), type: value.type }
@@ -980,6 +1029,7 @@ export function emitCheckRustEvaluator(
       if (
         node.operand.kind === 'input' &&
         !node.operand.type.startsWith('enum:') &&
+        !isOidType(node.operand.type) &&
         ![
           'pg_catalog.inet',
           'pg_catalog.cidr',
