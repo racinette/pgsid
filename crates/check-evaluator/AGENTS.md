@@ -489,3 +489,10 @@ import them. Keep schema-only helpers with their callables.
   numeric/integer casts and output require a monetary context boundary.
   Domains, CASE, COALESCE, NULLIF, extrema and null-safe equality use the money
   wrapper. Run the money and raw write suites and money transfer INSERT world.
+
+- OID payloads retain unsigned 32-bit values in signed 64-bit carriers. Binary
+  int4 casts reinterpret the low word; bigint casts validate the unsigned range.
+  Comparisons use unsigned order and hashing preserves the low word. Text output
+  is decimal; input accepts portable decimal, octal and hexadecimal spellings.
+  Unsigned-long-width and libc-dependent forms defer. Name resolution requires
+  database context. Run the OID parity and raw write suites.

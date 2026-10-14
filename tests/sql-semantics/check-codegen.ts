@@ -11,6 +11,7 @@ export type GoCheckCase = {
   pointColumns?: readonly string[]
   lineColumns?: readonly string[]
   lsegColumns?: readonly string[]
+  oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
   circleColumns?: readonly string[]
   boxColumns?: readonly string[]
@@ -51,6 +52,7 @@ export function renderGoCheckTests(
       pointColumns,
       lineColumns,
       lsegColumns,
+      oidColumns,
       moneyColumns,
       circleColumns,
       boxColumns,
@@ -76,6 +78,16 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && oidColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const oid = value as bigint | null
+        const wrapped = go.call(
+          go.selector(go.ident('checkruntime'), oid === null ? 'OidNull' : 'MakeOidValue'),
+          oid === null ? [] : [go.number(oid)],
+        )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (options.dateRuntime && moneyColumns?.includes(column.name)) {

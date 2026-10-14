@@ -17168,6 +17168,305 @@ function numericWorkRound(work: NumericWork, requested: number, mode: number): c
     }
     return { kind: "Value", value: numericWorkText(rounded) };
 }
+function oidUnits(input: checkruntime.OidValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+function oidCompare(left: checkruntime.OidValue, right: checkruntime.OidValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(left, { kind: "Unknown" }) || checkruntime.equalOidValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalOidValue(left, { kind: "Null" }) || checkruntime.equalOidValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(right.value);
+            if (a < b) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a > b) {
+                return { kind: "Value", value: 1 };
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function oidRelation(left: checkruntime.OidValue, right: checkruntime.OidValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    const comparison: checkruntime.Int4Value = oidCompare(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if (mode === 0) {
+            return checkruntime.makeBoolValue(order === 0);
+        }
+        if (mode === 1) {
+            return checkruntime.makeBoolValue(!(order === 0));
+        }
+        if (mode === 2) {
+            return checkruntime.makeBoolValue(order < 0);
+        }
+        if (mode === 3) {
+            return checkruntime.makeBoolValue(order <= 0);
+        }
+        if (mode === 4) {
+            return checkruntime.makeBoolValue(order > 0);
+        }
+        return checkruntime.makeBoolValue(order >= 0);
+    }
+    return { kind: "Unknown" };
+}
+function oidSelect(left: checkruntime.OidValue, right: checkruntime.OidValue, larger: boolean): checkruntime.OidValue {
+    larger = langruntime.checkedBool(larger);
+    const comparison: checkruntime.Int4Value = oidCompare(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if ((larger && order > 0) || (larger === false && order < 0)) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function oidToInt4(input: checkruntime.OidValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        let signed: bigint = value;
+        if (signed > 2147483647n) {
+            signed = langruntime.checkedI64(langruntime.checkedI64Subtract(signed, 4294967296n));
+        }
+        return checkruntime.makeInt4Value(Number(BigInt.asIntN(32, langruntime.checkedI64(signed))));
+    }
+    return { kind: "Unknown" };
+}
+export function oidFromInt4(input: checkruntime.Int4Value): checkruntime.OidValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        let units: bigint = BigInt(langruntime.checkedI32(value));
+        if (units < 0n) {
+            units = langruntime.checkedI64(langruntime.checkedI64Add(units, 4294967296n));
+        }
+        return checkruntime.makeOidValue(units);
+    }
+    return { kind: "Unknown" };
+}
+export function oidToText(input: checkruntime.OidValue): checkruntime.TextValue {
+    return int8ToText(oidUnits(input));
+}
+export function oidsendKq2v(left: checkruntime.OidValue): checkruntime.ByteaValue {
+    return int4sendFjzt(oidToInt4(left));
+}
+export function btoidcmp48b8(left: checkruntime.OidValue, right: checkruntime.OidValue): checkruntime.Int4Value {
+    return oidCompare(left, right);
+}
+export function hashoidPp7a(left: checkruntime.OidValue): checkruntime.Int4Value {
+    return hashint4Zr00(oidToInt4(left));
+}
+export function hashoidextendedV555(left: checkruntime.OidValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    return hashint4extendedXf6v(oidToInt4(left), right);
+}
+export function int8Egit(left: checkruntime.OidValue): checkruntime.Int8Value {
+    return oidUnits(left);
+}
+export function oidH1d6(left: checkruntime.Int8Value): checkruntime.OidValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(left.value);
+        if (value < 0n || value > 4294967295n) {
+            return { kind: "Error", value: { state: sqlstateNumericValueOutOfRange } };
+        }
+        return checkruntime.makeOidValue(value);
+    }
+    return { kind: "Unknown" };
+}
+export function oideq5dkx(left: checkruntime.OidValue, right: checkruntime.OidValue): checkruntime.BoolValue {
+    return oidRelation(left, right, 0);
+}
+export function oidgeAoq3(left: checkruntime.OidValue, right: checkruntime.OidValue): checkruntime.BoolValue {
+    return oidRelation(left, right, 5);
+}
+export function oidgtG4ck(left: checkruntime.OidValue, right: checkruntime.OidValue): checkruntime.BoolValue {
+    return oidRelation(left, right, 4);
+}
+export function oidlargerI7ib(left: checkruntime.OidValue, right: checkruntime.OidValue): checkruntime.OidValue {
+    return oidSelect(left, right, true);
+}
+export function oidleFl7z(left: checkruntime.OidValue, right: checkruntime.OidValue): checkruntime.BoolValue {
+    return oidRelation(left, right, 3);
+}
+export function oidltD1du(left: checkruntime.OidValue, right: checkruntime.OidValue): checkruntime.BoolValue {
+    return oidRelation(left, right, 2);
+}
+export function oidneC1mg(left: checkruntime.OidValue, right: checkruntime.OidValue): checkruntime.BoolValue {
+    return oidRelation(left, right, 1);
+}
+export function oidsmallerGygc(left: checkruntime.OidValue, right: checkruntime.OidValue): checkruntime.OidValue {
+    return oidSelect(left, right, false);
+}
+const oidInputInvalid = 3484946;
+export function oidFromText(input: checkruntime.TextValue): checkruntime.OidValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        if (chars.length > 4096) {
+            return { kind: "Unknown" };
+        }
+        let start: number = 0;
+        let end: number = chars.length;
+        while (start < end && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
+            start = langruntime.checkedAdd(start, 1);
+        }
+        while (end > start && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        let negative: boolean = false;
+        if (start < end && (langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "+" || langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "-")) {
+            negative = langruntime.checkedBool(langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "-");
+            start = langruntime.checkedAdd(start, 1);
+        }
+        let radix: bigint = 10n;
+        if (langruntime.checkedAdd(start, 1) < end && langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "0") {
+            if (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "x" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "X") {
+                radix = langruntime.checkedI64(16n);
+                start = langruntime.checkedAdd(start, 2);
+            }
+            else if (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "b" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "B") {
+                return { kind: "Unknown" };
+            }
+            else {
+                radix = langruntime.checkedI64(8n);
+            }
+        }
+        let units: bigint = 0n;
+        let high: bigint = 0n;
+        let digits: boolean = false;
+        let overflow: boolean = false;
+        while (start < end) {
+            const digit: bigint = oidInputDigit(langruntime.indexChar(chars, langruntime.checkedIndex(start)));
+            if (digit < 0n || digit >= radix) {
+                break;
+            }
+            digits = langruntime.checkedBool(true);
+            if (overflow === false) {
+                const combined: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(units, radix), digit);
+                units = langruntime.checkedI64(langruntime.checkedI64Remainder(combined, 4294967296n));
+                high = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, radix), langruntime.checkedI64Divide(combined, 4294967296n)));
+                if (high > 4294967295n) {
+                    overflow = langruntime.checkedBool(true);
+                }
+            }
+            start = langruntime.checkedAdd(start, 1);
+        }
+        if (digits === false) {
+            if (radix === 16n && start === end) {
+                return { kind: "Unknown" };
+            }
+            return { kind: "Error", value: { state: oidInputInvalid } };
+        }
+        if (overflow) {
+            return { kind: "Error", value: { state: sqlstateNumericValueOutOfRange } };
+        }
+        if (!(high === 0n)) {
+            if (!(start === end) || (negative && high === 4294967295n && !(units === 0n)) || (negative === false && high === 4294967295n && units >= 2147483648n)) {
+                return { kind: "Unknown" };
+            }
+            return { kind: "Error", value: { state: sqlstateNumericValueOutOfRange } };
+        }
+        if (!(start === end)) {
+            return { kind: "Error", value: { state: oidInputInvalid } };
+        }
+        if (negative && units > 2147483648n) {
+            return { kind: "Unknown" };
+        }
+        if (negative && !(units === 0n)) {
+            units = langruntime.checkedI64(langruntime.checkedI64Subtract(4294967296n, units));
+        }
+        return checkruntime.makeOidValue(units);
+    }
+    return { kind: "Unknown" };
+}
+function oidInputSpace(ch: string): boolean {
+    ch = langruntime.checkedChar(ch);
+    return ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\v" || ch === "\f";
+}
+function oidInputDigit(ch: string): bigint {
+    ch = langruntime.checkedChar(ch);
+    const value: number = langruntime.checkedChar(ch).codePointAt(0)!;
+    if (value >= 48 && value <= 57) {
+        const digit: number = langruntime.checkedSignedSubtract(value, 48);
+        return BigInt(langruntime.checkedI32(digit));
+    }
+    if (value >= 65 && value <= 70) {
+        const digit: number = langruntime.checkedSignedSubtract(value, 55);
+        return BigInt(langruntime.checkedI32(digit));
+    }
+    if (value >= 97 && value <= 102) {
+        const digit: number = langruntime.checkedSignedSubtract(value, 87);
+        return BigInt(langruntime.checkedI32(digit));
+    }
+    return -1n;
+}
 function pointSameValue(left: checkruntime.PointPayload, right: checkruntime.PointPayload): boolean {
     const x: number = checkruntime.float8Number(left.x);
     const y: number = checkruntime.float8Number(left.y);

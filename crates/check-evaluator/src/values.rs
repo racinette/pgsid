@@ -1452,3 +1452,38 @@ pub fn money_from_case_guard(input: CheckOutcome) -> MoneyValue {
     };
     MoneyValue::Unknown
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum OidValue {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+pub fn oid_unknown() -> OidValue {
+    OidValue::Unknown
+}
+pub fn oid_null() -> OidValue {
+    OidValue::Null
+}
+pub fn make_oid_value(units: i64) -> OidValue {
+    if units < 0i64 || units > 4294967295i64 {
+        return OidValue::Unknown;
+    };
+    OidValue::Value(units)
+}
+pub fn oid_is_null(input: OidValue) -> BoolValue {
+    if let OidValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == OidValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == OidValue::Null)
+}
+pub fn oid_from_case_guard(input: CheckOutcome) -> OidValue {
+    if let CheckOutcome::Error(error) = input {
+        return OidValue::Error(error);
+    };
+    OidValue::Unknown
+}

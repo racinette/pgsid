@@ -18,6 +18,7 @@ export type PointType = 'pg_catalog.point'
 export type LineType = 'pg_catalog.line'
 export type LsegType = 'pg_catalog.lseg'
 export type MoneyType = 'pg_catalog.money'
+export type OidType = 'pg_catalog.oid'
 export type CircleType = 'pg_catalog.circle'
 export type BoxType = 'pg_catalog.box'
 export type UuidType = 'pg_catalog.uuid'
@@ -52,6 +53,7 @@ export type ScalarType =
   | LineType
   | LsegType
   | MoneyType
+  | OidType
   | CircleType
   | BoxType
   | 'pg_catalog.bool'
@@ -295,6 +297,7 @@ export type SqlExpression =
   | { kind: 'line'; type: LineType; value: string | null }
   | { kind: 'lseg'; type: LsegType; value: string | null }
   | { kind: 'money'; type: MoneyType; value: string | null; units?: string }
+  | { kind: 'oid'; type: OidType; value: string | null }
   | { kind: 'circle'; type: CircleType; value: string | null }
   | { kind: 'box'; type: BoxType; value: string | null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
@@ -951,6 +954,10 @@ export function emitSqlExpression<Ast>(
     }
     if (node.kind === 'money') {
       if (node.value !== null) throw new Error('Money literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'oid') {
+      if (node.value !== null) throw new Error('Oid literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'circle') {

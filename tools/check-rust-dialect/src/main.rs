@@ -76,6 +76,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("MoneyValue") => {
             Ok("MoneyValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("OidValue") => {
+            Ok("OidValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("CircleValue") => {
             Ok("CircleValue")
         }
@@ -404,6 +407,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "LineValue"
                     | "LsegValue"
                     | "MoneyValue"
+                    | "OidValue"
                     | "CircleValue"
                     | "BoxValue"
                     | "UuidValue"
@@ -696,6 +700,18 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_oid_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: OidValue, right: OidValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in ["OidPayload", "f64", "i64", "OidValue<i64>", "&OidValue"] {
+            assert!(
+                check_source(&source.replace("left: OidValue", &format!("left: {ty}"))).is_err()
+            );
+        }
+        assert!(check_source(&source.replace("left: OidValue", "mut left: OidValue")).is_err());
+    }
+
+    #[test]
     fn accepts_money_wrappers_without_exposing_payloads() {
         let source = "pub fn evaluate_check(left: MoneyValue, right: MoneyValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
         check_source(source).unwrap();
@@ -739,6 +755,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("LineValue", "line_unknown"),
             ("LsegValue", "lseg_unknown"),
             ("MoneyValue", "money_unknown"),
+            ("OidValue", "oid_unknown"),
             ("CircleValue", "circle_unknown"),
             ("BoxValue", "box_unknown"),
             ("EnumValue", "enum_unknown"),

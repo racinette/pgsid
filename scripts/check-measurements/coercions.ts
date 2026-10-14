@@ -1,4 +1,8 @@
 import {
+  oidInputForms,
+  deferredOidPlatformForms,
+} from '../../tests/sql-semantics/check-oid-input-forms.js'
+import {
   moneyInputForms,
   deferredMoneyContextForms,
 } from '../../tests/sql-semantics/check-money-input-forms.js'
@@ -49,6 +53,16 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.oid',
+    suite: 'tests/sql-semantics/check-oid.test.ts',
+    handled: oidInputForms,
+    deferred: deferredOidPlatformForms,
+    platformDependent: deferredOidPlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+  },
   {
     type: 'pg_catalog.money',
     suite: 'tests/sql-semantics/check-money.test.ts',
