@@ -6,6 +6,7 @@ import {
   catalogPointType,
   catalogLineType,
   catalogLsegType,
+  catalogBoxType,
   catalogScalarType,
   catalogTemporalType,
 } from '../../sql-semantics/catalog-check-binder.js'
@@ -228,6 +229,7 @@ export function planCheckInputs(
     if (catalogPointType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogLineType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogLsegType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogBoxType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalog && inputNeedsCoercion(column, catalog)) return []
     return [{ name, parameter: source.number }]
   })

@@ -187,3 +187,56 @@ CREATE TABLE guide_segment_projections (
   CONSTRAINT segment_project_closest CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(close_ps(point_text::point,segment_text::lseg),recorded_closest) END),
   CONSTRAINT segment_project_distance CHECK (CASE WHEN skip_validation THEN true ELSE dist_ps(point_text::point,segment_text::lseg) = recorded_distance AND dist_sp(segment_text::lseg,point_text::point) = recorded_distance END)
 );
+
+CREATE DOMAIN imported_region AS box;
+CREATE DOMAIN survey_region AS imported_region;
+CREATE TABLE guide_regions (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  region survey_region,
+  recorded_wire bytea,
+  recorded_area float8,
+  recorded_width float8,
+  recorded_height float8,
+  recorded_center point,
+  recorded_diagonal lseg,
+  recorded_present boolean,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT region_wire CHECK (CASE WHEN skip_validation THEN true ELSE box_send(region) = recorded_wire END),
+  CONSTRAINT region_area CHECK (CASE WHEN skip_validation THEN true ELSE area(region) = recorded_area END),
+  CONSTRAINT region_width CHECK (CASE WHEN skip_validation THEN true ELSE width(region) = recorded_width END),
+  CONSTRAINT region_height CHECK (CASE WHEN skip_validation THEN true ELSE height(region) = recorded_height END),
+  CONSTRAINT region_center CHECK (CASE WHEN skip_validation THEN true ELSE point_eq(box_center(region),recorded_center) AND point_eq(point(region),recorded_center) END),
+  CONSTRAINT region_diagonal CHECK (CASE WHEN skip_validation THEN true ELSE lseg_eq(diagonal(region),recorded_diagonal) AND lseg_eq(lseg(region),recorded_diagonal) END),
+  CONSTRAINT region_present CHECK (CASE WHEN skip_validation THEN true ELSE (region IS NOT NULL) = recorded_present END)
+);
+CREATE TABLE guide_region_imports (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  source_text text,
+  recorded_region survey_region,
+  recorded_wire bytea,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT region_import_same CHECK (CASE WHEN skip_validation THEN true ELSE box_same(source_text::survey_region,recorded_region) END),
+  CONSTRAINT region_import_wire CHECK (CASE WHEN skip_validation THEN true ELSE box_send(source_text::box) = recorded_wire END)
+);
+CREATE TABLE guide_region_relations (
+  id integer PRIMARY KEY,
+  guide_id integer NOT NULL REFERENCES guide_axes (id),
+  label text NOT NULL,
+  first_region survey_region,
+  second_region box,
+  recorded_same boolean,
+  recorded_equal boolean,
+  recorded_less boolean,
+  recorded_le boolean,
+  recorded_greater boolean,
+  recorded_ge boolean,
+  recorded_distance float8,
+  skip_validation boolean NOT NULL,
+  CONSTRAINT region_relation_same CHECK (CASE WHEN skip_validation THEN true ELSE box_same(first_region,second_region) = recorded_same END),
+  CONSTRAINT region_relation_area CHECK (CASE WHEN skip_validation THEN true ELSE (first_region = second_region) = recorded_equal AND (first_region < second_region) = recorded_less AND (first_region <= second_region) = recorded_le AND (first_region > second_region) = recorded_greater AND (first_region >= second_region) = recorded_ge END),
+  CONSTRAINT region_relation_distance CHECK (CASE WHEN skip_validation THEN true ELSE box_distance(first_region,second_region) = recorded_distance END)
+);

@@ -17,6 +17,7 @@ export type BitType = 'pg_catalog."bit"' | 'pg_catalog.varbit'
 export type PointType = 'pg_catalog.point'
 export type LineType = 'pg_catalog.line'
 export type LsegType = 'pg_catalog.lseg'
+export type BoxType = 'pg_catalog.box'
 export type UuidType = 'pg_catalog.uuid'
 export type JsonType = 'pg_catalog."json"'
 export type JsonbType = 'pg_catalog.jsonb'
@@ -48,6 +49,7 @@ export type ScalarType =
   | PointType
   | LineType
   | LsegType
+  | BoxType
   | 'pg_catalog.bool'
   | TextType
   | NetworkType
@@ -288,6 +290,7 @@ export type SqlExpression =
   | { kind: 'point'; type: PointType; value: string | null }
   | { kind: 'line'; type: LineType; value: string | null }
   | { kind: 'lseg'; type: LsegType; value: string | null }
+  | { kind: 'box'; type: BoxType; value: string | null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
   | { kind: 'json'; type: JsonType; value: string | null }
   | { kind: 'jsonb'; type: JsonbType; value: string | null }
@@ -938,6 +941,10 @@ export function emitSqlExpression<Ast>(
     }
     if (node.kind === 'lseg') {
       if (node.value !== null) throw new Error('Lseg literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'box') {
+      if (node.value !== null) throw new Error('Box literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'point') {

@@ -200,7 +200,7 @@ exposes a prerequisite:
 - [x] Establish line-segment endpoint payloads, public inputs, construction,
       parsing, literals, comparisons, length, midpoint and orientation.
 - [x] Establish line-segment intersections, containment, distances and closest points.
-- [ ] Establish box corner payloads, public inputs, parsing, construction,
+- [x] Establish box corner payloads, public inputs, parsing, construction,
       comparisons, dimensions, centers and diagonal conversion.
 - [ ] Establish box relations, intersection, bounding union, arithmetic and closest points.
 - [ ] Establish circle center/radius payloads, public inputs, parsing, construction,
@@ -208,6 +208,8 @@ exposes a prerequisite:
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.
+- [ ] Establish money payloads, comparisons, arithmetic, binary output and words,
+      and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.

@@ -73,6 +73,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("LsegValue") => {
             Ok("LsegValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("BoxValue") => {
+            Ok("BoxValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("UuidValue") => {
             Ok("UuidValue")
         }
@@ -394,6 +397,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "PointValue"
                     | "LineValue"
                     | "LsegValue"
+                    | "BoxValue"
                     | "UuidValue"
                     | "MacaddrValue"
                     | "Macaddr8Value"
@@ -652,6 +656,18 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_box_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: BoxValue, right: BoxValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in ["BoxPayload", "f64", "i64", "BoxValue<i64>", "&BoxValue"] {
+            assert!(
+                check_source(&source.replace("left: BoxValue", &format!("left: {ty}"))).is_err()
+            );
+        }
+        assert!(check_source(&source.replace("left: BoxValue", "mut left: BoxValue")).is_err());
+    }
+
+    #[test]
     fn accepts_clock_and_interval_values_without_payload_parameters() {
         for ty in ["TimeValue", "TimetzValue", "IntervalValue"] {
             let source = format!("pub fn evaluate_check(input: {ty}) -> CheckOutcome {{ let result = compare(input, input); check_from_bool(result) }}");
@@ -676,6 +692,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("PointValue", "point_unknown"),
             ("LineValue", "line_unknown"),
             ("LsegValue", "lseg_unknown"),
+            ("BoxValue", "box_unknown"),
             ("EnumValue", "enum_unknown"),
             ("TimeValue", "time_unknown"),
             ("TimetzValue", "timetz_unknown"),

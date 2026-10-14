@@ -25,6 +25,7 @@ export type Input =
         | { x: bigint; y: bigint }
         | { a: bigint; b: bigint; c: bigint }
         | { x1: bigint; y1: bigint; x2: bigint; y2: bigint }
+        | { highX: bigint; highY: bigint; lowX: bigint; lowY: bigint }
         | { time: bigint; zone: number }
         | { time: bigint; months: number; days: number }
     }
@@ -73,51 +74,53 @@ export async function runCheckParity(
     return result[0]!.toLowerCase() + result.slice(1)
   }
   const prefixOf = (type: string): string =>
-    type === 'pg_catalog.lseg'
-      ? 'lseg'
-      : type === 'pg_catalog.line'
-        ? 'line'
-        : type === 'pg_catalog.point'
-          ? 'point'
-          : type === 'pg_catalog."time"'
-            ? 'time'
-            : type === 'pg_catalog.timetz'
-              ? 'timetz'
-              : type === 'pg_catalog."interval"'
-                ? 'interval'
-                : type === 'pg_catalog.float4' || type === 'pg_catalog.float8'
-                  ? type.slice('pg_catalog.'.length)
-                  : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
-                    ? 'bit'
-                    : type === 'pg_catalog.uuid'
-                      ? 'uuid'
-                      : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
-                        ? 'network'
-                        : type === 'pg_catalog.macaddr'
-                          ? 'macaddr'
-                          : type === 'pg_catalog.macaddr8'
-                            ? 'macaddr8'
-                            : type === 'pg_catalog.bytea'
-                              ? 'bytea'
-                              : type.startsWith('enum:')
-                                ? 'enum'
-                                : type === 'pg_catalog.int2'
-                                  ? 'int2'
-                                  : type === 'pg_catalog.int4'
-                                    ? 'int4'
-                                    : type === 'pg_catalog.int8'
-                                      ? 'int8'
-                                      : type === 'pg_catalog."numeric"'
-                                        ? 'numeric'
-                                        : type === 'pg_catalog."timestamp"'
-                                          ? 'timestamp'
-                                          : type === 'pg_catalog.timestamptz'
-                                            ? 'timestamptz'
-                                            : type === 'pg_catalog.date'
-                                              ? 'date'
-                                              : type === 'pg_catalog.bool'
-                                                ? 'bool'
-                                                : 'text'
+    type === 'pg_catalog.box'
+      ? 'box'
+      : type === 'pg_catalog.lseg'
+        ? 'lseg'
+        : type === 'pg_catalog.line'
+          ? 'line'
+          : type === 'pg_catalog.point'
+            ? 'point'
+            : type === 'pg_catalog."time"'
+              ? 'time'
+              : type === 'pg_catalog.timetz'
+                ? 'timetz'
+                : type === 'pg_catalog."interval"'
+                  ? 'interval'
+                  : type === 'pg_catalog.float4' || type === 'pg_catalog.float8'
+                    ? type.slice('pg_catalog.'.length)
+                    : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
+                      ? 'bit'
+                      : type === 'pg_catalog.uuid'
+                        ? 'uuid'
+                        : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
+                          ? 'network'
+                          : type === 'pg_catalog.macaddr'
+                            ? 'macaddr'
+                            : type === 'pg_catalog.macaddr8'
+                              ? 'macaddr8'
+                              : type === 'pg_catalog.bytea'
+                                ? 'bytea'
+                                : type.startsWith('enum:')
+                                  ? 'enum'
+                                  : type === 'pg_catalog.int2'
+                                    ? 'int2'
+                                    : type === 'pg_catalog.int4'
+                                      ? 'int4'
+                                      : type === 'pg_catalog.int8'
+                                        ? 'int8'
+                                        : type === 'pg_catalog."numeric"'
+                                          ? 'numeric'
+                                          : type === 'pg_catalog."timestamp"'
+                                            ? 'timestamp'
+                                            : type === 'pg_catalog.timestamptz'
+                                              ? 'timestamptz'
+                                              : type === 'pg_catalog.date'
+                                                ? 'date'
+                                                : type === 'pg_catalog.bool'
+                                                  ? 'bool'
+                                                  : 'text'
   const inputCode = (input: Input, type: string, definition?: EnumDefinition): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -140,6 +143,8 @@ export async function runCheckParity(
     }
     if (typeof input.value === 'object') {
       const parts = input.value
+      if ('highX' in parts)
+        return `make_box_bits(${parts.highX}i64, ${parts.highY}i64, ${parts.lowX}i64, ${parts.lowY}i64)`
       if ('x1' in parts)
         return `make_lseg_bits(${parts.x1}i64, ${parts.y1}i64, ${parts.x2}i64, ${parts.y2}i64)`
       if ('x' in parts) return `make_point_bits(${parts.x}i64, ${parts.y}i64)`
@@ -190,6 +195,13 @@ export async function runCheckParity(
       return go.call(runtime('Make' + prefix + 'Bits'), [go.number(input.value as number | bigint)])
     if (typeof input.value === 'object') {
       const parts = input.value
+      if ('highX' in parts)
+        return go.call(runtime('MakeBoxBits'), [
+          go.number(parts.highX),
+          go.number(parts.highY),
+          go.number(parts.lowX),
+          go.number(parts.lowY),
+        ])
       if ('x1' in parts)
         return go.call(runtime('MakeLsegBits'), [
           go.number(parts.x1),
@@ -412,6 +424,18 @@ export async function runCheckParity(
           'x' in value.value
         )
           return generated.makePointBits(value.value.x, value.value.y)
+        if (
+          input.type === 'pg_catalog.box' &&
+          value.kind === 'Value' &&
+          typeof value.value === 'object' &&
+          'highX' in value.value
+        )
+          return generated.makeBoxBits(
+            value.value.highX,
+            value.value.highY,
+            value.value.lowX,
+            value.value.lowY,
+          )
         if (
           input.type === 'pg_catalog.lseg' &&
           value.kind === 'Value' &&

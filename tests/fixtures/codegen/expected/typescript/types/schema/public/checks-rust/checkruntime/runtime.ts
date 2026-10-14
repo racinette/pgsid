@@ -1570,6 +1570,66 @@ export function lsegFromCaseGuard(input: CheckOutcome): LsegValue {
     }
     return { kind: "Unknown" };
 }
+export interface BoxPayload {
+    readonly highX: bigint;
+    readonly highY: bigint;
+    readonly lowX: bigint;
+    readonly lowY: bigint;
+    readonly wireKnown: boolean;
+}
+function equalBoxPayload(left: BoxPayload, right: BoxPayload): boolean {
+    return left.highX === right.highX && left.highY === right.highY && left.lowX === right.lowX && left.lowY === right.lowY && left.wireKnown === right.wireKnown;
+}
+export type BoxValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: BoxPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalBoxValue(left: BoxValue, right: BoxValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalBoxPayload(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function boxUnknown(): BoxValue {
+    return { kind: "Unknown" };
+}
+export function boxNull(): BoxValue {
+    return { kind: "Null" };
+}
+export function makeBoxBits(highX: bigint, highY: bigint, lowX: bigint, lowY: bigint): BoxValue {
+    highX = langruntime.checkedI64(highX);
+    highY = langruntime.checkedI64(highY);
+    lowX = langruntime.checkedI64(lowX);
+    lowY = langruntime.checkedI64(lowY);
+    return { kind: "Value", value: { highX: highX, highY: highY, lowX: lowX, lowY: lowY, wireKnown: true } };
+}
+export function boxIsNull(input: BoxValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalBoxValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalBoxValue(input, { kind: "Null" }));
+}
+export function boxFromCaseGuard(input: CheckOutcome): BoxValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

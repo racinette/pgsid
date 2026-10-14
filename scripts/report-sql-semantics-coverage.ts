@@ -33,6 +33,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'point' ||
       expression.kind === 'line' ||
       expression.kind === 'lseg' ||
+      expression.kind === 'box' ||
       expression.kind === 'decimal' ||
       expression.kind === 'boolean' ||
       expression.kind === 'text' ||

@@ -1,4 +1,8 @@
 import {
+  boxInputForms,
+  deferredBoxPlatformForms,
+} from '../../tests/sql-semantics/check-box-input-forms.js'
+import {
   lsegInputForms,
   deferredLsegPlatformForms,
 } from '../../tests/sql-semantics/check-lseg-input-forms.js'
@@ -37,6 +41,17 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.box',
+    suite: 'tests/sql-semantics/check-box.test.ts',
+    handled: boxInputForms,
+    deferred: deferredBoxPlatformForms,
+    platformDependent: deferredBoxPlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+    computedNanBinaryOutput: 'Unknown',
+  },
   {
     type: 'pg_catalog.lseg',
     suite: 'tests/sql-semantics/check-lseg.test.ts',

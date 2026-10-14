@@ -21,6 +21,7 @@ import {
   catalogPointType,
   catalogLineType,
   catalogLsegType,
+  catalogBoxType,
 } from '../../src/sql-semantics/catalog-check-binder.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
@@ -343,6 +344,13 @@ describe('world CHECK INSERT parity', () => {
             catalogLsegType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const boxColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogBoxType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const goRow = { ...row }
       for (const [family, names] of [
         ['time', timeColumns],
@@ -373,6 +381,25 @@ describe('world CHECK INSERT parity', () => {
           portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
           goRow[name] = payload
         }
+      }
+      for (const name of boxColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(box_send(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload =
+          bytes === null
+            ? null
+            : {
+                highX: bytes.readBigInt64BE(),
+                highY: bytes.readBigInt64BE(8),
+                lowX: bytes.readBigInt64BE(16),
+                lowY: bytes.readBigInt64BE(24),
+              }
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
       }
       for (const name of lsegColumns) {
         const hex = (
@@ -490,6 +517,7 @@ describe('world CHECK INSERT parity', () => {
         pointColumns,
         lineColumns,
         lsegColumns,
+        boxColumns,
         timeColumns,
         timetzColumns,
         intervalColumns,
@@ -948,6 +976,25 @@ describe('world CHECK INSERT parity', () => {
         '028_axis_guides',
         'guide_segment_projections',
         ['segment_project_on', 'segment_project_closest', 'segment_project_distance'],
+      ],
+      [
+        '028_axis_guides',
+        'guide_regions',
+        [
+          'region_wire',
+          'region_area',
+          'region_width',
+          'region_height',
+          'region_center',
+          'region_diagonal',
+          'region_present',
+        ],
+      ],
+      ['028_axis_guides', 'guide_region_imports', ['region_import_same', 'region_import_wire']],
+      [
+        '028_axis_guides',
+        'guide_region_relations',
+        ['region_relation_same', 'region_relation_area', 'region_relation_distance'],
       ],
 
       [

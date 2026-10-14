@@ -1996,6 +1996,310 @@ func BoolgeGviq(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func boxFromPoints(left checkruntime.PointValue, right checkruntime.PointValue, keepTies bool) checkruntime.BoxValue {
+	if left.Kind == checkruntime.PointValueError {
+		error := left.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PointValueError {
+		error := right.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}
+	}
+	if left.Kind == checkruntime.PointValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.PointValueValue {
+			b := right.Value
+			highX := b.X
+			lowX := a.X
+			highY := b.Y
+			lowY := a.Y
+			x := float8Compare(checkruntime.MakeFloat8Bits(a.X), checkruntime.MakeFloat8Bits(b.X))
+			y := float8Compare(checkruntime.MakeFloat8Bits(a.Y), checkruntime.MakeFloat8Bits(b.Y))
+			if x == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}) || (keepTies && x == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0})) {
+				highX = a.X
+				lowX = b.X
+			}
+			if y == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}) || (keepTies && y == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0})) {
+				highY = a.Y
+				lowY = b.Y
+			}
+			return checkruntime.BoxValue{Kind: checkruntime.BoxValueValue, Value: checkruntime.BoxPayload{HighX: highX, HighY: highY, LowX: lowX, LowY: lowY, WireKnown: a.WireKnown && b.WireKnown}}
+		}
+	}
+	return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+}
+func boxEndpoint(input checkruntime.BoxValue, low bool) checkruntime.PointValue {
+	if input.Kind == checkruntime.BoxValueError {
+		error := input.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if input.Kind == checkruntime.BoxValueValue {
+		value := input.Value
+		x := value.HighX
+		y := value.HighY
+		if low {
+			x = value.LowX
+			y = value.LowY
+		}
+		return checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: checkruntime.PointPayload{X: x, Y: y, WireKnown: value.WireKnown || (checkruntime.Float8Number(x) == checkruntime.Float8Number(x) && checkruntime.Float8Number(y) == checkruntime.Float8Number(y))}}
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func boxScalar(value checkruntime.BoxPayload, slot int) checkruntime.Float8Value {
+	slot = langruntime.CheckedI32(slot)
+	bits := value.HighX
+	if slot == 1 {
+		bits = value.HighY
+	}
+	if slot == 2 {
+		bits = value.LowX
+	}
+	if slot == 3 {
+		bits = value.LowY
+	}
+	number := checkruntime.Float8Number(bits)
+	if value.WireKnown == false && number != number {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	return checkruntime.MakeFloat8Bits(bits)
+}
+func boxComputedScalar(input checkruntime.Float8Value) checkruntime.Float8Value {
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		value := checkruntime.Float8Number(bits)
+		if value != value {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+	}
+	return input
+}
+func boxDimension(input checkruntime.BoxValue, vertical bool) checkruntime.Float8Value {
+	if input.Kind == checkruntime.BoxValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if input.Kind == checkruntime.BoxValueValue {
+		value := input.Value
+		high := boxScalar(value, 0)
+		low := boxScalar(value, 2)
+		if vertical {
+			high = boxScalar(value, 1)
+			low = boxScalar(value, 3)
+		}
+		return boxComputedScalar(Float8miR1nu(high, low))
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func boxAreaValue(input checkruntime.BoxValue) checkruntime.Float8Value {
+	return boxComputedScalar(Float8mulD3nd(boxDimension(input, false), boxDimension(input, true)))
+}
+func boxMidpoint(input checkruntime.BoxValue) checkruntime.PointValue {
+	if input.Kind == checkruntime.BoxValueError {
+		error := input.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if input.Kind == checkruntime.BoxValueValue {
+		value := input.Value
+		two := checkruntime.MakeFloat8Value(float64(2.0))
+		x := Float8divKumj(Float8plG3ou(boxScalar(value, 0), boxScalar(value, 2)), two)
+		y := Float8divKumj(Float8plG3ou(boxScalar(value, 1), boxScalar(value, 3)), two)
+		return pointArithmeticResult(x, y)
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func boxPairStatus(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.BoxValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.BoxValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}) || right == (checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) || right == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func boxSameCorners(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	status := boxPairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	high := PointEq5be0(boxEndpoint(left, false), boxEndpoint(right, false))
+	if high != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return high
+	}
+	return PointEq5be0(boxEndpoint(left, true), boxEndpoint(right, true))
+}
+func boxAreaRelation(left checkruntime.BoxValue, right checkruntime.BoxValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	status := boxPairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	first := boxAreaValue(left)
+	if first.Kind == checkruntime.Float8ValueError {
+		error := first.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	second := boxAreaValue(right)
+	if second.Kind == checkruntime.Float8ValueError {
+		error := second.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	a := checkruntime.Float8Semantic(first)
+	b := checkruntime.Float8Semantic(second)
+	if a.Kind == checkruntime.Float8ValueValue {
+		aa := a.Value
+		if b.Kind == checkruntime.Float8ValueValue {
+			bb := b.Value
+			x := checkruntime.Float8Number(aa)
+			y := checkruntime.Float8Number(bb)
+			if mode == 0 {
+				return checkruntime.MakeBoolValue(geometricCoordinateEqual(x, y))
+			}
+			if mode == 1 {
+				return checkruntime.MakeBoolValue(langruntime.F64Add(x, float64(0.000001)) < y)
+			}
+			if mode == 2 {
+				return checkruntime.MakeBoolValue(x > langruntime.F64Add(y, float64(0.000001)))
+			}
+			if mode == 3 {
+				return checkruntime.MakeBoolValue(x <= langruntime.F64Add(y, float64(0.000001)))
+			}
+			return checkruntime.MakeBoolValue(langruntime.F64Add(x, float64(0.000001)) >= y)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func boxBinary(input checkruntime.BoxValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.BoxValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.BoxValueValue {
+		value := input.Value
+		if value.WireKnown == false {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+		}
+		return ByteacatZitv(PointSendKuoa(boxEndpoint(input, false)), PointSendKuoa(boxEndpoint(input, true)))
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func boxDiagonalValue(input checkruntime.BoxValue) checkruntime.LsegValue {
+	return LsegL9bc(boxEndpoint(input, false), boxEndpoint(input, true))
+}
+func boxCentersDistance(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.Float8Value {
+	status := boxPairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		if status.Kind == checkruntime.BoolValueError {
+			error := status.Error
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+		}
+		if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+		}
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	return PointDistance2haq(boxMidpoint(left), boxMidpoint(right))
+}
+func BoxSendGn94(input checkruntime.BoxValue) checkruntime.ByteaValue {
+	return boxBinary(input)
+}
+func BoxRlrs(point checkruntime.PointValue) checkruntime.BoxValue {
+	return boxFromPoints(point, point, false)
+}
+func Box3i2n(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.BoxValue {
+	return boxFromPoints(left, right, false)
+}
+func Area5fzg(input checkruntime.BoxValue) checkruntime.Float8Value {
+	return boxAreaValue(input)
+}
+func WidthXgb7(input checkruntime.BoxValue) checkruntime.Float8Value {
+	return boxDimension(input, false)
+}
+func Height4nsp(input checkruntime.BoxValue) checkruntime.Float8Value {
+	return boxDimension(input, true)
+}
+func BoxCenter8n2v(input checkruntime.BoxValue) checkruntime.PointValue {
+	return boxMidpoint(input)
+}
+func Point31a1(input checkruntime.BoxValue) checkruntime.PointValue {
+	return boxMidpoint(input)
+}
+func DiagonalCfk4(input checkruntime.BoxValue) checkruntime.LsegValue {
+	return boxDiagonalValue(input)
+}
+func LsegRpcm(input checkruntime.BoxValue) checkruntime.LsegValue {
+	return boxDiagonalValue(input)
+}
+func BoxSameFim3(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSameCorners(left, right)
+}
+func BoxDistance34ga(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.Float8Value {
+	return boxCentersDistance(left, right)
+}
+func BoxEqQ1sg(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxAreaRelation(left, right, 0)
+}
+func BoxLt6yu8(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxAreaRelation(left, right, 1)
+}
+func BoxGt4z9n(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxAreaRelation(left, right, 2)
+}
+func BoxLePi1v(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxAreaRelation(left, right, 3)
+}
+func BoxGeEtho(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxAreaRelation(left, right, 4)
+}
+func BoxFromText(input checkruntime.TextValue) checkruntime.BoxValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		if len(chars) > 4096 {
+			return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+		}
+		source := geometryInputText{chars: chars}
+		index := geometryInputSpace(&source, 0)
+		if index < len(source.chars) && source.chars[index] == '[' {
+			return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+		}
+		pair := geometryReadPair(&source, index)
+		return boxFromPoints(pair.first, pair.second, true)
+	}
+	return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+}
 func byteaAsciiCharacter(value int) rune {
 	value = langruntime.CheckedI32(value)
 	chars := []rune("\x00\x01\x02\x03\x04\x05\x06\a\b\t\n\v\f\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\x7f")
