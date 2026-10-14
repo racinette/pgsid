@@ -99,64 +99,76 @@ export async function measureSurface(pg: PGlite) {
       valueRequirements:
         implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
-        ['hashchar', 'hashcharextended'].includes(implementation.name)
+        implementation.name === 'name' &&
+        implementation.result === 'pg_catalog.name'
           ? [
               {
                 kind: 'platform',
                 requirement:
-                  'PostgreSQL native C char signedness for byte values with the high bit set; ASCII and zero are portable',
-                owner: 'tests/sql-semantics/check-internal-char.test.ts',
+                  'Nonempty input truncation requires the deployment max_identifier_length build setting; SQL-coerced name values already carry their contents.',
+                owner: 'tests/sql-semantics/check-name.test.ts',
               },
             ]
           : implementation.kind === 'function' &&
               implementation.schema === 'pg_catalog' &&
-              implementation.name === 'bpchar' &&
-              implementation.args[0] === 'pg_catalog."char"'
+              ['hashchar', 'hashcharextended'].includes(implementation.name)
             ? [
                 {
-                  kind: 'representation',
+                  kind: 'platform',
                   requirement:
-                    'Raw NUL or invalid UTF8 bytes cannot enter the SQL-coerced UTF8 text wrapper; nonzero ASCII output is represented',
+                    'PostgreSQL native C char signedness for byte values with the high bit set; ASCII and zero are portable',
                   owner: 'tests/sql-semantics/check-internal-char.test.ts',
                 },
               ]
             : implementation.kind === 'function' &&
-                ['hashtid', 'hashtidextended'].includes(implementation.name)
+                implementation.schema === 'pg_catalog' &&
+                implementation.name === 'bpchar' &&
+                implementation.args[0] === 'pg_catalog."char"'
               ? [
                   {
-                    kind: 'platform',
+                    kind: 'representation',
                     requirement:
-                      'PostgreSQL native byte order unless the offset is zero and the block halfwords match',
-                    owner: 'tests/sql-semantics/check-tid.test.ts',
+                      'Raw NUL or invalid UTF8 bytes cannot enter the SQL-coerced UTF8 text wrapper; nonzero ASCII output is represented',
+                    owner: 'tests/sql-semantics/check-internal-char.test.ts',
                   },
                 ]
               : implementation.kind === 'function' &&
-                  ['hashenum', 'hashenumextended'].includes(implementation.name)
+                  ['hashtid', 'hashtidextended'].includes(implementation.name)
                 ? [
                     {
-                      kind: 'database',
+                      kind: 'platform',
                       requirement:
-                        'Actual enum label OIDs are unavailable to generated label adapters and literals; generation catalog OIDs are not portable',
-                      owner: 'tests/sql-semantics/check-enum-oid-context.test.ts',
+                        'PostgreSQL native byte order unless the offset is zero and the block halfwords match',
+                      owner: 'tests/sql-semantics/check-tid.test.ts',
                     },
                   ]
                 : implementation.kind === 'function' &&
-                    isOidAliasType(implementation.result) &&
-                    (implementation.name ===
-                      'to_' + implementation.result.slice('pg_catalog.'.length) ||
-                      (implementation.name === 'regclass' &&
-                        implementation.args[0] === 'pg_catalog.text'))
+                    ['hashenum', 'hashenumextended'].includes(implementation.name)
                   ? [
                       {
                         kind: 'database',
                         requirement:
-                          implementation.name === 'regclass'
-                            ? 'Deployment catalog is unavailable; text arguments are relation names even when numeric'
-                            : 'Deployment catalog is unavailable for symbolic names; numeric and sentinel branches are portable',
-                        owner: 'tests/sql-semantics/check-oid-aliases.test.ts',
+                          'Actual enum label OIDs are unavailable to generated label adapters and literals; generation catalog OIDs are not portable',
+                        owner: 'tests/sql-semantics/check-enum-oid-context.test.ts',
                       },
                     ]
-                  : [],
+                  : implementation.kind === 'function' &&
+                      isOidAliasType(implementation.result) &&
+                      (implementation.name ===
+                        'to_' + implementation.result.slice('pg_catalog.'.length) ||
+                        (implementation.name === 'regclass' &&
+                          implementation.args[0] === 'pg_catalog.text'))
+                    ? [
+                        {
+                          kind: 'database',
+                          requirement:
+                            implementation.name === 'regclass'
+                              ? 'Deployment catalog is unavailable; text arguments are relation names even when numeric'
+                              : 'Deployment catalog is unavailable for symbolic names; numeric and sentinel branches are portable',
+                          owner: 'tests/sql-semantics/check-oid-aliases.test.ts',
+                        },
+                      ]
+                    : [],
       probe: canProbe ? callableProbe(item) : null,
     }
   })

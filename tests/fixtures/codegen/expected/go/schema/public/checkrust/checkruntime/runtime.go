@@ -344,6 +344,19 @@ func TextUnknown() TextValue {
 func TextNull() TextValue {
 	return TextValue{Kind: TextValueNull}
 }
+func MakeNameTextValue(value string) TextValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	index := 0
+	for index < len(chars) {
+		code := int(langruntime.CheckedChar(chars[index]))
+		if code == 0 || (code >= 55296 && code <= 57343) {
+			return TextValue{Kind: TextValueUnknown}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return TextValue{Kind: TextValueValue, Value: value}
+}
 func MakeTextValue(value string) TextValue {
 	value = langruntime.CheckedString(value)
 	return TextValue{Kind: TextValueValue, Value: value}

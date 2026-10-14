@@ -34,7 +34,17 @@ const portable = (signature: string, rustNames: ReadonlySet<string>): boolean =>
     (implementation.name === 'to_' + implementation.result.slice('pg_catalog.'.length) ||
       builtinCast('pg_catalog.text', implementation.result)?.implementation === signature)
   return (
-    (metadata.volatility === 'i' || conditionalCatalogInput) &&
+    (metadata.volatility === 'i' ||
+      conditionalCatalogInput ||
+      (implementation.kind === 'function' &&
+        implementation.schema === 'pg_catalog' &&
+        implementation.name === 'namesend' &&
+        implementation.strict &&
+        !implementation.returnsSet &&
+        implementation.args.length === 1 &&
+        implementation.args[0] === 'pg_catalog.name' &&
+        implementation.result === 'pg_catalog.bytea' &&
+        rustNames.has(implementation.rustName))) &&
     ((go.has(signature) && typescript.has(signature)) ||
       (implementation.kind === 'function' && rustNames.has(implementation.rustName)))
   )

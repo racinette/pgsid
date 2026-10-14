@@ -35,6 +35,17 @@ export function supportsTextCallableCollation(signature: string, collation?: str
       builtinCast('pg_catalog.text', metadata.result)?.implementation === signature) &&
     metadata.result.startsWith('pg_catalog.reg') &&
     builtinCast(metadata.result, 'pg_catalog.oid')?.method === 'b'
+  const nameIntrinsic =
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    metadata.strict &&
+    ((metadata.name === 'name' &&
+      metadata.args.length === 1 &&
+      metadata.result === 'pg_catalog.name') ||
+      (metadata.args[0] === 'pg_catalog.name' &&
+        ((metadata.args.length === 1 &&
+          ['text', 'bpchar', 'varchar', 'hashname', 'namesend'].includes(metadata.name)) ||
+          (metadata.name === 'hashnameextended' && metadata.args[1] === 'pg_catalog.int8'))))
   const characterCode =
     metadata.kind === 'function' &&
     metadata.schema === 'pg_catalog' &&
@@ -317,6 +328,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
               (implementation.name === 'btbpchar_pattern_cmp' &&
                 implementation.result === 'pg_catalog.int4'))))))
   return (
+    nameIntrinsic ||
     oidAliasLookup ||
     likeEscape ||
     textIntrinsic ||

@@ -69,7 +69,11 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.date') return 'DateValue'
   if (type === 'pg_catalog."timestamp"') return 'TimestampValue'
   if (type === 'pg_catalog.timestamptz') return 'TimestamptzValue'
-  if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type))
+  if (
+    ['pg_catalog.name', 'pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
+      type,
+    )
+  )
     return 'TextValue'
   if (type === 'pg_catalog.bool') return 'BoolValue'
   if (type.startsWith('enum:')) return 'EnumValue'
@@ -415,10 +419,15 @@ export function emitCheckRustEvaluator(
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
           !(
-            isOidAliasType(implementation.result) &&
-            (implementation.name === 'to_' + implementation.result.slice('pg_catalog.'.length) ||
-              builtinCast('pg_catalog.text', implementation.result)?.implementation ===
-                call.signature)
+            (implementation.name === 'namesend' &&
+              implementation.schema === 'pg_catalog' &&
+              implementation.args.length === 1 &&
+              implementation.args[0] === 'pg_catalog.name' &&
+              implementation.result === 'pg_catalog.bytea') ||
+            (isOidAliasType(implementation.result) &&
+              (implementation.name === 'to_' + implementation.result.slice('pg_catalog.'.length) ||
+                builtinCast('pg_catalog.text', implementation.result)?.implementation ===
+                  call.signature))
           )) ||
         implementation.returnsSet ||
         implementation.args.length !== operands.length
@@ -428,7 +437,12 @@ export function emitCheckRustEvaluator(
         )
       if (
         implementation.args.some((type) =>
-          ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type),
+          [
+            'pg_catalog.name',
+            'pg_catalog.text',
+            'pg_catalog."varchar"',
+            'pg_catalog.bpchar',
+          ].includes(type),
         ) &&
         !supportsTextCallableCollation(
           call.signature,
@@ -877,6 +891,11 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`pg_lsn_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'name') {
+        if (value.value === null) return { name: bind('text_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`name_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'internal-char') {
         if (value.value === null) return { name: bind('internal_char_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -1071,6 +1090,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.date',
           'pg_catalog."timestamp"',
           'pg_catalog.timestamptz',
+          'pg_catalog.name',
           'pg_catalog.text',
           'pg_catalog."varchar"',
           'pg_catalog.bpchar',

@@ -71,6 +71,7 @@ export const BUILTIN_ARRAY_ELEMENT_TYPES = [
 export type ArrayElementType = (typeof BUILTIN_ARRAY_ELEMENT_TYPES)[number] | EnumType
 export type ArrayType = `array:${ArrayElementType}`
 export type ScalarType =
+  | 'pg_catalog.name'
   | 'pg_catalog."char"'
   | NumericType
   | PointType

@@ -106,6 +106,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     cid: 'pg_catalog.cid',
     pg_lsn: 'pg_catalog.pg_lsn',
     tid: 'pg_catalog.tid',
+    name: 'pg_catalog.name',
     char: 'pg_catalog."char"',
     '"char"': 'pg_catalog."char"',
     xid8: 'pg_catalog.xid8',
@@ -374,6 +375,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'cid', type, value: literal.value }
   if (type === 'pg_catalog.pg_lsn' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'pg_lsn', type, value: literal.value }
+  if (type === 'pg_catalog.name' && (literal.kind === 'string' || literal.kind === 'null'))
+    return { kind: 'name', type, value: literal.value }
   if (type === 'pg_catalog."char"' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'internal-char', type, value: literal.value }
   if (type === 'pg_catalog.tid' && (literal.kind === 'string' || literal.kind === 'null'))
@@ -748,7 +751,12 @@ const candidate = (
     if (collation?.explicit && collation.identity === 'conflict') return []
     if (
       item.args.some((type) =>
-        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type),
+        [
+          'pg_catalog.name',
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+        ].includes(type),
       ) &&
       !supportsTextCallableCollation(signature, collation?.kind)
     )
@@ -963,7 +971,9 @@ const comparisonCandidate = (
   if (
     requireCollation &&
     selected.item.args.some((type) =>
-      ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type),
+      ['pg_catalog.name', 'pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
+        type,
+      ),
     ) &&
     !supportsTextCallableCollation(selected.signature, collation?.kind)
   )
@@ -1142,7 +1152,12 @@ export function bindCatalogCheck(
         type,
         ...(definition ? { enum: definition } : {}),
         enumDomain: commonEnumDomain(args),
-        ...(['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
+        ...([
+          'pg_catalog.name',
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+        ].includes(type)
           ? { collation: combineCollations(args.map((arg) => arg.collation)) }
           : {}),
         value: { kind: 'coalesce', type, operands },
@@ -1201,9 +1216,12 @@ export function bindCatalogCheck(
             : materializeInteger(arm, type),
       )
       if (type !== 'pg_catalog.bool' && values.some((value) => !value)) return unknown
-      const collation = ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
-        type,
-      )
+      const collation = [
+        'pg_catalog.name',
+        'pg_catalog.text',
+        'pg_catalog."varchar"',
+        'pg_catalog.bpchar',
+      ].includes(type)
         ? combineCollations(arms.map((arm) => arm.collation))
         : undefined
       const scrutinee = caseExpression['arg'] === undefined ? null : bind(caseExpression['arg'])
@@ -1966,7 +1984,12 @@ export function bindCatalogCheck(
         return {
           type,
           value: expression,
-          ...(['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
+          ...([
+            'pg_catalog.name',
+            'pg_catalog.text',
+            'pg_catalog."varchar"',
+            'pg_catalog.bpchar',
+          ].includes(type)
             ? { collation: operand.collation ?? defaultCollation }
             : {}),
         }
@@ -2134,7 +2157,8 @@ export function bindCatalogCheck(
         return {
           type,
           value: { kind: 'input', type, name: column.name },
-          ...(type === 'pg_catalog.text' ||
+          ...(type === 'pg_catalog.name' ||
+          type === 'pg_catalog.text' ||
           type === 'pg_catalog."varchar"' ||
           type === 'pg_catalog.bpchar'
             ? {
@@ -2744,7 +2768,12 @@ export function bindCatalogCheck(
     return {
       type,
       ...(resolved.item.result === 'pg_catalog.anyenum' ? { enum: resolved.enum } : {}),
-      collation: ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
+      collation: [
+        'pg_catalog.name',
+        'pg_catalog.text',
+        'pg_catalog."varchar"',
+        'pg_catalog.bpchar',
+      ].includes(type)
         ? (collation ?? defaultCollation)
         : undefined,
       value: {
