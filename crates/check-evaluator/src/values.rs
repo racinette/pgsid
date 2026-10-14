@@ -1454,6 +1454,41 @@ pub fn money_from_case_guard(input: CheckOutcome) -> MoneyValue {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub enum InternalCharValue {
+    Unknown,
+    Null,
+    Value(i32),
+    Error(SqlError),
+}
+pub fn internal_char_unknown() -> InternalCharValue {
+    InternalCharValue::Unknown
+}
+pub fn internal_char_null() -> InternalCharValue {
+    InternalCharValue::Null
+}
+pub fn make_internal_char_value(units: i32) -> InternalCharValue {
+    if units < 0 || units > 255 {
+        return InternalCharValue::Unknown;
+    };
+    InternalCharValue::Value(units)
+}
+pub fn internal_char_is_null(input: InternalCharValue) -> BoolValue {
+    if let InternalCharValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == InternalCharValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == InternalCharValue::Null)
+}
+pub fn internal_char_from_case_guard(input: CheckOutcome) -> InternalCharValue {
+    if let CheckOutcome::Error(error) = input {
+        return InternalCharValue::Error(error);
+    };
+    InternalCharValue::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum OidValue {
     Unknown,
     Null,

@@ -1,0 +1,17 @@
+export const internalCharInputForms = [
+  ...Array.from({ length: 256 }, (_, byte) => '\\' + byte.toString(8).padStart(3, '0')),
+  '',
+  'A',
+  'Alphabet',
+  ' ',
+  'é',
+  '界',
+  '😀',
+  '\\400',
+  '\\777',
+  '\\078',
+  '\\12',
+  '\\1234',
+  '\\123é',
+  '  A',
+] as const

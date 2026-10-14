@@ -9412,6 +9412,239 @@ func Lcm90j8(left checkruntime.Int4Value, right checkruntime.Int4Value) checkrun
 	result := LcmWnc0(first, second)
 	return Int45ywh(result)
 }
+func InternalCharFromText(input checkruntime.TextValue) checkruntime.InternalCharValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		if len(chars) == 0 {
+			return checkruntime.MakeInternalCharValue(0)
+		}
+		if len(chars) == 4 && chars[0] == '\\' {
+			a := int(langruntime.CheckedChar(chars[1]))
+			b := int(langruntime.CheckedChar(chars[2]))
+			c := int(langruntime.CheckedChar(chars[3]))
+			if a >= 48 && a <= 55 && b >= 48 && b <= 55 && c >= 48 && c <= 55 {
+				return checkruntime.MakeInternalCharValue(langruntime.CheckedSignedRemainder((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(a, 48)), 64), langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(b, 48)), 8)), c), 48)), 256))
+			}
+		}
+		code := int(langruntime.CheckedChar(chars[0]))
+		if code < 128 {
+			return checkruntime.MakeInternalCharValue(code)
+		}
+		if code < 2048 {
+			return checkruntime.MakeInternalCharValue(langruntime.CheckedSignedAdd(192, langruntime.CheckedSignedDivide(code, 64)))
+		}
+		if code < 65536 {
+			return checkruntime.MakeInternalCharValue(langruntime.CheckedSignedAdd(224, langruntime.CheckedSignedDivide(code, 4096)))
+		}
+		return checkruntime.MakeInternalCharValue(langruntime.CheckedSignedAdd(240, langruntime.CheckedSignedDivide(code, 262144)))
+	}
+	return checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueUnknown}
+}
+func internalCharCompare(left checkruntime.InternalCharValue, right checkruntime.InternalCharValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.InternalCharValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.InternalCharValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueUnknown}) || right == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}) || right == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.InternalCharValueValue {
+		a := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.InternalCharValueValue {
+			b := langruntime.CheckedI32(right.Value)
+			return checkruntime.MakeInt4Value(langruntime.CheckedSignedSubtract(a, b))
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func internalCharRelation(left checkruntime.InternalCharValue, right checkruntime.InternalCharValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	result := internalCharCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		if mode == 0 {
+			return checkruntime.MakeBoolValue(order == 0)
+		}
+		if mode == 1 {
+			return checkruntime.MakeBoolValue(order != 0)
+		}
+		if mode == 2 {
+			return checkruntime.MakeBoolValue(order < 0)
+		}
+		if mode == 3 {
+			return checkruntime.MakeBoolValue(order <= 0)
+		}
+		if mode == 4 {
+			return checkruntime.MakeBoolValue(order > 0)
+		}
+		return checkruntime.MakeBoolValue(order >= 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Int49xis(input checkruntime.InternalCharValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.InternalCharValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.InternalCharValueValue {
+		octet := langruntime.CheckedI32(input.Value)
+		if octet >= 128 {
+			return checkruntime.MakeInt4Value(langruntime.CheckedSignedSubtract(octet, 256))
+		}
+		return checkruntime.MakeInt4Value(octet)
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func CharAme0(input checkruntime.Int4Value) checkruntime.InternalCharValue {
+	if input.Kind == checkruntime.Int4ValueError {
+		error := input.Error
+		return checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueError, Error: error}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}
+	}
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		if value < langruntime.CheckedSignedNegate(128) || value > 127 {
+			return checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueError, Error: checkruntime.SqlError{State: sqlstateNumericValueOutOfRange}}
+		}
+		if value < 0 {
+			return checkruntime.MakeInternalCharValue(langruntime.CheckedSignedAdd(value, 256))
+		}
+		return checkruntime.MakeInternalCharValue(value)
+	}
+	return checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueUnknown}
+}
+func CharOiu0(input checkruntime.TextValue) checkruntime.InternalCharValue {
+	return InternalCharFromText(input)
+}
+func BtcharcmpGfia(left checkruntime.InternalCharValue, right checkruntime.InternalCharValue) checkruntime.Int4Value {
+	return internalCharCompare(left, right)
+}
+func Charsend12ys(input checkruntime.InternalCharValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.InternalCharValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.InternalCharValueValue {
+		octet := langruntime.CheckedI32(input.Value)
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: checkruntime.ByteaAppendByte("", octet)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func TextJ1jh(input checkruntime.InternalCharValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.InternalCharValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.InternalCharValueValue {
+		octet := langruntime.CheckedI32(input.Value)
+		output := langruntime.NewTextBuffer("")
+		if octet == 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+		if octet < 128 {
+			output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32(octet, ' ')))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar('\\'))...)
+			output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(48, langruntime.CheckedSignedDivide(octet, 64))), ' ')))...)
+			output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(48, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(octet, 8), 8))), ' ')))...)
+			output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(48, langruntime.CheckedSignedRemainder(octet, 8))), ' ')))...)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func BpcharP75w(input checkruntime.InternalCharValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.InternalCharValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.InternalCharValueValue {
+		octet := langruntime.CheckedI32(input.Value)
+		if octet == 0 || octet >= 128 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		output := langruntime.NewTextBuffer("")
+		output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32(octet, ' ')))...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func internalCharHashWord(input checkruntime.InternalCharValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.InternalCharValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.InternalCharValueValue {
+		octet := langruntime.CheckedI32(input.Value)
+		if octet < 128 {
+			return checkruntime.MakeInt4Value(octet)
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func HashcharJ6eu(input checkruntime.InternalCharValue) checkruntime.Int4Value {
+	return Hashint4Zr00(internalCharHashWord(input))
+}
+func HashcharextendedUyia(input checkruntime.InternalCharValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	return Hashint4extendedXf6v(internalCharHashWord(input), seed)
+}
+func ChareqNib3(left checkruntime.InternalCharValue, right checkruntime.InternalCharValue) checkruntime.BoolValue {
+	return internalCharRelation(left, right, 0)
+}
+func Charne4yyr(left checkruntime.InternalCharValue, right checkruntime.InternalCharValue) checkruntime.BoolValue {
+	return internalCharRelation(left, right, 1)
+}
+func CharltFpze(left checkruntime.InternalCharValue, right checkruntime.InternalCharValue) checkruntime.BoolValue {
+	return internalCharRelation(left, right, 2)
+}
+func CharleOfg6(left checkruntime.InternalCharValue, right checkruntime.InternalCharValue) checkruntime.BoolValue {
+	return internalCharRelation(left, right, 3)
+}
+func ChargtM7sf(left checkruntime.InternalCharValue, right checkruntime.InternalCharValue) checkruntime.BoolValue {
+	return internalCharRelation(left, right, 4)
+}
+func ChargeM8zc(left checkruntime.InternalCharValue, right checkruntime.InternalCharValue) checkruntime.BoolValue {
+	return internalCharRelation(left, right, 5)
+}
 func intervalCalendarTimestamp(day int64, clock int64) checkruntime.TimestampValue {
 	if day < (int64(-2451545)) || day >= int64(106751983) {
 		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(clockRange)}

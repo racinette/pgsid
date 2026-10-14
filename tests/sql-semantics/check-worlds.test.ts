@@ -24,6 +24,7 @@ import {
   catalogXidType,
   catalogCidType,
   catalogTidType,
+  catalogInternalCharType,
   catalogPgLsnType,
   catalogXid8Type,
   catalogOidType,
@@ -186,6 +187,23 @@ describe('world CHECK INSERT parity', () => {
   let unknownComparisons = 0
 
   beforeAll(async () => {
+    const started = performance.now()
+    const phases: { phase: string; elapsedMs: number; rssBytes: number }[] = []
+    await mkdir('artifacts/check-worlds', { recursive: true })
+    const progress = async (phase: string) => {
+      const step = {
+        phase,
+        elapsedMs: Math.round(performance.now() - started),
+        rssBytes: process.memoryUsage().rss,
+      }
+      phases.push(step)
+      console.info('CHECK world setup', step)
+      await writeFile(
+        'artifacts/check-worlds/setup.json',
+        JSON.stringify({ directory, phases }, null, 2) + '\n',
+      )
+    }
+    await progress('database-start')
     pg = await PGlite.create({ extensions: { plpgsql_check } })
     directory = await mkdtemp(join(tmpdir(), 'pgsid-world-checks-'))
     await pg.exec('CREATE EXTENSION plpgsql_check')
@@ -200,6 +218,7 @@ describe('world CHECK INSERT parity', () => {
           world.schema,
         )
     }
+    await progress('catalog-snapshot')
     catalog = await snapshotCatalog(pg)
     const collations = await pg.query<{ oid: number; schema: string; name: string }>(`
       SELECT c.oid::int AS oid, n.nspname AS schema, c.collname AS name
@@ -222,9 +241,11 @@ describe('world CHECK INSERT parity', () => {
       expect(table.writeRewritesTree.beforeRow).toEqual([])
       expect(catalogCheckGroups([table], catalog.domains, [], catalog.enums).length).toBe(1)
     }
+    await progress('typescript-generation')
     const ts = renderTypescriptSchemaCheckArtifacts(tables, catalog.domains, [], {
       enums: catalog.enums,
     })
+    await progress('go-generation')
     const go = renderGoSchemaArtifacts(
       { ...catalog, tables, views: [], materializedViews: [] },
       parseConfigString(
@@ -234,6 +255,7 @@ describe('world CHECK INSERT parity', () => {
       join(directory, 'schema'),
       'worldchecks/schema',
     )
+    await progress('typescript-source-write')
     expect(go.diagnostics).toEqual([])
     expect(ts.rustFiles).not.toBeNull()
     await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
@@ -248,6 +270,7 @@ describe('world CHECK INSERT parity', () => {
       await mkdir(dirname(path), { recursive: true })
       await writeFile(path, artifact.content)
     }
+    await progress('typescript-compile')
     await run('node_modules/.bin/tsc', [
       '--strict',
       '--skipLibCheck',
@@ -263,6 +286,7 @@ describe('world CHECK INSERT parity', () => {
     ]).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
+    await progress('typescript-load')
     generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
     for (const artifact of go.artifacts) {
       await mkdir(dirname(artifact.path), { recursive: true })
@@ -276,7 +300,12 @@ describe('world CHECK INSERT parity', () => {
       join(directory, 'go.sum'),
       await readFile('tests/fixtures/codegen/project/go.sum', 'utf8'),
     )
+    let inputWorld: string | undefined
     for (const item of cases) {
+      if (item.schema !== inputWorld) {
+        inputWorld = item.schema
+        await progress('row-inputs:' + inputWorld)
+      }
       const table = tables.find(
         (table) => table.schema === item.schema && table.name === item.relation,
       )!
@@ -368,6 +397,13 @@ describe('world CHECK INSERT parity', () => {
           (column) =>
             column.generated === 'none' &&
             catalogCidType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
+      const internalCharColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogInternalCharType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
       const tidColumns = table.columns
@@ -469,6 +505,17 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : BigInt(bytes.readUInt32BE())
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
+      }
+      for (const name of internalCharColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(charsend(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload = bytes === null ? null : bytes.readUInt8(0)
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
       }
@@ -683,6 +730,7 @@ describe('world CHECK INSERT parity', () => {
         xidColumns,
         cidColumns,
         tidColumns,
+        internalCharColumns,
         pgLsnColumns,
         xid8Columns,
         oidColumns,
@@ -699,6 +747,7 @@ describe('world CHECK INSERT parity', () => {
       })
       goCases.set(item.schema, schemaCases)
     }
+    await progress('go-test-source-write')
     for (const [schema, schemaCases] of goCases)
       await writeFile(
         join(directory, 'schema', schema, 'checks_test.go'),
@@ -706,13 +755,15 @@ describe('world CHECK INSERT parity', () => {
           dateRuntime: `worldchecks/schema/${schema}/checkrust/checkruntime`,
         }),
       )
+    await progress('go-test')
     await run('go', ['test', '-mod=mod', './...'], {
       cwd: directory,
       env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
     }).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
-  }, 600_000)
+    await progress('complete')
+  }, 1_800_000)
 
   afterAll(async () => {
     if (pg && !pg.closed) await pg.close()

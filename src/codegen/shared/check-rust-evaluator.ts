@@ -56,6 +56,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.xid') return 'XidValue'
   if (type === 'pg_catalog.cid') return 'CidValue'
   if (type === 'pg_catalog.pg_lsn') return 'PgLsnValue'
+  if (type === 'pg_catalog."char"') return 'InternalCharValue'
   if (type === 'pg_catalog.tid') return 'TidValue'
   if (type === 'pg_catalog.xid8') return 'Xid8Value'
   if (isOidType(type)) return 'OidValue'
@@ -449,7 +450,13 @@ export function emitCheckRustEvaluator(
         implementation.args.some((type, index) =>
           type === 'pg_catalog.anyenum' && enumCall
             ? !operands[index]?.type.startsWith('enum:')
-            : operands[index]?.type !== type,
+            : operands[index]?.type !== type &&
+              !(
+                call.kind === 'cast' &&
+                call.type === 'pg_catalog."char"' &&
+                type === 'pg_catalog.text' &&
+                operands[index]?.type === 'pg_catalog.bpchar'
+              ),
         )
       )
         throw new UnsupportedCheckRustExpression(
@@ -537,6 +544,7 @@ export function emitCheckRustEvaluator(
             'pg_catalog.cid',
             'pg_catalog.pg_lsn',
             'pg_catalog.tid',
+            'pg_catalog."char"',
             'pg_catalog.xid8',
           ].includes(operand.type)) ||
         (metadata.volatility !== 'i' && !isOidAliasType(operand.type))
@@ -869,6 +877,11 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`pg_lsn_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'internal-char') {
+        if (value.value === null) return { name: bind('internal_char_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`internal_char_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'tid') {
         if (value.value === null) return { name: bind('tid_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -1046,6 +1059,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.cid',
           'pg_catalog.pg_lsn',
           'pg_catalog.tid',
+          'pg_catalog."char"',
           'pg_catalog.xid8',
           'pg_catalog.oid',
           'pg_catalog.circle',

@@ -106,6 +106,8 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     cid: 'pg_catalog.cid',
     pg_lsn: 'pg_catalog.pg_lsn',
     tid: 'pg_catalog.tid',
+    char: 'pg_catalog."char"',
+    '"char"': 'pg_catalog."char"',
     xid8: 'pg_catalog.xid8',
     regclass: 'pg_catalog.regclass',
     regcollation: 'pg_catalog.regcollation',
@@ -236,6 +238,14 @@ export function catalogPgLsnType(
   return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.pg_lsn'
 }
 
+export function catalogInternalCharType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog."char"'
+}
+
 export function catalogTidType(
   name: string,
   oid: number | undefined,
@@ -364,6 +374,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'cid', type, value: literal.value }
   if (type === 'pg_catalog.pg_lsn' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'pg_lsn', type, value: literal.value }
+  if (type === 'pg_catalog."char"' && (literal.kind === 'string' || literal.kind === 'null'))
+    return { kind: 'internal-char', type, value: literal.value }
   if (type === 'pg_catalog.tid' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'tid', type, value: literal.value }
   if (type === 'pg_catalog.xid8' && (literal.kind === 'string' || literal.kind === 'null'))
@@ -696,10 +708,13 @@ const candidate = (
     )
   if (
     !hasOmittedDefaults &&
-    args.some(
-      (arg) =>
-        arg.type === 'pg_catalog.float4' || arg.type === 'pg_catalog.float8' || isOidType(arg.type),
-    )
+    ((kind === 'function' && name === 'char') ||
+      args.some(
+        (arg) =>
+          arg.type === 'pg_catalog.float4' ||
+          arg.type === 'pg_catalog.float8' ||
+          isOidType(arg.type),
+      ))
   )
     return comparisonCandidate(args, name, true, kind, false)
   const integer = hasOmittedDefaults ? undefined : integerCandidate(kind, name, args)
@@ -1313,6 +1328,7 @@ export function bindCatalogCheck(
           domainType !== 'pg_catalog.cid' &&
           domainType !== 'pg_catalog.pg_lsn' &&
           domainType !== 'pg_catalog.tid' &&
+          domainType !== 'pg_catalog."char"' &&
           domainType !== 'pg_catalog.xid8' &&
           !isOidType(domainType) &&
           domainType !== 'pg_catalog.circle' &&
@@ -1980,8 +1996,13 @@ export function bindCatalogCheck(
           )
             return unknown
           const argumentType = catalogScalarType(implementation.args[0]!)
+          const internalCharPhysicalCast =
+            conversionSource === 'pg_catalog.bpchar' &&
+            type === 'pg_catalog."char"' &&
+            argumentType === 'pg_catalog.text' &&
+            result === type
           const argument =
-            argumentType === conversionSource
+            internalCharPhysicalCast || argumentType === conversionSource
               ? value
               : argumentType
                 ? implicitOperand(operand, argumentType)
@@ -1989,7 +2010,11 @@ export function bindCatalogCheck(
           if (!argument) return unknown
           let converted: EvalExpression = {
             kind: 'call',
-            call: { kind: 'function', signature: conversion.implementation, type: result },
+            call: {
+              kind: internalCharPhysicalCast ? 'cast' : 'function',
+              signature: conversion.implementation,
+              type: result,
+            },
             operands: [argument],
           }
           if (result !== type) {

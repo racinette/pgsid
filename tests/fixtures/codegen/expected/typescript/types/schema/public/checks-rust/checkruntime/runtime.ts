@@ -1735,6 +1735,56 @@ export function moneyFromCaseGuard(input: CheckOutcome): MoneyValue {
     }
     return { kind: "Unknown" };
 }
+export type InternalCharValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: number;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalInternalCharValue(left: InternalCharValue, right: InternalCharValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function internalCharUnknown(): InternalCharValue {
+    return { kind: "Unknown" };
+}
+export function internalCharNull(): InternalCharValue {
+    return { kind: "Null" };
+}
+export function makeInternalCharValue(units: number): InternalCharValue {
+    units = langruntime.checkedI32(units);
+    if (units < 0 || units > 255) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: units };
+}
+export function internalCharIsNull(input: InternalCharValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalInternalCharValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalInternalCharValue(input, { kind: "Null" }));
+}
+export function internalCharFromCaseGuard(input: CheckOutcome): InternalCharValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export type OidValue = {
     readonly kind: "Unknown";
 } | {

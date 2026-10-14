@@ -530,3 +530,12 @@ import them. Keep schema-only helpers with their callables.
   other hash inputs require PostgreSQL native byte order. Heap lookup requires
   relation and snapshot state. Run tuple-pointer parity, public payload, raw write
   and heap record INSERT suites.
+
+- Internal char values carry unsigned bytes, separately from SQL char(n).
+  Comparisons use unsigned order; integer casts use signed eight-bit values.
+  Text input accepts wrapped three-digit octal escapes or the first UTF8 byte;
+  text output escapes high-bit bytes and renders zero as empty text. Binary send
+  preserves every byte. Public inputs require already SQL-coerced byte wrappers.
+  High-bit hashes require native C char signedness; raw zero or high-bit bpchar
+  output cannot enter the UTF8 text representation. Run internal char parity,
+  public payload, raw write and protocol-byte INSERT suites.
