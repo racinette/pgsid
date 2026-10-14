@@ -195,11 +195,14 @@ exposes a prerequisite:
       binary precision.
 - [x] Establish line text input, point construction, literals and catalog I/O
       casts through unconstrained domains.
-- [ ] Establish line relations, intersections, distances, point containment
+- [x] Establish line relations, intersections, distances, point containment
       and closest-point projection.
 - [ ] Establish line-segment endpoint payloads, public inputs, construction,
       parsing, literals, comparisons, length, midpoint and orientation.
 - [ ] Establish line-segment intersections, containment, distances and closest points.
+- [ ] Establish box corner payloads, public inputs, parsing, construction,
+      comparisons, dimensions, centers and diagonal conversion.
+- [ ] Establish box relations, intersection, bounding union, arithmetic and closest points.
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.

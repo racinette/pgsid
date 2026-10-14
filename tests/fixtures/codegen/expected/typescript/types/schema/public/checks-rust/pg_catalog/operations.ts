@@ -8992,6 +8992,348 @@ export function lineFromText(input: checkruntime.TextValue): checkruntime.LineVa
     }
     return { kind: "Unknown" };
 }
+function lineCoefficient(value: checkruntime.LinePayload, index: number): checkruntime.Float8Value {
+    index = langruntime.checkedI32(index);
+    let bits: bigint = value.a;
+    if (index === 1) {
+        bits = langruntime.checkedI64(value.b);
+    }
+    if (index === 2) {
+        bits = langruntime.checkedI64(value.c);
+    }
+    const number: number = checkruntime.float8Number(bits);
+    if (value.wireKnown === false && !(number === number)) {
+        return { kind: "UnspecifiedNan" };
+    }
+    return checkruntime.makeFloat8Bits(bits);
+}
+function lineNormalizeZero(value: checkruntime.Float8Value): checkruntime.Float8Value {
+    if (value.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(value.value);
+        if (checkruntime.float8Number(bits) === 0.0) {
+            return checkruntime.makeFloat8Bits(0n);
+        }
+    }
+    return value;
+}
+function lineNonverticalIntersection(first: checkruntime.LinePayload, second: checkruntime.LinePayload): checkruntime.PointValue {
+    const a1: checkruntime.Float8Value = lineCoefficient(first, 0);
+    const b1: checkruntime.Float8Value = lineCoefficient(first, 1);
+    const c1: checkruntime.Float8Value = lineCoefficient(first, 2);
+    const a2: checkruntime.Float8Value = lineCoefficient(second, 0);
+    const b2: checkruntime.Float8Value = lineCoefficient(second, 1);
+    const c2: checkruntime.Float8Value = lineCoefficient(second, 2);
+    const ratio: checkruntime.Float8Value = float8divKumj(b2, b1);
+    const scaled: checkruntime.Float8Value = float8mulD3nd(a1, ratio);
+    if (scaled.kind === "Error") {
+        const error: checkruntime.SqlError = scaled.value;
+        return { kind: "Error", value: error };
+    }
+    const comparison: checkruntime.Float8Value = checkruntime.float8Semantic(scaled);
+    if (comparison.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(comparison.value);
+        if (geometricCoordinateEqual(checkruntime.float8Number(second.a), checkruntime.float8Number(bits))) {
+            return { kind: "Null" };
+        }
+    }
+    const numerator: checkruntime.Float8Value = float8miR1nu(float8mulD3nd(b1, c2), float8mulD3nd(b2, c1));
+    const denominator: checkruntime.Float8Value = float8miR1nu(float8mulD3nd(a1, b2), float8mulD3nd(a2, b1));
+    const x: checkruntime.Float8Value = float8divKumj(numerator, denominator);
+    const y: checkruntime.Float8Value = float8divKumj(float8um3uy5(float8plG3ou(float8mulD3nd(a1, x), c1)), b1);
+    return pointArithmeticResult(lineNormalizeZero(x), lineNormalizeZero(y));
+}
+function lineIntersection(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.PointValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLineValue(left, { kind: "Unknown" }) || checkruntime.equalLineValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLineValue(left, { kind: "Null" }) || checkruntime.equalLineValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const first: checkruntime.LinePayload = left.value;
+        if (right.kind === "Value") {
+            const second: checkruntime.LinePayload = right.value;
+            if (langruntime.f64Abs(checkruntime.float8Number(first.b)) > 0.000001 || !(checkruntime.float8Number(first.b) === checkruntime.float8Number(first.b))) {
+                return lineNonverticalIntersection(first, second);
+            }
+            if (langruntime.f64Abs(checkruntime.float8Number(second.b)) > 0.000001 || !(checkruntime.float8Number(second.b) === checkruntime.float8Number(second.b))) {
+                return lineNonverticalIntersection(second, first);
+            }
+            return { kind: "Null" };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function lineIntersectionPredicate(left: checkruntime.LineValue, right: checkruntime.LineValue, parallel: boolean): checkruntime.BoolValue {
+    parallel = langruntime.checkedBool(parallel);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLineValue(left, { kind: "Unknown" }) || checkruntime.equalLineValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLineValue(left, { kind: "Null" }) || checkruntime.equalLineValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const result: checkruntime.PointValue = lineIntersection(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return checkruntime.makeBoolValue((checkruntime.equalPointValue(result, { kind: "Null" })) === parallel);
+}
+export function lineInterptT7iz(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.PointValue {
+    return lineIntersection(left, right);
+}
+export function lineIntersect0246(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.BoolValue {
+    return lineIntersectionPredicate(left, right, false);
+}
+export function lineParallelVnb5(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.BoolValue {
+    return lineIntersectionPredicate(left, right, true);
+}
+export function isparallel3lb4(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.BoolValue {
+    return lineIntersectionPredicate(left, right, true);
+}
+function linePerpendicular(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.BoolValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLineValue(left, { kind: "Unknown" }) || checkruntime.equalLineValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLineValue(left, { kind: "Null" }) || checkruntime.equalLineValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const first: checkruntime.LinePayload = left.value;
+        if (right.kind === "Value") {
+            const second: checkruntime.LinePayload = right.value;
+            if (langruntime.f64Abs(checkruntime.float8Number(first.a)) <= 0.000001) {
+                return checkruntime.makeBoolValue(langruntime.f64Abs(checkruntime.float8Number(second.b)) <= 0.000001);
+            }
+            if (langruntime.f64Abs(checkruntime.float8Number(second.a)) <= 0.000001) {
+                return checkruntime.makeBoolValue(langruntime.f64Abs(checkruntime.float8Number(first.b)) <= 0.000001);
+            }
+            if (langruntime.f64Abs(checkruntime.float8Number(first.b)) <= 0.000001) {
+                return checkruntime.makeBoolValue(langruntime.f64Abs(checkruntime.float8Number(second.a)) <= 0.000001);
+            }
+            if (langruntime.f64Abs(checkruntime.float8Number(second.b)) <= 0.000001) {
+                return checkruntime.makeBoolValue(langruntime.f64Abs(checkruntime.float8Number(first.a)) <= 0.000001);
+            }
+            const numerator: checkruntime.Float8Value = float8mulD3nd(lineCoefficient(first, 0), lineCoefficient(second, 0));
+            const denominator: checkruntime.Float8Value = float8mulD3nd(lineCoefficient(first, 1), lineCoefficient(second, 1));
+            const ratio: checkruntime.Float8Value = float8divKumj(numerator, denominator);
+            if (ratio.kind === "Error") {
+                const error: checkruntime.SqlError = ratio.value;
+                return { kind: "Error", value: error };
+            }
+            const known: checkruntime.Float8Value = checkruntime.float8Semantic(ratio);
+            if (known.kind === "Value") {
+                const bits: bigint = langruntime.checkedI64(known.value);
+                return checkruntime.makeBoolValue(geometricCoordinateEqual(checkruntime.float8Number(bits), -1.0));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function linePerpIw13(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.BoolValue {
+    return linePerpendicular(left, right);
+}
+export function isperp5z5s(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.BoolValue {
+    return linePerpendicular(left, right);
+}
+export function lineDistanceA9ql(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.Float8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLineValue(left, { kind: "Unknown" }) || checkruntime.equalLineValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLineValue(left, { kind: "Null" }) || checkruntime.equalLineValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const intersection: checkruntime.PointValue = lineIntersection(left, right);
+    if (intersection.kind === "Error") {
+        const error: checkruntime.SqlError = intersection.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(intersection, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (!(checkruntime.equalPointValue(intersection, { kind: "Null" }))) {
+        return checkruntime.makeFloat8Bits(0n);
+    }
+    if (left.kind === "Value") {
+        const first: checkruntime.LinePayload = left.value;
+        if (right.kind === "Value") {
+            const second: checkruntime.LinePayload = right.value;
+            const a: number = checkruntime.float8Number(first.a);
+            const b: number = checkruntime.float8Number(second.a);
+            const c: number = checkruntime.float8Number(first.b);
+            const d: number = checkruntime.float8Number(second.b);
+            let ratio: checkruntime.Float8Value = checkruntime.makeFloat8Value(1.0);
+            if (langruntime.f64Abs(a) > 0.000001 && a === a && langruntime.f64Abs(b) > 0.000001 && b === b) {
+                ratio = float8divKumj(lineCoefficient(first, 0), lineCoefficient(second, 0));
+            }
+            else if (langruntime.f64Abs(c) > 0.000001 && c === c && langruntime.f64Abs(d) > 0.000001 && d === d) {
+                ratio = float8divKumj(lineCoefficient(first, 1), lineCoefficient(second, 1));
+            }
+            const numerator: checkruntime.Float8Value = float8absFq86(float8miR1nu(lineCoefficient(first, 2), float8mulD3nd(ratio, lineCoefficient(second, 2))));
+            const denominator: checkruntime.Float8Value = geometricHypot(lineCoefficient(first, 0), lineCoefficient(first, 1));
+            const result: checkruntime.Float8Value = float8divKumj(numerator, denominator);
+            if (result.kind === "Value") {
+                const bits: bigint = langruntime.checkedI64(result.value);
+                if (!(checkruntime.float8Number(bits) === checkruntime.float8Number(bits))) {
+                    return { kind: "UnspecifiedNan" };
+                }
+            }
+            return result;
+        }
+    }
+    return { kind: "Unknown" };
+}
+function lineInverseSlope(line: checkruntime.LinePayload): checkruntime.Float8Value {
+    if (langruntime.f64Abs(checkruntime.float8Number(line.a)) <= 0.000001) {
+        return checkruntime.makeFloat8Bits(9218868437227405312n);
+    }
+    if (langruntime.f64Abs(checkruntime.float8Number(line.b)) <= 0.000001) {
+        return checkruntime.makeFloat8Bits(0n);
+    }
+    return float8divKumj(lineCoefficient(line, 1), lineCoefficient(line, 0));
+}
+interface LineProjection {
+    point: checkruntime.PointValue;
+    distance: checkruntime.Float8Value;
+}
+function copyLineProjection(value: LineProjection): LineProjection {
+    return { point: value.point, distance: value.distance };
+}
+function lineProjectPoint(point: checkruntime.PointValue, line: checkruntime.LineValue): LineProjection {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { point: { kind: "Error", value: error }, distance: { kind: "Error", value: error } };
+    }
+    if (line.kind === "Error") {
+        const error: checkruntime.SqlError = line.value;
+        return { point: { kind: "Error", value: error }, distance: { kind: "Error", value: error } };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalLineValue(line, { kind: "Unknown" })) {
+        return { point: { kind: "Unknown" }, distance: { kind: "Unknown" } };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Null" }) || checkruntime.equalLineValue(line, { kind: "Null" })) {
+        return { point: { kind: "Null" }, distance: { kind: "Null" } };
+    }
+    if (point.kind === "Value") {
+        const origin: checkruntime.PointPayload = point.value;
+        if (line.kind === "Value") {
+            const axis: checkruntime.LinePayload = line.value;
+            const inverse: checkruntime.Float8Value = lineInverseSlope(axis);
+            const perpendicular: checkruntime.LineValue = lineFromOriginSlope(origin, inverse);
+            const projected: checkruntime.PointValue = lineIntersection(perpendicular, line);
+            if (projected.kind === "Error") {
+                const error: checkruntime.SqlError = projected.value;
+                return { point: projected, distance: { kind: "Error", value: error } };
+            }
+            if (checkruntime.equalPointValue(projected, { kind: "Null" })) {
+                return { point: point, distance: checkruntime.makeFloat8Bits(9221120237041090560n) };
+            }
+            const distance: checkruntime.Float8Value = pointDistance2haq(projected, point);
+            return { point: projected, distance: distance };
+        }
+    }
+    return { point: { kind: "Unknown" }, distance: { kind: "Unknown" } };
+}
+export function distPl6tvm(point: checkruntime.PointValue, line: checkruntime.LineValue): checkruntime.Float8Value {
+    const projected: LineProjection = copyLineProjection(lineProjectPoint(point, line));
+    return projected.distance;
+}
+export function distLpQmpt(line: checkruntime.LineValue, point: checkruntime.PointValue): checkruntime.Float8Value {
+    if (line.kind === "Error") {
+        const error: checkruntime.SqlError = line.value;
+        return { kind: "Error", value: error };
+    }
+    const projected: LineProjection = copyLineProjection(lineProjectPoint(point, line));
+    return projected.distance;
+}
+export function closePl9f9o(point: checkruntime.PointValue, line: checkruntime.LineValue): checkruntime.PointValue {
+    const projected: LineProjection = copyLineProjection(lineProjectPoint(point, line));
+    const distance: checkruntime.Float8Value = projected.distance;
+    if (distance.kind === "Error") {
+        const error: checkruntime.SqlError = distance.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(distance, { kind: "UnspecifiedNan" })) {
+        return { kind: "Null" };
+    }
+    if (distance.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(distance.value);
+        if (!(checkruntime.float8Number(bits) === checkruntime.float8Number(bits))) {
+            return { kind: "Null" };
+        }
+    }
+    return projected.point;
+}
+export function onPl5c6f(point: checkruntime.PointValue, line: checkruntime.LineValue): checkruntime.BoolValue {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (line.kind === "Error") {
+        const error: checkruntime.SqlError = line.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalLineValue(line, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Null" }) || checkruntime.equalLineValue(line, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (point.kind === "Value") {
+        const position: checkruntime.PointPayload = point.value;
+        if (line.kind === "Value") {
+            const axis: checkruntime.LinePayload = line.value;
+            const x: checkruntime.Float8Value = float8mulD3nd(lineCoefficient(axis, 0), lineOriginCoordinate(position, false));
+            const y: checkruntime.Float8Value = float8mulD3nd(lineCoefficient(axis, 1), lineOriginCoordinate(position, true));
+            const sum: checkruntime.Float8Value = float8plG3ou(float8plG3ou(x, y), lineCoefficient(axis, 2));
+            if (sum.kind === "Error") {
+                const error: checkruntime.SqlError = sum.value;
+                return { kind: "Error", value: error };
+            }
+            const known: checkruntime.Float8Value = checkruntime.float8Semantic(sum);
+            if (known.kind === "Value") {
+                const bits: bigint = langruntime.checkedI64(known.value);
+                return checkruntime.makeBoolValue(langruntime.f64Abs(checkruntime.float8Number(bits)) <= 0.000001);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 const macConversionOutOfRange = 3452547;
 function macaddrCompare(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.Int4Value {
     if (left.kind === "Error") {

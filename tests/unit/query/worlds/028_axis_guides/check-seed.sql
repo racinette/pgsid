@@ -134,3 +134,71 @@ INSERT INTO guide_constructions (id,guide_id,label,first_position,second_positio
 INSERT INTO guide_constructions (id,guide_id,label,first_position,second_position,recorded_equation,recorded_horizontal,recorded_vertical,skip_validation) VALUES (100,1,'Reached overflow','(1e308,0)','(-1e308,1)',NULL,NULL,NULL,false);
 -- name: construct_skips_overflow
 INSERT INTO guide_constructions (id,guide_id,label,first_position,second_position,recorded_equation,recorded_horizontal,recorded_vertical,skip_validation) VALUES (100,1,'Skipped overflow','(1e308,0)','(-1e308,1)','{1,-1,1}',true,true,true);
+-- name: relation_crossing_axes
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Crossing axes','{0,-1,0}','{-1,0,0}',false,true,true,'(0,0)','\x0000000000000000',false);
+-- name: relation_parallel_axes
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Parallel axes','{0,-1,0}','{0,-1,2}',true,false,false,NULL,'\x4000000000000000',false);
+-- name: relation_scaled_parallel_axes
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Scaled parallel axes','{0,-2,0}','{0,1,-2}',true,false,false,NULL,'\x4000000000000000',false);
+-- name: relation_identical_axes
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Identical axes','{1,-1,0}','{2,-2,0}',true,false,false,NULL,'\x0000000000000000',false);
+-- name: relation_diagonal_crossing
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Diagonal crossing','{1,-1,0}','{1,1,-4}',false,true,true,'(2,2)','\x0000000000000000',false);
+-- name: relation_nan_coefficients
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'NaN coefficients','{NaN,-1,NaN}','{1,-1,0}',false,false,true,'(NaN,NaN)','\x0000000000000000',false);
+-- name: relation_infinite_coefficients
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Infinite coefficients','{Infinity,-Infinity,0}','{1,-1,0}',false,false,true,'(NaN,NaN)','\x0000000000000000',false);
+-- name: relation_missing_axis
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Missing axis',NULL,'{1,-1,0}',NULL,NULL,NULL,NULL,NULL,false);
+-- name: relation_nullable_reports
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Nullable reports','{0,-1,0}','{-1,0,0}',NULL,NULL,NULL,NULL,NULL,false);
+-- name: relation_wrong_parallel
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Wrong parallel report','{0,-1,0}','{-1,0,0}',true,true,true,'(0,0)','\x0000000000000000',false);
+-- name: relation_wrong_perpendicular
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Wrong perpendicular report','{0,-1,0}','{-1,0,0}',false,false,true,'(0,0)','\x0000000000000000',false);
+-- name: relation_wrong_crossing
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Wrong crossing report','{0,-1,0}','{-1,0,0}',false,true,false,'(0,0)','\x0000000000000000',false);
+-- name: relation_wrong_point
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Wrong crossing point','{0,-1,0}','{-1,0,0}',false,true,true,'(1,1)','\x0000000000000000',false);
+-- name: relation_wrong_distance
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Wrong distance report','{0,-1,0}','{-1,0,0}',false,true,true,'(0,0)','\x00',false);
+-- name: relation_intersection_overflow
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Intersection overflow','{1e308,1,1e308}','{1,1e308,0}',NULL,NULL,NULL,NULL,NULL,false);
+-- name: relation_skips_overflow
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Skipped intersection overflow','{1e308,1,1e308}','{1,1e308,0}',false,false,false,'(0,0)','\x00',true);
+-- name: relation_parallel_tolerance
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Parallel tolerance','{1,-1,0}','{1.0000005,-1,2}',true,false,false,NULL,'\x3ff6a09da8af3ff8',false);
+-- name: relation_perpendicular_overflow
+INSERT INTO guide_relations (id,guide_id,label,first_axis,second_axis,recorded_parallel,recorded_perpendicular,recorded_crossing,recorded_point,recorded_distance,skip_validation) VALUES (100,1,'Perpendicular overflow','{1e308,1,0}','{1e308,1,0}',true,NULL,false,NULL,'\x0000000000000000',false);
+-- name: projection_horizontal
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Horizontal projection','(3,4)','{0,-1,0}',false,'(3,0)','\x4010000000000000',false);
+-- name: projection_vertical
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Vertical projection','(3,4)','{-1,0,0}',false,'(0,4)','\x4008000000000000',false);
+-- name: projection_diagonal
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Diagonal projection','(2,0)','{1,-1,0}',false,'(1,1)','\x3ff6a09e667f3bcd',false);
+-- name: projection_on_axis
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Point on axis','(1,1)','{1,-1,0}',true,'(1,1)','\x0000000000000000',false);
+-- name: projection_signed_zero
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Signed zero projection','(-0,-0)','{0,-1,0}',true,'(0,0)','\x0000000000000000',false);
+-- name: projection_nan_point
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'NaN point','(NaN,1)','{0,-1,0}',false,NULL,'\x7ff8000000000000',false);
+-- name: projection_nan_axis
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'NaN axis','(0,0)','{NaN,-1,NaN}',false,NULL,'\x7ff8000000000000',false);
+-- name: projection_infinite_point
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Infinite point','(Infinity,0)','{0,-1,0}',false,NULL,'\x7ff8000000000000',false);
+-- name: projection_missing_point
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Missing point',NULL,'{0,-1,0}',NULL,NULL,NULL,false);
+-- name: projection_nullable_reports
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Nullable reports','(3,4)','{0,-1,0}',NULL,NULL,NULL,false);
+-- name: projection_wrong_presence
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Wrong on-axis report','(3,4)','{0,-1,0}',true,'(3,0)','\x4010000000000000',false);
+-- name: projection_wrong_closest
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Wrong closest point','(3,4)','{0,-1,0}',false,'(99,99)','\x4010000000000000',false);
+-- name: projection_wrong_distance
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Wrong distance report','(3,4)','{0,-1,0}',false,'(3,0)','\x00',false);
+-- name: projection_reached_overflow
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Reached projection overflow','(1e308,1e308)','{1e308,1,1e308}',NULL,NULL,NULL,false);
+-- name: projection_skips_overflow
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Skipped projection overflow','(1e308,1e308)','{1e308,1,1e308}',true,'(99,99)','\x00',true);
+-- name: projection_missing_axis
+INSERT INTO guide_projections (id,guide_id,label,position,axis,recorded_on_axis,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'Missing projection axis','(3,4)',NULL,NULL,NULL,NULL,false);

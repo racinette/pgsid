@@ -8943,6 +8943,348 @@ func LineFromText(input checkruntime.TextValue) checkruntime.LineValue {
 	}
 	return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
 }
+func lineCoefficient(value checkruntime.LinePayload, index int) checkruntime.Float8Value {
+	index = langruntime.CheckedI32(index)
+	bits := value.A
+	if index == 1 {
+		bits = value.B
+	}
+	if index == 2 {
+		bits = value.C
+	}
+	number := checkruntime.Float8Number(bits)
+	if value.WireKnown == false && number != number {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	return checkruntime.MakeFloat8Bits(bits)
+}
+func lineNormalizeZero(value checkruntime.Float8Value) checkruntime.Float8Value {
+	if value.Kind == checkruntime.Float8ValueValue {
+		bits := value.Value
+		if checkruntime.Float8Number(bits) == float64(0.0) {
+			return checkruntime.MakeFloat8Bits(int64(0))
+		}
+	}
+	return value
+}
+func lineNonverticalIntersection(first checkruntime.LinePayload, second checkruntime.LinePayload) checkruntime.PointValue {
+	a1 := lineCoefficient(first, 0)
+	b1 := lineCoefficient(first, 1)
+	c1 := lineCoefficient(first, 2)
+	a2 := lineCoefficient(second, 0)
+	b2 := lineCoefficient(second, 1)
+	c2 := lineCoefficient(second, 2)
+	ratio := Float8divKumj(b2, b1)
+	scaled := Float8mulD3nd(a1, ratio)
+	if scaled.Kind == checkruntime.Float8ValueError {
+		error := scaled.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	comparison := checkruntime.Float8Semantic(scaled)
+	if comparison.Kind == checkruntime.Float8ValueValue {
+		bits := comparison.Value
+		if geometricCoordinateEqual(checkruntime.Float8Number(second.A), checkruntime.Float8Number(bits)) {
+			return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+		}
+	}
+	numerator := Float8miR1nu(Float8mulD3nd(b1, c2), Float8mulD3nd(b2, c1))
+	denominator := Float8miR1nu(Float8mulD3nd(a1, b2), Float8mulD3nd(a2, b1))
+	x := Float8divKumj(numerator, denominator)
+	y := Float8divKumj(Float8um3uy5(Float8plG3ou(Float8mulD3nd(a1, x), c1)), b1)
+	return pointArithmeticResult(lineNormalizeZero(x), lineNormalizeZero(y))
+}
+func lineIntersection(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.PointValue {
+	if left.Kind == checkruntime.LineValueError {
+		error := left.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if right.Kind == checkruntime.LineValueError {
+		error := right.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if left == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) || right == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+	}
+	if left == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) || right == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if left.Kind == checkruntime.LineValueValue {
+		first := left.Value
+		if right.Kind == checkruntime.LineValueValue {
+			second := right.Value
+			if langruntime.F64Abs(checkruntime.Float8Number(first.B)) > float64(0.000001) || checkruntime.Float8Number(first.B) != checkruntime.Float8Number(first.B) {
+				return lineNonverticalIntersection(first, second)
+			}
+			if langruntime.F64Abs(checkruntime.Float8Number(second.B)) > float64(0.000001) || checkruntime.Float8Number(second.B) != checkruntime.Float8Number(second.B) {
+				return lineNonverticalIntersection(second, first)
+			}
+			return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+		}
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func lineIntersectionPredicate(left checkruntime.LineValue, right checkruntime.LineValue, parallel bool) checkruntime.BoolValue {
+	if left.Kind == checkruntime.LineValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.LineValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) || right == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) || right == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	result := lineIntersection(left, right)
+	if result.Kind == checkruntime.PointValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	return checkruntime.MakeBoolValue((result == (checkruntime.PointValue{Kind: checkruntime.PointValueNull})) == parallel)
+}
+func LineInterptT7iz(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.PointValue {
+	return lineIntersection(left, right)
+}
+func LineIntersect0246(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.BoolValue {
+	return lineIntersectionPredicate(left, right, false)
+}
+func LineParallelVnb5(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.BoolValue {
+	return lineIntersectionPredicate(left, right, true)
+}
+func Isparallel3lb4(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.BoolValue {
+	return lineIntersectionPredicate(left, right, true)
+}
+func linePerpendicular(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.LineValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.LineValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) || right == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) || right == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.LineValueValue {
+		first := left.Value
+		if right.Kind == checkruntime.LineValueValue {
+			second := right.Value
+			if langruntime.F64Abs(checkruntime.Float8Number(first.A)) <= float64(0.000001) {
+				return checkruntime.MakeBoolValue(langruntime.F64Abs(checkruntime.Float8Number(second.B)) <= float64(0.000001))
+			}
+			if langruntime.F64Abs(checkruntime.Float8Number(second.A)) <= float64(0.000001) {
+				return checkruntime.MakeBoolValue(langruntime.F64Abs(checkruntime.Float8Number(first.B)) <= float64(0.000001))
+			}
+			if langruntime.F64Abs(checkruntime.Float8Number(first.B)) <= float64(0.000001) {
+				return checkruntime.MakeBoolValue(langruntime.F64Abs(checkruntime.Float8Number(second.A)) <= float64(0.000001))
+			}
+			if langruntime.F64Abs(checkruntime.Float8Number(second.B)) <= float64(0.000001) {
+				return checkruntime.MakeBoolValue(langruntime.F64Abs(checkruntime.Float8Number(first.A)) <= float64(0.000001))
+			}
+			numerator := Float8mulD3nd(lineCoefficient(first, 0), lineCoefficient(second, 0))
+			denominator := Float8mulD3nd(lineCoefficient(first, 1), lineCoefficient(second, 1))
+			ratio := Float8divKumj(numerator, denominator)
+			if ratio.Kind == checkruntime.Float8ValueError {
+				error := ratio.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			known := checkruntime.Float8Semantic(ratio)
+			if known.Kind == checkruntime.Float8ValueValue {
+				bits := known.Value
+				return checkruntime.MakeBoolValue(geometricCoordinateEqual(checkruntime.Float8Number(bits), float64(-1.0)))
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func LinePerpIw13(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.BoolValue {
+	return linePerpendicular(left, right)
+}
+func Isperp5z5s(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.BoolValue {
+	return linePerpendicular(left, right)
+}
+func LineDistanceA9ql(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.Float8Value {
+	if left.Kind == checkruntime.LineValueError {
+		error := left.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.LineValueError {
+		error := right.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if left == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) || right == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if left == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) || right == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	intersection := lineIntersection(left, right)
+	if intersection.Kind == checkruntime.PointValueError {
+		error := intersection.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if intersection != (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.MakeFloat8Bits(int64(0))
+	}
+	if left.Kind == checkruntime.LineValueValue {
+		first := left.Value
+		if right.Kind == checkruntime.LineValueValue {
+			second := right.Value
+			a := checkruntime.Float8Number(first.A)
+			b := checkruntime.Float8Number(second.A)
+			c := checkruntime.Float8Number(first.B)
+			d := checkruntime.Float8Number(second.B)
+			ratio := checkruntime.MakeFloat8Value(float64(1.0))
+			if langruntime.F64Abs(a) > float64(0.000001) && a == a && langruntime.F64Abs(b) > float64(0.000001) && b == b {
+				ratio = Float8divKumj(lineCoefficient(first, 0), lineCoefficient(second, 0))
+			} else if langruntime.F64Abs(c) > float64(0.000001) && c == c && langruntime.F64Abs(d) > float64(0.000001) && d == d {
+				ratio = Float8divKumj(lineCoefficient(first, 1), lineCoefficient(second, 1))
+			}
+			numerator := Float8absFq86(Float8miR1nu(lineCoefficient(first, 2), Float8mulD3nd(ratio, lineCoefficient(second, 2))))
+			denominator := geometricHypot(lineCoefficient(first, 0), lineCoefficient(first, 1))
+			result := Float8divKumj(numerator, denominator)
+			if result.Kind == checkruntime.Float8ValueValue {
+				bits := result.Value
+				if checkruntime.Float8Number(bits) != checkruntime.Float8Number(bits) {
+					return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+				}
+			}
+			return result
+		}
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func lineInverseSlope(line checkruntime.LinePayload) checkruntime.Float8Value {
+	if langruntime.F64Abs(checkruntime.Float8Number(line.A)) <= float64(0.000001) {
+		return checkruntime.MakeFloat8Bits(int64(9218868437227405312))
+	}
+	if langruntime.F64Abs(checkruntime.Float8Number(line.B)) <= float64(0.000001) {
+		return checkruntime.MakeFloat8Bits(int64(0))
+	}
+	return Float8divKumj(lineCoefficient(line, 1), lineCoefficient(line, 0))
+}
+
+type lineProjection struct {
+	point    checkruntime.PointValue
+	distance checkruntime.Float8Value
+}
+
+func copylineProjection(value lineProjection) lineProjection {
+	return lineProjection{point: value.point, distance: value.distance}
+}
+func lineProjectPoint(point checkruntime.PointValue, line checkruntime.LineValue) lineProjection {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return lineProjection{point: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}}
+	}
+	if line.Kind == checkruntime.LineValueError {
+		error := line.Error
+		return lineProjection{point: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) {
+		return lineProjection{point: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return lineProjection{point: checkruntime.PointValue{Kind: checkruntime.PointValueNull}, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}}
+	}
+	if point.Kind == checkruntime.PointValueValue {
+		origin := point.Value
+		if line.Kind == checkruntime.LineValueValue {
+			axis := line.Value
+			inverse := lineInverseSlope(axis)
+			perpendicular := lineFromOriginSlope(origin, inverse)
+			projected := lineIntersection(perpendicular, line)
+			if projected.Kind == checkruntime.PointValueError {
+				error := projected.Error
+				return lineProjection{point: projected, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}}
+			}
+			if projected == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+				return lineProjection{point: point, distance: checkruntime.MakeFloat8Bits(int64(9221120237041090560))}
+			}
+			distance := PointDistance2haq(projected, point)
+			return lineProjection{point: projected, distance: distance}
+		}
+	}
+	return lineProjection{point: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}}
+}
+func DistPl6tvm(point checkruntime.PointValue, line checkruntime.LineValue) checkruntime.Float8Value {
+	projected := lineProjectPoint(point, line)
+	return projected.distance
+}
+func DistLpQmpt(line checkruntime.LineValue, point checkruntime.PointValue) checkruntime.Float8Value {
+	if line.Kind == checkruntime.LineValueError {
+		error := line.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	projected := lineProjectPoint(point, line)
+	return projected.distance
+}
+func ClosePl9f9o(point checkruntime.PointValue, line checkruntime.LineValue) checkruntime.PointValue {
+	projected := lineProjectPoint(point, line)
+	distance := projected.distance
+	if distance.Kind == checkruntime.Float8ValueError {
+		error := distance.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if distance == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if distance.Kind == checkruntime.Float8ValueValue {
+		bits := distance.Value
+		if checkruntime.Float8Number(bits) != checkruntime.Float8Number(bits) {
+			return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+		}
+	}
+	return projected.point
+}
+func OnPl5c6f(point checkruntime.PointValue, line checkruntime.LineValue) checkruntime.BoolValue {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if line.Kind == checkruntime.LineValueError {
+		error := line.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if point.Kind == checkruntime.PointValueValue {
+		position := point.Value
+		if line.Kind == checkruntime.LineValueValue {
+			axis := line.Value
+			x := Float8mulD3nd(lineCoefficient(axis, 0), lineOriginCoordinate(position, false))
+			y := Float8mulD3nd(lineCoefficient(axis, 1), lineOriginCoordinate(position, true))
+			sum := Float8plG3ou(Float8plG3ou(x, y), lineCoefficient(axis, 2))
+			if sum.Kind == checkruntime.Float8ValueError {
+				error := sum.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			known := checkruntime.Float8Semantic(sum)
+			if known.Kind == checkruntime.Float8ValueValue {
+				bits := known.Value
+				return checkruntime.MakeBoolValue(langruntime.F64Abs(checkruntime.Float8Number(bits)) <= float64(0.000001))
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
 
 const macConversionOutOfRange = 3452547
 

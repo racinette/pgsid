@@ -859,6 +859,22 @@ describe('world CHECK INSERT parity', () => {
         ['construction_equation', 'construction_horizontal', 'construction_vertical'],
       ],
       [
+        '028_axis_guides',
+        'guide_relations',
+        [
+          'relation_parallel',
+          'relation_perpendicular',
+          'relation_crossing',
+          'relation_point',
+          'relation_distance',
+        ],
+      ],
+      [
+        '028_axis_guides',
+        'guide_projections',
+        ['projection_on_axis', 'projection_closest', 'projection_distance'],
+      ],
+      [
         '025_sensor_measurements',
         'calibrated_magnitudes',
         ['calibrated_magnitude_value', 'calibrated_magnitude_wire'],
