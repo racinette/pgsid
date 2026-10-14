@@ -609,7 +609,15 @@ func (g *generator) goItem(value *node) []ast.Decl {
 			copyFields = append(copyFields, goKey(name, g.goDetach(goSelect(goIdent("value"), name), field.Type)))
 		}
 		structure := &ast.GenDecl{Tok: token.TYPE, Specs: []ast.Spec{&ast.TypeSpec{Name: goIdent(generated), Type: &ast.StructType{Fields: &ast.FieldList{List: fields}}}}}
-		if g.immutable[value.Name] {
+		vectorElement := false
+		for _, owner := range g.structs {
+			for _, field := range owner.Fields {
+				if field.Type.Kind == "path" && path(field.Type) == "Vec" && len(field.Type.TypeArguments) == 1 && path(field.Type.TypeArguments[0]) == value.Name {
+					vectorElement = true
+				}
+			}
+		}
+		if g.immutable[value.Name] && !vectorElement {
 			return []ast.Decl{structure}
 		}
 		copy := goFunction("copy"+generated, []*ast.Field{{Names: []*ast.Ident{goIdent("value")}, Type: goIdent(generated)}}, goIdent(generated), []ast.Stmt{

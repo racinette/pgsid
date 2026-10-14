@@ -85,7 +85,10 @@ type Document = {
   items: (Item & { module?: string; sourceFile?: string })[]
   modules?: { name: string; dependencies: string[] }[]
 }
-type TranspileOptions = { immutableValueTypes?: readonly string[] }
+type TranspileOptions = {
+  immutableValueTypes?: readonly string[]
+  readonlyValueTypes?: readonly string[]
+}
 
 function pascalCase(name: string): string {
   return name
@@ -145,7 +148,9 @@ class Transpiler {
   private readonly constants = new Map<string, string>()
   private readonly names = new Map<string, string>()
   private readonly copy = new Set<string>()
+  private readonly vectorElements = new Set<string>()
   private readonly immutableValues: Set<string>
+  private readonly readonlyValues: Set<string>
   private readonly equality = new Set<string>()
   private readonly opaque = new Set<string>()
   private returningOpaque = false
@@ -155,6 +160,10 @@ class Transpiler {
     options: TranspileOptions = {},
   ) {
     this.immutableValues = new Set(options.immutableValueTypes)
+    this.readonlyValues = new Set([
+      ...(options.immutableValueTypes ?? []),
+      ...(options.readonlyValueTypes ?? []),
+    ])
     if (document.schemaVersion !== 1)
       throw new Error(`unsupported AST version ${document.schemaVersion}`)
     for (const item of document.items) {
@@ -169,6 +178,10 @@ class Transpiler {
       if (item.kind === 'struct' || item.kind === 'enum') {
         if (item.kind === 'struct') {
           this.structs.set(item.name, item)
+          for (const field of item.fields) {
+            const element = this.vectorElement(this.path(field.type))
+            if (element) this.vectorElements.add(element)
+          }
           if (
             item.visibility === 'public' &&
             item.fields.length > 0 &&
@@ -179,6 +192,11 @@ class Transpiler {
         if (item.derives.includes('Copy')) this.copy.add(item.name)
         if (item.derives.includes('PartialEq')) this.equality.add(item.name)
       }
+    }
+    for (const name of this.readonlyValues) {
+      const item = this.structs.get(name) ?? this.enums.get(name)
+      if (!item || !item.derives.includes('Clone') || this.opaque.has(name))
+        throw new Error(`readonly value type must be a nonopaque Clone type: ${name}`)
     }
     for (const name of this.immutableValues) {
       const item = this.structs.get(name) ?? this.enums.get(name)
@@ -854,7 +872,7 @@ class Transpiler {
     const name = this.names.get(item.name)!
     const fields = item.fields.map((field) =>
       f.createPropertySignature(
-        this.opaque.has(item.name) || this.immutableValues.has(item.name)
+        this.opaque.has(item.name) || this.readonlyValues.has(item.name)
           ? [f.createModifier(ts.SyntaxKind.ReadonlyKeyword)]
           : undefined,
         camelCase(field.name),
@@ -866,7 +884,7 @@ class Transpiler {
       f.createInterfaceDeclaration(exported(item.visibility), name, undefined, undefined, fields),
     ]
     const nameType = f.createTypeReferenceNode(name)
-    if (!this.immutableValues.has(item.name))
+    if (!this.immutableValues.has(item.name) || this.vectorElements.has(item.name))
       declarations.push(
         this.function(`copy${name}`, [parameter('value', nameType)], nameType, [
           f.createReturnStatement(
@@ -912,7 +930,7 @@ class Transpiler {
       item.variants.map((variant) =>
         f.createTypeLiteralNode([
           f.createPropertySignature(
-            this.immutableValues.has(item.name)
+            this.readonlyValues.has(item.name)
               ? [f.createModifier(ts.SyntaxKind.ReadonlyKeyword)]
               : undefined,
             'kind',
@@ -922,7 +940,7 @@ class Transpiler {
           ...(variant.payload
             ? [
                 f.createPropertySignature(
-                  this.immutableValues.has(item.name)
+                  this.readonlyValues.has(item.name)
                     ? [f.createModifier(ts.SyntaxKind.ReadonlyKeyword)]
                     : undefined,
                   'value',

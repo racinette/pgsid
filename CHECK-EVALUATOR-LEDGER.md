@@ -159,6 +159,9 @@ and internal/cstring interfaces are not an automatic CHECK implementation queue.
 
 ## Expand value representations
 
+- [x] Establish exported owned point-list payloads with independent clones and
+      transfers in Rust, Go and TypeScript; retain private aggregate boundaries.
+
 Implement the remaining concrete PostgreSQL value families after the preceding
 expression and corpus work. Complete one bounded slice through the completion
 gate before expanding it. Prioritize scalar families before arrays, ranges,

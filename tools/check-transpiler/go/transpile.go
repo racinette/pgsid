@@ -103,6 +103,7 @@ type sourceModule struct {
 
 type Options struct {
 	ImmutableValueTypes []string `json:"immutableValueTypes"`
+	ReadonlyValueTypes  []string `json:"readonlyValueTypes,omitempty"`
 	Split               bool     `json:"split,omitempty"`
 	SchemaImportPath    string   `json:"schemaImportPath,omitempty"`
 }
@@ -511,6 +512,20 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 		}
 		if item.Kind == "struct" {
 			generator.structs[item.Name] = item
+		}
+	}
+	for _, name := range options.ReadonlyValueTypes {
+		item := generator.structs[name]
+		if item == nil {
+			for _, candidate := range document.Items {
+				if candidate != nil && candidate.Kind == "enum" && candidate.Name == name {
+					item = candidate
+					break
+				}
+			}
+		}
+		if item == nil || !hasDerive(item, "Clone") || opaqueStruct(item) {
+			return nil, fmt.Errorf("readonly value type must be a nonopaque Clone type: %s", name)
 		}
 	}
 	for _, name := range options.ImmutableValueTypes {
