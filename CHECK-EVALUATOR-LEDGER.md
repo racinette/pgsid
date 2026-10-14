@@ -213,6 +213,9 @@ exposes a prerequisite:
 - [x] Establish box relations, intersection, bounding union, arithmetic and closest points.
 - [x] Establish circle center/radius payloads, public inputs, parsing, construction,
       comparisons, box conversions, relations, distances and arithmetic.
+- [x] Establish owned path payloads, cardinality comparisons, counts, binary output,
+      opening/closing, checked length and area, portable input, literals,
+      unconstrained-domain casts and SQL-coerced public inputs.
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.

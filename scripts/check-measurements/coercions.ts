@@ -1,4 +1,8 @@
 import {
+  pathInputForms,
+  deferredPathPlatformForms,
+} from '../../tests/sql-semantics/check-path-input-forms.js'
+import {
   nameInputForms,
   nameContextInputForms,
 } from '../../tests/sql-semantics/check-name-input-forms.js'
@@ -176,6 +180,17 @@ const inputForms = [
     contextRequired: deferredMoneyContextForms,
     unimplementedGrammar: deferredMoneyContextForms,
     inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+  },
+  {
+    type: 'pg_catalog.path',
+    suite: 'tests/sql-semantics/check-path.test.ts',
+    handled: pathInputForms,
+    deferred: deferredPathPlatformForms,
+    platformDependent: deferredPathPlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+    computedNanBinaryOutput: 'Unknown',
   },
   {
     type: 'pg_catalog.circle',

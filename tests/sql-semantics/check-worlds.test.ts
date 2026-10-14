@@ -29,6 +29,7 @@ import {
   catalogXid8Type,
   catalogOidType,
   catalogMoneyType,
+  catalogPathType,
   catalogCircleType,
   catalogBoxType,
 } from '../../src/sql-semantics/catalog-check-binder.js'
@@ -441,6 +442,13 @@ describe('world CHECK INSERT parity', () => {
             catalogMoneyType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const pathColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogPathType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const circleColumns = table.columns
         .filter(
           (column) =>
@@ -571,6 +579,23 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : bytes.readBigInt64BE()
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
+      }
+      for (const name of pathColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(path_send(${quote(name)}),'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        let payload: { closed: boolean; points: { x: bigint; y: bigint }[] } | null = null
+        if (hex !== null) {
+          const bytes = Buffer.from(hex, 'hex'),
+            points: { x: bigint; y: bigint }[] = []
+          for (let offset = 5; offset < bytes.length; offset += 16)
+            points.push({ x: bytes.readBigInt64BE(offset), y: bytes.readBigInt64BE(offset + 8) })
+          payload = { closed: bytes[0] === 1, points }
+        }
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
       }
@@ -735,6 +760,7 @@ describe('world CHECK INSERT parity', () => {
         xid8Columns,
         oidColumns,
         moneyColumns,
+        pathColumns,
         circleColumns,
         boxColumns,
         timeColumns,
