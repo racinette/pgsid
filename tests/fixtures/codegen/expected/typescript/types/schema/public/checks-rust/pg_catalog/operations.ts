@@ -17168,6 +17168,186 @@ function numericWorkRound(work: NumericWork, requested: number, mode: number): c
     }
     return { kind: "Value", value: numericWorkText(rounded) };
 }
+const oidAliasInvalidName = 6819554;
+const oidAliasInvalidSignature = 3484946;
+const oidAliasInvalidType = 6819553;
+export function oidAliasFromText(input: checkruntime.TextValue, dash: boolean, grammar: number): checkruntime.OidValue {
+    dash = langruntime.checkedBool(dash);
+    grammar = langruntime.checkedI32(grammar);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        if (chars.length > 4096) {
+            return { kind: "Unknown" };
+        }
+        if (dash && chars.length === 1 && langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "-") {
+            return checkruntime.makeOidValue(0n);
+        }
+        let numeric: boolean = !(chars.length === 0);
+        let whitespace: boolean = true;
+        let quoted: boolean = false;
+        let signature: boolean = false;
+        let index: number = 0;
+        while (index < chars.length) {
+            const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+            const code: number = langruntime.checkedChar(ch).codePointAt(0)!;
+            if (code < 48 || code > 57) {
+                numeric = langruntime.checkedBool(false);
+            }
+            if (oidInputSpace(ch) === false) {
+                whitespace = langruntime.checkedBool(false);
+            }
+            if (ch === "\"") {
+                quoted = langruntime.checkedBool(quoted === false);
+            }
+            if (ch === "(" && quoted === false) {
+                signature = langruntime.checkedBool(true);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (numeric) {
+            return oidFromText({ kind: "Value", value: text });
+        }
+        if (grammar === 1 && signature === false) {
+            return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidSignature) };
+        }
+        if (whitespace) {
+            if (grammar === 2) {
+                return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidType) };
+            }
+            return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidName) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function oidAliasToText(input: checkruntime.OidValue, dash: boolean): checkruntime.TextValue {
+    dash = langruntime.checkedBool(dash);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (value === 0n) {
+            if (dash) {
+                return { kind: "Value", value: "-" };
+            }
+            return { kind: "Value", value: "0" };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function oidAliasLookup(input: checkruntime.TextValue, dash: boolean, grammar: number): checkruntime.OidValue {
+    dash = langruntime.checkedBool(dash);
+    grammar = langruntime.checkedI32(grammar);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    const value: checkruntime.OidValue = oidAliasFromText(input, dash, grammar);
+    if (value.kind === "Error") {
+        return { kind: "Null" };
+    }
+    return value;
+}
+export function regclasssendC6c0(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function toRegclassL3ff(input: checkruntime.TextValue): checkruntime.OidValue {
+    return oidAliasLookup(input, true, 0);
+}
+export function regcollationsend4bem(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function toRegcollation2net(input: checkruntime.TextValue): checkruntime.OidValue {
+    return oidAliasLookup(input, true, 0);
+}
+export function regconfigsendDb3d(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function regdictionarysendOk9z(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function regnamespacesendJpj3(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function toRegnamespace525a(input: checkruntime.TextValue): checkruntime.OidValue {
+    return oidAliasLookup(input, true, 0);
+}
+export function regopersend4lv2(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function toRegoperG8ia(input: checkruntime.TextValue): checkruntime.OidValue {
+    return oidAliasLookup(input, false, 0);
+}
+export function regoperatorsendVsu1(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function toRegoperatorX9az(input: checkruntime.TextValue): checkruntime.OidValue {
+    return oidAliasLookup(input, false, 1);
+}
+export function regprocsendLxet(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function toRegprocT1l3(input: checkruntime.TextValue): checkruntime.OidValue {
+    return oidAliasLookup(input, true, 0);
+}
+export function regproceduresendTxe7(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function toRegprocedureByf2(input: checkruntime.TextValue): checkruntime.OidValue {
+    return oidAliasLookup(input, true, 1);
+}
+export function regrolesendA3kd(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function toRegrole2dsk(input: checkruntime.TextValue): checkruntime.OidValue {
+    return oidAliasLookup(input, true, 0);
+}
+export function regtypesend42nl(input: checkruntime.OidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(input);
+}
+export function toRegtypeT5ks(input: checkruntime.TextValue): checkruntime.OidValue {
+    return oidAliasLookup(input, true, 2);
+}
+export function regclassWqix(input: checkruntime.TextValue): checkruntime.OidValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        if (chars.length > 4096) {
+            return { kind: "Unknown" };
+        }
+        let whitespace: boolean = true;
+        let index: number = 0;
+        while (index < chars.length) {
+            if (oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === false) {
+                whitespace = langruntime.checkedBool(false);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (whitespace) {
+            return { kind: "Error", value: checkruntime.makeSqlError(oidAliasInvalidName) };
+        }
+    }
+    return { kind: "Unknown" };
+}
 function oidUnits(input: checkruntime.OidValue): checkruntime.Int8Value {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;

@@ -1,3 +1,4 @@
+import { isOidAliasType } from '../../src/sql-semantics/expressions.js'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
@@ -117,7 +118,23 @@ export async function measureSurface(pg: PGlite) {
                   owner: 'tests/sql-semantics/check-enum-oid-context.test.ts',
                 },
               ]
-            : [],
+            : implementation.kind === 'function' &&
+                isOidAliasType(implementation.result) &&
+                (implementation.name ===
+                  'to_' + implementation.result.slice('pg_catalog.'.length) ||
+                  (implementation.name === 'regclass' &&
+                    implementation.args[0] === 'pg_catalog.text'))
+              ? [
+                  {
+                    kind: 'database',
+                    requirement:
+                      implementation.name === 'regclass'
+                        ? 'Deployment catalog is unavailable; text arguments are relation names even when numeric'
+                        : 'Deployment catalog is unavailable for symbolic names; numeric and sentinel branches are portable',
+                    owner: 'tests/sql-semantics/check-oid-aliases.test.ts',
+                  },
+                ]
+              : [],
       probe: canProbe ? callableProbe(item) : null,
     }
   })

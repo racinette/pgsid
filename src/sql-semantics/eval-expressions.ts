@@ -7,6 +7,7 @@ import {
   type SqlCallableExpression,
   type SqlExpression,
   type ScalarType,
+  type OidType,
   type EnumDefinition,
 } from './expressions.js'
 import type { EvalBoolExpression } from './check-expressions.js'
@@ -96,7 +97,7 @@ export type EvalExpression =
   | { kind: 'text-to-pg_lsn'; type: 'pg_catalog.pg_lsn'; operand: EvalExpression }
   | { kind: 'text-to-tid'; type: 'pg_catalog.tid'; operand: EvalExpression }
   | { kind: 'text-to-xid8'; type: 'pg_catalog.xid8'; operand: EvalExpression }
-  | { kind: 'text-to-oid'; type: 'pg_catalog.oid'; operand: EvalExpression }
+  | { kind: 'text-to-oid'; type: OidType; operand: EvalExpression }
   | { kind: 'text-to-circle'; type: 'pg_catalog.circle'; operand: EvalExpression }
   | { kind: 'text-to-box'; type: 'pg_catalog.box'; operand: EvalExpression }
   | { kind: 'text-to-uuid'; type: 'pg_catalog.uuid'; operand: EvalExpression }

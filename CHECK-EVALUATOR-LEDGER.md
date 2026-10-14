@@ -219,7 +219,7 @@ exposes a prerequisite:
       hashing, exact numeric arithmetic and SQL-coerced public inputs.
 - [x] Establish heap tuple pointer payloads, comparisons, binary/text conversion,
       portable hashes and explicit native-layout and heap-state requirements.
-- [ ] Establish catalog OID aliases with nominal SQL identity, numeric operations,
+- [x] Establish catalog OID aliases with nominal SQL identity, numeric operations,
       catalog-resolved casts and explicit deferral without deployment catalog access.
 - [x] Remove generation-time enum OIDs from emitted literals and public label
       adapters, and verify hash deferral across independent databases.

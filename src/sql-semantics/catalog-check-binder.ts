@@ -20,6 +20,8 @@ import {
 } from './collation.js'
 import {
   enumType,
+  isOidType,
+  isOidAliasType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
   type ScalarType,
@@ -105,6 +107,17 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     pg_lsn: 'pg_catalog.pg_lsn',
     tid: 'pg_catalog.tid',
     xid8: 'pg_catalog.xid8',
+    regclass: 'pg_catalog.regclass',
+    regcollation: 'pg_catalog.regcollation',
+    regconfig: 'pg_catalog.regconfig',
+    regdictionary: 'pg_catalog.regdictionary',
+    regnamespace: 'pg_catalog.regnamespace',
+    regoper: 'pg_catalog.regoper',
+    regoperator: 'pg_catalog.regoperator',
+    regproc: 'pg_catalog.regproc',
+    regprocedure: 'pg_catalog.regprocedure',
+    regrole: 'pg_catalog.regrole',
+    regtype: 'pg_catalog.regtype',
     oid: 'pg_catalog.oid',
     circle: 'pg_catalog.circle',
     box: 'pg_catalog.box',
@@ -244,7 +257,7 @@ export function catalogOidType(
   oid: number | undefined,
   domains: readonly DomainInfo[],
 ): boolean {
-  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.oid'
+  return isOidType(catalogBaseScalarType(name, oid, domains))
 }
 
 export function catalogCircleType(
@@ -309,7 +322,11 @@ const callables = PG18_BUILTIN_GROUPS.flatMap(({ inventory }) =>
     .map(([signature, item]) => ({ signature, item })),
 )
 
-type Literal = { kind: 'string' | 'integer' | 'null'; value: string | null; moneyUnits?: string }
+type Literal = {
+  kind: 'string' | 'integer' | 'null'
+  value: string | null
+  moneyUnits?: string
+}
 type Bound = {
   type: ScalarType | null
   value: EvalExpression | null
@@ -351,6 +368,12 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'tid', type, value: literal.value }
   if (type === 'pg_catalog.xid8' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'xid8', type, value: literal.value }
+  if (isOidAliasType(type) && (literal.kind === 'string' || literal.kind === 'null'))
+    return {
+      kind: 'oid',
+      type,
+      value: literal.value,
+    }
   if (
     type === 'pg_catalog.oid' &&
     (literal.kind === 'string' || literal.kind === 'integer' || literal.kind === 'null')
@@ -496,8 +519,9 @@ const materialize = (
     return { kind: 'call', call: { kind: 'cast', signature: null, type }, operands: [bound.value] }
   if (
     bound.value &&
-    ((bound.type === 'pg_catalog.int4' && type === 'pg_catalog.oid') ||
-      (bound.type === 'pg_catalog.oid' && type === 'pg_catalog.int4')) &&
+    ((bound.type === 'pg_catalog.int4' && isOidType(type)) ||
+      (isOidType(bound.type) && type === 'pg_catalog.int4') ||
+      (isOidType(bound.type) && isOidType(type))) &&
     builtinCast(bound.type, type)?.method === 'b'
   )
     return { kind: 'call', call: { kind: 'cast', signature: null, type }, operands: [bound.value] }
@@ -674,9 +698,7 @@ const candidate = (
     !hasOmittedDefaults &&
     args.some(
       (arg) =>
-        arg.type === 'pg_catalog.float4' ||
-        arg.type === 'pg_catalog.float8' ||
-        arg.type === 'pg_catalog.oid',
+        arg.type === 'pg_catalog.float4' || arg.type === 'pg_catalog.float8' || isOidType(arg.type),
     )
   )
     return comparisonCandidate(args, name, true, kind, false)
@@ -1061,7 +1083,7 @@ export function bindCatalogCheck(
         (arg) =>
           arg.type === 'pg_catalog.float4' ||
           arg.type === 'pg_catalog.float8' ||
-          arg.type === 'pg_catalog.oid',
+          isOidType(arg.type),
       )
         ? (commonType(args) ?? undefined)
         : undefined
@@ -1126,7 +1148,7 @@ export function bindCatalogCheck(
         (arm) =>
           arm.type === 'pg_catalog.float4' ||
           arm.type === 'pg_catalog.float8' ||
-          arm.type === 'pg_catalog.oid',
+          isOidType(arm.type),
       )
         ? (commonType([otherwise, ...results]) ?? undefined)
         : undefined
@@ -1292,7 +1314,7 @@ export function bindCatalogCheck(
           domainType !== 'pg_catalog.pg_lsn' &&
           domainType !== 'pg_catalog.tid' &&
           domainType !== 'pg_catalog.xid8' &&
-          domainType !== 'pg_catalog.oid' &&
+          !isOidType(domainType) &&
           domainType !== 'pg_catalog.circle' &&
           domainType !== 'pg_catalog.box'
         )
@@ -1438,6 +1460,7 @@ export function bindCatalogCheck(
       if (
         ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&
         (isIntegerType(source) ||
+          isOidAliasType(source) ||
           [
             'pg_catalog.oid',
             'pg_catalog.xid',
@@ -1461,7 +1484,7 @@ export function bindCatalogCheck(
           !metadata.strict ||
           metadata.args.length !== 1 ||
           metadata.args[0] !== (operand.enum ? 'pg_catalog.anyenum' : source) ||
-          (!operand.enum && metadata.volatility !== 'i')
+          (!operand.enum && metadata.volatility !== 'i' && !isOidAliasType(source))
         )
           return unknown
         operand = {
@@ -1775,7 +1798,8 @@ export function bindCatalogCheck(
         return text ? { type, value: { kind: 'text-to-xid8', type, operand: text } } : unknown
       }
       if (
-        type === 'pg_catalog.oid' &&
+        isOidType(type) &&
+        builtinCast('pg_catalog.text', type)?.method !== 'f' &&
         (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
         operand.value
       ) {
@@ -1936,20 +1960,37 @@ export function bindCatalogCheck(
         const value = materialize(operand, conversionSource)
         if (!value) return unknown
         const conversion = builtinCast(conversionSource, type)
+        if (conversion?.method === 'b' && (isOidType(conversionSource) || isOidType(type)))
+          return {
+            type,
+            value: {
+              kind: 'call',
+              call: { kind: 'cast', signature: null, type },
+              operands: [value],
+            },
+          }
         if (conversion?.method === 'f' && conversion.implementation !== null) {
           const implementation = builtinMetadata(conversion.implementation)
           const result = catalogScalarType(implementation.result)
           if (
             implementation.kind !== 'function' ||
             implementation.args.length !== 1 ||
-            implementation.volatility !== 'i' ||
+            (implementation.volatility !== 'i' && !isOidAliasType(result)) ||
             !result
           )
             return unknown
+          const argumentType = catalogScalarType(implementation.args[0]!)
+          const argument =
+            argumentType === conversionSource
+              ? value
+              : argumentType
+                ? implicitOperand(operand, argumentType)
+                : null
+          if (!argument) return unknown
           let converted: EvalExpression = {
             kind: 'call',
             call: { kind: 'function', signature: conversion.implementation, type: result },
-            operands: [value],
+            operands: [argument],
           }
           if (result !== type) {
             if (builtinCast(result, type)?.method !== 'b') return unknown
@@ -1991,7 +2032,11 @@ export function bindCatalogCheck(
           return {
             type: null,
             value: null,
-            literal: { kind: 'string', value: string, moneyUnits: moneyUnits.get(string) },
+            literal: {
+              kind: 'string',
+              value: string,
+              moneyUnits: moneyUnits.get(string),
+            },
             collation: defaultCollation,
           }
       }
@@ -2469,6 +2514,19 @@ export function bindCatalogCheck(
         arg.value || arg.literal ? arg : bind(nodes[index], enumArgument.type!),
       )
     if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+    const aliasType = catalogScalarType(name)
+    if (kind === 'function' && isOidAliasType(aliasType) && nodes.length === 1)
+      return bind({
+        TypeCast: {
+          arg: nodes[0],
+          typeName: {
+            names: [
+              { String: { sval: 'pg_catalog' } },
+              { String: { sval: aliasType.slice('pg_catalog.'.length) } },
+            ],
+          },
+        },
+      })
     if (
       kind === 'function' &&
       (name === 'macaddr' ||

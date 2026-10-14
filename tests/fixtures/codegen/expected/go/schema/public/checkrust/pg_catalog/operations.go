@@ -17101,6 +17101,185 @@ func numericWorkRound(work numericWork, requested int, mode int) checkruntime.Nu
 	}
 	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(rounded)}
 }
+
+const oidAliasInvalidName = 6819554
+const oidAliasInvalidSignature = 3484946
+const oidAliasInvalidType = 6819553
+
+func OidAliasFromText(input checkruntime.TextValue, dash bool, grammar int) checkruntime.OidValue {
+	grammar = langruntime.CheckedI32(grammar)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		if len(chars) > 4096 {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+		}
+		if dash && len(chars) == 1 && chars[0] == '-' {
+			return checkruntime.MakeOidValue(int64(0))
+		}
+		numeric := len(chars) != 0
+		whitespace := true
+		quoted := false
+		signature := false
+		index := 0
+		for index < len(chars) {
+			ch := chars[index]
+			code := int(langruntime.CheckedChar(ch))
+			if code < 48 || code > 57 {
+				numeric = false
+			}
+			if oidInputSpace(ch) == false {
+				whitespace = false
+			}
+			if ch == '"' {
+				quoted = quoted == false
+			}
+			if ch == '(' && quoted == false {
+				signature = true
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if numeric {
+			return OidFromText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text})
+		}
+		if grammar == 1 && signature == false {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidSignature)}
+		}
+		if whitespace {
+			if grammar == 2 {
+				return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidType)}
+			}
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidName)}
+		}
+	}
+	return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+}
+func OidAliasToText(input checkruntime.OidValue, dash bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.OidValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.OidValueValue {
+		value := input.Value
+		if value == int64(0) {
+			if dash {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "-"}
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "0"}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func oidAliasLookup(input checkruntime.TextValue, dash bool, grammar int) checkruntime.OidValue {
+	grammar = langruntime.CheckedI32(grammar)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
+	}
+	value := OidAliasFromText(input, dash, grammar)
+	if value.Kind == checkruntime.OidValueError {
+		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+	}
+	return value
+}
+func RegclasssendC6c0(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func ToRegclassL3ff(input checkruntime.TextValue) checkruntime.OidValue {
+	return oidAliasLookup(input, true, 0)
+}
+func Regcollationsend4bem(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func ToRegcollation2net(input checkruntime.TextValue) checkruntime.OidValue {
+	return oidAliasLookup(input, true, 0)
+}
+func RegconfigsendDb3d(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func RegdictionarysendOk9z(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func RegnamespacesendJpj3(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func ToRegnamespace525a(input checkruntime.TextValue) checkruntime.OidValue {
+	return oidAliasLookup(input, true, 0)
+}
+func Regopersend4lv2(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func ToRegoperG8ia(input checkruntime.TextValue) checkruntime.OidValue {
+	return oidAliasLookup(input, false, 0)
+}
+func RegoperatorsendVsu1(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func ToRegoperatorX9az(input checkruntime.TextValue) checkruntime.OidValue {
+	return oidAliasLookup(input, false, 1)
+}
+func RegprocsendLxet(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func ToRegprocT1l3(input checkruntime.TextValue) checkruntime.OidValue {
+	return oidAliasLookup(input, true, 0)
+}
+func RegproceduresendTxe7(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func ToRegprocedureByf2(input checkruntime.TextValue) checkruntime.OidValue {
+	return oidAliasLookup(input, true, 1)
+}
+func RegrolesendA3kd(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func ToRegrole2dsk(input checkruntime.TextValue) checkruntime.OidValue {
+	return oidAliasLookup(input, true, 0)
+}
+func Regtypesend42nl(input checkruntime.OidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(input)
+}
+func ToRegtypeT5ks(input checkruntime.TextValue) checkruntime.OidValue {
+	return oidAliasLookup(input, true, 2)
+}
+func RegclassWqix(input checkruntime.TextValue) checkruntime.OidValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		if len(chars) > 4096 {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+		}
+		whitespace := true
+		index := 0
+		for index < len(chars) {
+			if oidInputSpace(chars[index]) == false {
+				whitespace = false
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if whitespace {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.MakeSqlError(oidAliasInvalidName)}
+		}
+	}
+	return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+}
 func oidUnits(input checkruntime.OidValue) checkruntime.Int8Value {
 	if input.Kind == checkruntime.OidValueError {
 		error := input.Error

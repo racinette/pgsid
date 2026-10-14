@@ -1,8 +1,9 @@
+import { isOidAliasType } from '../../sql-semantics/expressions.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import type { SqlBindingGroup } from '../../sql-semantics/signatures.js'
 import { checkRustCallableNames } from './check-rust-source.js'
-import { builtinMetadata } from '../../postgres/builtins/inventory.js'
+import { builtinCast, builtinMetadata } from '../../postgres/builtins/inventory.js'
 import { enumEqualityOperation } from '../../sql-semantics/expressions.js'
 import { goSqlBackend } from '../go/sql/registry.js'
 import { typescriptSqlBackend } from '../typescript/sql/registry.js'
@@ -21,8 +22,19 @@ const portable = (signature: string, rustNames: ReadonlySet<string>): boolean =>
   const metadata = builtinMetadata(signature)
   const implementation =
     metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+  const conditionalCatalogInput =
+    implementation.kind === 'function' &&
+    implementation.schema === 'pg_catalog' &&
+    implementation.strict &&
+    !implementation.returnsSet &&
+    implementation.args.length === 1 &&
+    implementation.args[0] === 'pg_catalog.text' &&
+    isOidAliasType(implementation.result) &&
+    rustNames.has(implementation.rustName) &&
+    (implementation.name === 'to_' + implementation.result.slice('pg_catalog.'.length) ||
+      builtinCast('pg_catalog.text', implementation.result)?.implementation === signature)
   return (
-    metadata.volatility === 'i' &&
+    (metadata.volatility === 'i' || conditionalCatalogInput) &&
     ((go.has(signature) && typescript.has(signature)) ||
       (implementation.kind === 'function' && rustNames.has(implementation.rustName)))
   )
