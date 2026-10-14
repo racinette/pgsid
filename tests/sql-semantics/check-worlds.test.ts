@@ -58,6 +58,10 @@ const worlds = (await readdir(worldsDirectory, { withFileTypes: true }))
   .sort((left, right) => left.name.localeCompare(right.name))
 const cases: Case[] = []
 const checkWorlds = new Set<string>()
+const catalogDependentChecks = new Set([
+  'world_014_shipment_defaults.shipment_stage_decisions.stage_selected_hash',
+  'world_014_shipment_defaults.shipment_stage_decisions.stage_selected_seeded_hash',
+])
 const sourceDigest = await worldSourceDigest()
 for (const world of worlds) {
   if (
@@ -679,6 +683,43 @@ describe('world CHECK INSERT parity', () => {
     })
   })
 
+  it('defers enum hashes without deployment OIDs while retaining label comparisons and lazy states', () => {
+    const table = catalog.tables.find(
+      (table) =>
+        table.schema === 'world_014_shipment_defaults' && table.name === 'shipment_stage_decisions',
+    )!
+    const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
+    const row = {
+      stage: 'ready',
+      peer: 'held',
+      larger_stage: 'held',
+      smaller_stage: 'ready',
+      comparison_record: -1,
+      less_record: true,
+      not_after_record: true,
+      greater_record: false,
+      not_before_record: false,
+      seed: 0n,
+      skip: false,
+    }
+    const results = Object.fromEntries(
+      normalized(evaluate(row)).map(({ constraint, result }) => [constraint, result]),
+    )
+    expect(results.stage_larger).toEqual({ certain: true, value: true })
+    expect(results.stage_smaller).toEqual({ certain: true, value: true })
+    for (const constraint of ['stage_selected_hash', 'stage_selected_seeded_hash']) {
+      expect(results[constraint]).toEqual({ certain: false })
+      const skipped = normalized(evaluate({ ...row, skip: true })).find(
+        (c) => c.constraint === constraint,
+      )!
+      expect(skipped.result).toEqual({ certain: true, value: true })
+      const nulls = normalized(
+        evaluate({ ...row, stage: null, peer: null, larger_stage: null, smaller_stage: null }),
+      ).find((c) => c.constraint === constraint)!
+      expect(nulls.result).toEqual({ certain: true, value: null })
+    }
+  })
+
   it.each(cases)('$name', async (item) => {
     const table = catalog.tables.find(
       (table) => table.schema === item.schema && table.name === item.relation,
@@ -696,10 +737,12 @@ describe('world CHECK INSERT parity', () => {
     }
     const results = typescriptResults.get(item.name)!
     if (checkWorlds.has(item.name.split('/')[0]!))
-      expect(
-        results.every(({ result }) => result.certain),
-        `${item.name}: CHECK worlds require definite validation`,
-      ).toBe(true)
+      for (const check of results)
+        expect(
+          check.result.certain ||
+            catalogDependentChecks.has(`${item.schema}.${table.name}.${check.constraint}`),
+          `${item.name}/${check.constraint}: unexpected deferral in CHECK world`,
+        ).toBe(true)
     const row = inputs.get(item.name)!
     const select = table.columns
       .filter((column) => Object.hasOwn(row, column.name))
@@ -838,6 +881,12 @@ describe('world CHECK INSERT parity', () => {
     expect(definite).toBeGreaterThan(0)
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
+    for (const identity of catalogDependentChecks) {
+      const measured = coverage.get(identity)!
+      expect(measured.unknown, identity).toBeGreaterThan(0)
+      expect(measured.null, identity).toBeGreaterThan(0)
+      expect(measured.true, identity).toBeGreaterThan(0)
+    }
     for (const [table, names] of [
       [
         'shift_presence_reports',

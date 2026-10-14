@@ -8,9 +8,12 @@ query contracts and may also provide CHECK INSERT cases. A schema marked
 
 CHECK worlds require a schema containing CHECK constraints, seed data, and named
 INSERT cases that reference every table. The CHECK suite requires definite
-validation and both accepted and rejected INSERTs. Query shape, join, composition,
-and rung rules below apply to query worlds; CHECK worlds do not enter those
-measurements. Admission ordinals cover both kinds of world.
+validation and both accepted and rejected INSERTs. A constraint requiring an
+unavailable deployment catalog may defer only when the harness names that
+constraint and executes its known NULL or skipped branches alongside its catalog
+deferral. All other CHECK constraints remain definite. Query shape, join,
+composition, and rung rules below apply to query worlds; CHECK worlds do not enter
+those measurements. Admission ordinals cover both kinds of world.
 
 Run CHECK parity after adding or changing constraint implementations or inputs:
 
