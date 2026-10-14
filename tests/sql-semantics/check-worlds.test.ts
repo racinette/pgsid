@@ -19,6 +19,7 @@ import {
   catalogNumericType,
   catalogFloatType,
   catalogPointType,
+  catalogLineType,
 } from '../../src/sql-semantics/catalog-check-binder.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
@@ -327,6 +328,13 @@ describe('world CHECK INSERT parity', () => {
         )
         .map((column) => column.name)
       const portableRow = { ...row }
+      const lineColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogLineType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const goRow = { ...row }
       for (const [family, names] of [
         ['time', timeColumns],
@@ -357,6 +365,20 @@ describe('world CHECK INSERT parity', () => {
           portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
           goRow[name] = payload
         }
+      }
+      for (const name of lineColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(line_send(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload =
+          bytes === null
+            ? null
+            : { a: bytes.readBigInt64BE(), b: bytes.readBigInt64BE(8), c: bytes.readBigInt64BE(16) }
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
       }
       for (const name of pointColumns) {
         const hex = (
@@ -439,6 +461,7 @@ describe('world CHECK INSERT parity', () => {
         numericColumns,
         floatColumns,
         pointColumns,
+        lineColumns,
         timeColumns,
         timetzColumns,
         intervalColumns,
@@ -823,6 +846,12 @@ describe('world CHECK INSERT parity', () => {
       }
     }
     for (const [world, table, names] of [
+      [
+        '028_axis_guides',
+        'guide_axes',
+        ['guide_wire', 'guide_presence', 'guide_horizontal', 'guide_vertical'],
+      ],
+      ['028_axis_guides', 'guide_matches', ['guide_same', 'guide_selected', 'guide_default']],
       [
         '025_sensor_measurements',
         'calibrated_magnitudes',

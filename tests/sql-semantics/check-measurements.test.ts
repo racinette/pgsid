@@ -204,6 +204,10 @@ describe('CHECK measurement boundaries', () => {
     expect(pointInput.probe.postgres.accepted).toBe(true)
     expect(pointInput.probe.raw.fullyBound).toBe(true)
     expect(pointInput.probe.stored!.fullyBound).toBe(true)
+    const lineInput = report.textInput.find((entry) => entry.type === 'pg_catalog.line')!
+    expect(lineInput.input).toContain('line_in')
+    expect(lineInput.probe.raw.fullyBound).toBe(false)
+    expect(lineInput.probe.stored!.fullyBound).toBe(false)
     expect(pointInput.input).toBe('function:["pg_catalog","point_in"](pg_catalog.cstring)')
     const pointForms = report.inputForms.types.find((forms) => forms.type === 'pg_catalog.point')!
     expect(pointForms).toMatchObject({

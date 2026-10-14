@@ -23,6 +23,7 @@ export type Input =
         | boolean
         | string
         | { x: bigint; y: bigint }
+        | { a: bigint; b: bigint; c: bigint }
         | { time: bigint; zone: number }
         | { time: bigint; months: number; days: number }
     }
@@ -71,47 +72,49 @@ export async function runCheckParity(
     return result[0]!.toLowerCase() + result.slice(1)
   }
   const prefixOf = (type: string): string =>
-    type === 'pg_catalog.point'
-      ? 'point'
-      : type === 'pg_catalog."time"'
-        ? 'time'
-        : type === 'pg_catalog.timetz'
-          ? 'timetz'
-          : type === 'pg_catalog."interval"'
-            ? 'interval'
-            : type === 'pg_catalog.float4' || type === 'pg_catalog.float8'
-              ? type.slice('pg_catalog.'.length)
-              : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
-                ? 'bit'
-                : type === 'pg_catalog.uuid'
-                  ? 'uuid'
-                  : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
-                    ? 'network'
-                    : type === 'pg_catalog.macaddr'
-                      ? 'macaddr'
-                      : type === 'pg_catalog.macaddr8'
-                        ? 'macaddr8'
-                        : type === 'pg_catalog.bytea'
-                          ? 'bytea'
-                          : type.startsWith('enum:')
-                            ? 'enum'
-                            : type === 'pg_catalog.int2'
-                              ? 'int2'
-                              : type === 'pg_catalog.int4'
-                                ? 'int4'
-                                : type === 'pg_catalog.int8'
-                                  ? 'int8'
-                                  : type === 'pg_catalog."numeric"'
-                                    ? 'numeric'
-                                    : type === 'pg_catalog."timestamp"'
-                                      ? 'timestamp'
-                                      : type === 'pg_catalog.timestamptz'
-                                        ? 'timestamptz'
-                                        : type === 'pg_catalog.date'
-                                          ? 'date'
-                                          : type === 'pg_catalog.bool'
-                                            ? 'bool'
-                                            : 'text'
+    type === 'pg_catalog.line'
+      ? 'line'
+      : type === 'pg_catalog.point'
+        ? 'point'
+        : type === 'pg_catalog."time"'
+          ? 'time'
+          : type === 'pg_catalog.timetz'
+            ? 'timetz'
+            : type === 'pg_catalog."interval"'
+              ? 'interval'
+              : type === 'pg_catalog.float4' || type === 'pg_catalog.float8'
+                ? type.slice('pg_catalog.'.length)
+                : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
+                  ? 'bit'
+                  : type === 'pg_catalog.uuid'
+                    ? 'uuid'
+                    : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
+                      ? 'network'
+                      : type === 'pg_catalog.macaddr'
+                        ? 'macaddr'
+                        : type === 'pg_catalog.macaddr8'
+                          ? 'macaddr8'
+                          : type === 'pg_catalog.bytea'
+                            ? 'bytea'
+                            : type.startsWith('enum:')
+                              ? 'enum'
+                              : type === 'pg_catalog.int2'
+                                ? 'int2'
+                                : type === 'pg_catalog.int4'
+                                  ? 'int4'
+                                  : type === 'pg_catalog.int8'
+                                    ? 'int8'
+                                    : type === 'pg_catalog."numeric"'
+                                      ? 'numeric'
+                                      : type === 'pg_catalog."timestamp"'
+                                        ? 'timestamp'
+                                        : type === 'pg_catalog.timestamptz'
+                                          ? 'timestamptz'
+                                          : type === 'pg_catalog.date'
+                                            ? 'date'
+                                            : type === 'pg_catalog.bool'
+                                              ? 'bool'
+                                              : 'text'
   const inputCode = (input: Input, type: string, definition?: EnumDefinition): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -135,6 +138,7 @@ export async function runCheckParity(
     if (typeof input.value === 'object') {
       const parts = input.value
       if ('x' in parts) return `make_point_bits(${parts.x}i64, ${parts.y}i64)`
+      if ('a' in parts) return `make_line_bits(${parts.a}i64, ${parts.b}i64, ${parts.c}i64)`
       const args =
         'zone' in parts
           ? `${parts.time}i64, ${parts.zone}`
@@ -183,6 +187,12 @@ export async function runCheckParity(
       const parts = input.value
       if ('x' in parts)
         return go.call(runtime('MakePointBits'), [go.number(parts.x), go.number(parts.y)])
+      if ('a' in parts)
+        return go.call(runtime('MakeLineBits'), [
+          go.number(parts.a),
+          go.number(parts.b),
+          go.number(parts.c),
+        ])
       return go.call(
         runtime('Make' + prefix + 'Value'),
         'zone' in parts
@@ -390,6 +400,13 @@ export async function runCheckParity(
           'x' in value.value
         )
           return generated.makePointBits(value.value.x, value.value.y)
+        if (
+          input.type === 'pg_catalog.line' &&
+          value.kind === 'Value' &&
+          typeof value.value === 'object' &&
+          'a' in value.value
+        )
+          return generated.makeLineBits(value.value.a, value.value.b, value.value.c)
         if (input.type === 'pg_catalog."time"' && value.kind === 'Value')
           return generated.makeTimeValue(value.value)
         if (

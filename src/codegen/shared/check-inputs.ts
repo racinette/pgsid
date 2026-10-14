@@ -4,6 +4,7 @@ import type { WriteValueLineage, ValueLineage } from '../../query/value-lineage.
 import { catalogCheckGroups } from '../../sql-semantics/catalog-checks.js'
 import {
   catalogPointType,
+  catalogLineType,
   catalogScalarType,
   catalogTemporalType,
 } from '../../sql-semantics/catalog-check-binder.js'
@@ -224,6 +225,7 @@ export function planCheckInputs(
     const column = plan.table.columns.find((column) => column.name === name)!
     if (catalogTemporalType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogPointType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogLineType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalog && inputNeedsCoercion(column, catalog)) return []
     return [{ name, parameter: source.number }]
   })

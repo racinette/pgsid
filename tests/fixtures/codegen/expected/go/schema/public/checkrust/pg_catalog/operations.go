@@ -8523,6 +8523,121 @@ func MakeIntervalNlc1(years checkruntime.Int4Value, months checkruntime.Int4Valu
 	}
 	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(clockRange)}
 }
+func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) checkruntime.BoolValue {
+	product := Float8mulD3nd(ratio, checkruntime.MakeFloat8Bits(right))
+	if product.Kind == checkruntime.Float8ValueError {
+		error := product.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if product.Kind == checkruntime.Float8ValueValue {
+		bits := product.Value
+		return checkruntime.MakeBoolValue(geometricCoordinateEqual(checkruntime.Float8Number(left), checkruntime.Float8Number(bits)))
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func LineEqK687(left checkruntime.LineValue, right checkruntime.LineValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.LineValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.LineValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) || right == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) || right == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.LineValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.LineValueValue {
+			b := right.Value
+			aa := checkruntime.Float8Number(a.A)
+			ab := checkruntime.Float8Number(a.B)
+			ac := checkruntime.Float8Number(a.C)
+			ba := checkruntime.Float8Number(b.A)
+			bb := checkruntime.Float8Number(b.B)
+			bc := checkruntime.Float8Number(b.C)
+			if aa != aa || ab != ab || ac != ac || ba != ba || bb != bb || bc != bc {
+				return checkruntime.MakeBoolValue((aa == ba || (aa != aa && ba != ba)) && (ab == bb || (ab != ab && bb != bb)) && (ac == bc || (ac != ac && bc != bc)))
+			}
+			ratio := checkruntime.MakeFloat8Value(float64(1.0))
+			if geometricCoordinateEqual(ba, float64(0.0)) == false {
+				ratio = Float8divKumj(checkruntime.MakeFloat8Bits(a.A), checkruntime.MakeFloat8Bits(b.A))
+			} else if geometricCoordinateEqual(bb, float64(0.0)) == false {
+				ratio = Float8divKumj(checkruntime.MakeFloat8Bits(a.B), checkruntime.MakeFloat8Bits(b.B))
+			} else if geometricCoordinateEqual(bc, float64(0.0)) == false {
+				ratio = Float8divKumj(checkruntime.MakeFloat8Bits(a.C), checkruntime.MakeFloat8Bits(b.C))
+			}
+			if ratio.Kind == checkruntime.Float8ValueError {
+				error := ratio.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			first := lineEqualProduct(a.A, b.A, ratio)
+			if first != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return first
+			}
+			second := lineEqualProduct(a.B, b.B, ratio)
+			if second != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return second
+			}
+			return lineEqualProduct(a.C, b.C, ratio)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func lineOrientation(input checkruntime.LineValue, vertical bool) checkruntime.BoolValue {
+	if input.Kind == checkruntime.LineValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.LineValueValue {
+		value := input.Value
+		coefficient := value.A
+		if vertical {
+			coefficient = value.B
+		}
+		return checkruntime.MakeBoolValue(geometricCoordinateEqual(checkruntime.Float8Number(coefficient), float64(0.0)))
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func LineHorizontalSwlw(input checkruntime.LineValue) checkruntime.BoolValue {
+	return lineOrientation(input, false)
+}
+func IshorizontalXhol(input checkruntime.LineValue) checkruntime.BoolValue {
+	return lineOrientation(input, false)
+}
+func LineVerticalSa4t(input checkruntime.LineValue) checkruntime.BoolValue {
+	return lineOrientation(input, true)
+}
+func IsverticalX62g(input checkruntime.LineValue) checkruntime.BoolValue {
+	return lineOrientation(input, true)
+}
+func LineSendB5ct(input checkruntime.LineValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.LineValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.LineValueValue {
+		value := input.Value
+		if value.WireKnown == false {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+		}
+		first := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value.A}, 8)
+		second := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value.B}, 8)
+		third := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value.C}, 8)
+		return ByteacatZitv(ByteacatZitv(first, second), third)
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 
 const macConversionOutOfRange = 3452547
 

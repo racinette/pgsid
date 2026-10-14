@@ -1223,3 +1223,54 @@ pub fn point_from_case_guard(input: CheckOutcome) -> PointValue {
     };
     PointValue::Unknown
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct LinePayload {
+    pub a: i64,
+    pub b: i64,
+    pub c: i64,
+    pub wire_known: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum LineValue {
+    Unknown,
+    Null,
+    Value(LinePayload),
+    Error(SqlError),
+}
+
+pub fn line_unknown() -> LineValue {
+    LineValue::Unknown
+}
+pub fn line_null() -> LineValue {
+    LineValue::Null
+}
+pub fn make_line_bits(a: i64, b: i64, c: i64) -> LineValue {
+    let first = float8_number(a);
+    let second = float8_number(b);
+    if first.abs() <= 0.000001f64 && second.abs() <= 0.000001f64 {
+        return LineValue::Unknown;
+    };
+    LineValue::Value(LinePayload {
+        a,
+        b,
+        c,
+        wire_known: true,
+    })
+}
+pub fn line_is_null(input: LineValue) -> BoolValue {
+    if let LineValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == LineValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == LineValue::Null)
+}
+pub fn line_from_case_guard(input: CheckOutcome) -> LineValue {
+    if let CheckOutcome::Error(error) = input {
+        return LineValue::Error(error);
+    };
+    LineValue::Unknown
+}

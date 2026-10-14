@@ -1437,6 +1437,69 @@ export function pointFromCaseGuard(input: CheckOutcome): PointValue {
     }
     return { kind: "Unknown" };
 }
+export interface LinePayload {
+    readonly a: bigint;
+    readonly b: bigint;
+    readonly c: bigint;
+    readonly wireKnown: boolean;
+}
+function equalLinePayload(left: LinePayload, right: LinePayload): boolean {
+    return left.a === right.a && left.b === right.b && left.c === right.c && left.wireKnown === right.wireKnown;
+}
+export type LineValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: LinePayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalLineValue(left: LineValue, right: LineValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalLinePayload(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function lineUnknown(): LineValue {
+    return { kind: "Unknown" };
+}
+export function lineNull(): LineValue {
+    return { kind: "Null" };
+}
+export function makeLineBits(a: bigint, b: bigint, c: bigint): LineValue {
+    a = langruntime.checkedI64(a);
+    b = langruntime.checkedI64(b);
+    c = langruntime.checkedI64(c);
+    const first: number = float8Number(a);
+    const second: number = float8Number(b);
+    if (langruntime.f64Abs(first) <= 0.000001 && langruntime.f64Abs(second) <= 0.000001) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: { a: a, b: b, c: c, wireKnown: true } };
+}
+export function lineIsNull(input: LineValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalLineValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalLineValue(input, { kind: "Null" }));
+}
+export function lineFromCaseGuard(input: CheckOutcome): LineValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;
