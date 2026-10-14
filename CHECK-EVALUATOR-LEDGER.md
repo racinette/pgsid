@@ -170,6 +170,8 @@ exposes a prerequisite:
 - [x] Preserve lossless floating-point literals when reading catalog CHECKs
       and defaults, restoring the caller's rendering settings after the read.
 - [x] Floating point (`float4`, `float8`).
+- [ ] Audit platform-generated NaN binary precision in floating input, literals
+      and geometry; retain known NaN semantics when output bits require platform context.
 - [x] Establish time, timetz, and interval payloads, comparisons, arithmetic,
       core casts, binary output, and SQL-coerced public inputs.
 - [x] Establish interval unit, clock, and ISO designator input, lossless catalog
