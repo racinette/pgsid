@@ -1402,6 +1402,9 @@ export interface PointPayload {
     readonly y: bigint;
     readonly wireKnown: boolean;
 }
+export function copyPointPayload(value: PointPayload): PointPayload {
+    return { x: langruntime.checkedI64(value.x), y: langruntime.checkedI64(value.y), wireKnown: langruntime.checkedBool(value.wireKnown) };
+}
 function equalPointPayload(left: PointPayload, right: PointPayload): boolean {
     return left.x === right.x && left.y === right.y && left.wireKnown === right.wireKnown;
 }
@@ -1651,6 +1654,66 @@ export interface CirclePayload {
 }
 function equalCirclePayload(left: CirclePayload, right: CirclePayload): boolean {
     return left.x === right.x && left.y === right.y && left.radius === right.radius && left.wireKnown === right.wireKnown;
+}
+export interface PathPayload {
+    readonly closed: boolean;
+    readonly points: PointPayload[];
+}
+export function copyPathPayload(value: PathPayload): PathPayload {
+    return { closed: langruntime.checkedBool(value.closed), points: langruntime.checkedStructs(value.points, copyPointPayload) };
+}
+export type PathValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: PathPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function copyPathValue(value: PathValue): PathValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copyPathPayload(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function pathUnknown(): PathValue {
+    return { kind: "Unknown" };
+}
+export function pathNull(): PathValue {
+    return { kind: "Null" };
+}
+export function makePathValue(payload: PathPayload): PathValue {
+    payload = copyPathPayload(payload);
+    if (payload.points.length === 0) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: payload };
+}
+export function pathIsNull(input: PathValue): BoolValue {
+    input = copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return makeBoolValue(true);
+    }
+    return makeBoolValue(false);
+}
+export function pathFromCaseGuard(input: CheckOutcome): PathValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
 }
 export type CircleValue = {
     readonly kind: "Unknown";

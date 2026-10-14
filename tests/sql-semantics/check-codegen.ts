@@ -19,6 +19,7 @@ export type GoCheckCase = {
   xid8Columns?: readonly string[]
   oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
+  pathColumns?: readonly string[]
   circleColumns?: readonly string[]
   boxColumns?: readonly string[]
   numericColumns?: readonly string[]
@@ -66,6 +67,7 @@ export function renderGoCheckTests(
       xid8Columns,
       oidColumns,
       moneyColumns,
+      pathColumns,
       circleColumns,
       boxColumns,
       timeColumns,
@@ -172,6 +174,34 @@ export function renderGoCheckTests(
           go.selector(go.ident('checkruntime'), money === null ? 'MoneyNull' : 'MakeMoneyValue'),
           money === null ? [] : [go.number(money)],
         )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
+        continue
+      }
+      if (options.dateRuntime && pathColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const path = value as { closed: boolean; points: { x: bigint; y: bigint }[] } | null
+        const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
+        const wrapped =
+          path === null
+            ? go.call(runtime('PathNull'), [])
+            : go.call(runtime('MakePathValue'), [
+                go.composite(runtime('PathPayload'), [
+                  go.keyValue('Closed', go.ident(String(path.closed))),
+                  go.keyValue(
+                    'Points',
+                    go.composite(
+                      go.slice(runtime('PointPayload')),
+                      path.points.map((point) =>
+                        go.composite(runtime('PointPayload'), [
+                          go.keyValue('X', go.number(point.x)),
+                          go.keyValue('Y', go.number(point.y)),
+                          go.keyValue('WireKnown', go.ident('true')),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ]),
+              ])
         statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }

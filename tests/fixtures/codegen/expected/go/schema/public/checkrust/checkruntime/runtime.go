@@ -1282,6 +1282,11 @@ type PointPayload struct {
 	Y         int64
 	WireKnown bool
 }
+
+func copyPointPayload(value PointPayload) PointPayload {
+	return PointPayload{X: value.X, Y: value.Y, WireKnown: value.WireKnown}
+}
+
 type PointValueKind uint8
 
 const (
@@ -1486,6 +1491,78 @@ type CirclePayload struct {
 	Radius    int64
 	WireKnown bool
 }
+type PathPayload struct {
+	Closed bool
+	Points []PointPayload
+}
+
+func CopyPathPayload(value PathPayload) PathPayload {
+	return PathPayload{Closed: value.Closed, Points: langruntime.CheckedStructs(value.Points, copyPointPayload)}
+}
+
+type PathValueKind uint8
+
+const (
+	PathValueUnknown PathValueKind = iota
+	PathValueNull
+	PathValueValue
+	PathValueError
+)
+
+type PathValue struct {
+	Kind  PathValueKind
+	Value PathPayload
+	Error SqlError
+}
+
+func CopyPathValue(value PathValue) PathValue {
+	switch value.Kind {
+	case PathValueUnknown:
+		return PathValue{Kind: PathValueUnknown}
+	case PathValueNull:
+		return PathValue{Kind: PathValueNull}
+	case PathValueValue:
+		return PathValue{Kind: PathValueValue, Value: CopyPathPayload(value.Value)}
+	case PathValueError:
+		return PathValue{Kind: PathValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func PathUnknown() PathValue {
+	return PathValue{Kind: PathValueUnknown}
+}
+func PathNull() PathValue {
+	return PathValue{Kind: PathValueNull}
+}
+func MakePathValue(payload PathPayload) PathValue {
+	payload = CopyPathPayload(payload)
+	if len(payload.Points) == 0 {
+		return PathValue{Kind: PathValueUnknown}
+	}
+	return PathValue{Kind: PathValueValue, Value: payload}
+}
+func PathIsNull(input PathValue) BoolValue {
+	input = CopyPathValue(input)
+	if input.Kind == PathValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == PathValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == PathValueNull {
+		return MakeBoolValue(true)
+	}
+	return MakeBoolValue(false)
+}
+func PathFromCaseGuard(input CheckOutcome) PathValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return PathValue{Kind: PathValueError, Error: error}
+	}
+	return PathValue{Kind: PathValueUnknown}
+}
+
 type CircleValueKind uint8
 
 const (

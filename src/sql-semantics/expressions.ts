@@ -42,6 +42,7 @@ export const isOidAliasType = (type: string | null | undefined): type is OidAlia
   oidAliasTypes.some((candidate) => candidate === type)
 export const isOidType = (type: string | null | undefined): type is OidType =>
   type === 'pg_catalog.oid' || isOidAliasType(type)
+export type PathType = 'pg_catalog.path'
 export type CircleType = 'pg_catalog.circle'
 export type BoxType = 'pg_catalog.box'
 export type UuidType = 'pg_catalog.uuid'
@@ -84,6 +85,7 @@ export type ScalarType =
   | TidType
   | Xid8Type
   | OidType
+  | PathType
   | CircleType
   | BoxType
   | 'pg_catalog.bool'
@@ -333,6 +335,7 @@ export type SqlExpression =
   | { kind: 'tid'; type: TidType; value: string | null }
   | { kind: 'xid8'; type: Xid8Type; value: string | null }
   | { kind: 'oid'; type: OidType; value: string | null }
+  | { kind: 'path'; type: PathType; value: string | null }
   | { kind: 'circle'; type: CircleType; value: string | null }
   | { kind: 'box'; type: BoxType; value: string | null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
@@ -1013,6 +1016,10 @@ export function emitSqlExpression<Ast>(
     }
     if (node.kind === 'oid') {
       if (node.value !== null) throw new Error('Oid literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'path') {
+      if (node.value !== null) throw new Error('Path literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'circle') {

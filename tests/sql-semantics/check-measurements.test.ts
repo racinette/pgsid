@@ -182,6 +182,7 @@ describe('CHECK measurement boundaries', () => {
     expect(valueRepresentation('real').represented).toBe(true)
     expect(valueRepresentation('integer').represented).toBe(true)
     expect(valueRepresentation('point').represented).toBe(true)
+    expect(valueRepresentation('path').represented).toBe(true)
     expect(valueRepresentation('circle').represented).toBe(true)
     expect(valueRepresentation('money').represented).toBe(true)
     expect(valueRepresentation('oid').represented).toBe(true)

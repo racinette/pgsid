@@ -60,6 +60,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.tid') return 'TidValue'
   if (type === 'pg_catalog.xid8') return 'Xid8Value'
   if (isOidType(type)) return 'OidValue'
+  if (type === 'pg_catalog.path') return 'PathValue'
   if (type === 'pg_catalog.circle') return 'CircleValue'
   if (type === 'pg_catalog.box') return 'BoxValue'
   if (type === 'pg_catalog."numeric"') return 'NumericValue'
@@ -191,7 +192,9 @@ export function emitCheckRustEvaluator(
       .map((item) => `${item.rustName}: ${item.rustType}`)
       .join(', ')
   const ownedOperand = (operand: { name: string; type: string }): string =>
-    ['TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(rustType(operand.type))
+    ['PathValue', 'TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(
+      rustType(operand.type),
+    )
       ? `${operand.name}.clone()`
       : operand.name
   const scalarType = (operand: EvalExpression): string =>
@@ -683,6 +686,7 @@ export function emitCheckRustEvaluator(
       node.kind === 'text-to-point' ||
       node.kind === 'text-to-line' ||
       node.kind === 'text-to-lseg' ||
+      node.kind === 'text-to-path' ||
       node.kind === 'text-to-circle' ||
       node.kind === 'text-to-box'
     ) {
@@ -697,15 +701,17 @@ export function emitCheckRustEvaluator(
           'Geometric input requires text and its catalog I/O identity',
         )
       const helper =
-        node.kind === 'text-to-circle'
-          ? 'circle_from_text'
-          : node.kind === 'text-to-box'
-            ? 'box_from_text'
-            : node.kind === 'text-to-lseg'
-              ? 'lseg_from_text'
-              : node.kind === 'text-to-line'
-                ? 'line_from_text'
-                : 'point_from_text'
+        node.kind === 'text-to-path'
+          ? 'path_from_text'
+          : node.kind === 'text-to-circle'
+            ? 'circle_from_text'
+            : node.kind === 'text-to-box'
+              ? 'box_from_text'
+              : node.kind === 'text-to-lseg'
+                ? 'lseg_from_text'
+                : node.kind === 'text-to-line'
+                  ? 'line_from_text'
+                  : 'point_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'text-to-float') {
@@ -930,6 +936,11 @@ export function emitCheckRustEvaluator(
           type: value.type,
         }
       }
+      if (value.kind === 'path') {
+        if (value.value === null) return { name: bind('path_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`path_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'circle') {
         if (value.value === null) return { name: bind('circle_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -1081,6 +1092,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog."char"',
           'pg_catalog.xid8',
           'pg_catalog.oid',
+          'pg_catalog.path',
           'pg_catalog.circle',
           'pg_catalog.box',
           'pg_catalog."numeric"',
@@ -1423,7 +1435,7 @@ export function emitCheckRustEvaluator(
       bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
       for (const operand of operands.slice(1)) {
         const nullness = bind(
-          `${prefix}_is_null(${['TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(kind) ? `${name}.clone()` : name})`,
+          `${prefix}_is_null(${['PathValue', 'TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(kind) ? `${name}.clone()` : name})`,
         )
         const guard = bind(`check_from_bool(${nullness})`)
         bindings.push(

@@ -548,3 +548,12 @@ import them. Keep schema-only helpers with their callables.
   High-bit hashes require native C char signedness; raw zero or high-bit bpchar
   output cannot enter the UTF8 text representation. Run internal char parity,
   public payload, raw write and protocol-byte INSERT suites.
+
+- Paths retain an owned ordered point list and the open/closed flag. SQL equality
+  and ordering compare point counts; opening and closing copy the value without
+  reordering points. Binary output preserves individual coordinate carriers.
+  Length includes the closing edge first for closed paths; area returns NULL for
+  open paths and preserves each checked floating operation. Text input shares
+  geometric number parsing and retains flat and delimited path forms. Raw query
+  parameters defer database coercion. Run path core, payload and write suites and
+  route-plan INSERT cases.

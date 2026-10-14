@@ -315,9 +315,11 @@ pub fn make_name_text_value(value: &str) -> TextValue {
     let mut index: usize = 0;
     while index < chars.len() {
         let code = chars[index] as i32;
-        if code == 0 || (code >= 55296 && code <= 57343) { return TextValue::Unknown; };
+        if code == 0 || (code >= 55296 && code <= 57343) {
+            return TextValue::Unknown;
+        };
         index += 1;
-    };
+    }
     TextValue::Value(value.to_owned())
 }
 
@@ -1387,13 +1389,57 @@ pub fn box_from_case_guard(input: CheckOutcome) -> BoxValue {
     BoxValue::Unknown
 }
 
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct CirclePayload {
     pub x: i64,
     pub y: i64,
     pub radius: i64,
     pub wire_known: bool,
+}
+
+#[derive(Clone)]
+pub struct PathPayload {
+    pub closed: bool,
+    pub points: Vec<PointPayload>,
+}
+
+#[derive(Clone)]
+pub enum PathValue {
+    Unknown,
+    Null,
+    Value(PathPayload),
+    Error(SqlError),
+}
+
+pub fn path_unknown() -> PathValue {
+    PathValue::Unknown
+}
+pub fn path_null() -> PathValue {
+    PathValue::Null
+}
+pub fn make_path_value(payload: PathPayload) -> PathValue {
+    if payload.points.len() == 0 {
+        return PathValue::Unknown;
+    };
+    PathValue::Value(payload)
+}
+pub fn path_is_null(input: PathValue) -> BoolValue {
+    if let PathValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if let PathValue::Unknown = input {
+        return BoolValue::Unknown;
+    };
+    if let PathValue::Null = input {
+        return make_bool_value(true);
+    };
+    make_bool_value(false)
+}
+pub fn path_from_case_guard(input: CheckOutcome) -> PathValue {
+    if let CheckOutcome::Error(error) = input {
+        return PathValue::Error(error);
+    };
+    PathValue::Unknown
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CircleValue {
@@ -1703,9 +1749,10 @@ pub fn tid_from_case_guard(input: CheckOutcome) -> TidValue {
     TidValue::Unknown
 }
 
-
 pub fn make_tid_parts(block: i64, offset: i32) -> TidValue {
-    if block < 0i64 || block > 4294967295i64 || offset < 0 || offset > 65535 { return TidValue::Unknown; };
+    if block < 0i64 || block > 4294967295i64 || offset < 0 || offset > 65535 {
+        return TidValue::Unknown;
+    };
     let low = offset as i64;
     make_tid_value(block * 65536i64 + low)
 }

@@ -122,6 +122,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     regrole: 'pg_catalog.regrole',
     regtype: 'pg_catalog.regtype',
     oid: 'pg_catalog.oid',
+    path: 'pg_catalog.path',
     circle: 'pg_catalog.circle',
     box: 'pg_catalog.box',
     uuid: 'pg_catalog.uuid',
@@ -271,6 +272,14 @@ export function catalogOidType(
   return isOidType(catalogBaseScalarType(name, oid, domains))
 }
 
+export function catalogPathType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.path'
+}
+
 export function catalogCircleType(
   name: string,
   oid: number | undefined,
@@ -394,6 +403,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     (literal.kind === 'string' || literal.kind === 'integer' || literal.kind === 'null')
   )
     return { kind: 'oid', type, value: literal.value }
+  if (type === 'pg_catalog.path' && (literal.kind === 'string' || literal.kind === 'null'))
+    return { kind: 'path', type, value: literal.value }
   if (type === 'pg_catalog.circle' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'circle', type, value: literal.value }
   if (type === 'pg_catalog.box' && (literal.kind === 'string' || literal.kind === 'null'))
@@ -1349,6 +1360,7 @@ export function bindCatalogCheck(
           domainType !== 'pg_catalog."char"' &&
           domainType !== 'pg_catalog.xid8' &&
           !isOidType(domainType) &&
+          domainType !== 'pg_catalog.path' &&
           domainType !== 'pg_catalog.circle' &&
           domainType !== 'pg_catalog.box'
         )
@@ -1839,6 +1851,14 @@ export function bindCatalogCheck(
       ) {
         const text = materialize(operand, 'pg_catalog.text')
         return text ? { type, value: { kind: 'text-to-oid', type, operand: text } } : unknown
+      }
+      if (
+        type === 'pg_catalog.path' &&
+        (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
+        operand.value
+      ) {
+        const text = materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-path', type, operand: text } } : unknown
       }
       if (
         type === 'pg_catalog.circle' &&
@@ -2591,6 +2611,7 @@ export function bindCatalogCheck(
         name === 'tid' ||
         name === 'xid8' ||
         name === 'oid' ||
+        name === 'path' ||
         name === 'circle' ||
         name === 'box') &&
       args.length === 1 &&
@@ -2611,6 +2632,7 @@ export function bindCatalogCheck(
         | 'pg_catalog.tid'
         | 'pg_catalog.xid8'
         | 'pg_catalog.oid'
+        | 'pg_catalog.path'
         | 'pg_catalog.circle'
         | 'pg_catalog.box'
       const value = materialize(args[0]!, type)
@@ -2660,6 +2682,7 @@ export function bindCatalogCheck(
           'tid',
           'xid8',
           'oid',
+          'path',
           'circle',
           'box',
           'bit',
@@ -2684,6 +2707,7 @@ export function bindCatalogCheck(
           | 'pg_catalog.tid'
           | 'pg_catalog.xid8'
           | 'pg_catalog.oid'
+          | 'pg_catalog.path'
           | 'pg_catalog.circle'
           | 'pg_catalog.box'
           | 'pg_catalog.bytea'
@@ -2718,41 +2742,54 @@ export function bindCatalogCheck(
                             ? { type, value: { kind: 'text-to-xid8', type, operand: text } }
                             : type === 'pg_catalog.oid'
                               ? { type, value: { kind: 'text-to-oid', type, operand: text } }
-                              : type === 'pg_catalog.circle'
-                                ? { type, value: { kind: 'text-to-circle', type, operand: text } }
-                                : type === 'pg_catalog.box'
-                                  ? { type, value: { kind: 'text-to-box', type, operand: text } }
-                                  : type === 'pg_catalog.lseg'
-                                    ? { type, value: { kind: 'text-to-lseg', type, operand: text } }
-                                    : type === 'pg_catalog.line'
+                              : type === 'pg_catalog.path'
+                                ? { type, value: { kind: 'text-to-path', type, operand: text } }
+                                : type === 'pg_catalog.circle'
+                                  ? { type, value: { kind: 'text-to-circle', type, operand: text } }
+                                  : type === 'pg_catalog.box'
+                                    ? { type, value: { kind: 'text-to-box', type, operand: text } }
+                                    : type === 'pg_catalog.lseg'
                                       ? {
                                           type,
-                                          value: { kind: 'text-to-line', type, operand: text },
+                                          value: { kind: 'text-to-lseg', type, operand: text },
                                         }
-                                      : type === 'pg_catalog.point'
+                                      : type === 'pg_catalog.line'
                                         ? {
                                             type,
-                                            value: { kind: 'text-to-point', type, operand: text },
+                                            value: { kind: 'text-to-line', type, operand: text },
                                           }
-                                        : type === 'pg_catalog.uuid'
+                                        : type === 'pg_catalog.point'
                                           ? {
                                               type,
-                                              value: { kind: 'text-to-uuid', type, operand: text },
+                                              value: { kind: 'text-to-point', type, operand: text },
                                             }
-                                          : type === 'pg_catalog.macaddr' ||
-                                              type === 'pg_catalog.macaddr8'
+                                          : type === 'pg_catalog.uuid'
                                             ? {
                                                 type,
-                                                value: { kind: 'text-to-mac', type, operand: text },
-                                              }
-                                            : {
-                                                type,
                                                 value: {
-                                                  kind: 'text-to-network',
+                                                  kind: 'text-to-uuid',
                                                   type,
                                                   operand: text,
                                                 },
                                               }
+                                            : type === 'pg_catalog.macaddr' ||
+                                                type === 'pg_catalog.macaddr8'
+                                              ? {
+                                                  type,
+                                                  value: {
+                                                    kind: 'text-to-mac',
+                                                    type,
+                                                    operand: text,
+                                                  },
+                                                }
+                                              : {
+                                                  type,
+                                                  value: {
+                                                    kind: 'text-to-network',
+                                                    type,
+                                                    operand: text,
+                                                  },
+                                                }
             : unknown
         }
         const value = materialize(operand, type)

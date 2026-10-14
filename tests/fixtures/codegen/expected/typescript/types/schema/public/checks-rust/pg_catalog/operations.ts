@@ -18057,6 +18057,358 @@ function oidInputDigit(ch: string): bigint {
     }
     return -1n;
 }
+function pathCardinalityRelation(left: checkruntime.PathValue, right: checkruntime.PathValue, mode: number): checkruntime.BoolValue {
+    left = checkruntime.copyPathValue(left);
+    right = checkruntime.copyPathValue(right);
+    mode = langruntime.checkedI32(mode);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PathPayload = checkruntime.copyPathPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.PathPayload = checkruntime.copyPathPayload(right.value);
+            const x: number = a.points.length;
+            const y: number = b.points.length;
+            if (mode === 0) {
+                return checkruntime.makeBoolValue(x === y);
+            }
+            if (mode === 1) {
+                return checkruntime.makeBoolValue(x < y);
+            }
+            if (mode === 2) {
+                return checkruntime.makeBoolValue(x > y);
+            }
+            if (mode === 3) {
+                return checkruntime.makeBoolValue(x <= y);
+            }
+            return checkruntime.makeBoolValue(x >= y);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function pathNEq5m92(left: checkruntime.PathValue, right: checkruntime.PathValue): checkruntime.BoolValue {
+    left = checkruntime.copyPathValue(left);
+    right = checkruntime.copyPathValue(right);
+    return pathCardinalityRelation(left, right, 0);
+}
+export function pathNLt7sim(left: checkruntime.PathValue, right: checkruntime.PathValue): checkruntime.BoolValue {
+    left = checkruntime.copyPathValue(left);
+    right = checkruntime.copyPathValue(right);
+    return pathCardinalityRelation(left, right, 1);
+}
+export function pathNGtRggu(left: checkruntime.PathValue, right: checkruntime.PathValue): checkruntime.BoolValue {
+    left = checkruntime.copyPathValue(left);
+    right = checkruntime.copyPathValue(right);
+    return pathCardinalityRelation(left, right, 2);
+}
+export function pathNLe60qb(left: checkruntime.PathValue, right: checkruntime.PathValue): checkruntime.BoolValue {
+    left = checkruntime.copyPathValue(left);
+    right = checkruntime.copyPathValue(right);
+    return pathCardinalityRelation(left, right, 3);
+}
+export function pathNGeTah4(left: checkruntime.PathValue, right: checkruntime.PathValue): checkruntime.BoolValue {
+    left = checkruntime.copyPathValue(left);
+    right = checkruntime.copyPathValue(right);
+    return pathCardinalityRelation(left, right, 4);
+}
+export function isclosedJ43z(input: checkruntime.PathValue): checkruntime.BoolValue {
+    input = checkruntime.copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const path: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        return checkruntime.makeBoolValue(path.closed);
+    }
+    return { kind: "Unknown" };
+}
+export function isopenKqm6(input: checkruntime.PathValue): checkruntime.BoolValue {
+    input = checkruntime.copyPathValue(input);
+    return boolneZlce(isclosedJ43z(input), checkruntime.makeBoolValue(true));
+}
+export function npoints0pt7(input: checkruntime.PathValue): checkruntime.Int4Value {
+    input = checkruntime.copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const path: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(path.points.length)));
+    }
+    return { kind: "Unknown" };
+}
+export function pathNpointsPyxd(input: checkruntime.PathValue): checkruntime.Int4Value {
+    input = checkruntime.copyPathValue(input);
+    return npoints0pt7(input);
+}
+function pathSetClosed(input: checkruntime.PathValue, closed: boolean): checkruntime.PathValue {
+    input = checkruntime.copyPathValue(input);
+    closed = langruntime.checkedBool(closed);
+    if (input.kind === "Value") {
+        const path: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        return { kind: "Value", value: { closed: closed, points: path.points } };
+    }
+    return input;
+}
+export function popenWy9h(input: checkruntime.PathValue): checkruntime.PathValue {
+    input = checkruntime.copyPathValue(input);
+    return pathSetClosed(input, false);
+}
+export function pclose17wh(input: checkruntime.PathValue): checkruntime.PathValue {
+    input = checkruntime.copyPathValue(input);
+    return pathSetClosed(input, true);
+}
+export function pathSendTszn(input: checkruntime.PathValue): checkruntime.ByteaValue {
+    input = checkruntime.copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const path: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        const maximum: number = langruntime.indexFromI32(langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(byteaMaxLength, 5)), 16), 0);
+        if (path.points.length > maximum) {
+            return { kind: "Error", value: checkruntime.makeSqlError(byteaAllocationError) };
+        }
+        let output: string = "";
+        if (path.closed) {
+            output = output + "01";
+        }
+        else {
+            output = output + "00";
+        }
+        const count: checkruntime.ByteaValue = binarySendBits(checkruntime.makeInt8Value(BigInt(langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(path.points.length))))), 4);
+        if (count.kind === "Value") {
+            const bytes: string = langruntime.checkedString(count.value);
+            output = output + bytes;
+        }
+        let index: number = 0;
+        while (index < path.points.length) {
+            const point: checkruntime.PointValue = { kind: "Value", value: langruntime.indexStruct(path.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload) };
+            const encoded: checkruntime.ByteaValue = pointSendKuoa(point);
+            if (encoded.kind === "Error") {
+                const error: checkruntime.SqlError = encoded.value;
+                return { kind: "Error", value: error };
+            }
+            if (checkruntime.equalByteaValue(encoded, { kind: "Unknown" }) || checkruntime.equalByteaValue(encoded, { kind: "Null" })) {
+                return { kind: "Unknown" };
+            }
+            if (encoded.kind === "Value") {
+                const bytes: string = langruntime.checkedString(encoded.value);
+                output = output + bytes;
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function pathLengthFjk7(input: checkruntime.PathValue): checkruntime.Float8Value {
+    input = checkruntime.copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const path: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        let result: checkruntime.Float8Value = checkruntime.makeFloat8Value(0.0);
+        let index: number = 0;
+        if (path.closed === false) {
+            index = langruntime.checkedIndex(1);
+        }
+        while (index < path.points.length) {
+            let previous: number = langruntime.checkedSubtract(path.points.length, 1);
+            if (index > 0) {
+                previous = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+            }
+            const distance: checkruntime.Float8Value = pointDistance2haq({ kind: "Value", value: langruntime.indexStruct(path.points, langruntime.checkedIndex(previous), checkruntime.copyPointPayload) }, { kind: "Value", value: langruntime.indexStruct(path.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload) });
+            result = float8plG3ou(result, distance);
+            if (result.kind === "Error") {
+                const error: checkruntime.SqlError = result.value;
+                return { kind: "Error", value: error };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return boxComputedScalar(result);
+    }
+    return { kind: "Unknown" };
+}
+export function lengthJatg(input: checkruntime.PathValue): checkruntime.Float8Value {
+    input = checkruntime.copyPathValue(input);
+    return pathLengthFjk7(input);
+}
+export function areaPh6t(input: checkruntime.PathValue): checkruntime.Float8Value {
+    input = checkruntime.copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const path: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        if (path.closed === false) {
+            return { kind: "Null" };
+        }
+        let result: checkruntime.Float8Value = checkruntime.makeFloat8Value(0.0);
+        let index: number = 0;
+        while (index < path.points.length) {
+            let next: number = langruntime.checkedAdd(index, 1);
+            if (next === path.points.length) {
+                next = langruntime.checkedIndex(0);
+            }
+            const first: checkruntime.Float8Value = float8mulD3nd(lineOriginCoordinate(langruntime.indexStruct(path.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload), false), lineOriginCoordinate(langruntime.indexStruct(path.points, langruntime.checkedIndex(next), checkruntime.copyPointPayload), true));
+            result = float8plG3ou(result, first);
+            if (result.kind === "Error") {
+                const error: checkruntime.SqlError = result.value;
+                return { kind: "Error", value: error };
+            }
+            const second: checkruntime.Float8Value = float8mulD3nd(lineOriginCoordinate(langruntime.indexStruct(path.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload), true), lineOriginCoordinate(langruntime.indexStruct(path.points, langruntime.checkedIndex(next), checkruntime.copyPointPayload), false));
+            result = float8miR1nu(result, second);
+            if (result.kind === "Error") {
+                const error: checkruntime.SqlError = result.value;
+                return { kind: "Error", value: error };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        const absolute: checkruntime.Float8Value = float8absFq86(result);
+        return boxComputedScalar(float8divKumj(absolute, checkruntime.makeFloat8Value(2.0)));
+    }
+    return { kind: "Unknown" };
+}
+function pathParse(value: string): checkruntime.PathValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 4096) {
+        return { kind: "Unknown" };
+    }
+    const source: GeometryInputText = { chars: chars };
+    let commas: number = 0;
+    let lastParen: number = 0;
+    let scan: number = 0;
+    while (scan < source.chars.length) {
+        if (langruntime.indexChar(source.chars, langruntime.checkedIndex(scan)) === ",") {
+            commas = langruntime.checkedI32(langruntime.checkedSignedAdd(commas, 1));
+        }
+        if (langruntime.indexChar(source.chars, langruntime.checkedIndex(scan)) === "(") {
+            lastParen = langruntime.checkedIndex(scan);
+        }
+        scan = langruntime.checkedAdd(scan, 1);
+    }
+    if (langruntime.checkedSignedRemainder(commas, 2) === 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+    }
+    const count: number = langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(commas, 1)), 2);
+    let index: number = geometryInputSpace(source, 0);
+    let outer: boolean = false;
+    if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "(" && lastParen === index) {
+        outer = langruntime.checkedBool(true);
+        index = langruntime.checkedIndex(geometryInputSpace(source, langruntime.checkedAdd(index, 1)));
+    }
+    let open: boolean = false;
+    let depth: number = 0;
+    if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "[") {
+        open = langruntime.checkedBool(true);
+        depth = langruntime.checkedIndex(1);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    else if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "(") {
+        const next: number = geometryInputSpace(source, langruntime.checkedAdd(index, 1));
+        if (next < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(next)) === "(") {
+            depth = langruntime.checkedIndex(1);
+            index = langruntime.checkedIndex(next);
+        }
+        else if (lastParen === index) {
+            depth = langruntime.checkedIndex(1);
+            index = langruntime.checkedIndex(next);
+        }
+    }
+    let points: checkruntime.PointPayload[] = [];
+    let number: number = 0;
+    while (number < count) {
+        const parsed: GeometryInputPoint = copyGeometryInputPoint(geometryReadPoint(source, index));
+        const point: checkruntime.PointValue = parsed.value;
+        if (point.kind === "Error") {
+            const error: checkruntime.SqlError = point.value;
+            return { kind: "Error", value: error };
+        }
+        if (checkruntime.equalPointValue(point, { kind: "Unknown" })) {
+            return { kind: "Unknown" };
+        }
+        if (point.kind === "Value") {
+            const payload: checkruntime.PointPayload = point.value;
+            langruntime.pushStruct(points, payload, checkruntime.copyPointPayload);
+        }
+        index = langruntime.checkedIndex(parsed.end);
+        if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ",") {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        number = langruntime.checkedI32(langruntime.checkedSignedAdd(number, 1));
+    }
+    if (depth === 1) {
+        if (index >= source.chars.length || (!(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ")") && (open === false || !(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "]")))) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+        }
+        index = langruntime.checkedIndex(geometryInputSpace(source, langruntime.checkedAdd(index, 1)));
+    }
+    if (outer) {
+        if (index >= source.chars.length || !(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ")")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+        }
+        index = langruntime.checkedIndex(geometryInputSpace(source, langruntime.checkedAdd(index, 1)));
+    }
+    if (!(index === source.chars.length)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+    }
+    return checkruntime.makePathValue({ closed: open === false, points: points });
+}
+export function pathFromText(input: checkruntime.TextValue): checkruntime.PathValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return pathParse(value);
+    }
+    return { kind: "Unknown" };
+}
 const pgLsnSpecialError = 466560;
 const pgLsnRangeError = 3452619;
 function pgLsnCompare(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.Int4Value {
