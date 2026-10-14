@@ -1621,3 +1621,45 @@ pub fn pg_lsn_from_case_guard(input: CheckOutcome) -> PgLsnValue {
     };
     PgLsnValue::Unknown
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum TidValue {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+pub fn tid_unknown() -> TidValue {
+    TidValue::Unknown
+}
+pub fn tid_null() -> TidValue {
+    TidValue::Null
+}
+pub fn make_tid_value(units: i64) -> TidValue {
+    if units < 0i64 || units > 281474976710655i64 {
+        return TidValue::Unknown;
+    };
+    TidValue::Value(units)
+}
+pub fn tid_is_null(input: TidValue) -> BoolValue {
+    if let TidValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == TidValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == TidValue::Null)
+}
+pub fn tid_from_case_guard(input: CheckOutcome) -> TidValue {
+    if let CheckOutcome::Error(error) = input {
+        return TidValue::Error(error);
+    };
+    TidValue::Unknown
+}
+
+
+pub fn make_tid_parts(block: i64, offset: i32) -> TidValue {
+    if block < 0i64 || block > 4294967295i64 || offset < 0 || offset > 65535 { return TidValue::Unknown; };
+    let low = offset as i64;
+    make_tid_value(block * 65536i64 + low)
+}

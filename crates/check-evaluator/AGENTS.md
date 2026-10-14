@@ -513,3 +513,13 @@ import them. Keep schema-only helpers with their callables.
   conversion as a function rather than a numeric cast. Public inputs preserve
   already-coerced addresses; raw query strings reach database coercion. Run the WAL
   location parity, public payload, raw write and WAL record INSERT suites.
+
+- Heap tuple identifiers retain an unsigned block number and offset in a packed
+  scalar carrier. Binary output writes the block before the offset; comparison
+  orders both unsigned fields. Text input preserves legacy prefix, delimiter and
+  suffix handling. Native unsigned-long boundary forms and libc no-conversion
+  behavior defer; definite syntax and range failures retain invalid-text errors.
+  Hashes retain definite results for zero offsets with matching block halfwords;
+  other hash inputs require PostgreSQL native byte order. Heap lookup requires
+  relation and snapshot state. Run tuple-pointer parity, public payload, raw write
+  and heap record INSERT suites.

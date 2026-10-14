@@ -1979,6 +1979,65 @@ export function pgLsnFromCaseGuard(input: CheckOutcome): PgLsnValue {
     }
     return { kind: "Unknown" };
 }
+export type TidValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: bigint;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalTidValue(left: TidValue, right: TidValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function tidUnknown(): TidValue {
+    return { kind: "Unknown" };
+}
+export function tidNull(): TidValue {
+    return { kind: "Null" };
+}
+export function makeTidValue(units: bigint): TidValue {
+    units = langruntime.checkedI64(units);
+    if (units < 0n || units > 281474976710655n) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: units };
+}
+export function tidIsNull(input: TidValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTidValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalTidValue(input, { kind: "Null" }));
+}
+export function tidFromCaseGuard(input: CheckOutcome): TidValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function makeTidParts(block: bigint, offset: number): TidValue {
+    block = langruntime.checkedI64(block);
+    offset = langruntime.checkedI32(offset);
+    if (block < 0n || block > 4294967295n || offset < 0 || offset > 65535) {
+        return { kind: "Unknown" };
+    }
+    const low: bigint = BigInt(langruntime.checkedI32(offset));
+    return makeTidValue(langruntime.checkedI64Add(langruntime.checkedI64Multiply(block, 65536n), low));
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

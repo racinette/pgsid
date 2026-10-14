@@ -1,3 +1,7 @@
+import {
+  tidInputForms,
+  deferredTidPlatformForms,
+} from '../../tests/sql-semantics/check-tid-input-forms.js'
 import { pgLsnInputForms } from '../../tests/sql-semantics/check-pg-lsn-input-forms.js'
 import {
   identifier32InputForms,
@@ -60,6 +64,16 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.tid',
+    suite: 'tests/sql-semantics/check-tid.test.ts',
+    handled: tidInputForms,
+    deferred: deferredTidPlatformForms,
+    platformDependent: deferredTidPlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+  },
   {
     type: 'pg_catalog.pg_lsn',
     suite: 'tests/sql-semantics/check-pg-lsn.test.ts',

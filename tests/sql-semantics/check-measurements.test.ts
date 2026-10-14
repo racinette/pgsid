@@ -186,6 +186,7 @@ describe('CHECK measurement boundaries', () => {
     expect(valueRepresentation('money').represented).toBe(true)
     expect(valueRepresentation('oid').represented).toBe(true)
     expect(valueRepresentation('pg_lsn').represented).toBe(true)
+    expect(valueRepresentation('tid').represented).toBe(true)
     for (const type of ['xid', 'cid', 'xid8'])
       expect(valueRepresentation(type).represented).toBe(true)
     for (const type of ['time', 'timetz', 'interval'])

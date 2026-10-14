@@ -10,6 +10,7 @@ import {
   catalogXidType,
   catalogCidType,
   catalogPgLsnType,
+  catalogTidType,
   catalogXid8Type,
   catalogOidType,
   catalogCircleType,
@@ -240,6 +241,7 @@ export function planCheckInputs(
     if (catalogXidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogCidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogPgLsnType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogTidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogXid8Type(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogOidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogCircleType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []

@@ -12,6 +12,7 @@ import {
   catalogXidType,
   catalogCidType,
   catalogPgLsnType,
+  catalogTidType,
   catalogXid8Type,
   catalogOidType,
   catalogCircleType,
@@ -69,6 +70,7 @@ export function renderTypescriptSchemaCheckArtifacts(
     if (catalogXidType(name, oid, domains)) return 'XidValue'
     if (catalogCidType(name, oid, domains)) return 'CidValue'
     if (catalogPgLsnType(name, oid, domains)) return 'PgLsnValue'
+    if (catalogTidType(name, oid, domains)) return 'TidValue'
     if (catalogXid8Type(name, oid, domains)) return 'Xid8Value'
     if (catalogOidType(name, oid, domains)) return 'OidValue'
     if (catalogCircleType(name, oid, domains)) return 'CircleValue'
@@ -165,6 +167,7 @@ export function renderTypescriptSchemaCheckArtifacts(
               'XidValue',
               'CidValue',
               'PgLsnValue',
+              'TidValue',
               'Xid8Value',
               'OidValue',
               'CircleValue',
@@ -195,68 +198,72 @@ export function renderTypescriptSchemaCheckArtifacts(
                 ? 'checkRustCid'
                 : item.rustType === 'PgLsnValue'
                   ? 'checkRustPgLsn'
-                  : item.rustType === 'Xid8Value'
-                    ? 'checkRustXid8'
-                    : item.rustType === 'OidValue'
-                      ? 'checkRustOid'
-                      : item.rustType === 'MoneyValue'
-                        ? 'checkRustMoney'
-                        : item.rustType === 'CircleValue'
-                          ? 'checkRustCircle'
-                          : item.rustType === 'BoxValue'
-                            ? 'checkRustBox'
-                            : item.rustType === 'LsegValue'
-                              ? 'checkRustLseg'
-                              : item.rustType === 'LineValue'
-                                ? 'checkRustLine'
-                                : item.rustType === 'PointValue'
-                                  ? 'checkRustPoint'
-                                  : item.rustType === 'TimeValue'
-                                    ? 'checkRustTime'
-                                    : item.rustType === 'TimetzValue'
-                                      ? 'checkRustTimetz'
-                                      : item.rustType === 'IntervalValue'
-                                        ? 'checkRustInterval'
-                                        : item.rustType === 'Float4Value'
-                                          ? 'checkRustFloat4'
-                                          : item.rustType === 'Float8Value'
-                                            ? 'checkRustFloat8'
-                                            : item.rustType === 'BitValue'
-                                              ? 'checkRustBit'
-                                              : item.rustType === 'UuidValue'
-                                                ? 'checkRustUuid'
-                                                : item.rustType === 'ByteaValue'
-                                                  ? 'checkRustBytea'
-                                                  : item.rustType === 'MacaddrValue'
-                                                    ? 'checkRustMacaddr'
-                                                    : item.rustType === 'Macaddr8Value'
-                                                      ? 'checkRustMacaddr8'
-                                                      : item.rustType === 'NetworkValue'
-                                                        ? 'checkRustNetwork'
-                                                        : item.rustType === 'NumericValue'
-                                                          ? 'checkRustNumeric'
-                                                          : item.rustType === 'DateValue'
-                                                            ? 'checkRustDate'
-                                                            : item.rustType === 'TimestampValue'
-                                                              ? 'checkRustTimestamp'
-                                                              : item.rustType === 'TimestamptzValue'
-                                                                ? 'checkRustTimestamptz'
-                                                                : item.nullness
-                                                                  ? 'checkRustNullness'
-                                                                  : item.enum
-                                                                    ? 'checkRustEnum'
-                                                                    : item.rustType === 'Int2Value'
-                                                                      ? 'checkRustInt2'
+                  : item.rustType === 'TidValue'
+                    ? 'checkRustTid'
+                    : item.rustType === 'Xid8Value'
+                      ? 'checkRustXid8'
+                      : item.rustType === 'OidValue'
+                        ? 'checkRustOid'
+                        : item.rustType === 'MoneyValue'
+                          ? 'checkRustMoney'
+                          : item.rustType === 'CircleValue'
+                            ? 'checkRustCircle'
+                            : item.rustType === 'BoxValue'
+                              ? 'checkRustBox'
+                              : item.rustType === 'LsegValue'
+                                ? 'checkRustLseg'
+                                : item.rustType === 'LineValue'
+                                  ? 'checkRustLine'
+                                  : item.rustType === 'PointValue'
+                                    ? 'checkRustPoint'
+                                    : item.rustType === 'TimeValue'
+                                      ? 'checkRustTime'
+                                      : item.rustType === 'TimetzValue'
+                                        ? 'checkRustTimetz'
+                                        : item.rustType === 'IntervalValue'
+                                          ? 'checkRustInterval'
+                                          : item.rustType === 'Float4Value'
+                                            ? 'checkRustFloat4'
+                                            : item.rustType === 'Float8Value'
+                                              ? 'checkRustFloat8'
+                                              : item.rustType === 'BitValue'
+                                                ? 'checkRustBit'
+                                                : item.rustType === 'UuidValue'
+                                                  ? 'checkRustUuid'
+                                                  : item.rustType === 'ByteaValue'
+                                                    ? 'checkRustBytea'
+                                                    : item.rustType === 'MacaddrValue'
+                                                      ? 'checkRustMacaddr'
+                                                      : item.rustType === 'Macaddr8Value'
+                                                        ? 'checkRustMacaddr8'
+                                                        : item.rustType === 'NetworkValue'
+                                                          ? 'checkRustNetwork'
+                                                          : item.rustType === 'NumericValue'
+                                                            ? 'checkRustNumeric'
+                                                            : item.rustType === 'DateValue'
+                                                              ? 'checkRustDate'
+                                                              : item.rustType === 'TimestampValue'
+                                                                ? 'checkRustTimestamp'
+                                                                : item.rustType ===
+                                                                    'TimestamptzValue'
+                                                                  ? 'checkRustTimestamptz'
+                                                                  : item.nullness
+                                                                    ? 'checkRustNullness'
+                                                                    : item.enum
+                                                                      ? 'checkRustEnum'
                                                                       : item.rustType ===
-                                                                          'Int4Value'
-                                                                        ? 'checkRustInt4'
+                                                                          'Int2Value'
+                                                                        ? 'checkRustInt2'
                                                                         : item.rustType ===
-                                                                            'Int8Value'
-                                                                          ? 'checkRustInt8'
+                                                                            'Int4Value'
+                                                                          ? 'checkRustInt4'
                                                                           : item.rustType ===
-                                                                              'TextValue'
-                                                                            ? 'checkRustText'
-                                                                            : 'checkRustBool'
+                                                                              'Int8Value'
+                                                                            ? 'checkRustInt8'
+                                                                            : item.rustType ===
+                                                                                'TextValue'
+                                                                              ? 'checkRustText'
+                                                                              : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
             item.rustType !== 'LineValue' &&
@@ -265,6 +272,7 @@ export function renderTypescriptSchemaCheckArtifacts(
             item.rustType !== 'XidValue' &&
             item.rustType !== 'CidValue' &&
             item.rustType !== 'PgLsnValue' &&
+            item.rustType !== 'TidValue' &&
             item.rustType !== 'Xid8Value' &&
             item.rustType !== 'OidValue' &&
             item.rustType !== 'CircleValue' &&
@@ -638,6 +646,16 @@ function checkRustPgLsn(row: object, name: string): _checkRust.PgLsnValue {
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n)
     return _checkRust.makePgLsnBits(value.value)
   return _checkRust.pgLsnUnknown()
+}
+function checkRustTid(row: object, name: string): _checkRust.TidValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.tidUnknown()
+  if (value === null) return _checkRust.tidNull()
+  if (typeof value !== 'object' || !('kind' in value)) return _checkRust.tidUnknown()
+  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TidValue
+  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= 0n && value.value <= 281474976710655n)
+    return _checkRust.makeTidValue(value.value)
+  return _checkRust.tidUnknown()
 }
 function checkRustXid8(row: object, name: string): _checkRust.Xid8Value {
   const value = Reflect.get(row, name)
