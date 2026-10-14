@@ -64,7 +64,7 @@ from ignored artifacts. Keep generated results separate from maintained sources.
 - [x] `NULLIF`, including catalog equality resolution and result typing.
 - [x] `GREATEST` and `LEAST`, including common types and PostgreSQL NULL rules.
 - [x] Row comparisons, including element ordering and NULL behavior.
-- [ ] Keep scalar null tests type-aware for portable temporal values and nested domains.
+- [x] Keep scalar null tests type-aware for portable temporal values and nested domains.
 
 Verify each form independently, including NULL,
 Unknown, SQL errors, type resolution, and evaluation behavior. Compare raw SQL

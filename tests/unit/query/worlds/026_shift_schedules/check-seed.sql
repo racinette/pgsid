@@ -782,3 +782,46 @@ VALUES (2,1,'2000-01-01','bogus',0,'\x0000000000000000',false);
 -- name: calendar_field_lazy_unknown_unit
 INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
 VALUES (2,1,'2000-01-01','bogus',0,'\x0000000000000000',true);
+
+-- name: presence_known_temporal_values
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Present import','12:00','12:00+02','1 hour',false,false,false,true,false);
+-- name: presence_all_null_values
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Empty import',NULL,NULL,NULL,true,true,true,true,false);
+-- name: presence_missing_local_clock
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Missing local',NULL,'12:00+02','1 hour',true,false,false,true,false);
+-- name: presence_missing_zoned_clock
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Missing zone','12:00',NULL,'1 hour',false,true,false,false,false);
+-- name: presence_missing_duration
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Missing duration','12:00','12:00+02',NULL,false,false,true,false,false);
+-- name: presence_missing_temporal_pair
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Missing pair','12:00',NULL,NULL,false,true,true,true,false);
+-- name: presence_wrong_local_flag
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Wrong local','12:00','12:00+02','1 hour',true,false,false,true,false);
+-- name: presence_wrong_zoned_flag
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Wrong zone','12:00','12:00+02','1 hour',false,true,false,true,false);
+-- name: presence_wrong_duration_flag
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Wrong duration','12:00','12:00+02','1 hour',false,false,true,true,false);
+-- name: presence_wrong_pair_flag
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Wrong pair','12:00','12:00+02','1 hour',false,false,false,false,false);
+-- name: presence_skip_pair
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Skip pair','12:00','12:00+02',NULL,false,false,true,true,true);
+-- name: presence_null_recorded_flags
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Unknown flags','12:00','12:00+02','1 hour',NULL,NULL,NULL,NULL,false);
+-- name: presence_end_of_day_and_infinity
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Temporal bounds','24:00','00:00:00.000001-15:59:59','infinity',false,false,false,true,false);
+-- name: presence_subsecond_values
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (2,1,'Microseconds','00:00:00.000001','00:00:00.000001+00','00:00:00.000001',false,false,false,true,false);

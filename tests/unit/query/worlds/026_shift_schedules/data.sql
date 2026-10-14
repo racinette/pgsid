@@ -30,3 +30,6 @@ VALUES (1,1,'2024-02-28 09:00+00','2024-02-28 12:00+00','2024-02-28 12:00+02','2
 
 INSERT INTO calendar_field_records (id,template_id,source_local,field_name,recorded_value,recorded_wire,skip_validation)
 VALUES (1,1,'2000-01-01 12:34:12.5','seconds',12.5,'\x4029000000000000',false);
+
+INSERT INTO shift_presence_reports (id,template_id,label,local_clock,zoned_clock,duration,recorded_local_null,recorded_zoned_null,recorded_duration_null,recorded_pair,skip_pair)
+VALUES (1,1,'Empty import',NULL,NULL,NULL,true,true,true,true,false);

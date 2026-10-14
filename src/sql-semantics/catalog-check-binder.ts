@@ -2149,9 +2149,7 @@ export function bindCatalogCheck(
       const column = names?.length === 1 ? columns.find((item) => item.name === names[0]) : null
       if (
         column?.isRowType === false &&
-        !catalogPointType(column.typeName, column.typeOid, domains) &&
-        (!catalogScalarType(column.typeName) ||
-          catalogTemporalType(column.typeName, column.typeOid, domains) !== null)
+        !catalogBaseScalarType(column.typeName, column.typeOid, domains)
       ) {
         inputs.add(column.name)
         return {
