@@ -37,6 +37,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'xid' ||
       expression.kind === 'cid' ||
       expression.kind === 'pg_lsn' ||
+      expression.kind === 'tid' ||
       expression.kind === 'xid8' ||
       expression.kind === 'oid' ||
       expression.kind === 'circle' ||

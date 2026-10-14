@@ -1776,6 +1776,59 @@ func PgLsnFromCaseGuard(input CheckOutcome) PgLsnValue {
 	return PgLsnValue{Kind: PgLsnValueUnknown}
 }
 
+type TidValueKind uint8
+
+const (
+	TidValueUnknown TidValueKind = iota
+	TidValueNull
+	TidValueValue
+	TidValueError
+)
+
+type TidValue struct {
+	Kind  TidValueKind
+	Value int64
+	Error SqlError
+}
+
+func TidUnknown() TidValue {
+	return TidValue{Kind: TidValueUnknown}
+}
+func TidNull() TidValue {
+	return TidValue{Kind: TidValueNull}
+}
+func MakeTidValue(units int64) TidValue {
+	if units < int64(0) || units > int64(281474976710655) {
+		return TidValue{Kind: TidValueUnknown}
+	}
+	return TidValue{Kind: TidValueValue, Value: units}
+}
+func TidIsNull(input TidValue) BoolValue {
+	if input.Kind == TidValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (TidValue{Kind: TidValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (TidValue{Kind: TidValueNull}))
+}
+func TidFromCaseGuard(input CheckOutcome) TidValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return TidValue{Kind: TidValueError, Error: error}
+	}
+	return TidValue{Kind: TidValueUnknown}
+}
+func MakeTidParts(block int64, offset int) TidValue {
+	offset = langruntime.CheckedI32(offset)
+	if block < int64(0) || block > int64(4294967295) || offset < 0 || offset > 65535 {
+		return TidValue{Kind: TidValueUnknown}
+	}
+	low := int64(langruntime.CheckedI32(offset))
+	return MakeTidValue(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(block, int64(65536)), low))
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

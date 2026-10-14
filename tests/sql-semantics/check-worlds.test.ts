@@ -23,6 +23,7 @@ import {
   catalogLsegType,
   catalogXidType,
   catalogCidType,
+  catalogTidType,
   catalogPgLsnType,
   catalogXid8Type,
   catalogOidType,
@@ -369,6 +370,13 @@ describe('world CHECK INSERT parity', () => {
             catalogCidType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const tidColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogTidType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const pgLsnColumns = table.columns
         .filter(
           (column) =>
@@ -463,6 +471,17 @@ describe('world CHECK INSERT parity', () => {
         const payload = bytes === null ? null : BigInt(bytes.readUInt32BE())
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+      }
+      for (const name of tidColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(tidsend(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload = bytes === null ? null : bytes.readUIntBE(0, 6)
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: BigInt(payload) }
+        goRow[name] = payload === null ? null : BigInt(payload)
       }
       for (const name of pgLsnColumns) {
         const hex = (
@@ -663,6 +682,7 @@ describe('world CHECK INSERT parity', () => {
         lsegColumns,
         xidColumns,
         cidColumns,
+        tidColumns,
         pgLsnColumns,
         xid8Columns,
         oidColumns,

@@ -85,6 +85,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("PgLsnValue") => {
             Ok("PgLsnValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("TidValue") => {
+            Ok("TidValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("Xid8Value") => {
             Ok("Xid8Value")
         }
@@ -422,6 +425,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "XidValue"
                     | "CidValue"
                     | "PgLsnValue"
+                    | "TidValue"
                     | "Xid8Value"
                     | "OidValue"
                     | "CircleValue"
@@ -752,6 +756,18 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_tid_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: TidValue, right: TidValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in ["TidPayload", "f64", "i64", "TidValue<i64>", "&TidValue"] {
+            assert!(
+                check_source(&source.replace("left: TidValue", &format!("left: {ty}"))).is_err()
+            );
+        }
+        assert!(check_source(&source.replace("left: TidValue", "mut left: TidValue")).is_err());
+    }
+
+    #[test]
     fn accepts_xid8_wrappers_without_exposing_payloads() {
         let source = "pub fn evaluate_check(left: Xid8Value, right: Xid8Value) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
         check_source(source).unwrap();
@@ -822,6 +838,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("XidValue", "xid_unknown"),
             ("CidValue", "cid_unknown"),
             ("PgLsnValue", "pg_lsn_unknown"),
+            ("TidValue", "tid_unknown"),
             ("Xid8Value", "xid8_unknown"),
             ("OidValue", "oid_unknown"),
             ("CircleValue", "circle_unknown"),

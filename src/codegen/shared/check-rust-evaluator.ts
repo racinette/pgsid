@@ -54,6 +54,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.xid') return 'XidValue'
   if (type === 'pg_catalog.cid') return 'CidValue'
   if (type === 'pg_catalog.pg_lsn') return 'PgLsnValue'
+  if (type === 'pg_catalog.tid') return 'TidValue'
   if (type === 'pg_catalog.xid8') return 'Xid8Value'
   if (type === 'pg_catalog.oid') return 'OidValue'
   if (type === 'pg_catalog.circle') return 'CircleValue'
@@ -521,6 +522,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.xid',
           'pg_catalog.cid',
           'pg_catalog.pg_lsn',
+          'pg_catalog.tid',
           'pg_catalog.xid8',
         ].includes(operand.type) ||
         metadata.volatility !== 'i'
@@ -580,6 +582,19 @@ export function emitCheckRustEvaluator(
           'PgLsn input requires text and its catalog I/O identity',
         )
       return { name: bind(`pg_lsn_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-tid') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (
+        operand.type !== 'pg_catalog.text' ||
+        !io ||
+        builtinMetadata(io).args[0] !== 'pg_catalog.cstring'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Tid input requires text and its catalog I/O identity',
+        )
+      return { name: bind(`tid_from_text(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'text-to-xid8') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -819,6 +834,11 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`pg_lsn_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'tid') {
+        if (value.value === null) return { name: bind('tid_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`tid_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'xid8') {
         if (value.value === null) return { name: bind('xid8_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -975,6 +995,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.xid',
           'pg_catalog.cid',
           'pg_catalog.pg_lsn',
+          'pg_catalog.tid',
           'pg_catalog.xid8',
           'pg_catalog.oid',
           'pg_catalog.circle',

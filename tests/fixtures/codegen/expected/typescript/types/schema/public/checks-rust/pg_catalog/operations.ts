@@ -23769,6 +23769,370 @@ function textTrimValue(value: checkruntime.TextValue, set: checkruntime.TextValu
     }
     return { kind: "Unknown" };
 }
+function tidCompare(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTidValue(left, { kind: "Unknown" }) || checkruntime.equalTidValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTidValue(left, { kind: "Null" }) || checkruntime.equalTidValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(right.value);
+            if (a < b) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a > b) {
+                return { kind: "Value", value: 1 };
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function tidRelation(left: checkruntime.TidValue, right: checkruntime.TidValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    const comparison: checkruntime.Int4Value = tidCompare(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if (mode === 0) {
+            return checkruntime.makeBoolValue(order === 0);
+        }
+        if (mode === 1) {
+            return checkruntime.makeBoolValue(!(order === 0));
+        }
+        if (mode === 2) {
+            return checkruntime.makeBoolValue(order < 0);
+        }
+        if (mode === 3) {
+            return checkruntime.makeBoolValue(order <= 0);
+        }
+        if (mode === 4) {
+            return checkruntime.makeBoolValue(order > 0);
+        }
+        return checkruntime.makeBoolValue(order >= 0);
+    }
+    return { kind: "Unknown" };
+}
+function tidSelect(left: checkruntime.TidValue, right: checkruntime.TidValue, larger: boolean): checkruntime.TidValue {
+    larger = langruntime.checkedBool(larger);
+    const comparison: checkruntime.Int4Value = tidCompare(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if ((larger && order > 0) || (larger === false && order < 0)) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function tidToText(input: checkruntime.TidValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        let output: string = "";
+        output = output + langruntime.checkedChar("(");
+        output = output + checkruntime.textSignedNumber(langruntime.checkedI64Divide(value, 65536n));
+        output = output + langruntime.checkedChar(",");
+        output = output + checkruntime.textSignedNumber(langruntime.checkedI64Remainder(value, 65536n));
+        output = output + langruntime.checkedChar(")");
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+function tidSend(input: checkruntime.TidValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        let place: bigint = 1099511627776n;
+        let output: string = "";
+        while (place > 0n) {
+            const byte: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(langruntime.checkedI64Divide(value, place), 256n)))));
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, byte));
+            place = langruntime.checkedI64(langruntime.checkedI64Divide(place, 256n));
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function tidsendO4ql(left: checkruntime.TidValue): checkruntime.ByteaValue {
+    return tidSend(left);
+}
+export function bttidcmpAk5t(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.Int4Value {
+    return tidCompare(left, right);
+}
+function tidHashPortable(value: bigint): boolean {
+    value = langruntime.checkedI64(value);
+    const block: bigint = langruntime.checkedI64Divide(value, 65536n);
+    return langruntime.checkedI64Remainder(value, 65536n) === 0n && langruntime.checkedI64Divide(block, 65536n) === langruntime.checkedI64Remainder(block, 65536n);
+}
+function tidHashBytes(value: bigint): checkruntime.HashByte[] {
+    value = langruntime.checkedI64(value);
+    const block: bigint = langruntime.checkedI64Divide(value, 65536n);
+    const high: bigint = langruntime.checkedI64Divide(block, 65536n);
+    const low: bigint = langruntime.checkedI64Remainder(block, 65536n);
+    const offset: bigint = langruntime.checkedI64Remainder(value, 65536n);
+    let bytes: checkruntime.HashByte[] = [];
+    langruntime.pushStruct(bytes, { value: langruntime.checkedI64Remainder(high, 256n) }, checkruntime.copyHashByte);
+    langruntime.pushStruct(bytes, { value: langruntime.checkedI64Divide(high, 256n) }, checkruntime.copyHashByte);
+    langruntime.pushStruct(bytes, { value: langruntime.checkedI64Remainder(low, 256n) }, checkruntime.copyHashByte);
+    langruntime.pushStruct(bytes, { value: langruntime.checkedI64Divide(low, 256n) }, checkruntime.copyHashByte);
+    langruntime.pushStruct(bytes, { value: langruntime.checkedI64Remainder(offset, 256n) }, checkruntime.copyHashByte);
+    langruntime.pushStruct(bytes, { value: langruntime.checkedI64Divide(offset, 256n) }, checkruntime.copyHashByte);
+    return bytes;
+}
+export function hashtidLi7j(left: checkruntime.TidValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTidValue(left, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(left.value);
+        if (tidHashPortable(value)) {
+            return checkruntime.makeInt4Value(checkruntime.hashBytes32(tidHashBytes(value)));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function hashtidextendedOsxq(left: checkruntime.TidValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTidValue(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTidValue(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const seed: bigint = langruntime.checkedI64(right.value);
+            if (tidHashPortable(value)) {
+                return checkruntime.makeInt8Value(checkruntime.hashBytes64(tidHashBytes(value), seed));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function tideqBa7v(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.BoolValue {
+    return tidRelation(left, right, 0);
+}
+export function tidge3r7u(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.BoolValue {
+    return tidRelation(left, right, 5);
+}
+export function tidgt2wvy(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.BoolValue {
+    return tidRelation(left, right, 4);
+}
+export function tidlargerZk24(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.TidValue {
+    return tidSelect(left, right, true);
+}
+export function tidleNy8u(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.BoolValue {
+    return tidRelation(left, right, 3);
+}
+export function tidltAm0j(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.BoolValue {
+    return tidRelation(left, right, 2);
+}
+export function tidneWafx(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.BoolValue {
+    return tidRelation(left, right, 1);
+}
+export function tidsmallerK6of(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.TidValue {
+    return tidSelect(left, right, false);
+}
+const tidInputInvalid = 3484946;
+interface TidInputText {
+    chars: string[];
+}
+function copyTidInputText(value: TidInputText): TidInputText {
+    return { chars: langruntime.checkedChars(value.chars) };
+}
+interface TidInputWord {
+    high: bigint;
+    low: bigint;
+    negative: boolean;
+    end: number;
+    digits: boolean;
+    overflow: boolean;
+}
+function copyTidInputWord(value: TidInputWord): TidInputWord {
+    return { high: langruntime.checkedI64(value.high), low: langruntime.checkedI64(value.low), negative: langruntime.checkedBool(value.negative), end: langruntime.checkedIndex(value.end), digits: langruntime.checkedBool(value.digits), overflow: langruntime.checkedBool(value.overflow) };
+}
+function tidParseWord(input: TidInputText, first: number): TidInputWord {
+    first = langruntime.checkedIndex(first);
+    let index: number = first;
+    while (index < input.chars.length && oidInputSpace(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)))) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let negative: boolean = false;
+    if (index < input.chars.length && (langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "-")) {
+        negative = langruntime.checkedBool(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)) === "-");
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let high: bigint = 0n;
+    let low: bigint = 0n;
+    let digits: boolean = false;
+    let overflow: boolean = false;
+    while (index < input.chars.length) {
+        const digit: bigint = oidInputDigit(langruntime.indexChar(input.chars, langruntime.checkedIndex(index)));
+        if (digit < 0n || digit > 9n) {
+            break;
+        }
+        digits = langruntime.checkedBool(true);
+        if (overflow === false) {
+            const next: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(low, 10n), digit);
+            low = langruntime.checkedI64(langruntime.checkedI64Remainder(next, 4294967296n));
+            high = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 10n), langruntime.checkedI64Divide(next, 4294967296n)));
+            if (high > 4294967295n) {
+                overflow = langruntime.checkedBool(true);
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (digits === false) {
+        index = langruntime.checkedIndex(first);
+    }
+    return { high: high, low: low, negative: negative, end: index, digits: digits, overflow: overflow };
+}
+function tidInputBlock(word: TidInputWord): checkruntime.Int8Value {
+    word = copyTidInputWord(word);
+    if (word.overflow) {
+        return { kind: "Error", value: checkruntime.makeSqlError(tidInputInvalid) };
+    }
+    if (word.digits === false) {
+        return { kind: "Unknown" };
+    }
+    if (!(word.high === 0n)) {
+        if (word.high === 4294967295n && ((word.negative && !(word.low === 0n)) || (word.negative === false && word.low >= 2147483648n))) {
+            return { kind: "Unknown" };
+        }
+        return { kind: "Error", value: checkruntime.makeSqlError(tidInputInvalid) };
+    }
+    if (word.negative && word.low > 2147483648n) {
+        return { kind: "Unknown" };
+    }
+    if (word.negative && !(word.low === 0n)) {
+        return checkruntime.makeInt8Value(langruntime.checkedI64Subtract(4294967296n, word.low));
+    }
+    return checkruntime.makeInt8Value(word.low);
+}
+function tidInputOffset(word: TidInputWord): checkruntime.Int4Value {
+    word = copyTidInputWord(word);
+    if (word.overflow) {
+        return { kind: "Error", value: checkruntime.makeSqlError(tidInputInvalid) };
+    }
+    if (word.digits === false) {
+        return { kind: "Unknown" };
+    }
+    if (word.negative && word.low >= 4294901761n && (word.high === 0n || word.high === 4294967295n)) {
+        return { kind: "Unknown" };
+    }
+    if (!(word.high === 0n) || word.low > 65535n || (word.negative && !(word.low === 0n))) {
+        return { kind: "Error", value: checkruntime.makeSqlError(tidInputInvalid) };
+    }
+    return checkruntime.makeInt4Value(Number(BigInt.asIntN(32, langruntime.checkedI64(word.low))));
+}
+export function tidFromText(input: checkruntime.TextValue): checkruntime.TidValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        const data: TidInputText = { chars: chars };
+        if (data.chars.length > 4096) {
+            return { kind: "Unknown" };
+        }
+        let index: number = 0;
+        let count: number = 0;
+        let first: number = 0;
+        let second: number = 0;
+        while (index < data.chars.length && count < 2 && !(langruntime.indexChar(data.chars, langruntime.checkedIndex(index)) === ")")) {
+            if (langruntime.indexChar(data.chars, langruntime.checkedIndex(index)) === "," || (langruntime.indexChar(data.chars, langruntime.checkedIndex(index)) === "(" && count === 0)) {
+                if (count === 0) {
+                    first = langruntime.checkedIndex(langruntime.checkedAdd(index, 1));
+                }
+                else {
+                    second = langruntime.checkedIndex(langruntime.checkedAdd(index, 1));
+                }
+                count = langruntime.checkedIndex(langruntime.checkedAdd(count, 1));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (!(count === 2)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(tidInputInvalid) };
+        }
+        const blockWord: TidInputWord = copyTidInputWord(tidParseWord(data, first));
+        const offsetWord: TidInputWord = copyTidInputWord(tidParseWord(data, second));
+        if (blockWord.end >= data.chars.length || !(langruntime.indexChar(data.chars, langruntime.checkedIndex(blockWord.end)) === ",") || offsetWord.end >= data.chars.length || !(langruntime.indexChar(data.chars, langruntime.checkedIndex(offsetWord.end)) === ")")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(tidInputInvalid) };
+        }
+        const block: checkruntime.Int8Value = tidInputBlock(blockWord);
+        const offset: checkruntime.Int4Value = tidInputOffset(offsetWord);
+        if (block.kind === "Error") {
+            const error: checkruntime.SqlError = block.value;
+            return { kind: "Error", value: error };
+        }
+        if (offset.kind === "Error") {
+            const error: checkruntime.SqlError = offset.value;
+            return { kind: "Error", value: error };
+        }
+        if (block.kind === "Value") {
+            const high: bigint = langruntime.checkedI64(block.value);
+            if (offset.kind === "Value") {
+                const low: number = langruntime.checkedI32(offset.value);
+                return checkruntime.makeTidParts(high, low);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 const clockRange = 3452552;
 function intervalInfinity(sign: number): checkruntime.IntervalValue {
     sign = langruntime.checkedI32(sign);

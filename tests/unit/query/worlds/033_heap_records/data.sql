@@ -1,0 +1,3 @@
+INSERT INTO heap_records (id,label,pointer,reference,recorded_wire,recorded_text,recorded_order,recorded_large,recorded_small,recorded_coalesced) VALUES (1,'last_block_last_slot','(4294967295,65535)'::tid,'(2147483648,0)'::tid,'\xffffffffffff'::bytea,'(4294967295,65535)',1,'(4294967295,65535)'::tid,'(2147483648,0)'::tid,'(4294967295,65535)'::tid);
+INSERT INTO heap_hashes (id,record_id,label,pointer,seed,recorded_hash,recorded_extended) VALUES (1,1,'native_independent_hash','(0,0)'::tid,-1,874415716,8502204026017783902);
+INSERT INTO heap_imports (id,record_id,label,source,recorded_pointer,recorded_wire,recorded_present,skip_validation) VALUES (1,1,'legacy_import','garbage(4294967295,65535)trailing','(4294967295,65535)'::tid,'\xffffffffffff'::bytea,true,false);

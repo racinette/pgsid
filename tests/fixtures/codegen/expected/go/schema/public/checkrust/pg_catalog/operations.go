@@ -23614,6 +23614,377 @@ func textTrimValue(value checkruntime.TextValue, set checkruntime.TextValue, tri
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+func tidCompare(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TidValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TidValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TidValue{Kind: checkruntime.TidValueUnknown}) || right == (checkruntime.TidValue{Kind: checkruntime.TidValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.TidValue{Kind: checkruntime.TidValueNull}) || right == (checkruntime.TidValue{Kind: checkruntime.TidValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TidValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.TidValueValue {
+			b := right.Value
+			if a < b {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if a > b {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func tidRelation(left checkruntime.TidValue, right checkruntime.TidValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	comparison := tidCompare(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if mode == 0 {
+			return checkruntime.MakeBoolValue(order == 0)
+		}
+		if mode == 1 {
+			return checkruntime.MakeBoolValue(order != 0)
+		}
+		if mode == 2 {
+			return checkruntime.MakeBoolValue(order < 0)
+		}
+		if mode == 3 {
+			return checkruntime.MakeBoolValue(order <= 0)
+		}
+		if mode == 4 {
+			return checkruntime.MakeBoolValue(order > 0)
+		}
+		return checkruntime.MakeBoolValue(order >= 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func tidSelect(left checkruntime.TidValue, right checkruntime.TidValue, larger bool) checkruntime.TidValue {
+	comparison := tidCompare(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.TidValue{Kind: checkruntime.TidValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TidValue{Kind: checkruntime.TidValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if (larger && order > 0) || (larger == false && order < 0) {
+			return left
+		}
+		return right
+	}
+	return checkruntime.TidValue{Kind: checkruntime.TidValueUnknown}
+}
+func TidToText(input checkruntime.TidValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TidValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TidValue{Kind: checkruntime.TidValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TidValueValue {
+		value := input.Value
+		output := langruntime.NewTextBuffer("")
+		output = append(output, string(langruntime.CheckedChar('('))...)
+		output = append(output, checkruntime.TextSignedNumber(langruntime.CheckedI64Divide(value, int64(65536)))...)
+		output = append(output, string(langruntime.CheckedChar(','))...)
+		output = append(output, checkruntime.TextSignedNumber(langruntime.CheckedI64Remainder(value, int64(65536)))...)
+		output = append(output, string(langruntime.CheckedChar(')'))...)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func tidSend(input checkruntime.TidValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.TidValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.TidValue{Kind: checkruntime.TidValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.TidValueValue {
+		value := input.Value
+		place := int64(1099511627776)
+		output := langruntime.NewTextBuffer("")
+		for place > int64(0) {
+			byte := int(int32((langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(value, place), int64(256)))))
+			output = langruntime.NewTextBuffer(checkruntime.ByteaAppendByte(string(output), byte))
+			place = langruntime.CheckedI64Divide(place, int64(256))
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func TidsendO4ql(left checkruntime.TidValue) checkruntime.ByteaValue {
+	return tidSend(left)
+}
+func BttidcmpAk5t(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.Int4Value {
+	return tidCompare(left, right)
+}
+func tidHashPortable(value int64) bool {
+	block := langruntime.CheckedI64Divide(value, int64(65536))
+	return langruntime.CheckedI64Remainder(value, int64(65536)) == int64(0) && langruntime.CheckedI64Divide(block, int64(65536)) == langruntime.CheckedI64Remainder(block, int64(65536))
+}
+func tidHashBytes(value int64) []checkruntime.HashByte {
+	block := langruntime.CheckedI64Divide(value, int64(65536))
+	high := langruntime.CheckedI64Divide(block, int64(65536))
+	low := langruntime.CheckedI64Remainder(block, int64(65536))
+	offset := langruntime.CheckedI64Remainder(value, int64(65536))
+	bytes := []checkruntime.HashByte{}
+	langruntime.CheckedAdd(len(bytes), 1)
+	bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: langruntime.CheckedI64Remainder(high, int64(256))}))
+	langruntime.CheckedAdd(len(bytes), 1)
+	bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: langruntime.CheckedI64Divide(high, int64(256))}))
+	langruntime.CheckedAdd(len(bytes), 1)
+	bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: langruntime.CheckedI64Remainder(low, int64(256))}))
+	langruntime.CheckedAdd(len(bytes), 1)
+	bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: langruntime.CheckedI64Divide(low, int64(256))}))
+	langruntime.CheckedAdd(len(bytes), 1)
+	bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: langruntime.CheckedI64Remainder(offset, int64(256))}))
+	langruntime.CheckedAdd(len(bytes), 1)
+	bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: langruntime.CheckedI64Divide(offset, int64(256))}))
+	return bytes
+}
+func HashtidLi7j(left checkruntime.TidValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TidValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TidValue{Kind: checkruntime.TidValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TidValueValue {
+		value := left.Value
+		if tidHashPortable(value) {
+			return checkruntime.MakeInt4Value(checkruntime.HashBytes32(tidHashBytes(value)))
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func HashtidextendedOsxq(left checkruntime.TidValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.TidValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.TidValue{Kind: checkruntime.TidValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.TidValue{Kind: checkruntime.TidValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.TidValueValue {
+		value := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			seed := right.Value
+			if tidHashPortable(value) {
+				return checkruntime.MakeInt8Value(checkruntime.HashBytes64(tidHashBytes(value), seed))
+			}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func TideqBa7v(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.BoolValue {
+	return tidRelation(left, right, 0)
+}
+func Tidge3r7u(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.BoolValue {
+	return tidRelation(left, right, 5)
+}
+func Tidgt2wvy(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.BoolValue {
+	return tidRelation(left, right, 4)
+}
+func TidlargerZk24(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.TidValue {
+	return tidSelect(left, right, true)
+}
+func TidleNy8u(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.BoolValue {
+	return tidRelation(left, right, 3)
+}
+func TidltAm0j(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.BoolValue {
+	return tidRelation(left, right, 2)
+}
+func TidneWafx(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.BoolValue {
+	return tidRelation(left, right, 1)
+}
+func TidsmallerK6of(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.TidValue {
+	return tidSelect(left, right, false)
+}
+
+const tidInputInvalid = 3484946
+
+type tidInputText struct {
+	chars []rune
+}
+
+func copytidInputText(value tidInputText) tidInputText {
+	return tidInputText{chars: langruntime.CheckedChars(value.chars)}
+}
+
+type tidInputWord struct {
+	high     int64
+	low      int64
+	negative bool
+	end      int
+	digits   bool
+	overflow bool
+}
+
+func copytidInputWord(value tidInputWord) tidInputWord {
+	return tidInputWord{high: value.high, low: value.low, negative: value.negative, end: langruntime.CheckedIndex(value.end), digits: value.digits, overflow: value.overflow}
+}
+func tidParseWord(input *tidInputText, first int) tidInputWord {
+	first = langruntime.CheckedIndex(first)
+	index := first
+	for index < len(input.chars) && oidInputSpace(input.chars[index]) {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	negative := false
+	if index < len(input.chars) && (input.chars[index] == '+' || input.chars[index] == '-') {
+		negative = input.chars[index] == '-'
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	high := int64(0)
+	low := int64(0)
+	digits := false
+	overflow := false
+	for index < len(input.chars) {
+		digit := oidInputDigit(input.chars[index])
+		if digit < int64(0) || digit > int64(9) {
+			break
+		}
+		digits = true
+		if overflow == false {
+			next := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(low, int64(10)), digit)
+			low = langruntime.CheckedI64Remainder(next, int64(4294967296))
+			high = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(10)), langruntime.CheckedI64Divide(next, int64(4294967296)))
+			if high > int64(4294967295) {
+				overflow = true
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if digits == false {
+		index = langruntime.CheckedIndex(first)
+	}
+	return tidInputWord{high: high, low: low, negative: negative, end: index, digits: digits, overflow: overflow}
+}
+func tidInputBlock(word tidInputWord) checkruntime.Int8Value {
+	word = copytidInputWord(word)
+	if word.overflow {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(tidInputInvalid)}
+	}
+	if word.digits == false {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if word.high != int64(0) {
+		if word.high == int64(4294967295) && ((word.negative && word.low != int64(0)) || (word.negative == false && word.low >= int64(2147483648))) {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+		}
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(tidInputInvalid)}
+	}
+	if word.negative && word.low > int64(2147483648) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if word.negative && word.low != int64(0) {
+		return checkruntime.MakeInt8Value(langruntime.CheckedI64Subtract(int64(4294967296), word.low))
+	}
+	return checkruntime.MakeInt8Value(word.low)
+}
+func tidInputOffset(word tidInputWord) checkruntime.Int4Value {
+	word = copytidInputWord(word)
+	if word.overflow {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(tidInputInvalid)}
+	}
+	if word.digits == false {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if word.negative && word.low >= int64(4294901761) && (word.high == int64(0) || word.high == int64(4294967295)) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if word.high != int64(0) || word.low > int64(65535) || (word.negative && word.low != int64(0)) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(tidInputInvalid)}
+	}
+	return checkruntime.MakeInt4Value(int(int32(word.low)))
+}
+func TidFromText(input checkruntime.TextValue) checkruntime.TidValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TidValue{Kind: checkruntime.TidValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TidValue{Kind: checkruntime.TidValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		data := tidInputText{chars: chars}
+		if len(data.chars) > 4096 {
+			return checkruntime.TidValue{Kind: checkruntime.TidValueUnknown}
+		}
+		index := 0
+		count := 0
+		first := 0
+		second := 0
+		for index < len(data.chars) && count < 2 && data.chars[index] != ')' {
+			if data.chars[index] == ',' || (data.chars[index] == '(' && count == 0) {
+				if count == 0 {
+					first = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 1))
+				} else {
+					second = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 1))
+				}
+				count = langruntime.CheckedIndex(langruntime.CheckedAdd(count, 1))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if count != 2 {
+			return checkruntime.TidValue{Kind: checkruntime.TidValueError, Error: checkruntime.MakeSqlError(tidInputInvalid)}
+		}
+		blockWord := tidParseWord(&data, first)
+		offsetWord := tidParseWord(&data, second)
+		if blockWord.end >= len(data.chars) || data.chars[blockWord.end] != ',' || offsetWord.end >= len(data.chars) || data.chars[offsetWord.end] != ')' {
+			return checkruntime.TidValue{Kind: checkruntime.TidValueError, Error: checkruntime.MakeSqlError(tidInputInvalid)}
+		}
+		block := tidInputBlock(blockWord)
+		offset := tidInputOffset(offsetWord)
+		if block.Kind == checkruntime.Int8ValueError {
+			error := block.Error
+			return checkruntime.TidValue{Kind: checkruntime.TidValueError, Error: error}
+		}
+		if offset.Kind == checkruntime.Int4ValueError {
+			error := offset.Error
+			return checkruntime.TidValue{Kind: checkruntime.TidValueError, Error: error}
+		}
+		if block.Kind == checkruntime.Int8ValueValue {
+			high := block.Value
+			if offset.Kind == checkruntime.Int4ValueValue {
+				low := langruntime.CheckedI32(offset.Value)
+				return checkruntime.MakeTidParts(high, low)
+			}
+		}
+	}
+	return checkruntime.TidValue{Kind: checkruntime.TidValueUnknown}
+}
 
 const clockRange = 3452552
 

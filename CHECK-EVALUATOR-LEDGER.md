@@ -217,7 +217,7 @@ exposes a prerequisite:
       words, portable input/output, pure operations and contextual state boundaries.
 - [x] Establish WAL location payloads, portable text input/output, comparisons,
       hashing, exact numeric arithmetic and SQL-coerced public inputs.
-- [ ] Establish heap tuple pointer payloads, comparisons, binary/text conversion,
+- [x] Establish heap tuple pointer payloads, comparisons, binary/text conversion,
       portable hashes and explicit native-layout and heap-state requirements.
 - [ ] Establish catalog OID aliases with nominal SQL identity, numeric operations,
       catalog-resolved casts and explicit deferral without deployment catalog access.

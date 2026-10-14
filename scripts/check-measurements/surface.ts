@@ -97,16 +97,27 @@ export async function measureSurface(pg: PGlite) {
         implementation.kind === 'function' && available.has(implementation.rustName),
       valueRequirements:
         implementation.kind === 'function' &&
-        ['hashenum', 'hashenumextended'].includes(implementation.name)
+        implementation.schema === 'pg_catalog' &&
+        ['hashtid', 'hashtidextended'].includes(implementation.name)
           ? [
               {
-                kind: 'database',
+                kind: 'platform',
                 requirement:
-                  'Actual enum label OIDs are unavailable to generated label adapters and literals; generation catalog OIDs are not portable',
-                owner: 'tests/sql-semantics/check-enum-oid-context.test.ts',
+                  'PostgreSQL native byte order unless the offset is zero and the block halfwords match',
+                owner: 'tests/sql-semantics/check-tid.test.ts',
               },
             ]
-          : [],
+          : implementation.kind === 'function' &&
+              ['hashenum', 'hashenumextended'].includes(implementation.name)
+            ? [
+                {
+                  kind: 'database',
+                  requirement:
+                    'Actual enum label OIDs are unavailable to generated label adapters and literals; generation catalog OIDs are not portable',
+                  owner: 'tests/sql-semantics/check-enum-oid-context.test.ts',
+                },
+              ]
+            : [],
       probe: canProbe ? callableProbe(item) : null,
     }
   })
