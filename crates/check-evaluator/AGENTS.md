@@ -376,7 +376,10 @@ import them. Keep schema-only helpers with their callables.
   selected payload and chooses the second operand on ties. Hashes use the label
   OID and defer when it is unavailable. Enum domains require a cast to the base
   enum for polymorphic catalog calls; CASE and COALESCE preserve an identical
-  domain across every arm. Unrecognized input labels remain unknown. The CHECK
+  domain across every arm. Generated literals and public label adapters retain
+  ordinals without embedding generation-time label OIDs. Their OID hashes defer
+  because generated validators have no deployment catalog. Unrecognized input
+  labels remain unknown. The CHECK
   gate also runs the enum catalog and operation parity tests.
 - Timestamptz payloads are signed UTC microseconds from 2000-01-01, using
   Rust i64, Go int64, and TypeScript bigint. The signed minimum and maximum

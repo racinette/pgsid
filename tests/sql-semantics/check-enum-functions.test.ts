@@ -301,7 +301,13 @@ describe('Rust CHECK enum catalog functions', () => {
                     values,
                   )
                 ).rows[0]!.value
-                add(name, row, { kind: value === null ? 'Null' : value ? 'True' : 'False' })
+                add(
+                  name,
+                  row,
+                  name === 'literal_hash'
+                    ? { kind: 'Unknown' }
+                    : { kind: value === null ? 'Null' : value ? 'True' : 'False' },
+                )
               }
             }
         const strict = base()

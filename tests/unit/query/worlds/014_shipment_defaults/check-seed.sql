@@ -1827,3 +1827,7 @@ VALUES (19, false, 'ready', 'held', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0)
 -- name: stage_skipped_mismatched_records
 INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
 VALUES (20, true, 'ready', 'held', 1, 'ready', 'held', false, false, true, true, 0);
+
+-- name: stage_null_hash_inputs
+INSERT INTO shipment_stage_decisions (id, skip, stage, peer, comparison_record, larger_stage, smaller_stage, less_record, not_after_record, greater_record, not_before_record, seed)
+VALUES (21, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0);
