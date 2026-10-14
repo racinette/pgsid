@@ -101,6 +101,8 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     geometricOutput
   )
     categories.push('session-setting:extra_float_digits')
+  if (item.schema === 'pg_catalog' && item.volatility === 's' && types.includes('pg_catalog.money'))
+    categories.push('session-setting:lc_monetary')
   if (item.schema === 'pg_catalog' && ['interval_in', 'interval_out'].includes(item.name))
     categories.push('session-setting:IntervalStyle')
   if (

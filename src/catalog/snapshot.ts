@@ -1,3 +1,4 @@
+import { captureMoneyLiterals } from './money-literals.js'
 import { readBuiltinCatalog } from '../postgres/builtins/catalog.js'
 import type { PGlite } from '@electric-sql/pglite'
 import type {
@@ -514,7 +515,7 @@ export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
 }
 
 /**
- * Render qualified names and constants with ISO dates/intervals, UTC and lossless floats.
+ * Render constants with ISO dates/intervals, UTC, lossless floats and C monetary formatting.
  * Restore the caller's settings after the read; these settings affect literal
  * values embedded in constraint and default expressions.
  */
@@ -526,28 +527,30 @@ async function withCatalogRendering<T>(pg: PGlite, read: () => Promise<T>): Prom
       time_zone: string
       float_digits: string
       interval_style: string
+      monetary_locale: string
     }>(
       `SELECT current_setting('search_path') AS search_path,
       current_setting('DateStyle') AS date_style,current_setting('TimeZone') AS time_zone,
-      current_setting('extra_float_digits') AS float_digits, current_setting('IntervalStyle') AS interval_style`,
+      current_setting('extra_float_digits') AS float_digits, current_setting('IntervalStyle') AS interval_style, current_setting('lc_monetary') AS monetary_locale`,
     )
   ).rows[0]!
   await pg.query(`SELECT set_config('search_path','',false),
     set_config('DateStyle','ISO, MDY',false),set_config('TimeZone','UTC',false),
-    set_config('extra_float_digits','3',false), set_config('IntervalStyle','iso_8601',false)`)
+    set_config('extra_float_digits','3',false), set_config('IntervalStyle','iso_8601',false), set_config('lc_monetary','C',false)`)
   try {
     return await read()
   } finally {
     await pg.query(
       `SELECT set_config('search_path',$1,false),
       set_config('DateStyle',$2,false),set_config('TimeZone',$3,false),
-      set_config('extra_float_digits',$4,false), set_config('IntervalStyle',$5,false)`,
+      set_config('extra_float_digits',$4,false), set_config('IntervalStyle',$5,false), set_config('lc_monetary',$6,false)`,
       [
         saved.search_path,
         saved.date_style,
         saved.time_zone,
         saved.float_digits,
         saved.interval_style,
+        saved.monetary_locale,
       ],
     )
   }
@@ -1032,6 +1035,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       checks: d.check_exprs ?? [],
     }))
     .sort(bySchemaName)
+
+  await captureMoneyLiterals(pg, tables, domains)
 
   // --- Composite types (user-defined CREATE TYPE AS (...), not table row types). ---
   const attrsByRel = new Map<number, CompositeTypeAttrInfo[]>()

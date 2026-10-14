@@ -310,7 +310,7 @@ describe('catalog diff is stable across a rebuild', () => {
     const pg = await PGlite.create()
     try {
       await pg.exec(
-        "SET search_path=public; SET DateStyle='SQL, DMY'; SET TimeZone='Asia/Tokyo'; SET extra_float_digits=-15; SET IntervalStyle='sql_standard'",
+        "SET search_path=public; SET DateStyle='SQL, DMY'; SET TimeZone='Asia/Tokyo'; SET extra_float_digits=-15; SET IntervalStyle='sql_standard'; SET lc_monetary='POSIX'",
       )
       const original = pg.query.bind(pg)
       const failure = new Error('catalog read failed')
@@ -331,9 +331,10 @@ describe('catalog diff is stable across a rebuild', () => {
           zone: string
           digits: string
           interval: string
+          monetary: string
         }>(
           `SELECT current_setting('search_path') path,current_setting('DateStyle') style,
-        current_setting('TimeZone') zone,current_setting('extra_float_digits') digits,current_setting('IntervalStyle') interval`,
+        current_setting('TimeZone') zone,current_setting('extra_float_digits') digits,current_setting('IntervalStyle') interval,current_setting('lc_monetary') monetary`,
         )
       ).rows[0]!
       expect(settings).toEqual({
@@ -342,6 +343,7 @@ describe('catalog diff is stable across a rebuild', () => {
         zone: 'Asia/Tokyo',
         digits: '-15',
         interval: 'sql_standard',
+        monetary: 'POSIX',
       })
     } finally {
       await pg.close()

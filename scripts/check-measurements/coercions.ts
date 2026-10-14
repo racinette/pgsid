@@ -1,4 +1,8 @@
 import {
+  moneyInputForms,
+  deferredMoneyContextForms,
+} from '../../tests/sql-semantics/check-money-input-forms.js'
+import {
   circleInputForms,
   deferredCirclePlatformForms,
 } from '../../tests/sql-semantics/check-circle-input-forms.js'
@@ -45,6 +49,16 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.money',
+    suite: 'tests/sql-semantics/check-money.test.ts',
+    handled: moneyInputForms,
+    deferred: deferredMoneyContextForms,
+    platformDependent: [],
+    contextRequired: deferredMoneyContextForms,
+    unimplementedGrammar: deferredMoneyContextForms,
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+  },
   {
     type: 'pg_catalog.circle',
     suite: 'tests/sql-semantics/check-circle.test.ts',

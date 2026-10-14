@@ -94,6 +94,9 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/circle_core.rs");
     include!("operations/pg_catalog/circle_input.rs");
     include!("operations/pg_catalog/circle_operations.rs");
+    include!("operations/pg_catalog/money_core.rs");
+    include!("operations/pg_catalog/money_words.rs");
+    include!("operations/pg_catalog/money_input.rs");
     include!("operations/pg_catalog/box_input.rs");
     include!("operations/pg_catalog/box_operations.rs");
     include!("operations/pg_catalog/float_input.rs");

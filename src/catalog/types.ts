@@ -102,7 +102,13 @@ export interface ColumnInfo {
 
 export type ConstraintType = 'primaryKey' | 'unique' | 'foreign' | 'check' | 'exclusion'
 
+export interface MoneyLiteralInfo {
+  text: string
+  units: string
+}
+
 export interface ConstraintInfo {
+  moneyLiterals?: MoneyLiteralInfo[]
   name: string
   type: ConstraintType
   /** Column names the constraint applies to (from `conkey` attnums, resolved). */
@@ -572,7 +578,7 @@ export interface DomainInfo {
    * hid the others from the diff and made the state depend on catalog row
    * order across a replay.
    */
-  checks: { name: string; definition: string }[]
+  checks: { name: string; definition: string; moneyLiterals?: MoneyLiteralInfo[] }[]
 }
 
 export interface CompositeTypeAttrInfo {

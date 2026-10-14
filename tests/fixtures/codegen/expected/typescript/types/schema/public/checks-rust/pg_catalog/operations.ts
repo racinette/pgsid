@@ -12270,6 +12270,478 @@ export function hashmacaddr8extended63o8(left: checkruntime.Macaddr8Value, right
     }
     return { kind: "Unknown" };
 }
+function moneyUnits(input: checkruntime.MoneyValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMoneyValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+function moneyFromUnits(input: checkruntime.Int8Value): checkruntime.MoneyValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return checkruntime.makeMoneyValue(value);
+    }
+    return { kind: "Unknown" };
+}
+function moneyCompare(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMoneyValue(left, { kind: "Unknown" }) || checkruntime.equalMoneyValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMoneyValue(left, { kind: "Null" }) || checkruntime.equalMoneyValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(right.value);
+            if (a < b) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a > b) {
+                return { kind: "Value", value: 1 };
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function moneyRelation(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    const comparison: checkruntime.Int4Value = moneyCompare(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if (mode === 0) {
+            return checkruntime.makeBoolValue(order === 0);
+        }
+        if (mode === 1) {
+            return checkruntime.makeBoolValue(!(order === 0));
+        }
+        if (mode === 2) {
+            return checkruntime.makeBoolValue(order < 0);
+        }
+        if (mode === 3) {
+            return checkruntime.makeBoolValue(order <= 0);
+        }
+        if (mode === 4) {
+            return checkruntime.makeBoolValue(order > 0);
+        }
+        return checkruntime.makeBoolValue(order >= 0);
+    }
+    return { kind: "Unknown" };
+}
+function moneySelect(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue, larger: boolean): checkruntime.MoneyValue {
+    larger = langruntime.checkedBool(larger);
+    const comparison: checkruntime.Int4Value = moneyCompare(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if ((larger && order > 0) || (larger === false && order < 0)) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+function moneyFloatScale(input: checkruntime.MoneyValue, factor: checkruntime.Float8Value, divide: boolean, reverse: boolean): checkruntime.MoneyValue {
+    divide = langruntime.checkedBool(divide);
+    reverse = langruntime.checkedBool(reverse);
+    if (reverse) {
+        if (factor.kind === "Error") {
+            const error: checkruntime.SqlError = factor.value;
+            return { kind: "Error", value: error };
+        }
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (factor.kind === "Error") {
+        const error: checkruntime.SqlError = factor.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMoneyValue(input, { kind: "Unknown" }) || checkruntime.equalFloat8Value(factor, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMoneyValue(input, { kind: "Null" }) || checkruntime.equalFloat8Value(factor, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const amount: checkruntime.Float8Value = float81dvp(moneyUnits(input));
+    let scaled: checkruntime.Float8Value = { kind: "Unknown" };
+    if (divide) {
+        scaled = float8divKumj(amount, factor);
+    }
+    else {
+        scaled = float8mulD3nd(amount, factor);
+    }
+    return moneyFromUnits(int8Kmmw(scaled));
+}
+function moneyRatio(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.Float8Value {
+    const status: checkruntime.Int4Value = moneyCompare(left, right);
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(status, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(status, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return float8divKumj(float81dvp(moneyUnits(left)), float81dvp(moneyUnits(right)));
+}
+export function cashSendP2u1(left: checkruntime.MoneyValue): checkruntime.ByteaValue {
+    return int8sendPjz0(moneyUnits(left));
+}
+export function cashCmpUvwe(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.Int4Value {
+    return moneyCompare(left, right);
+}
+export function cashDivCashH9fi(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.Float8Value {
+    return moneyRatio(left, right);
+}
+export function cashDivFlt4Y5xp(left: checkruntime.MoneyValue, right: checkruntime.Float4Value): checkruntime.MoneyValue {
+    return moneyFloatScale(left, float8Qcwm(right), true, false);
+}
+export function cashDivFlt86g71(left: checkruntime.MoneyValue, right: checkruntime.Float8Value): checkruntime.MoneyValue {
+    return moneyFloatScale(left, right, true, false);
+}
+export function cashDivInt2Yp7r(left: checkruntime.MoneyValue, right: checkruntime.Int2Value): checkruntime.MoneyValue {
+    return moneyFromUnits(int8div8s66(moneyUnits(left), checkruntime.int2ToInt8(right)));
+}
+export function cashDivInt43op1(left: checkruntime.MoneyValue, right: checkruntime.Int4Value): checkruntime.MoneyValue {
+    return moneyFromUnits(int8div8s66(moneyUnits(left), int8Mzac(right)));
+}
+export function cashDivInt8Sl5w(left: checkruntime.MoneyValue, right: checkruntime.Int8Value): checkruntime.MoneyValue {
+    return moneyFromUnits(int8div8s66(moneyUnits(left), right));
+}
+export function cashEqJe3y(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.BoolValue {
+    return moneyRelation(left, right, 0);
+}
+export function cashGeUgo5(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.BoolValue {
+    return moneyRelation(left, right, 5);
+}
+export function cashGtXt5i(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.BoolValue {
+    return moneyRelation(left, right, 4);
+}
+export function cashLeRcrv(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.BoolValue {
+    return moneyRelation(left, right, 3);
+}
+export function cashLtF73x(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.BoolValue {
+    return moneyRelation(left, right, 2);
+}
+export function cashMi7yce(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.MoneyValue {
+    return moneyFromUnits(int8miJasl(moneyUnits(left), moneyUnits(right)));
+}
+export function cashMulFlt4Q24l(left: checkruntime.MoneyValue, right: checkruntime.Float4Value): checkruntime.MoneyValue {
+    return moneyFloatScale(left, float8Qcwm(right), false, false);
+}
+export function cashMulFlt80u49(left: checkruntime.MoneyValue, right: checkruntime.Float8Value): checkruntime.MoneyValue {
+    return moneyFloatScale(left, right, false, false);
+}
+export function cashMulInt2Nkic(left: checkruntime.MoneyValue, right: checkruntime.Int2Value): checkruntime.MoneyValue {
+    return moneyFromUnits(int8mul6t1m(moneyUnits(left), checkruntime.int2ToInt8(right)));
+}
+export function cashMulInt4Pvtl(left: checkruntime.MoneyValue, right: checkruntime.Int4Value): checkruntime.MoneyValue {
+    return moneyFromUnits(int8mul6t1m(moneyUnits(left), int8Mzac(right)));
+}
+export function cashMulInt8P531(left: checkruntime.MoneyValue, right: checkruntime.Int8Value): checkruntime.MoneyValue {
+    return moneyFromUnits(int8mul6t1m(moneyUnits(left), right));
+}
+export function cashNeJd85(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.BoolValue {
+    return moneyRelation(left, right, 1);
+}
+export function cashPlFoc4(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.MoneyValue {
+    return moneyFromUnits(int8pl1v1h(moneyUnits(left), moneyUnits(right)));
+}
+export function cashlargerV6lj(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.MoneyValue {
+    return moneySelect(left, right, true);
+}
+export function cashsmallerRxz4(left: checkruntime.MoneyValue, right: checkruntime.MoneyValue): checkruntime.MoneyValue {
+    return moneySelect(left, right, false);
+}
+export function flt4MulCashGb7j(left: checkruntime.Float4Value, right: checkruntime.MoneyValue): checkruntime.MoneyValue {
+    return moneyFloatScale(right, float8Qcwm(left), false, true);
+}
+export function flt8MulCashFlum(left: checkruntime.Float8Value, right: checkruntime.MoneyValue): checkruntime.MoneyValue {
+    return moneyFloatScale(right, left, false, true);
+}
+export function int2MulCashP4kk(left: checkruntime.Int2Value, right: checkruntime.MoneyValue): checkruntime.MoneyValue {
+    return moneyFromUnits(int8mul6t1m(checkruntime.int2ToInt8(left), moneyUnits(right)));
+}
+export function int4MulCashRag1(left: checkruntime.Int4Value, right: checkruntime.MoneyValue): checkruntime.MoneyValue {
+    return moneyFromUnits(int8mul6t1m(int8Mzac(left), moneyUnits(right)));
+}
+export function int8MulCashBg8e(left: checkruntime.Int8Value, right: checkruntime.MoneyValue): checkruntime.MoneyValue {
+    return moneyFromUnits(int8mul6t1m(left, moneyUnits(right)));
+}
+export function moneyFromText(input: checkruntime.TextValue): checkruntime.MoneyValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        if (chars.length > 4096) {
+            return { kind: "Unknown" };
+        }
+        let index: number = 0;
+        while (index < chars.length && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (index < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "0") {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (index < chars.length && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(index)))) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (index === chars.length) {
+            return checkruntime.makeMoneyValue(0n);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function moneyWord(index: number): string {
+    index = langruntime.checkedI32(index);
+    if (index === 0) {
+        return "zero";
+    }
+    if (index === 1) {
+        return "one";
+    }
+    if (index === 2) {
+        return "two";
+    }
+    if (index === 3) {
+        return "three";
+    }
+    if (index === 4) {
+        return "four";
+    }
+    if (index === 5) {
+        return "five";
+    }
+    if (index === 6) {
+        return "six";
+    }
+    if (index === 7) {
+        return "seven";
+    }
+    if (index === 8) {
+        return "eight";
+    }
+    if (index === 9) {
+        return "nine";
+    }
+    if (index === 10) {
+        return "ten";
+    }
+    if (index === 11) {
+        return "eleven";
+    }
+    if (index === 12) {
+        return "twelve";
+    }
+    if (index === 13) {
+        return "thirteen";
+    }
+    if (index === 14) {
+        return "fourteen";
+    }
+    if (index === 15) {
+        return "fifteen";
+    }
+    if (index === 16) {
+        return "sixteen";
+    }
+    if (index === 17) {
+        return "seventeen";
+    }
+    if (index === 18) {
+        return "eighteen";
+    }
+    if (index === 19) {
+        return "nineteen";
+    }
+    if (index === 20) {
+        return "twenty";
+    }
+    if (index === 21) {
+        return "thirty";
+    }
+    if (index === 22) {
+        return "forty";
+    }
+    if (index === 23) {
+        return "fifty";
+    }
+    if (index === 24) {
+        return "sixty";
+    }
+    if (index === 25) {
+        return "seventy";
+    }
+    if (index === 26) {
+        return "eighty";
+    }
+    if (index === 27) {
+        return "ninety";
+    }
+    return "";
+}
+function moneyHundredWords(value: number): string {
+    value = langruntime.checkedI32(value);
+    let result: string = "";
+    let rest: number = value;
+    if (value >= 100) {
+        const hundreds: string = moneyWord(langruntime.checkedSignedDivide(value, 100));
+        result = result + hundreds;
+        result = result + " hundred";
+        rest = langruntime.checkedI32(langruntime.checkedSignedRemainder(value, 100));
+        if (rest === 0) {
+            return result;
+        }
+        if (rest < 20) {
+            result = result + " and ";
+        }
+        else {
+            result = result + " ";
+        }
+    }
+    if (rest <= 20) {
+        const word: string = moneyWord(rest);
+        result = result + word;
+        return result;
+    }
+    const tens: string = moneyWord(langruntime.checkedSignedAdd(18, langruntime.checkedSignedDivide(rest, 10)));
+    result = result + tens;
+    const ones: number = langruntime.checkedSignedRemainder(rest, 10);
+    if (ones > 0) {
+        result = result + " ";
+        const word: string = moneyWord(ones);
+        result = result + word;
+    }
+    return result;
+}
+function moneyWords(input: checkruntime.MoneyValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMoneyValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        let dollars: bigint = langruntime.checkedI64Divide(value, 100n);
+        let cents: bigint = langruntime.checkedI64Remainder(value, 100n);
+        let text: string = "";
+        if (value < 0n) {
+            text = text + "minus ";
+            dollars = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, dollars));
+            cents = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, cents));
+        }
+        let factor: bigint = 1000000000000000n;
+        let index: number = 5;
+        while (index >= 0) {
+            const part: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Divide(dollars, factor)), 1000n);
+            if (!(part === 0n)) {
+                const word: string = moneyHundredWords(Number(BigInt.asIntN(32, langruntime.checkedI64(part))));
+                text = text + word;
+                if (index === 5) {
+                    text = text + " quadrillion ";
+                }
+                if (index === 4) {
+                    text = text + " trillion ";
+                }
+                if (index === 3) {
+                    text = text + " billion ";
+                }
+                if (index === 2) {
+                    text = text + " million ";
+                }
+                if (index === 1) {
+                    text = text + " thousand ";
+                }
+            }
+            factor = langruntime.checkedI64(langruntime.checkedI64Divide(factor, 1000n));
+            index = langruntime.checkedI32(langruntime.checkedSignedSubtract(index, 1));
+        }
+        if (dollars === 0n) {
+            text = text + "zero";
+        }
+        if (dollars === 1n) {
+            text = text + " dollar and ";
+        }
+        else {
+            text = text + " dollars and ";
+        }
+        const centWords: string = moneyHundredWords(Number(BigInt.asIntN(32, langruntime.checkedI64(cents))));
+        text = text + centWords;
+        if (cents === 1n) {
+            text = text + " cent";
+        }
+        else {
+            text = text + " cents";
+        }
+        const chars: string[] = Array.from(text);
+        let output: string = "";
+        let at: number = 0;
+        while (at < chars.length) {
+            let ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(at));
+            const code: number = langruntime.checkedChar(ch).codePointAt(0)!;
+            if (at === 0 && code >= 97 && code <= 122) {
+                const upper: number = langruntime.checkedSignedSubtract(code, 32);
+                ch = langruntime.checkedChar(langruntime.characterFromI32(upper, ch));
+            }
+            output = output + langruntime.checkedChar(ch);
+            at = langruntime.checkedAdd(at, 1);
+        }
+        return checkruntime.makeTextValue(output);
+    }
+    return { kind: "Unknown" };
+}
+export function cashWordsAtzl(input: checkruntime.MoneyValue): checkruntime.TextValue {
+    return moneyWords(input);
+}
 const sqlstateInvalidParameterValue = 3452619;
 function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {
     if (left.kind === "Error") {

@@ -474,3 +474,15 @@ import them. Keep schema-only helpers with their callables.
   negative results to zero. Translation preserves radius bits; complex rotation
   and scaling reuse point arithmetic before scaling the radius by the point norm.
   Run the circle and raw write suites and axis guide INSERT world.
+
+- Money payloads carry signed stored units, preserving every bigint bit. Public
+  callers supply already SQL-coerced wrappers; currency strings and native
+  numbers defer. Integer arithmetic checks each operation; floating scaling
+  converts stored units to float8 before arithmetic and rounds ties to even.
+  Binary send preserves units. English word output uses a fixed hundred units
+  per dollar, including the signed minimum. Catalog reads capture rendered
+  money constants as exact units while restoring monetary locale settings.
+  Runtime text input recognizes context-free zero forms; other input grammar,
+  numeric/integer casts and output require a monetary context boundary.
+  Domains, CASE, COALESCE, NULLIF, extrema and null-safe equality use the money
+  wrapper. Run the money and raw write suites and money transfer INSERT world.

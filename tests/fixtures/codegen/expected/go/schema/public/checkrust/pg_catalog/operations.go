@@ -12203,6 +12203,471 @@ func Hashmacaddr8extended63o8(left checkruntime.Macaddr8Value, right checkruntim
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
+func moneyUnits(input checkruntime.MoneyValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.MoneyValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.MoneyValueValue {
+		value := input.Value
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func moneyFromUnits(input checkruntime.Int8Value) checkruntime.MoneyValue {
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		value := input.Value
+		return checkruntime.MakeMoneyValue(value)
+	}
+	return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+}
+func moneyCompare(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.MoneyValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.MoneyValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}) || right == (checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}) || right == (checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.MoneyValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.MoneyValueValue {
+			b := right.Value
+			if a < b {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if a > b {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func moneyRelation(left checkruntime.MoneyValue, right checkruntime.MoneyValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	comparison := moneyCompare(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if mode == 0 {
+			return checkruntime.MakeBoolValue(order == 0)
+		}
+		if mode == 1 {
+			return checkruntime.MakeBoolValue(order != 0)
+		}
+		if mode == 2 {
+			return checkruntime.MakeBoolValue(order < 0)
+		}
+		if mode == 3 {
+			return checkruntime.MakeBoolValue(order <= 0)
+		}
+		if mode == 4 {
+			return checkruntime.MakeBoolValue(order > 0)
+		}
+		return checkruntime.MakeBoolValue(order >= 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func moneySelect(left checkruntime.MoneyValue, right checkruntime.MoneyValue, larger bool) checkruntime.MoneyValue {
+	comparison := moneyCompare(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if (larger && order > 0) || (larger == false && order < 0) {
+			return left
+		}
+		return right
+	}
+	return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+}
+func moneyFloatScale(input checkruntime.MoneyValue, factor checkruntime.Float8Value, divide bool, reverse bool) checkruntime.MoneyValue {
+	if reverse {
+		if factor.Kind == checkruntime.Float8ValueError {
+			error := factor.Error
+			return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+		}
+	}
+	if input.Kind == checkruntime.MoneyValueError {
+		error := input.Error
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+	}
+	if factor.Kind == checkruntime.Float8ValueError {
+		error := factor.Error
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+	}
+	if input == (checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}) || factor == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+	}
+	if input == (checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}) || factor == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}
+	}
+	amount := Float81dvp(moneyUnits(input))
+	scaled := checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	if divide {
+		scaled = Float8divKumj(amount, factor)
+	} else {
+		scaled = Float8mulD3nd(amount, factor)
+	}
+	return moneyFromUnits(Int8Kmmw(scaled))
+}
+func moneyRatio(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.Float8Value {
+	status := moneyCompare(left, right)
+	if status.Kind == checkruntime.Int4ValueError {
+		error := status.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if status == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if status == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	return Float8divKumj(Float81dvp(moneyUnits(left)), Float81dvp(moneyUnits(right)))
+}
+func CashSendP2u1(left checkruntime.MoneyValue) checkruntime.ByteaValue {
+	return Int8sendPjz0(moneyUnits(left))
+}
+func CashCmpUvwe(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.Int4Value {
+	return moneyCompare(left, right)
+}
+func CashDivCashH9fi(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.Float8Value {
+	return moneyRatio(left, right)
+}
+func CashDivFlt4Y5xp(left checkruntime.MoneyValue, right checkruntime.Float4Value) checkruntime.MoneyValue {
+	return moneyFloatScale(left, Float8Qcwm(right), true, false)
+}
+func CashDivFlt86g71(left checkruntime.MoneyValue, right checkruntime.Float8Value) checkruntime.MoneyValue {
+	return moneyFloatScale(left, right, true, false)
+}
+func CashDivInt2Yp7r(left checkruntime.MoneyValue, right checkruntime.Int2Value) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8div8s66(moneyUnits(left), checkruntime.Int2ToInt8(right)))
+}
+func CashDivInt43op1(left checkruntime.MoneyValue, right checkruntime.Int4Value) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8div8s66(moneyUnits(left), Int8Mzac(right)))
+}
+func CashDivInt8Sl5w(left checkruntime.MoneyValue, right checkruntime.Int8Value) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8div8s66(moneyUnits(left), right))
+}
+func CashEqJe3y(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.BoolValue {
+	return moneyRelation(left, right, 0)
+}
+func CashGeUgo5(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.BoolValue {
+	return moneyRelation(left, right, 5)
+}
+func CashGtXt5i(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.BoolValue {
+	return moneyRelation(left, right, 4)
+}
+func CashLeRcrv(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.BoolValue {
+	return moneyRelation(left, right, 3)
+}
+func CashLtF73x(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.BoolValue {
+	return moneyRelation(left, right, 2)
+}
+func CashMi7yce(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8miJasl(moneyUnits(left), moneyUnits(right)))
+}
+func CashMulFlt4Q24l(left checkruntime.MoneyValue, right checkruntime.Float4Value) checkruntime.MoneyValue {
+	return moneyFloatScale(left, Float8Qcwm(right), false, false)
+}
+func CashMulFlt80u49(left checkruntime.MoneyValue, right checkruntime.Float8Value) checkruntime.MoneyValue {
+	return moneyFloatScale(left, right, false, false)
+}
+func CashMulInt2Nkic(left checkruntime.MoneyValue, right checkruntime.Int2Value) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8mul6t1m(moneyUnits(left), checkruntime.Int2ToInt8(right)))
+}
+func CashMulInt4Pvtl(left checkruntime.MoneyValue, right checkruntime.Int4Value) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8mul6t1m(moneyUnits(left), Int8Mzac(right)))
+}
+func CashMulInt8P531(left checkruntime.MoneyValue, right checkruntime.Int8Value) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8mul6t1m(moneyUnits(left), right))
+}
+func CashNeJd85(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.BoolValue {
+	return moneyRelation(left, right, 1)
+}
+func CashPlFoc4(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8pl1v1h(moneyUnits(left), moneyUnits(right)))
+}
+func CashlargerV6lj(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.MoneyValue {
+	return moneySelect(left, right, true)
+}
+func CashsmallerRxz4(left checkruntime.MoneyValue, right checkruntime.MoneyValue) checkruntime.MoneyValue {
+	return moneySelect(left, right, false)
+}
+func Flt4MulCashGb7j(left checkruntime.Float4Value, right checkruntime.MoneyValue) checkruntime.MoneyValue {
+	return moneyFloatScale(right, Float8Qcwm(left), false, true)
+}
+func Flt8MulCashFlum(left checkruntime.Float8Value, right checkruntime.MoneyValue) checkruntime.MoneyValue {
+	return moneyFloatScale(right, left, false, true)
+}
+func Int2MulCashP4kk(left checkruntime.Int2Value, right checkruntime.MoneyValue) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8mul6t1m(checkruntime.Int2ToInt8(left), moneyUnits(right)))
+}
+func Int4MulCashRag1(left checkruntime.Int4Value, right checkruntime.MoneyValue) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8mul6t1m(Int8Mzac(left), moneyUnits(right)))
+}
+func Int8MulCashBg8e(left checkruntime.Int8Value, right checkruntime.MoneyValue) checkruntime.MoneyValue {
+	return moneyFromUnits(Int8mul6t1m(left, moneyUnits(right)))
+}
+func MoneyFromText(input checkruntime.TextValue) checkruntime.MoneyValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		if len(chars) > 4096 {
+			return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+		}
+		index := 0
+		for index < len(chars) && checkruntime.NumericSpace(chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for index < len(chars) && chars[index] == '0' {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for index < len(chars) && checkruntime.NumericSpace(chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if index == len(chars) {
+			return checkruntime.MakeMoneyValue(int64(0))
+		}
+	}
+	return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+}
+func moneyWord(index int) string {
+	index = langruntime.CheckedI32(index)
+	if index == 0 {
+		return "zero"
+	}
+	if index == 1 {
+		return "one"
+	}
+	if index == 2 {
+		return "two"
+	}
+	if index == 3 {
+		return "three"
+	}
+	if index == 4 {
+		return "four"
+	}
+	if index == 5 {
+		return "five"
+	}
+	if index == 6 {
+		return "six"
+	}
+	if index == 7 {
+		return "seven"
+	}
+	if index == 8 {
+		return "eight"
+	}
+	if index == 9 {
+		return "nine"
+	}
+	if index == 10 {
+		return "ten"
+	}
+	if index == 11 {
+		return "eleven"
+	}
+	if index == 12 {
+		return "twelve"
+	}
+	if index == 13 {
+		return "thirteen"
+	}
+	if index == 14 {
+		return "fourteen"
+	}
+	if index == 15 {
+		return "fifteen"
+	}
+	if index == 16 {
+		return "sixteen"
+	}
+	if index == 17 {
+		return "seventeen"
+	}
+	if index == 18 {
+		return "eighteen"
+	}
+	if index == 19 {
+		return "nineteen"
+	}
+	if index == 20 {
+		return "twenty"
+	}
+	if index == 21 {
+		return "thirty"
+	}
+	if index == 22 {
+		return "forty"
+	}
+	if index == 23 {
+		return "fifty"
+	}
+	if index == 24 {
+		return "sixty"
+	}
+	if index == 25 {
+		return "seventy"
+	}
+	if index == 26 {
+		return "eighty"
+	}
+	if index == 27 {
+		return "ninety"
+	}
+	return ""
+}
+func moneyHundredWords(value int) string {
+	value = langruntime.CheckedI32(value)
+	result := langruntime.NewTextBuffer("")
+	rest := value
+	if value >= 100 {
+		hundreds := moneyWord(langruntime.CheckedSignedDivide(value, 100))
+		result = append(result, hundreds...)
+		result = append(result, " hundred"...)
+		rest = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(value, 100))
+		if rest == 0 {
+			return string(result)
+		}
+		if rest < 20 {
+			result = append(result, " and "...)
+		} else {
+			result = append(result, " "...)
+		}
+	}
+	if rest <= 20 {
+		word := moneyWord(rest)
+		result = append(result, word...)
+		return string(result)
+	}
+	tens := moneyWord(langruntime.CheckedSignedAdd(18, langruntime.CheckedSignedDivide(rest, 10)))
+	result = append(result, tens...)
+	ones := langruntime.CheckedSignedRemainder(rest, 10)
+	if ones > 0 {
+		result = append(result, " "...)
+		word := moneyWord(ones)
+		result = append(result, word...)
+	}
+	return string(result)
+}
+func moneyWords(input checkruntime.MoneyValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.MoneyValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.MoneyValueValue {
+		value := input.Value
+		dollars := langruntime.CheckedI64Divide(value, int64(100))
+		cents := langruntime.CheckedI64Remainder(value, int64(100))
+		text := langruntime.NewTextBuffer("")
+		if value < int64(0) {
+			text = append(text, "minus "...)
+			dollars = langruntime.CheckedI64Subtract(int64(0), dollars)
+			cents = langruntime.CheckedI64Subtract(int64(0), cents)
+		}
+		factor := int64(1000000000000000)
+		index := 5
+		for index >= 0 {
+			part := langruntime.CheckedI64Remainder((langruntime.CheckedI64Divide(dollars, factor)), int64(1000))
+			if part != int64(0) {
+				word := moneyHundredWords(int(int32(part)))
+				text = append(text, word...)
+				if index == 5 {
+					text = append(text, " quadrillion "...)
+				}
+				if index == 4 {
+					text = append(text, " trillion "...)
+				}
+				if index == 3 {
+					text = append(text, " billion "...)
+				}
+				if index == 2 {
+					text = append(text, " million "...)
+				}
+				if index == 1 {
+					text = append(text, " thousand "...)
+				}
+			}
+			factor = langruntime.CheckedI64Divide(factor, int64(1000))
+			index = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(index, 1))
+		}
+		if dollars == int64(0) {
+			text = append(text, "zero"...)
+		}
+		if dollars == int64(1) {
+			text = append(text, " dollar and "...)
+		} else {
+			text = append(text, " dollars and "...)
+		}
+		centWords := moneyHundredWords(int(int32(cents)))
+		text = append(text, centWords...)
+		if cents == int64(1) {
+			text = append(text, " cent"...)
+		} else {
+			text = append(text, " cents"...)
+		}
+		chars := []rune(string(text))
+		output := langruntime.NewTextBuffer("")
+		at := 0
+		for at < len(chars) {
+			ch := chars[at]
+			code := int(langruntime.CheckedChar(ch))
+			if at == 0 && code >= 97 && code <= 122 {
+				upper := langruntime.CheckedSignedSubtract(code, 32)
+				ch = langruntime.CheckedChar(langruntime.CharacterFromI32(upper, ch))
+			}
+			output = append(output, string(langruntime.CheckedChar(ch))...)
+			at = langruntime.CheckedAdd(at, 1)
+		}
+		return checkruntime.MakeTextValue(string(output))
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func CashWordsAtzl(input checkruntime.MoneyValue) checkruntime.TextValue {
+	return moneyWords(input)
+}
 
 const sqlstateInvalidParameterValue = 3452619
 

@@ -73,6 +73,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("LsegValue") => {
             Ok("LsegValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("MoneyValue") => {
+            Ok("MoneyValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("CircleValue") => {
             Ok("CircleValue")
         }
@@ -400,6 +403,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "PointValue"
                     | "LineValue"
                     | "LsegValue"
+                    | "MoneyValue"
                     | "CircleValue"
                     | "BoxValue"
                     | "UuidValue"
@@ -692,6 +696,24 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_money_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: MoneyValue, right: MoneyValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in [
+            "MoneyPayload",
+            "f64",
+            "i64",
+            "MoneyValue<i64>",
+            "&MoneyValue",
+        ] {
+            assert!(
+                check_source(&source.replace("left: MoneyValue", &format!("left: {ty}"))).is_err()
+            );
+        }
+        assert!(check_source(&source.replace("left: MoneyValue", "mut left: MoneyValue")).is_err());
+    }
+
+    #[test]
     fn accepts_clock_and_interval_values_without_payload_parameters() {
         for ty in ["TimeValue", "TimetzValue", "IntervalValue"] {
             let source = format!("pub fn evaluate_check(input: {ty}) -> CheckOutcome {{ let result = compare(input, input); check_from_bool(result) }}");
@@ -716,6 +738,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("PointValue", "point_unknown"),
             ("LineValue", "line_unknown"),
             ("LsegValue", "lseg_unknown"),
+            ("MoneyValue", "money_unknown"),
             ("CircleValue", "circle_unknown"),
             ("BoxValue", "box_unknown"),
             ("EnumValue", "enum_unknown"),

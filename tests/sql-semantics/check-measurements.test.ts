@@ -76,6 +76,22 @@ describe('CHECK measurement boundaries', () => {
       categories: ['new-representation'],
       missingTypes: ['pg_catalog.float8'],
     })
+    for (const { metadata: fn } of catalog.functions.filter(
+      ({ metadata }) =>
+        metadata.volatility === 's' &&
+        [...metadata.args, metadata.result].includes('pg_catalog.money'),
+    ))
+      expect(
+        callableBoundary(
+          fn,
+          new Set([
+            'pg_catalog.money',
+            'pg_catalog.int4',
+            'pg_catalog.int8',
+            'pg_catalog."numeric"',
+          ]),
+        ).categories,
+      ).toContain('session-setting:lc_monetary')
     const random = catalog.functions.find(({ metadata }) => metadata.name === 'random')!.metadata
     expect(callableBoundary(random, represented).categories).toContain('volatile')
     const stable = catalog.functions.find(({ metadata }) => metadata.volatility === 's')!.metadata
@@ -167,6 +183,7 @@ describe('CHECK measurement boundaries', () => {
     expect(valueRepresentation('integer').represented).toBe(true)
     expect(valueRepresentation('point').represented).toBe(true)
     expect(valueRepresentation('circle').represented).toBe(true)
+    expect(valueRepresentation('money').represented).toBe(true)
     for (const type of ['time', 'timetz', 'interval'])
       expect(valueRepresentation(type).represented).toBe(true)
     const unknown = inspectExpression({ kind: 'uncertain' })
