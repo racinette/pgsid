@@ -8656,6 +8656,294 @@ func LineSendB5ct(input checkruntime.LineValue) checkruntime.ByteaValue {
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
 
+const linePointsArgument = 3452619
+
+func lineFromScalars(first checkruntime.Float8Value, second checkruntime.Float8Value, third checkruntime.Float8Value) checkruntime.LineValue {
+	if first.Kind == checkruntime.Float8ValueError {
+		error := first.Error
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+	}
+	if second.Kind == checkruntime.Float8ValueError {
+		error := second.Error
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+	}
+	if third.Kind == checkruntime.Float8ValueError {
+		error := third.Error
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+	}
+	if first == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || second == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || third == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+	}
+	if first == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || second == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || third == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueNull}
+	}
+	a := checkruntime.Float8Semantic(first)
+	b := checkruntime.Float8Semantic(second)
+	c := checkruntime.Float8Semantic(third)
+	if a.Kind == checkruntime.Float8ValueValue {
+		aBits := a.Value
+		if b.Kind == checkruntime.Float8ValueValue {
+			bBits := b.Value
+			if c.Kind == checkruntime.Float8ValueValue {
+				cBits := c.Value
+				raw := checkruntime.MakeLineBits(aBits, bBits, cBits)
+				if raw.Kind == checkruntime.LineValueValue {
+					payload := raw.Value
+					precise := first != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) && second != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) && third != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan})
+					return checkruntime.LineValue{Kind: checkruntime.LineValueValue, Value: checkruntime.LinePayload{A: payload.A, B: payload.B, C: payload.C, WireKnown: precise}}
+				}
+			}
+		}
+	}
+	return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+}
+func lineOriginCoordinate(point checkruntime.PointPayload, horizontal bool) checkruntime.Float8Value {
+	bits := point.X
+	if horizontal {
+		bits = point.Y
+	}
+	number := checkruntime.Float8Number(bits)
+	if point.WireKnown == false && number != number {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	return checkruntime.MakeFloat8Bits(bits)
+}
+func lineFromOriginSlope(origin checkruntime.PointPayload, gradient checkruntime.Float8Value) checkruntime.LineValue {
+	if gradient.Kind == checkruntime.Float8ValueError {
+		error := gradient.Error
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+	}
+	known := checkruntime.Float8Semantic(gradient)
+	if known.Kind == checkruntime.Float8ValueValue {
+		bits := known.Value
+		slope := checkruntime.Float8Number(bits)
+		infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+		if langruntime.F64Abs(slope) == infinity {
+			return lineFromScalars(checkruntime.MakeFloat8Value(float64(-1.0)), checkruntime.MakeFloat8Bits(int64(0)), lineOriginCoordinate(origin, false))
+		}
+		if slope == float64(0.0) {
+			return lineFromScalars(checkruntime.MakeFloat8Bits(int64(0)), checkruntime.MakeFloat8Value(float64(-1.0)), lineOriginCoordinate(origin, true))
+		}
+		product := Float8mulD3nd(gradient, lineOriginCoordinate(origin, false))
+		intercept := Float8miR1nu(lineOriginCoordinate(origin, true), product)
+		if intercept.Kind == checkruntime.Float8ValueValue {
+			value := intercept.Value
+			if checkruntime.Float8Number(value) == float64(0.0) {
+				intercept = checkruntime.MakeFloat8Bits(int64(0))
+			}
+		}
+		return lineFromScalars(gradient, checkruntime.MakeFloat8Value(float64(-1.0)), intercept)
+	}
+	return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+}
+func lineFromPoints(left checkruntime.PointValue, right checkruntime.PointValue, invalid int) checkruntime.LineValue {
+	invalid = langruntime.CheckedIndex(invalid)
+	if left.Kind == checkruntime.PointValueError {
+		error := left.Error
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PointValueError {
+		error := right.Error
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+	}
+	if left == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || right == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueNull}
+	}
+	if left.Kind == checkruntime.PointValueValue {
+		first := left.Value
+		if right.Kind == checkruntime.PointValueValue {
+			second := right.Value
+			if pointSameValue(first, second) {
+				return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: checkruntime.MakeSqlError(invalid)}
+			}
+			return lineFromOriginSlope(first, SlopeXxph(left, right))
+		}
+	}
+	return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+}
+func LineQygi(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.LineValue {
+	return lineFromPoints(left, right, linePointsArgument)
+}
+
+type geometryInputPoint struct {
+	value checkruntime.PointValue
+	end   int
+}
+
+func copygeometryInputPoint(value geometryInputPoint) geometryInputPoint {
+	return geometryInputPoint{value: value.value, end: langruntime.CheckedIndex(value.end)}
+}
+func geometryReadPoint(source *geometryInputText, begin int) geometryInputPoint {
+	begin = langruntime.CheckedIndex(begin)
+	index := geometryInputSpace(source, begin)
+	delimited := false
+	if index < len(source.chars) && source.chars[index] == '(' {
+		delimited = true
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	first := geometryReadNumber(source, index)
+	firstValue := first.value
+	if firstValue.Kind == checkruntime.Float8ValueError {
+		error := firstValue.Error
+		return geometryInputPoint{value: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}, end: first.end}
+	}
+	if firstValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return geometryInputPoint{value: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}, end: first.end}
+	}
+	index = langruntime.CheckedIndex(first.end)
+	if index >= len(source.chars) || source.chars[index] != ',' {
+		return geometryInputPoint{value: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}, end: index}
+	}
+	second := geometryReadNumber(source, langruntime.CheckedAdd(index, 1))
+	secondValue := second.value
+	if secondValue.Kind == checkruntime.Float8ValueError {
+		error := secondValue.Error
+		return geometryInputPoint{value: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}, end: second.end}
+	}
+	if secondValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return geometryInputPoint{value: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}, end: second.end}
+	}
+	index = langruntime.CheckedIndex(second.end)
+	if delimited {
+		if index >= len(source.chars) || source.chars[index] != ')' {
+			return geometryInputPoint{value: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}, end: index}
+		}
+		index = langruntime.CheckedIndex(geometryInputSpace(source, langruntime.CheckedAdd(index, 1)))
+	}
+	return geometryInputPoint{value: PointDb27(firstValue, secondValue), end: index}
+}
+func lineParseCoefficients(source *geometryInputText, begin int) checkruntime.LineValue {
+	begin = langruntime.CheckedIndex(begin)
+	index := begin
+	first := checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	second := checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	third := checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	count := 0
+	for count < 3 {
+		number := geometryReadNumber(source, index)
+		numberValue := number.value
+		if numberValue.Kind == checkruntime.Float8ValueError {
+			error := numberValue.Error
+			return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+		}
+		if numberValue == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+			return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+		}
+		if count == 0 {
+			first = numberValue
+		} else if count == 1 {
+			second = numberValue
+		} else {
+			third = numberValue
+		}
+		count = langruntime.CheckedAdd(count, 1)
+		index = langruntime.CheckedIndex(number.end)
+		delimiter := ','
+		if count == 3 {
+			delimiter = langruntime.CheckedChar('}')
+		}
+		if index >= len(source.chars) || source.chars[index] != delimiter {
+			return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	index = langruntime.CheckedIndex(geometryInputSpace(source, index))
+	if index != len(source.chars) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+	}
+	result := lineFromScalars(first, second, third)
+	if result == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+	}
+	return result
+}
+func lineParse(value string) checkruntime.LineValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	if len(chars) > 4096 {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+	}
+	source := geometryInputText{chars: chars}
+	index := geometryInputSpace(&source, 0)
+	if index < len(source.chars) && source.chars[index] == '{' {
+		return lineParseCoefficients(&source, langruntime.CheckedAdd(index, 1))
+	}
+	depth := 0
+	open := false
+	if index < len(source.chars) && source.chars[index] == '[' {
+		depth = langruntime.CheckedIndex(1)
+		open = true
+		index = langruntime.CheckedAdd(index, 1)
+	} else if index < len(source.chars) && source.chars[index] == '(' {
+		next := geometryInputSpace(&source, langruntime.CheckedAdd(index, 1))
+		laterParenthesis := false
+		scan := langruntime.CheckedAdd(index, 1)
+		for scan < len(source.chars) {
+			if source.chars[scan] == '(' {
+				laterParenthesis = true
+			}
+			scan = langruntime.CheckedAdd(scan, 1)
+		}
+		if (next < len(source.chars) && source.chars[next] == '(') || laterParenthesis == false {
+			depth = langruntime.CheckedIndex(1)
+			index = langruntime.CheckedIndex(next)
+		}
+	}
+	first := geometryReadPoint(&source, index)
+	firstValue := first.value
+	if firstValue.Kind == checkruntime.PointValueError {
+		error := firstValue.Error
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+	}
+	if firstValue == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+	}
+	index = langruntime.CheckedIndex(first.end)
+	if index < len(source.chars) && source.chars[index] == ',' {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	second := geometryReadPoint(&source, index)
+	secondValue := second.value
+	if secondValue.Kind == checkruntime.PointValueError {
+		error := secondValue.Error
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+	}
+	if secondValue == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+	}
+	index = langruntime.CheckedIndex(second.end)
+	if index < len(source.chars) && source.chars[index] == ',' {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if depth == 1 {
+		if index >= len(source.chars) || (source.chars[index] != ')' && (open == false || source.chars[index] != ']')) {
+			return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+		}
+		index = langruntime.CheckedIndex(geometryInputSpace(&source, langruntime.CheckedAdd(index, 1)))
+	}
+	if index != len(source.chars) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+	}
+	return lineFromPoints(firstValue, secondValue, floatInputInvalid)
+}
+func LineFromText(input checkruntime.TextValue) checkruntime.LineValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return lineParse(value)
+	}
+	return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+}
+
 const macConversionOutOfRange = 3452547
 
 func macaddrCompare(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.Int4Value {

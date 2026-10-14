@@ -206,8 +206,17 @@ describe('CHECK measurement boundaries', () => {
     expect(pointInput.probe.stored!.fullyBound).toBe(true)
     const lineInput = report.textInput.find((entry) => entry.type === 'pg_catalog.line')!
     expect(lineInput.input).toContain('line_in')
-    expect(lineInput.probe.raw.fullyBound).toBe(false)
-    expect(lineInput.probe.stored!.fullyBound).toBe(false)
+    expect(lineInput.probe.raw.fullyBound).toBe(true)
+    expect(lineInput.probe.stored!.fullyBound).toBe(true)
+    const lineForms = report.inputForms.types.find((forms) => forms.type === 'pg_catalog.line')!
+    expect(lineForms).toMatchObject({
+      contextRequired: [],
+      unimplementedGrammar: [],
+      inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+      computedNanBinaryOutput: 'Unknown',
+      platformDependent: expect.arrayContaining(['{0x1p0,-1,0}', '{nan(payload),1,0}']),
+    })
+    expect(lineForms.handled).toEqual(expect.arrayContaining(['{1,-1,0}', '[(0,0),(1,1)]']))
     expect(pointInput.input).toBe('function:["pg_catalog","point_in"](pg_catalog.cstring)')
     const pointForms = report.inputForms.types.find((forms) => forms.type === 'pg_catalog.point')!
     expect(pointForms).toMatchObject({
