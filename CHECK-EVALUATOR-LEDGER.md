@@ -188,6 +188,10 @@ exposes a prerequisite:
 - [x] Establish point direction tests, arithmetic, distance, slope, portable text
       input and literals, and catalog-resolved unconstrained-domain casts;
       preserve semantic NaN values while classifying computed binary precision.
+- [x] Establish line coefficient payloads, geometric equality, orientation,
+      binary output, domains, SQL-coerced public inputs and composition.
+- [ ] Retain known scalar NaNs produced by geometry across comparisons, casts
+      and composition while deferring unavailable binary precision.
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.

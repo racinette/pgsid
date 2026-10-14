@@ -97,6 +97,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     inet: 'pg_catalog.inet',
     cidr: 'pg_catalog.cidr',
     point: 'pg_catalog.point',
+    line: 'pg_catalog.line',
     uuid: 'pg_catalog.uuid',
     macaddr: 'pg_catalog.macaddr',
     macaddr8: 'pg_catalog.macaddr8',
@@ -164,6 +165,14 @@ export function catalogPointType(
   domains: readonly DomainInfo[],
 ): boolean {
   return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.point'
+}
+
+export function catalogLineType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.line'
 }
 
 export function catalogNumericType(
@@ -238,6 +247,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'float', type, bits: null }
   if (type === 'pg_catalog.point' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'point', type, value: literal.value }
+  if (type === 'pg_catalog.line' && literal.kind === 'null')
+    return { kind: 'line', type, value: null }
   if (type === 'pg_catalog.uuid' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'uuid', type, value: literal.value }
   if (type === 'pg_catalog.bytea') {

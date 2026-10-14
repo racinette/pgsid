@@ -15,6 +15,7 @@ export type NetworkType = 'pg_catalog.inet' | 'pg_catalog.cidr'
 export type MacType = 'pg_catalog.macaddr' | 'pg_catalog.macaddr8'
 export type BitType = 'pg_catalog."bit"' | 'pg_catalog.varbit'
 export type PointType = 'pg_catalog.point'
+export type LineType = 'pg_catalog.line'
 export type UuidType = 'pg_catalog.uuid'
 export type JsonType = 'pg_catalog."json"'
 export type JsonbType = 'pg_catalog.jsonb'
@@ -44,6 +45,7 @@ export type ArrayType = `array:${ArrayElementType}`
 export type ScalarType =
   | NumericType
   | PointType
+  | LineType
   | 'pg_catalog.bool'
   | TextType
   | NetworkType
@@ -282,6 +284,7 @@ export type SqlExpression =
   | { kind: 'bytea'; type: 'pg_catalog.bytea'; value: string | null }
   | { kind: 'bit'; type: 'pg_catalog."bit"' | 'pg_catalog.varbit'; value: string | null }
   | { kind: 'point'; type: PointType; value: string | null }
+  | { kind: 'line'; type: LineType; value: null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
   | { kind: 'json'; type: JsonType; value: string | null }
   | { kind: 'jsonb'; type: JsonbType; value: string | null }
@@ -926,6 +929,7 @@ export function emitSqlExpression<Ast>(
       helpers.add(node.kind === 'boolean' ? 'booleanInput' : 'textInput')
       return { type: node.type, expression }
     }
+    if (node.kind === 'line') return { type: node.type, expression: backend.text(null) }
     if (node.kind === 'point') {
       if (node.value !== null) throw new Error('Point literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }

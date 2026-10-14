@@ -8567,6 +8567,126 @@ export function makeIntervalNlc1(years: checkruntime.Int4Value, months: checkrun
     }
     return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
 }
+function lineEqualProduct(left: bigint, right: bigint, ratio: checkruntime.Float8Value): checkruntime.BoolValue {
+    left = langruntime.checkedI64(left);
+    right = langruntime.checkedI64(right);
+    const product: checkruntime.Float8Value = float8mulD3nd(ratio, checkruntime.makeFloat8Bits(right));
+    if (product.kind === "Error") {
+        const error: checkruntime.SqlError = product.value;
+        return { kind: "Error", value: error };
+    }
+    if (product.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(product.value);
+        return checkruntime.makeBoolValue(geometricCoordinateEqual(checkruntime.float8Number(left), checkruntime.float8Number(bits)));
+    }
+    return { kind: "Unknown" };
+}
+export function lineEqK687(left: checkruntime.LineValue, right: checkruntime.LineValue): checkruntime.BoolValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLineValue(left, { kind: "Unknown" }) || checkruntime.equalLineValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLineValue(left, { kind: "Null" }) || checkruntime.equalLineValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.LinePayload = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.LinePayload = right.value;
+            const aa: number = checkruntime.float8Number(a.a);
+            const ab: number = checkruntime.float8Number(a.b);
+            const ac: number = checkruntime.float8Number(a.c);
+            const ba: number = checkruntime.float8Number(b.a);
+            const bb: number = checkruntime.float8Number(b.b);
+            const bc: number = checkruntime.float8Number(b.c);
+            if (!(aa === aa) || !(ab === ab) || !(ac === ac) || !(ba === ba) || !(bb === bb) || !(bc === bc)) {
+                return checkruntime.makeBoolValue((aa === ba || (!(aa === aa) && !(ba === ba))) && (ab === bb || (!(ab === ab) && !(bb === bb))) && (ac === bc || (!(ac === ac) && !(bc === bc))));
+            }
+            let ratio: checkruntime.Float8Value = checkruntime.makeFloat8Value(1.0);
+            if (geometricCoordinateEqual(ba, 0.0) === false) {
+                ratio = float8divKumj(checkruntime.makeFloat8Bits(a.a), checkruntime.makeFloat8Bits(b.a));
+            }
+            else if (geometricCoordinateEqual(bb, 0.0) === false) {
+                ratio = float8divKumj(checkruntime.makeFloat8Bits(a.b), checkruntime.makeFloat8Bits(b.b));
+            }
+            else if (geometricCoordinateEqual(bc, 0.0) === false) {
+                ratio = float8divKumj(checkruntime.makeFloat8Bits(a.c), checkruntime.makeFloat8Bits(b.c));
+            }
+            if (ratio.kind === "Error") {
+                const error: checkruntime.SqlError = ratio.value;
+                return { kind: "Error", value: error };
+            }
+            const first: checkruntime.BoolValue = lineEqualProduct(a.a, b.a, ratio);
+            if (!(checkruntime.equalBoolValue(first, { kind: "Value", value: true }))) {
+                return first;
+            }
+            const second: checkruntime.BoolValue = lineEqualProduct(a.b, b.b, ratio);
+            if (!(checkruntime.equalBoolValue(second, { kind: "Value", value: true }))) {
+                return second;
+            }
+            return lineEqualProduct(a.c, b.c, ratio);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function lineOrientation(input: checkruntime.LineValue, vertical: boolean): checkruntime.BoolValue {
+    vertical = langruntime.checkedBool(vertical);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLineValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.LinePayload = input.value;
+        let coefficient: bigint = value.a;
+        if (vertical) {
+            coefficient = langruntime.checkedI64(value.b);
+        }
+        return checkruntime.makeBoolValue(geometricCoordinateEqual(checkruntime.float8Number(coefficient), 0.0));
+    }
+    return { kind: "Unknown" };
+}
+export function lineHorizontalSwlw(input: checkruntime.LineValue): checkruntime.BoolValue {
+    return lineOrientation(input, false);
+}
+export function ishorizontalXhol(input: checkruntime.LineValue): checkruntime.BoolValue {
+    return lineOrientation(input, false);
+}
+export function lineVerticalSa4t(input: checkruntime.LineValue): checkruntime.BoolValue {
+    return lineOrientation(input, true);
+}
+export function isverticalX62g(input: checkruntime.LineValue): checkruntime.BoolValue {
+    return lineOrientation(input, true);
+}
+export function lineSendB5ct(input: checkruntime.LineValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLineValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.LinePayload = input.value;
+        if (value.wireKnown === false) {
+            return { kind: "Unknown" };
+        }
+        const first: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: value.a }, 8);
+        const second: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: value.b }, 8);
+        const third: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: value.c }, 8);
+        return byteacatZitv(byteacatZitv(first, second), third);
+    }
+    return { kind: "Unknown" };
+}
 const macConversionOutOfRange = 3452547;
 function macaddrCompare(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.Int4Value {
     if (left.kind === "Error") {

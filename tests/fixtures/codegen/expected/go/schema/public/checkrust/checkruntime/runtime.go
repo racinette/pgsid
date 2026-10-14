@@ -1308,6 +1308,59 @@ func PointFromCaseGuard(input CheckOutcome) PointValue {
 	return PointValue{Kind: PointValueUnknown}
 }
 
+type LinePayload struct {
+	A         int64
+	B         int64
+	C         int64
+	WireKnown bool
+}
+type LineValueKind uint8
+
+const (
+	LineValueUnknown LineValueKind = iota
+	LineValueNull
+	LineValueValue
+	LineValueError
+)
+
+type LineValue struct {
+	Kind  LineValueKind
+	Value LinePayload
+	Error SqlError
+}
+
+func LineUnknown() LineValue {
+	return LineValue{Kind: LineValueUnknown}
+}
+func LineNull() LineValue {
+	return LineValue{Kind: LineValueNull}
+}
+func MakeLineBits(a int64, b int64, c int64) LineValue {
+	first := Float8Number(a)
+	second := Float8Number(b)
+	if langruntime.F64Abs(first) <= float64(0.000001) && langruntime.F64Abs(second) <= float64(0.000001) {
+		return LineValue{Kind: LineValueUnknown}
+	}
+	return LineValue{Kind: LineValueValue, Value: LinePayload{A: a, B: b, C: c, WireKnown: true}}
+}
+func LineIsNull(input LineValue) BoolValue {
+	if input.Kind == LineValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (LineValue{Kind: LineValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (LineValue{Kind: LineValueNull}))
+}
+func LineFromCaseGuard(input CheckOutcome) LineValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return LineValue{Kind: LineValueError, Error: error}
+	}
+	return LineValue{Kind: LineValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

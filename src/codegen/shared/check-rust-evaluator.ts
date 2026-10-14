@@ -43,6 +43,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.float4') return 'Float4Value'
   if (type === 'pg_catalog.float8') return 'Float8Value'
   if (type === 'pg_catalog.point') return 'PointValue'
+  if (type === 'pg_catalog.line') return 'LineValue'
   if (type === 'pg_catalog."numeric"') return 'NumericValue'
   if (type === 'pg_catalog."time"') return 'TimeValue'
   if (type === 'pg_catalog.timetz') return 'TimetzValue'
@@ -662,6 +663,7 @@ export function emitCheckRustEvaluator(
             : `make_bool_value(${value.value ? 'true' : 'false'})`
         return { name: bind(helper), type: value.type }
       }
+      if (value.kind === 'line') return { name: bind('line_null()'), type: value.type }
       if (value.kind === 'point') {
         if (value.value === null) return { name: bind('point_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -792,6 +794,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.float4',
           'pg_catalog.float8',
           'pg_catalog.point',
+          'pg_catalog.line',
           'pg_catalog."numeric"',
           'pg_catalog."time"',
           'pg_catalog.timetz',

@@ -179,6 +179,14 @@ import them. Keep schema-only helpers with their callables.
   their catalog chain; domain enforcement remains a separate coercion boundary.
   Geometric text output requires explicit floating rendering settings.
   Run the point suites and survey position INSERT world.
+- Line coefficients retain signed IEEE carriers in immutable payloads. Public
+  inputs validate the nondegenerate coefficient pair before preserving binary
+  precision metadata. Equality compares proportional coefficients with checked
+  floating arithmetic and short-circuits unequal components; NaNs select exact
+  SQL floating equality for every coefficient. Orientation uses coefficient
+  tolerances. Binary output preserves the original coefficient bits. Typed NULLs,
+  nested domains, CASE and COALESCE use the line wrapper. Run the line foundation
+  and raw write suites and the axis guide INSERT world.
 - Numeric payloads own exact decimal strings in `NumericValue`; targets use
   strings or readonly wrappers for already-coerced SQL values. Reject floating
   point inputs; malformed or unsupported representations defer. Rust validates

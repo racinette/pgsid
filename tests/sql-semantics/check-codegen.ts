@@ -9,6 +9,7 @@ export type GoCheckCase = {
   nullViaValue?: boolean
   floatColumns?: readonly string[]
   pointColumns?: readonly string[]
+  lineColumns?: readonly string[]
   numericColumns?: readonly string[]
   timeColumns?: readonly string[]
   timetzColumns?: readonly string[]
@@ -44,6 +45,7 @@ export function renderGoCheckTests(
       numericColumns,
       floatColumns,
       pointColumns,
+      lineColumns,
       timeColumns,
       timetzColumns,
       intervalColumns,
@@ -66,6 +68,16 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && lineColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const line = value as { a: bigint; b: bigint; c: bigint } | null
+        const wrapped = go.call(
+          go.selector(go.ident('checkruntime'), line === null ? 'LineNull' : 'MakeLineBits'),
+          line === null ? [] : [go.number(line.a), go.number(line.b), go.number(line.c)],
+        )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (options.dateRuntime && pointColumns?.includes(column.name)) {
