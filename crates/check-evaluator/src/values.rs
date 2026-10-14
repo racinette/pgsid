@@ -1589,3 +1589,35 @@ pub fn xid8_from_case_guard(input: CheckOutcome) -> Xid8Value {
     };
     Xid8Value::Unknown
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PgLsnValue {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+pub fn pg_lsn_unknown() -> PgLsnValue {
+    PgLsnValue::Unknown
+}
+pub fn pg_lsn_null() -> PgLsnValue {
+    PgLsnValue::Null
+}
+pub fn make_pg_lsn_bits(units: i64) -> PgLsnValue {
+    PgLsnValue::Value(units)
+}
+pub fn pg_lsn_is_null(input: PgLsnValue) -> BoolValue {
+    if let PgLsnValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == PgLsnValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == PgLsnValue::Null)
+}
+pub fn pg_lsn_from_case_guard(input: CheckOutcome) -> PgLsnValue {
+    if let CheckOutcome::Error(error) = input {
+        return PgLsnValue::Error(error);
+    };
+    PgLsnValue::Unknown
+}

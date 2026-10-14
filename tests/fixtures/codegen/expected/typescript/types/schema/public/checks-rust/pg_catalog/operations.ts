@@ -17467,6 +17467,358 @@ function oidInputDigit(ch: string): bigint {
     }
     return -1n;
 }
+const pgLsnSpecialError = 466560;
+const pgLsnRangeError = 3452619;
+function pgLsnCompare(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPgLsnValue(left, { kind: "Unknown" }) || checkruntime.equalPgLsnValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPgLsnValue(left, { kind: "Null" }) || checkruntime.equalPgLsnValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(right.value);
+            if (a < 0n && b >= 0n) {
+                return { kind: "Value", value: 1 };
+            }
+            if (a >= 0n && b < 0n) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a < b) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a > b) {
+                return { kind: "Value", value: 1 };
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function pgLsnRelation(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    const comparison: checkruntime.Int4Value = pgLsnCompare(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if (mode === 0) {
+            return checkruntime.makeBoolValue(order === 0);
+        }
+        if (mode === 1) {
+            return checkruntime.makeBoolValue(!(order === 0));
+        }
+        if (mode === 2) {
+            return checkruntime.makeBoolValue(order < 0);
+        }
+        if (mode === 3) {
+            return checkruntime.makeBoolValue(order <= 0);
+        }
+        if (mode === 4) {
+            return checkruntime.makeBoolValue(order > 0);
+        }
+        return checkruntime.makeBoolValue(order >= 0);
+    }
+    return { kind: "Unknown" };
+}
+function pgLsnSelect(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue, larger: boolean): checkruntime.PgLsnValue {
+    larger = langruntime.checkedBool(larger);
+    const comparison: checkruntime.Int4Value = pgLsnCompare(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if ((larger && order > 0) || (larger === false && order < 0)) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+function pgLsnBits(input: checkruntime.PgLsnValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPgLsnValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return checkruntime.makeInt8Value(value);
+    }
+    return { kind: "Unknown" };
+}
+export function pgLsnToText(input: checkruntime.PgLsnValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPgLsnValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        const bits: IntegerBits = copyIntegerBits(integerBitsFromValue(value));
+        const high: checkruntime.TextValue = integerBaseText(checkruntime.makeInt8Value(bits.high), false, 16n);
+        const low: checkruntime.TextValue = integerBaseText(checkruntime.makeInt8Value(bits.low), false, 16n);
+        if (high.kind === "Value") {
+            const first: string = langruntime.checkedString(high.value);
+            if (low.kind === "Value") {
+                const second: string = langruntime.checkedString(low.value);
+                let combined: string = "";
+                combined = combined + first;
+                combined = combined + langruntime.checkedChar("/");
+                combined = combined + second;
+                let output: string = "";
+                const chars: string[] = Array.from(combined);
+                let index: number = 0;
+                while (index < chars.length) {
+                    const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+                    index = langruntime.checkedAdd(index, 1);
+                    if (ch === "a") {
+                        output = output + langruntime.checkedChar("A");
+                    }
+                    else if (ch === "b") {
+                        output = output + langruntime.checkedChar("B");
+                    }
+                    else if (ch === "c") {
+                        output = output + langruntime.checkedChar("C");
+                    }
+                    else if (ch === "d") {
+                        output = output + langruntime.checkedChar("D");
+                    }
+                    else if (ch === "e") {
+                        output = output + langruntime.checkedChar("E");
+                    }
+                    else if (ch === "f") {
+                        output = output + langruntime.checkedChar("F");
+                    }
+                    else {
+                        output = output + langruntime.checkedChar(ch);
+                    }
+                }
+                return { kind: "Value", value: output };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+function pgLsnNumeric(input: checkruntime.PgLsnValue): checkruntime.NumericValue {
+    const text: checkruntime.TextValue = integerBaseText(pgLsnBits(input), true, 10n);
+    if (text.kind === "Error") {
+        const error: checkruntime.SqlError = text.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(text, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (text.kind === "Value") {
+        const value: string = langruntime.checkedString(text.value);
+        return checkruntime.makeNumericValue(value);
+    }
+    return { kind: "Unknown" };
+}
+function pgLsnFromNumeric(input: checkruntime.NumericValue): checkruntime.PgLsnValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(text);
+        if (work.valid === false) {
+            return { kind: "Unknown" };
+        }
+        if (!(work.special === 1)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(pgLsnSpecialError) };
+        }
+        if (!(work.sign === 0) && work.weight > 19) {
+            return { kind: "Error", value: checkruntime.makeSqlError(pgLsnRangeError) };
+        }
+        const rounded: checkruntime.NumericValue = numericWorkRound(work, 0, 1);
+        if (rounded.kind === "Error") {
+            const error: checkruntime.SqlError = rounded.value;
+            return { kind: "Error", value: error };
+        }
+        if (rounded.kind === "Value") {
+            const value: string = langruntime.checkedString(rounded.value);
+            const parts: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(value));
+            if (parts.sign === 0) {
+                return checkruntime.makePgLsnBits(0n);
+            }
+            if (parts.sign < 0 || parts.weight > 19) {
+                return { kind: "Error", value: checkruntime.makeSqlError(pgLsnRangeError) };
+            }
+            const chars: string[] = Array.from(value);
+            let high: bigint = 0n;
+            let low: bigint = 0n;
+            let index: number = parts.first;
+            let position: number = 0;
+            while (position <= parts.weight) {
+                let digit: bigint = 0n;
+                if (index < parts.end) {
+                    digit = langruntime.checkedI64(BigInt(langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))))));
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                const next: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(low, 10n), digit);
+                low = langruntime.checkedI64(langruntime.checkedI64Remainder(next, 4294967296n));
+                high = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 10n), langruntime.checkedI64Divide(next, 4294967296n)));
+                if (high > 4294967295n) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(pgLsnRangeError) };
+                }
+                position = langruntime.checkedIndex(langruntime.checkedAdd(position, 1));
+            }
+            return checkruntime.makePgLsnBits(integerBitsValue({ high: high, low: low }));
+        }
+    }
+    return { kind: "Unknown" };
+}
+function pgLsnAdjust(left: checkruntime.PgLsnValue, right: checkruntime.NumericValue, subtract: boolean): checkruntime.PgLsnValue {
+    subtract = langruntime.checkedBool(subtract);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPgLsnValue(left, { kind: "Unknown" }) || checkruntime.equalNumericValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPgLsnValue(left, { kind: "Null" }) || checkruntime.equalNumericValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const numeric: checkruntime.NumericValue = pgLsnNumeric(left);
+    if (subtract) {
+        return pgLsnFromNumeric(numericSubYs09(numeric, right));
+    }
+    return pgLsnFromNumeric(numericAddO3d7(numeric, right));
+}
+export function pgLsnSendR284(left: checkruntime.PgLsnValue): checkruntime.ByteaValue {
+    return int8sendPjz0(pgLsnBits(left));
+}
+export function numericPlPgLsnJhoo(left: checkruntime.NumericValue, right: checkruntime.PgLsnValue): checkruntime.PgLsnValue {
+    return pgLsnAdjust(right, left, false);
+}
+export function pgLsn8qf1(left: checkruntime.NumericValue): checkruntime.PgLsnValue {
+    return pgLsnFromNumeric(left);
+}
+export function pgLsnCmp46uk(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.Int4Value {
+    return pgLsnCompare(left, right);
+}
+export function pgLsnEqIsht(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.BoolValue {
+    return pgLsnRelation(left, right, 0);
+}
+export function pgLsnGeFqvw(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.BoolValue {
+    return pgLsnRelation(left, right, 5);
+}
+export function pgLsnGtHlz9(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.BoolValue {
+    return pgLsnRelation(left, right, 4);
+}
+export function pgLsnHashF4fo(left: checkruntime.PgLsnValue): checkruntime.Int4Value {
+    return hashint83wid(pgLsnBits(left));
+}
+export function pgLsnHashExtendedMll2(left: checkruntime.PgLsnValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    return hashint8extendedFrvh(pgLsnBits(left), right);
+}
+export function pgLsnLargerU28j(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.PgLsnValue {
+    return pgLsnSelect(left, right, true);
+}
+export function pgLsnLeGaq2(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.BoolValue {
+    return pgLsnRelation(left, right, 3);
+}
+export function pgLsnLtAutv(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.BoolValue {
+    return pgLsnRelation(left, right, 2);
+}
+export function pgLsnMiF4h2(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.NumericValue {
+    return numericSubYs09(pgLsnNumeric(left), pgLsnNumeric(right));
+}
+export function pgLsnMiiKdo3(left: checkruntime.PgLsnValue, right: checkruntime.NumericValue): checkruntime.PgLsnValue {
+    return pgLsnAdjust(left, right, true);
+}
+export function pgLsnNeCw52(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.BoolValue {
+    return pgLsnRelation(left, right, 1);
+}
+export function pgLsnPliRpc5(left: checkruntime.PgLsnValue, right: checkruntime.NumericValue): checkruntime.PgLsnValue {
+    return pgLsnAdjust(left, right, false);
+}
+export function pgLsnSmallerTxge(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.PgLsnValue {
+    return pgLsnSelect(left, right, false);
+}
+export function pgWalLsnDiffSecp(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.NumericValue {
+    return numericSubYs09(pgLsnNumeric(left), pgLsnNumeric(right));
+}
+const pgLsnInputError = 3484946;
+export function pgLsnFromText(input: checkruntime.TextValue): checkruntime.PgLsnValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        if (chars.length < 3 || chars.length > 17) {
+            return { kind: "Error", value: checkruntime.makeSqlError(pgLsnInputError) };
+        }
+        let index: number = 0;
+        let high: bigint = 0n;
+        while (index < chars.length && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "/")) {
+            const digit: bigint = oidInputDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            if (digit < 0n || index >= 8) {
+                return { kind: "Error", value: checkruntime.makeSqlError(pgLsnInputError) };
+            }
+            high = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 16n), digit));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (index === 0 || index >= chars.length) {
+            return { kind: "Error", value: checkruntime.makeSqlError(pgLsnInputError) };
+        }
+        index = langruntime.checkedAdd(index, 1);
+        const first: number = index;
+        let low: bigint = 0n;
+        while (index < chars.length) {
+            const digit: bigint = oidInputDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            if (digit < 0n || langruntime.checkedSubtract(index, first) >= 8) {
+                return { kind: "Error", value: checkruntime.makeSqlError(pgLsnInputError) };
+            }
+            low = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(low, 16n), digit));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (index === first) {
+            return { kind: "Error", value: checkruntime.makeSqlError(pgLsnInputError) };
+        }
+        return checkruntime.makePgLsnBits(integerBitsValue({ high: high, low: low }));
+    }
+    return { kind: "Unknown" };
+}
 function pointSameValue(left: checkruntime.PointPayload, right: checkruntime.PointPayload): boolean {
     const x: number = checkruntime.float8Number(left.x);
     const y: number = checkruntime.float8Number(left.y);

@@ -79,61 +79,63 @@ export async function runCheckParity(
       ? 'xid'
       : type === 'pg_catalog.cid'
         ? 'cid'
-        : type === 'pg_catalog.xid8'
-          ? 'xid8'
-          : type === 'pg_catalog.oid'
-            ? 'oid'
-            : type === 'pg_catalog.money'
-              ? 'money'
-              : type === 'pg_catalog.circle'
-                ? 'circle'
-                : type === 'pg_catalog.box'
-                  ? 'box'
-                  : type === 'pg_catalog.lseg'
-                    ? 'lseg'
-                    : type === 'pg_catalog.line'
-                      ? 'line'
-                      : type === 'pg_catalog.point'
-                        ? 'point'
-                        : type === 'pg_catalog."time"'
-                          ? 'time'
-                          : type === 'pg_catalog.timetz'
-                            ? 'timetz'
-                            : type === 'pg_catalog."interval"'
-                              ? 'interval'
-                              : type === 'pg_catalog.float4' || type === 'pg_catalog.float8'
-                                ? type.slice('pg_catalog.'.length)
-                                : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
-                                  ? 'bit'
-                                  : type === 'pg_catalog.uuid'
-                                    ? 'uuid'
-                                    : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
-                                      ? 'network'
-                                      : type === 'pg_catalog.macaddr'
-                                        ? 'macaddr'
-                                        : type === 'pg_catalog.macaddr8'
-                                          ? 'macaddr8'
-                                          : type === 'pg_catalog.bytea'
-                                            ? 'bytea'
-                                            : type.startsWith('enum:')
-                                              ? 'enum'
-                                              : type === 'pg_catalog.int2'
-                                                ? 'int2'
-                                                : type === 'pg_catalog.int4'
-                                                  ? 'int4'
-                                                  : type === 'pg_catalog.int8'
-                                                    ? 'int8'
-                                                    : type === 'pg_catalog."numeric"'
-                                                      ? 'numeric'
-                                                      : type === 'pg_catalog."timestamp"'
-                                                        ? 'timestamp'
-                                                        : type === 'pg_catalog.timestamptz'
-                                                          ? 'timestamptz'
-                                                          : type === 'pg_catalog.date'
-                                                            ? 'date'
-                                                            : type === 'pg_catalog.bool'
-                                                              ? 'bool'
-                                                              : 'text'
+        : type === 'pg_catalog.pg_lsn'
+          ? 'pg_lsn'
+          : type === 'pg_catalog.xid8'
+            ? 'xid8'
+            : type === 'pg_catalog.oid'
+              ? 'oid'
+              : type === 'pg_catalog.money'
+                ? 'money'
+                : type === 'pg_catalog.circle'
+                  ? 'circle'
+                  : type === 'pg_catalog.box'
+                    ? 'box'
+                    : type === 'pg_catalog.lseg'
+                      ? 'lseg'
+                      : type === 'pg_catalog.line'
+                        ? 'line'
+                        : type === 'pg_catalog.point'
+                          ? 'point'
+                          : type === 'pg_catalog."time"'
+                            ? 'time'
+                            : type === 'pg_catalog.timetz'
+                              ? 'timetz'
+                              : type === 'pg_catalog."interval"'
+                                ? 'interval'
+                                : type === 'pg_catalog.float4' || type === 'pg_catalog.float8'
+                                  ? type.slice('pg_catalog.'.length)
+                                  : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
+                                    ? 'bit'
+                                    : type === 'pg_catalog.uuid'
+                                      ? 'uuid'
+                                      : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
+                                        ? 'network'
+                                        : type === 'pg_catalog.macaddr'
+                                          ? 'macaddr'
+                                          : type === 'pg_catalog.macaddr8'
+                                            ? 'macaddr8'
+                                            : type === 'pg_catalog.bytea'
+                                              ? 'bytea'
+                                              : type.startsWith('enum:')
+                                                ? 'enum'
+                                                : type === 'pg_catalog.int2'
+                                                  ? 'int2'
+                                                  : type === 'pg_catalog.int4'
+                                                    ? 'int4'
+                                                    : type === 'pg_catalog.int8'
+                                                      ? 'int8'
+                                                      : type === 'pg_catalog."numeric"'
+                                                        ? 'numeric'
+                                                        : type === 'pg_catalog."timestamp"'
+                                                          ? 'timestamp'
+                                                          : type === 'pg_catalog.timestamptz'
+                                                            ? 'timestamptz'
+                                                            : type === 'pg_catalog.date'
+                                                              ? 'date'
+                                                              : type === 'pg_catalog.bool'
+                                                                ? 'bool'
+                                                                : 'text'
   const inputCode = (input: Input, type: string, definition?: EnumDefinition): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -176,6 +178,7 @@ export async function runCheckParity(
         : prefix === 'time' ||
             prefix === 'xid' ||
             prefix === 'cid' ||
+            prefix === 'pg_lsn' ||
             prefix === 'xid8' ||
             prefix === 'oid' ||
             prefix === 'money' ||
@@ -184,6 +187,7 @@ export async function runCheckParity(
             prefix === 'timestamptz'
           ? `${input.value}i64`
           : String(input.value)
+    if (prefix === 'pg_lsn') return `make_pg_lsn_bits(${literal})`
     if (prefix === 'xid8') return `make_xid8_bits(${literal})`
     return `make_${prefix}_value(${literal})`
   }
@@ -257,7 +261,10 @@ export async function runCheckParity(
         : typeof input.value === 'boolean'
           ? go.ident(String(input.value))
           : go.number(input.value)
-    return go.call(runtime('Make' + prefix + (prefix === 'Xid8' ? 'Bits' : 'Value')), [value])
+    return go.call(
+      runtime('Make' + prefix + (prefix === 'Xid8' || prefix === 'PgLsn' ? 'Bits' : 'Value')),
+      [value],
+    )
   }
   const rustAssertions: string[] = []
   const goAssertions: GoStatement[] = []
@@ -444,6 +451,8 @@ export async function runCheckParity(
           return generated.makeXidValue(BigInt(value.value as number | bigint))
         if (input.type === 'pg_catalog.cid' && value.kind === 'Value')
           return generated.makeCidValue(BigInt(value.value as number | bigint))
+        if (input.type === 'pg_catalog.pg_lsn' && value.kind === 'Value')
+          return generated.makePgLsnBits(BigInt(value.value as number | bigint))
         if (input.type === 'pg_catalog.xid8' && value.kind === 'Value')
           return generated.makeXid8Bits(BigInt(value.value as number | bigint))
         if (input.type === 'pg_catalog.oid' && value.kind === 'Value')

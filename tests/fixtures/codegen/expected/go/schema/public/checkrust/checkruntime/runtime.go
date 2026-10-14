@@ -1734,6 +1734,48 @@ func Xid8FromCaseGuard(input CheckOutcome) Xid8Value {
 	return Xid8Value{Kind: Xid8ValueUnknown}
 }
 
+type PgLsnValueKind uint8
+
+const (
+	PgLsnValueUnknown PgLsnValueKind = iota
+	PgLsnValueNull
+	PgLsnValueValue
+	PgLsnValueError
+)
+
+type PgLsnValue struct {
+	Kind  PgLsnValueKind
+	Value int64
+	Error SqlError
+}
+
+func PgLsnUnknown() PgLsnValue {
+	return PgLsnValue{Kind: PgLsnValueUnknown}
+}
+func PgLsnNull() PgLsnValue {
+	return PgLsnValue{Kind: PgLsnValueNull}
+}
+func MakePgLsnBits(units int64) PgLsnValue {
+	return PgLsnValue{Kind: PgLsnValueValue, Value: units}
+}
+func PgLsnIsNull(input PgLsnValue) BoolValue {
+	if input.Kind == PgLsnValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (PgLsnValue{Kind: PgLsnValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (PgLsnValue{Kind: PgLsnValueNull}))
+}
+func PgLsnFromCaseGuard(input CheckOutcome) PgLsnValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return PgLsnValue{Kind: PgLsnValueError, Error: error}
+	}
+	return PgLsnValue{Kind: PgLsnValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

@@ -17399,6 +17399,354 @@ func oidInputDigit(ch rune) int64 {
 	}
 	return int64(-1)
 }
+
+const pgLsnSpecialError = 466560
+const pgLsnRangeError = 3452619
+
+func pgLsnCompare(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.PgLsnValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PgLsnValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnknown}) || right == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}) || right == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.PgLsnValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.PgLsnValueValue {
+			b := right.Value
+			if a < int64(0) && b >= int64(0) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			if a >= int64(0) && b < int64(0) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if a < b {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if a > b {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func pgLsnRelation(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	comparison := pgLsnCompare(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if mode == 0 {
+			return checkruntime.MakeBoolValue(order == 0)
+		}
+		if mode == 1 {
+			return checkruntime.MakeBoolValue(order != 0)
+		}
+		if mode == 2 {
+			return checkruntime.MakeBoolValue(order < 0)
+		}
+		if mode == 3 {
+			return checkruntime.MakeBoolValue(order <= 0)
+		}
+		if mode == 4 {
+			return checkruntime.MakeBoolValue(order > 0)
+		}
+		return checkruntime.MakeBoolValue(order >= 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func pgLsnSelect(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue, larger bool) checkruntime.PgLsnValue {
+	comparison := pgLsnCompare(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if (larger && order > 0) || (larger == false && order < 0) {
+			return left
+		}
+		return right
+	}
+	return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnknown}
+}
+func pgLsnBits(input checkruntime.PgLsnValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.PgLsnValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.PgLsnValueValue {
+		value := input.Value
+		return checkruntime.MakeInt8Value(value)
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func PgLsnToText(input checkruntime.PgLsnValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.PgLsnValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.PgLsnValueValue {
+		value := input.Value
+		bits := integerBitsFromValue(value)
+		high := integerBaseText(checkruntime.MakeInt8Value(bits.high), false, int64(16))
+		low := integerBaseText(checkruntime.MakeInt8Value(bits.low), false, int64(16))
+		if high.Kind == checkruntime.TextValueValue {
+			first := langruntime.CheckedString(high.Value)
+			if low.Kind == checkruntime.TextValueValue {
+				second := langruntime.CheckedString(low.Value)
+				combined := langruntime.NewTextBuffer("")
+				combined = append(combined, first...)
+				combined = append(combined, string(langruntime.CheckedChar('/'))...)
+				combined = append(combined, second...)
+				output := langruntime.NewTextBuffer("")
+				chars := []rune(string(combined))
+				index := 0
+				for index < len(chars) {
+					ch := chars[index]
+					index = langruntime.CheckedAdd(index, 1)
+					if ch == 'a' {
+						output = append(output, string(langruntime.CheckedChar('A'))...)
+					} else if ch == 'b' {
+						output = append(output, string(langruntime.CheckedChar('B'))...)
+					} else if ch == 'c' {
+						output = append(output, string(langruntime.CheckedChar('C'))...)
+					} else if ch == 'd' {
+						output = append(output, string(langruntime.CheckedChar('D'))...)
+					} else if ch == 'e' {
+						output = append(output, string(langruntime.CheckedChar('E'))...)
+					} else if ch == 'f' {
+						output = append(output, string(langruntime.CheckedChar('F'))...)
+					} else {
+						output = append(output, string(langruntime.CheckedChar(ch))...)
+					}
+				}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+			}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func pgLsnNumeric(input checkruntime.PgLsnValue) checkruntime.NumericValue {
+	text := integerBaseText(pgLsnBits(input), true, int64(10))
+	if text.Kind == checkruntime.TextValueError {
+		error := text.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if text == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if text.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(text.Value)
+		return checkruntime.MakeNumericValue(value)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func pgLsnFromNumeric(input checkruntime.NumericValue) checkruntime.PgLsnValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		text := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(text)
+		if work.valid == false {
+			return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnknown}
+		}
+		if work.special != 1 {
+			return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: checkruntime.MakeSqlError(pgLsnSpecialError)}
+		}
+		if work.sign != 0 && work.weight > 19 {
+			return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: checkruntime.MakeSqlError(pgLsnRangeError)}
+		}
+		rounded := numericWorkRound(work, 0, 1)
+		if rounded.Kind == checkruntime.NumericValueError {
+			error := rounded.Error
+			return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
+		}
+		if rounded.Kind == checkruntime.NumericValueValue {
+			value := langruntime.CheckedString(rounded.Value)
+			parts := checkruntime.NumericParts(value)
+			if parts.Sign == 0 {
+				return checkruntime.MakePgLsnBits(int64(0))
+			}
+			if parts.Sign < 0 || parts.Weight > 19 {
+				return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: checkruntime.MakeSqlError(pgLsnRangeError)}
+			}
+			chars := []rune(value)
+			high := int64(0)
+			low := int64(0)
+			index := parts.First
+			position := 0
+			for position <= parts.Weight {
+				digit := int64(0)
+				if index < parts.End {
+					digit = int64(langruntime.CheckedI32(numericWireDecimalDigit(chars[index])))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				next := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(low, int64(10)), digit)
+				low = langruntime.CheckedI64Remainder(next, int64(4294967296))
+				high = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(10)), langruntime.CheckedI64Divide(next, int64(4294967296)))
+				if high > int64(4294967295) {
+					return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: checkruntime.MakeSqlError(pgLsnRangeError)}
+				}
+				position = langruntime.CheckedIndex(langruntime.CheckedAdd(position, 1))
+			}
+			return checkruntime.MakePgLsnBits(integerBitsValue(integerBits{high: high, low: low}))
+		}
+	}
+	return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnknown}
+}
+func pgLsnAdjust(left checkruntime.PgLsnValue, right checkruntime.NumericValue, subtract bool) checkruntime.PgLsnValue {
+	if left.Kind == checkruntime.PgLsnValueError {
+		error := left.Error
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
+	}
+	if right.Kind == checkruntime.NumericValueError {
+		error := right.Error
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
+	}
+	if left == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnknown}
+	}
+	if left == (checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}
+	}
+	numeric := pgLsnNumeric(left)
+	if subtract {
+		return pgLsnFromNumeric(NumericSubYs09(numeric, right))
+	}
+	return pgLsnFromNumeric(NumericAddO3d7(numeric, right))
+}
+func PgLsnSendR284(left checkruntime.PgLsnValue) checkruntime.ByteaValue {
+	return Int8sendPjz0(pgLsnBits(left))
+}
+func NumericPlPgLsnJhoo(left checkruntime.NumericValue, right checkruntime.PgLsnValue) checkruntime.PgLsnValue {
+	return pgLsnAdjust(right, left, false)
+}
+func PgLsn8qf1(left checkruntime.NumericValue) checkruntime.PgLsnValue {
+	return pgLsnFromNumeric(left)
+}
+func PgLsnCmp46uk(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.Int4Value {
+	return pgLsnCompare(left, right)
+}
+func PgLsnEqIsht(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.BoolValue {
+	return pgLsnRelation(left, right, 0)
+}
+func PgLsnGeFqvw(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.BoolValue {
+	return pgLsnRelation(left, right, 5)
+}
+func PgLsnGtHlz9(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.BoolValue {
+	return pgLsnRelation(left, right, 4)
+}
+func PgLsnHashF4fo(left checkruntime.PgLsnValue) checkruntime.Int4Value {
+	return Hashint83wid(pgLsnBits(left))
+}
+func PgLsnHashExtendedMll2(left checkruntime.PgLsnValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	return Hashint8extendedFrvh(pgLsnBits(left), right)
+}
+func PgLsnLargerU28j(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.PgLsnValue {
+	return pgLsnSelect(left, right, true)
+}
+func PgLsnLeGaq2(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.BoolValue {
+	return pgLsnRelation(left, right, 3)
+}
+func PgLsnLtAutv(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.BoolValue {
+	return pgLsnRelation(left, right, 2)
+}
+func PgLsnMiF4h2(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.NumericValue {
+	return NumericSubYs09(pgLsnNumeric(left), pgLsnNumeric(right))
+}
+func PgLsnMiiKdo3(left checkruntime.PgLsnValue, right checkruntime.NumericValue) checkruntime.PgLsnValue {
+	return pgLsnAdjust(left, right, true)
+}
+func PgLsnNeCw52(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.BoolValue {
+	return pgLsnRelation(left, right, 1)
+}
+func PgLsnPliRpc5(left checkruntime.PgLsnValue, right checkruntime.NumericValue) checkruntime.PgLsnValue {
+	return pgLsnAdjust(left, right, false)
+}
+func PgLsnSmallerTxge(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.PgLsnValue {
+	return pgLsnSelect(left, right, false)
+}
+func PgWalLsnDiffSecp(left checkruntime.PgLsnValue, right checkruntime.PgLsnValue) checkruntime.NumericValue {
+	return NumericSubYs09(pgLsnNumeric(left), pgLsnNumeric(right))
+}
+
+const pgLsnInputError = 3484946
+
+func PgLsnFromText(input checkruntime.TextValue) checkruntime.PgLsnValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		if len(chars) < 3 || len(chars) > 17 {
+			return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: checkruntime.MakeSqlError(pgLsnInputError)}
+		}
+		index := 0
+		high := int64(0)
+		for index < len(chars) && chars[index] != '/' {
+			digit := oidInputDigit(chars[index])
+			if digit < int64(0) || index >= 8 {
+				return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: checkruntime.MakeSqlError(pgLsnInputError)}
+			}
+			high = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(16)), digit)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if index == 0 || index >= len(chars) {
+			return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: checkruntime.MakeSqlError(pgLsnInputError)}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+		first := index
+		low := int64(0)
+		for index < len(chars) {
+			digit := oidInputDigit(chars[index])
+			if digit < int64(0) || langruntime.CheckedSubtract(index, first) >= 8 {
+				return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: checkruntime.MakeSqlError(pgLsnInputError)}
+			}
+			low = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(low, int64(16)), digit)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if index == first {
+			return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueError, Error: checkruntime.MakeSqlError(pgLsnInputError)}
+		}
+		return checkruntime.MakePgLsnBits(integerBitsValue(integerBits{high: high, low: low}))
+	}
+	return checkruntime.PgLsnValue{Kind: checkruntime.PgLsnValueUnknown}
+}
 func pointSameValue(left checkruntime.PointPayload, right checkruntime.PointPayload) bool {
 	x := checkruntime.Float8Number(left.X)
 	y := checkruntime.Float8Number(left.Y)

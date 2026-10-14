@@ -1932,6 +1932,53 @@ export function xid8FromCaseGuard(input: CheckOutcome): Xid8Value {
     }
     return { kind: "Unknown" };
 }
+export type PgLsnValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: bigint;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalPgLsnValue(left: PgLsnValue, right: PgLsnValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function pgLsnUnknown(): PgLsnValue {
+    return { kind: "Unknown" };
+}
+export function pgLsnNull(): PgLsnValue {
+    return { kind: "Null" };
+}
+export function makePgLsnBits(units: bigint): PgLsnValue {
+    units = langruntime.checkedI64(units);
+    return { kind: "Value", value: units };
+}
+export function pgLsnIsNull(input: PgLsnValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalPgLsnValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalPgLsnValue(input, { kind: "Null" }));
+}
+export function pgLsnFromCaseGuard(input: CheckOutcome): PgLsnValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

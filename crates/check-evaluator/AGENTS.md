@@ -504,3 +504,12 @@ import them. Keep schema-only helpers with their callables.
   portable unsigned grammar and preserves overflow before trailing syntax.
   Current transaction IDs and transaction age require database state. Run the
   system identifier, public payload, raw write and transaction INSERT suites.
+
+- WAL locations retain the unsigned 64-bit address through signed bit carriers.
+  Input accepts two hexadecimal words separated by a slash; output uses uppercase
+  hexadecimal without padding. Comparisons use unsigned order; differences retain
+  the full exact numeric range. Numeric conversion rounds halves away from zero,
+  rejecting negative or overflowing results and special numeric values. SQL exposes
+  conversion as a function rather than a numeric cast. Public inputs preserve
+  already-coerced addresses; raw query strings reach database coercion. Run the WAL
+  location parity, public payload, raw write and WAL record INSERT suites.

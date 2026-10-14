@@ -215,7 +215,7 @@ exposes a prerequisite:
       integer casts, domains and SQL-coerced public input validation.
 - [x] Establish transaction and command identifiers, unsigned full transaction
       words, portable input/output, pure operations and contextual state boundaries.
-- [ ] Establish WAL location payloads, portable text input/output, comparisons,
+- [x] Establish WAL location payloads, portable text input/output, comparisons,
       hashing, exact numeric arithmetic and SQL-coerced public inputs.
 - [ ] Establish heap tuple pointer payloads, comparisons, binary/text conversion,
       portable hashes and explicit native-layout and heap-state requirements.

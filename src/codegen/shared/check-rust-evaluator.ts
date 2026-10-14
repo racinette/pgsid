@@ -27,6 +27,12 @@ type Input = {
   enum?: EnumDefinition
 }
 
+const rustValuePrefix = (kind: string): string =>
+  kind
+    .slice(0, -'Value'.length)
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+
 export class UnsupportedCheckRustExpression extends Error {}
 
 const rustType = (type: string): string => {
@@ -47,6 +53,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.money') return 'MoneyValue'
   if (type === 'pg_catalog.xid') return 'XidValue'
   if (type === 'pg_catalog.cid') return 'CidValue'
+  if (type === 'pg_catalog.pg_lsn') return 'PgLsnValue'
   if (type === 'pg_catalog.xid8') return 'Xid8Value'
   if (type === 'pg_catalog.oid') return 'OidValue'
   if (type === 'pg_catalog.circle') return 'CircleValue'
@@ -213,7 +220,7 @@ export function emitCheckRustEvaluator(
         preparationDepth--
         valueLiteralDepth--
       }
-      const prefix = rustType(value.type).slice(0, -'Value'.length).toLowerCase()
+      const prefix = rustValuePrefix(rustType(value.type))
       const name = fresh(`${prefix}_literal`)
       constantDeclarations.push(`let mut ${name}: ${rustType(value.type)} = ${prefix}_unknown();`)
       literalLines.push(`${name} = ${value.name};`)
@@ -233,7 +240,7 @@ export function emitCheckRustEvaluator(
         preparationDepth--
       }
       const kind = rustType(value.type)
-      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const prefix = rustValuePrefix(kind)
       const name = fresh('prepared_operand')
       constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
       preparationLines.push(`${name} = ${ownedOperand(value)};`)
@@ -241,7 +248,7 @@ export function emitCheckRustEvaluator(
     }
     const value = emitScalarInner(node, bindings, used)
     if (preparationDepth > 0) {
-      const prefix = rustType(value.type).slice(0, -'Value'.length).toLowerCase()
+      const prefix = rustValuePrefix(rustType(value.type))
       const nullness = fresh('prepared_value_nullness')
       const state = fresh('prepared_value_state')
       bindings.push(
@@ -279,7 +286,7 @@ export function emitCheckRustEvaluator(
       preparation: readonly ConstantPreparation[],
     ): { name: string; type: string } => {
       const kind = rustType(type)
-      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const prefix = rustValuePrefix(kind)
       const guard = fresh('constant_guard')
       const initial = fresh('constant_start')
       preparationLines.push(`let ${initial} = make_bool_value(true);`)
@@ -292,7 +299,7 @@ export function emitCheckRustEvaluator(
         } finally {
           preparationDepth--
         }
-        const operandPrefix = rustType(value.type).slice(0, -'Value'.length).toLowerCase()
+        const operandPrefix = rustValuePrefix(rustType(value.type))
         const state = fresh('constant_state')
         if (step.kind === 'value' || step.test === 'null') {
           const nullness = fresh('constant_nullness')
@@ -466,7 +473,7 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'uncertain') {
       const kind = rustType(node.type)
-      const helper = kind.slice(0, -'Value'.length).toLowerCase() + '_unknown'
+      const helper = rustValuePrefix(kind) + '_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
     if (node.kind === 'bit-to-text') {
@@ -513,6 +520,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.oid',
           'pg_catalog.xid',
           'pg_catalog.cid',
+          'pg_catalog.pg_lsn',
           'pg_catalog.xid8',
         ].includes(operand.type) ||
         metadata.volatility !== 'i'
@@ -559,6 +567,19 @@ export function emitCheckRustEvaluator(
           'Cid input requires text and its catalog I/O identity',
         )
       return { name: bind(`cid_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-pg_lsn') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (
+        operand.type !== 'pg_catalog.text' ||
+        !io ||
+        builtinMetadata(io).args[0] !== 'pg_catalog.cstring'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'PgLsn input requires text and its catalog I/O identity',
+        )
+      return { name: bind(`pg_lsn_from_text(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'text-to-xid8') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -793,6 +814,11 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`cid_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'pg_lsn') {
+        if (value.value === null) return { name: bind('pg_lsn_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`pg_lsn_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'xid8') {
         if (value.value === null) return { name: bind('xid8_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -948,6 +974,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.money',
           'pg_catalog.xid',
           'pg_catalog.cid',
+          'pg_catalog.pg_lsn',
           'pg_catalog.xid8',
           'pg_catalog.oid',
           'pg_catalog.circle',
@@ -974,7 +1001,7 @@ export function emitCheckRustEvaluator(
       }
       const operand = emitPreparedOperand(node.operand, bindings, used)
       const kind = rustType(operand.type)
-      const helper = kind.slice(0, -'Value'.length).toLowerCase() + '_is_null'
+      const helper = rustValuePrefix(kind) + '_is_null'
       const result = bind(`${helper}(${ownedOperand(operand)})`)
       return {
         name: node.negated ? bind(`bool_not_value(${result})`) : result,
@@ -1019,7 +1046,7 @@ export function emitCheckRustEvaluator(
             preparationDepth--
           }
           const kind = rustType(value.type)
-          const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+          const prefix = rustValuePrefix(kind)
           const name = fresh('constant_argument')
           constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
           const nullness = fresh('constant_argument_nullness')
@@ -1034,7 +1061,7 @@ export function emitCheckRustEvaluator(
         })
         const value = emitCall(node.call, operands, lines)
         const kind = rustType(value.type)
-        const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+        const prefix = rustValuePrefix(kind)
         const name = fresh('prepared_call')
         bindings.push(
           `let mut ${name}: ${kind} = ${prefix}_null();`,
@@ -1063,7 +1090,7 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'distinct') {
       const operands = node.operands.map((operand) => emitPreparedOperand(operand, bindings, used))
       const nulls = operands.map((operand) => {
-        const helper = rustType(operand.type).slice(0, -'Value'.length).toLowerCase() + '_is_null'
+        const helper = rustValuePrefix(rustType(operand.type)) + '_is_null'
         return bind(`${helper}(${ownedOperand(operand)})`)
       })
       const name = fresh('distinct_result')
@@ -1103,7 +1130,7 @@ export function emitCheckRustEvaluator(
       const guard = fresh('nullif_comparison')
       lines.push(`let ${guard} = check_from_bool(${comparison.name});`)
       const kind = rustType(node.type)
-      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const prefix = rustValuePrefix(kind)
       const name = fresh('nullif_result')
       lines.push(
         `if case_guard_stops(${guard}) {`,
@@ -1202,7 +1229,7 @@ export function emitCheckRustEvaluator(
       )
         throw new UnsupportedCheckRustExpression('Invalid GREATEST/LEAST arguments')
       const kind = rustType(node.type)
-      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const prefix = rustValuePrefix(kind)
       const operands = node.operands.map((operand) => emitPreparedOperand(operand, bindings, used))
       if (operands.length === 1) return operands[0]!
       const name = fresh('minmax_result')
@@ -1250,7 +1277,7 @@ export function emitCheckRustEvaluator(
       if (!node.operands.length)
         throw new UnsupportedCheckRustExpression('Expected a COALESCE argument')
       const kind = rustType(node.type)
-      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const prefix = rustValuePrefix(kind)
       const operands = node.operands.map((operand) => {
         const lines: string[] = []
         const prepared = capturePreparation(() => emitScalar(operand, lines, used))
@@ -1306,7 +1333,7 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'case') {
       if (!node.branches.length) throw new UnsupportedCheckRustExpression('Expected a CASE branch')
       const kind = rustType(node.type)
-      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const prefix = rustValuePrefix(kind)
       const scrutineeLines: string[] = []
       const scrutinee = node.scrutinee
         ? emitScalar(node.scrutinee.expression, scrutineeLines, used)
