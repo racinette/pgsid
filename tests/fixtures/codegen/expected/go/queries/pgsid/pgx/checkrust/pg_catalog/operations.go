@@ -5396,10 +5396,12 @@ func floatArithmetic(left checkruntime.Float8Value, right checkruntime.Float8Val
 	if left == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || right == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
 	}
-	if left.Kind == checkruntime.Float8ValueValue {
-		aBits := left.Value
-		if right.Kind == checkruntime.Float8ValueValue {
-			bBits := right.Value
+	knownLeft := checkruntime.Float8Semantic(left)
+	knownRight := checkruntime.Float8Semantic(right)
+	if knownLeft.Kind == checkruntime.Float8ValueValue {
+		aBits := knownLeft.Value
+		if knownRight.Kind == checkruntime.Float8ValueValue {
+			bBits := knownRight.Value
 			a := checkruntime.Float8Number(aBits)
 			b := checkruntime.Float8Number(bBits)
 			infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
@@ -5428,6 +5430,9 @@ func floatArithmetic(left checkruntime.Float8Value, right checkruntime.Float8Val
 			}
 			if value == float64(0.0) && a != float64(0.0) && ((mode == 2 && b != float64(0.0)) || (mode == 3 && langruntime.F64Abs(b) != infinity)) {
 				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+			}
+			if left == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) || right == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
 			}
 			return checkruntime.MakeFloat8Value(value)
 		}
@@ -5634,6 +5639,9 @@ func AbsWle0(input checkruntime.Float8Value) checkruntime.Float8Value {
 const floatCoreRange = 3452547
 
 func float4Widen(input checkruntime.Float4Value) checkruntime.Float8Value {
+	if input == (checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
 	if input.Kind == checkruntime.Float4ValueError {
 		error := input.Error
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
@@ -5648,6 +5656,9 @@ func float4Widen(input checkruntime.Float4Value) checkruntime.Float8Value {
 	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
 }
 func float8Narrow(input checkruntime.Float8Value) checkruntime.Float4Value {
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}
+	}
 	if input.Kind == checkruntime.Float8ValueError {
 		error := input.Error
 		return checkruntime.Float4Value{Kind: checkruntime.Float4ValueError, Error: error}
@@ -5683,10 +5694,12 @@ func float8Compare(left checkruntime.Float8Value, right checkruntime.Float8Value
 	if left == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || right == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
-	if left.Kind == checkruntime.Float8ValueValue {
-		aBits := left.Value
-		if right.Kind == checkruntime.Float8ValueValue {
-			bBits := right.Value
+	knownLeft := checkruntime.Float8Semantic(left)
+	knownRight := checkruntime.Float8Semantic(right)
+	if knownLeft.Kind == checkruntime.Float8ValueValue {
+		aBits := knownLeft.Value
+		if knownRight.Kind == checkruntime.Float8ValueValue {
+			bBits := knownRight.Value
 			a := checkruntime.Float8Number(aBits)
 			b := checkruntime.Float8Number(bBits)
 			if a != a {
@@ -5717,8 +5730,9 @@ func float8Integer(input checkruntime.Float8Value) checkruntime.Int8Value {
 	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
 	}
-	if input.Kind == checkruntime.Float8ValueValue {
-		raw := input.Value
+	knownInput := checkruntime.Float8Semantic(input)
+	if knownInput.Kind == checkruntime.Float8ValueValue {
+		raw := knownInput.Value
 		bits := raw
 		negative := raw < int64(0)
 		if negative {
@@ -6324,8 +6338,9 @@ func floatNumericDecimal(input checkruntime.Float8Value, precision int) checkrun
 	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
 		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
 	}
-	if input.Kind == checkruntime.Float8ValueValue {
-		bits := input.Value
+	knownInput := checkruntime.Float8Semantic(input)
+	if knownInput.Kind == checkruntime.Float8ValueValue {
+		bits := knownInput.Value
 		value := checkruntime.Float8Number(bits)
 		if value != value {
 			return checkruntime.MakeNumericValue("NaN")
@@ -8191,8 +8206,9 @@ func intervalScaled(input checkruntime.IntervalValue, factor checkruntime.Float8
 	}
 	if input.Kind == checkruntime.IntervalValueValue {
 		span := input.Value
-		if factor.Kind == checkruntime.Float8ValueValue {
-			bits := factor.Value
+		knownFactor := checkruntime.Float8Semantic(factor)
+		if knownFactor.Kind == checkruntime.Float8ValueValue {
+			bits := knownFactor.Value
 			number := checkruntime.Float8Number(bits)
 			if divide && number == float64(0.0) {
 				return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(intervalMathDivisionZero)}
@@ -8483,8 +8499,9 @@ func MakeIntervalNlc1(years checkruntime.Int4Value, months checkruntime.Int4Valu
 		n := langruntime.CheckedI32(minutes.Value)
 		min = langruntime.CheckedI32(n)
 	}
-	if seconds.Kind == checkruntime.Float8ValueValue {
-		bits := seconds.Value
+	knownSeconds := checkruntime.Float8Semantic(seconds)
+	if knownSeconds.Kind == checkruntime.Float8ValueValue {
+		bits := knownSeconds.Value
 		sec = checkruntime.Float8Number(bits)
 	}
 	if sec != sec || langruntime.F64Abs(sec) == checkruntime.Float8Number(int64(9218868437227405312)) {
@@ -13783,11 +13800,14 @@ func PointDb27(x checkruntime.Float8Value, y checkruntime.Float8Value) checkrunt
 	if x == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || y == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
 		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
 	}
-	if x.Kind == checkruntime.Float8ValueValue {
-		xBits := x.Value
-		if y.Kind == checkruntime.Float8ValueValue {
-			yBits := y.Value
-			return checkruntime.MakePointBits(xBits, yBits)
+	knownX := checkruntime.Float8Semantic(x)
+	knownY := checkruntime.Float8Semantic(y)
+	if knownX.Kind == checkruntime.Float8ValueValue {
+		xBits := knownX.Value
+		if knownY.Kind == checkruntime.Float8ValueValue {
+			yBits := knownY.Value
+			precise := x != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) && y != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan})
+			return checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: checkruntime.PointPayload{X: xBits, Y: yBits, WireKnown: precise}}
 		}
 	}
 	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
@@ -14131,10 +14151,12 @@ func geometricHypot(first checkruntime.Float8Value, second checkruntime.Float8Va
 	if first == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || second == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
 		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
 	}
-	if first.Kind == checkruntime.Float8ValueValue {
-		a := first.Value
-		if second.Kind == checkruntime.Float8ValueValue {
-			b := second.Value
+	knownFirst := checkruntime.Float8Semantic(first)
+	knownSecond := checkruntime.Float8Semantic(second)
+	if knownFirst.Kind == checkruntime.Float8ValueValue {
+		a := knownFirst.Value
+		if knownSecond.Kind == checkruntime.Float8ValueValue {
+			b := knownSecond.Value
 			x := langruntime.F64Abs(checkruntime.Float8Number(a))
 			y := langruntime.F64Abs(checkruntime.Float8Number(b))
 			infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
@@ -14199,7 +14221,7 @@ func pointMeasurement(left checkruntime.PointValue, right checkruntime.PointValu
 					bits := result.Value
 					value := checkruntime.Float8Number(bits)
 					if value != value {
-						return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+						return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
 					}
 				}
 				return result
@@ -19729,8 +19751,9 @@ func MakeTime6c3q(hour checkruntime.Int4Value, minute checkruntime.Int4Value, se
 		h := langruntime.CheckedI32(hour.Value)
 		if minute.Kind == checkruntime.Int4ValueValue {
 			m := langruntime.CheckedI32(minute.Value)
-			if second.Kind == checkruntime.Float8ValueValue {
-				bits := second.Value
+			knownSecond := checkruntime.Float8Semantic(second)
+			if knownSecond.Kind == checkruntime.Float8ValueValue {
+				bits := knownSecond.Value
 				s := checkruntime.Float8Number(bits)
 				if h < 0 || h > 24 || m < 0 || m > 59 || s != s || s < float64(-1.0) || s > float64(61.0) {
 					return checkruntime.TimeValue{Kind: checkruntime.TimeValueError, Error: checkruntime.MakeSqlError(clockRange)}

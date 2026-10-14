@@ -955,6 +955,7 @@ pub enum Float4Value {
     Null,
     Value(i32),
     Error(SqlError),
+    UnspecifiedNan,
 }
 
 pub fn float4_unknown() -> Float4Value {
@@ -1003,6 +1004,14 @@ pub enum Float8Value {
     Null,
     Value(i64),
     Error(SqlError),
+    UnspecifiedNan,
+}
+
+pub fn float8_semantic(input: Float8Value) -> Float8Value {
+    if input == Float8Value::UnspecifiedNan {
+        return make_float8_bits(9221120237041090560i64);
+    };
+    input
 }
 
 pub fn float8_unknown() -> Float8Value {

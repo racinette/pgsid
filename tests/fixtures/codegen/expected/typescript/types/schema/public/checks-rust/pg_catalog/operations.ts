@@ -5430,10 +5430,12 @@ function floatArithmetic(left: checkruntime.Float8Value, right: checkruntime.Flo
     if (checkruntime.equalFloat8Value(left, { kind: "Null" }) || checkruntime.equalFloat8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
     }
-    if (left.kind === "Value") {
-        const aBits: bigint = langruntime.checkedI64(left.value);
-        if (right.kind === "Value") {
-            const bBits: bigint = langruntime.checkedI64(right.value);
+    const knownLeft: checkruntime.Float8Value = checkruntime.float8Semantic(left);
+    const knownRight: checkruntime.Float8Value = checkruntime.float8Semantic(right);
+    if (knownLeft.kind === "Value") {
+        const aBits: bigint = langruntime.checkedI64(knownLeft.value);
+        if (knownRight.kind === "Value") {
+            const bBits: bigint = langruntime.checkedI64(knownRight.value);
             const a: number = checkruntime.float8Number(aBits);
             const b: number = checkruntime.float8Number(bBits);
             const infinity: number = langruntime.f64Divide(1.0, 0.0);
@@ -5462,6 +5464,9 @@ function floatArithmetic(left: checkruntime.Float8Value, right: checkruntime.Flo
             }
             if (value === 0.0 && !(a === 0.0) && ((mode === 2 && !(b === 0.0)) || (mode === 3 && !(langruntime.f64Abs(b) === infinity)))) {
                 return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+            }
+            if (checkruntime.equalFloat8Value(left, { kind: "UnspecifiedNan" }) || checkruntime.equalFloat8Value(right, { kind: "UnspecifiedNan" })) {
+                return { kind: "UnspecifiedNan" };
             }
             return checkruntime.makeFloat8Value(value);
         }
@@ -5668,6 +5673,9 @@ export function absWle0(input: checkruntime.Float8Value): checkruntime.Float8Val
 }
 const floatCoreRange = 3452547;
 function float4Widen(input: checkruntime.Float4Value): checkruntime.Float8Value {
+    if (checkruntime.equalFloat4Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -5682,6 +5690,9 @@ function float4Widen(input: checkruntime.Float4Value): checkruntime.Float8Value 
     return { kind: "Unknown" };
 }
 function float8Narrow(input: checkruntime.Float8Value): checkruntime.Float4Value {
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "UnspecifiedNan" };
+    }
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -5717,10 +5728,12 @@ function float8Compare(left: checkruntime.Float8Value, right: checkruntime.Float
     if (checkruntime.equalFloat8Value(left, { kind: "Null" }) || checkruntime.equalFloat8Value(right, { kind: "Null" })) {
         return { kind: "Null" };
     }
-    if (left.kind === "Value") {
-        const aBits: bigint = langruntime.checkedI64(left.value);
-        if (right.kind === "Value") {
-            const bBits: bigint = langruntime.checkedI64(right.value);
+    const knownLeft: checkruntime.Float8Value = checkruntime.float8Semantic(left);
+    const knownRight: checkruntime.Float8Value = checkruntime.float8Semantic(right);
+    if (knownLeft.kind === "Value") {
+        const aBits: bigint = langruntime.checkedI64(knownLeft.value);
+        if (knownRight.kind === "Value") {
+            const bBits: bigint = langruntime.checkedI64(knownRight.value);
             const a: number = checkruntime.float8Number(aBits);
             const b: number = checkruntime.float8Number(bBits);
             if (!(a === a)) {
@@ -5751,8 +5764,9 @@ function float8Integer(input: checkruntime.Float8Value): checkruntime.Int8Value 
     if (checkruntime.equalFloat8Value(input, { kind: "Null" })) {
         return { kind: "Null" };
     }
-    if (input.kind === "Value") {
-        const raw: bigint = langruntime.checkedI64(input.value);
+    const knownInput: checkruntime.Float8Value = checkruntime.float8Semantic(input);
+    if (knownInput.kind === "Value") {
+        const raw: bigint = langruntime.checkedI64(knownInput.value);
         let bits: bigint = raw;
         const negative: boolean = raw < 0n;
         if (negative) {
@@ -6360,8 +6374,9 @@ function floatNumericDecimal(input: checkruntime.Float8Value, precision: number)
     if (checkruntime.equalFloat8Value(input, { kind: "Null" })) {
         return { kind: "Null" };
     }
-    if (input.kind === "Value") {
-        const bits: bigint = langruntime.checkedI64(input.value);
+    const knownInput: checkruntime.Float8Value = checkruntime.float8Semantic(input);
+    if (knownInput.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(knownInput.value);
         const value: number = checkruntime.float8Number(bits);
         if (!(value === value)) {
             return checkruntime.makeNumericValue("NaN");
@@ -8231,8 +8246,9 @@ function intervalScaled(input: checkruntime.IntervalValue, factor: checkruntime.
     }
     if (input.kind === "Value") {
         const span: checkruntime.IntervalPayload = input.value;
-        if (factor.kind === "Value") {
-            const bits: bigint = langruntime.checkedI64(factor.value);
+        const knownFactor: checkruntime.Float8Value = checkruntime.float8Semantic(factor);
+        if (knownFactor.kind === "Value") {
+            const bits: bigint = langruntime.checkedI64(knownFactor.value);
             const number: number = checkruntime.float8Number(bits);
             if (divide && number === 0.0) {
                 return { kind: "Error", value: checkruntime.makeSqlError(intervalMathDivisionZero) };
@@ -8527,8 +8543,9 @@ export function makeIntervalNlc1(years: checkruntime.Int4Value, months: checkrun
         const n: number = langruntime.checkedI32(minutes.value);
         min = langruntime.checkedI32(n);
     }
-    if (seconds.kind === "Value") {
-        const bits: bigint = langruntime.checkedI64(seconds.value);
+    const knownSeconds: checkruntime.Float8Value = checkruntime.float8Semantic(seconds);
+    if (knownSeconds.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(knownSeconds.value);
         sec = langruntime.checkedF64(checkruntime.float8Number(bits));
     }
     if (!(sec === sec) || langruntime.f64Abs(sec) === checkruntime.float8Number(9218868437227405312n)) {
@@ -13827,11 +13844,14 @@ export function pointDb27(x: checkruntime.Float8Value, y: checkruntime.Float8Val
     if (checkruntime.equalFloat8Value(x, { kind: "Null" }) || checkruntime.equalFloat8Value(y, { kind: "Null" })) {
         return { kind: "Null" };
     }
-    if (x.kind === "Value") {
-        const xBits: bigint = langruntime.checkedI64(x.value);
-        if (y.kind === "Value") {
-            const yBits: bigint = langruntime.checkedI64(y.value);
-            return checkruntime.makePointBits(xBits, yBits);
+    const knownX: checkruntime.Float8Value = checkruntime.float8Semantic(x);
+    const knownY: checkruntime.Float8Value = checkruntime.float8Semantic(y);
+    if (knownX.kind === "Value") {
+        const xBits: bigint = langruntime.checkedI64(knownX.value);
+        if (knownY.kind === "Value") {
+            const yBits: bigint = langruntime.checkedI64(knownY.value);
+            const precise: boolean = !(checkruntime.equalFloat8Value(x, { kind: "UnspecifiedNan" })) && !(checkruntime.equalFloat8Value(y, { kind: "UnspecifiedNan" }));
+            return { kind: "Value", value: { x: xBits, y: yBits, wireKnown: precise } };
         }
     }
     return { kind: "Unknown" };
@@ -14176,10 +14196,12 @@ function geometricHypot(first: checkruntime.Float8Value, second: checkruntime.Fl
     if (checkruntime.equalFloat8Value(first, { kind: "Null" }) || checkruntime.equalFloat8Value(second, { kind: "Null" })) {
         return { kind: "Null" };
     }
-    if (first.kind === "Value") {
-        const a: bigint = langruntime.checkedI64(first.value);
-        if (second.kind === "Value") {
-            const b: bigint = langruntime.checkedI64(second.value);
+    const knownFirst: checkruntime.Float8Value = checkruntime.float8Semantic(first);
+    const knownSecond: checkruntime.Float8Value = checkruntime.float8Semantic(second);
+    if (knownFirst.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(knownFirst.value);
+        if (knownSecond.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(knownSecond.value);
             let x: number = langruntime.f64Abs(checkruntime.float8Number(a));
             let y: number = langruntime.f64Abs(checkruntime.float8Number(b));
             const infinity: number = langruntime.f64Divide(1.0, 0.0);
@@ -14245,7 +14267,7 @@ function pointMeasurement(left: checkruntime.PointValue, right: checkruntime.Poi
                     const bits: bigint = langruntime.checkedI64(result.value);
                     const value: number = checkruntime.float8Number(bits);
                     if (!(value === value)) {
-                        return { kind: "Unknown" };
+                        return { kind: "UnspecifiedNan" };
                     }
                 }
                 return result;
@@ -19860,8 +19882,9 @@ export function makeTime6c3q(hour: checkruntime.Int4Value, minute: checkruntime.
         const h: number = langruntime.checkedI32(hour.value);
         if (minute.kind === "Value") {
             const m: number = langruntime.checkedI32(minute.value);
-            if (second.kind === "Value") {
-                const bits: bigint = langruntime.checkedI64(second.value);
+            const knownSecond: checkruntime.Float8Value = checkruntime.float8Semantic(second);
+            if (knownSecond.kind === "Value") {
+                const bits: bigint = langruntime.checkedI64(knownSecond.value);
                 const s: number = checkruntime.float8Number(bits);
                 if (h < 0 || h > 24 || m < 0 || m > 59 || !(s === s) || s < -1.0 || s > 61.0) {
                     return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };

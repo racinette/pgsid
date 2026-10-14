@@ -889,6 +889,11 @@ describe('world CHECK INSERT parity', () => {
         'survey_imports',
         ['import_position', 'import_wire', 'import_origin'],
       ],
+      [
+        '027_survey_positions',
+        'survey_slope_reports',
+        ['slope_nan', 'slope_present', 'slope_scalar_cast'],
+      ],
     ] as const) {
       for (const name of names) {
         const identity = `world_${world}.${table}.${name}`

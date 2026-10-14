@@ -4,7 +4,8 @@ fn float_arithmetic(left: Float8Value, right: Float8Value, mode: i32, single: bo
  if let Float8Value::Error(error)=right {return Float8Value::Error(error);}
  if left==Float8Value::Unknown || right==Float8Value::Unknown {return Float8Value::Unknown;}
  if left==Float8Value::Null || right==Float8Value::Null {return Float8Value::Null;}
- if let Float8Value::Value(a_bits)=left {if let Float8Value::Value(b_bits)=right {
+ let known_left=float8_semantic(left);let known_right=float8_semantic(right);
+ if let Float8Value::Value(a_bits)=known_left {if let Float8Value::Value(b_bits)=known_right {
   let a=float8_number(a_bits);let b=float8_number(b_bits);let infinity=1.0f64/0.0f64;
   if mode==3 && b==0.0f64 && a==a {return Float8Value::Error(make_sql_error(FLOAT_ARITHMETIC_ZERO));}
   let mut value=0.0f64;
@@ -12,6 +13,7 @@ fn float_arithmetic(left: Float8Value, right: Float8Value, mode: i32, single: bo
   if single {let bits=(value as f32).to_bits() as i32;value=float4_number(bits);};
   if value.abs()==infinity && a.abs()!=infinity && (mode==3 || b.abs()!=infinity) {return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));}
   if value==0.0f64 && a!=0.0f64 && ((mode==2 && b!=0.0f64) || (mode==3 && b.abs()!=infinity)) {return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));}
+  if left==Float8Value::UnspecifiedNan || right==Float8Value::UnspecifiedNan {return Float8Value::UnspecifiedNan;};
   return make_float8_value(value);
  };};Float8Value::Unknown
 }

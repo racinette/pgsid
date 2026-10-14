@@ -1,6 +1,7 @@
 const FLOAT_CORE_RANGE: u32 = 3452547;
 
 fn float4_widen(input: Float4Value) -> Float8Value {
+    if input == Float4Value::UnspecifiedNan { return Float8Value::UnspecifiedNan; };
     if let Float4Value::Error(error) = input {
         return Float8Value::Error(error);
     }
@@ -14,6 +15,7 @@ fn float4_widen(input: Float4Value) -> Float8Value {
 }
 
 fn float8_narrow(input: Float8Value) -> Float4Value {
+    if input == Float8Value::UnspecifiedNan { return Float4Value::UnspecifiedNan; };
     if let Float8Value::Error(error) = input {
         return Float4Value::Error(error);
     }
@@ -48,8 +50,10 @@ fn float8_compare(left: Float8Value, right: Float8Value) -> Int4Value {
     if left == Float8Value::Null || right == Float8Value::Null {
         return Int4Value::Null;
     }
-    if let Float8Value::Value(a_bits) = left {
-        if let Float8Value::Value(b_bits) = right {
+    let known_left = float8_semantic(left);
+    let known_right = float8_semantic(right);
+    if let Float8Value::Value(a_bits) = known_left {
+        if let Float8Value::Value(b_bits) = known_right {
             let a = float8_number(a_bits);
             let b = float8_number(b_bits);
             if a != a {
@@ -81,7 +85,8 @@ fn float8_integer(input: Float8Value) -> Int8Value {
     if input == Float8Value::Null {
         return Int8Value::Null;
     }
-    if let Float8Value::Value(raw) = input {
+    let known_input = float8_semantic(input);
+    if let Float8Value::Value(raw) = known_input {
         let mut bits = raw;
         let negative = raw < 0i64;
         if negative {

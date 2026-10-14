@@ -160,8 +160,10 @@ fn geometric_hypot(first: Float8Value, second: Float8Value) -> Float8Value {
     if first == Float8Value::Null || second == Float8Value::Null {
         return Float8Value::Null;
     };
-    if let Float8Value::Value(a) = first {
-        if let Float8Value::Value(b) = second {
+    let known_first = float8_semantic(first);
+    let known_second = float8_semantic(second);
+    if let Float8Value::Value(a) = known_first {
+        if let Float8Value::Value(b) = known_second {
             let mut x = float8_number(a).abs();
             let mut y = float8_number(b).abs();
             let infinity = 1.0f64 / 0.0f64;
@@ -221,7 +223,7 @@ fn point_measurement(left: PointValue, right: PointValue, slope: bool) -> Float8
                 if let Float8Value::Value(bits) = result {
                     let value = float8_number(bits);
                     if value != value {
-                        return Float8Value::Unknown;
+                        return Float8Value::UnspecifiedNan;
                     };
                 };
                 return result;

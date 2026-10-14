@@ -49,9 +49,12 @@ pub fn sql__pg_catalog__point__db27(x: Float8Value, y: Float8Value) -> PointValu
     if x == Float8Value::Null || y == Float8Value::Null {
         return PointValue::Null;
     };
-    if let Float8Value::Value(x_bits) = x {
-        if let Float8Value::Value(y_bits) = y {
-            return make_point_bits(x_bits, y_bits);
+    let known_x = float8_semantic(x);
+    let known_y = float8_semantic(y);
+    if let Float8Value::Value(x_bits) = known_x {
+        if let Float8Value::Value(y_bits) = known_y {
+            let precise = x != Float8Value::UnspecifiedNan && y != Float8Value::UnspecifiedNan;
+            return PointValue::Value(PointPayload { x: x_bits, y: y_bits, wire_known: precise });
         };
     };
     PointValue::Unknown

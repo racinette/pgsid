@@ -148,7 +148,10 @@ import them. Keep schema-only helpers with their callables.
   stored expressions, restoring caller settings afterward.
   Run the clock/interval suites and shift schedule INSERT world.
 - Float4 and float8 wrappers carry signed IEEE bit words, preserving signed zero
-  and NaN payloads through binary send. Comparisons use PostgreSQL's total order:
+  and NaN payloads through binary send. Computed NaNs with unavailable bit patterns
+  retain a known semantic state through comparisons, casts and composition;
+  binary output defers until selection recovers a precise operand.
+  Comparisons use PostgreSQL's total order:
   NaNs are equal above infinity and both zeros compare equal. Float4 arithmetic
   rounds each result to single precision. Finite overflow, nonzero multiplication
   or division rounded to zero, and invalid integer casts return 22003; division

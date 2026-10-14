@@ -1015,6 +1015,7 @@ const (
 	Float4ValueNull
 	Float4ValueValue
 	Float4ValueError
+	Float4ValueUnspecifiedNan
 )
 
 type Float4Value struct {
@@ -1070,6 +1071,7 @@ const (
 	Float8ValueNull
 	Float8ValueValue
 	Float8ValueError
+	Float8ValueUnspecifiedNan
 )
 
 type Float8Value struct {
@@ -1078,6 +1080,12 @@ type Float8Value struct {
 	Error SqlError
 }
 
+func Float8Semantic(input Float8Value) Float8Value {
+	if input == (Float8Value{Kind: Float8ValueUnspecifiedNan}) {
+		return MakeFloat8Bits(int64(9221120237041090560))
+	}
+	return input
+}
 func Float8Unknown() Float8Value {
 	return Float8Value{Kind: Float8ValueUnknown}
 }

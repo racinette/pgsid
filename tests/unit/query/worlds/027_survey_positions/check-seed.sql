@@ -181,3 +181,27 @@ INSERT INTO survey_imports (id,location_id,label,source_text,recorded_position,r
 INSERT INTO survey_imports (id,location_id,label,source_text,recorded_position,recorded_wire,recorded_origin,skip_validation) VALUES (100,1,'range before syntax','(1e400,junk)',NULL,NULL,NULL,false);
 -- name: import_skips_invalid_coordinate
 INSERT INTO survey_imports (id,location_id,label,source_text,recorded_position,recorded_wire,recorded_origin,skip_validation) VALUES (100,1,'skipped invalid coordinate','(bad,0)','(9,9)','\x00',false,true);
+-- name: slope_computed_nan
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'computed NaN','(Infinity,Infinity)','(0,0)',true,true,false);
+-- name: slope_input_nan
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'input NaN','(NaN,1)','(0,0)',true,true,false);
+-- name: slope_finite
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'finite slope','(3,4)','(0,0)',false,true,false);
+-- name: slope_vertical
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'vertical slope','(0,4)','(0,0)',false,true,false);
+-- name: slope_missing_origin
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'missing origin',NULL,'(0,0)',false,false,false);
+-- name: slope_nullable_reports
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'nullable reports','(Infinity,Infinity)','(0,0)',NULL,NULL,false);
+-- name: slope_wrong_nan
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'wrong NaN report','(Infinity,Infinity)','(0,0)',false,true,false);
+-- name: slope_wrong_presence
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'wrong presence report','(Infinity,Infinity)','(0,0)',true,false,false);
+-- name: slope_finite_wrong_nan
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'finite wrong NaN report','(3,4)','(0,0)',true,true,false);
+-- name: slope_missing_wrong_presence
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'missing wrong presence report',NULL,'(0,0)',false,true,false);
+-- name: slope_skips_overflow
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'skipped overflow','(1e308,0)','(-1e308,1)',true,true,true);
+-- name: slope_reached_overflow
+INSERT INTO survey_slope_reports (id,label,origin,destination,recorded_nan,recorded_present,skip_validation) VALUES (100,'reached overflow','(1e308,0)','(-1e308,1)',true,true,false);
