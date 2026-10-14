@@ -289,3 +289,78 @@ INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_tex
 INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_wrong_same','(0,0)','(3,4)','[(3,4),(0,0)]','\x0000000000000000000000000000000040080000000000004010000000000000',false);
 -- name: segment_construct_wrong_wire
 INSERT INTO guide_segment_constructions (id,guide_id,label,first_text,second_text,recorded_segment,recorded_wire,skip_validation) VALUES (100,1,'segment_construct_wrong_wire','(0,0)','(3,4)','[(0,0),(3,4)]','\x00',false);
+
+-- name: segment_cross_interior
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_interior','[(0,0),(4,0)]','[(2,-2),(2,2)]','{-1,0,2}',true,'(2,0)',0,'(2,0)',true,false,0,'(2,0)',false);
+-- name: segment_cross_endpoints
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_endpoints','[(0,0),(4,0)]','[(4,0),(4,2)]','{-1,0,4}',true,'(4,0)',0,'(4,0)',true,false,0,'(4,0)',false);
+-- name: segment_cross_reversed
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_reversed','[(4,0),(0,0)]','[(4,0),(4,2)]','{-1,0,4}',true,'(4,0)',0,'(4,0)',true,false,0,'(4,0)',false);
+-- name: segment_cross_parallel
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_parallel','[(0,0),(4,0)]','[(0,2),(4,2)]','{0,-1,2}',false,NULL,2,NULL,false,false,2,NULL,false);
+-- name: segment_cross_collinear
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_collinear','[(0,0),(4,0)]','[(2,0),(6,0)]','{0,-1,0}',false,NULL,0,NULL,false,true,0,NULL,false);
+-- name: segment_cross_outside
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_outside','[(0,0),(4,0)]','[(5,-2),(5,2)]','{-1,0,5}',false,NULL,1,'(5,0)',false,false,1,'(4,0)',false);
+-- name: segment_cross_coincident
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_coincident','[(0,0),(0,0)]','[(1,-1),(1,1)]','{-1,0,0}',false,NULL,1,NULL,false,true,0,NULL,false);
+-- name: segment_cross_nan
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_nan','[(NaN,0),(0,0)]','[(1,-1),(1,1)]','{-1,0,1}',false,NULL,NULL,NULL,false,false,NULL,NULL,false);
+-- name: segment_cross_missing
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_missing',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: segment_cross_nullable
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_nullable','[(0,0),(4,0)]','[(2,-2),(2,2)]','{-1,0,2}',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: segment_cross_invalid
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_invalid','bad','[(2,-2),(2,2)]','{-1,0,2}',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: segment_cross_overflow
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_overflow','[(1e308,0),(-1e308,1)]','[(0,0),(3,4)]','{0,-1,0}',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: segment_cross_skipped
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_skipped','bad','bad','bad',true,'(99,99)',1,'(99,99)',true,true,1,'(99,99)',true);
+-- name: segment_cross_wrong_intersects
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_wrong_intersects','[(0,0),(4,0)]','[(2,-2),(2,2)]','{-1,0,2}',false,'(2,0)',0,'(2,0)',true,false,0,'(2,0)',false);
+-- name: segment_cross_wrong_point
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_wrong_point','[(0,0),(4,0)]','[(2,-2),(2,2)]','{-1,0,2}',true,'(99,99)',0,'(2,0)',true,false,0,'(2,0)',false);
+-- name: segment_cross_wrong_distance
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_wrong_distance','[(0,0),(4,0)]','[(2,-2),(2,2)]','{-1,0,2}',true,'(2,0)',1,'(2,0)',true,false,0,'(2,0)',false);
+-- name: segment_cross_wrong_closest
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_wrong_closest','[(0,0),(4,0)]','[(2,-2),(2,2)]','{-1,0,2}',true,'(2,0)',0,'(99,99)',true,false,0,'(2,0)',false);
+-- name: segment_cross_wrong_line_intersects
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_wrong_line_intersects','[(0,0),(4,0)]','[(2,-2),(2,2)]','{-1,0,2}',true,'(2,0)',0,'(2,0)',false,false,0,'(2,0)',false);
+-- name: segment_cross_wrong_on_line
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_wrong_on_line','[(0,0),(4,0)]','[(2,-2),(2,2)]','{-1,0,2}',true,'(2,0)',0,'(2,0)',true,true,0,'(2,0)',false);
+-- name: segment_cross_wrong_line_distance
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_wrong_line_distance','[(0,0),(4,0)]','[(2,-2),(2,2)]','{-1,0,2}',true,'(2,0)',0,'(2,0)',true,false,1,'(2,0)',false);
+-- name: segment_cross_wrong_line_closest
+INSERT INTO guide_segment_crossings (id,guide_id,label,first_text,second_text,axis_text,recorded_crossing,recorded_point,recorded_distance,recorded_closest,recorded_line_crossing,recorded_on_line,recorded_line_distance,recorded_line_closest,skip_validation) VALUES (100,1,'segment_cross_wrong_line_closest','[(0,0),(4,0)]','[(2,-2),(2,2)]','{-1,0,2}',true,'(2,0)',0,'(2,0)',true,false,0,'(99,99)',false);
+-- name: segment_project_interior
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_interior','(2,3)','[(0,0),(4,0)]',false,'(2,0)',3,false);
+-- name: segment_project_endpoint
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_endpoint','(7,4)','[(0,0),(4,0)]',false,'(4,0)',5,false);
+-- name: segment_project_reversed
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_reversed','(7,4)','[(4,0),(0,0)]',false,'(4,0)',5,false);
+-- name: segment_project_contained
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_contained','(2,0)','[(0,0),(4,0)]',true,'(2,0)',0,false);
+-- name: segment_project_coincident
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_coincident','(3,4)','[(0,0),(0,0)]',false,'(0,0)',5,false);
+-- name: segment_project_tolerance
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_tolerance','(2,0.0000001)','[(0,0),(4,0)]',true,'(2,0)',1e-07,false);
+-- name: segment_project_nan
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_nan','(NaN,1)','[(0,0),(4,0)]',false,NULL,'NaN',false);
+-- name: segment_project_infinity
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_infinity','(Infinity,0)','[(0,0),(4,0)]',false,'(4,0)','Infinity',false);
+-- name: segment_project_missing
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_missing',NULL,NULL,NULL,NULL,NULL,false);
+-- name: segment_project_nullable
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_nullable','(2,3)','[(0,0),(4,0)]',NULL,NULL,NULL,false);
+-- name: segment_project_invalid
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_invalid','bad','[(0,0),(4,0)]',NULL,NULL,NULL,false);
+-- name: segment_project_overflow
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_overflow','(1e308,1e308)','[(-1e308,0),(1e308,1)]',NULL,NULL,NULL,false);
+-- name: segment_project_skipped
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_skipped','bad','bad',true,'(99,99)',1,true);
+-- name: segment_project_wrong_on
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_wrong_on','(2,3)','[(0,0),(4,0)]',true,'(2,0)',3,false);
+-- name: segment_project_wrong_closest
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_wrong_closest','(2,3)','[(0,0),(4,0)]',false,'(99,99)',3,false);
+-- name: segment_project_wrong_distance
+INSERT INTO guide_segment_projections (id,guide_id,label,point_text,segment_text,recorded_on_segment,recorded_closest,recorded_distance,skip_validation) VALUES (100,1,'segment_project_wrong_distance','(2,3)','[(0,0),(4,0)]',false,'(2,0)',4,false);

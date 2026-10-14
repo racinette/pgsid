@@ -9367,7 +9367,7 @@ function lsegEndpoint(input: checkruntime.LsegValue, second: boolean): checkrunt
             x = langruntime.checkedI64(value.x2);
             y = langruntime.checkedI64(value.y2);
         }
-        return { kind: "Value", value: { x: x, y: y, wireKnown: value.wireKnown } };
+        return { kind: "Value", value: { x: x, y: y, wireKnown: value.wireKnown || (checkruntime.float8Number(x) === checkruntime.float8Number(x) && checkruntime.float8Number(y) === checkruntime.float8Number(y)) } };
     }
     return { kind: "Unknown" };
 }
@@ -9653,6 +9653,495 @@ export function lsegFromText(input: checkruntime.TextValue): checkruntime.LsegVa
         return lsegL9bc(pair.first, pair.second);
     }
     return { kind: "Unknown" };
+}
+function segmentPairStatus(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(left, { kind: "Unknown" }) || checkruntime.equalLsegValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLsegValue(left, { kind: "Null" }) || checkruntime.equalLsegValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.makeBoolValue(true);
+}
+function segmentLineStatus(segment: checkruntime.LsegValue, line: checkruntime.LineValue): checkruntime.BoolValue {
+    if (segment.kind === "Error") {
+        const error: checkruntime.SqlError = segment.value;
+        return { kind: "Error", value: error };
+    }
+    if (line.kind === "Error") {
+        const error: checkruntime.SqlError = line.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(segment, { kind: "Unknown" }) || checkruntime.equalLineValue(line, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLsegValue(segment, { kind: "Null" }) || checkruntime.equalLineValue(line, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.makeBoolValue(true);
+}
+function segmentPointStatus(segment: checkruntime.LsegValue, point: checkruntime.PointValue): checkruntime.BoolValue {
+    if (segment.kind === "Error") {
+        const error: checkruntime.SqlError = segment.value;
+        return { kind: "Error", value: error };
+    }
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(segment, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalLsegValue(segment, { kind: "Null" }) || checkruntime.equalPointValue(point, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.makeBoolValue(true);
+}
+function segmentPointFromStatus(status: checkruntime.BoolValue): checkruntime.PointValue {
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+function segmentFloatFromStatus(status: checkruntime.BoolValue): checkruntime.Float8Value {
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+function segmentRawRelation(left: checkruntime.Float8Value, right: checkruntime.Float8Value, equal: boolean): checkruntime.BoolValue {
+    equal = langruntime.checkedBool(equal);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Unknown" }) || checkruntime.equalFloat8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Null" }) || checkruntime.equalFloat8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const first: checkruntime.Float8Value = checkruntime.float8Semantic(left);
+    const second: checkruntime.Float8Value = checkruntime.float8Semantic(right);
+    if (first.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(first.value);
+        if (second.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(second.value);
+            if (equal) {
+                return checkruntime.makeBoolValue(checkruntime.float8Number(a) === checkruntime.float8Number(b));
+            }
+            return checkruntime.makeBoolValue(checkruntime.float8Number(a) < checkruntime.float8Number(b));
+        }
+    }
+    return { kind: "Unknown" };
+}
+function segmentContainsPoint(segment: checkruntime.LsegValue, point: checkruntime.PointValue): checkruntime.BoolValue {
+    const status: checkruntime.BoolValue = segmentPointStatus(segment, point);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    const first: checkruntime.Float8Value = pointDistance2haq(point, lsegEndpoint(segment, false));
+    if (first.kind === "Error") {
+        const error: checkruntime.SqlError = first.value;
+        return { kind: "Error", value: error };
+    }
+    const second: checkruntime.Float8Value = pointDistance2haq(point, lsegEndpoint(segment, true));
+    if (second.kind === "Error") {
+        const error: checkruntime.SqlError = second.value;
+        return { kind: "Error", value: error };
+    }
+    const length: checkruntime.Float8Value = lsegLengthValue(segment);
+    if (length.kind === "Error") {
+        const error: checkruntime.SqlError = length.value;
+        return { kind: "Error", value: error };
+    }
+    const a: checkruntime.Float8Value = checkruntime.float8Semantic(first);
+    const b: checkruntime.Float8Value = checkruntime.float8Semantic(second);
+    const c: checkruntime.Float8Value = checkruntime.float8Semantic(length);
+    if (a.kind === "Value") {
+        const x: bigint = langruntime.checkedI64(a.value);
+        if (b.kind === "Value") {
+            const y: bigint = langruntime.checkedI64(b.value);
+            if (c.kind === "Value") {
+                const z: bigint = langruntime.checkedI64(c.value);
+                const sum: number = langruntime.f64Add(checkruntime.float8Number(x), checkruntime.float8Number(y));
+                return checkruntime.makeBoolValue(geometricCoordinateEqual(sum, checkruntime.float8Number(z)));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+function segmentPromoteLine(segment: checkruntime.LsegValue): checkruntime.LineValue {
+    if (segment.kind === "Error") {
+        const error: checkruntime.SqlError = segment.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(segment, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const first: checkruntime.PointValue = lsegEndpoint(segment, false);
+    if (first.kind === "Value") {
+        const origin: checkruntime.PointPayload = first.value;
+        return lineFromOriginSlope(origin, lsegSlope(segment, false));
+    }
+    return { kind: "Unknown" };
+}
+function segmentLineIntersection(segment: checkruntime.LsegValue, line: checkruntime.LineValue): checkruntime.PointValue {
+    const status: checkruntime.BoolValue = segmentLineStatus(segment, line);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return segmentPointFromStatus(status);
+    }
+    const intersection: checkruntime.PointValue = lineIntersection(segmentPromoteLine(segment), line);
+    if (intersection.kind === "Error") {
+        const error: checkruntime.SqlError = intersection.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(intersection, { kind: "Null" }) || checkruntime.equalPointValue(intersection, { kind: "Unknown" })) {
+        return intersection;
+    }
+    const contains: checkruntime.BoolValue = segmentContainsPoint(segment, intersection);
+    if (checkruntime.equalBoolValue(contains, { kind: "Value", value: false })) {
+        return { kind: "Null" };
+    }
+    if (!(checkruntime.equalBoolValue(contains, { kind: "Value", value: true }))) {
+        return segmentPointFromStatus(contains);
+    }
+    const first: checkruntime.PointValue = lsegEndpoint(segment, false);
+    const second: checkruntime.PointValue = lsegEndpoint(segment, true);
+    if (checkruntime.equalBoolValue(pointEq5be0(first, intersection), { kind: "Value", value: true })) {
+        return first;
+    }
+    if (checkruntime.equalBoolValue(pointEq5be0(second, intersection), { kind: "Value", value: true })) {
+        return second;
+    }
+    return intersection;
+}
+function segmentIntersection(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.PointValue {
+    const status: checkruntime.BoolValue = segmentPairStatus(left, right);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return segmentPointFromStatus(status);
+    }
+    const intersection: checkruntime.PointValue = segmentLineIntersection(left, segmentPromoteLine(right));
+    if (intersection.kind === "Error") {
+        const error: checkruntime.SqlError = intersection.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(intersection, { kind: "Null" }) || checkruntime.equalPointValue(intersection, { kind: "Unknown" })) {
+        return intersection;
+    }
+    const contains: checkruntime.BoolValue = segmentContainsPoint(right, intersection);
+    if (checkruntime.equalBoolValue(contains, { kind: "Value", value: false })) {
+        return { kind: "Null" };
+    }
+    if (!(checkruntime.equalBoolValue(contains, { kind: "Value", value: true }))) {
+        return segmentPointFromStatus(contains);
+    }
+    return intersection;
+}
+function segmentIntersectionResult(point: checkruntime.PointValue): checkruntime.BoolValue {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return checkruntime.makeBoolValue(!(checkruntime.equalPointValue(point, { kind: "Null" })));
+}
+interface SegmentClosest {
+    point: checkruntime.PointValue;
+    distance: checkruntime.Float8Value;
+}
+function copySegmentClosest(value: SegmentClosest): SegmentClosest {
+    return { point: value.point, distance: value.distance };
+}
+function segmentClosestFromStatus(status: checkruntime.BoolValue): SegmentClosest {
+    return { point: segmentPointFromStatus(status), distance: segmentFloatFromStatus(status) };
+}
+function segmentClosestError(distance: checkruntime.Float8Value): SegmentClosest {
+    if (distance.kind === "Error") {
+        const error: checkruntime.SqlError = distance.value;
+        return { point: { kind: "Error", value: error }, distance: distance };
+    }
+    return { point: { kind: "Unknown" }, distance: distance };
+}
+function segmentProjectLine(segment: checkruntime.LsegValue, line: checkruntime.LineValue): SegmentClosest {
+    const status: checkruntime.BoolValue = segmentLineStatus(segment, line);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return segmentClosestFromStatus(status);
+    }
+    const intersection: checkruntime.PointValue = segmentLineIntersection(segment, line);
+    if (intersection.kind === "Error") {
+        const error: checkruntime.SqlError = intersection.value;
+        return segmentClosestFromStatus({ kind: "Error", value: error });
+    }
+    if (checkruntime.equalPointValue(intersection, { kind: "Unknown" })) {
+        return segmentClosestFromStatus({ kind: "Unknown" });
+    }
+    if (!(checkruntime.equalPointValue(intersection, { kind: "Null" }))) {
+        return { point: intersection, distance: checkruntime.makeFloat8Bits(0n) };
+    }
+    const first: checkruntime.PointValue = lsegEndpoint(segment, false);
+    const second: checkruntime.PointValue = lsegEndpoint(segment, true);
+    const firstProjection: LineProjection = copyLineProjection(lineProjectPoint(first, line));
+    const a: checkruntime.Float8Value = firstProjection.distance;
+    if (a.kind === "Error") {
+        const error: checkruntime.SqlError = a.value;
+        return segmentClosestError({ kind: "Error", value: error });
+    }
+    const secondProjection: LineProjection = copyLineProjection(lineProjectPoint(second, line));
+    const b: checkruntime.Float8Value = secondProjection.distance;
+    if (b.kind === "Error") {
+        const error: checkruntime.SqlError = b.value;
+        return segmentClosestError({ kind: "Error", value: error });
+    }
+    const comparison: checkruntime.BoolValue = segmentRawRelation(a, b, false);
+    if (checkruntime.equalBoolValue(comparison, { kind: "Value", value: true })) {
+        return { point: first, distance: a };
+    }
+    if (checkruntime.equalBoolValue(comparison, { kind: "Value", value: false })) {
+        return { point: second, distance: b };
+    }
+    return segmentClosestFromStatus(comparison);
+}
+function segmentProjectPoint(segment: checkruntime.LsegValue, point: checkruntime.PointValue): SegmentClosest {
+    const status: checkruntime.BoolValue = segmentPointStatus(segment, point);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return segmentClosestFromStatus(status);
+    }
+    if (point.kind === "Value") {
+        const origin: checkruntime.PointPayload = point.value;
+        const perpendicular: checkruntime.LineValue = lineFromOriginSlope(origin, lsegSlope(segment, true));
+        const closest: SegmentClosest = copySegmentClosest(segmentProjectLine(segment, perpendicular));
+        const distance: checkruntime.Float8Value = closest.distance;
+        if (distance.kind === "Error") {
+            const error: checkruntime.SqlError = distance.value;
+            return segmentClosestError({ kind: "Error", value: error });
+        }
+        if (checkruntime.equalFloat8Value(distance, { kind: "Unknown" })) {
+            return segmentClosestError(distance);
+        }
+        return { point: closest.point, distance: pointDistance2haq(closest.point, point) };
+    }
+    return segmentClosestFromStatus({ kind: "Unknown" });
+}
+function segmentChooseCloser(current: SegmentClosest, candidate: SegmentClosest): SegmentClosest {
+    current = copySegmentClosest(current);
+    candidate = copySegmentClosest(candidate);
+    const comparison: checkruntime.BoolValue = float8ltVp07(candidate.distance, current.distance);
+    if (checkruntime.equalBoolValue(comparison, { kind: "Value", value: true })) {
+        return candidate;
+    }
+    if (checkruntime.equalBoolValue(comparison, { kind: "Value", value: false })) {
+        return current;
+    }
+    return segmentClosestFromStatus(comparison);
+}
+function segmentNearestPair(left: checkruntime.LsegValue, right: checkruntime.LsegValue): SegmentClosest {
+    const status: checkruntime.BoolValue = segmentPairStatus(left, right);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return segmentClosestFromStatus(status);
+    }
+    const intersection: checkruntime.PointValue = segmentIntersection(left, right);
+    if (intersection.kind === "Error") {
+        const error: checkruntime.SqlError = intersection.value;
+        return segmentClosestFromStatus({ kind: "Error", value: error });
+    }
+    if (checkruntime.equalPointValue(intersection, { kind: "Unknown" })) {
+        return segmentClosestFromStatus({ kind: "Unknown" });
+    }
+    if (!(checkruntime.equalPointValue(intersection, { kind: "Null" }))) {
+        return { point: intersection, distance: checkruntime.makeFloat8Bits(0n) };
+    }
+    const first: SegmentClosest = copySegmentClosest(segmentProjectPoint(left, lsegEndpoint(right, false)));
+    const firstDistance: checkruntime.Float8Value = first.distance;
+    if (firstDistance.kind === "Error") {
+        const error: checkruntime.SqlError = firstDistance.value;
+        return segmentClosestError({ kind: "Error", value: error });
+    }
+    const second: SegmentClosest = copySegmentClosest(segmentProjectPoint(left, lsegEndpoint(right, true)));
+    let closest: SegmentClosest = copySegmentClosest(segmentChooseCloser(first, second));
+    const secondDistance: checkruntime.Float8Value = closest.distance;
+    if (secondDistance.kind === "Error") {
+        const error: checkruntime.SqlError = secondDistance.value;
+        return segmentClosestError({ kind: "Error", value: error });
+    }
+    const leftFirst: checkruntime.PointValue = lsegEndpoint(left, false);
+    const third: SegmentClosest = copySegmentClosest(segmentProjectPoint(right, leftFirst));
+    closest = copySegmentClosest(segmentChooseCloser(closest, { point: leftFirst, distance: third.distance }));
+    const thirdDistance: checkruntime.Float8Value = closest.distance;
+    if (thirdDistance.kind === "Error") {
+        const error: checkruntime.SqlError = thirdDistance.value;
+        return segmentClosestError({ kind: "Error", value: error });
+    }
+    const leftSecond: checkruntime.PointValue = lsegEndpoint(left, true);
+    const fourth: SegmentClosest = copySegmentClosest(segmentProjectPoint(right, leftSecond));
+    return segmentChooseCloser(closest, { point: leftSecond, distance: fourth.distance });
+}
+function segmentClosestPoint(closest: SegmentClosest): checkruntime.PointValue {
+    closest = copySegmentClosest(closest);
+    const distance: checkruntime.Float8Value = closest.distance;
+    if (distance.kind === "Error") {
+        const error: checkruntime.SqlError = distance.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(distance, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(distance, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const semantic: checkruntime.Float8Value = checkruntime.float8Semantic(distance);
+    if (semantic.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(semantic.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "Null" };
+        }
+    }
+    return closest.point;
+}
+function segmentLineSlope(input: checkruntime.LineValue): checkruntime.Float8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLineValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.LinePayload = input.value;
+        if (langruntime.f64Abs(checkruntime.float8Number(value.a)) <= 0.000001) {
+            return checkruntime.makeFloat8Bits(0n);
+        }
+        if (langruntime.f64Abs(checkruntime.float8Number(value.b)) <= 0.000001) {
+            return checkruntime.makeFloat8Bits(9218868437227405312n);
+        }
+        return float8divKumj(lineCoefficient(value, 0), float8um3uy5(lineCoefficient(value, 1)));
+    }
+    return { kind: "Unknown" };
+}
+export function lsegInterpt8i53(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.PointValue {
+    return segmentIntersection(left, right);
+}
+export function lsegIntersectOvab(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.BoolValue {
+    const status: checkruntime.BoolValue = segmentPairStatus(left, right);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    return segmentIntersectionResult(segmentIntersection(left, right));
+}
+export function interSlG0cl(segment: checkruntime.LsegValue, line: checkruntime.LineValue): checkruntime.BoolValue {
+    const status: checkruntime.BoolValue = segmentLineStatus(segment, line);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    return segmentIntersectionResult(segmentLineIntersection(segment, line));
+}
+export function onPsJ4bf(point: checkruntime.PointValue, segment: checkruntime.LsegValue): checkruntime.BoolValue {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    return segmentContainsPoint(segment, point);
+}
+export function onSlL1ny(segment: checkruntime.LsegValue, line: checkruntime.LineValue): checkruntime.BoolValue {
+    const status: checkruntime.BoolValue = segmentLineStatus(segment, line);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    const first: checkruntime.BoolValue = onPl5c6f(lsegEndpoint(segment, false), line);
+    if (!(checkruntime.equalBoolValue(first, { kind: "Value", value: true }))) {
+        return first;
+    }
+    return onPl5c6f(lsegEndpoint(segment, true), line);
+}
+export function distSlRsx7(segment: checkruntime.LsegValue, line: checkruntime.LineValue): checkruntime.Float8Value {
+    const closest: SegmentClosest = copySegmentClosest(segmentProjectLine(segment, line));
+    return closest.distance;
+}
+export function distLsZpuo(line: checkruntime.LineValue, segment: checkruntime.LsegValue): checkruntime.Float8Value {
+    if (line.kind === "Error") {
+        const error: checkruntime.SqlError = line.value;
+        return { kind: "Error", value: error };
+    }
+    const closest: SegmentClosest = copySegmentClosest(segmentProjectLine(segment, line));
+    return closest.distance;
+}
+export function distSp3dia(segment: checkruntime.LsegValue, point: checkruntime.PointValue): checkruntime.Float8Value {
+    const closest: SegmentClosest = copySegmentClosest(segmentProjectPoint(segment, point));
+    return closest.distance;
+}
+export function distPsElz7(point: checkruntime.PointValue, segment: checkruntime.LsegValue): checkruntime.Float8Value {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    const closest: SegmentClosest = copySegmentClosest(segmentProjectPoint(segment, point));
+    return closest.distance;
+}
+export function closePsI1gr(point: checkruntime.PointValue, segment: checkruntime.LsegValue): checkruntime.PointValue {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    return segmentClosestPoint(segmentProjectPoint(segment, point));
+}
+export function lsegDistanceDgev(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.Float8Value {
+    const closest: SegmentClosest = copySegmentClosest(segmentNearestPair(left, right));
+    return closest.distance;
+}
+export function closeLsIz60(line: checkruntime.LineValue, segment: checkruntime.LsegValue): checkruntime.PointValue {
+    if (line.kind === "Error") {
+        const error: checkruntime.SqlError = line.value;
+        return { kind: "Error", value: error };
+    }
+    const status: checkruntime.BoolValue = segmentLineStatus(segment, line);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return segmentPointFromStatus(status);
+    }
+    const slopes: checkruntime.BoolValue = segmentRawRelation(lsegSlope(segment, false), segmentLineSlope(line), true);
+    if (checkruntime.equalBoolValue(slopes, { kind: "Value", value: true })) {
+        return { kind: "Null" };
+    }
+    if (!(checkruntime.equalBoolValue(slopes, { kind: "Value", value: false }))) {
+        return segmentPointFromStatus(slopes);
+    }
+    return segmentClosestPoint(segmentProjectLine(segment, line));
+}
+export function closeLsegQ411(left: checkruntime.LsegValue, right: checkruntime.LsegValue): checkruntime.PointValue {
+    const status: checkruntime.BoolValue = segmentPairStatus(left, right);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return segmentPointFromStatus(status);
+    }
+    const slopes: checkruntime.BoolValue = segmentRawRelation(lsegSlope(left, false), lsegSlope(right, false), true);
+    if (checkruntime.equalBoolValue(slopes, { kind: "Value", value: true })) {
+        return { kind: "Null" };
+    }
+    if (!(checkruntime.equalBoolValue(slopes, { kind: "Value", value: false }))) {
+        return segmentPointFromStatus(slopes);
+    }
+    return segmentClosestPoint(segmentNearestPair(right, left));
 }
 const macConversionOutOfRange = 3452547;
 function macaddrCompare(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.Int4Value {

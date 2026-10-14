@@ -15,7 +15,8 @@ fn lseg_endpoint(input: LsegValue, second: bool) -> PointValue {
         return PointValue::Value(PointPayload {
             x,
             y,
-            wire_known: value.wire_known,
+            wire_known: value.wire_known
+                || (float8_number(x) == float8_number(x) && float8_number(y) == float8_number(y)),
         });
     };
     PointValue::Unknown

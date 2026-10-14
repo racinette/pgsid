@@ -424,6 +424,13 @@ import them. Keep schema-only helpers with their callables.
   SQL-coerced public inputs retain four IEEE carriers and binary precision metadata.
   Point-pair text decoding shares the geometric grammar without line degeneracy
   checks. Run the line-segment and raw write suites and the axis guide INSERT world.
+  Segment intersections promote supporting lines, check segment containment and
+  snap matching endpoints to their original carriers. Containment compares the
+  triangle's distance sum without a checked SQL addition. Closest-point searches
+  preserve endpoint order, exact slope equality, distinct NaN comparison rules
+  and each reached distance error. Selecting a precise endpoint recovers its
+  binary representation when the other endpoint has unavailable NaN bits.
+  Run the segment operation suite and crossing/projection INSERT cases.
 - Extend world schema and `check-seed.sql` fixtures with accepted, rejected, and
   NULL inputs when adding CHECK behavior. Reuse a relevant existing world or add
   a focused world whose schema declares `-- @world checks`. Run

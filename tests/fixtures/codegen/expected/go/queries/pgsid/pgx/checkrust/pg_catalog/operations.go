@@ -9319,7 +9319,7 @@ func lsegEndpoint(input checkruntime.LsegValue, second bool) checkruntime.PointV
 			x = value.X2
 			y = value.Y2
 		}
-		return checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: checkruntime.PointPayload{X: x, Y: y, WireKnown: value.WireKnown}}
+		return checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: checkruntime.PointPayload{X: x, Y: y, WireKnown: value.WireKnown || (checkruntime.Float8Number(x) == checkruntime.Float8Number(x) && checkruntime.Float8Number(y) == checkruntime.Float8Number(y))}}
 	}
 	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
 }
@@ -9601,6 +9601,496 @@ func LsegFromText(input checkruntime.TextValue) checkruntime.LsegValue {
 		return LsegL9bc(pair.first, pair.second)
 	}
 	return checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}
+}
+func segmentPairStatus(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.LsegValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.LsegValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) || right == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) || right == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func segmentLineStatus(segment checkruntime.LsegValue, line checkruntime.LineValue) checkruntime.BoolValue {
+	if segment.Kind == checkruntime.LsegValueError {
+		error := segment.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if line.Kind == checkruntime.LineValueError {
+		error := line.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if segment == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if segment == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func segmentPointStatus(segment checkruntime.LsegValue, point checkruntime.PointValue) checkruntime.BoolValue {
+	if segment.Kind == checkruntime.LsegValueError {
+		error := segment.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if segment == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) || point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if segment == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) || point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func segmentPointFromStatus(status checkruntime.BoolValue) checkruntime.PointValue {
+	if status.Kind == checkruntime.BoolValueError {
+		error := status.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func segmentFloatFromStatus(status checkruntime.BoolValue) checkruntime.Float8Value {
+	if status.Kind == checkruntime.BoolValueError {
+		error := status.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func segmentRawRelation(left checkruntime.Float8Value, right checkruntime.Float8Value, equal bool) checkruntime.BoolValue {
+	if left.Kind == checkruntime.Float8ValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Float8ValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || right == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || right == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	first := checkruntime.Float8Semantic(left)
+	second := checkruntime.Float8Semantic(right)
+	if first.Kind == checkruntime.Float8ValueValue {
+		a := first.Value
+		if second.Kind == checkruntime.Float8ValueValue {
+			b := second.Value
+			if equal {
+				return checkruntime.MakeBoolValue(checkruntime.Float8Number(a) == checkruntime.Float8Number(b))
+			}
+			return checkruntime.MakeBoolValue(checkruntime.Float8Number(a) < checkruntime.Float8Number(b))
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func segmentContainsPoint(segment checkruntime.LsegValue, point checkruntime.PointValue) checkruntime.BoolValue {
+	status := segmentPointStatus(segment, point)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	first := PointDistance2haq(point, lsegEndpoint(segment, false))
+	if first.Kind == checkruntime.Float8ValueError {
+		error := first.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	second := PointDistance2haq(point, lsegEndpoint(segment, true))
+	if second.Kind == checkruntime.Float8ValueError {
+		error := second.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	length := lsegLengthValue(segment)
+	if length.Kind == checkruntime.Float8ValueError {
+		error := length.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	a := checkruntime.Float8Semantic(first)
+	b := checkruntime.Float8Semantic(second)
+	c := checkruntime.Float8Semantic(length)
+	if a.Kind == checkruntime.Float8ValueValue {
+		x := a.Value
+		if b.Kind == checkruntime.Float8ValueValue {
+			y := b.Value
+			if c.Kind == checkruntime.Float8ValueValue {
+				z := c.Value
+				sum := langruntime.F64Add(checkruntime.Float8Number(x), checkruntime.Float8Number(y))
+				return checkruntime.MakeBoolValue(geometricCoordinateEqual(sum, checkruntime.Float8Number(z)))
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func segmentPromoteLine(segment checkruntime.LsegValue) checkruntime.LineValue {
+	if segment.Kind == checkruntime.LsegValueError {
+		error := segment.Error
+		return checkruntime.LineValue{Kind: checkruntime.LineValueError, Error: error}
+	}
+	if segment == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) {
+		return checkruntime.LineValue{Kind: checkruntime.LineValueNull}
+	}
+	first := lsegEndpoint(segment, false)
+	if first.Kind == checkruntime.PointValueValue {
+		origin := first.Value
+		return lineFromOriginSlope(origin, lsegSlope(segment, false))
+	}
+	return checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}
+}
+func segmentLineIntersection(segment checkruntime.LsegValue, line checkruntime.LineValue) checkruntime.PointValue {
+	status := segmentLineStatus(segment, line)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentPointFromStatus(status)
+	}
+	intersection := lineIntersection(segmentPromoteLine(segment), line)
+	if intersection.Kind == checkruntime.PointValueError {
+		error := intersection.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return intersection
+	}
+	contains := segmentContainsPoint(segment, intersection)
+	if contains == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if contains != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentPointFromStatus(contains)
+	}
+	first := lsegEndpoint(segment, false)
+	second := lsegEndpoint(segment, true)
+	if PointEq5be0(first, intersection) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return first
+	}
+	if PointEq5be0(second, intersection) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return second
+	}
+	return intersection
+}
+func segmentIntersection(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.PointValue {
+	status := segmentPairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentPointFromStatus(status)
+	}
+	intersection := segmentLineIntersection(left, segmentPromoteLine(right))
+	if intersection.Kind == checkruntime.PointValueError {
+		error := intersection.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) || intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return intersection
+	}
+	contains := segmentContainsPoint(right, intersection)
+	if contains == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if contains != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentPointFromStatus(contains)
+	}
+	return intersection
+}
+func segmentIntersectionResult(point checkruntime.PointValue) checkruntime.BoolValue {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	return checkruntime.MakeBoolValue(point != (checkruntime.PointValue{Kind: checkruntime.PointValueNull}))
+}
+
+type segmentClosest struct {
+	point    checkruntime.PointValue
+	distance checkruntime.Float8Value
+}
+
+func copysegmentClosest(value segmentClosest) segmentClosest {
+	return segmentClosest{point: value.point, distance: value.distance}
+}
+func segmentClosestFromStatus(status checkruntime.BoolValue) segmentClosest {
+	return segmentClosest{point: segmentPointFromStatus(status), distance: segmentFloatFromStatus(status)}
+}
+func segmentClosestError(distance checkruntime.Float8Value) segmentClosest {
+	if distance.Kind == checkruntime.Float8ValueError {
+		error := distance.Error
+		return segmentClosest{point: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}, distance: distance}
+	}
+	return segmentClosest{point: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}, distance: distance}
+}
+func segmentProjectLine(segment checkruntime.LsegValue, line checkruntime.LineValue) segmentClosest {
+	status := segmentLineStatus(segment, line)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentClosestFromStatus(status)
+	}
+	intersection := segmentLineIntersection(segment, line)
+	if intersection.Kind == checkruntime.PointValueError {
+		error := intersection.Error
+		return segmentClosestFromStatus(checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error})
+	}
+	if intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return segmentClosestFromStatus(checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown})
+	}
+	if intersection != (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return segmentClosest{point: intersection, distance: checkruntime.MakeFloat8Bits(int64(0))}
+	}
+	first := lsegEndpoint(segment, false)
+	second := lsegEndpoint(segment, true)
+	firstProjection := lineProjectPoint(first, line)
+	a := firstProjection.distance
+	if a.Kind == checkruntime.Float8ValueError {
+		error := a.Error
+		return segmentClosestError(checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error})
+	}
+	secondProjection := lineProjectPoint(second, line)
+	b := secondProjection.distance
+	if b.Kind == checkruntime.Float8ValueError {
+		error := b.Error
+		return segmentClosestError(checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error})
+	}
+	comparison := segmentRawRelation(a, b, false)
+	if comparison == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentClosest{point: first, distance: a}
+	}
+	if comparison == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return segmentClosest{point: second, distance: b}
+	}
+	return segmentClosestFromStatus(comparison)
+}
+func segmentProjectPoint(segment checkruntime.LsegValue, point checkruntime.PointValue) segmentClosest {
+	status := segmentPointStatus(segment, point)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentClosestFromStatus(status)
+	}
+	if point.Kind == checkruntime.PointValueValue {
+		origin := point.Value
+		perpendicular := lineFromOriginSlope(origin, lsegSlope(segment, true))
+		closest := segmentProjectLine(segment, perpendicular)
+		distance := closest.distance
+		if distance.Kind == checkruntime.Float8ValueError {
+			error := distance.Error
+			return segmentClosestError(checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error})
+		}
+		if distance == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+			return segmentClosestError(distance)
+		}
+		return segmentClosest{point: closest.point, distance: PointDistance2haq(closest.point, point)}
+	}
+	return segmentClosestFromStatus(checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown})
+}
+func segmentChooseCloser(current segmentClosest, candidate segmentClosest) segmentClosest {
+	current = copysegmentClosest(current)
+	candidate = copysegmentClosest(candidate)
+	comparison := Float8ltVp07(candidate.distance, current.distance)
+	if comparison == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return candidate
+	}
+	if comparison == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return current
+	}
+	return segmentClosestFromStatus(comparison)
+}
+func segmentNearestPair(left checkruntime.LsegValue, right checkruntime.LsegValue) segmentClosest {
+	status := segmentPairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentClosestFromStatus(status)
+	}
+	intersection := segmentIntersection(left, right)
+	if intersection.Kind == checkruntime.PointValueError {
+		error := intersection.Error
+		return segmentClosestFromStatus(checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error})
+	}
+	if intersection == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return segmentClosestFromStatus(checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown})
+	}
+	if intersection != (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return segmentClosest{point: intersection, distance: checkruntime.MakeFloat8Bits(int64(0))}
+	}
+	first := segmentProjectPoint(left, lsegEndpoint(right, false))
+	firstDistance := first.distance
+	if firstDistance.Kind == checkruntime.Float8ValueError {
+		error := firstDistance.Error
+		return segmentClosestError(checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error})
+	}
+	second := segmentProjectPoint(left, lsegEndpoint(right, true))
+	closest := segmentChooseCloser(first, second)
+	secondDistance := closest.distance
+	if secondDistance.Kind == checkruntime.Float8ValueError {
+		error := secondDistance.Error
+		return segmentClosestError(checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error})
+	}
+	leftFirst := lsegEndpoint(left, false)
+	third := segmentProjectPoint(right, leftFirst)
+	closest = copysegmentClosest(segmentChooseCloser(closest, segmentClosest{point: leftFirst, distance: third.distance}))
+	thirdDistance := closest.distance
+	if thirdDistance.Kind == checkruntime.Float8ValueError {
+		error := thirdDistance.Error
+		return segmentClosestError(checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error})
+	}
+	leftSecond := lsegEndpoint(left, true)
+	fourth := segmentProjectPoint(right, leftSecond)
+	return segmentChooseCloser(closest, segmentClosest{point: leftSecond, distance: fourth.distance})
+}
+func segmentClosestPoint(closest segmentClosest) checkruntime.PointValue {
+	closest = copysegmentClosest(closest)
+	distance := closest.distance
+	if distance.Kind == checkruntime.Float8ValueError {
+		error := distance.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if distance == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+	}
+	if distance == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	semantic := checkruntime.Float8Semantic(distance)
+	if semantic.Kind == checkruntime.Float8ValueValue {
+		bits := semantic.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+		}
+	}
+	return closest.point
+}
+func segmentLineSlope(input checkruntime.LineValue) checkruntime.Float8Value {
+	if input.Kind == checkruntime.LineValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if input == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if input.Kind == checkruntime.LineValueValue {
+		value := input.Value
+		if langruntime.F64Abs(checkruntime.Float8Number(value.A)) <= float64(0.000001) {
+			return checkruntime.MakeFloat8Bits(int64(0))
+		}
+		if langruntime.F64Abs(checkruntime.Float8Number(value.B)) <= float64(0.000001) {
+			return checkruntime.MakeFloat8Bits(int64(9218868437227405312))
+		}
+		return Float8divKumj(lineCoefficient(value, 0), Float8um3uy5(lineCoefficient(value, 1)))
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func LsegInterpt8i53(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.PointValue {
+	return segmentIntersection(left, right)
+}
+func LsegIntersectOvab(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.BoolValue {
+	status := segmentPairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	return segmentIntersectionResult(segmentIntersection(left, right))
+}
+func InterSlG0cl(segment checkruntime.LsegValue, line checkruntime.LineValue) checkruntime.BoolValue {
+	status := segmentLineStatus(segment, line)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	return segmentIntersectionResult(segmentLineIntersection(segment, line))
+}
+func OnPsJ4bf(point checkruntime.PointValue, segment checkruntime.LsegValue) checkruntime.BoolValue {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return segmentContainsPoint(segment, point)
+}
+func OnSlL1ny(segment checkruntime.LsegValue, line checkruntime.LineValue) checkruntime.BoolValue {
+	status := segmentLineStatus(segment, line)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	first := OnPl5c6f(lsegEndpoint(segment, false), line)
+	if first != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return first
+	}
+	return OnPl5c6f(lsegEndpoint(segment, true), line)
+}
+func DistSlRsx7(segment checkruntime.LsegValue, line checkruntime.LineValue) checkruntime.Float8Value {
+	closest := segmentProjectLine(segment, line)
+	return closest.distance
+}
+func DistLsZpuo(line checkruntime.LineValue, segment checkruntime.LsegValue) checkruntime.Float8Value {
+	if line.Kind == checkruntime.LineValueError {
+		error := line.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	closest := segmentProjectLine(segment, line)
+	return closest.distance
+}
+func DistSp3dia(segment checkruntime.LsegValue, point checkruntime.PointValue) checkruntime.Float8Value {
+	closest := segmentProjectPoint(segment, point)
+	return closest.distance
+}
+func DistPsElz7(point checkruntime.PointValue, segment checkruntime.LsegValue) checkruntime.Float8Value {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	closest := segmentProjectPoint(segment, point)
+	return closest.distance
+}
+func ClosePsI1gr(point checkruntime.PointValue, segment checkruntime.LsegValue) checkruntime.PointValue {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	return segmentClosestPoint(segmentProjectPoint(segment, point))
+}
+func LsegDistanceDgev(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.Float8Value {
+	closest := segmentNearestPair(left, right)
+	return closest.distance
+}
+func CloseLsIz60(line checkruntime.LineValue, segment checkruntime.LsegValue) checkruntime.PointValue {
+	if line.Kind == checkruntime.LineValueError {
+		error := line.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	status := segmentLineStatus(segment, line)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentPointFromStatus(status)
+	}
+	slopes := segmentRawRelation(lsegSlope(segment, false), segmentLineSlope(line), true)
+	if slopes == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if slopes != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return segmentPointFromStatus(slopes)
+	}
+	return segmentClosestPoint(segmentProjectLine(segment, line))
+}
+func CloseLsegQ411(left checkruntime.LsegValue, right checkruntime.LsegValue) checkruntime.PointValue {
+	status := segmentPairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentPointFromStatus(status)
+	}
+	slopes := segmentRawRelation(lsegSlope(left, false), lsegSlope(right, false), true)
+	if slopes == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if slopes != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return segmentPointFromStatus(slopes)
+	}
+	return segmentClosestPoint(segmentNearestPair(right, left))
 }
 
 const macConversionOutOfRange = 3452547
