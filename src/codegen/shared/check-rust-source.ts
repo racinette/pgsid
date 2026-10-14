@@ -2,6 +2,7 @@ import { assertUniqueCheckEntryNames, type CheckConstraintIdentity } from './che
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import { checkRustAsset } from './check-rust-assets.js'
 import { emitCheckRustEvaluator, UnsupportedCheckRustExpression } from './check-rust-evaluator.js'
+import { createCheckRustSourceCache, checkRustSourceCallables } from './check-rust-source-cache.js'
 
 export type CheckRustSource = {
   schemaVersion: 1
@@ -12,17 +13,12 @@ export type CheckRustSource = {
   }[]
 }
 
+const maintainedSources = createCheckRustSourceCache(() =>
+  checkRustAsset('check-rust-sources.json'),
+)
+
 export function checkRustCallableNames(source?: CheckRustSource): Set<string> {
-  const maintained =
-    source ??
-    (JSON.parse(checkRustAsset('check-rust-sources.json').toString('utf8')) as CheckRustSource)
-  return new Set(
-    maintained.modules.flatMap((module) =>
-      module.files.flatMap((file) =>
-        [...file.source.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu)].map((match) => match[1]!),
-      ),
-    ),
-  )
+  return source ? checkRustSourceCallables(source) : maintainedSources.callables()
 }
 
 export function assembleCheckRust(evaluator: {
@@ -30,9 +26,7 @@ export function assembleCheckRust(evaluator: {
   callables: readonly string[]
   requiresRegex?: boolean
 }): CheckRustSource {
-  const maintained = JSON.parse(
-    checkRustAsset('check-rust-sources.json').toString('utf8'),
-  ) as CheckRustSource
+  const maintained = maintainedSources.source()
   const timezoneCallables = checkRustCallableNames({
     ...maintained,
     modules: maintained.modules.map((module) => ({
