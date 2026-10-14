@@ -1515,6 +1515,48 @@ func CircleFromCaseGuard(input CheckOutcome) CircleValue {
 	return CircleValue{Kind: CircleValueUnknown}
 }
 
+type MoneyValueKind uint8
+
+const (
+	MoneyValueUnknown MoneyValueKind = iota
+	MoneyValueNull
+	MoneyValueValue
+	MoneyValueError
+)
+
+type MoneyValue struct {
+	Kind  MoneyValueKind
+	Value int64
+	Error SqlError
+}
+
+func MoneyUnknown() MoneyValue {
+	return MoneyValue{Kind: MoneyValueUnknown}
+}
+func MoneyNull() MoneyValue {
+	return MoneyValue{Kind: MoneyValueNull}
+}
+func MakeMoneyValue(units int64) MoneyValue {
+	return MoneyValue{Kind: MoneyValueValue, Value: units}
+}
+func MoneyIsNull(input MoneyValue) BoolValue {
+	if input.Kind == MoneyValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (MoneyValue{Kind: MoneyValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (MoneyValue{Kind: MoneyValueNull}))
+}
+func MoneyFromCaseGuard(input CheckOutcome) MoneyValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return MoneyValue{Kind: MoneyValueError, Error: error}
+	}
+	return MoneyValue{Kind: MoneyValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

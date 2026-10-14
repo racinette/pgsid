@@ -1688,6 +1688,53 @@ export function circleFromCaseGuard(input: CheckOutcome): CircleValue {
     }
     return { kind: "Unknown" };
 }
+export type MoneyValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: bigint;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalMoneyValue(left: MoneyValue, right: MoneyValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function moneyUnknown(): MoneyValue {
+    return { kind: "Unknown" };
+}
+export function moneyNull(): MoneyValue {
+    return { kind: "Null" };
+}
+export function makeMoneyValue(units: bigint): MoneyValue {
+    units = langruntime.checkedI64(units);
+    return { kind: "Value", value: units };
+}
+export function moneyIsNull(input: MoneyValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalMoneyValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalMoneyValue(input, { kind: "Null" }));
+}
+export function moneyFromCaseGuard(input: CheckOutcome): MoneyValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

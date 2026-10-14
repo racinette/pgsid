@@ -1420,3 +1420,35 @@ pub fn circle_from_case_guard(input: CheckOutcome) -> CircleValue {
     };
     CircleValue::Unknown
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum MoneyValue {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+pub fn money_unknown() -> MoneyValue {
+    MoneyValue::Unknown
+}
+pub fn money_null() -> MoneyValue {
+    MoneyValue::Null
+}
+pub fn make_money_value(units: i64) -> MoneyValue {
+    MoneyValue::Value(units)
+}
+pub fn money_is_null(input: MoneyValue) -> BoolValue {
+    if let MoneyValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == MoneyValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == MoneyValue::Null)
+}
+pub fn money_from_case_guard(input: CheckOutcome) -> MoneyValue {
+    if let CheckOutcome::Error(error) = input {
+        return MoneyValue::Error(error);
+    };
+    MoneyValue::Unknown
+}

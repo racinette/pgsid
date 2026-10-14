@@ -21,6 +21,7 @@ import {
   catalogPointType,
   catalogLineType,
   catalogLsegType,
+  catalogMoneyType,
   catalogCircleType,
   catalogBoxType,
 } from '../../src/sql-semantics/catalog-check-binder.js'
@@ -345,6 +346,13 @@ describe('world CHECK INSERT parity', () => {
             catalogLsegType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const moneyColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogMoneyType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const circleColumns = table.columns
         .filter(
           (column) =>
@@ -389,6 +397,17 @@ describe('world CHECK INSERT parity', () => {
           portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
           goRow[name] = payload
         }
+      }
+      for (const name of moneyColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(cash_send(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload = bytes === null ? null : bytes.readBigInt64BE()
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
       }
       for (const name of circleColumns) {
         const hex = (
@@ -543,6 +562,7 @@ describe('world CHECK INSERT parity', () => {
         pointColumns,
         lineColumns,
         lsegColumns,
+        moneyColumns,
         circleColumns,
         boxColumns,
         timeColumns,

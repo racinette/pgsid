@@ -45,6 +45,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.point') return 'PointValue'
   if (type === 'pg_catalog.line') return 'LineValue'
   if (type === 'pg_catalog.lseg') return 'LsegValue'
+  if (type === 'pg_catalog.money') return 'MoneyValue'
   if (type === 'pg_catalog.circle') return 'CircleValue'
   if (type === 'pg_catalog.box') return 'BoxValue'
   if (type === 'pg_catalog."numeric"') return 'NumericValue'
@@ -494,6 +495,19 @@ export function emitCheckRustEvaluator(
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
+    if (node.kind === 'text-to-money') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (
+        operand.type !== 'pg_catalog.text' ||
+        !io ||
+        builtinMetadata(io).args[0] !== 'pg_catalog.cstring'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Money input requires text and its catalog I/O identity',
+        )
+      return { name: bind(`money_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
     if (
       node.kind === 'text-to-point' ||
       node.kind === 'text-to-line' ||
@@ -692,6 +706,13 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`lseg_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'money') {
+        if (value.value === null) return { name: bind('money_null()'), type: value.type }
+        if (value.units !== undefined)
+          return { name: bind(`make_money_value(${value.units}i64)`), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`money_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'circle') {
         if (value.value === null) return { name: bind('circle_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -834,6 +855,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.point',
           'pg_catalog.line',
           'pg_catalog.lseg',
+          'pg_catalog.money',
           'pg_catalog.circle',
           'pg_catalog.box',
           'pg_catalog."numeric"',

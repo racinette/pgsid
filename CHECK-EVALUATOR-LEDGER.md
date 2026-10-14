@@ -208,9 +208,17 @@ exposes a prerequisite:
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.
-- [ ] Establish money payloads, comparisons, arithmetic, binary output and words,
+- [x] Establish money payloads, comparisons, arithmetic, binary output and words,
       and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
+- [ ] Establish unsigned OID values, portable input/output, comparisons, hashes,
+      integer casts, domains and SQL-coerced public input validation.
+- [ ] Establish transaction and command identifiers, unsigned full transaction
+      words, portable input/output, pure operations and contextual state boundaries.
+- [ ] Establish WAL location payloads, portable text input/output, comparisons,
+      hashing, exact numeric arithmetic and SQL-coerced public inputs.
+- [ ] Establish heap tuple pointer payloads, comparisons, binary/text conversion,
+      portable hashes and explicit native-layout and heap-state requirements.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
