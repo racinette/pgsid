@@ -21,6 +21,7 @@ import {
   catalogPointType,
   catalogLineType,
   catalogLsegType,
+  catalogOidType,
   catalogMoneyType,
   catalogCircleType,
   catalogBoxType,
@@ -350,6 +351,13 @@ describe('world CHECK INSERT parity', () => {
             catalogLsegType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const oidColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogOidType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const moneyColumns = table.columns
         .filter(
           (column) =>
@@ -401,6 +409,17 @@ describe('world CHECK INSERT parity', () => {
           portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
           goRow[name] = payload
         }
+      }
+      for (const name of oidColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(oidsend(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload = bytes === null ? null : BigInt(bytes.readUInt32BE())
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
       }
       for (const name of moneyColumns) {
         const hex = (
@@ -566,6 +585,7 @@ describe('world CHECK INSERT parity', () => {
         pointColumns,
         lineColumns,
         lsegColumns,
+        oidColumns,
         moneyColumns,
         circleColumns,
         boxColumns,

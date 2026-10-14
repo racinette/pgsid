@@ -211,7 +211,7 @@ exposes a prerequisite:
 - [x] Establish money payloads, comparisons, arithmetic, binary output and words,
       and capture stored CHECK literals while classifying monetary context.
 - [ ] Money, with scale and locale requirements explicit.
-- [ ] Establish unsigned OID values, portable input/output, comparisons, hashes,
+- [x] Establish unsigned OID values, portable input/output, comparisons, hashes,
       integer casts, domains and SQL-coerced public input validation.
 - [ ] Establish transaction and command identifiers, unsigned full transaction
       words, portable input/output, pure operations and contextual state boundaries.

@@ -184,6 +184,7 @@ describe('CHECK measurement boundaries', () => {
     expect(valueRepresentation('point').represented).toBe(true)
     expect(valueRepresentation('circle').represented).toBe(true)
     expect(valueRepresentation('money').represented).toBe(true)
+    expect(valueRepresentation('oid').represented).toBe(true)
     for (const type of ['time', 'timetz', 'interval'])
       expect(valueRepresentation(type).represented).toBe(true)
     const unknown = inspectExpression({ kind: 'uncertain' })

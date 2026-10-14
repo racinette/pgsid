@@ -7,6 +7,7 @@ import {
   catalogLineType,
   catalogLsegType,
   catalogMoneyType,
+  catalogOidType,
   catalogCircleType,
   catalogBoxType,
   catalogScalarType,
@@ -232,6 +233,7 @@ export function planCheckInputs(
     if (catalogLineType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogLsegType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogMoneyType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogOidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogCircleType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogBoxType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalog && inputNeedsCoercion(column, catalog)) return []

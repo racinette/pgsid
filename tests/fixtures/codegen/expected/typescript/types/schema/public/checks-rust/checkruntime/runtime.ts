@@ -1735,6 +1735,56 @@ export function moneyFromCaseGuard(input: CheckOutcome): MoneyValue {
     }
     return { kind: "Unknown" };
 }
+export type OidValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: bigint;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalOidValue(left: OidValue, right: OidValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function oidUnknown(): OidValue {
+    return { kind: "Unknown" };
+}
+export function oidNull(): OidValue {
+    return { kind: "Null" };
+}
+export function makeOidValue(units: bigint): OidValue {
+    units = langruntime.checkedI64(units);
+    if (units < 0n || units > 4294967295n) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: units };
+}
+export function oidIsNull(input: OidValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalOidValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalOidValue(input, { kind: "Null" }));
+}
+export function oidFromCaseGuard(input: CheckOutcome): OidValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

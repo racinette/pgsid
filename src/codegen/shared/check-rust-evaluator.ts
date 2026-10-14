@@ -45,6 +45,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.line') return 'LineValue'
   if (type === 'pg_catalog.lseg') return 'LsegValue'
   if (type === 'pg_catalog.money') return 'MoneyValue'
+  if (type === 'pg_catalog.oid') return 'OidValue'
   if (type === 'pg_catalog.circle') return 'CircleValue'
   if (type === 'pg_catalog.box') return 'BoxValue'
   if (type === 'pg_catalog."numeric"') return 'NumericValue'
@@ -341,6 +342,21 @@ export function emitCheckRustEvaluator(
       folded?: { name: string; type: string },
     ): { name: string; type: string } => {
       if (call.kind === 'cast' && call.signature === null) {
+        if (operands.length === 1 && builtinCast(operands[0]!.type, call.type)?.method === 'b') {
+          const input = operands[0]!
+          const helper =
+            input.type === 'pg_catalog.int4' && call.type === 'pg_catalog.oid'
+              ? 'oid_from_int4'
+              : input.type === 'pg_catalog.oid' && call.type === 'pg_catalog.int4'
+                ? 'oid_to_int4'
+                : null
+          if (helper) {
+            if (folded) return folded
+            const name = fresh('value')
+            destination.push(`let ${name} = ${helper}(${input.name});`)
+            return { name, type: call.type }
+          }
+        }
         if (
           operands.length !== 1 ||
           (operands[0]!.type !== call.type &&
@@ -487,7 +503,9 @@ export function emitCheckRustEvaluator(
         }
       }
       if (
-        !['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'].includes(operand.type) ||
+        !['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8', 'pg_catalog.oid'].includes(
+          operand.type,
+        ) ||
         metadata.volatility !== 'i'
       )
         throw new UnsupportedCheckRustExpression('Unsupported scalar text output')
@@ -506,6 +524,19 @@ export function emitCheckRustEvaluator(
           'Money input requires text and its catalog I/O identity',
         )
       return { name: bind(`money_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-oid') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (
+        operand.type !== 'pg_catalog.text' ||
+        !io ||
+        builtinMetadata(io).args[0] !== 'pg_catalog.cstring'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Oid input requires text and its catalog I/O identity',
+        )
+      return { name: bind(`oid_from_text(${ownedOperand(operand)})`), type: node.type }
     }
     if (
       node.kind === 'text-to-point' ||
@@ -704,6 +735,11 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`money_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'oid') {
+        if (value.value === null) return { name: bind('oid_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`oid_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'circle') {
         if (value.value === null) return { name: bind('circle_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -847,6 +883,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.line',
           'pg_catalog.lseg',
           'pg_catalog.money',
+          'pg_catalog.oid',
           'pg_catalog.circle',
           'pg_catalog.box',
           'pg_catalog."numeric"',

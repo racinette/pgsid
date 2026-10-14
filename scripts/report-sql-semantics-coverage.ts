@@ -34,6 +34,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'line' ||
       expression.kind === 'lseg' ||
       expression.kind === 'money' ||
+      expression.kind === 'oid' ||
       expression.kind === 'circle' ||
       expression.kind === 'box' ||
       expression.kind === 'decimal' ||

@@ -1557,6 +1557,51 @@ func MoneyFromCaseGuard(input CheckOutcome) MoneyValue {
 	return MoneyValue{Kind: MoneyValueUnknown}
 }
 
+type OidValueKind uint8
+
+const (
+	OidValueUnknown OidValueKind = iota
+	OidValueNull
+	OidValueValue
+	OidValueError
+)
+
+type OidValue struct {
+	Kind  OidValueKind
+	Value int64
+	Error SqlError
+}
+
+func OidUnknown() OidValue {
+	return OidValue{Kind: OidValueUnknown}
+}
+func OidNull() OidValue {
+	return OidValue{Kind: OidValueNull}
+}
+func MakeOidValue(units int64) OidValue {
+	if units < int64(0) || units > int64(4294967295) {
+		return OidValue{Kind: OidValueUnknown}
+	}
+	return OidValue{Kind: OidValueValue, Value: units}
+}
+func OidIsNull(input OidValue) BoolValue {
+	if input.Kind == OidValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (OidValue{Kind: OidValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (OidValue{Kind: OidValueNull}))
+}
+func OidFromCaseGuard(input CheckOutcome) OidValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return OidValue{Kind: OidValueError, Error: error}
+	}
+	return OidValue{Kind: OidValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

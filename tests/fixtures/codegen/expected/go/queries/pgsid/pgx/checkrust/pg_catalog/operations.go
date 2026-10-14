@@ -17101,6 +17101,304 @@ func numericWorkRound(work numericWork, requested int, mode int) checkruntime.Nu
 	}
 	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: numericWorkText(rounded)}
 }
+func oidUnits(input checkruntime.OidValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.OidValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.OidValueValue {
+		value := input.Value
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func oidCompare(left checkruntime.OidValue, right checkruntime.OidValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.OidValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.OidValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}) || right == (checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) || right == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.OidValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.OidValueValue {
+			b := right.Value
+			if a < b {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if a > b {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func oidRelation(left checkruntime.OidValue, right checkruntime.OidValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	comparison := oidCompare(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if mode == 0 {
+			return checkruntime.MakeBoolValue(order == 0)
+		}
+		if mode == 1 {
+			return checkruntime.MakeBoolValue(order != 0)
+		}
+		if mode == 2 {
+			return checkruntime.MakeBoolValue(order < 0)
+		}
+		if mode == 3 {
+			return checkruntime.MakeBoolValue(order <= 0)
+		}
+		if mode == 4 {
+			return checkruntime.MakeBoolValue(order > 0)
+		}
+		return checkruntime.MakeBoolValue(order >= 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func oidSelect(left checkruntime.OidValue, right checkruntime.OidValue, larger bool) checkruntime.OidValue {
+	comparison := oidCompare(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if (larger && order > 0) || (larger == false && order < 0) {
+			return left
+		}
+		return right
+	}
+	return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+}
+func OidToInt4(input checkruntime.OidValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.OidValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.OidValueValue {
+		value := input.Value
+		signed := value
+		if signed > int64(2147483647) {
+			signed = langruntime.CheckedI64Subtract(signed, int64(4294967296))
+		}
+		return checkruntime.MakeInt4Value(int(int32(signed)))
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func OidFromInt4(input checkruntime.Int4Value) checkruntime.OidValue {
+	if input.Kind == checkruntime.Int4ValueError {
+		error := input.Error
+		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+	}
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		units := int64(langruntime.CheckedI32(value))
+		if units < int64(0) {
+			units = langruntime.CheckedI64Add(units, int64(4294967296))
+		}
+		return checkruntime.MakeOidValue(units)
+	}
+	return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+}
+func OidToText(input checkruntime.OidValue) checkruntime.TextValue {
+	return Int8ToText(oidUnits(input))
+}
+func OidsendKq2v(left checkruntime.OidValue) checkruntime.ByteaValue {
+	return Int4sendFjzt(OidToInt4(left))
+}
+func Btoidcmp48b8(left checkruntime.OidValue, right checkruntime.OidValue) checkruntime.Int4Value {
+	return oidCompare(left, right)
+}
+func HashoidPp7a(left checkruntime.OidValue) checkruntime.Int4Value {
+	return Hashint4Zr00(OidToInt4(left))
+}
+func HashoidextendedV555(left checkruntime.OidValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	return Hashint4extendedXf6v(OidToInt4(left), right)
+}
+func Int8Egit(left checkruntime.OidValue) checkruntime.Int8Value {
+	return oidUnits(left)
+}
+func OidH1d6(left checkruntime.Int8Value) checkruntime.OidValue {
+	if left.Kind == checkruntime.Int8ValueError {
+		error := left.Error
+		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+	}
+	if left.Kind == checkruntime.Int8ValueValue {
+		value := left.Value
+		if value < int64(0) || value > int64(4294967295) {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.SqlError{State: sqlstateNumericValueOutOfRange}}
+		}
+		return checkruntime.MakeOidValue(value)
+	}
+	return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+}
+func Oideq5dkx(left checkruntime.OidValue, right checkruntime.OidValue) checkruntime.BoolValue {
+	return oidRelation(left, right, 0)
+}
+func OidgeAoq3(left checkruntime.OidValue, right checkruntime.OidValue) checkruntime.BoolValue {
+	return oidRelation(left, right, 5)
+}
+func OidgtG4ck(left checkruntime.OidValue, right checkruntime.OidValue) checkruntime.BoolValue {
+	return oidRelation(left, right, 4)
+}
+func OidlargerI7ib(left checkruntime.OidValue, right checkruntime.OidValue) checkruntime.OidValue {
+	return oidSelect(left, right, true)
+}
+func OidleFl7z(left checkruntime.OidValue, right checkruntime.OidValue) checkruntime.BoolValue {
+	return oidRelation(left, right, 3)
+}
+func OidltD1du(left checkruntime.OidValue, right checkruntime.OidValue) checkruntime.BoolValue {
+	return oidRelation(left, right, 2)
+}
+func OidneC1mg(left checkruntime.OidValue, right checkruntime.OidValue) checkruntime.BoolValue {
+	return oidRelation(left, right, 1)
+}
+func OidsmallerGygc(left checkruntime.OidValue, right checkruntime.OidValue) checkruntime.OidValue {
+	return oidSelect(left, right, false)
+}
+
+const oidInputInvalid = 3484946
+
+func OidFromText(input checkruntime.TextValue) checkruntime.OidValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		if len(chars) > 4096 {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+		}
+		start := 0
+		end := len(chars)
+		for start < end && oidInputSpace(chars[start]) {
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		for end > start && oidInputSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		negative := false
+		if start < end && (chars[start] == '+' || chars[start] == '-') {
+			negative = chars[start] == '-'
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		radix := int64(10)
+		if langruntime.CheckedAdd(start, 1) < end && chars[start] == '0' {
+			if chars[langruntime.CheckedAdd(start, 1)] == 'x' || chars[langruntime.CheckedAdd(start, 1)] == 'X' {
+				radix = int64(16)
+				start = langruntime.CheckedAdd(start, 2)
+			} else if chars[langruntime.CheckedAdd(start, 1)] == 'b' || chars[langruntime.CheckedAdd(start, 1)] == 'B' {
+				return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+			} else {
+				radix = int64(8)
+			}
+		}
+		units := int64(0)
+		high := int64(0)
+		digits := false
+		overflow := false
+		for start < end {
+			digit := oidInputDigit(chars[start])
+			if digit < int64(0) || digit >= radix {
+				break
+			}
+			digits = true
+			if overflow == false {
+				combined := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(units, radix), digit)
+				units = langruntime.CheckedI64Remainder(combined, int64(4294967296))
+				high = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, radix), langruntime.CheckedI64Divide(combined, int64(4294967296)))
+				if high > int64(4294967295) {
+					overflow = true
+				}
+			}
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		if digits == false {
+			if radix == int64(16) && start == end {
+				return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+			}
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.SqlError{State: oidInputInvalid}}
+		}
+		if overflow {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.SqlError{State: sqlstateNumericValueOutOfRange}}
+		}
+		if high != int64(0) {
+			if start != end || (negative && high == int64(4294967295) && units != int64(0)) || (negative == false && high == int64(4294967295) && units >= int64(2147483648)) {
+				return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+			}
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.SqlError{State: sqlstateNumericValueOutOfRange}}
+		}
+		if start != end {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: checkruntime.SqlError{State: oidInputInvalid}}
+		}
+		if negative && units > int64(2147483648) {
+			return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+		}
+		if negative && units != int64(0) {
+			units = langruntime.CheckedI64Subtract(int64(4294967296), units)
+		}
+		return checkruntime.MakeOidValue(units)
+	}
+	return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+}
+func oidInputSpace(ch rune) bool {
+	ch = langruntime.CheckedChar(ch)
+	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f'
+}
+func oidInputDigit(ch rune) int64 {
+	ch = langruntime.CheckedChar(ch)
+	value := int(langruntime.CheckedChar(ch))
+	if value >= 48 && value <= 57 {
+		digit := langruntime.CheckedSignedSubtract(value, 48)
+		return int64(langruntime.CheckedI32(digit))
+	}
+	if value >= 65 && value <= 70 {
+		digit := langruntime.CheckedSignedSubtract(value, 55)
+		return int64(langruntime.CheckedI32(digit))
+	}
+	if value >= 97 && value <= 102 {
+		digit := langruntime.CheckedSignedSubtract(value, 87)
+		return int64(langruntime.CheckedI32(digit))
+	}
+	return int64(-1)
+}
 func pointSameValue(left checkruntime.PointPayload, right checkruntime.PointPayload) bool {
 	x := checkruntime.Float8Number(left.X)
 	y := checkruntime.Float8Number(left.Y)
