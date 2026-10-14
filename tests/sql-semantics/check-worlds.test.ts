@@ -21,6 +21,9 @@ import {
   catalogPointType,
   catalogLineType,
   catalogLsegType,
+  catalogXidType,
+  catalogCidType,
+  catalogXid8Type,
   catalogOidType,
   catalogMoneyType,
   catalogCircleType,
@@ -351,6 +354,27 @@ describe('world CHECK INSERT parity', () => {
             catalogLsegType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const xidColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogXidType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
+      const cidColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogCidType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
+      const xid8Columns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogXid8Type(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const oidColumns = table.columns
         .filter(
           (column) =>
@@ -409,6 +433,39 @@ describe('world CHECK INSERT parity', () => {
           portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
           goRow[name] = payload
         }
+      }
+      for (const name of xidColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(xidsend(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload = bytes === null ? null : BigInt(bytes.readUInt32BE())
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
+      }
+      for (const name of cidColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(cidsend(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload = bytes === null ? null : BigInt(bytes.readUInt32BE())
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
+      }
+      for (const name of xid8Columns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(xid8send(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        const payload = bytes === null ? null : bytes.readBigInt64BE()
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
       }
       for (const name of oidColumns) {
         const hex = (
@@ -585,6 +642,9 @@ describe('world CHECK INSERT parity', () => {
         pointColumns,
         lineColumns,
         lsegColumns,
+        xidColumns,
+        cidColumns,
+        xid8Columns,
         oidColumns,
         moneyColumns,
         circleColumns,

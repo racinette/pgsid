@@ -1487,3 +1487,105 @@ pub fn oid_from_case_guard(input: CheckOutcome) -> OidValue {
     };
     OidValue::Unknown
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum XidValue {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+pub fn xid_unknown() -> XidValue {
+    XidValue::Unknown
+}
+pub fn xid_null() -> XidValue {
+    XidValue::Null
+}
+pub fn make_xid_value(units: i64) -> XidValue {
+    if units < 0i64 || units > 4294967295i64 {
+        return XidValue::Unknown;
+    };
+    XidValue::Value(units)
+}
+pub fn xid_is_null(input: XidValue) -> BoolValue {
+    if let XidValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == XidValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == XidValue::Null)
+}
+pub fn xid_from_case_guard(input: CheckOutcome) -> XidValue {
+    if let CheckOutcome::Error(error) = input {
+        return XidValue::Error(error);
+    };
+    XidValue::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum CidValue {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+pub fn cid_unknown() -> CidValue {
+    CidValue::Unknown
+}
+pub fn cid_null() -> CidValue {
+    CidValue::Null
+}
+pub fn make_cid_value(units: i64) -> CidValue {
+    if units < 0i64 || units > 4294967295i64 {
+        return CidValue::Unknown;
+    };
+    CidValue::Value(units)
+}
+pub fn cid_is_null(input: CidValue) -> BoolValue {
+    if let CidValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == CidValue::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == CidValue::Null)
+}
+pub fn cid_from_case_guard(input: CheckOutcome) -> CidValue {
+    if let CheckOutcome::Error(error) = input {
+        return CidValue::Error(error);
+    };
+    CidValue::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Xid8Value {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+pub fn xid8_unknown() -> Xid8Value {
+    Xid8Value::Unknown
+}
+pub fn xid8_null() -> Xid8Value {
+    Xid8Value::Null
+}
+pub fn make_xid8_bits(units: i64) -> Xid8Value {
+    Xid8Value::Value(units)
+}
+pub fn xid8_is_null(input: Xid8Value) -> BoolValue {
+    if let Xid8Value::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if input == Xid8Value::Unknown {
+        return BoolValue::Unknown;
+    };
+    make_bool_value(input == Xid8Value::Null)
+}
+pub fn xid8_from_case_guard(input: CheckOutcome) -> Xid8Value {
+    if let CheckOutcome::Error(error) = input {
+        return Xid8Value::Error(error);
+    };
+    Xid8Value::Unknown
+}

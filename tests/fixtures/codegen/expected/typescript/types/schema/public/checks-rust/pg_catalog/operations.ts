@@ -8627,14 +8627,14 @@ function integerBaseText(input: checkruntime.Int8Value, fullWidth: boolean, radi
             return { kind: "Value", value: "0" };
         }
         while (!(high === 0n) || !(low === 0n)) {
-            let number: bigint = langruntime.checkedI64Remainder(low, radix);
+            const carry: bigint = langruntime.checkedI64Remainder(high, radix);
+            let number: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Add(langruntime.checkedI64Multiply(carry, 4294967296n), low)), radix);
             let index: number = 0;
             while (number > 0n) {
                 index = langruntime.checkedAdd(index, 1);
                 number = langruntime.checkedI64(langruntime.checkedI64Subtract(number, 1n));
             }
             langruntime.pushChar(digits, langruntime.indexChar(alphabet, langruntime.checkedIndex(index)));
-            const carry: bigint = langruntime.checkedI64Remainder(high, radix);
             low = langruntime.checkedI64(langruntime.checkedI64Divide((langruntime.checkedI64Add(langruntime.checkedI64Multiply(carry, 4294967296n), low)), radix));
             high = langruntime.checkedI64(langruntime.checkedI64Divide(high, radix));
         }
@@ -18187,6 +18187,261 @@ export function int42div0fx0(left: checkruntime.Int4Value, right: checkruntime.I
     const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4div8ogr(left, rightWide);
 }
+function xidToOid(input: checkruntime.XidValue): checkruntime.OidValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalXidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return checkruntime.makeOidValue(value);
+    }
+    return { kind: "Unknown" };
+}
+function xidFromOid(input: checkruntime.OidValue): checkruntime.XidValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return checkruntime.makeXidValue(value);
+    }
+    return { kind: "Unknown" };
+}
+export function xidFromText(input: checkruntime.TextValue): checkruntime.XidValue {
+    return xidFromOid(oidFromText(input));
+}
+export function xidToText(input: checkruntime.XidValue): checkruntime.TextValue {
+    return oidToText(xidToOid(input));
+}
+function cidToOid(input: checkruntime.CidValue): checkruntime.OidValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return checkruntime.makeOidValue(value);
+    }
+    return { kind: "Unknown" };
+}
+function cidFromOid(input: checkruntime.OidValue): checkruntime.CidValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalOidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return checkruntime.makeCidValue(value);
+    }
+    return { kind: "Unknown" };
+}
+export function cidFromText(input: checkruntime.TextValue): checkruntime.CidValue {
+    return cidFromOid(oidFromText(input));
+}
+export function cidToText(input: checkruntime.CidValue): checkruntime.TextValue {
+    return oidToText(cidToOid(input));
+}
+function xid8Compare(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalXid8Value(left, { kind: "Unknown" }) || checkruntime.equalXid8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalXid8Value(left, { kind: "Null" }) || checkruntime.equalXid8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(right.value);
+            if (a < 0n && b >= 0n) {
+                return { kind: "Value", value: 1 };
+            }
+            if (a >= 0n && b < 0n) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a < b) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a > b) {
+                return { kind: "Value", value: 1 };
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function xid8Relation(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    const comparison: checkruntime.Int4Value = xid8Compare(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if (mode === 0) {
+            return checkruntime.makeBoolValue(order === 0);
+        }
+        if (mode === 1) {
+            return checkruntime.makeBoolValue(!(order === 0));
+        }
+        if (mode === 2) {
+            return checkruntime.makeBoolValue(order < 0);
+        }
+        if (mode === 3) {
+            return checkruntime.makeBoolValue(order <= 0);
+        }
+        if (mode === 4) {
+            return checkruntime.makeBoolValue(order > 0);
+        }
+        return checkruntime.makeBoolValue(order >= 0);
+    }
+    return { kind: "Unknown" };
+}
+function xid8Select(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value, larger: boolean): checkruntime.Xid8Value {
+    larger = langruntime.checkedBool(larger);
+    const comparison: checkruntime.Int4Value = xid8Compare(left, right);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(comparison, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if ((larger && order > 0) || (larger === false && order < 0)) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+function xid8Bits(input: checkruntime.Xid8Value): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalXid8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return checkruntime.makeInt8Value(value);
+    }
+    return { kind: "Unknown" };
+}
+export function xid8ToText(input: checkruntime.Xid8Value): checkruntime.TextValue {
+    return integerBaseText(xid8Bits(input), true, 10n);
+}
+export function cidsend7b3z(left: checkruntime.CidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(cidToOid(left));
+}
+export function xid8sendIu1c(left: checkruntime.Xid8Value): checkruntime.ByteaValue {
+    return int8sendPjz0(xid8Bits(left));
+}
+export function xidsendCa8a(left: checkruntime.XidValue): checkruntime.ByteaValue {
+    return oidsendKq2v(xidToOid(left));
+}
+export function cideqCniv(left: checkruntime.CidValue, right: checkruntime.CidValue): checkruntime.BoolValue {
+    return oideq5dkx(cidToOid(left), cidToOid(right));
+}
+export function hashcidA8z6(left: checkruntime.CidValue): checkruntime.Int4Value {
+    return hashoidPp7a(cidToOid(left));
+}
+export function hashcidextendedEeef(left: checkruntime.CidValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    return hashoidextendedV555(cidToOid(left), right);
+}
+export function hashxid5s1i(left: checkruntime.XidValue): checkruntime.Int4Value {
+    return hashoidPp7a(xidToOid(left));
+}
+export function hashxid8L6u3(left: checkruntime.Xid8Value): checkruntime.Int4Value {
+    return hashint83wid(xid8Bits(left));
+}
+export function hashxid8extendedH8is(left: checkruntime.Xid8Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    return hashint8extendedFrvh(xid8Bits(left), right);
+}
+export function hashxidextended3a8s(left: checkruntime.XidValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    return hashoidextendedV555(xidToOid(left), right);
+}
+export function xidLwyo(left: checkruntime.Xid8Value): checkruntime.XidValue {
+    const bits: checkruntime.Int8Value = xid8Bits(left);
+    if (bits.kind === "Error") {
+        const error: checkruntime.SqlError = bits.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(bits, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (bits.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(bits.value);
+        return xidFromOid(oidFromInt4(checkruntime.makeInt4Value(Number(BigInt.asIntN(32, langruntime.checkedI64(value))))));
+    }
+    return { kind: "Unknown" };
+}
+export function xid8Larger92s8(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.Xid8Value {
+    return xid8Select(left, right, true);
+}
+export function xid8SmallerWw2e(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.Xid8Value {
+    return xid8Select(left, right, false);
+}
+export function xid8cmpD6ry(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.Int4Value {
+    return xid8Compare(left, right);
+}
+export function xid8eqSwjx(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.BoolValue {
+    return xid8Relation(left, right, 0);
+}
+export function xid8ge41iy(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.BoolValue {
+    return xid8Relation(left, right, 5);
+}
+export function xid8gt1b0u(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.BoolValue {
+    return xid8Relation(left, right, 4);
+}
+export function xid8lePyad(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.BoolValue {
+    return xid8Relation(left, right, 3);
+}
+export function xid8ltZusi(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.BoolValue {
+    return xid8Relation(left, right, 2);
+}
+export function xid8neCbvq(left: checkruntime.Xid8Value, right: checkruntime.Xid8Value): checkruntime.BoolValue {
+    return xid8Relation(left, right, 1);
+}
+export function xideqBmjv(left: checkruntime.XidValue, right: checkruntime.XidValue): checkruntime.BoolValue {
+    return oideq5dkx(xidToOid(left), xidToOid(right));
+}
+export function xideqint40glx(left: checkruntime.XidValue, right: checkruntime.Int4Value): checkruntime.BoolValue {
+    return oideq5dkx(xidToOid(left), oidFromInt4(right));
+}
+export function xidneq5eig(left: checkruntime.XidValue, right: checkruntime.XidValue): checkruntime.BoolValue {
+    return oidneC1mg(xidToOid(left), xidToOid(right));
+}
+export function xidneqint427b3(left: checkruntime.XidValue, right: checkruntime.Int4Value): checkruntime.BoolValue {
+    return oidneC1mg(xidToOid(left), oidFromInt4(right));
+}
 function intervalAgeMonthDays(calendar: TemporalCalendarFields): number {
     calendar = copyTemporalCalendarFields(calendar);
     if (calendar.month === 4 || calendar.month === 6 || calendar.month === 9 || calendar.month === 11) {
@@ -24909,6 +25164,89 @@ function valueOrderFinish(result: checkruntime.Int4Value, strategy: number): che
         if (strategy === 5) {
             return { kind: "Value", value: order >= 0 };
         }
+    }
+    return { kind: "Unknown" };
+}
+export function xid8FromText(input: checkruntime.TextValue): checkruntime.Xid8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        if (chars.length > 4096) {
+            return { kind: "Unknown" };
+        }
+        let start: number = 0;
+        let end: number = chars.length;
+        while (start < end && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
+            start = langruntime.checkedAdd(start, 1);
+        }
+        while (end > start && oidInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        let negative: boolean = false;
+        if (start < end && (langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "+" || langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "-")) {
+            negative = langruntime.checkedBool(langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "-");
+            start = langruntime.checkedAdd(start, 1);
+        }
+        let radix: bigint = 10n;
+        if (langruntime.checkedAdd(start, 1) < end && langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "0") {
+            if (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "x" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "X") {
+                radix = langruntime.checkedI64(16n);
+                start = langruntime.checkedAdd(start, 2);
+            }
+            else if (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "b" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))) === "B") {
+                return { kind: "Unknown" };
+            }
+            else {
+                radix = langruntime.checkedI64(8n);
+            }
+        }
+        let units: bigint = 0n;
+        let high: bigint = 0n;
+        let digits: boolean = false;
+        let overflow: boolean = false;
+        while (start < end) {
+            const digit: bigint = oidInputDigit(langruntime.indexChar(chars, langruntime.checkedIndex(start)));
+            if (digit < 0n || digit >= radix) {
+                break;
+            }
+            digits = langruntime.checkedBool(true);
+            if (overflow === false) {
+                const combined: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(units, radix), digit);
+                units = langruntime.checkedI64(langruntime.checkedI64Remainder(combined, 4294967296n));
+                high = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, radix), langruntime.checkedI64Divide(combined, 4294967296n)));
+                if (high > 4294967295n) {
+                    overflow = langruntime.checkedBool(true);
+                }
+            }
+            start = langruntime.checkedAdd(start, 1);
+        }
+        if (digits === false) {
+            if (radix === 16n && start === end) {
+                return { kind: "Unknown" };
+            }
+            return { kind: "Error", value: { state: oidInputInvalid } };
+        }
+        if (overflow) {
+            return { kind: "Error", value: { state: sqlstateNumericValueOutOfRange } };
+        }
+        if (!(start === end)) {
+            return { kind: "Error", value: { state: oidInputInvalid } };
+        }
+        if (high >= 2147483648n) {
+            high = langruntime.checkedI64(langruntime.checkedI64Subtract(high, 4294967296n));
+        }
+        let bits: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 4294967296n), units);
+        if (negative && !(bits === -9223372036854775808n)) {
+            bits = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, bits));
+        }
+        return checkruntime.makeXid8Bits(bits);
     }
     return { kind: "Unknown" };
 }

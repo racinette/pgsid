@@ -18,6 +18,9 @@ export type PointType = 'pg_catalog.point'
 export type LineType = 'pg_catalog.line'
 export type LsegType = 'pg_catalog.lseg'
 export type MoneyType = 'pg_catalog.money'
+export type XidType = 'pg_catalog.xid'
+export type CidType = 'pg_catalog.cid'
+export type Xid8Type = 'pg_catalog.xid8'
 export type OidType = 'pg_catalog.oid'
 export type CircleType = 'pg_catalog.circle'
 export type BoxType = 'pg_catalog.box'
@@ -53,6 +56,9 @@ export type ScalarType =
   | LineType
   | LsegType
   | MoneyType
+  | XidType
+  | CidType
+  | Xid8Type
   | OidType
   | CircleType
   | BoxType
@@ -297,6 +303,9 @@ export type SqlExpression =
   | { kind: 'line'; type: LineType; value: string | null }
   | { kind: 'lseg'; type: LsegType; value: string | null }
   | { kind: 'money'; type: MoneyType; value: string | null; units?: string }
+  | { kind: 'xid'; type: XidType; value: string | null }
+  | { kind: 'cid'; type: CidType; value: string | null }
+  | { kind: 'xid8'; type: Xid8Type; value: string | null }
   | { kind: 'oid'; type: OidType; value: string | null }
   | { kind: 'circle'; type: CircleType; value: string | null }
   | { kind: 'box'; type: BoxType; value: string | null }
@@ -954,6 +963,18 @@ export function emitSqlExpression<Ast>(
     }
     if (node.kind === 'money') {
       if (node.value !== null) throw new Error('Money literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'xid') {
+      if (node.value !== null) throw new Error('Xid literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'cid') {
+      if (node.value !== null) throw new Error('Cid literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'xid8') {
+      if (node.value !== null) throw new Error('Xid8 literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'oid') {

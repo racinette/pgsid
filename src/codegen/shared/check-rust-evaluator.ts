@@ -45,6 +45,9 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.line') return 'LineValue'
   if (type === 'pg_catalog.lseg') return 'LsegValue'
   if (type === 'pg_catalog.money') return 'MoneyValue'
+  if (type === 'pg_catalog.xid') return 'XidValue'
+  if (type === 'pg_catalog.cid') return 'CidValue'
+  if (type === 'pg_catalog.xid8') return 'Xid8Value'
   if (type === 'pg_catalog.oid') return 'OidValue'
   if (type === 'pg_catalog.circle') return 'CircleValue'
   if (type === 'pg_catalog.box') return 'BoxValue'
@@ -503,9 +506,15 @@ export function emitCheckRustEvaluator(
         }
       }
       if (
-        !['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8', 'pg_catalog.oid'].includes(
-          operand.type,
-        ) ||
+        ![
+          'pg_catalog.int2',
+          'pg_catalog.int4',
+          'pg_catalog.int8',
+          'pg_catalog.oid',
+          'pg_catalog.xid',
+          'pg_catalog.cid',
+          'pg_catalog.xid8',
+        ].includes(operand.type) ||
         metadata.volatility !== 'i'
       )
         throw new UnsupportedCheckRustExpression('Unsupported scalar text output')
@@ -524,6 +533,45 @@ export function emitCheckRustEvaluator(
           'Money input requires text and its catalog I/O identity',
         )
       return { name: bind(`money_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-xid') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (
+        operand.type !== 'pg_catalog.text' ||
+        !io ||
+        builtinMetadata(io).args[0] !== 'pg_catalog.cstring'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Xid input requires text and its catalog I/O identity',
+        )
+      return { name: bind(`xid_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-cid') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (
+        operand.type !== 'pg_catalog.text' ||
+        !io ||
+        builtinMetadata(io).args[0] !== 'pg_catalog.cstring'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Cid input requires text and its catalog I/O identity',
+        )
+      return { name: bind(`cid_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-xid8') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (
+        operand.type !== 'pg_catalog.text' ||
+        !io ||
+        builtinMetadata(io).args[0] !== 'pg_catalog.cstring'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Xid8 input requires text and its catalog I/O identity',
+        )
+      return { name: bind(`xid8_from_text(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'text-to-oid') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -735,6 +783,21 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`money_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'xid') {
+        if (value.value === null) return { name: bind('xid_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`xid_from_text(${text})`), type: value.type }
+      }
+      if (value.kind === 'cid') {
+        if (value.value === null) return { name: bind('cid_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`cid_from_text(${text})`), type: value.type }
+      }
+      if (value.kind === 'xid8') {
+        if (value.value === null) return { name: bind('xid8_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`xid8_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'oid') {
         if (value.value === null) return { name: bind('oid_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -883,6 +946,9 @@ export function emitCheckRustEvaluator(
           'pg_catalog.line',
           'pg_catalog.lseg',
           'pg_catalog.money',
+          'pg_catalog.xid',
+          'pg_catalog.cid',
+          'pg_catalog.xid8',
           'pg_catalog.oid',
           'pg_catalog.circle',
           'pg_catalog.box',

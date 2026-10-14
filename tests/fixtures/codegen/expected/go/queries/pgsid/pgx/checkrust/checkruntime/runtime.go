@@ -1602,6 +1602,138 @@ func OidFromCaseGuard(input CheckOutcome) OidValue {
 	return OidValue{Kind: OidValueUnknown}
 }
 
+type XidValueKind uint8
+
+const (
+	XidValueUnknown XidValueKind = iota
+	XidValueNull
+	XidValueValue
+	XidValueError
+)
+
+type XidValue struct {
+	Kind  XidValueKind
+	Value int64
+	Error SqlError
+}
+
+func XidUnknown() XidValue {
+	return XidValue{Kind: XidValueUnknown}
+}
+func XidNull() XidValue {
+	return XidValue{Kind: XidValueNull}
+}
+func MakeXidValue(units int64) XidValue {
+	if units < int64(0) || units > int64(4294967295) {
+		return XidValue{Kind: XidValueUnknown}
+	}
+	return XidValue{Kind: XidValueValue, Value: units}
+}
+func XidIsNull(input XidValue) BoolValue {
+	if input.Kind == XidValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (XidValue{Kind: XidValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (XidValue{Kind: XidValueNull}))
+}
+func XidFromCaseGuard(input CheckOutcome) XidValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return XidValue{Kind: XidValueError, Error: error}
+	}
+	return XidValue{Kind: XidValueUnknown}
+}
+
+type CidValueKind uint8
+
+const (
+	CidValueUnknown CidValueKind = iota
+	CidValueNull
+	CidValueValue
+	CidValueError
+)
+
+type CidValue struct {
+	Kind  CidValueKind
+	Value int64
+	Error SqlError
+}
+
+func CidUnknown() CidValue {
+	return CidValue{Kind: CidValueUnknown}
+}
+func CidNull() CidValue {
+	return CidValue{Kind: CidValueNull}
+}
+func MakeCidValue(units int64) CidValue {
+	if units < int64(0) || units > int64(4294967295) {
+		return CidValue{Kind: CidValueUnknown}
+	}
+	return CidValue{Kind: CidValueValue, Value: units}
+}
+func CidIsNull(input CidValue) BoolValue {
+	if input.Kind == CidValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (CidValue{Kind: CidValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (CidValue{Kind: CidValueNull}))
+}
+func CidFromCaseGuard(input CheckOutcome) CidValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return CidValue{Kind: CidValueError, Error: error}
+	}
+	return CidValue{Kind: CidValueUnknown}
+}
+
+type Xid8ValueKind uint8
+
+const (
+	Xid8ValueUnknown Xid8ValueKind = iota
+	Xid8ValueNull
+	Xid8ValueValue
+	Xid8ValueError
+)
+
+type Xid8Value struct {
+	Kind  Xid8ValueKind
+	Value int64
+	Error SqlError
+}
+
+func Xid8Unknown() Xid8Value {
+	return Xid8Value{Kind: Xid8ValueUnknown}
+}
+func Xid8Null() Xid8Value {
+	return Xid8Value{Kind: Xid8ValueNull}
+}
+func MakeXid8Bits(units int64) Xid8Value {
+	return Xid8Value{Kind: Xid8ValueValue, Value: units}
+}
+func Xid8IsNull(input Xid8Value) BoolValue {
+	if input.Kind == Xid8ValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input == (Xid8Value{Kind: Xid8ValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return MakeBoolValue(input == (Xid8Value{Kind: Xid8ValueNull}))
+}
+func Xid8FromCaseGuard(input CheckOutcome) Xid8Value {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return Xid8Value{Kind: Xid8ValueError, Error: error}
+	}
+	return Xid8Value{Kind: Xid8ValueUnknown}
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int

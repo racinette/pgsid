@@ -7,6 +7,9 @@ import {
   catalogLineType,
   catalogLsegType,
   catalogMoneyType,
+  catalogXidType,
+  catalogCidType,
+  catalogXid8Type,
   catalogOidType,
   catalogCircleType,
   catalogBoxType,
@@ -233,6 +236,9 @@ export function planCheckInputs(
     if (catalogLineType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogLsegType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogMoneyType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogXidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogCidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogXid8Type(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogOidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogCircleType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogBoxType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []

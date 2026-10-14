@@ -496,3 +496,11 @@ import them. Keep schema-only helpers with their callables.
   is decimal; input accepts portable decimal, octal and hexadecimal spellings.
   Unsigned-long-width and libc-dependent forms defer. Name resolution requires
   database context. Run the OID parity and raw write suites.
+
+- Transaction and command identifiers retain unsigned words; full transaction
+  identifiers retain every bit through signed carriers. Full-width comparisons
+  use unsigned order and narrowing discards only the epoch word. Text output
+  divides both limbs before selecting decimal digits. Runtime input shares the
+  portable unsigned grammar and preserves overflow before trailing syntax.
+  Current transaction IDs and transaction age require database state. Run the
+  system identifier, public payload, raw write and transaction INSERT suites.
