@@ -2300,6 +2300,585 @@ func BoxFromText(input checkruntime.TextValue) checkruntime.BoxValue {
 	}
 	return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
 }
+func boxCoordinateRelation(a float64, b float64, mode int) bool {
+	mode = langruntime.CheckedI32(mode)
+	if mode == 0 {
+		return langruntime.F64Add(a, float64(0.000001)) < b
+	}
+	if mode == 1 {
+		return a <= langruntime.F64Add(b, float64(0.000001))
+	}
+	if mode == 2 {
+		return a > langruntime.F64Add(b, float64(0.000001))
+	}
+	return langruntime.F64Add(a, float64(0.000001)) >= b
+}
+func boxSpatialRelation(left checkruntime.BoxValue, right checkruntime.BoxValue, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	status := boxPairStatus(left, right)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	if left.Kind == checkruntime.BoxValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.BoxValueValue {
+			b := right.Value
+			ahx := checkruntime.Float8Number(a.HighX)
+			ahy := checkruntime.Float8Number(a.HighY)
+			alx := checkruntime.Float8Number(a.LowX)
+			aly := checkruntime.Float8Number(a.LowY)
+			bhx := checkruntime.Float8Number(b.HighX)
+			bhy := checkruntime.Float8Number(b.HighY)
+			blx := checkruntime.Float8Number(b.LowX)
+			bly := checkruntime.Float8Number(b.LowY)
+			if mode == 0 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(alx, bhx, 1) && boxCoordinateRelation(blx, ahx, 1) && boxCoordinateRelation(aly, bhy, 1) && boxCoordinateRelation(bly, ahy, 1))
+			}
+			if mode == 1 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(ahx, blx, 0))
+			}
+			if mode == 2 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(alx, bhx, 2))
+			}
+			if mode == 3 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(ahx, bhx, 1))
+			}
+			if mode == 4 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(alx, blx, 3))
+			}
+			if mode == 5 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(ahy, bly, 0))
+			}
+			if mode == 6 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(aly, bhy, 2))
+			}
+			if mode == 7 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(ahy, bhy, 1))
+			}
+			if mode == 8 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(aly, bly, 3))
+			}
+			if mode == 9 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(ahx, bhx, 3) && boxCoordinateRelation(alx, blx, 1) && boxCoordinateRelation(ahy, bhy, 3) && boxCoordinateRelation(aly, bly, 1))
+			}
+			if mode == 10 {
+				return checkruntime.MakeBoolValue(boxCoordinateRelation(ahy, bly, 1))
+			}
+			return checkruntime.MakeBoolValue(boxCoordinateRelation(aly, bhy, 3))
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func boxFromScalars(highX checkruntime.Float8Value, highY checkruntime.Float8Value, lowX checkruntime.Float8Value, lowY checkruntime.Float8Value) checkruntime.BoxValue {
+	if highX.Kind == checkruntime.Float8ValueError {
+		error := highX.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if highY.Kind == checkruntime.Float8ValueError {
+		error := highY.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if lowX.Kind == checkruntime.Float8ValueError {
+		error := lowX.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if lowY.Kind == checkruntime.Float8ValueError {
+		error := lowY.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if highX == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || highY == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || lowX == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || lowY == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+	}
+	if highX == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || highY == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || lowX == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || lowY == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}
+	}
+	hx := checkruntime.Float8Semantic(highX)
+	hy := checkruntime.Float8Semantic(highY)
+	lx := checkruntime.Float8Semantic(lowX)
+	ly := checkruntime.Float8Semantic(lowY)
+	if hx.Kind == checkruntime.Float8ValueValue {
+		a := hx.Value
+		if hy.Kind == checkruntime.Float8ValueValue {
+			b := hy.Value
+			if lx.Kind == checkruntime.Float8ValueValue {
+				c := lx.Value
+				if ly.Kind == checkruntime.Float8ValueValue {
+					d := ly.Value
+					return checkruntime.BoxValue{Kind: checkruntime.BoxValueValue, Value: checkruntime.BoxPayload{HighX: a, HighY: b, LowX: c, LowY: d, WireKnown: highX != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) && highY != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) && lowX != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) && lowY != (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan})}}
+				}
+			}
+		}
+	}
+	return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+}
+func boxMerge(left checkruntime.BoxValue, right checkruntime.BoxValue, intersection bool) checkruntime.BoxValue {
+	status := boxPairStatus(left, right)
+	if status.Kind == checkruntime.BoolValueError {
+		error := status.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}
+	}
+	if intersection && boxSpatialRelation(left, right, 0) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}
+	}
+	if left.Kind == checkruntime.BoxValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.BoxValueValue {
+			b := right.Value
+			if intersection {
+				return boxFromScalars(Float8smallerSp3n(boxScalar(a, 0), boxScalar(b, 0)), Float8smallerSp3n(boxScalar(a, 1), boxScalar(b, 1)), Float8largerB58s(boxScalar(a, 2), boxScalar(b, 2)), Float8largerB58s(boxScalar(a, 3), boxScalar(b, 3)))
+			}
+			return boxFromScalars(Float8largerB58s(boxScalar(a, 0), boxScalar(b, 0)), Float8largerB58s(boxScalar(a, 1), boxScalar(b, 1)), Float8smallerSp3n(boxScalar(a, 2), boxScalar(b, 2)), Float8smallerSp3n(boxScalar(a, 3), boxScalar(b, 3)))
+		}
+	}
+	return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+}
+func boxPointStatus(input checkruntime.BoxValue, point checkruntime.PointValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.BoxValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}) || point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) || point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func boxSegmentStatus(input checkruntime.BoxValue, segment checkruntime.LsegValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.BoxValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if segment.Kind == checkruntime.LsegValueError {
+		error := segment.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}) || segment == (checkruntime.LsegValue{Kind: checkruntime.LsegValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) || segment == (checkruntime.LsegValue{Kind: checkruntime.LsegValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	return checkruntime.MakeBoolValue(true)
+}
+func boxArithmetic(input checkruntime.BoxValue, point checkruntime.PointValue, mode int) checkruntime.BoxValue {
+	mode = langruntime.CheckedI32(mode)
+	status := boxPointStatus(input, point)
+	if status.Kind == checkruntime.BoolValueError {
+		error := status.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+	}
+	if status == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}
+	}
+	high := boxEndpoint(input, false)
+	low := boxEndpoint(input, true)
+	if mode == 0 {
+		high = PointAddGn1v(high, point)
+		low = PointAddGn1v(low, point)
+	}
+	if mode == 1 {
+		high = PointSubO53k(high, point)
+		low = PointSubO53k(low, point)
+	}
+	if mode == 2 {
+		high = PointMul9izx(high, point)
+		low = PointMul9izx(low, point)
+	}
+	if mode == 3 {
+		high = PointDivBtbo(high, point)
+		low = PointDivBtbo(low, point)
+	}
+	if mode >= 2 {
+		return boxFromPoints(high, low, false)
+	}
+	if high.Kind == checkruntime.PointValueError {
+		error := high.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if low.Kind == checkruntime.PointValueError {
+		error := low.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if high == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || low == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+	}
+	if high.Kind == checkruntime.PointValueValue {
+		a := high.Value
+		if low.Kind == checkruntime.PointValueValue {
+			b := low.Value
+			return checkruntime.BoxValue{Kind: checkruntime.BoxValueValue, Value: checkruntime.BoxPayload{HighX: a.X, HighY: a.Y, LowX: b.X, LowY: b.Y, WireKnown: a.WireKnown && b.WireKnown}}
+		}
+	}
+	return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+}
+func boxContainsPoint(input checkruntime.BoxValue, point checkruntime.PointValue) checkruntime.BoolValue {
+	status := boxPointStatus(input, point)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	if input.Kind == checkruntime.BoxValueValue {
+		a := input.Value
+		if point.Kind == checkruntime.PointValueValue {
+			p := point.Value
+			x := checkruntime.Float8Number(p.X)
+			y := checkruntime.Float8Number(p.Y)
+			return checkruntime.MakeBoolValue(checkruntime.Float8Number(a.HighX) >= x && checkruntime.Float8Number(a.LowX) <= x && checkruntime.Float8Number(a.HighY) >= y && checkruntime.Float8Number(a.LowY) <= y)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func boxContainsSegment(input checkruntime.BoxValue, segment checkruntime.LsegValue) checkruntime.BoolValue {
+	status := boxSegmentStatus(input, segment)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return status
+	}
+	first := boxContainsPoint(input, lsegEndpoint(segment, false))
+	if first != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return first
+	}
+	return boxContainsPoint(input, lsegEndpoint(segment, true))
+}
+func boxCorner(input checkruntime.BoxValue, highX bool, highY bool) checkruntime.PointValue {
+	if input.Kind == checkruntime.BoxValueError {
+		error := input.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) {
+		return checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	}
+	if input.Kind == checkruntime.BoxValueValue {
+		value := input.Value
+		x := boxScalar(value, 2)
+		y := boxScalar(value, 3)
+		if highX {
+			x = boxScalar(value, 0)
+		}
+		if highY {
+			y = boxScalar(value, 1)
+		}
+		return PointDb27(x, y)
+	}
+	return checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}
+}
+func boxBoundarySegment(input checkruntime.BoxValue, index int) checkruntime.LsegValue {
+	index = langruntime.CheckedI32(index)
+	first := boxEndpoint(input, true)
+	second := boxCorner(input, false, true)
+	if index == 1 {
+		first = boxEndpoint(input, false)
+	}
+	if index >= 2 {
+		second = boxCorner(input, true, false)
+	}
+	if index == 3 {
+		first = boxEndpoint(input, false)
+	}
+	return LsegL9bc(first, second)
+}
+func boxSegmentBounds(segment checkruntime.LsegValue) checkruntime.BoxValue {
+	first := lsegEndpoint(segment, false)
+	second := lsegEndpoint(segment, true)
+	if first.Kind == checkruntime.PointValueValue {
+		a := first.Value
+		if second.Kind == checkruntime.PointValueValue {
+			b := second.Value
+			ax := lineOriginCoordinate(a, false)
+			ay := lineOriginCoordinate(a, true)
+			bx := lineOriginCoordinate(b, false)
+			by := lineOriginCoordinate(b, true)
+			return boxFromScalars(Float8largerB58s(ax, bx), Float8largerB58s(ay, by), Float8smallerSp3n(ax, bx), Float8smallerSp3n(ay, by))
+		}
+	}
+	return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+}
+
+type boxSegmentIntersection struct {
+	intersects checkruntime.BoolValue
+	point      checkruntime.PointValue
+}
+
+func copyboxSegmentIntersection(value boxSegmentIntersection) boxSegmentIntersection {
+	return boxSegmentIntersection{intersects: value.intersects, point: value.point}
+}
+func boxCrossSegment(input checkruntime.BoxValue, segment checkruntime.LsegValue, withPoint bool) boxSegmentIntersection {
+	status := boxSegmentStatus(input, segment)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return boxSegmentIntersection{intersects: status, point: segmentPointFromStatus(status)}
+	}
+	overlap := boxSpatialRelation(boxSegmentBounds(segment), input, 0)
+	if overlap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return boxSegmentIntersection{intersects: overlap, point: checkruntime.PointValue{Kind: checkruntime.PointValueNull}}
+	}
+	nearest := checkruntime.PointValue{Kind: checkruntime.PointValueNull}
+	if withPoint {
+		projection := segmentProjectPoint(segment, boxMidpoint(input))
+		distance := projection.distance
+		if distance.Kind == checkruntime.Float8ValueError {
+			error := distance.Error
+			return boxSegmentIntersection{intersects: checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}, point: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}}
+		}
+		if distance == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+			return boxSegmentIntersection{intersects: checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}, point: checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}}
+		}
+		nearest = projection.point
+	}
+	if boxContainsPoint(input, lsegEndpoint(segment, false)) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) || boxContainsPoint(input, lsegEndpoint(segment, true)) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return boxSegmentIntersection{intersects: checkruntime.MakeBoolValue(true), point: nearest}
+	}
+	index := 0
+	for index < 4 {
+		result := segmentIntersection(boxBoundarySegment(input, index), segment)
+		if result.Kind == checkruntime.PointValueError {
+			error := result.Error
+			return boxSegmentIntersection{intersects: checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}, point: checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}}
+		}
+		if result == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+			return boxSegmentIntersection{intersects: checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}, point: result}
+		}
+		if result != (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+			return boxSegmentIntersection{intersects: checkruntime.MakeBoolValue(true), point: nearest}
+		}
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	return boxSegmentIntersection{intersects: checkruntime.MakeBoolValue(false), point: nearest}
+}
+func boxNearestPoint(input checkruntime.BoxValue, point checkruntime.PointValue) segmentClosest {
+	status := boxPointStatus(input, point)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentClosestFromStatus(status)
+	}
+	if boxContainsPoint(input, point) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentClosest{point: point, distance: checkruntime.MakeFloat8Bits(int64(0))}
+	}
+	closest := segmentProjectPoint(boxBoundarySegment(input, 0), point)
+	index := 1
+	for index < 4 {
+		distance := closest.distance
+		if distance.Kind == checkruntime.Float8ValueError {
+			error := distance.Error
+			return segmentClosestError(checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error})
+		}
+		candidate := segmentProjectPoint(boxBoundarySegment(input, index), point)
+		closest = copysegmentClosest(segmentChooseCloser(closest, candidate))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	return closest
+}
+func boxNearestSegment(input checkruntime.BoxValue, segment checkruntime.LsegValue, withPoint bool) segmentClosest {
+	status := boxSegmentStatus(input, segment)
+	if status != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentClosestFromStatus(status)
+	}
+	crossing := boxCrossSegment(input, segment, withPoint)
+	intersects := crossing.intersects
+	if intersects == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return segmentClosest{point: crossing.point, distance: checkruntime.MakeFloat8Bits(int64(0))}
+	}
+	if intersects != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return segmentClosestFromStatus(intersects)
+	}
+	closest := segmentNearestPair(boxBoundarySegment(input, 0), segment)
+	index := 1
+	for index < 4 {
+		distance := closest.distance
+		if distance.Kind == checkruntime.Float8ValueError {
+			error := distance.Error
+			return segmentClosestError(checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error})
+		}
+		candidate := segmentNearestPair(boxBoundarySegment(input, index), segment)
+		closest = copysegmentClosest(segmentChooseCloser(closest, candidate))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	return closest
+}
+func boxCrossLine(input checkruntime.BoxValue, line checkruntime.LineValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.BoxValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if line.Kind == checkruntime.LineValueError {
+		error := line.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) || line == (checkruntime.LineValue{Kind: checkruntime.LineValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	index := 0
+	for index < 4 {
+		edge := index
+		if index == 2 {
+			edge = langruntime.CheckedI32(3)
+		}
+		if index == 3 {
+			edge = langruntime.CheckedI32(2)
+		}
+		result := segmentLineIntersection(boxBoundarySegment(input, edge), line)
+		if result.Kind == checkruntime.PointValueError {
+			error := result.Error
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+		}
+		if result == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+		if result != (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+			return checkruntime.MakeBoolValue(true)
+		}
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	return checkruntime.MakeBoolValue(false)
+}
+func BoxOverlapKe99(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 0)
+}
+func BoxLeftPkjo(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 1)
+}
+func BoxRight51o4(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 2)
+}
+func BoxOverleftCbam(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 3)
+}
+func BoxOverrightBi52(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 4)
+}
+func BoxBelowJzrh(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 5)
+}
+func BoxAboveCo7p(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 6)
+}
+func BoxOverbelow253r(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 7)
+}
+func BoxOverabovePicd(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 8)
+}
+func BoxContainUmn5(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 9)
+}
+func BoxBelowEqBszx(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 10)
+}
+func BoxAboveEqLb7p(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	return boxSpatialRelation(left, right, 11)
+}
+func BoxContained1foj(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.BoxValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return boxSpatialRelation(right, left, 9)
+}
+func BoxIntersectPguz(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoxValue {
+	return boxMerge(left, right, true)
+}
+func BoundBoxPdui(left checkruntime.BoxValue, right checkruntime.BoxValue) checkruntime.BoxValue {
+	return boxMerge(left, right, false)
+}
+func BoxContainPtCl1s(input checkruntime.BoxValue, point checkruntime.PointValue) checkruntime.BoolValue {
+	return boxContainsPoint(input, point)
+}
+func OnPbOnpy(point checkruntime.PointValue, input checkruntime.BoxValue) checkruntime.BoolValue {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return boxContainsPoint(input, point)
+}
+func OnSbIkrp(segment checkruntime.LsegValue, input checkruntime.BoxValue) checkruntime.BoolValue {
+	if segment.Kind == checkruntime.LsegValueError {
+		error := segment.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return boxContainsSegment(input, segment)
+}
+func InterSb00p9(segment checkruntime.LsegValue, input checkruntime.BoxValue) checkruntime.BoolValue {
+	if segment.Kind == checkruntime.LsegValueError {
+		error := segment.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	result := boxCrossSegment(input, segment, false)
+	return result.intersects
+}
+func InterLb8epe(line checkruntime.LineValue, input checkruntime.BoxValue) checkruntime.BoolValue {
+	if line.Kind == checkruntime.LineValueError {
+		error := line.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return boxCrossLine(input, line)
+}
+func DistBp8z9j(input checkruntime.BoxValue, point checkruntime.PointValue) checkruntime.Float8Value {
+	result := boxNearestPoint(input, point)
+	return result.distance
+}
+func DistPbGozn(point checkruntime.PointValue, input checkruntime.BoxValue) checkruntime.Float8Value {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	result := boxNearestPoint(input, point)
+	return result.distance
+}
+func DistBs0xdc(input checkruntime.BoxValue, segment checkruntime.LsegValue) checkruntime.Float8Value {
+	result := boxNearestSegment(input, segment, false)
+	return result.distance
+}
+func DistSbRivn(segment checkruntime.LsegValue, input checkruntime.BoxValue) checkruntime.Float8Value {
+	if segment.Kind == checkruntime.LsegValueError {
+		error := segment.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	result := boxNearestSegment(input, segment, false)
+	return result.distance
+}
+func ClosePb0i2v(point checkruntime.PointValue, input checkruntime.BoxValue) checkruntime.PointValue {
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	return segmentClosestPoint(boxNearestPoint(input, point))
+}
+func CloseSbCisb(segment checkruntime.LsegValue, input checkruntime.BoxValue) checkruntime.PointValue {
+	if segment.Kind == checkruntime.LsegValueError {
+		error := segment.Error
+		return checkruntime.PointValue{Kind: checkruntime.PointValueError, Error: error}
+	}
+	return segmentClosestPoint(boxNearestSegment(input, segment, true))
+}
+func CenterNbhw(input checkruntime.BoxValue) checkruntime.PointValue {
+	return boxMidpoint(input)
+}
+func BoxAddBz3t(input checkruntime.BoxValue, point checkruntime.PointValue) checkruntime.BoxValue {
+	return boxArithmetic(input, point, 0)
+}
+func BoxSubH1ef(input checkruntime.BoxValue, point checkruntime.PointValue) checkruntime.BoxValue {
+	return boxArithmetic(input, point, 1)
+}
+func BoxMulUc1y(input checkruntime.BoxValue, point checkruntime.PointValue) checkruntime.BoxValue {
+	return boxArithmetic(input, point, 2)
+}
+func BoxDivEhko(input checkruntime.BoxValue, point checkruntime.PointValue) checkruntime.BoxValue {
+	return boxArithmetic(input, point, 3)
+}
 func byteaAsciiCharacter(value int) rune {
 	value = langruntime.CheckedI32(value)
 	chars := []rune("\x00\x01\x02\x03\x04\x05\x06\a\b\t\n\v\f\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\x7f")

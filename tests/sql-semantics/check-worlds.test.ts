@@ -996,6 +996,40 @@ describe('world CHECK INSERT parity', () => {
         'guide_region_relations',
         ['region_relation_same', 'region_relation_area', 'region_relation_distance'],
       ],
+      [
+        '028_axis_guides',
+        'guide_region_spatial',
+        [
+          'region_space_horizontal',
+          'region_space_vertical',
+          'region_space_topology',
+          'region_space_intersection',
+          'region_space_container',
+        ],
+      ],
+      [
+        '028_axis_guides',
+        'guide_region_contacts',
+        [
+          'region_contact_point_inside',
+          'region_contact_segment_inside',
+          'region_contact_crossings',
+          'region_contact_point_closest',
+          'region_contact_point_distance',
+          'region_contact_segment_closest',
+          'region_contact_segment_distance',
+        ],
+      ],
+      [
+        '028_axis_guides',
+        'guide_region_transforms',
+        [
+          'region_transform_addition',
+          'region_transform_subtraction',
+          'region_transform_scale',
+          'region_transform_division',
+        ],
+      ],
 
       [
         '025_sensor_measurements',

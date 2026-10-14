@@ -92,6 +92,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/lseg_operations.rs");
     include!("operations/pg_catalog/box_core.rs");
     include!("operations/pg_catalog/box_input.rs");
+    include!("operations/pg_catalog/box_operations.rs");
     include!("operations/pg_catalog/float_input.rs");
     include!("operations/pg_catalog/float_send.rs");
     include!("operations/pg_catalog/float_numeric.rs");
