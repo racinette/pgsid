@@ -48,7 +48,9 @@ change to the regex transpiler unless the regex engine itself changes.
   construction, clones, parameter builders and scoped bindings in `check-owned-text.test.ts`.
   String length methods
   remain rejected because target string lengths measure different units.
-  Clone-only public wrappers require scalar or Copy payloads. Explicit `clone()` on
+  Clone-only public wrappers accept scalar or Copy payloads and owned Clone records
+  whose supported vectors have Copy elements. Exported owned records require public
+  fields and a public Clone value-enum owner. Explicit `clone()` on
   immutable text/wrappers has value semantics; keep aggregate vector copying.
   Unicode scalars cast to `u32` or `i32` without truncation. Other character casts
   remain rejected. The ASCII CHECK and code-point suite exercise signed conversion.
@@ -63,9 +65,12 @@ change to the regex transpiler unless the regex engine itself changes.
   of chars, indices or Copy records. XML well-formedness CHECKs need this state
   to extend an entity character arena while retaining earlier table snapshots.
   Explicit clones copy vector storage and records in both targets. Whole record
-  replacement is allowed; builders require local bindings. Public Clone records
-  with vectors, owned vector elements, borrowed mutable aggregates, and direct
-  vector cloning remain rejected. Run `check-owned-state.test.ts` for snapshots
+  replacement is allowed; builders require local bindings. Public Clone records with supported vectors may be value-enum payloads with
+  public fields. Bare exported vector records, hidden mutable payloads, owned
+  vector elements, borrowed mutable aggregates, and direct vector cloning remain
+  rejected. Exported point-list records and wrappers have readonly TypeScript
+  fields while construction, boundary transfers and explicit clones copy their
+  storage in both targets. Run `check-owned-state.test.ts` for snapshots
   and adjacent rejection cases.
 - Regex starts use `usize::try_from(i32_value).unwrap_or(usize_fallback)`.
   Validate both operands eagerly; negative values select the fallback. Shared

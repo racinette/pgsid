@@ -79,3 +79,31 @@ func TestSplitModuleReferencesPreserveShadowedLocals(t *testing.T) {
 		t.Fatal("local binding was qualified as a module reference")
 	}
 }
+
+func TestVectorElementCopyDetectionAcceptsBorrowedFields(t *testing.T) {
+	pointType := &node{Kind: "path", Segments: []string{"Point"}}
+	document := document{SchemaVersion: 1, Items: []*node{
+		{Kind: "struct", Visibility: "public", Name: "Point", Derives: []string{"Clone", "Copy"}, Fields: []field{
+			{Name: "x", Visibility: "public", Type: &node{Kind: "path", Segments: []string{"i32"}}},
+		}},
+		{Kind: "struct", Visibility: "private", Name: "Description", Fields: []field{
+			{Name: "message", Visibility: "private", Type: &node{Kind: "reference", Inner: &node{Kind: "path", Segments: []string{"str"}}}},
+		}},
+		{Kind: "struct", Visibility: "private", Name: "Points", Derives: []string{"Clone"}, Fields: []field{
+			{Name: "values", Visibility: "private", Type: &node{Kind: "path", Segments: []string{"Vec"}, TypeArguments: []*node{pointType}}},
+		}},
+	}}
+	input, err := json.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := TranspileWithOptions(input, Options{ImmutableValueTypes: []string{"Point"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"message string", "func copyPoint(value Point) Point", "values []Point", "copyPoint"} {
+		if !strings.Contains(string(output), expected) {
+			t.Errorf("generated Go is missing %q", expected)
+		}
+	}
+}

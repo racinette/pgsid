@@ -14,7 +14,12 @@ interface Bridge {
 export function transpileGo(
   ast: Uint8Array,
   wasmBytes: Buffer,
-  options?: { immutableValueTypes: readonly string[]; split?: boolean; schemaImportPath?: string },
+  options?: {
+    immutableValueTypes: readonly string[]
+    readonlyValueTypes?: readonly string[]
+    split?: boolean
+    schemaImportPath?: string
+  },
 ): string {
   const bytes = new Uint8Array(wasmBytes.length)
   bytes.set(wasmBytes)

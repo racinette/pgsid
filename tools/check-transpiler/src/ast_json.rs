@@ -1521,4 +1521,16 @@ mod private_owned_state_tests {
             assert!(parse(source).is_err(), "{source}");
         }
     }
+    #[test]
+    fn accepts_exported_owned_value_payloads_with_copy_records() {
+        let source = "#[derive(Clone,Copy)] pub struct Vertex { pub x:i64, pub y:i64 } #[derive(Clone)] pub struct Payload { pub closed:bool, pub points:Vec<Vertex> } #[derive(Clone)] pub enum Value { Unknown, Item(Payload) } pub fn open(input:Value)->Value { if let Value::Item(value)=input { return Value::Item(Payload{closed:false,points:value.points}); } input }";
+        assert!(parse(source).is_ok());
+        for rejected in [
+            "#[derive(Clone)] pub struct Payload { pub points:Vec<char> }",
+            "#[derive(Clone)] pub struct Payload { points:Vec<char> } #[derive(Clone)] pub enum Value { Item(Payload) }",
+            "#[derive(Clone)] pub struct Payload { pub closed:bool, points:Vec<char> } #[derive(Clone)] pub enum Value { Item(Payload) }",
+            "#[derive(Clone)] struct Vertex { value:String } #[derive(Clone)] pub struct Payload { pub points:Vec<Vertex> } #[derive(Clone)] pub enum Value { Item(Payload) }",
+            "#[derive(Clone)] pub enum Value { Item(Vec<char>) }",
+        ] { assert!(parse(rejected).is_err(), "{rejected}"); }
+    }
 }

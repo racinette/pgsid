@@ -1019,20 +1019,39 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
     }
     for name in &semantics.clone {
         let supported = |ty: &String| scalar(ty) || semantics.copy.contains(ty);
-        let private_owned_record = file.items.iter().any(|item| {
-            matches!(item, Item::Struct(structure)
-                if structure.ident == name.as_str()
-                    && matches!(structure.vis, syn::Visibility::Inherited))
+        let owned_record = file.items.iter().any(|item| {
+            let Item::Struct(structure) = item else { return false; };
+            if structure.ident != name.as_str() { return false; }
+            if matches!(structure.vis, syn::Visibility::Inherited) { return true; }
+            if !structure.fields.iter().all(|field| matches!(field.vis, syn::Visibility::Public(_))) {
+                return false;
+            }
+            file.items.iter().any(|owner| {
+                let Item::Enum(enumeration) = owner else { return false; };
+                matches!(enumeration.vis, syn::Visibility::Public(_))
+                    && semantics.clone.contains(&enumeration.ident.to_string())
+                    && enumeration.variants.iter().any(|variant| {
+                        matches!(&variant.fields, Fields::Unnamed(fields)
+                            if fields.unnamed.len() == 1
+                                && type_name(&fields.unnamed[0].ty).ok().as_deref() == Some(name.as_str()))
+                    })
+            })
         });
         if semantics.fields.get(name).is_some_and(|fields| {
             fields.values().any(|ty| {
                 !supported(ty)
-                    && !(private_owned_record
+                    && !(owned_record
                         && ty.starts_with("Vec<")
                         && shared_vector_element(ty, &semantics).is_some())
             })
         }) || semantics.variants.iter().any(|((owner, _), payload)| {
-            owner == name && payload.as_ref().is_some_and(|ty| !supported(ty))
+            owner == name
+                && payload.as_ref().is_some_and(|ty| {
+                    !supported(ty)
+                        && !(semantics.fields.contains_key(ty)
+                            && semantics.clone.contains(ty)
+                            && shared_owned_payload(ty, &semantics, &mut BTreeSet::new()))
+                })
         }) {
             return Err(format!(
                 "Clone type {name} requires immutable scalar or Copy fields"

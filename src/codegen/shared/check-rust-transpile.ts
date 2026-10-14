@@ -17,29 +17,38 @@ type RustItem = {
   name: string
   module?: string
   visibility?: string
+  derives?: string[]
   fields?: { type: RustType }[]
   variants?: { payload?: RustType }[]
   parameters?: { type: RustType }[]
   returnType?: RustType
 }
 
-function checkValueOptions(items: RustItem[]): { immutableValueTypes: string[] } {
+function checkValueOptions(items: RustItem[]): {
+  immutableValueTypes: string[]
+  readonlyValueTypes: string[]
+} {
   const declarations = new Map(items.map((item) => [item.name, item]))
-  const immutableValueTypes = new Set<string>()
+  const readonlyValueTypes = new Set<string>()
+  const roots: RustType[] = []
   const visit = (type: RustType): void => {
     if (type.kind === 'reference') {
       if (type.inner) visit(type.inner)
       return
     }
+    if (type.segments?.[0] === 'Vec') {
+      for (const argument of type.typeArguments ?? []) {
+        visit(argument)
+      }
+      return
+    }
     const name = type.segments?.length === 1 ? type.segments[0] : undefined
-    if (!name || immutableValueTypes.has(name)) return
+    if (!name || readonlyValueTypes.has(name)) return
     const declaration = declarations.get(name)
     if (!declaration || !['struct', 'enum'].includes(declaration.kind)) return
-    immutableValueTypes.add(name)
+    readonlyValueTypes.add(name)
     for (const field of declaration.fields ?? []) visit(field.type)
-    for (const variant of declaration.variants ?? []) {
-      if (variant.payload) visit(variant.payload)
-    }
+    for (const variant of declaration.variants ?? []) if (variant.payload) visit(variant.payload)
   }
   for (const item of items) {
     if (
@@ -53,10 +62,50 @@ function checkValueOptions(items: RustItem[]): { immutableValueTypes: string[] }
       )
     )
       continue
-    for (const parameter of item.parameters ?? []) visit(parameter.type)
-    if (item.returnType) visit(item.returnType)
+    for (const parameter of item.parameters ?? []) {
+      roots.push(parameter.type)
+      visit(parameter.type)
+    }
+    if (item.returnType) {
+      roots.push(item.returnType)
+      visit(item.returnType)
+    }
   }
-  return { immutableValueTypes: [...immutableValueTypes] }
+  const immutableValueTypes = new Set<string>()
+  const immutable = (type: RustType, visiting: Set<string>): boolean => {
+    if (type.kind === 'reference') return type.inner ? immutable(type.inner, visiting) : false
+    if (type.segments?.length !== 1) return false
+    const name = type.segments[0]!
+    if (name === 'Vec') return false
+    const declaration = declarations.get(name)
+    if (!declaration) return true
+    if (visiting.has(name)) return false
+    const next = new Set(visiting).add(name)
+    return [
+      ...(declaration.fields ?? []).map((field) => field.type),
+      ...(declaration.variants ?? []).flatMap((variant) =>
+        variant.payload ? [variant.payload] : [],
+      ),
+    ].every((field) => immutable(field, next))
+  }
+  for (const type of roots) {
+    if (immutable(type, new Set())) continue
+    const declaration =
+      type.segments?.length === 1 ? declarations.get(type.segments[0]!) : undefined
+    if (
+      declaration?.kind !== 'enum' ||
+      declaration.visibility !== 'public' ||
+      !declaration.derives?.includes('Clone')
+    ) {
+      throw new Error('Owned CHECK inputs and results require a public Clone value enum')
+    }
+  }
+  for (const name of readonlyValueTypes)
+    if (immutable({ kind: 'path', segments: [name] }, new Set())) immutableValueTypes.add(name)
+  return {
+    immutableValueTypes: [...immutableValueTypes],
+    readonlyValueTypes: [...readonlyValueTypes],
+  }
 }
 
 export function transpileCheckRust(source: string | CheckRustSource): {
