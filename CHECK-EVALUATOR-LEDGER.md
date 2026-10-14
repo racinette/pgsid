@@ -203,7 +203,7 @@ exposes a prerequisite:
 - [x] Establish box corner payloads, public inputs, parsing, construction,
       comparisons, dimensions, centers and diagonal conversion.
 - [x] Establish box relations, intersection, bounding union, arithmetic and closest points.
-- [ ] Establish circle center/radius payloads, public inputs, parsing, construction,
+- [x] Establish circle center/radius payloads, public inputs, parsing, construction,
       comparisons, box conversions, relations, distances and arithmetic.
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.

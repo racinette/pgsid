@@ -459,3 +459,18 @@ import them. Keep schema-only helpers with their callables.
   porting more functions that depend on it. The CHECK transpiler's own `AGENTS.md`
   requires a concrete CHECK expression, focused parser checks, and behavior
   tests in both targets before adding syntax.
+
+- Circle centers and radii retain signed IEEE carriers, including negative radii
+  produced by SQL constructors. Text input rejects negative radii; public inputs
+  preserve already-coerced stored values. Area comparisons use geometric
+  tolerances and checked radius-squared multiplication before multiplication by pi.
+  Center and radius selection recover precise finite components when another
+  component has computed NaN bits. Unconstrained domains, literals, runtime casts,
+  typed NULLs, CASE and COALESCE share the circle wrapper. Circle-to-box conversion
+  preserves corner positions even when a negative radius inverts their order.
+  Relations compare checked center-to-edge arithmetic; circle containment uses
+  geometric tolerances while point containment uses exact distance bounds.
+  Equality and inequality can both be false for NaN areas. Distances clamp only
+  negative results to zero. Translation preserves radius bits; complex rotation
+  and scaling reuse point arithmetic before scaling the radius by the point norm.
+  Run the circle and raw write suites and axis guide INSERT world.

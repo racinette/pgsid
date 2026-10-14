@@ -90,6 +90,7 @@ export type EvalExpression =
   | { kind: 'text-to-point'; type: 'pg_catalog.point'; operand: EvalExpression }
   | { kind: 'text-to-line'; type: 'pg_catalog.line'; operand: EvalExpression }
   | { kind: 'text-to-lseg'; type: 'pg_catalog.lseg'; operand: EvalExpression }
+  | { kind: 'text-to-circle'; type: 'pg_catalog.circle'; operand: EvalExpression }
   | { kind: 'text-to-box'; type: 'pg_catalog.box'; operand: EvalExpression }
   | { kind: 'text-to-uuid'; type: 'pg_catalog.uuid'; operand: EvalExpression }
   | { kind: 'text-to-bytea'; type: 'pg_catalog.bytea'; operand: EvalExpression }
@@ -249,6 +250,7 @@ export function emitEvalExpression<Ast>(
         (node.expression.kind === 'point' ||
           node.expression.kind === 'line' ||
           node.expression.kind === 'lseg' ||
+          node.expression.kind === 'circle' ||
           node.expression.kind === 'box') &&
         node.expression.value !== null
       ) {
@@ -285,6 +287,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'text-to-point' ||
       node.kind === 'text-to-line' ||
       node.kind === 'text-to-lseg' ||
+      node.kind === 'text-to-circle' ||
       node.kind === 'text-to-box' ||
       node.kind === 'text-to-uuid' ||
       node.kind === 'text-to-bytea' ||

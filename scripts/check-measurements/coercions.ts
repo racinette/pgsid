@@ -1,4 +1,8 @@
 import {
+  circleInputForms,
+  deferredCirclePlatformForms,
+} from '../../tests/sql-semantics/check-circle-input-forms.js'
+import {
   boxInputForms,
   deferredBoxPlatformForms,
 } from '../../tests/sql-semantics/check-box-input-forms.js'
@@ -41,6 +45,17 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.circle',
+    suite: 'tests/sql-semantics/check-circle.test.ts',
+    handled: circleInputForms,
+    deferred: deferredCirclePlatformForms,
+    platformDependent: deferredCirclePlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+    computedNanBinaryOutput: 'Unknown',
+  },
   {
     type: 'pg_catalog.box',
     suite: 'tests/sql-semantics/check-box.test.ts',

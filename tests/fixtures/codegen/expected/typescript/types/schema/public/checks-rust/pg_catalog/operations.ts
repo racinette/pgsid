@@ -5632,6 +5632,584 @@ export function chr23bn(input: checkruntime.Int4Value): checkruntime.TextValue {
     }
     return { kind: "Unknown" };
 }
+function circleFromCenterRadius(center: checkruntime.PointValue, radius: checkruntime.Float8Value): checkruntime.CircleValue {
+    if (center.kind === "Error") {
+        const error: checkruntime.SqlError = center.value;
+        return { kind: "Error", value: error };
+    }
+    if (radius.kind === "Error") {
+        const error: checkruntime.SqlError = radius.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(center, { kind: "Unknown" }) || checkruntime.equalFloat8Value(radius, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(center, { kind: "Null" }) || checkruntime.equalFloat8Value(radius, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const semantic: checkruntime.Float8Value = checkruntime.float8Semantic(radius);
+    if (center.kind === "Value") {
+        const point: checkruntime.PointPayload = center.value;
+        if (semantic.kind === "Value") {
+            const bits: bigint = langruntime.checkedI64(semantic.value);
+            return { kind: "Value", value: { x: point.x, y: point.y, radius: bits, wireKnown: point.wireKnown && !(checkruntime.equalFloat8Value(radius, { kind: "UnspecifiedNan" })) } };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function circleCenterValue(input: checkruntime.CircleValue): checkruntime.PointValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCircleValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.CirclePayload = input.value;
+        return { kind: "Value", value: { x: value.x, y: value.y, wireKnown: value.wireKnown || (checkruntime.float8Number(value.x) === checkruntime.float8Number(value.x) && checkruntime.float8Number(value.y) === checkruntime.float8Number(value.y)) } };
+    }
+    return { kind: "Unknown" };
+}
+function circleRadiusValue(input: checkruntime.CircleValue): checkruntime.Float8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCircleValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.CirclePayload = input.value;
+        const number: number = checkruntime.float8Number(value.radius);
+        if (value.wireKnown === false && !(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        return checkruntime.makeFloat8Bits(value.radius);
+    }
+    return { kind: "Unknown" };
+}
+function circleAreaValue(input: checkruntime.CircleValue): checkruntime.Float8Value {
+    const radius: checkruntime.Float8Value = circleRadiusValue(input);
+    return boxComputedScalar(float8mulD3nd(float8mulD3nd(radius, radius), checkruntime.makeFloat8Value(3.141592653589793)));
+}
+function circlePairStatus(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCircleValue(left, { kind: "Unknown" }) || checkruntime.equalCircleValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalCircleValue(left, { kind: "Null" }) || checkruntime.equalCircleValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.makeBoolValue(true);
+}
+function circleAreaRelation(left: checkruntime.CircleValue, right: checkruntime.CircleValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    const status: checkruntime.BoolValue = circlePairStatus(left, right);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    const first: checkruntime.Float8Value = circleAreaValue(left);
+    if (first.kind === "Error") {
+        const error: checkruntime.SqlError = first.value;
+        return { kind: "Error", value: error };
+    }
+    const second: checkruntime.Float8Value = circleAreaValue(right);
+    if (second.kind === "Error") {
+        const error: checkruntime.SqlError = second.value;
+        return { kind: "Error", value: error };
+    }
+    const a: checkruntime.Float8Value = checkruntime.float8Semantic(first);
+    const b: checkruntime.Float8Value = checkruntime.float8Semantic(second);
+    if (a.kind === "Value") {
+        const aa: bigint = langruntime.checkedI64(a.value);
+        if (b.kind === "Value") {
+            const bb: bigint = langruntime.checkedI64(b.value);
+            const x: number = checkruntime.float8Number(aa);
+            const y: number = checkruntime.float8Number(bb);
+            if (mode === 0) {
+                return checkruntime.makeBoolValue(geometricCoordinateEqual(x, y));
+            }
+            if (mode === 1) {
+                return checkruntime.makeBoolValue(langruntime.f64Add(x, 0.000001) < y);
+            }
+            if (mode === 2) {
+                return checkruntime.makeBoolValue(x > langruntime.f64Add(y, 0.000001));
+            }
+            if (mode === 3) {
+                return checkruntime.makeBoolValue(x <= langruntime.f64Add(y, 0.000001));
+            }
+            if (mode === 4) {
+                return checkruntime.makeBoolValue(langruntime.f64Add(x, 0.000001) >= y);
+            }
+            return checkruntime.makeBoolValue(!(x === y) && langruntime.f64Abs((langruntime.f64Subtract(x, y))) > 0.000001);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function circleSameValue(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    const status: checkruntime.BoolValue = circlePairStatus(left, right);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    const a: checkruntime.Float8Value = checkruntime.float8Semantic(circleRadiusValue(left));
+    const b: checkruntime.Float8Value = checkruntime.float8Semantic(circleRadiusValue(right));
+    if (a.kind === "Value") {
+        const aa: bigint = langruntime.checkedI64(a.value);
+        if (b.kind === "Value") {
+            const bb: bigint = langruntime.checkedI64(b.value);
+            const x: number = checkruntime.float8Number(aa);
+            const y: number = checkruntime.float8Number(bb);
+            if ((!(x === x) && !(y === y)) || geometricCoordinateEqual(x, y)) {
+                return pointEq5be0(circleCenterValue(left), circleCenterValue(right));
+            }
+            return checkruntime.makeBoolValue(false);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function circleBinary(input: checkruntime.CircleValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCircleValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.CirclePayload = input.value;
+        if (value.wireKnown === false) {
+            return { kind: "Unknown" };
+        }
+        return byteacatZitv(pointSendKuoa(circleCenterValue(input)), float8send3bqt(circleRadiusValue(input)));
+    }
+    return { kind: "Unknown" };
+}
+function circleInscribedBox(input: checkruntime.CircleValue): checkruntime.BoxValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCircleValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const center: checkruntime.PointValue = circleCenterValue(input);
+        if (center.kind === "Value") {
+            const point: checkruntime.PointPayload = center.value;
+            const delta: checkruntime.Float8Value = float8divKumj(circleRadiusValue(input), checkruntime.makeFloat8Value(1.4142135623730951));
+            const x: checkruntime.Float8Value = lineOriginCoordinate(point, false);
+            const y: checkruntime.Float8Value = lineOriginCoordinate(point, true);
+            return boxFromScalars(boxComputedScalar(float8plG3ou(x, delta)), boxComputedScalar(float8plG3ou(y, delta)), boxComputedScalar(float8miR1nu(x, delta)), boxComputedScalar(float8miR1nu(y, delta)));
+        }
+    }
+    return { kind: "Unknown" };
+}
+function circleFromBox(input: checkruntime.BoxValue): checkruntime.CircleValue {
+    const center: checkruntime.PointValue = boxMidpoint(input);
+    const radius: checkruntime.Float8Value = pointDistance2haq(center, boxEndpoint(input, false));
+    return circleFromCenterRadius(center, radius);
+}
+export function circleSendFf2a(input: checkruntime.CircleValue): checkruntime.ByteaValue {
+    return circleBinary(input);
+}
+export function area73c3(input: checkruntime.CircleValue): checkruntime.Float8Value {
+    return circleAreaValue(input);
+}
+export function boxPdgq(input: checkruntime.CircleValue): checkruntime.BoxValue {
+    return circleInscribedBox(input);
+}
+export function centerRr17(input: checkruntime.CircleValue): checkruntime.PointValue {
+    return circleCenterValue(input);
+}
+export function circle7fah(input: checkruntime.BoxValue): checkruntime.CircleValue {
+    return circleFromBox(input);
+}
+export function circleE6o0(center: checkruntime.PointValue, radius: checkruntime.Float8Value): checkruntime.CircleValue {
+    return circleFromCenterRadius(center, radius);
+}
+export function circleCenter48y8(input: checkruntime.CircleValue): checkruntime.PointValue {
+    return circleCenterValue(input);
+}
+export function circleEqWkhc(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circleAreaRelation(left, right, 0);
+}
+export function circleGe66rr(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circleAreaRelation(left, right, 4);
+}
+export function circleGtP2vj(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circleAreaRelation(left, right, 2);
+}
+export function circleLe1z8z(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circleAreaRelation(left, right, 3);
+}
+export function circleLtKxb1(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circleAreaRelation(left, right, 1);
+}
+export function circleNeOfb9(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circleAreaRelation(left, right, 5);
+}
+export function circleSame1h7o(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circleSameValue(left, right);
+}
+export function diameterE50j(input: checkruntime.CircleValue): checkruntime.Float8Value {
+    return boxComputedScalar(float8mulD3nd(circleRadiusValue(input), checkruntime.makeFloat8Value(2.0)));
+}
+export function point89o1(input: checkruntime.CircleValue): checkruntime.PointValue {
+    return circleCenterValue(input);
+}
+export function radius0qp3(input: checkruntime.CircleValue): checkruntime.Float8Value {
+    return circleRadiusValue(input);
+}
+function circleParse(value: string): checkruntime.CircleValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 4096) {
+        return { kind: "Unknown" };
+    }
+    const source: GeometryInputText = { chars: chars };
+    let index: number = geometryInputSpace(source, 0);
+    let depth: number = 0;
+    if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "<") {
+        depth = langruntime.checkedIndex(1);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    else if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "(") {
+        const next: number = geometryInputSpace(source, langruntime.checkedAdd(index, 1));
+        if (next < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(next)) === "(") {
+            depth = langruntime.checkedIndex(1);
+            index = langruntime.checkedIndex(next);
+        }
+    }
+    const center: GeometryInputPoint = copyGeometryInputPoint(geometryReadPoint(source, index));
+    const point: checkruntime.PointValue = center.value;
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    index = langruntime.checkedIndex(center.end);
+    if (index < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ",") {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const radius: GeometryInputNumber = copyGeometryInputNumber(geometryReadNumber(source, index));
+    const scalar: checkruntime.Float8Value = radius.value;
+    if (scalar.kind === "Error") {
+        const error: checkruntime.SqlError = scalar.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(scalar, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (scalar.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(scalar.value);
+        if (checkruntime.float8Number(bits) < 0.0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+        }
+    }
+    index = langruntime.checkedIndex(radius.end);
+    if (depth === 1) {
+        if (index >= source.chars.length || (!(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ")") && !(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ">"))) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+        }
+        index = langruntime.checkedIndex(geometryInputSpace(source, langruntime.checkedAdd(index, 1)));
+    }
+    if (!(index === source.chars.length)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+    }
+    return circleFromCenterRadius(point, scalar);
+}
+export function circleFromText(input: checkruntime.TextValue): checkruntime.CircleValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return circleParse(value);
+    }
+    return { kind: "Unknown" };
+}
+function circleFuzzyRelation(left: checkruntime.Float8Value, right: checkruntime.Float8Value, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Unknown" }) || checkruntime.equalFloat8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(left, { kind: "Null" }) || checkruntime.equalFloat8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const first: checkruntime.Float8Value = checkruntime.float8Semantic(left);
+    const second: checkruntime.Float8Value = checkruntime.float8Semantic(right);
+    if (first.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(first.value);
+        if (second.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(second.value);
+            const x: number = checkruntime.float8Number(a);
+            const y: number = checkruntime.float8Number(b);
+            if (mode === 0) {
+                return checkruntime.makeBoolValue(langruntime.f64Add(x, 0.000001) < y);
+            }
+            if (mode === 1) {
+                return checkruntime.makeBoolValue(x > langruntime.f64Add(y, 0.000001));
+            }
+            if (mode === 2) {
+                return checkruntime.makeBoolValue(x <= langruntime.f64Add(y, 0.000001));
+            }
+            if (mode === 3) {
+                return checkruntime.makeBoolValue(langruntime.f64Add(x, 0.000001) >= y);
+            }
+            return checkruntime.makeBoolValue(x <= y);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function circleEdge(input: checkruntime.CircleValue, vertical: boolean, low: boolean): checkruntime.Float8Value {
+    vertical = langruntime.checkedBool(vertical);
+    low = langruntime.checkedBool(low);
+    const center: checkruntime.PointValue = circleCenterValue(input);
+    if (center.kind === "Error") {
+        const error: checkruntime.SqlError = center.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(center, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (center.kind === "Value") {
+        const point: checkruntime.PointPayload = center.value;
+        const coordinate: checkruntime.Float8Value = lineOriginCoordinate(point, vertical);
+        const radius: checkruntime.Float8Value = circleRadiusValue(input);
+        if (low) {
+            return float8miR1nu(coordinate, radius);
+        }
+        return float8plG3ou(coordinate, radius);
+    }
+    return { kind: "Unknown" };
+}
+function circlePositionRelation(left: checkruntime.CircleValue, right: checkruntime.CircleValue, vertical: boolean, mode: number): checkruntime.BoolValue {
+    vertical = langruntime.checkedBool(vertical);
+    mode = langruntime.checkedI32(mode);
+    const status: checkruntime.BoolValue = circlePairStatus(left, right);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    if (mode === 0) {
+        return circleFuzzyRelation(circleEdge(left, vertical, false), circleEdge(right, vertical, true), 0);
+    }
+    if (mode === 1) {
+        return circleFuzzyRelation(circleEdge(left, vertical, true), circleEdge(right, vertical, false), 1);
+    }
+    if (mode === 2) {
+        return circleFuzzyRelation(circleEdge(left, vertical, false), circleEdge(right, vertical, false), 2);
+    }
+    return circleFuzzyRelation(circleEdge(left, vertical, true), circleEdge(right, vertical, true), 3);
+}
+function circleTopologyRelation(left: checkruntime.CircleValue, right: checkruntime.CircleValue, mode: number): checkruntime.BoolValue {
+    mode = langruntime.checkedI32(mode);
+    const status: checkruntime.BoolValue = circlePairStatus(left, right);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    const distance: checkruntime.Float8Value = pointDistance2haq(circleCenterValue(left), circleCenterValue(right));
+    const first: checkruntime.Float8Value = circleRadiusValue(left);
+    const second: checkruntime.Float8Value = circleRadiusValue(right);
+    let bound: checkruntime.Float8Value = { kind: "Unknown" };
+    if (mode === 0) {
+        bound = float8plG3ou(first, second);
+    }
+    else if (mode === 1) {
+        bound = float8miR1nu(first, second);
+    }
+    else {
+        bound = float8miR1nu(second, first);
+    }
+    return circleFuzzyRelation(distance, bound, 2);
+}
+function circleClampDistance(input: checkruntime.Float8Value): checkruntime.Float8Value {
+    const value: checkruntime.Float8Value = checkruntime.float8Semantic(input);
+    if (value.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(value.value);
+        if (checkruntime.float8Number(bits) < 0.0) {
+            return checkruntime.makeFloat8Bits(0n);
+        }
+    }
+    return boxComputedScalar(input);
+}
+function circleDistanceValue(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.Float8Value {
+    const status: checkruntime.BoolValue = circlePairStatus(left, right);
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const distance: checkruntime.Float8Value = pointDistance2haq(circleCenterValue(left), circleCenterValue(right));
+    const radii: checkruntime.Float8Value = float8plG3ou(circleRadiusValue(left), circleRadiusValue(right));
+    return circleClampDistance(float8miR1nu(distance, radii));
+}
+function circlePointStatus(input: checkruntime.CircleValue, point: checkruntime.PointValue): checkruntime.BoolValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCircleValue(input, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalCircleValue(input, { kind: "Null" }) || checkruntime.equalPointValue(point, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return checkruntime.makeBoolValue(true);
+}
+function circleHasPoint(input: checkruntime.CircleValue, point: checkruntime.PointValue): checkruntime.BoolValue {
+    const status: checkruntime.BoolValue = circlePointStatus(input, point);
+    if (!(checkruntime.equalBoolValue(status, { kind: "Value", value: true }))) {
+        return status;
+    }
+    return circleFuzzyRelation(pointDistance2haq(circleCenterValue(input), point), circleRadiusValue(input), 4);
+}
+function circlePointDistance(input: checkruntime.CircleValue, point: checkruntime.PointValue): checkruntime.Float8Value {
+    const status: checkruntime.BoolValue = circlePointStatus(input, point);
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const distance: checkruntime.Float8Value = pointDistance2haq(point, circleCenterValue(input));
+    return circleClampDistance(float8miR1nu(distance, circleRadiusValue(input)));
+}
+function circleArithmetic(input: checkruntime.CircleValue, point: checkruntime.PointValue, mode: number): checkruntime.CircleValue {
+    mode = langruntime.checkedI32(mode);
+    const status: checkruntime.BoolValue = circlePointStatus(input, point);
+    if (status.kind === "Error") {
+        const error: checkruntime.SqlError = status.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoolValue(status, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    const center: checkruntime.PointValue = pointArithmetic(circleCenterValue(input), point, mode);
+    if (center.kind === "Error") {
+        const error: checkruntime.SqlError = center.value;
+        return { kind: "Error", value: error };
+    }
+    let radius: checkruntime.Float8Value = circleRadiusValue(input);
+    if (mode >= 2) {
+        if (point.kind === "Value") {
+            const value: checkruntime.PointPayload = point.value;
+            const scale: checkruntime.Float8Value = geometricHypot(lineOriginCoordinate(value, false), lineOriginCoordinate(value, true));
+            if (mode === 2) {
+                radius = boxComputedScalar(float8mulD3nd(radius, scale));
+            }
+            else {
+                radius = boxComputedScalar(float8divKumj(radius, scale));
+            }
+        }
+    }
+    return circleFromCenterRadius(center, radius);
+}
+export function circleAbove53i1(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circlePositionRelation(left, right, true, 1);
+}
+export function circleAddPt3scx(input: checkruntime.CircleValue, point: checkruntime.PointValue): checkruntime.CircleValue {
+    return circleArithmetic(input, point, 0);
+}
+export function circleBelowTgcg(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circlePositionRelation(left, right, true, 0);
+}
+export function circleContainOo7s(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circleTopologyRelation(left, right, 1);
+}
+export function circleContainPtIeqn(input: checkruntime.CircleValue, point: checkruntime.PointValue): checkruntime.BoolValue {
+    return circleHasPoint(input, point);
+}
+export function circleContainedWr7j(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circleTopologyRelation(left, right, 2);
+}
+export function circleDistanceDakp(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.Float8Value {
+    return circleDistanceValue(left, right);
+}
+export function circleDivPtTdhp(input: checkruntime.CircleValue, point: checkruntime.PointValue): checkruntime.CircleValue {
+    return circleArithmetic(input, point, 3);
+}
+export function circleLeft0eka(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circlePositionRelation(left, right, false, 0);
+}
+export function circleMulPt94zs(input: checkruntime.CircleValue, point: checkruntime.PointValue): checkruntime.CircleValue {
+    return circleArithmetic(input, point, 2);
+}
+export function circleOveraboveDgkn(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circlePositionRelation(left, right, true, 3);
+}
+export function circleOverbelowZ9t3(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circlePositionRelation(left, right, true, 2);
+}
+export function circleOverlap8jgl(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circleTopologyRelation(left, right, 0);
+}
+export function circleOverleftLqah(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circlePositionRelation(left, right, false, 2);
+}
+export function circleOverrightYb2p(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circlePositionRelation(left, right, false, 3);
+}
+export function circleRightOxzc(left: checkruntime.CircleValue, right: checkruntime.CircleValue): checkruntime.BoolValue {
+    return circlePositionRelation(left, right, false, 1);
+}
+export function circleSubPtEqne(input: checkruntime.CircleValue, point: checkruntime.PointValue): checkruntime.CircleValue {
+    return circleArithmetic(input, point, 1);
+}
+export function distCpoint5ejq(input: checkruntime.CircleValue, point: checkruntime.PointValue): checkruntime.Float8Value {
+    return circlePointDistance(input, point);
+}
+export function distPcEedo(point: checkruntime.PointValue, input: checkruntime.CircleValue): checkruntime.Float8Value {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    return circlePointDistance(input, point);
+}
+export function ptContainedCircleLlnp(point: checkruntime.PointValue, input: checkruntime.CircleValue): checkruntime.BoolValue {
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    return circleHasPoint(input, point);
+}
 interface ClockFieldInput {
     value: checkruntime.IntervalValue;
     zone: number;

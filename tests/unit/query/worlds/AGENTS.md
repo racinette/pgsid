@@ -320,7 +320,9 @@ shared world on behalf of everyone who never needed it.
 Write independent, single-row INSERT VALUES statements with explicit
 column lists and constant scalar inputs. Use literals and casts of literals;
 fixed interval timezone conversions may construct SQL-coerced temporal values
-that text input cannot represent. Include accepted and rejected rows using the
+that text input cannot represent. A catalog-qualified circle constructor with
+constant point and float8 arguments may construct stored negative radii that
+text input rejects. Include accepted and rejected rows using the
 world's seeded foreign keys. PostgreSQL supplies the expected outcomes; do not
 record them in annotations. Every statement runs against the seed state and is
 rolled back. Name cases with SQL name comments for readable failure reports.
