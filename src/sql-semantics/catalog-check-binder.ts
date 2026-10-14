@@ -247,8 +247,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'float', type, bits: null }
   if (type === 'pg_catalog.point' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'point', type, value: literal.value }
-  if (type === 'pg_catalog.line' && literal.kind === 'null')
-    return { kind: 'line', type, value: null }
+  if (type === 'pg_catalog.line' && (literal.kind === 'string' || literal.kind === 'null'))
+    return { kind: 'line', type, value: literal.value }
   if (type === 'pg_catalog.uuid' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'uuid', type, value: literal.value }
   if (type === 'pg_catalog.bytea') {
@@ -1141,6 +1141,8 @@ export function bindCatalogCheck(
       if (castDomains.length && !(names?.length === 1 && catalogScalarType(names[0]!) !== null)) {
         if (castDomains.length !== 1) return unknown
         let domain: DomainInfo | undefined = castDomains[0]!
+        const domainType = catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
+        if (domainType !== 'pg_catalog.point' && domainType !== 'pg_catalog.line') return unknown
         const seen = new Set<number>()
         while (domain) {
           if (
@@ -1152,8 +1154,7 @@ export function bindCatalogCheck(
             return unknown
           seen.add(domain.oid)
           if (
-            catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains) !==
-            'pg_catalog.point'
+            catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains) !== domainType
           )
             return unknown
           domain = domains.find((item) => item.oid === domain!.baseTypeOid)
@@ -1163,7 +1164,10 @@ export function bindCatalogCheck(
             ...cast,
             typeName: {
               ...castType,
-              names: [{ String: { sval: 'pg_catalog' } }, { String: { sval: 'point' } }],
+              names: [
+                { String: { sval: 'pg_catalog' } },
+                { String: { sval: domainType.slice('pg_catalog.'.length) } },
+              ],
             },
           },
         })
@@ -1542,6 +1546,14 @@ export function bindCatalogCheck(
       ) {
         const text = materialize(operand, 'pg_catalog.text')
         return text ? { type, value: { kind: 'text-to-point', type, operand: text } } : unknown
+      }
+      if (
+        type === 'pg_catalog.line' &&
+        (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
+        operand.value
+      ) {
+        const text = materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-line', type, operand: text } } : unknown
       }
       if (
         type === 'pg_catalog.uuid' &&
@@ -2202,12 +2214,20 @@ export function bindCatalogCheck(
     if (args.some((arg) => !arg.value && !arg.literal)) return unknown
     if (
       kind === 'function' &&
-      (name === 'macaddr' || name === 'macaddr8' || name === 'uuid' || name === 'point') &&
+      (name === 'macaddr' ||
+        name === 'macaddr8' ||
+        name === 'uuid' ||
+        name === 'point' ||
+        name === 'line') &&
       args.length === 1 &&
       args[0]!.literal
     ) {
       const type = ('pg_catalog.' + name) as
-        'pg_catalog.macaddr' | 'pg_catalog.macaddr8' | 'pg_catalog.uuid' | 'pg_catalog.point'
+        | 'pg_catalog.macaddr'
+        | 'pg_catalog.macaddr8'
+        | 'pg_catalog.uuid'
+        | 'pg_catalog.point'
+        | 'pg_catalog.line'
       const value = materialize(args[0]!, type)
       return value ? { type, value } : unknown
     }
@@ -2239,9 +2259,18 @@ export function bindCatalogCheck(
     if (!resolved) {
       if (
         kind === 'function' &&
-        ['inet', 'cidr', 'macaddr', 'macaddr8', 'uuid', 'point', 'bit', 'varbit', 'bytea'].includes(
-          name,
-        ) &&
+        [
+          'inet',
+          'cidr',
+          'macaddr',
+          'macaddr8',
+          'uuid',
+          'point',
+          'line',
+          'bit',
+          'varbit',
+          'bytea',
+        ].includes(name) &&
         args.length === 1
       ) {
         const type = (name === 'bit' ? 'pg_catalog."bit"' : 'pg_catalog.' + name) as
@@ -2251,6 +2280,7 @@ export function bindCatalogCheck(
           | 'pg_catalog.macaddr8'
           | 'pg_catalog.uuid'
           | 'pg_catalog.point'
+          | 'pg_catalog.line'
           | 'pg_catalog.bytea'
           | 'pg_catalog."bit"'
           | 'pg_catalog.varbit'
@@ -2269,13 +2299,15 @@ export function bindCatalogCheck(
               ? { type, value: { kind: 'text-to-bytea', type, operand: text } }
               : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
                 ? { type, value: { kind: 'text-to-bit', type, operand: text } }
-                : type === 'pg_catalog.point'
-                  ? { type, value: { kind: 'text-to-point', type, operand: text } }
-                  : type === 'pg_catalog.uuid'
-                    ? { type, value: { kind: 'text-to-uuid', type, operand: text } }
-                    : type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
-                      ? { type, value: { kind: 'text-to-mac', type, operand: text } }
-                      : { type, value: { kind: 'text-to-network', type, operand: text } }
+                : type === 'pg_catalog.line'
+                  ? { type, value: { kind: 'text-to-line', type, operand: text } }
+                  : type === 'pg_catalog.point'
+                    ? { type, value: { kind: 'text-to-point', type, operand: text } }
+                    : type === 'pg_catalog.uuid'
+                      ? { type, value: { kind: 'text-to-uuid', type, operand: text } }
+                      : type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
+                        ? { type, value: { kind: 'text-to-mac', type, operand: text } }
+                        : { type, value: { kind: 'text-to-network', type, operand: text } }
             : unknown
         }
         const value = materialize(operand, type)

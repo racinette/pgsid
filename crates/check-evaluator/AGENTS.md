@@ -190,6 +190,14 @@ import them. Keep schema-only helpers with their callables.
   tolerances. Binary output preserves the original coefficient bits. Typed NULLs,
   nested domains, CASE and COALESCE use the line wrapper. Run the line foundation
   and raw write suites and the axis guide INSERT world.
+  Text input accepts coefficient triples and point pairs, sharing the geometric
+  numeric tokenizer. Coincident points return 22P02 during input and 22023 in the
+  point constructor. Literal preparation precedes lazy branches; runtime casts
+  preserve branch laziness. Unconstrained domain chains unwrap before input;
+  enforced domains remain a separate coercion boundary. Computed NaN coefficients
+  retain semantic values and defer binary output; unused NaN coordinates do not
+  prevent a finite selected coefficient from retaining its exact bits.
+  Hexadecimal and extended NaN input forms require a platform contract.
 - Numeric payloads own exact decimal strings in `NumericValue`; targets use
   strings or readonly wrappers for already-coerced SQL values. Reject floating
   point inputs; malformed or unsupported representations defer. Rust validates

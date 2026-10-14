@@ -284,7 +284,7 @@ export type SqlExpression =
   | { kind: 'bytea'; type: 'pg_catalog.bytea'; value: string | null }
   | { kind: 'bit'; type: 'pg_catalog."bit"' | 'pg_catalog.varbit'; value: string | null }
   | { kind: 'point'; type: PointType; value: string | null }
-  | { kind: 'line'; type: LineType; value: null }
+  | { kind: 'line'; type: LineType; value: string | null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
   | { kind: 'json'; type: JsonType; value: string | null }
   | { kind: 'jsonb'; type: JsonbType; value: string | null }
@@ -929,7 +929,10 @@ export function emitSqlExpression<Ast>(
       helpers.add(node.kind === 'boolean' ? 'booleanInput' : 'textInput')
       return { type: node.type, expression }
     }
-    if (node.kind === 'line') return { type: node.type, expression: backend.text(null) }
+    if (node.kind === 'line') {
+      if (node.value !== null) throw new Error('Line literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
     if (node.kind === 'point') {
       if (node.value !== null) throw new Error('Point literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }

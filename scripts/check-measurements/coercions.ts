@@ -2,6 +2,10 @@ import {
   pointInputForms,
   deferredPointPlatformForms,
 } from '../../tests/sql-semantics/check-point-input-forms.js'
+import {
+  lineInputForms,
+  deferredLinePlatformForms,
+} from '../../tests/sql-semantics/check-line-input-forms.js'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
@@ -29,6 +33,17 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.line',
+    suite: 'tests/sql-semantics/check-line-input.test.ts',
+    handled: lineInputForms,
+    deferred: deferredLinePlatformForms,
+    platformDependent: deferredLinePlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+    computedNanBinaryOutput: 'Unknown',
+  },
   {
     type: 'pg_catalog.point',
     suite: 'tests/sql-semantics/check-point-input.test.ts',

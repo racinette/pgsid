@@ -43,6 +43,7 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
       value.kind === 'mac-to-text' ||
       value.kind === 'io-to-text' ||
       value.kind === 'text-to-point' ||
+      value.kind === 'text-to-line' ||
       value.kind === 'text-to-uuid' ||
       value.kind === 'text-to-bytea' ||
       value.kind === 'uuid-to-text' ||

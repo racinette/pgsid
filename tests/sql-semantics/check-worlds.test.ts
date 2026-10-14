@@ -852,6 +852,12 @@ describe('world CHECK INSERT parity', () => {
         ['guide_wire', 'guide_presence', 'guide_horizontal', 'guide_vertical'],
       ],
       ['028_axis_guides', 'guide_matches', ['guide_same', 'guide_selected', 'guide_default']],
+      ['028_axis_guides', 'guide_imports', ['import_equation', 'import_wire', 'import_present']],
+      [
+        '028_axis_guides',
+        'guide_constructions',
+        ['construction_equation', 'construction_horizontal', 'construction_vertical'],
+      ],
       [
         '025_sensor_measurements',
         'calibrated_magnitudes',

@@ -491,7 +491,7 @@ export function emitCheckRustEvaluator(
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
-    if (node.kind === 'text-to-point') {
+    if (node.kind === 'text-to-point' || node.kind === 'text-to-line') {
       const operand = emitScalar(node.operand, bindings, used)
       const io = builtinTypeIO(node.type)?.input
       if (
@@ -500,9 +500,10 @@ export function emitCheckRustEvaluator(
         builtinMetadata(io).args[0] !== 'pg_catalog.cstring'
       )
         throw new UnsupportedCheckRustExpression(
-          'Point input requires text and its catalog I/O identity',
+          'Geometric input requires text and its catalog I/O identity',
         )
-      return { name: bind(`point_from_text(${ownedOperand(operand)})`), type: node.type }
+      const helper = node.kind === 'text-to-line' ? 'line_from_text' : 'point_from_text'
+      return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'text-to-float') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -663,7 +664,11 @@ export function emitCheckRustEvaluator(
             : `make_bool_value(${value.value ? 'true' : 'false'})`
         return { name: bind(helper), type: value.type }
       }
-      if (value.kind === 'line') return { name: bind('line_null()'), type: value.type }
+      if (value.kind === 'line') {
+        if (value.value === null) return { name: bind('line_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`line_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'point') {
         if (value.value === null) return { name: bind('point_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
