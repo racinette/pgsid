@@ -154,6 +154,9 @@ Done per admitted category when its execution contract, NULL/error behavior,
 binding, and parity are established. Aggregates, windows, set-returning calls,
 and internal/cstring interfaces are not an automatic CHECK implementation queue.
 
+- [x] Cache parsed source assets with independent mutable containers and share immutable
+      source text; verify unchanged world source graphs and Go fixture cache reuse.
+
 ## Expand value representations
 
 Implement the remaining concrete PostgreSQL value families after the preceding
