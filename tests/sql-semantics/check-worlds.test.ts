@@ -713,6 +713,10 @@ describe('world CHECK INSERT parity', () => {
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
     for (const [table, names] of [
+      [
+        'shift_presence_reports',
+        ['presence_local', 'presence_zoned', 'presence_duration', 'presence_pair'],
+      ],
       ['shift_templates', ['shift_clock_order', 'shift_duration']],
       ['service_windows', ['service_duration_bounds', 'service_duration_span']],
       ['zoned_dispatches', ['dispatch_local_clock', 'dispatch_adjustment']],

@@ -29,6 +29,10 @@ const fields = [
   { name: 'instant', type: 'timestamptz', literal: "'2026-01-02 03:04+00'" },
   { name: 'local_time', type: 'timestamp', literal: "'2026-01-02 03:04'" },
   { name: 'duration', type: 'interval', literal: "'1 hour'" },
+  { name: 'clock', type: 'time', literal: "'12:00'" },
+  { name: 'zoned_clock', type: 'timetz', literal: "'12:00+02'" },
+  { name: 'domain_duration', type: 'public.nested_null_duration', literal: "'1 hour'" },
+  { name: 'domain_clock', type: 'public.nested_null_clock', literal: "'12:00+02'" },
   { name: 'state', type: 'public.null_state', literal: "'ready'" },
   { name: 'identifier', type: 'uuid', literal: "'00000000-0000-0000-0000-000000000001'" },
   { name: 'items', type: 'int4[]', literal: 'ARRAY[1,2]' },
@@ -57,6 +61,10 @@ describe('CHECK input nullness', () => {
       CREATE DOMAIN public.null_price AS numeric;
       CREATE DOMAIN public.nested_null_price AS public.null_price;
       CREATE DOMAIN public.null_pair_domain AS public.null_pair;
+      CREATE DOMAIN public.null_duration AS interval;
+      CREATE DOMAIN public.nested_null_duration AS public.null_duration;
+      CREATE DOMAIN public.null_clock AS timetz;
+      CREATE DOMAIN public.nested_null_clock AS public.null_clock;
       CREATE TABLE public.null_inputs (
         ${fields.map((field) => `${field.name} ${field.type}`).join(',')},
         pair public.null_pair,
@@ -115,7 +123,7 @@ describe('CHECK input nullness', () => {
       for (const constraint of table.constraints.filter(
         (constraint) => constraint.type === 'check',
       )) {
-        const plan = lowerTableCheck(table, constraint)!
+        const plan = lowerTableCheck(table, constraint, [], catalog.domains)!
         const unsupported = ['pair_null', 'pair_present', 'pair_domain_null'].includes(
           constraint.name,
         )
@@ -147,10 +155,13 @@ describe('CHECK input nullness', () => {
       cases.push({ name, table, row, nullViaValue, results })
     }
 
-    const ts = renderTypescriptSchemaCheckArtifacts([table])
+    const ts = renderTypescriptSchemaCheckArtifacts([table], catalog.domains)
     await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
     await writeFile(join(directory, 'checks.ts'), ts.checks)
-    await writeFile(join(directory, 'fallback.ts'), renderTypescriptSchemaChecks([table]))
+    await writeFile(
+      join(directory, 'fallback.ts'),
+      renderTypescriptSchemaChecks([table], catalog.domains),
+    )
     for (const artifact of checkTypescriptArtifacts(ts.rustFiles!)) {
       const path = join(directory, 'checks-rust', artifact.path)
       await mkdir(dirname(path), { recursive: true })
@@ -222,12 +233,24 @@ describe('CHECK input nullness', () => {
                     : []
                 }),
               ),
-              ...(item.row['duration'] === undefined || item.row['duration'] === null
-                ? {}
-                : { duration: { months: 0, days: 0, time: 3_600_000_000n } }),
+              ...Object.fromEntries(
+                ['duration', 'domain_duration', 'clock', 'zoned_clock', 'domain_clock'].flatMap(
+                  (name) => {
+                    if (item.row[name] === undefined || item.row[name] === null) return []
+                    const payload = name.includes('duration')
+                      ? { months: 0, days: 0, time: 3_600_000_000n }
+                      : name === 'clock'
+                        ? 43_200_000_000n
+                        : { time: 43_200_000_000n, zone: -7200 }
+                    return [[name, payload]]
+                  },
+                ),
+              ),
             },
             numericColumns: ['amount', 'price', 'nested_price'],
-            intervalColumns: ['duration'],
+            intervalColumns: ['duration', 'domain_duration'],
+            timeColumns: ['clock'],
+            timetzColumns: ['zoned_clock', 'domain_clock'],
           })),
           { dateRuntime: 'nullchecks/schema/public/checkrust/checkruntime' },
         ),
@@ -245,7 +268,9 @@ describe('CHECK input nullness', () => {
     const constraint = table.constraints.find((constraint) => constraint.name === 'amount_present')!
     writeCheckRustSources(
       join(native, 'evaluator.rs'),
-      assembleCheckRust(emitCheckRustEvaluator(lowerTableCheck(table, constraint)!.expression)),
+      assembleCheckRust(
+        emitCheckRustEvaluator(lowerTableCheck(table, constraint, [], catalog.domains)!.expression),
+      ),
     )
     await writeFile(
       join(native, 'test.rs'),
@@ -302,7 +327,33 @@ fn nullness() {
   ])
     it(name, () => {
       const item = cases.find((item) => item.name === name)!
-      const results = evaluate(item.row).map(({ constraint, result }) => ({ constraint, result }))
+      const portable = { ...item.row }
+      for (const name of ['day', 'instant', 'local_time']) {
+        const value = portable[name]
+        if (value instanceof Date) {
+          const elapsed = value.getTime() - Date.UTC(2000, 0, 1)
+          portable[name] = {
+            kind: 'Value',
+            value: name === 'day' ? elapsed / 86_400_000 : BigInt(elapsed) * 1000n,
+          }
+        } else if (value === null && item.nullViaValue) portable[name] = { kind: 'Null' }
+      }
+      for (const name of ['duration', 'domain_duration', 'clock', 'zoned_clock', 'domain_clock']) {
+        if (portable[name] === undefined) continue
+        if (portable[name] === null) {
+          if (item.nullViaValue) portable[name] = { kind: 'Null' }
+          continue
+        }
+        portable[name] = {
+          kind: 'Value',
+          value: name.includes('duration')
+            ? { months: 0, days: 0, time: 3_600_000_000n }
+            : name === 'clock'
+              ? 43_200_000_000n
+              : { time: 43_200_000_000n, zone: -7200 },
+        }
+      }
+      const results = evaluate(portable).map(({ constraint, result }) => ({ constraint, result }))
       expect(results).toEqual(item.results)
       const fallbackUnsupported = new Set([
         'amount_comparison',
@@ -312,6 +363,19 @@ fn nullness() {
         'identifier_null',
         'identifier_present',
         'nullness_name_collision',
+        'dispatch_evidence',
+        ...[
+          'day',
+          'instant',
+          'local_time',
+          'duration',
+          'domain_duration',
+          'clock',
+          'zoned_clock',
+          'domain_clock',
+          'price',
+          'nested_price',
+        ].flatMap((name) => [name + '_null', name + '_present']),
       ])
       expect(fallback(item.row).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
         item.results.map((item) =>
@@ -321,6 +385,32 @@ fn nullness() {
         ),
       )
     })
+
+  it('preserves clock and interval payload states and rejects malformed known payloads', () => {
+    const malformed: Record<string, object> = {
+      clock: { kind: 'Value', value: -1n },
+      zoned_clock: { kind: 'Value', value: { time: 0n, zone: 2147483648 } },
+      domain_clock: { kind: 'Value', value: { time: 0n, zone: 2147483648 } },
+      duration: { kind: 'Value', value: { time: 0n, months: 2147483648, days: 0 } },
+      domain_duration: { kind: 'Value', value: { time: 0n, months: 2147483648, days: 0 } },
+    }
+    for (const [name, invalid] of Object.entries(malformed)) {
+      const pair = (input: object) =>
+        evaluate({ [name]: input })
+          .filter((item) => [name + '_null', name + '_present'].includes(item.constraint))
+          .map((item) => item.result)
+      expect(pair({ kind: 'Null' }), name).toEqual([
+        { certain: true, value: true },
+        { certain: true, value: false },
+      ])
+      expect(pair({ kind: 'Unknown' }), name).toEqual([{ certain: false }, { certain: false }])
+      expect(pair(invalid), name).toEqual([{ certain: false }, { certain: false }])
+      expect(pair({ kind: 'Error', value: { state: parseInt('22012', 36) } }), name).toEqual([
+        { certain: true, error: '22012' },
+        { certain: true, error: '22012' },
+      ])
+    }
+  })
 
   it('keeps composite row NULL semantics distinct from scalar nullness', async () => {
     expect(

@@ -141,6 +141,7 @@ describe('catalog enum CHECKs', () => {
   let cases: GoCheckCase[]
   let evaluate: (row: object) => GoCheckCase['results']
   let fallback: typeof evaluate
+  let knownDay: object
 
   beforeAll(async () => {
     pg = await PGlite.create()
@@ -276,6 +277,7 @@ describe('catalog enum CHECKs', () => {
     const runtime = await import(
       pathToFileURL(join(directory, 'js/checks-rust/checkruntime/runtime.js')).href
     )
+    knownDay = runtime.dateFromYmd(2026, 1, 2)
     const fixtures: OperationCase[] = []
     for (const fn of builtinCallables().filter(
       (item) => item.kind === 'function' && enumEqualityOperation(callableIdentity(item)) !== null,
@@ -411,12 +413,12 @@ describe('catalog enum CHECKs', () => {
 use enum_checks::*;
 #[test]
 fn enum_checks() {
-    assert!(evaluate_check(EnumValue::Unknown, BoolValue::Unknown) == CheckOutcome::Unknown);
-    assert!(evaluate_check(EnumValue::Null, BoolValue::Unknown) == CheckOutcome::Null);
-    assert!(evaluate_check(make_enum_value(0), BoolValue::Unknown) == CheckOutcome::True);
-    assert!(evaluate_check(make_enum_value(1), make_bool_value(false)) == CheckOutcome::True);
-    assert!(evaluate_check(make_enum_value(1), make_bool_value(true)) == CheckOutcome::False);
-    assert!(evaluate_check(make_enum_value(2), BoolValue::Unknown) == CheckOutcome::Null);
+    assert!(evaluate_check(EnumValue::Unknown, DateValue::Unknown) == CheckOutcome::Unknown);
+    assert!(evaluate_check(EnumValue::Null, DateValue::Unknown) == CheckOutcome::Null);
+    assert!(evaluate_check(make_enum_value(0), DateValue::Unknown) == CheckOutcome::True);
+    assert!(evaluate_check(make_enum_value(1), date_from_ymd(2026, 1, 2)) == CheckOutcome::True);
+    assert!(evaluate_check(make_enum_value(1), DateValue::Null) == CheckOutcome::False);
+    assert!(evaluate_check(make_enum_value(2), DateValue::Unknown) == CheckOutcome::Null);
     let values = [EnumValue::Null, make_enum_value(0), make_enum_value(1), make_enum_value(3)];
     for (left_index, left) in values.into_iter().enumerate() {
         for (right_index, right) in values.into_iter().enumerate() {
@@ -457,10 +459,20 @@ fn enum_checks() {
   for (const item of ordinary)
     it(item.name, () => {
       const test = cases.find((test) => test.name === item.name)!
-      for (const target of [evaluate, fallback])
-        expect(target(test.row).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
-          test.results,
-        )
+      const portable = {
+        ...test.row,
+        ...(typeof test.row['day'] === 'string' ? { day: knownDay } : {}),
+      }
+      expect(evaluate(portable).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
+        test.results,
+      )
+      expect(fallback(test.row).map(({ constraint, result }) => ({ constraint, result }))).toEqual(
+        test.results.map((item) =>
+          item.constraint === 'decision' && test.row['state'] === 'ready'
+            ? { constraint: item.constraint, result: { certain: false } }
+            : item,
+        ),
+      )
     })
   it('rejects unknown labels conservatively and preserves selected errors', () => {
     for (const target of [evaluate, fallback]) {

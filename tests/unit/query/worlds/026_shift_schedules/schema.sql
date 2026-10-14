@@ -309,3 +309,40 @@ CREATE TABLE calendar_field_records (
   CONSTRAINT calendar_field_value CHECK (CASE WHEN skip_validation THEN true ELSE date_part(field_name,source_local) IS NOT DISTINCT FROM recorded_value END),
   CONSTRAINT calendar_field_wire CHECK (CASE WHEN skip_validation THEN true ELSE float8send(date_part(field_name,source_local)) = recorded_wire END)
 );
+
+CREATE DOMAIN imported_zoned_clock AS timetz;
+CREATE DOMAIN audited_zoned_clock AS imported_zoned_clock;
+CREATE DOMAIN imported_duration AS interval;
+CREATE DOMAIN audited_duration AS imported_duration;
+
+CREATE TABLE shift_presence_reports (
+  id integer PRIMARY KEY,
+  template_id integer NOT NULL REFERENCES shift_templates (id),
+  label text NOT NULL,
+  local_clock daily_clock,
+  zoned_clock audited_zoned_clock,
+  duration audited_duration,
+  recorded_local_null boolean,
+  recorded_zoned_null boolean,
+  recorded_duration_null boolean,
+  recorded_pair boolean,
+  skip_pair boolean NOT NULL,
+  CONSTRAINT presence_local CHECK (
+    (local_clock IS NULL) = recorded_local_null AND
+    (local_clock IS NOT NULL) = NOT recorded_local_null
+  ),
+  CONSTRAINT presence_zoned CHECK (
+    (zoned_clock IS NULL) = recorded_zoned_null AND
+    (zoned_clock IS NOT NULL) = NOT recorded_zoned_null
+  ),
+  CONSTRAINT presence_duration CHECK (
+    (duration IS NULL) = recorded_duration_null AND
+    (duration IS NOT NULL) = NOT recorded_duration_null
+  ),
+  CONSTRAINT presence_pair CHECK (
+    CASE WHEN skip_pair THEN true
+         WHEN zoned_clock IS NULL THEN duration IS NULL
+         ELSE duration IS NOT NULL
+    END = recorded_pair
+  )
+);
