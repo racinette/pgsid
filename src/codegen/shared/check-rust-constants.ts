@@ -142,6 +142,9 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'text-to-line' ||
     expression.kind === 'text-to-lseg' ||
     expression.kind === 'text-to-money' ||
+    expression.kind === 'text-to-xid' ||
+    expression.kind === 'text-to-cid' ||
+    expression.kind === 'text-to-xid8' ||
     expression.kind === 'text-to-oid' ||
     expression.kind === 'text-to-circle' ||
     expression.kind === 'text-to-box' ||

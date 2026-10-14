@@ -97,6 +97,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/money_core.rs");
     include!("operations/pg_catalog/oid_core.rs");
     include!("operations/pg_catalog/oid_input.rs");
+    include!("operations/pg_catalog/system_identifiers.rs");
+    include!("operations/pg_catalog/xid8_input.rs");
     include!("operations/pg_catalog/money_words.rs");
     include!("operations/pg_catalog/money_input.rs");
     include!("operations/pg_catalog/box_input.rs");

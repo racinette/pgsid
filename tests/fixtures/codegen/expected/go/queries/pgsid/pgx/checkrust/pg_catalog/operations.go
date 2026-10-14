@@ -8575,7 +8575,8 @@ func integerBaseText(input checkruntime.Int8Value, fullWidth bool, radix int64) 
 			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "0"}
 		}
 		for high != int64(0) || low != int64(0) {
-			number := langruntime.CheckedI64Remainder(low, radix)
+			carry := langruntime.CheckedI64Remainder(high, radix)
+			number := langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(carry, int64(4294967296)), low)), radix)
 			index := 0
 			for number > int64(0) {
 				index = langruntime.CheckedAdd(index, 1)
@@ -8583,7 +8584,6 @@ func integerBaseText(input checkruntime.Int8Value, fullWidth bool, radix int64) 
 			}
 			langruntime.CheckedAdd(len(digits), 1)
 			digits = append(digits, langruntime.CheckedChar(alphabet[index]))
-			carry := langruntime.CheckedI64Remainder(high, radix)
 			low = langruntime.CheckedI64Divide((langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(carry, int64(4294967296)), low)), radix)
 			high = langruntime.CheckedI64Divide(high, radix)
 		}
@@ -18116,6 +18116,260 @@ func Int42div0fx0(left checkruntime.Int4Value, right checkruntime.Int2Value) che
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4div8ogr(left, rightWide)
 }
+func xidToOid(input checkruntime.XidValue) checkruntime.OidValue {
+	if input.Kind == checkruntime.XidValueError {
+		error := input.Error
+		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
+	}
+	if input == (checkruntime.XidValue{Kind: checkruntime.XidValueNull}) {
+		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+	}
+	if input.Kind == checkruntime.XidValueValue {
+		value := input.Value
+		return checkruntime.MakeOidValue(value)
+	}
+	return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+}
+func xidFromOid(input checkruntime.OidValue) checkruntime.XidValue {
+	if input.Kind == checkruntime.OidValueError {
+		error := input.Error
+		return checkruntime.XidValue{Kind: checkruntime.XidValueError, Error: error}
+	}
+	if input == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.XidValue{Kind: checkruntime.XidValueNull}
+	}
+	if input.Kind == checkruntime.OidValueValue {
+		value := input.Value
+		return checkruntime.MakeXidValue(value)
+	}
+	return checkruntime.XidValue{Kind: checkruntime.XidValueUnknown}
+}
+func XidFromText(input checkruntime.TextValue) checkruntime.XidValue {
+	return xidFromOid(OidFromText(input))
+}
+func XidToText(input checkruntime.XidValue) checkruntime.TextValue {
+	return OidToText(xidToOid(input))
+}
+func cidToOid(input checkruntime.CidValue) checkruntime.OidValue {
+	if input.Kind == checkruntime.CidValueError {
+		error := input.Error
+		return checkruntime.OidValue{Kind: checkruntime.OidValueError, Error: error}
+	}
+	if input == (checkruntime.CidValue{Kind: checkruntime.CidValueNull}) {
+		return checkruntime.OidValue{Kind: checkruntime.OidValueNull}
+	}
+	if input.Kind == checkruntime.CidValueValue {
+		value := input.Value
+		return checkruntime.MakeOidValue(value)
+	}
+	return checkruntime.OidValue{Kind: checkruntime.OidValueUnknown}
+}
+func cidFromOid(input checkruntime.OidValue) checkruntime.CidValue {
+	if input.Kind == checkruntime.OidValueError {
+		error := input.Error
+		return checkruntime.CidValue{Kind: checkruntime.CidValueError, Error: error}
+	}
+	if input == (checkruntime.OidValue{Kind: checkruntime.OidValueNull}) {
+		return checkruntime.CidValue{Kind: checkruntime.CidValueNull}
+	}
+	if input.Kind == checkruntime.OidValueValue {
+		value := input.Value
+		return checkruntime.MakeCidValue(value)
+	}
+	return checkruntime.CidValue{Kind: checkruntime.CidValueUnknown}
+}
+func CidFromText(input checkruntime.TextValue) checkruntime.CidValue {
+	return cidFromOid(OidFromText(input))
+}
+func CidToText(input checkruntime.CidValue) checkruntime.TextValue {
+	return OidToText(cidToOid(input))
+}
+func xid8Compare(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.Int4Value {
+	if left.Kind == checkruntime.Xid8ValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Xid8ValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueUnknown}) || right == (checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueNull}) || right == (checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.Xid8ValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.Xid8ValueValue {
+			b := right.Value
+			if a < int64(0) && b >= int64(0) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			if a >= int64(0) && b < int64(0) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if a < b {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if a > b {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func xid8Relation(left checkruntime.Xid8Value, right checkruntime.Xid8Value, mode int) checkruntime.BoolValue {
+	mode = langruntime.CheckedI32(mode)
+	comparison := xid8Compare(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if mode == 0 {
+			return checkruntime.MakeBoolValue(order == 0)
+		}
+		if mode == 1 {
+			return checkruntime.MakeBoolValue(order != 0)
+		}
+		if mode == 2 {
+			return checkruntime.MakeBoolValue(order < 0)
+		}
+		if mode == 3 {
+			return checkruntime.MakeBoolValue(order <= 0)
+		}
+		if mode == 4 {
+			return checkruntime.MakeBoolValue(order > 0)
+		}
+		return checkruntime.MakeBoolValue(order >= 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func xid8Select(left checkruntime.Xid8Value, right checkruntime.Xid8Value, larger bool) checkruntime.Xid8Value {
+	comparison := xid8Compare(left, right)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueError, Error: error}
+	}
+	if comparison == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueNull}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if (larger && order > 0) || (larger == false && order < 0) {
+			return left
+		}
+		return right
+	}
+	return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueUnknown}
+}
+func xid8Bits(input checkruntime.Xid8Value) checkruntime.Int8Value {
+	if input.Kind == checkruntime.Xid8ValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.Xid8ValueValue {
+		value := input.Value
+		return checkruntime.MakeInt8Value(value)
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Xid8ToText(input checkruntime.Xid8Value) checkruntime.TextValue {
+	return integerBaseText(xid8Bits(input), true, int64(10))
+}
+func Cidsend7b3z(left checkruntime.CidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(cidToOid(left))
+}
+func Xid8sendIu1c(left checkruntime.Xid8Value) checkruntime.ByteaValue {
+	return Int8sendPjz0(xid8Bits(left))
+}
+func XidsendCa8a(left checkruntime.XidValue) checkruntime.ByteaValue {
+	return OidsendKq2v(xidToOid(left))
+}
+func CideqCniv(left checkruntime.CidValue, right checkruntime.CidValue) checkruntime.BoolValue {
+	return Oideq5dkx(cidToOid(left), cidToOid(right))
+}
+func HashcidA8z6(left checkruntime.CidValue) checkruntime.Int4Value {
+	return HashoidPp7a(cidToOid(left))
+}
+func HashcidextendedEeef(left checkruntime.CidValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	return HashoidextendedV555(cidToOid(left), right)
+}
+func Hashxid5s1i(left checkruntime.XidValue) checkruntime.Int4Value {
+	return HashoidPp7a(xidToOid(left))
+}
+func Hashxid8L6u3(left checkruntime.Xid8Value) checkruntime.Int4Value {
+	return Hashint83wid(xid8Bits(left))
+}
+func Hashxid8extendedH8is(left checkruntime.Xid8Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+	return Hashint8extendedFrvh(xid8Bits(left), right)
+}
+func Hashxidextended3a8s(left checkruntime.XidValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	return HashoidextendedV555(xidToOid(left), right)
+}
+func XidLwyo(left checkruntime.Xid8Value) checkruntime.XidValue {
+	bits := xid8Bits(left)
+	if bits.Kind == checkruntime.Int8ValueError {
+		error := bits.Error
+		return checkruntime.XidValue{Kind: checkruntime.XidValueError, Error: error}
+	}
+	if bits == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.XidValue{Kind: checkruntime.XidValueNull}
+	}
+	if bits.Kind == checkruntime.Int8ValueValue {
+		value := bits.Value
+		return xidFromOid(OidFromInt4(checkruntime.MakeInt4Value(int(int32(value)))))
+	}
+	return checkruntime.XidValue{Kind: checkruntime.XidValueUnknown}
+}
+func Xid8Larger92s8(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.Xid8Value {
+	return xid8Select(left, right, true)
+}
+func Xid8SmallerWw2e(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.Xid8Value {
+	return xid8Select(left, right, false)
+}
+func Xid8cmpD6ry(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.Int4Value {
+	return xid8Compare(left, right)
+}
+func Xid8eqSwjx(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.BoolValue {
+	return xid8Relation(left, right, 0)
+}
+func Xid8ge41iy(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.BoolValue {
+	return xid8Relation(left, right, 5)
+}
+func Xid8gt1b0u(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.BoolValue {
+	return xid8Relation(left, right, 4)
+}
+func Xid8lePyad(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.BoolValue {
+	return xid8Relation(left, right, 3)
+}
+func Xid8ltZusi(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.BoolValue {
+	return xid8Relation(left, right, 2)
+}
+func Xid8neCbvq(left checkruntime.Xid8Value, right checkruntime.Xid8Value) checkruntime.BoolValue {
+	return xid8Relation(left, right, 1)
+}
+func XideqBmjv(left checkruntime.XidValue, right checkruntime.XidValue) checkruntime.BoolValue {
+	return Oideq5dkx(xidToOid(left), xidToOid(right))
+}
+func Xideqint40glx(left checkruntime.XidValue, right checkruntime.Int4Value) checkruntime.BoolValue {
+	return Oideq5dkx(xidToOid(left), OidFromInt4(right))
+}
+func Xidneq5eig(left checkruntime.XidValue, right checkruntime.XidValue) checkruntime.BoolValue {
+	return OidneC1mg(xidToOid(left), xidToOid(right))
+}
+func Xidneqint427b3(left checkruntime.XidValue, right checkruntime.Int4Value) checkruntime.BoolValue {
+	return OidneC1mg(xidToOid(left), OidFromInt4(right))
+}
 func intervalAgeMonthDays(calendar temporalCalendarFields) int {
 	calendar = copytemporalCalendarFields(calendar)
 	if calendar.month == 4 || calendar.month == 6 || calendar.month == 9 || calendar.month == 11 {
@@ -24749,6 +25003,87 @@ func valueOrderFinish(result checkruntime.Int4Value, strategy int) checkruntime.
 		}
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Xid8FromText(input checkruntime.TextValue) checkruntime.Xid8Value {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		if len(chars) > 4096 {
+			return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueUnknown}
+		}
+		start := 0
+		end := len(chars)
+		for start < end && oidInputSpace(chars[start]) {
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		for end > start && oidInputSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		negative := false
+		if start < end && (chars[start] == '+' || chars[start] == '-') {
+			negative = chars[start] == '-'
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		radix := int64(10)
+		if langruntime.CheckedAdd(start, 1) < end && chars[start] == '0' {
+			if chars[langruntime.CheckedAdd(start, 1)] == 'x' || chars[langruntime.CheckedAdd(start, 1)] == 'X' {
+				radix = int64(16)
+				start = langruntime.CheckedAdd(start, 2)
+			} else if chars[langruntime.CheckedAdd(start, 1)] == 'b' || chars[langruntime.CheckedAdd(start, 1)] == 'B' {
+				return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueUnknown}
+			} else {
+				radix = int64(8)
+			}
+		}
+		units := int64(0)
+		high := int64(0)
+		digits := false
+		overflow := false
+		for start < end {
+			digit := oidInputDigit(chars[start])
+			if digit < int64(0) || digit >= radix {
+				break
+			}
+			digits = true
+			if overflow == false {
+				combined := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(units, radix), digit)
+				units = langruntime.CheckedI64Remainder(combined, int64(4294967296))
+				high = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, radix), langruntime.CheckedI64Divide(combined, int64(4294967296)))
+				if high > int64(4294967295) {
+					overflow = true
+				}
+			}
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		if digits == false {
+			if radix == int64(16) && start == end {
+				return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueUnknown}
+			}
+			return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueError, Error: checkruntime.SqlError{State: oidInputInvalid}}
+		}
+		if overflow {
+			return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueError, Error: checkruntime.SqlError{State: sqlstateNumericValueOutOfRange}}
+		}
+		if start != end {
+			return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueError, Error: checkruntime.SqlError{State: oidInputInvalid}}
+		}
+		if high >= int64(2147483648) {
+			high = langruntime.CheckedI64Subtract(high, int64(4294967296))
+		}
+		bits := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(4294967296)), units)
+		if negative && bits != int64(-9223372036854775808) {
+			bits = langruntime.CheckedI64Subtract(int64(0), bits)
+		}
+		return checkruntime.MakeXid8Bits(bits)
+	}
+	return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueUnknown}
 }
 func xmlWellFormedValue(input checkruntime.TextValue, document bool) checkruntime.BoolValue {
 	if input.Kind == checkruntime.TextValueError {

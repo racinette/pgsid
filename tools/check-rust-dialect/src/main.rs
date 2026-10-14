@@ -76,6 +76,15 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("MoneyValue") => {
             Ok("MoneyValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("XidValue") => {
+            Ok("XidValue")
+        }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("CidValue") => {
+            Ok("CidValue")
+        }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("Xid8Value") => {
+            Ok("Xid8Value")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("OidValue") => {
             Ok("OidValue")
         }
@@ -407,6 +416,9 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "LineValue"
                     | "LsegValue"
                     | "MoneyValue"
+                    | "XidValue"
+                    | "CidValue"
+                    | "Xid8Value"
                     | "OidValue"
                     | "CircleValue"
                     | "BoxValue"
@@ -700,6 +712,42 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_xid_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: XidValue, right: XidValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in ["XidPayload", "f64", "i64", "XidValue<i64>", "&XidValue"] {
+            assert!(
+                check_source(&source.replace("left: XidValue", &format!("left: {ty}"))).is_err()
+            );
+        }
+        assert!(check_source(&source.replace("left: XidValue", "mut left: XidValue")).is_err());
+    }
+
+    #[test]
+    fn accepts_cid_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: CidValue, right: CidValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in ["CidPayload", "f64", "i64", "CidValue<i64>", "&CidValue"] {
+            assert!(
+                check_source(&source.replace("left: CidValue", &format!("left: {ty}"))).is_err()
+            );
+        }
+        assert!(check_source(&source.replace("left: CidValue", "mut left: CidValue")).is_err());
+    }
+
+    #[test]
+    fn accepts_xid8_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: Xid8Value, right: Xid8Value) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in ["Xid8Payload", "f64", "i64", "Xid8Value<i64>", "&Xid8Value"] {
+            assert!(
+                check_source(&source.replace("left: Xid8Value", &format!("left: {ty}"))).is_err()
+            );
+        }
+        assert!(check_source(&source.replace("left: Xid8Value", "mut left: Xid8Value")).is_err());
+    }
+
+    #[test]
     fn accepts_oid_wrappers_without_exposing_payloads() {
         let source = "pub fn evaluate_check(left: OidValue, right: OidValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
         check_source(source).unwrap();
@@ -755,6 +803,9 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("LineValue", "line_unknown"),
             ("LsegValue", "lseg_unknown"),
             ("MoneyValue", "money_unknown"),
+            ("XidValue", "xid_unknown"),
+            ("CidValue", "cid_unknown"),
+            ("Xid8Value", "xid8_unknown"),
             ("OidValue", "oid_unknown"),
             ("CircleValue", "circle_unknown"),
             ("BoxValue", "box_unknown"),

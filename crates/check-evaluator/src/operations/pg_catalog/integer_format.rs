@@ -21,14 +21,14 @@ fn integer_base_text(input: Int8Value, full_width: bool, radix: i64) -> TextValu
             return TextValue::Value("0".to_owned());
         }
         while high != 0i64 || low != 0i64 {
-            let mut number = low % radix;
+            let carry = high % radix;
+            let mut number = (carry * 4294967296i64 + low) % radix;
             let mut index: usize = 0;
             while number > 0i64 {
                 index += 1;
                 number = number - 1i64;
             }
             digits.push(alphabet[index]);
-            let carry = high % radix;
             low = (carry * 4294967296i64 + low) / radix;
             high = high / radix;
         }

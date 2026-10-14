@@ -1785,6 +1785,153 @@ export function oidFromCaseGuard(input: CheckOutcome): OidValue {
     }
     return { kind: "Unknown" };
 }
+export type XidValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: bigint;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalXidValue(left: XidValue, right: XidValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function xidUnknown(): XidValue {
+    return { kind: "Unknown" };
+}
+export function xidNull(): XidValue {
+    return { kind: "Null" };
+}
+export function makeXidValue(units: bigint): XidValue {
+    units = langruntime.checkedI64(units);
+    if (units < 0n || units > 4294967295n) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: units };
+}
+export function xidIsNull(input: XidValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalXidValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalXidValue(input, { kind: "Null" }));
+}
+export function xidFromCaseGuard(input: CheckOutcome): XidValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export type CidValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: bigint;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalCidValue(left: CidValue, right: CidValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function cidUnknown(): CidValue {
+    return { kind: "Unknown" };
+}
+export function cidNull(): CidValue {
+    return { kind: "Null" };
+}
+export function makeCidValue(units: bigint): CidValue {
+    units = langruntime.checkedI64(units);
+    if (units < 0n || units > 4294967295n) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: units };
+}
+export function cidIsNull(input: CidValue): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCidValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalCidValue(input, { kind: "Null" }));
+}
+export function cidFromCaseGuard(input: CheckOutcome): CidValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export type Xid8Value = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: bigint;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalXid8Value(left: Xid8Value, right: Xid8Value): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function xid8Unknown(): Xid8Value {
+    return { kind: "Unknown" };
+}
+export function xid8Null(): Xid8Value {
+    return { kind: "Null" };
+}
+export function makeXid8Bits(units: bigint): Xid8Value {
+    units = langruntime.checkedI64(units);
+    return { kind: "Value", value: units };
+}
+export function xid8IsNull(input: Xid8Value): BoolValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalXid8Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return makeBoolValue(equalXid8Value(input, { kind: "Null" }));
+}
+export function xid8FromCaseGuard(input: CheckOutcome): Xid8Value {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;

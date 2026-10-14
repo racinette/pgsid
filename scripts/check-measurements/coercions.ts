@@ -1,4 +1,10 @@
 import {
+  identifier32InputForms,
+  deferredIdentifier32PlatformForms,
+  xid8InputForms,
+  deferredXid8PlatformForms,
+} from '../../tests/sql-semantics/check-system-identifiers-input-forms.js'
+import {
   oidInputForms,
   deferredOidPlatformForms,
 } from '../../tests/sql-semantics/check-oid-input-forms.js'
@@ -53,6 +59,36 @@ import {
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
 const inputForms = [
+  {
+    type: 'pg_catalog.xid',
+    suite: 'tests/sql-semantics/check-system-identifiers.test.ts',
+    handled: identifier32InputForms,
+    deferred: deferredIdentifier32PlatformForms,
+    platformDependent: deferredIdentifier32PlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+  },
+  {
+    type: 'pg_catalog.cid',
+    suite: 'tests/sql-semantics/check-system-identifiers.test.ts',
+    handled: identifier32InputForms,
+    deferred: deferredIdentifier32PlatformForms,
+    platformDependent: deferredIdentifier32PlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+  },
+  {
+    type: 'pg_catalog.xid8',
+    suite: 'tests/sql-semantics/check-system-identifiers.test.ts',
+    handled: xid8InputForms,
+    deferred: deferredXid8PlatformForms,
+    platformDependent: deferredXid8PlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+  },
   {
     type: 'pg_catalog.oid',
     suite: 'tests/sql-semantics/check-oid.test.ts',

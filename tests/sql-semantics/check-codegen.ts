@@ -11,6 +11,9 @@ export type GoCheckCase = {
   pointColumns?: readonly string[]
   lineColumns?: readonly string[]
   lsegColumns?: readonly string[]
+  xidColumns?: readonly string[]
+  cidColumns?: readonly string[]
+  xid8Columns?: readonly string[]
   oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
   circleColumns?: readonly string[]
@@ -52,6 +55,9 @@ export function renderGoCheckTests(
       pointColumns,
       lineColumns,
       lsegColumns,
+      xidColumns,
+      cidColumns,
+      xid8Columns,
       oidColumns,
       moneyColumns,
       circleColumns,
@@ -78,6 +84,36 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && xidColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const oid = value as bigint | null
+        const wrapped = go.call(
+          go.selector(go.ident('checkruntime'), oid === null ? 'XidNull' : 'MakeXidValue'),
+          oid === null ? [] : [go.number(oid)],
+        )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
+        continue
+      }
+      if (options.dateRuntime && cidColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const oid = value as bigint | null
+        const wrapped = go.call(
+          go.selector(go.ident('checkruntime'), oid === null ? 'CidNull' : 'MakeCidValue'),
+          oid === null ? [] : [go.number(oid)],
+        )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
+        continue
+      }
+      if (options.dateRuntime && xid8Columns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const oid = value as bigint | null
+        const wrapped = go.call(
+          go.selector(go.ident('checkruntime'), oid === null ? 'Xid8Null' : 'MakeXid8Bits'),
+          oid === null ? [] : [go.number(oid)],
+        )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (options.dateRuntime && oidColumns?.includes(column.name)) {

@@ -213,7 +213,7 @@ exposes a prerequisite:
 - [ ] Money, with scale and locale requirements explicit.
 - [x] Establish unsigned OID values, portable input/output, comparisons, hashes,
       integer casts, domains and SQL-coerced public input validation.
-- [ ] Establish transaction and command identifiers, unsigned full transaction
+- [x] Establish transaction and command identifiers, unsigned full transaction
       words, portable input/output, pure operations and contextual state boundaries.
 - [ ] Establish WAL location payloads, portable text input/output, comparisons,
       hashing, exact numeric arithmetic and SQL-coerced public inputs.
