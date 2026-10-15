@@ -782,6 +782,32 @@ export function byteaneVolo(left: checkruntime.ByteaValue, right: checkruntime.B
     }
     return { kind: "Unknown" };
 }
+function textWireWithoutContext(input: checkruntime.TextValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        let index: number = 0;
+        while (index < chars.length) {
+            const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+            if (code === 0 || code > 127) {
+                return { kind: "Unknown" };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: textBinaryHex(value, false) };
+    }
+    return { kind: "Unknown" };
+}
+export function textsendMgfj(input: checkruntime.TextValue): checkruntime.ByteaValue {
+    return textWireWithoutContext(input);
+}
 function binarySendBits(input: checkruntime.Int8Value, width: number): checkruntime.ByteaValue {
     width = langruntime.checkedI32(width);
     if (input.kind === "Error") {
@@ -13232,18 +13258,7 @@ export function varcharEr5y(input: checkruntime.TextValue): checkruntime.TextVal
     return input;
 }
 export function namesendY7mk(input: checkruntime.TextValue): checkruntime.ByteaValue {
-    if (input.kind === "Error") {
-        const error: checkruntime.SqlError = input.value;
-        return { kind: "Error", value: error };
-    }
-    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
-        return { kind: "Null" };
-    }
-    if (input.kind === "Value") {
-        const value: string = langruntime.checkedString(input.value);
-        return { kind: "Value", value: textBinaryHex(value, false) };
-    }
-    return { kind: "Unknown" };
+    return textWireWithoutContext(input);
 }
 const sqlstateInvalidParameterValue = 3452619;
 function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {

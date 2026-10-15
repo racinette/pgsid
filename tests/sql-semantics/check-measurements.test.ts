@@ -92,6 +92,18 @@ describe('CHECK measurement boundaries', () => {
           ]),
         ).categories,
       ).toContain('session-setting:lc_monetary')
+    for (const name of ['textsend', 'namesend']) {
+      const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
+      expect(callableBoundary(fn, new Set(fn.args.concat(fn.result))).categories).toContain(
+        'session-setting:client_encoding',
+      )
+    }
+    for (const name of ['cursor_to_xml', 'cursor_to_xmlschema']) {
+      const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
+      expect(callableBoundary(fn, new Set(fn.args.concat(fn.result))).categories).toContain(
+        'session-state:cursor',
+      )
+    }
     const random = catalog.functions.find(({ metadata }) => metadata.name === 'random')!.metadata
     expect(callableBoundary(random, represented).categories).toContain('volatile')
     const stable = catalog.functions.find(({ metadata }) => metadata.volatility === 's')!.metadata

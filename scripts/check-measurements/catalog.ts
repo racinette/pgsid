@@ -86,6 +86,18 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     categories.push('internal-interface')
   if (item.volatility === 's') categories.push('session-or-database-state')
   if (item.volatility === 'v') categories.push('volatile')
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    ['textsend', 'namesend'].includes(item.name)
+  )
+    categories.push('session-setting:client_encoding')
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    ['cursor_to_xml', 'cursor_to_xmlschema'].includes(item.name)
+  )
+    categories.push('session-state:cursor')
   if (!item.strict) categories.push('non-strict')
   if (item.schema === 'pg_catalog' && item.name === 'quote_ident')
     categories.push('session-setting:quote_all_identifiers')

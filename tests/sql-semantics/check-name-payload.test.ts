@@ -56,7 +56,7 @@ it('validates SQL-coerced name strings and defers invalid encodings without impo
       )
     for (const value of ['', 'alpha', 'é😀', 'a '.repeat(60)])
       expect(evaluate(value)).toEqual({
-        wire: { certain: true, value: true },
+        wire: /[^\x00-\x7f]/u.test(value) ? { certain: false } : { certain: true, value: true },
         same: { certain: true, value: true },
         rendered: { certain: true, value: true },
         present: { certain: true, value: true },

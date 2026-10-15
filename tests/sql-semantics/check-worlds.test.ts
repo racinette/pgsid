@@ -101,8 +101,21 @@ const platformDependentCases = new Map<string, string>([
     'world_028_axis_guides.guide_projections.projection_distance',
   ],
 ])
-const platformDeferrals = (identity: string): number =>
-  [...platformDependentCases.values()].filter((name) => name === identity).length
+const sessionDependentCases = new Map<string, string>([
+  [
+    '036_identifier_names/identifier_utf8/identifier_wire',
+    'world_036_identifier_names.registry_names.identifier_wire',
+  ],
+  [
+    '039_report_cursors/label_unicode_wire/cursor_wire',
+    'world_039_report_cursors.cursor_labels.cursor_wire',
+  ],
+])
+const binaryContextCases = new Map([...platformDependentCases, ...sessionDependentCases])
+if (binaryContextCases.size !== platformDependentCases.size + sessionDependentCases.size)
+  throw new Error('Duplicate binary context case declarations')
+const binaryDeferrals = (identity: string): number =>
+  [...binaryContextCases.values()].filter((name) => name === identity).length
 const sourceDigest = await worldSourceDigest()
 for (const world of worlds) {
   if (
@@ -1010,7 +1023,7 @@ describe('world CHECK INSERT parity', () => {
         expect(
           check.result.certain ||
             catalogDependentChecks.has(`${item.schema}.${table.name}.${check.constraint}`) ||
-            platformDependentCases.has(`${item.name}/${check.constraint}`),
+            binaryContextCases.has(`${item.name}/${check.constraint}`),
           `${item.name}/${check.constraint}: unexpected deferral in CHECK world`,
         ).toBe(true)
     const row = inputs.get(item.name)!
@@ -1151,7 +1164,7 @@ describe('world CHECK INSERT parity', () => {
     expect(definite).toBeGreaterThan(0)
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
-    for (const [identity, constraint] of platformDependentCases) {
+    for (const [identity, constraint] of binaryContextCases) {
       const slash = identity.lastIndexOf('/')
       const item = caseResults.find((row) => row.name === identity.slice(0, slash))!
       const check = item.checks.find((row) => row.constraint === identity.slice(slash + 1))!
@@ -1159,6 +1172,12 @@ describe('world CHECK INSERT parity', () => {
       expect(`${item.schema}.${item.relation}.${check.constraint}`, identity).toBe(constraint)
       expect(item.database.accepted, identity).toBe(true)
       expect(check.postgres, identity).toBe(true)
+    }
+    for (const identity of sessionDependentCases.values()) {
+      const measured = coverage.get(identity)!
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      for (const state of ['true', 'false', 'null'] as const)
+        expect(measured[state], identity).toBeGreaterThan(0)
     }
     for (const identity of catalogDependentChecks) {
       const measured = coverage.get(identity)!
@@ -1271,7 +1290,7 @@ describe('world CHECK INSERT parity', () => {
       for (const name of names) {
         const identity = `world_026_shift_schedules.${table}.${name}`
         const measured = coverage.get(identity)!
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
         expect(measured.true, identity).toBeGreaterThan(0)
         expect(measured.false, identity).toBeGreaterThan(0)
       }
@@ -1452,7 +1471,7 @@ describe('world CHECK INSERT parity', () => {
       for (const name of names) {
         const identity = `world_${world}.${table}.${name}`
         const measured = coverage.get(identity)!
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
         expect(measured.true, identity).toBeGreaterThan(0)
         expect(measured.false, identity).toBeGreaterThan(0)
       }
@@ -1471,7 +1490,7 @@ describe('world CHECK INSERT parity', () => {
       for (const [identity, measured] of checks) {
         for (const kind of ['true', 'false', 'null'] as const)
           expect(measured[kind], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
         numericFunctionConstraints++
       }
     }
@@ -1493,7 +1512,7 @@ describe('world CHECK INSERT parity', () => {
       for (const [identity, measured] of checks) {
         for (const kind of ['true', 'false', 'null'] as const)
           expect(measured[kind], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       }
     }
     for (const identity of [
@@ -1547,7 +1566,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       expect(measured.error, identity).toBeGreaterThan(0)
       expect(measured.error, identity).toBe(measured.postgres.error)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
     }
     let integerFunctionConstraints = 0
     for (const table of [
@@ -1565,7 +1584,7 @@ describe('world CHECK INSERT parity', () => {
       for (const [identity, measured] of checks) {
         for (const kind of ['true', 'false', 'null'] as const)
           expect(measured[kind], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
         integerFunctionConstraints++
       }
     }
@@ -1585,7 +1604,7 @@ describe('world CHECK INSERT parity', () => {
       for (const [identity, measured] of checks) {
         for (const kind of ['true', 'false', 'null'] as const)
           expect(measured[kind], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
         temporalFunctionConstraints++
       }
     }
@@ -1605,7 +1624,7 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.true, identity).toBeGreaterThan(0)
       expect(measured.false, identity).toBeGreaterThan(0)
       expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
     }
     for (const [table, names] of [
       [
@@ -1624,7 +1643,7 @@ describe('world CHECK INSERT parity', () => {
         expect(measured.true, identity).toBeGreaterThan(0)
         expect(measured.false, identity).toBeGreaterThan(0)
         expect(measured.null, identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       }
     }
     for (const [table, names] of [
@@ -1763,7 +1782,7 @@ describe('world CHECK INSERT parity', () => {
         expect(measured.true, identity).toBeGreaterThan(0)
         expect(measured.false, identity).toBeGreaterThan(0)
         expect(measured.null, identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       }
     }
     for (const [table, names] of [
@@ -1822,7 +1841,7 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.true, identity).toBeGreaterThan(0)
       expect(measured.false, identity).toBeGreaterThan(0)
       expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
     }
     for (const name of [
       'import_parsed',
@@ -1835,7 +1854,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       expect(measured.true, identity).toBeGreaterThan(0)
       expect(measured.error, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
     }
     for (const name of [
       'fingerprint_wire',
@@ -1853,7 +1872,7 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.true, identity).toBeGreaterThan(0)
       expect(measured.false, identity).toBeGreaterThan(0)
       expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
     }
     for (const name of ['fingerprint_version_null', 'fingerprint_version_default']) {
       const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
@@ -1861,7 +1880,7 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.true, identity).toBeGreaterThan(0)
       expect(measured.false, identity).toBeGreaterThan(0)
       expect(measured.null, identity).toBe(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
     }
     for (const name of [
       'fingerprint_parsed_hash',
@@ -1884,7 +1903,7 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.true, identity).toBeGreaterThan(0)
       expect(measured.false, identity).toBeGreaterThan(0)
       expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
     }
     for (const name of ['event_timestamp_null', 'event_timestamp_default']) {
       const identity = `world_016_device_identifiers.identifier_events.${name}`
@@ -1892,7 +1911,7 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.true, identity).toBeGreaterThan(0)
       expect(measured.false, identity).toBeGreaterThan(0)
       expect(measured.null, identity).toBe(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
     }
     for (const name of ['event_parsed', 'event_lazy_parse']) {
       const identity = `world_016_device_identifiers.identifier_events.${name}`
@@ -1942,7 +1961,7 @@ describe('world CHECK INSERT parity', () => {
         expect(measured.true, identity).toBeGreaterThan(0)
         expect(measured.false, identity).toBeGreaterThan(0)
         expect(measured.null, identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       }
     }
     for (const name of [
@@ -1959,7 +1978,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       for (const kind of ['true', 'false', 'null'] as const)
         expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       if (!name.includes('combination')) expect(measured.error, identity).toBeGreaterThan(0)
     }
     for (const name of [
@@ -1975,7 +1994,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       for (const kind of ['true', 'false', 'null'] as const)
         expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       if (!name.includes('suffix')) expect(measured.error, identity).toBeGreaterThan(0)
     }
     for (const name of [
@@ -1991,7 +2010,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       for (const kind of ['true', 'false', 'null', 'error'] as const)
         expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
     }
     const skippedOverlay = caseResults.find(
       (row) => row.name === '017_feature_masks/mask_overlay_skips_invalid_start',
@@ -2020,7 +2039,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       for (const kind of ['true', 'false', 'null'] as const)
         expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       expect(measured.error, identity).toBe(0)
     }
     const defaultedSearch = caseResults.find(
@@ -2041,7 +2060,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       for (const kind of ['true', 'false', 'null'] as const)
         expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       expect(measured.error, identity).toBe(0)
     }
     const defaultedCount = caseResults.find(
@@ -2061,7 +2080,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       for (const kind of ['true', 'false', 'null'] as const)
         expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       expect(measured.error, identity).toBe(0)
     }
     const defaultedPacket = caseResults.find(
@@ -2088,7 +2107,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       for (const kind of ['true', 'false', 'null'] as const)
         expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       expect(measured.error, identity).toBe(0)
     }
     for (const name of [
@@ -2104,7 +2123,7 @@ describe('world CHECK INSERT parity', () => {
       for (const kind of ['true', 'null', 'error'] as const)
         expect(measured[kind], identity).toBeGreaterThan(0)
       if (!name.startsWith('patch_preserves_')) expect(measured.false, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
     }
     const invalidBit = caseResults.find(
       (row) => row.name === '017_feature_masks/payload_patch_rejects_invalid_bit',
@@ -2209,7 +2228,7 @@ describe('world CHECK INSERT parity', () => {
         const measured = coverage.get(identity)!
         for (const kind of ['true', 'false', 'null'] as const)
           expect(measured[kind], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       }
     }
     for (const name of [
@@ -2296,7 +2315,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       for (const kind of ['true', 'false', 'null'] as const)
         expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       if (
         [
           'encoding_decode_integer',
@@ -2333,7 +2352,7 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       for (const kind of ['true', 'false', 'null'] as const)
         expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       if (
         [
           'import_fixed',
@@ -2374,7 +2393,7 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.true, identity).toBeGreaterThan(0)
       expect(measured.false, identity).toBeGreaterThan(0)
       expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       if (['transform_selected', 'transform_default', 'transform_direct'].includes(name)) {
         expect(measured.error, identity).toBeGreaterThan(0)
         let describedErrors = 0
@@ -2473,7 +2492,7 @@ describe('world CHECK INSERT parity', () => {
       for (const [identity, measured] of checks) {
         for (const state of ['true', 'false', 'null'] as const)
           expect(measured[state], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
         if (
           table === 'shipment_fee_window' ||
           table === 'shipment_fee_bounds' ||
@@ -2517,7 +2536,7 @@ describe('world CHECK INSERT parity', () => {
       'world_012_package_capacity.warehouse_count_conversions.archived_integer_count',
     ]) {
       const measured = coverage.get(identity)!
-      expect(measured.unknown, identity).toBe(platformDeferrals(identity))
+      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       expect(measured.true, identity).toBeGreaterThan(0)
       expect(measured.false, identity).toBeGreaterThan(0)
     }

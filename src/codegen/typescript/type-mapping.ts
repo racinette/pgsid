@@ -56,6 +56,7 @@ const DEFAULT_TYPES: Readonly<Record<string, string>> = {
   macaddr8: 'string',
   money: 'string',
   name: 'string',
+  refcursor: 'string',
   numeric: 'string',
   oid: 'number',
   real: 'number',

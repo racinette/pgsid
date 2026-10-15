@@ -787,6 +787,32 @@ func ByteaneVolo(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func textWireWithoutContext(input checkruntime.TextValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		index := 0
+		for index < len(chars) {
+			code := int(langruntime.CheckedChar(chars[index]))
+			if code == 0 || code > 127 {
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: textBinaryHex(value, false)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func TextsendMgfj(input checkruntime.TextValue) checkruntime.ByteaValue {
+	return textWireWithoutContext(input)
+}
 func binarySendBits(input checkruntime.Int8Value, width int) checkruntime.ByteaValue {
 	width = langruntime.CheckedI32(width)
 	if input.Kind == checkruntime.Int8ValueError {
@@ -13155,18 +13181,7 @@ func VarcharEr5y(input checkruntime.TextValue) checkruntime.TextValue {
 	return input
 }
 func NamesendY7mk(input checkruntime.TextValue) checkruntime.ByteaValue {
-	if input.Kind == checkruntime.TextValueError {
-		error := input.Error
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
-	}
-	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
-	}
-	if input.Kind == checkruntime.TextValueValue {
-		value := langruntime.CheckedString(input.Value)
-		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: textBinaryHex(value, false)}
-	}
-	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	return textWireWithoutContext(input)
 }
 
 const sqlstateInvalidParameterValue = 3452619

@@ -1,0 +1,16 @@
+export const refcursorInputForms = [
+  '',
+  ' ',
+  '\t',
+  '\n',
+  'report_cursor',
+  ' leading and trailing  ',
+  'schema.cursor',
+  '"Quoted Cursor"',
+  'NULL',
+  '\\cursor',
+  '42',
+  'é😀資料',
+  'x'.repeat(150),
+  'a '.repeat(64),
+] as const

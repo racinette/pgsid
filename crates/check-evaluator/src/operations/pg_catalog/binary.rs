@@ -55,3 +55,23 @@ pub fn sql__pg_catalog__byteane__volo(left: ByteaValue, right: ByteaValue) -> Bo
     }
     BoolValue::Unknown
 }
+
+fn text_wire_without_context(input: TextValue) -> ByteaValue {
+    if let TextValue::Error(error) = input { return ByteaValue::Error(error); };
+    if input == TextValue::Null { return ByteaValue::Null; };
+    if let TextValue::Value(value) = input {
+        let chars: Vec<char> = value.chars().collect();
+        let mut index: usize = 0;
+        while index < chars.len() {
+            let code = chars[index] as i32;
+            if code == 0 || code > 127 { return ByteaValue::Unknown; };
+            index += 1;
+        }
+        return ByteaValue::Value(text_binary_hex(value.as_str(), false));
+    };
+    ByteaValue::Unknown
+}
+
+pub fn sql__pg_catalog__textsend__mgfj(input: TextValue) -> ByteaValue {
+    text_wire_without_context(input)
+}

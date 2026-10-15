@@ -46,6 +46,14 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         ((metadata.args.length === 1 &&
           ['text', 'bpchar', 'varchar', 'hashname', 'namesend'].includes(metadata.name)) ||
           (metadata.name === 'hashnameextended' && metadata.args[1] === 'pg_catalog.int8'))))
+  const textWire =
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    metadata.name === 'textsend' &&
+    metadata.strict &&
+    metadata.args.length === 1 &&
+    metadata.args[0] === 'pg_catalog.text' &&
+    metadata.result === 'pg_catalog.bytea'
   const characterCode =
     metadata.kind === 'function' &&
     metadata.schema === 'pg_catalog' &&
@@ -329,6 +337,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
                 implementation.result === 'pg_catalog.int4'))))))
   return (
     nameIntrinsic ||
+    textWire ||
     oidAliasLookup ||
     likeEscape ||
     textIntrinsic ||

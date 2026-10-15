@@ -64,6 +64,7 @@ const defaultTypes: Readonly<Record<string, { type: string; imports?: GoTypeImpo
   name: { type: 'string' },
   numeric: { type: 'string' },
   oid: { type: 'uint32' },
+  refcursor: { type: 'string' },
   text: { type: 'string' },
   time: { type: 'string' },
   timestamp: { type: 'time.Time', imports: [{ path: 'time' }] },

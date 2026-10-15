@@ -1,3 +1,4 @@
+import { refcursorInputForms } from '../../tests/sql-semantics/check-refcursor-input-forms.js'
 import {
   polygonInputForms,
   deferredPolygonPlatformForms,
@@ -88,6 +89,13 @@ const nanBinaryPrecision = {
 const inputForms = [
   {
     type: 'pg_catalog.name',
+    binaryOutput: {
+      portable: 'ASCII',
+      nonAscii: 'Unknown',
+      contextRequired: ['client_encoding'],
+      conversionCanError: true,
+      owner: 'tests/sql-semantics/check-refcursor.test.ts',
+    },
     suite: 'tests/sql-semantics/check-name.test.ts',
     handled: nameInputForms,
     deferred: nameContextInputForms,
@@ -192,6 +200,26 @@ const inputForms = [
     contextRequired: deferredMoneyContextForms,
     unimplementedGrammar: deferredMoneyContextForms,
     inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+  },
+  {
+    type: 'pg_catalog.refcursor',
+    suite: 'tests/sql-semantics/check-refcursor.test.ts',
+    handled: refcursorInputForms,
+    deferred: [],
+    platformDependent: [],
+    contextRequired: [],
+    unimplementedGrammar: [],
+    binaryOutput: {
+      portable: 'ASCII',
+      nonAscii: 'Unknown',
+      contextRequired: ['client_encoding'],
+      conversionCanError: true,
+      owner: 'tests/sql-semantics/check-refcursor.test.ts',
+    },
+    portalOperations: {
+      contextRequired: ['live cursor and session state'],
+      owner: 'tests/sql-semantics/check-refcursor.test.ts',
+    },
   },
   {
     type: 'pg_catalog.polygon',
@@ -330,13 +358,18 @@ export async function measureCoercions(pg: PGlite) {
     ).rows.map((type) => type.identity),
   )
   const probe = async (source: string, target: string) => {
-    const cast = `CAST(value AS ${target})`
+    const cast =
+      target === 'pg_catalog.refcursor'
+        ? `CAST(CAST(value AS ${target}) AS pg_catalog.text)`
+        : `CAST(value AS ${target})`
     const send =
       target === 'pg_catalog.point'
         ? 'point_send'
         : target === 'pg_catalog.polygon'
           ? 'poly_send'
-          : null
+          : target === 'pg_catalog.refcursor'
+            ? 'textsend'
+            : null
     const sql = send
       ? `${send}(${cast}) IS NOT DISTINCT FROM ${send}(${cast})`
       : `${cast} IS NOT DISTINCT FROM ${cast}`
