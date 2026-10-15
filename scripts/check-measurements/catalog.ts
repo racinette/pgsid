@@ -104,6 +104,13 @@ export function jsonValueRequirements(item: BuiltinCallable) {
           'Finite nonzero float conversion requires a rendering context and currently defers. SQL NULL, both zeros, NaN and infinities have deterministic JSONB conversion.',
         owner: 'tests/sql-semantics/check-jsonb-conversion.test.ts',
       },
+      {
+        kind: 'session',
+        setting: 'TimeZone',
+        requirement:
+          'Finite timestamptz conversion requires TimeZone and currently defers; SQL NULL and both infinities remain definite. Date and timestamp JSON output uses ISO formatting independently of DateStyle.',
+        owner: 'tests/sql-semantics/check-jsonb-output-conversion.test.ts',
+      },
     ]
 
   if (
