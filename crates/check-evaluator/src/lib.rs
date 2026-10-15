@@ -11,6 +11,7 @@ pub mod checkruntime {
     include!("jsonb.rs");
     include!("jsonb_build.rs");
     include!("jsonb_storage.rs");
+    include!("jsonpath_scan.rs");
     include!("bit.rs");
     include!("hash.rs");
     include!("text_builder.rs");

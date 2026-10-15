@@ -5668,6 +5668,487 @@ function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
 function jsonbStorageAdmission(source: JsonbPayload): BoolValue {
     return jsonbStorageDecision(jsonbStorageLayout(source));
 }
+interface JsonpathScanSource {
+    characters: string[];
+}
+function copyJsonpathScanSource(value: JsonpathScanSource): JsonpathScanSource {
+    return { characters: langruntime.checkedChars(value.characters) };
+}
+interface JsonpathScanToken {
+    kind: number;
+    start: number;
+    end: number;
+    textStart: number;
+    textEnd: number;
+}
+function copyJsonpathScanToken(value: JsonpathScanToken): JsonpathScanToken {
+    return { kind: langruntime.checkedI32(value.kind), start: langruntime.checkedIndex(value.start), end: langruntime.checkedIndex(value.end), textStart: langruntime.checkedIndex(value.textStart), textEnd: langruntime.checkedIndex(value.textEnd) };
+}
+interface JsonpathScanRead {
+    kind: number;
+    end: number;
+    text: string[];
+    error: number;
+}
+function copyJsonpathScanRead(value: JsonpathScanRead): JsonpathScanRead {
+    return { kind: langruntime.checkedI32(value.kind), end: langruntime.checkedIndex(value.end), text: langruntime.checkedChars(value.text), error: langruntime.checkedIndex(value.error) };
+}
+interface JsonpathScan {
+    source: string[];
+    tokens: JsonpathScanToken[];
+    text: string[];
+    error: number;
+}
+function copyJsonpathScan(value: JsonpathScan): JsonpathScan {
+    return { source: langruntime.checkedChars(value.source), tokens: langruntime.checkedStructs(value.tokens, copyJsonpathScanToken), text: langruntime.checkedChars(value.text), error: langruntime.checkedIndex(value.error) };
+}
+const jsonpathScanIdent = 256;
+const jsonpathScanString = 257;
+const jsonpathScanVariable = 258;
+const jsonpathScanInt = 259;
+const jsonpathScanNumeric = 260;
+const jsonpathScanAnd = 261;
+const jsonpathScanOr = 262;
+const jsonpathScanAny = 263;
+const jsonpathScanLe = 264;
+const jsonpathScanEq = 265;
+const jsonpathScanNe = 266;
+const jsonpathScanGe = 267;
+const jsonpathScanKeyword = 280;
+const jsonpathScanSyntax = 6819553;
+const jsonpathScanSurrogate = 3484946;
+const jsonpathScanZero = 3484949;
+const jsonpathScanKeywords: ReadonlyArray<string> = ["is", "to", "abs", "lax", "date", "flag", "last", "null", "size", "time", "true", "type", "with", "false", "floor", "bigint", "double", "exists", "number", "starts", "strict", "string", "boolean", "ceiling", "decimal", "integer", "time_tz", "unknown", "datetime", "keyvalue", "timestamp", "like_regex", "timestamp_tz"];
+function jsonpathScanSpace(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    return character === " " || character === "\t" || character === "\n" || character === "\r" || character === "\f";
+}
+function jsonpathScanSpecial(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    return character === "?" || character === "%" || character === "$" || character === "." || character === "[" || character === "]" || character === "{" || character === "}" || character === "(" || character === ")" || character === "|" || character === "&" || character === "!" || character === "=" || character === "<" || character === ">" || character === "@" || character === "#" || character === "," || character === "*" || character === ":" || character === "-" || character === "+" || character === "/";
+}
+function jsonpathScanOther(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    return jsonpathScanSpace(character) === false && jsonpathScanSpecial(character) === false && !(character === "\\") && !(character === "\"");
+}
+function jsonpathScanHex(character: string): number {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    if (code >= 48 && code <= 57) {
+        return langruntime.checkedSignedSubtract(code, 48);
+    }
+    if (code >= 65 && code <= 70) {
+        return langruntime.checkedSignedSubtract(code, 55);
+    }
+    if (code >= 97 && code <= 102) {
+        return langruntime.checkedSignedSubtract(code, 87);
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function jsonpathScanDigits(source: JsonpathScanSource, begin: number, radix: number): number {
+    begin = langruntime.checkedIndex(begin);
+    radix = langruntime.checkedI32(radix);
+    let position: number = begin;
+    while (position < source.characters.length) {
+        const digit: number = jsonpathScanHex(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+        if (digit < 0 || digit >= radix) {
+            return position;
+        }
+        position = langruntime.checkedAdd(position, 1);
+        if (langruntime.checkedAdd(position, 1) < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "_") {
+            const next: number = jsonpathScanHex(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))));
+            if (next >= 0 && next < radix) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+    }
+    return position;
+}
+function jsonpathScanEmptyRead(kind: number, end: number, error: number): JsonpathScanRead {
+    kind = langruntime.checkedI32(kind);
+    end = langruntime.checkedIndex(end);
+    error = langruntime.checkedIndex(error);
+    const text: string[] = [];
+    return { kind: kind, end: end, text: text, error: error };
+}
+function jsonpathScanNumber(source: JsonpathScanSource, begin: number): JsonpathScanRead {
+    begin = langruntime.checkedIndex(begin);
+    let integer: number = begin;
+    if (langruntime.indexChar(source.characters, langruntime.checkedIndex(begin)) === "0") {
+        integer = langruntime.checkedAdd(integer, 1);
+    }
+    else {
+        integer = langruntime.checkedIndex(jsonpathScanDigits(source, begin, 10));
+    }
+    let decimal: number = begin;
+    if (integer < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(integer)) === ".") {
+        decimal = langruntime.checkedIndex(jsonpathScanDigits(source, langruntime.checkedAdd(integer, 1), 10));
+    }
+    let base: number = integer;
+    if (decimal > base) {
+        base = langruntime.checkedIndex(decimal);
+    }
+    let real: number = begin;
+    let failedReal: number = begin;
+    if (base > begin && base < source.characters.length && (langruntime.indexChar(source.characters, langruntime.checkedIndex(base)) === "e" || langruntime.indexChar(source.characters, langruntime.checkedIndex(base)) === "E")) {
+        let digits: number = langruntime.checkedAdd(base, 1);
+        if (digits < source.characters.length && (langruntime.indexChar(source.characters, langruntime.checkedIndex(digits)) === "+" || langruntime.indexChar(source.characters, langruntime.checkedIndex(digits)) === "-")) {
+            digits = langruntime.checkedAdd(digits, 1);
+            failedReal = langruntime.checkedIndex(digits);
+        }
+        const end: number = jsonpathScanDigits(source, digits, 10);
+        if (end > digits) {
+            real = langruntime.checkedIndex(end);
+        }
+    }
+    let prefixed: number = begin;
+    if (langruntime.checkedAdd(begin, 2) < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(begin)) === "0") {
+        const prefix: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(begin, 1)));
+        let radix: number = 0;
+        if (prefix === "x" || prefix === "X") {
+            radix = langruntime.checkedI32(16);
+        }
+        if (prefix === "o" || prefix === "O") {
+            radix = langruntime.checkedI32(8);
+        }
+        if (prefix === "b" || prefix === "B") {
+            radix = langruntime.checkedI32(2);
+        }
+        if (radix > 0) {
+            const end: number = jsonpathScanDigits(source, langruntime.checkedAdd(begin, 2), radix);
+            if (end > langruntime.checkedAdd(begin, 2)) {
+                prefixed = langruntime.checkedIndex(end);
+            }
+        }
+    }
+    let kind: number = jsonpathScanInt;
+    let end: number = integer;
+    if (decimal > end) {
+        end = langruntime.checkedIndex(decimal);
+        kind = langruntime.checkedI32(jsonpathScanNumeric);
+    }
+    if (real > end) {
+        end = langruntime.checkedIndex(real);
+        kind = langruntime.checkedI32(jsonpathScanNumeric);
+    }
+    if (prefixed > end) {
+        end = langruntime.checkedIndex(prefixed);
+        kind = langruntime.checkedI32(jsonpathScanInt);
+    }
+    let junk: number = begin;
+    if (integer > begin && integer < source.characters.length && jsonpathScanOther(langruntime.indexChar(source.characters, langruntime.checkedIndex(integer)))) {
+        junk = langruntime.checkedIndex(langruntime.checkedAdd(integer, 1));
+    }
+    if (decimal > begin && decimal < source.characters.length && jsonpathScanOther(langruntime.indexChar(source.characters, langruntime.checkedIndex(decimal))) && langruntime.checkedAdd(decimal, 1) > junk) {
+        junk = langruntime.checkedIndex(langruntime.checkedAdd(decimal, 1));
+    }
+    if (real > begin && real < source.characters.length && jsonpathScanOther(langruntime.indexChar(source.characters, langruntime.checkedIndex(real))) && langruntime.checkedAdd(real, 1) > junk) {
+        junk = langruntime.checkedIndex(langruntime.checkedAdd(real, 1));
+    }
+    let error: number = 0;
+    if (failedReal > end) {
+        end = langruntime.checkedIndex(failedReal);
+        error = langruntime.checkedIndex(jsonpathScanSyntax);
+    }
+    if (junk > end) {
+        end = langruntime.checkedIndex(junk);
+        error = langruntime.checkedIndex(jsonpathScanSyntax);
+    }
+    let other: number = begin;
+    while (other < source.characters.length && jsonpathScanOther(langruntime.indexChar(source.characters, langruntime.checkedIndex(other)))) {
+        other = langruntime.checkedAdd(other, 1);
+    }
+    if (other > end || (other === end && other > begin && !(error === 0) && (langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))).codePointAt(0)!) >= 128)) {
+        return jsonpathScanEmptyRead(0, begin, 0);
+    }
+    return jsonpathScanEmptyRead(kind, end, error);
+}
+function jsonpathScanUnicode(source: JsonpathScanSource, begin: number): JsonpathScanRead {
+    begin = langruntime.checkedIndex(begin);
+    let codes: number[] = [];
+    let position: number = begin;
+    while (langruntime.checkedAdd(position, 1) < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\\" && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "u") {
+        position = langruntime.checkedAdd(position, 2);
+        const braced: boolean = position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "{";
+        if (braced) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        let count: number = 0;
+        let code: number = 0;
+        let limit: number = 4;
+        if (braced) {
+            limit = langruntime.checkedIndex(6);
+        }
+        while (position < source.characters.length && count < limit) {
+            const digit: number = jsonpathScanHex(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+            if (digit < 0) {
+                break;
+            }
+            code = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(code, 16), digit));
+            position = langruntime.checkedAdd(position, 1);
+            count = langruntime.checkedAdd(count, 1);
+        }
+        if ((braced && (count === 0 || position === source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "}"))) || (braced === false && !(count === 4))) {
+            return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax);
+        }
+        if (braced) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        langruntime.pushIndex(codes, langruntime.indexFromI32(code, 0));
+    }
+    let text: string[] = [];
+    let index: number = 0;
+    let high: number = langruntime.checkedSignedNegate(1);
+    while (index < codes.length) {
+        let code: number = langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(codes, langruntime.checkedIndex(index))));
+        index = langruntime.checkedAdd(index, 1);
+        if (code >= 55296 && code <= 56319) {
+            if (high >= 0) {
+                return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate);
+            }
+            high = langruntime.checkedI32(code);
+        }
+        else {
+            if (code >= 56320 && code <= 57343) {
+                if (high < 0) {
+                    return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate);
+                }
+                code = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(65536, langruntime.checkedSignedMultiply((langruntime.checkedSignedSubtract(high, 55296)), 1024)), code), 56320));
+                high = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            }
+            else if (high >= 0) {
+                return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate);
+            }
+            if (code === 0) {
+                return jsonpathScanEmptyRead(0, position, jsonpathScanZero);
+            }
+            if (code > 1114111) {
+                return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax);
+            }
+            langruntime.pushChar(text, langruntime.characterFromI32(code, " "));
+        }
+    }
+    if (high >= 0) {
+        return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate);
+    }
+    return { kind: 0, end: position, text: text, error: 0 };
+}
+function jsonpathScanLookupKeyword(text: JsonpathScanSource): number {
+    let original: string = "";
+    let folded: string = "";
+    let position: number = 0;
+    while (position < text.characters.length) {
+        const character: string = langruntime.indexChar(text.characters, langruntime.checkedIndex(position));
+        original = original + langruntime.checkedChar(character);
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        if (code >= 65 && code <= 90) {
+            folded = folded + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(code, 32)), " "));
+        }
+        else {
+            folded = folded + langruntime.checkedChar(character);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let index: number = 0;
+    while (index < jsonpathScanKeywords.length) {
+        const keyword: string = langruntime.indexStatic(jsonpathScanKeywords, langruntime.checkedIndex(index));
+        if (folded === keyword) {
+            if ((keyword === "null" || keyword === "true" || keyword === "false") && !(original === keyword)) {
+                return jsonpathScanIdent;
+            }
+            return langruntime.checkedSignedAdd(jsonpathScanKeyword, langruntime.checkedI32(langruntime.checkedIndex(index)));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return jsonpathScanIdent;
+}
+function jsonpathScanName(source: JsonpathScanSource, begin: number, kind: number): JsonpathScanRead {
+    begin = langruntime.checkedIndex(begin);
+    kind = langruntime.checkedI32(kind);
+    const quoted: boolean = kind === jsonpathScanString || kind === jsonpathScanVariable;
+    let position: number = begin;
+    let text: string[] = [];
+    while (position < source.characters.length) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (quoted && character === "\"") {
+            return { kind: kind, end: langruntime.checkedAdd(position, 1), text: text, error: 0 };
+        }
+        if (quoted === false && (jsonpathScanSpace(character) || jsonpathScanSpecial(character) || character === "\"")) {
+            if (character === "/" && langruntime.checkedAdd(position, 1) < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "*") {
+                return jsonpathScanEmptyRead(langruntime.checkedSignedNegate(1), position, 0);
+            }
+            break;
+        }
+        if (character === "\\") {
+            if (langruntime.checkedAdd(position, 1) === source.characters.length || langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\n") {
+                return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax);
+            }
+            const escape: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)));
+            if (escape === "u") {
+                const decoded: JsonpathScanRead = jsonpathScanUnicode(source, position);
+                if (!(decoded.error === 0)) {
+                    return decoded;
+                }
+                let index: number = 0;
+                while (index < decoded.text.length) {
+                    langruntime.pushChar(text, langruntime.indexChar(decoded.text, langruntime.checkedIndex(index)));
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                position = langruntime.checkedIndex(decoded.end);
+            }
+            else if (escape === "x") {
+                if (langruntime.checkedAdd(position, 3) >= source.characters.length) {
+                    return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax);
+                }
+                const first: number = jsonpathScanHex(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))));
+                const second: number = jsonpathScanHex(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))));
+                if (first < 0 || second < 0) {
+                    return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax);
+                }
+                const code: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(first, 16), second);
+                if (code === 0) {
+                    return jsonpathScanEmptyRead(0, position, jsonpathScanZero);
+                }
+                langruntime.pushChar(text, langruntime.characterFromI32(code, " "));
+                position = langruntime.checkedAdd(position, 4);
+            }
+            else {
+                let decoded: string = escape;
+                if (escape === "b") {
+                    decoded = langruntime.checkedChar("\b");
+                }
+                if (escape === "f") {
+                    decoded = langruntime.checkedChar("\f");
+                }
+                if (escape === "n") {
+                    decoded = langruntime.checkedChar("\n");
+                }
+                if (escape === "r") {
+                    decoded = langruntime.checkedChar("\r");
+                }
+                if (escape === "t") {
+                    decoded = langruntime.checkedChar("\t");
+                }
+                if (escape === "v") {
+                    decoded = langruntime.checkedChar("\v");
+                }
+                langruntime.pushChar(text, decoded);
+                position = langruntime.checkedAdd(position, 2);
+            }
+        }
+        else {
+            langruntime.pushChar(text, character);
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    if (quoted) {
+        return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax);
+    }
+    const decoded: JsonpathScanSource = { characters: text };
+    const keyword: number = jsonpathScanLookupKeyword(decoded);
+    return { kind: keyword, end: position, text: decoded.characters, error: 0 };
+}
+function jsonpathScanNext(source: JsonpathScanSource, begin: number): JsonpathScanRead {
+    begin = langruntime.checkedIndex(begin);
+    const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(begin));
+    let next: string = "\0";
+    if (langruntime.checkedAdd(begin, 1) < source.characters.length) {
+        next = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(begin, 1))));
+    }
+    if (character === "/" && next === "*") {
+        let position: number = langruntime.checkedAdd(begin, 2);
+        while (langruntime.checkedAdd(position, 1) < source.characters.length) {
+            if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "*" && langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "/") {
+                return jsonpathScanEmptyRead(langruntime.checkedSignedNegate(1), langruntime.checkedAdd(position, 2), 0);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax);
+    }
+    if (character === "$") {
+        if (next === "\"") {
+            return jsonpathScanName(source, langruntime.checkedAdd(begin, 2), jsonpathScanVariable);
+        }
+        if (langruntime.checkedAdd(begin, 1) < source.characters.length && jsonpathScanOther(next)) {
+            let end: number = langruntime.checkedAdd(begin, 1);
+            let text: string[] = [];
+            while (end < source.characters.length && jsonpathScanOther(langruntime.indexChar(source.characters, langruntime.checkedIndex(end)))) {
+                langruntime.pushChar(text, langruntime.indexChar(source.characters, langruntime.checkedIndex(end)));
+                end = langruntime.checkedAdd(end, 1);
+            }
+            return { kind: jsonpathScanVariable, end: end, text: text, error: 0 };
+        }
+    }
+    if (character === "\"") {
+        return jsonpathScanName(source, langruntime.checkedAdd(begin, 1), jsonpathScanString);
+    }
+    let pair: number = 0;
+    if (character === "&" && next === "&") {
+        pair = langruntime.checkedI32(jsonpathScanAnd);
+    }
+    if (character === "|" && next === "|") {
+        pair = langruntime.checkedI32(jsonpathScanOr);
+    }
+    if (character === "*" && next === "*") {
+        pair = langruntime.checkedI32(jsonpathScanAny);
+    }
+    if (character === "<" && next === "=") {
+        pair = langruntime.checkedI32(jsonpathScanLe);
+    }
+    if (character === "=" && next === "=") {
+        pair = langruntime.checkedI32(jsonpathScanEq);
+    }
+    if ((character === "!" && next === "=") || (character === "<" && next === ">")) {
+        pair = langruntime.checkedI32(jsonpathScanNe);
+    }
+    if (character === ">" && next === "=") {
+        pair = langruntime.checkedI32(jsonpathScanGe);
+    }
+    if (pair > 0) {
+        return jsonpathScanEmptyRead(pair, langruntime.checkedAdd(begin, 2), 0);
+    }
+    const digit: number = jsonpathScanHex(character);
+    const nextDigit: number = jsonpathScanHex(next);
+    if ((digit >= 0 && digit < 10) || (character === "." && nextDigit >= 0 && nextDigit < 10)) {
+        const number: JsonpathScanRead = jsonpathScanNumber(source, begin);
+        if (number.end > begin) {
+            return number;
+        }
+    }
+    if (jsonpathScanSpecial(character)) {
+        return jsonpathScanEmptyRead(langruntime.checkedChar(character).codePointAt(0)!, langruntime.checkedAdd(begin, 1), 0);
+    }
+    return jsonpathScanName(source, begin, jsonpathScanIdent);
+}
+function jsonpathScanTokens(input: string): JsonpathScan {
+    input = langruntime.checkedString(input);
+    const source: JsonpathScanSource = { characters: Array.from(input) };
+    let tokens: JsonpathScanToken[] = [];
+    let text: string[] = [];
+    let position: number = 0;
+    while (position < source.characters.length) {
+        if (jsonpathScanSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        else {
+            const read: JsonpathScanRead = jsonpathScanNext(source, position);
+            if (!(read.error === 0)) {
+                return { source: source.characters, tokens: tokens, text: text, error: read.error };
+            }
+            if (read.kind >= 0) {
+                const start: number = text.length;
+                let index: number = 0;
+                while (index < read.text.length) {
+                    langruntime.pushChar(text, langruntime.indexChar(read.text, langruntime.checkedIndex(index)));
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                langruntime.pushStruct(tokens, { kind: read.kind, start: position, end: read.end, textStart: start, textEnd: text.length }, copyJsonpathScanToken);
+            }
+            position = langruntime.checkedIndex(read.end);
+        }
+    }
+    return { source: source.characters, tokens: tokens, text: text, error: 0 };
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);

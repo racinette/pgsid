@@ -5485,6 +5485,499 @@ func jsonbStorageLayout(source *JsonbPayload) jsonbStorageSize {
 func jsonbStorageAdmission(source *JsonbPayload) BoolValue {
 	return jsonbStorageDecision(jsonbStorageLayout(source))
 }
+
+type jsonpathScanSource struct {
+	characters []rune
+}
+
+func copyjsonpathScanSource(value jsonpathScanSource) jsonpathScanSource {
+	return jsonpathScanSource{characters: langruntime.CheckedChars(value.characters)}
+}
+
+type jsonpathScanToken struct {
+	kind      int
+	start     int
+	end       int
+	textStart int
+	textEnd   int
+}
+
+func copyjsonpathScanToken(value jsonpathScanToken) jsonpathScanToken {
+	return jsonpathScanToken{kind: langruntime.CheckedI32(value.kind), start: langruntime.CheckedIndex(value.start), end: langruntime.CheckedIndex(value.end), textStart: langruntime.CheckedIndex(value.textStart), textEnd: langruntime.CheckedIndex(value.textEnd)}
+}
+
+type jsonpathScanRead struct {
+	kind  int
+	end   int
+	text  []rune
+	error int
+}
+
+func copyjsonpathScanRead(value jsonpathScanRead) jsonpathScanRead {
+	return jsonpathScanRead{kind: langruntime.CheckedI32(value.kind), end: langruntime.CheckedIndex(value.end), text: langruntime.CheckedChars(value.text), error: langruntime.CheckedIndex(value.error)}
+}
+
+type jsonpathScan struct {
+	source []rune
+	tokens []jsonpathScanToken
+	text   []rune
+	error  int
+}
+
+func copyjsonpathScan(value jsonpathScan) jsonpathScan {
+	return jsonpathScan{source: langruntime.CheckedChars(value.source), tokens: langruntime.CheckedStructs(value.tokens, copyjsonpathScanToken), text: langruntime.CheckedChars(value.text), error: langruntime.CheckedIndex(value.error)}
+}
+
+const jsonpathScanIdent = 256
+const jsonpathScanString = 257
+const jsonpathScanVariable = 258
+const jsonpathScanInt = 259
+const jsonpathScanNumeric = 260
+const jsonpathScanAnd = 261
+const jsonpathScanOr = 262
+const jsonpathScanAny = 263
+const jsonpathScanLe = 264
+const jsonpathScanEq = 265
+const jsonpathScanNe = 266
+const jsonpathScanGe = 267
+const jsonpathScanKeyword = 280
+const jsonpathScanSyntax = 6819553
+const jsonpathScanSurrogate = 3484946
+const jsonpathScanZero = 3484949
+
+var jsonpathScanKeywords = []string{"is", "to", "abs", "lax", "date", "flag", "last", "null", "size", "time", "true", "type", "with", "false", "floor", "bigint", "double", "exists", "number", "starts", "strict", "string", "boolean", "ceiling", "decimal", "integer", "time_tz", "unknown", "datetime", "keyvalue", "timestamp", "like_regex", "timestamp_tz"}
+
+func jsonpathScanSpace(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == ' ' || character == '\t' || character == '\n' || character == '\r' || character == '\f'
+}
+func jsonpathScanSpecial(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == '?' || character == '%' || character == '$' || character == '.' || character == '[' || character == ']' || character == '{' || character == '}' || character == '(' || character == ')' || character == '|' || character == '&' || character == '!' || character == '=' || character == '<' || character == '>' || character == '@' || character == '#' || character == ',' || character == '*' || character == ':' || character == '-' || character == '+' || character == '/'
+}
+func jsonpathScanOther(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return jsonpathScanSpace(character) == false && jsonpathScanSpecial(character) == false && character != '\\' && character != '"'
+}
+func jsonpathScanHex(character rune) int {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	if code >= 48 && code <= 57 {
+		return langruntime.CheckedSignedSubtract(code, 48)
+	}
+	if code >= 65 && code <= 70 {
+		return langruntime.CheckedSignedSubtract(code, 55)
+	}
+	if code >= 97 && code <= 102 {
+		return langruntime.CheckedSignedSubtract(code, 87)
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func jsonpathScanDigits(source *jsonpathScanSource, begin int, radix int) int {
+	begin = langruntime.CheckedIndex(begin)
+	radix = langruntime.CheckedI32(radix)
+	position := begin
+	for position < len(source.characters) {
+		digit := jsonpathScanHex(source.characters[position])
+		if digit < 0 || digit >= radix {
+			return position
+		}
+		position = langruntime.CheckedAdd(position, 1)
+		if langruntime.CheckedAdd(position, 1) < len(source.characters) && source.characters[position] == '_' {
+			next := jsonpathScanHex(source.characters[langruntime.CheckedAdd(position, 1)])
+			if next >= 0 && next < radix {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
+	}
+	return position
+}
+func jsonpathScanEmptyRead(kind int, end int, error int) jsonpathScanRead {
+	kind = langruntime.CheckedI32(kind)
+	end = langruntime.CheckedIndex(end)
+	error = langruntime.CheckedIndex(error)
+	text := []rune{}
+	return jsonpathScanRead{kind: kind, end: end, text: text, error: error}
+}
+func jsonpathScanNumber(source *jsonpathScanSource, begin int) jsonpathScanRead {
+	begin = langruntime.CheckedIndex(begin)
+	integer := begin
+	if source.characters[begin] == '0' {
+		integer = langruntime.CheckedAdd(integer, 1)
+	} else {
+		integer = langruntime.CheckedIndex(jsonpathScanDigits(source, begin, 10))
+	}
+	decimal := begin
+	if integer < len(source.characters) && source.characters[integer] == '.' {
+		decimal = langruntime.CheckedIndex(jsonpathScanDigits(source, langruntime.CheckedAdd(integer, 1), 10))
+	}
+	base := integer
+	if decimal > base {
+		base = langruntime.CheckedIndex(decimal)
+	}
+	real := begin
+	failedReal := begin
+	if base > begin && base < len(source.characters) && (source.characters[base] == 'e' || source.characters[base] == 'E') {
+		digits := langruntime.CheckedAdd(base, 1)
+		if digits < len(source.characters) && (source.characters[digits] == '+' || source.characters[digits] == '-') {
+			digits = langruntime.CheckedAdd(digits, 1)
+			failedReal = langruntime.CheckedIndex(digits)
+		}
+		end := jsonpathScanDigits(source, digits, 10)
+		if end > digits {
+			real = langruntime.CheckedIndex(end)
+		}
+	}
+	prefixed := begin
+	if langruntime.CheckedAdd(begin, 2) < len(source.characters) && source.characters[begin] == '0' {
+		prefix := source.characters[langruntime.CheckedAdd(begin, 1)]
+		radix := 0
+		if prefix == 'x' || prefix == 'X' {
+			radix = langruntime.CheckedI32(16)
+		}
+		if prefix == 'o' || prefix == 'O' {
+			radix = langruntime.CheckedI32(8)
+		}
+		if prefix == 'b' || prefix == 'B' {
+			radix = langruntime.CheckedI32(2)
+		}
+		if radix > 0 {
+			end := jsonpathScanDigits(source, langruntime.CheckedAdd(begin, 2), radix)
+			if end > langruntime.CheckedAdd(begin, 2) {
+				prefixed = langruntime.CheckedIndex(end)
+			}
+		}
+	}
+	kind := jsonpathScanInt
+	end := integer
+	if decimal > end {
+		end = langruntime.CheckedIndex(decimal)
+		kind = langruntime.CheckedI32(jsonpathScanNumeric)
+	}
+	if real > end {
+		end = langruntime.CheckedIndex(real)
+		kind = langruntime.CheckedI32(jsonpathScanNumeric)
+	}
+	if prefixed > end {
+		end = langruntime.CheckedIndex(prefixed)
+		kind = langruntime.CheckedI32(jsonpathScanInt)
+	}
+	junk := begin
+	if integer > begin && integer < len(source.characters) && jsonpathScanOther(source.characters[integer]) {
+		junk = langruntime.CheckedIndex(langruntime.CheckedAdd(integer, 1))
+	}
+	if decimal > begin && decimal < len(source.characters) && jsonpathScanOther(source.characters[decimal]) && langruntime.CheckedAdd(decimal, 1) > junk {
+		junk = langruntime.CheckedIndex(langruntime.CheckedAdd(decimal, 1))
+	}
+	if real > begin && real < len(source.characters) && jsonpathScanOther(source.characters[real]) && langruntime.CheckedAdd(real, 1) > junk {
+		junk = langruntime.CheckedIndex(langruntime.CheckedAdd(real, 1))
+	}
+	error := 0
+	if failedReal > end {
+		end = langruntime.CheckedIndex(failedReal)
+		error = langruntime.CheckedIndex(jsonpathScanSyntax)
+	}
+	if junk > end {
+		end = langruntime.CheckedIndex(junk)
+		error = langruntime.CheckedIndex(jsonpathScanSyntax)
+	}
+	other := begin
+	for other < len(source.characters) && jsonpathScanOther(source.characters[other]) {
+		other = langruntime.CheckedAdd(other, 1)
+	}
+	if other > end || (other == end && other > begin && error != 0 && (int(langruntime.CheckedChar(source.characters[langruntime.CheckedSubtract(end, 1)]))) >= 128) {
+		return jsonpathScanEmptyRead(0, begin, 0)
+	}
+	return jsonpathScanEmptyRead(kind, end, error)
+}
+func jsonpathScanUnicode(source *jsonpathScanSource, begin int) jsonpathScanRead {
+	begin = langruntime.CheckedIndex(begin)
+	codes := []int{}
+	position := begin
+	for langruntime.CheckedAdd(position, 1) < len(source.characters) && source.characters[position] == '\\' && source.characters[langruntime.CheckedAdd(position, 1)] == 'u' {
+		position = langruntime.CheckedAdd(position, 2)
+		braced := position < len(source.characters) && source.characters[position] == '{'
+		if braced {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		count := 0
+		code := 0
+		limit := 4
+		if braced {
+			limit = langruntime.CheckedIndex(6)
+		}
+		for position < len(source.characters) && count < limit {
+			digit := jsonpathScanHex(source.characters[position])
+			if digit < 0 {
+				break
+			}
+			code = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(code, 16), digit))
+			position = langruntime.CheckedAdd(position, 1)
+			count = langruntime.CheckedAdd(count, 1)
+		}
+		if (braced && (count == 0 || position == len(source.characters) || source.characters[position] != '}')) || (braced == false && count != 4) {
+			return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+		}
+		if braced {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		langruntime.CheckedAdd(len(codes), 1)
+		codes = append(codes, langruntime.CheckedIndex(langruntime.IndexFromI32(code, 0)))
+	}
+	text := []rune{}
+	index := 0
+	high := langruntime.CheckedSignedNegate(1)
+	for index < len(codes) {
+		code := int(int32(codes[index]))
+		index = langruntime.CheckedAdd(index, 1)
+		if code >= 55296 && code <= 56319 {
+			if high >= 0 {
+				return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate)
+			}
+			high = langruntime.CheckedI32(code)
+		} else {
+			if code >= 56320 && code <= 57343 {
+				if high < 0 {
+					return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate)
+				}
+				code = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(65536, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(high, 55296)), 1024)), code), 56320))
+				high = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+			} else if high >= 0 {
+				return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate)
+			}
+			if code == 0 {
+				return jsonpathScanEmptyRead(0, position, jsonpathScanZero)
+			}
+			if code > 1114111 {
+				return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+			}
+			langruntime.CheckedAdd(len(text), 1)
+			text = append(text, langruntime.CheckedChar(langruntime.CharacterFromI32(code, ' ')))
+		}
+	}
+	if high >= 0 {
+		return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate)
+	}
+	return jsonpathScanRead{kind: 0, end: position, text: text, error: 0}
+}
+func jsonpathScanLookupKeyword(text *jsonpathScanSource) int {
+	original := langruntime.NewTextBuffer("")
+	folded := langruntime.NewTextBuffer("")
+	position := 0
+	for position < len(text.characters) {
+		character := text.characters[position]
+		original = append(original, string(langruntime.CheckedChar(character))...)
+		code := int(langruntime.CheckedChar(character))
+		if code >= 65 && code <= 90 {
+			folded = append(folded, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(code, 32)), ' ')))...)
+		} else {
+			folded = append(folded, string(langruntime.CheckedChar(character))...)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	index := 0
+	for index < len(jsonpathScanKeywords) {
+		keyword := jsonpathScanKeywords[index]
+		if string(folded) == keyword {
+			if (keyword == "null" || keyword == "true" || keyword == "false") && string(original) != keyword {
+				return jsonpathScanIdent
+			}
+			return langruntime.CheckedSignedAdd(jsonpathScanKeyword, int(int32(index)))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return jsonpathScanIdent
+}
+func jsonpathScanName(source *jsonpathScanSource, begin int, kind int) jsonpathScanRead {
+	begin = langruntime.CheckedIndex(begin)
+	kind = langruntime.CheckedI32(kind)
+	quoted := kind == jsonpathScanString || kind == jsonpathScanVariable
+	position := begin
+	text := []rune{}
+	for position < len(source.characters) {
+		character := source.characters[position]
+		if quoted && character == '"' {
+			return jsonpathScanRead{kind: kind, end: langruntime.CheckedAdd(position, 1), text: text, error: 0}
+		}
+		if quoted == false && (jsonpathScanSpace(character) || jsonpathScanSpecial(character) || character == '"') {
+			if character == '/' && langruntime.CheckedAdd(position, 1) < len(source.characters) && source.characters[langruntime.CheckedAdd(position, 1)] == '*' {
+				return jsonpathScanEmptyRead(langruntime.CheckedSignedNegate(1), position, 0)
+			}
+			break
+		}
+		if character == '\\' {
+			if langruntime.CheckedAdd(position, 1) == len(source.characters) || source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+				return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+			}
+			escape := source.characters[langruntime.CheckedAdd(position, 1)]
+			if escape == 'u' {
+				decoded := jsonpathScanUnicode(source, position)
+				if decoded.error != 0 {
+					return decoded
+				}
+				index := 0
+				for index < len(decoded.text) {
+					langruntime.CheckedAdd(len(text), 1)
+					text = append(text, langruntime.CheckedChar(decoded.text[index]))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				position = langruntime.CheckedIndex(decoded.end)
+			} else if escape == 'x' {
+				if langruntime.CheckedAdd(position, 3) >= len(source.characters) {
+					return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+				}
+				first := jsonpathScanHex(source.characters[langruntime.CheckedAdd(position, 2)])
+				second := jsonpathScanHex(source.characters[langruntime.CheckedAdd(position, 3)])
+				if first < 0 || second < 0 {
+					return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+				}
+				code := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(first, 16), second)
+				if code == 0 {
+					return jsonpathScanEmptyRead(0, position, jsonpathScanZero)
+				}
+				langruntime.CheckedAdd(len(text), 1)
+				text = append(text, langruntime.CheckedChar(langruntime.CharacterFromI32(code, ' ')))
+				position = langruntime.CheckedAdd(position, 4)
+			} else {
+				decoded := escape
+				if escape == 'b' {
+					decoded = langruntime.CheckedChar('\b')
+				}
+				if escape == 'f' {
+					decoded = langruntime.CheckedChar('\f')
+				}
+				if escape == 'n' {
+					decoded = langruntime.CheckedChar('\n')
+				}
+				if escape == 'r' {
+					decoded = langruntime.CheckedChar('\r')
+				}
+				if escape == 't' {
+					decoded = langruntime.CheckedChar('\t')
+				}
+				if escape == 'v' {
+					decoded = langruntime.CheckedChar('\v')
+				}
+				langruntime.CheckedAdd(len(text), 1)
+				text = append(text, langruntime.CheckedChar(decoded))
+				position = langruntime.CheckedAdd(position, 2)
+			}
+		} else {
+			langruntime.CheckedAdd(len(text), 1)
+			text = append(text, langruntime.CheckedChar(character))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	if quoted {
+		return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+	}
+	decoded := jsonpathScanSource{characters: text}
+	keyword := jsonpathScanLookupKeyword(&decoded)
+	return jsonpathScanRead{kind: keyword, end: position, text: decoded.characters, error: 0}
+}
+func jsonpathScanNext(source *jsonpathScanSource, begin int) jsonpathScanRead {
+	begin = langruntime.CheckedIndex(begin)
+	character := source.characters[begin]
+	next := '\x00'
+	if langruntime.CheckedAdd(begin, 1) < len(source.characters) {
+		next = langruntime.CheckedChar(source.characters[langruntime.CheckedAdd(begin, 1)])
+	}
+	if character == '/' && next == '*' {
+		position := langruntime.CheckedAdd(begin, 2)
+		for langruntime.CheckedAdd(position, 1) < len(source.characters) {
+			if source.characters[position] == '*' && source.characters[langruntime.CheckedAdd(position, 1)] == '/' {
+				return jsonpathScanEmptyRead(langruntime.CheckedSignedNegate(1), langruntime.CheckedAdd(position, 2), 0)
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+	}
+	if character == '$' {
+		if next == '"' {
+			return jsonpathScanName(source, langruntime.CheckedAdd(begin, 2), jsonpathScanVariable)
+		}
+		if langruntime.CheckedAdd(begin, 1) < len(source.characters) && jsonpathScanOther(next) {
+			end := langruntime.CheckedAdd(begin, 1)
+			text := []rune{}
+			for end < len(source.characters) && jsonpathScanOther(source.characters[end]) {
+				langruntime.CheckedAdd(len(text), 1)
+				text = append(text, langruntime.CheckedChar(source.characters[end]))
+				end = langruntime.CheckedAdd(end, 1)
+			}
+			return jsonpathScanRead{kind: jsonpathScanVariable, end: end, text: text, error: 0}
+		}
+	}
+	if character == '"' {
+		return jsonpathScanName(source, langruntime.CheckedAdd(begin, 1), jsonpathScanString)
+	}
+	pair := 0
+	if character == '&' && next == '&' {
+		pair = langruntime.CheckedI32(jsonpathScanAnd)
+	}
+	if character == '|' && next == '|' {
+		pair = langruntime.CheckedI32(jsonpathScanOr)
+	}
+	if character == '*' && next == '*' {
+		pair = langruntime.CheckedI32(jsonpathScanAny)
+	}
+	if character == '<' && next == '=' {
+		pair = langruntime.CheckedI32(jsonpathScanLe)
+	}
+	if character == '=' && next == '=' {
+		pair = langruntime.CheckedI32(jsonpathScanEq)
+	}
+	if (character == '!' && next == '=') || (character == '<' && next == '>') {
+		pair = langruntime.CheckedI32(jsonpathScanNe)
+	}
+	if character == '>' && next == '=' {
+		pair = langruntime.CheckedI32(jsonpathScanGe)
+	}
+	if pair > 0 {
+		return jsonpathScanEmptyRead(pair, langruntime.CheckedAdd(begin, 2), 0)
+	}
+	digit := jsonpathScanHex(character)
+	nextDigit := jsonpathScanHex(next)
+	if (digit >= 0 && digit < 10) || (character == '.' && nextDigit >= 0 && nextDigit < 10) {
+		number := jsonpathScanNumber(source, begin)
+		if number.end > begin {
+			return number
+		}
+	}
+	if jsonpathScanSpecial(character) {
+		return jsonpathScanEmptyRead(int(langruntime.CheckedChar(character)), langruntime.CheckedAdd(begin, 1), 0)
+	}
+	return jsonpathScanName(source, begin, jsonpathScanIdent)
+}
+func jsonpathScanTokens(input string) jsonpathScan {
+	input = langruntime.CheckedString(input)
+	source := jsonpathScanSource{characters: []rune(input)}
+	tokens := []jsonpathScanToken{}
+	text := []rune{}
+	position := 0
+	for position < len(source.characters) {
+		if jsonpathScanSpace(source.characters[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		} else {
+			read := jsonpathScanNext(&source, position)
+			if read.error != 0 {
+				return jsonpathScan{source: source.characters, tokens: tokens, text: text, error: read.error}
+			}
+			if read.kind >= 0 {
+				start := len(text)
+				index := 0
+				for index < len(read.text) {
+					langruntime.CheckedAdd(len(text), 1)
+					text = append(text, langruntime.CheckedChar(read.text[index]))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				langruntime.CheckedAdd(len(tokens), 1)
+				tokens = append(tokens, copyjsonpathScanToken(jsonpathScanToken{kind: read.kind, start: position, end: read.end, textStart: start, textEnd: len(text)}))
+			}
+			position = langruntime.CheckedIndex(read.end)
+		}
+	}
+	return jsonpathScan{source: source.characters, tokens: tokens, text: text, error: 0}
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
