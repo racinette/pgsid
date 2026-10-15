@@ -10741,6 +10741,275 @@ export function jsonbInputFromTimestamptz(input: checkruntime.TimestamptzValue):
     }
     return { kind: "Unknown" };
 }
+interface JsonbGeometryCoordinate {
+    bits: bigint;
+}
+function copyJsonbGeometryCoordinate(value: JsonbGeometryCoordinate): JsonbGeometryCoordinate {
+    return { bits: langruntime.checkedI64(value.bits) };
+}
+export function jsonbInputFromOidAlias(input: checkruntime.OidValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = oidAliasToText(input, true);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromOperatorAlias(input: checkruntime.OidValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = oidAliasToText(input, false);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromBytea(input: checkruntime.ByteaValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromMoney(input: checkruntime.MoneyValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromInterval(input: checkruntime.IntervalValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalIntervalValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.IntervalPayload = input.value;
+        const special: number = intervalSpecial(value);
+        if (special < 0) {
+            return { kind: "Text", value: "-infinity" };
+        }
+        if (special > 0) {
+            return { kind: "Text", value: "infinity" };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function jsonbGeometryNumber(bits: bigint): checkruntime.TextValue {
+    bits = langruntime.checkedI64(bits);
+    if (bits === -9223372036854775808n) {
+        return { kind: "Value", value: "-0" };
+    }
+    const input: checkruntime.Float8Value = checkruntime.makeFloat8Bits(bits);
+    const rendered: checkruntime.JsonbInput = checkruntime.jsonbInputFromFloat8(input);
+    if (rendered.kind === "Number") {
+        const text: string = langruntime.checkedString(rendered.value);
+        return { kind: "Value", value: text };
+    }
+    return { kind: "Unknown" };
+}
+function jsonbGeometryValues(values: JsonbGeometryCoordinate[], opening: string, ending: string): checkruntime.TextValue {
+    values = langruntime.checkedStructs(values, copyJsonbGeometryCoordinate);
+    opening = langruntime.checkedString(opening);
+    ending = langruntime.checkedString(ending);
+    let output: string = opening;
+    let index: number = 0;
+    while (index < values.length) {
+        const rendered: checkruntime.TextValue = jsonbGeometryNumber(langruntime.indexStruct(values, langruntime.checkedIndex(index), copyJsonbGeometryCoordinate).bits);
+        let ready: boolean = false;
+        if (rendered.kind === "Value") {
+            const text: string = langruntime.checkedString(rendered.value);
+            ready = langruntime.checkedBool(true);
+            if (index > 0) {
+                output = output + langruntime.checkedChar(",");
+            }
+            output = output + text;
+        }
+        if (ready === false) {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    output = output + ending;
+    return { kind: "Value", value: output };
+}
+function jsonbGeometryPair(x: bigint, y: bigint): checkruntime.TextValue {
+    x = langruntime.checkedI64(x);
+    y = langruntime.checkedI64(y);
+    let values: JsonbGeometryCoordinate[] = [];
+    langruntime.pushStruct(values, { bits: x }, copyJsonbGeometryCoordinate);
+    langruntime.pushStruct(values, { bits: y }, copyJsonbGeometryCoordinate);
+    return jsonbGeometryValues(values, "(", ")");
+}
+function jsonbGeometryPoints(points: checkruntime.PointPayload[], opening: string, ending: string): checkruntime.TextValue {
+    points = langruntime.checkedStructs(points, checkruntime.copyPointPayload);
+    opening = langruntime.checkedString(opening);
+    ending = langruntime.checkedString(ending);
+    let output: string = opening;
+    let index: number = 0;
+    while (index < points.length) {
+        const point: checkruntime.PointPayload = langruntime.indexStruct(points, langruntime.checkedIndex(index), checkruntime.copyPointPayload);
+        const rendered: checkruntime.TextValue = jsonbGeometryPair(point.x, point.y);
+        let ready: boolean = false;
+        if (rendered.kind === "Value") {
+            const text: string = langruntime.checkedString(rendered.value);
+            ready = langruntime.checkedBool(true);
+            if (index > 0) {
+                output = output + langruntime.checkedChar(",");
+            }
+            output = output + text;
+        }
+        if (ready === false) {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    output = output + ending;
+    return { kind: "Value", value: output };
+}
+export function jsonbInputFromPoint(input: checkruntime.PointValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.PointPayload = input.value;
+        const text: checkruntime.TextValue = jsonbGeometryPair(value.x, value.y);
+        return checkruntime.jsonbInputFromText(text);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromLine(input: checkruntime.LineValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLineValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.LinePayload = input.value;
+        let values: JsonbGeometryCoordinate[] = [];
+        langruntime.pushStruct(values, { bits: value.a }, copyJsonbGeometryCoordinate);
+        langruntime.pushStruct(values, { bits: value.b }, copyJsonbGeometryCoordinate);
+        langruntime.pushStruct(values, { bits: value.c }, copyJsonbGeometryCoordinate);
+        const text: checkruntime.TextValue = jsonbGeometryValues(values, "{", "}");
+        return checkruntime.jsonbInputFromText(text);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromLseg(input: checkruntime.LsegValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalLsegValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.LsegPayload = input.value;
+        let points: checkruntime.PointPayload[] = [];
+        langruntime.pushStruct(points, { x: value.x1, y: value.y1, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
+        langruntime.pushStruct(points, { x: value.x2, y: value.y2, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
+        const text: checkruntime.TextValue = jsonbGeometryPoints(points, "[", "]");
+        return checkruntime.jsonbInputFromText(text);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromBox(input: checkruntime.BoxValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoxValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.BoxPayload = input.value;
+        let points: checkruntime.PointPayload[] = [];
+        langruntime.pushStruct(points, { x: value.highX, y: value.highY, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
+        langruntime.pushStruct(points, { x: value.lowX, y: value.lowY, wireKnown: value.wireKnown }, checkruntime.copyPointPayload);
+        const text: checkruntime.TextValue = jsonbGeometryPoints(points, "", "");
+        return checkruntime.jsonbInputFromText(text);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromCircle(input: checkruntime.CircleValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalCircleValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.CirclePayload = input.value;
+        const center: checkruntime.TextValue = jsonbGeometryPair(value.x, value.y);
+        const radius: checkruntime.TextValue = jsonbGeometryNumber(value.radius);
+        if (center.kind === "Value") {
+            const point: string = langruntime.checkedString(center.value);
+            if (radius.kind === "Value") {
+                const number: string = langruntime.checkedString(radius.value);
+                let output: string = "<";
+                output = output + point;
+                output = output + langruntime.checkedChar(",");
+                output = output + number;
+                output = output + langruntime.checkedChar(">");
+                return { kind: "Text", value: output };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromPath(input: checkruntime.PathValue): checkruntime.JsonbInput {
+    input = checkruntime.copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        if (value.closed) {
+            const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "(", ")");
+            return checkruntime.jsonbInputFromText(text);
+        }
+        const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "[", "]");
+        return checkruntime.jsonbInputFromText(text);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromPolygon(input: checkruntime.PolygonValue): checkruntime.JsonbInput {
+    input = checkruntime.copyPolygonValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(input.value);
+        const text: checkruntime.TextValue = jsonbGeometryPoints(value.points, "(", ")");
+        return checkruntime.jsonbInputFromText(text);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromEnum(input: checkruntime.EnumValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalEnumValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
 export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
     if (input.kind === "Error") {

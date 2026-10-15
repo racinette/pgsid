@@ -849,6 +849,18 @@ fn jsonb_input_float(number: f64) -> JsonbInput {
     if number == 0.0f64 {
         return JsonbInput::Number("0".to_owned());
     };
+    let absolute = number.abs();
+    if absolute >= 1.0f64 && absolute <= 9.0f64 {
+        let digit = absolute as i32;
+        if (digit as f64) == absolute {
+            let mut output = String::new();
+            if number < 0.0f64 {
+                output.push('-');
+            };
+            output.push(char::from_u32((digit + 48) as u32).unwrap_or('0'));
+            return JsonbInput::Number(output);
+        };
+    };
     JsonbInput::Unknown
 }
 

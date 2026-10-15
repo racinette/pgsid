@@ -101,8 +101,8 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'session',
         setting: 'extra_float_digits',
         requirement:
-          'Finite nonzero float conversion requires a rendering context and currently defers. SQL NULL, both zeros, NaN and infinities have deterministic JSONB conversion.',
-        owner: 'tests/sql-semantics/check-jsonb-conversion.test.ts',
+          'Other floating values currently defer because rendering context is not modelled. Integers from -9 through 9, NaN and infinities are definite. Geometric output uses invariant coordinates and preserves signed zero.',
+        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
       },
       {
         kind: 'session',
@@ -110,6 +110,34 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         requirement:
           'Finite timestamptz conversion requires TimeZone and currently defers; SQL NULL and both infinities remain definite. Date and timestamp JSON output uses ISO formatting independently of DateStyle.',
         owner: 'tests/sql-semantics/check-jsonb-output-conversion.test.ts',
+      },
+      {
+        kind: 'session',
+        setting: 'bytea_output',
+        requirement:
+          'Bytea conversion requires bytea_output; hex and escape produce different JSON strings even for empty bytea. SQL NULL and errors remain definite.',
+        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
+      },
+      {
+        kind: 'session',
+        setting: 'IntervalStyle',
+        requirement:
+          'Finite interval conversion requires IntervalStyle; SQL NULL, errors and both infinities remain definite.',
+        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
+      },
+      {
+        kind: 'session',
+        setting: 'lc_monetary',
+        requirement:
+          'Money conversion requires monetary formatting metadata from lc_monetary. SQL NULL and errors remain definite.',
+        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
+      },
+      {
+        kind: 'database',
+        setting: 'catalog',
+        requirement:
+          'Nonzero OID-alias rendering and non-NULL enum conversion require catalog or user-defined JSON-cast data. Supplied values do not trigger local lookup; zero alias sentinels, SQL NULL and errors remain definite.',
+        owner: 'tests/sql-semantics/check-jsonb-context-conversion.test.ts',
       },
     ]
 
