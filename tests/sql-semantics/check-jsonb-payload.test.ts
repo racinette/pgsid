@@ -75,6 +75,10 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     CONSTRAINT merged_document CHECK(CASE WHEN bypass THEN true ELSE (lhs||rhs) IS NOT DISTINCT FROM expected_concat END),
     CONSTRAINT without_key CHECK(CASE WHEN bypass OR NOT delete_members THEN true ELSE (lhs-key_name) IS NOT DISTINCT FROM expected_key END),
     CONSTRAINT without_index CHECK(CASE WHEN bypass OR NOT delete_positions THEN true ELSE (lhs-element_index) IS NOT DISTINCT FROM expected_index END))`)
+    await pg.exec(`CREATE TABLE jsonb_format_inputs(document retained_document,strip_arrays boolean,expected_default jsonb,expected_strip jsonb,expected_pretty text,bypass boolean,
+    CONSTRAINT default_stripped CHECK(CASE WHEN bypass THEN true ELSE jsonb_strip_nulls(document) IS NOT DISTINCT FROM expected_default END),
+    CONSTRAINT flag_stripped CHECK(CASE WHEN bypass THEN true ELSE jsonb_strip_nulls(document,strip_arrays) IS NOT DISTINCT FROM expected_strip END),
+    CONSTRAINT pretty_layout CHECK(CASE WHEN bypass THEN true ELSE jsonb_pretty(jsonb_strip_nulls(document,strip_arrays)) COLLATE "C" IS NOT DISTINCT FROM expected_pretty COLLATE "C" END))`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'jsonb_payloads')!
     const textTable = catalog.tables.find((t) => t.name === 'jsonb_text_inputs')!
@@ -82,8 +86,9 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     const relationTable = catalog.tables.find((t) => t.name === 'jsonb_relation_inputs')!
     const scalarTable = catalog.tables.find((t) => t.name === 'jsonb_scalar_inputs')!
     const editTable = catalog.tables.find((t) => t.name === 'jsonb_edit_inputs')!
+    const formatTable = catalog.tables.find((t) => t.name === 'jsonb_format_inputs')!
     const bundle = renderTypescriptSchemaCheckArtifacts(
-      [table, textTable, readTable, relationTable, scalarTable, editTable],
+      [table, textTable, readTable, relationTable, scalarTable, editTable, formatTable],
       catalog.domains,
       catalog.domains,
       { executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' } },
@@ -117,6 +122,84 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     const runtime = await import(
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
+    for (const [source, context] of [
+      [null, false],
+      ['null', false],
+      ['{"a":null,"b":[null,1]}', false],
+      ['[null,{"a":null},[null]]', false],
+      ['{"a":1,"a":null}', false],
+      ['{"aa":null,"é":2}', false],
+      ['{"aa":1,"é":2}', true],
+      ['{"n":9007199254740993.00,"a":null}', false],
+    ] as const)
+      for (const arrays of [false, true, null]) {
+        const row = (
+          await pg.query<{
+            source: string | null
+            default_strip: string | null
+            stripped: string | null
+            pretty: string | null
+          }>(
+            `SELECT document::text source,jsonb_strip_nulls(document)::text default_strip,jsonb_strip_nulls(document,$2::bool)::text stripped,jsonb_pretty(jsonb_strip_nulls(document,$2::bool)) pretty FROM(SELECT $1::jsonb document)q`,
+            [source, arrays],
+          )
+        ).rows[0]!
+        const wrapped = (text: string | null) =>
+          text === null ? null : runtime.makeJsonbValue(text)
+        const input = {
+          document: wrapped(row.source),
+          strip_arrays: arrays,
+          expected_default: wrapped(row.default_strip),
+          expected_strip: wrapped(row.stripped),
+          expected_pretty: row.pretty,
+          bypass: false,
+        }
+        const before = JSON.stringify(input)
+        for (const c of generated.evaluatePublicJsonbFormatInputsChecks(input))
+          expect(c.result).toEqual(
+            c.constraint === 'pretty_layout' && context && arrays !== null
+              ? { certain: false }
+              : { certain: true, value: true },
+          )
+        expect(JSON.stringify(input)).toBe(before)
+        await pg.query(
+          'INSERT INTO jsonb_format_inputs VALUES($1::jsonb,$2,$3::jsonb,$4::jsonb,$5,false)',
+          [source, arrays, row.default_strip, row.stripped, row.pretty],
+        )
+      }
+    const formatInput = {
+      document: runtime.makeJsonbValue('{"a":null,"b":[null,1]}'),
+      strip_arrays: true,
+      expected_default: runtime.makeJsonbValue('{"b":[null,1]}'),
+      expected_strip: runtime.makeJsonbValue('{"b":[1]}'),
+      expected_pretty: 'wrong',
+      bypass: false,
+    }
+    expect(
+      generated
+        .evaluatePublicJsonbFormatInputsChecks(formatInput)
+        .find((c: { constraint: string }) => c.constraint === 'pretty_layout').result,
+    ).toEqual({ certain: true, value: false })
+    for (const document of [
+      undefined,
+      '{}',
+      { kind: 'Unknown' },
+      { kind: 'Value', value: { root: 0, nodes: [], characters: [] } },
+    ]) {
+      for (const c of generated.evaluatePublicJsonbFormatInputsChecks({ ...formatInput, document }))
+        expect(c.result.certain).toBe(false)
+      for (const c of generated.evaluatePublicJsonbFormatInputsChecks({
+        ...formatInput,
+        document,
+        bypass: true,
+      }))
+        expect(c.result).toEqual({ certain: true, value: true })
+    }
+    for (const c of generated.evaluatePublicJsonbFormatInputsChecks({
+      ...formatInput,
+      document: { kind: 'Error', value: { state: parseInt('22003', 36) } },
+    }))
+      expect(c.result).toEqual({ certain: true, error: '22003' })
     for (const [lhs, rhs, key, index, members, positions] of [
       ['{"a":1,"b":2}', '{"a":3}', 'a', 0, true, false],
       ['{"aa":1,"é":2}', '{"雪":3,"aa":4}', 'é', 0, true, false],

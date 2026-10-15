@@ -227,3 +227,17 @@ CREATE TABLE document_edits (
  CONSTRAINT edit_key_removal CHECK(CASE WHEN bypass OR NOT delete_members THEN true ELSE (document-removed_key) IS NOT DISTINCT FROM recorded_key_removal END),
  CONSTRAINT edit_position_removal CHECK(CASE WHEN bypass OR NOT delete_positions THEN true ELSE (document-removed_position) IS NOT DISTINCT FROM recorded_position_removal END)
 );
+CREATE TABLE document_formats (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ document retained_normalized_document,
+ strip_arrays boolean,
+ recorded_default jsonb,
+ recorded_stripped jsonb,
+ recorded_pretty text,
+ bypass boolean NOT NULL,
+ CONSTRAINT format_default CHECK(CASE WHEN bypass THEN true ELSE jsonb_strip_nulls(document) IS NOT DISTINCT FROM recorded_default END),
+ CONSTRAINT format_flag CHECK(CASE WHEN bypass THEN true ELSE jsonb_strip_nulls(document,strip_arrays) IS NOT DISTINCT FROM recorded_stripped END),
+ CONSTRAINT format_pretty CHECK(CASE WHEN bypass THEN true ELSE jsonb_pretty(jsonb_strip_nulls(document,strip_arrays)) COLLATE "C" IS NOT DISTINCT FROM recorded_pretty COLLATE "C" END)
+);

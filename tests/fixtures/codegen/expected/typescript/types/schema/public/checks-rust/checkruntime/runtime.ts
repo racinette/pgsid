@@ -866,7 +866,7 @@ export function jsonbFromCoercedValue(input: JsonbValue): JsonbValue {
         if (jsonbInputValid(value) === false) {
             return { kind: "Unknown" };
         }
-        const source: TextValue = jsonbRender({ kind: "Value", value: value }, false);
+        const source: TextValue = jsonbRender({ kind: "Value", value: value }, false, false);
         if (source.kind === "Value") {
             const text: string = langruntime.checkedString(source.value);
             return makeJsonbValue(text);
@@ -4867,9 +4867,10 @@ interface JsonbOutputFrame {
 function copyJsonbOutputFrame(value: JsonbOutputFrame): JsonbOutputFrame {
     return { node: langruntime.checkedIndex(value.node), child: langruntime.checkedIndex(value.child) };
 }
-function jsonbRender(input: JsonbValue, requireOrder: boolean): TextValue {
+function jsonbRender(input: JsonbValue, requireOrder: boolean, pretty: boolean): TextValue {
     input = copyJsonbValue(input);
     requireOrder = langruntime.checkedBool(requireOrder);
+    pretty = langruntime.checkedBool(pretty);
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -4951,6 +4952,14 @@ function jsonbRender(input: JsonbValue, requireOrder: boolean): TextValue {
                 const frame: JsonbOutputFrame = copyJsonbOutputFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)), copyJsonbOutputFrame));
                 const node: JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(frame.node), copyJsonbNode);
                 if (frame.child === 0) {
+                    if (pretty) {
+                        output = output + langruntime.checkedChar("\n");
+                        let level: number = 0;
+                        while (langruntime.checkedAdd(level, 1) < depth) {
+                            output = output + "    ";
+                            level = langruntime.checkedAdd(level, 1);
+                        }
+                    }
                     if (node.kind === 5) {
                         output = output + langruntime.checkedChar("]");
                     }
@@ -4962,7 +4971,20 @@ function jsonbRender(input: JsonbValue, requireOrder: boolean): TextValue {
                 else {
                     const child: JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(frame.child), copyJsonbNode);
                     if (!(frame.child === node.child)) {
-                        output = output + ", ";
+                        if (pretty) {
+                            output = output + langruntime.checkedChar(",");
+                        }
+                        else {
+                            output = output + ", ";
+                        }
+                    }
+                    if (pretty) {
+                        output = output + langruntime.checkedChar("\n");
+                        let level: number = 0;
+                        while (level < depth) {
+                            output = output + "    ";
+                            level = langruntime.checkedAdd(level, 1);
+                        }
                     }
                     if (node.kind === 6) {
                         const key: string = jsonbQuote(value, child.keyStart, child.keyEnd);
@@ -4979,9 +5001,13 @@ function jsonbRender(input: JsonbValue, requireOrder: boolean): TextValue {
     }
     return { kind: "Unknown" };
 }
+export function jsonbToPrettyText(input: JsonbValue): TextValue {
+    input = copyJsonbValue(input);
+    return jsonbRender(input, true, true);
+}
 export function jsonbToText(input: JsonbValue): TextValue {
     input = copyJsonbValue(input);
-    return jsonbRender(input, true);
+    return jsonbRender(input, true, false);
 }
 interface JsonbInputVisit {
     node: number;

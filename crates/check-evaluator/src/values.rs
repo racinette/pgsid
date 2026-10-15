@@ -799,7 +799,7 @@ pub fn jsonb_from_coerced_value(input: JsonbValue) -> JsonbValue {
         if jsonb_input_valid(&value) == false {
             return JsonbValue::Unknown;
         };
-        let source = jsonb_render(JsonbValue::Value(value), false);
+        let source = jsonb_render(JsonbValue::Value(value), false, false);
         if let TextValue::Value(text) = source {
             return make_jsonb_value(text.as_str());
         };

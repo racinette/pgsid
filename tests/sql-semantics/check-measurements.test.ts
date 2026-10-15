@@ -168,6 +168,19 @@ describe('CHECK measurement boundaries', () => {
         ['pg_catalog.text', 'pg_catalog.int4'].includes(metadata.args[1]!),
     ))
       expect(jsonValueRequirements(fn.metadata)).toBeNull()
+    expect(
+      jsonValueRequirements(
+        catalog.functions.find(({ metadata }) => metadata.name === 'jsonb_pretty')!.metadata,
+      ),
+    ).toEqual([
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Text rendering of objects with multiple nonempty keys including non-ASCII keys can require server_encoding for key ordering; logical values, type inspection and SQL nullness remain portable.',
+        owner: 'tests/sql-semantics/check-jsonb-format.test.ts',
+      },
+    ])
     for (const name of ['jsonb_object_field_text', 'jsonb_array_element_text']) {
       expect(
         jsonValueRequirements(
@@ -195,6 +208,7 @@ describe('CHECK measurement boundaries', () => {
       'jsonb_ne',
       'jsonb_contains',
       'jsonb_contained',
+      'jsonb_strip_nulls',
     ])
       expect(
         jsonValueRequirements(

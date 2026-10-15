@@ -268,10 +268,10 @@ exposes a prerequisite:
 - [x] JSONB C/UTF8 ordering, exact comparator results and container traversal, with declared database defaults and composed/public INSERT parity.
 - [x] JSONB scalar casts, numeric precision/scale and unconstrained scalar-domain targets; preserve NULL, rounding, errors and lazy composition.
 - [x] JSONB concatenation and top-level text/index deletion; preserve logical trees, storage admission, ownership and public INSERT parity.
+- [x] JSONB recursive null stripping, default/array flags and pretty layout; preserve renderer encoding requirements and NULL/Unknown/error states.
 - [ ] JSONB core operations; path-array access follows arrays.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
-- [ ] Classify remaining internal and pseudo-types, with tested context requirements
-      or exclusion from the public value contract.
+- [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 Use the type audit to enumerate the remaining surface, including internal types.
 Defer ACL and full-text values until common CHECK families, including arrays and JSON, are covered.
 Done per family when its portable values, SQL-coerced row input conversion,

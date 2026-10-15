@@ -453,3 +453,99 @@ INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key
 INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'wrong_key','{"a":1,"b":2}','{"a":3}','a',0,'{"a": 3, "b": 2}','{}',NULL,true,false,false);
 -- name: edit_wrong_position
 INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'wrong_position','[1,2]','[3]','missing',-1,'[1, 2, 3]','[1, 2]','{}',true,true,false);
+
+-- name: format_object_default
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'object_default','{"a":null,"b":[null,1]}',false,'{"b": [null, 1]}','{"b": [null, 1]}','{
+    "b": [
+        null,
+        1
+    ]
+}',false);
+-- name: format_array_removal
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'array_removal','{"a":null,"b":[null,1]}',true,'{"b": [null, 1]}','{"b": [1]}','{
+    "b": [
+        1
+    ]
+}',false);
+-- name: format_nested
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'nested','[null,{"a":null,"b":2},[null],{},[]]',true,'[null, {"b": 2}, [null], {}, []]','[{"b": 2}, [], {}, []]','[
+    {
+        "b": 2
+    },
+    [
+    ],
+    {
+    },
+    [
+    ]
+]',false);
+-- name: format_nested_default
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'nested_default','[null,{"a":null,"b":2},[null],{},[]]',false,'[null, {"b": 2}, [null], {}, []]','[null, {"b": 2}, [null], {}, []]','[
+    null,
+    {
+        "b": 2
+    },
+    [
+        null
+    ],
+    {
+    },
+    [
+    ]
+]',false);
+-- name: format_root_null
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'root_null','null',true,'null','null','null',false);
+-- name: format_sql_null
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'sql_null',NULL,false,NULL,NULL,NULL,false);
+-- name: format_flag_null
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'flag_null','{"a":null}',NULL,'{}',NULL,NULL,false);
+-- name: format_empty_array
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'empty_array','[]',true,'[]','[]','[
+]',false);
+-- name: format_empty_object
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'empty_object','{}',false,'{}','{}','{
+}',false);
+-- name: format_duplicate_null
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'duplicate_null','{"a":1,"a":null}',false,'{}','{}','{
+}',false);
+-- name: format_duplicate_value
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'duplicate_value','{"a":null,"a":1}',true,'{"a": 1}','{"a": 1}','{
+    "a": 1
+}',false);
+-- name: format_numeric_scale
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'numeric_scale','{"n":9007199254740993.00,"gone":null}',false,'{"n": 9007199254740993.00}','{"n": 9007199254740993.00}','{
+    "n": 9007199254740993.00
+}',false);
+-- name: format_unicode_single
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'unicode_single','{"雪":"😊"}',true,'{"雪": "😊"}','{"雪": "😊"}','{
+    "雪": "😊"
+}',false);
+-- name: format_unicode_after_strip
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'unicode_after_strip','{"aa":null,"é":2}',false,'{"é": 2}','{"é": 2}','{
+    "é": 2
+}',false);
+-- name: format_unicode_removed
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'unicode_removed','{"é":null,"aa":1}',true,'{"aa": 1}','{"aa": 1}','{
+    "aa": 1
+}',false);
+-- name: format_scalar_string
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'scalar_string','"雪😊"',true,'"雪😊"','"雪😊"','"雪😊"',false);
+-- name: format_array_all_null
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'array_all_null','[null,null,null]',true,'[null, null, null]','[]','[
+]',false);
+-- name: format_wrong_default
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'wrong_default','{"a":null,"b":[null,1]}',true,'[]','{"b": [1]}','{
+    "b": [
+        1
+    ]
+}',false);
+-- name: format_wrong_flag
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'wrong_flag','{"a":null,"b":[null,1]}',true,'{"b": [null, 1]}','[]','{
+    "b": [
+        1
+    ]
+}',false);
+-- name: format_wrong_pretty
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'wrong_pretty','{"a":null,"b":[null,1]}',true,'{"b": [null, 1]}','{"b": [1]}','wrong',false);
+-- name: format_bypass
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(2,1,'bypass','{"a":null,"b":[null,1]}',true,'[]','[]','wrong',true);
