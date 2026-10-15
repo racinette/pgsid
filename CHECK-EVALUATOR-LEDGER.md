@@ -219,6 +219,8 @@ exposes a prerequisite:
 - [x] Establish open-path concatenation, point transformations, point/path and
       path/path distances; preserve closing-edge order, count limits, reached
       arithmetic errors and no-segment zero/NULL results.
+- [x] Establish point/path containment and path intersection, preserving open/closed
+      behavior, tolerant boundary tests, traversal order and reached arithmetic errors.
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.

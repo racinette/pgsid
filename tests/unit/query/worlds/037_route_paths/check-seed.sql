@@ -108,3 +108,55 @@ INSERT INTO route_distances(id,plan_id,label,route,reference,probe,expected_poin
 INSERT INTO route_distances(id,plan_id,label,route,reference,probe,expected_point,expected_reverse,expected_paths) VALUES(101,1,'distance_partial_nan','[(NaN,1),(NaN,NaN),(0,0),(3,4)]'::path,'[(6,0),(6,4)]'::path,'(3,0)'::point,'2.4','2.4','3');
 -- name: distance_reached_overflow
 INSERT INTO route_distances(id,plan_id,label,route,reference,probe,expected_point,expected_reverse,expected_paths) VALUES(101,1,'distance_reached_overflow','[(1e308,1e308),(-1e308,-1e308)]'::path,'[(6,0),(6,4)]'::path,'(0,0)'::point,NULL,NULL,NULL);
+-- name: membership_open_edge
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'open edge','[(0,0),(4,0)]','(2,0)',true,true,false);
+-- name: membership_open_off_edge
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'off edge','[(0,0),(4,0)]','(2,2)',false,false,false);
+-- name: membership_closed_interior
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'interior','((0,0),(4,0),(4,4),(0,4))','(2,2)',true,true,false);
+-- name: membership_closed_outside
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'outside','((0,0),(4,0),(4,4),(0,4))','(5,5)',false,false,false);
+-- name: membership_closed_boundary
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'boundary','((0,0),(4,0),(4,4),(0,4))','(4,4)',true,true,false);
+-- name: membership_open_single
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'open singleton','[(0,0)]','(0,0)',false,false,false);
+-- name: membership_closed_single
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'closed singleton','((0,0))','(0,0)',true,true,false);
+-- name: membership_concave_notch
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'concave notch','((0,0),(4,0),(4,4),(2,2),(0,4))','(2,3)',false,false,false);
+-- name: membership_self_crossing
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'self crossing boundary','((0,0),(4,4),(0,4),(4,0))','(2,2)',true,true,false);
+-- name: membership_nan_probe
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'nan probe','[(0,0),(4,0)]','(NaN,0)',false,false,false);
+-- name: membership_null_route
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'null route',NULL,'(2,2)',true,true,false);
+-- name: membership_null_probe
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'null probe','[(0,0),(4,0)]',NULL,true,true,false);
+-- name: membership_skips_overflow
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'skipped overflow','[(1e308,1e308)]','(-1e308,-1e308)',true,true,true);
+-- name: membership_wrong_point
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'wrong point observation','[(0,0),(4,0)]','(2,0)',false,true,false);
+-- name: membership_wrong_route
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'wrong route observation','[(0,0),(4,0)]','(2,0)',true,false,false);
+-- name: membership_reached_single_overflow
+INSERT INTO route_memberships(id,plan_id,label,route,probe,expected_member,expected_reverse,bypass) VALUES(101,1,'initial singleton distance overflow','[(1e308,1e308)]','(-1e308,-1e308)',NULL,NULL,false);
+-- name: crossing_open_segments
+INSERT INTO route_crossings(id,plan_id,label,route,reference,expected_cross,expected_closed,bypass) VALUES(101,1,'crossing segments','[(0,0),(4,4)]','[(0,4),(4,0)]',true,true,false);
+-- name: crossing_disjoint
+INSERT INTO route_crossings(id,plan_id,label,route,reference,expected_cross,expected_closed,bypass) VALUES(101,1,'disjoint segments','[(0,0),(4,0)]','[(0,5),(4,5)]',false,false,false);
+-- name: crossing_nested_closed
+INSERT INTO route_crossings(id,plan_id,label,route,reference,expected_cross,expected_closed,bypass) VALUES(101,1,'nested paths with no crossing edges','((0,0),(4,0),(4,4),(0,4))','((1,1),(2,1),(2,2),(1,2))',false,false,false);
+-- name: crossing_closure_only
+INSERT INTO route_crossings(id,plan_id,label,route,reference,expected_cross,expected_closed,bypass) VALUES(101,1,'closing edge only','[(0,0),(4,0),(4,4)]','[(1,0.5),(1,2)]',false,true,false);
+-- name: crossing_nan_bounds
+INSERT INTO route_crossings(id,plan_id,label,route,reference,expected_cross,expected_closed,bypass) VALUES(101,1,'nan bounding box','[(NaN,0),(0,0),(4,4)]','[(0,4),(4,0)]',false,false,false);
+-- name: crossing_wrong_open
+INSERT INTO route_crossings(id,plan_id,label,route,reference,expected_cross,expected_closed,bypass) VALUES(101,1,'wrong open observation','[(0,0),(4,4)]','[(0,4),(4,0)]',false,true,false);
+-- name: crossing_wrong_closed
+INSERT INTO route_crossings(id,plan_id,label,route,reference,expected_cross,expected_closed,bypass) VALUES(101,1,'wrong closure observation','[(0,0),(4,4)]','[(0,4),(4,0)]',true,false,false);
+-- name: crossing_skips_overflow
+INSERT INTO route_crossings(id,plan_id,label,route,reference,expected_cross,expected_closed,bypass) VALUES(101,1,'skipped crossing overflow','[(1e308,1e308),(-1e308,-1e308)]','[(0,4),(4,0)]',true,true,true);
+-- name: crossing_reached_overflow
+INSERT INTO route_crossings(id,plan_id,label,route,reference,expected_cross,expected_closed,bypass) VALUES(101,1,'crossing slope overflow','[(1e308,1e308),(-1e308,-1e308)]','[(0,4),(4,0)]',NULL,NULL,false);
+-- name: crossing_null_route
+INSERT INTO route_crossings(id,plan_id,label,route,reference,expected_cross,expected_closed,bypass) VALUES(101,1,'null crossing',NULL,'[(0,4),(4,0)]',true,true,false);
