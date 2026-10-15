@@ -259,13 +259,13 @@ exposes a prerequisite:
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root type, source output, domains,
       NULL literals, lazy composition, public wrappers and raw-write preservation.
-- [ ] JSON literals/input casts, extraction and JSONB normalization/core operations.
+- [x] JSON literals and runtime text I/O casts, preserving eager input errors and lazy branches.
+- [ ] JSON extraction and JSONB normalization/core operations.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types, with tested context requirements
       or exclusion from the public value contract.
 
 Use the type audit to enumerate the remaining surface, including internal types.
-XML text predicates do not establish an XML value representation.
 
 Defer ACL and full-text values until common CHECK families, including arrays and JSON, are covered.
 
@@ -276,8 +276,8 @@ SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsin
 session-dependent behavior, and unimplemented callables visible in the reports;
 representation support alone does not complete them.
 
-Assess recursive values and ownership before arrays, JSON, and composites.
-Establish representation or dialect changes before porting dependent callables.
+Assess recursive ownership before arrays, JSON, and composites. JSON evaluation
+assumes sufficient execution resources; server stack/allocation exhaustion is separate.
 Catalog identities and pseudo-types are not independent implementation tasks:
 array instances share a family, and polymorphic signatures resolve to concrete
 values. Database lookups and internal server interfaces require explicit

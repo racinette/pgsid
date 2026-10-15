@@ -1,3 +1,7 @@
+import {
+  jsonInputForms,
+  invalidJsonInputForms,
+} from '../../tests/sql-semantics/check-json-input-forms.js'
 import { refcursorInputForms } from '../../tests/sql-semantics/check-refcursor-input-forms.js'
 import {
   snapshotInputForms,
@@ -94,13 +98,13 @@ const nanBinaryPrecision = {
 const inputForms = [
   {
     type: 'pg_catalog."json"',
-    suite: 'tests/sql-semantics/check-json.test.ts',
-    handled: [],
-    rejected: [],
+    suite: 'tests/sql-semantics/check-json-input.test.ts',
+    handled: jsonInputForms,
+    rejected: invalidJsonInputForms,
     deferred: [],
     platformDependent: [],
     contextRequired: [],
-    unimplementedGrammar: ['Runtime text input casts and non-NULL SQL literals'],
+    unimplementedGrammar: [],
     rowInput: {
       representation: 'JsonValue with exact source text and recomputed root kind',
       rawQueryParameters: 'defer to PostgreSQL',
@@ -110,7 +114,8 @@ const inputForms = [
       owner: 'tests/sql-semantics/check-json-syntax.test.ts',
       contract:
         'Grammar validation of SQL-coerced JSON source; no Unicode escape decoding or numeric conversion',
-      postgresInputAdmission: 'Input stack/session limits are separate from grammar validity',
+      executionResources:
+        'Assumes sufficient server stack and allocation resources; no guessed nesting cutoff',
     },
   },
   ...(['pg_catalog.pg_snapshot', 'pg_catalog.txid_snapshot'] as const).map((type) => ({

@@ -35,3 +35,16 @@ CREATE TABLE document_reviews (
  CONSTRAINT review_kind CHECK(CASE WHEN bypass THEN true ELSE json_typeof(COALESCE(document,NULL::json)) COLLATE "C"=recorded_kind COLLATE "C" END),
  CONSTRAINT review_source CHECK(CASE WHEN bypass THEN true ELSE document::text COLLATE "C"=recorded_source COLLATE "C" END)
 );
+CREATE TABLE document_imports (
+ id integer PRIMARY KEY,
+ archive_id integer NOT NULL REFERENCES document_archives(id),
+ label text NOT NULL,
+ source_text text,
+ recorded_kind text,
+ recorded_source text,
+ bypass boolean NOT NULL,
+ allow_absent boolean NOT NULL,
+ CONSTRAINT import_kind CHECK(CASE WHEN bypass THEN true ELSE json_typeof(source_text::retained_document) COLLATE "C"=recorded_kind COLLATE "C" END),
+ CONSTRAINT import_source CHECK(CASE WHEN bypass THEN true ELSE COALESCE(source_text::retained_document,'null'::json)::text COLLATE "C"=recorded_source COLLATE "C" END),
+ CONSTRAINT import_presence CHECK(CASE WHEN bypass THEN true ELSE (source_text::retained_document IS NULL)=allow_absent END)
+);

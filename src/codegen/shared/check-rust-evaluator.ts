@@ -231,6 +231,7 @@ export function emitCheckRustEvaluator(
       (node.kind === 'interval-literal' ||
         (node.kind === 'certain' &&
           (node.expression.kind === 'point' ||
+            node.expression.kind === 'json' ||
             (node.expression.kind === 'temporal' &&
               (node.expression.type === 'pg_catalog."interval"' ||
                 node.expression.type === 'pg_catalog."time"' ||
@@ -707,6 +708,23 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression('Snapshot input requires its catalog I/O identity')
       return { name: bind(`snapshot_from_text(${ownedOperand(operand)})`), type: node.type }
     }
+    if (node.kind === 'text-to-json') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (
+        ![
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type) ||
+        !io ||
+        builtinMetadata(io).args[0] !== 'pg_catalog.cstring' ||
+        builtinMetadata(io).result !== node.type
+      )
+        throw new UnsupportedCheckRustExpression('JSON input requires its catalog I/O identity')
+      return { name: bind(`json_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
     if (node.kind === 'text-to-xid8') {
       const operand = emitScalar(node.operand, bindings, used)
       const io = builtinTypeIO(node.type)?.input
@@ -990,8 +1008,11 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`snapshot_from_text(${text})`), type: value.type }
       }
-      if (value.kind === 'json' && value.value === null)
-        return { name: bind('json_null()'), type: value.type }
+      if (value.kind === 'json') {
+        if (value.value === null) return { name: bind('json_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`json_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'oid') {
         if (value.value === null) return { name: bind('oid_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)

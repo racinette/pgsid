@@ -10450,6 +10450,25 @@ export function jsonToText(input: checkruntime.JsonValue): checkruntime.TextValu
     }
     return { kind: "Unknown" };
 }
+const jsonInvalidText = 3484946;
+export function jsonFromText(input: checkruntime.TextValue): checkruntime.JsonValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const parsed: checkruntime.JsonValue = checkruntime.makeJsonValue(value);
+        if (parsed.kind === "Unknown") {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonInvalidText) };
+        }
+        return parsed;
+    }
+    return { kind: "Unknown" };
+}
 function lineEqualProduct(left: bigint, right: bigint, ratio: checkruntime.Float8Value): checkruntime.BoolValue {
     left = langruntime.checkedI64(left);
     right = langruntime.checkedI64(right);

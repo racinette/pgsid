@@ -396,8 +396,8 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
-  if (type === 'pg_catalog."json"' && literal.kind === 'null')
-    return { kind: 'json', type, value: null }
+  if (type === 'pg_catalog."json"' && (literal.kind === 'null' || literal.kind === 'string'))
+    return { kind: 'json', type, value: literal.value }
   if (
     (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') &&
     (literal.kind === 'string' || literal.kind === 'null')
@@ -1391,6 +1391,7 @@ export function bindCatalogCheck(
         const domainType = catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
         if (
           domainType !== 'pg_catalog.refcursor' &&
+          domainType !== 'pg_catalog."json"' &&
           domainType !== 'pg_catalog.point' &&
           domainType !== 'pg_catalog.line' &&
           domainType !== 'pg_catalog.lseg' &&
@@ -1442,6 +1443,8 @@ export function bindCatalogCheck(
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
       const modifiers = castType?.['typmods']
+      if (type === 'pg_catalog."json"' && Array.isArray(modifiers) && modifiers.length)
+        return unknown
       if (type === 'pg_catalog."interval"' && Array.isArray(modifiers) && modifiers.length) {
         if (modifiers.length > 2) return unknown
         const values = modifiers.map((modifier) => {
@@ -1911,6 +1914,22 @@ export function bindCatalogCheck(
       ) {
         const text = materialize(operand, 'pg_catalog.text')
         return text ? { type, value: { kind: 'text-to-tid', type, operand: text } } : unknown
+      }
+      if (
+        type === 'pg_catalog."json"' &&
+        operand.value &&
+        [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type ?? '')
+      ) {
+        const text =
+          operand.type === 'pg_catalog.bpchar' || operand.type === 'pg_catalog.name'
+            ? operand.value
+            : materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-json', type, operand: text } } : unknown
       }
       if (
         isSnapshotType(type) &&
@@ -2689,8 +2708,11 @@ export function bindCatalogCheck(
       kind === 'function' &&
       nodes.length === 1 &&
       (aliasType === 'pg_catalog.refcursor' ||
+        aliasType === 'pg_catalog."json"' ||
         isSnapshotType(aliasType) ||
-        ((args[0]?.type === 'pg_catalog.refcursor' || isSnapshotType(args[0]?.type)) &&
+        ((args[0]?.type === 'pg_catalog.refcursor' ||
+          args[0]?.type === 'pg_catalog."json"' ||
+          isSnapshotType(args[0]?.type)) &&
           [
             'pg_catalog.text',
             'pg_catalog."varchar"',
