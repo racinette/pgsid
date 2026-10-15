@@ -263,6 +263,7 @@ exposes a prerequisite:
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.
 - [x] JSONB logical normalization, shared parsing, SQL-coerced public inputs, domains, NULL and lazy composition.
 - [x] JSONB literals, text/JSON I/O casts and stored-format admission; preserve eager errors and lazy branches.
+- [x] JSONB field/element extraction, decoded text, array length and top-level existence, including scalar indexing.
 - [ ] JSONB core operations; path-array access follows arrays.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types, with tested context requirements
@@ -279,8 +280,7 @@ representation support alone does not complete them.
 
 Assess recursive ownership before arrays, JSON, and composites. JSON evaluation
 assumes sufficient execution resources; server stack/allocation exhaustion is separate.
-Catalog identities and pseudo-types are not independent tasks: array instances
-share a family, and polymorphic signatures resolve to concrete
+Catalog identities and pseudo-types are not independent tasks: array instances share a family, and polymorphic signatures resolve to concrete
 values. Database lookups and internal server interfaces require explicit
 requirements rather than fabricated local results.
 

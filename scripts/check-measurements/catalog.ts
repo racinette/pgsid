@@ -84,10 +84,14 @@ export function jsonValueRequirements(item: BuiltinCallable) {
     item.strict &&
     item.volatility === 'i' &&
     !item.returnsSet &&
-    item.name === 'jsonb_out' &&
-    item.args.length === 1 &&
     item.args[0] === 'pg_catalog.jsonb' &&
-    item.result === 'pg_catalog.cstring'
+    ((item.name === 'jsonb_out' &&
+      item.args.length === 1 &&
+      item.result === 'pg_catalog.cstring') ||
+      (item.args.length === 2 &&
+        item.result === 'pg_catalog.text' &&
+        ((item.name === 'jsonb_object_field_text' && item.args[1] === 'pg_catalog.text') ||
+          (item.name === 'jsonb_array_element_text' && item.args[1] === 'pg_catalog.int4'))))
   )
     return [
       {
@@ -95,7 +99,10 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         setting: 'server_encoding',
         requirement:
           'Text rendering of objects with multiple nonempty keys including non-ASCII keys can require server_encoding for key ordering; logical values, type inspection and SQL nullness remain portable.',
-        owner: 'tests/sql-semantics/check-jsonb-payload.test.ts',
+        owner:
+          item.name === 'jsonb_out'
+            ? 'tests/sql-semantics/check-jsonb-payload.test.ts'
+            : 'tests/sql-semantics/check-jsonb-extraction.test.ts',
       },
     ]
 

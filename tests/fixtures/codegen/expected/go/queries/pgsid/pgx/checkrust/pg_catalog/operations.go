@@ -10426,6 +10426,236 @@ func JsonbTypeof68xu(input checkruntime.JsonbValue) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+
+const jsonbExtractParameter = 3452619
+
+type jsonbExtractKey struct {
+	characters []rune
+}
+
+func copyjsonbExtractKey(value jsonbExtractKey) jsonbExtractKey {
+	return jsonbExtractKey{characters: langruntime.CheckedChars(value.characters)}
+}
+func jsonbExtractMatches(source *checkruntime.JsonbPayload, begin int, end int, key *jsonbExtractKey) bool {
+	begin = langruntime.CheckedIndex(begin)
+	end = langruntime.CheckedIndex(end)
+	if langruntime.CheckedSubtract(end, begin) != len(key.characters) {
+		return false
+	}
+	index := 0
+	for index < len(key.characters) {
+		if source.Characters[langruntime.CheckedAdd(begin, index)] != key.characters[index] {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func jsonbExtractMember(source *checkruntime.JsonbPayload, key *jsonbExtractKey) int {
+	root := source.Nodes[source.Root]
+	if root.Kind != 6 {
+		return 0
+	}
+	child := root.Child
+	for child > 0 {
+		node := source.Nodes[child]
+		if jsonbExtractMatches(source, node.KeyStart, node.KeyEnd, key) {
+			return child
+		}
+		child = langruntime.CheckedIndex(node.Next)
+	}
+	return 0
+}
+func jsonbExtractText(input checkruntime.JsonbValue) checkruntime.TextValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		node := value.Nodes[value.Root]
+		if node.Kind == 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+		}
+		if node.Kind == 4 {
+			text := langruntime.NewTextBuffer("")
+			position := node.TextStart
+			for position < node.TextEnd {
+				text = append(text, string(langruntime.CheckedChar(value.Characters[position]))...)
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
+		}
+		return checkruntime.JsonbToText(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value})
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func JsonbObjectField4uf3(input checkruntime.JsonbValue, key checkruntime.TextValue) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if key.Kind == checkruntime.TextValueError {
+		error := key.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if key.Kind == checkruntime.TextValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		if key.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(key.Value)
+			characters := jsonbExtractKey{characters: []rune(text)}
+			selected := jsonbExtractMember(&value, &characters)
+			if selected > 0 {
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: value.Characters, Nodes: value.Nodes, Root: selected}}
+			}
+		}
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+}
+func JsonbObjectFieldTextJpuz(input checkruntime.JsonbValue, key checkruntime.TextValue) checkruntime.TextValue {
+	input = checkruntime.CopyJsonbValue(input)
+	selected := JsonbObjectField4uf3(input, key)
+	return jsonbExtractText(selected)
+}
+func JsonbArrayElement08oi(input checkruntime.JsonbValue, index checkruntime.Int4Value) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if index.Kind == checkruntime.Int4ValueError {
+		error := index.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if index.Kind == checkruntime.Int4ValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		if index.Kind == checkruntime.Int4ValueValue {
+			position := langruntime.CheckedI32(index.Value)
+			root := value.Nodes[value.Root]
+			if root.Kind < 5 {
+				if position == 0 || position == langruntime.CheckedSignedNegate(1) {
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value}
+				}
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+			}
+			if root.Kind != 5 {
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+			}
+			offset := int64(langruntime.CheckedI32(position))
+			if offset < int64(0) {
+				count := int64(0)
+				child := root.Child
+				for child > 0 {
+					count = langruntime.CheckedI64Add(count, int64(1))
+					child = langruntime.CheckedIndex(value.Nodes[child].Next)
+				}
+				offset = langruntime.CheckedI64Add(offset, count)
+			}
+			if offset < int64(0) {
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+			}
+			selected := root.Child
+			for selected > 0 && offset > int64(0) {
+				selected = langruntime.CheckedIndex(value.Nodes[selected].Next)
+				offset = langruntime.CheckedI64Subtract(offset, int64(1))
+			}
+			if selected > 0 {
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: value.Characters, Nodes: value.Nodes, Root: selected}}
+			}
+		}
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+}
+func JsonbArrayElementText83ql(input checkruntime.JsonbValue, index checkruntime.Int4Value) checkruntime.TextValue {
+	input = checkruntime.CopyJsonbValue(input)
+	selected := JsonbArrayElement08oi(input, index)
+	return jsonbExtractText(selected)
+}
+func JsonbArrayLength1gng(input checkruntime.JsonbValue) checkruntime.Int4Value {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		root := value.Nodes[value.Root]
+		if root.Kind != 5 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonbExtractParameter)}
+		}
+		count := 0
+		child := root.Child
+		for child > 0 {
+			count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+			child = langruntime.CheckedIndex(value.Nodes[child].Next)
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: count}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func JsonbExistsF8f8(input checkruntime.JsonbValue, key checkruntime.TextValue) checkruntime.BoolValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if key.Kind == checkruntime.TextValueError {
+		error := key.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if key.Kind == checkruntime.TextValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		if key.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(key.Value)
+			characters := jsonbExtractKey{characters: []rune(text)}
+			root := value.Nodes[value.Root]
+			if root.Kind == 6 {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: jsonbExtractMember(&value, &characters) > 0}
+			}
+			if root.Kind == 4 {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: jsonbExtractMatches(&value, root.TextStart, root.TextEnd, &characters)}
+			}
+			if root.Kind == 5 {
+				child := root.Child
+				for child > 0 {
+					node := value.Nodes[child]
+					if node.Kind == 4 && jsonbExtractMatches(&value, node.TextStart, node.TextEnd, &characters) {
+						return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+					}
+					child = langruntime.CheckedIndex(node.Next)
+				}
+			}
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+}
 func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) checkruntime.BoolValue {
 	product := Float8mulD3nd(ratio, checkruntime.MakeFloat8Bits(right))
 	if product.Kind == checkruntime.Float8ValueError {

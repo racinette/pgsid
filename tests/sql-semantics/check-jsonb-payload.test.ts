@@ -26,11 +26,22 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     CONSTRAINT present CHECK(document IS NOT NULL),
     CONSTRAINT guarded CHECK(CASE WHEN bypass THEN true ELSE jsonb_typeof(document) COLLATE "C"=expected_kind COLLATE "C" END));
     CREATE TABLE jsonb_text_inputs(source_text text,expected_source text,bypass boolean,
-    CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::retained_document::text COLLATE "C"=expected_source COLLATE "C" END));`)
+    CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::retained_document::text COLLATE "C"=expected_source COLLATE "C" END));
+    CREATE TABLE jsonb_read_inputs(document retained_document,field_name text,element_index integer,expected_json text,expected_text text,expected_element_json text,expected_element_text text,expected_count integer,expected_exists boolean,check_count boolean,bypass boolean,
+    CONSTRAINT field_source CHECK(CASE WHEN bypass THEN true ELSE (document->field_name)::text COLLATE "C" IS NOT DISTINCT FROM expected_json COLLATE "C" END),
+    CONSTRAINT field_text CHECK(CASE WHEN bypass THEN true ELSE (document->>field_name) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END),
+    CONSTRAINT element_source CHECK(CASE WHEN bypass THEN true ELSE (document->element_index)::text COLLATE "C" IS NOT DISTINCT FROM expected_element_json COLLATE "C" END),
+    CONSTRAINT element_text CHECK(CASE WHEN bypass THEN true ELSE (document->>element_index) COLLATE "C" IS NOT DISTINCT FROM expected_element_text COLLATE "C" END),
+    CONSTRAINT array_length CHECK(CASE WHEN bypass OR NOT check_count THEN true ELSE jsonb_array_length(document) IS NOT DISTINCT FROM expected_count END),
+    CONSTRAINT key_exists CHECK(CASE WHEN bypass THEN true ELSE (document ? field_name) IS NOT DISTINCT FROM expected_exists END));`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'jsonb_payloads')!
     const textTable = catalog.tables.find((t) => t.name === 'jsonb_text_inputs')!
-    const bundle = renderTypescriptSchemaCheckArtifacts([table, textTable], catalog.domains)
+    const readTable = catalog.tables.find((t) => t.name === 'jsonb_read_inputs')!
+    const bundle = renderTypescriptSchemaCheckArtifacts(
+      [table, textTable, readTable],
+      catalog.domains,
+    )
     await writeFile(join(root, 'package.json'), '{"type":"module"}\n')
     await writeFile(join(root, 'checks.ts'), bundle.checks)
     for (const artifact of checkTypescriptArtifacts(bundle.rustFiles!)) {
@@ -58,6 +69,96 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
     type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const evaluateReads = (
+      document: unknown,
+      expected: Record<string, unknown> = {},
+      bypass = false,
+    ): Record<string, Result> =>
+      Object.fromEntries(
+        generated
+          .evaluatePublicJsonbReadInputsChecks({
+            document,
+            field_name: 'a',
+            element_index: 0,
+            expected_json: null,
+            expected_text: null,
+            expected_element_json: null,
+            expected_element_text: null,
+            expected_count: 0,
+            expected_exists: false,
+            check_count: true,
+            ...expected,
+            bypass,
+          })
+          .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
+      )
+    for (const [source, key, index] of [
+      ['{"a":1,"a":2}', 'a', 0],
+      ['{"雪":"😊"}', '雪', 0],
+      ['{"a":[{"name":"first"},{"name":"last"}]}', 'a', 0],
+      ['[null,9007199254740993.00,"a"]', 'a', -1],
+      ['["a",null]', 'a', -2147483648],
+      ['[]', 'a', 0],
+      ['"a"', 'a', -1],
+      ['null', 'a', 0],
+      ['42.00', 'a', 0],
+    ] as const) {
+      const row = (
+        await pg.query<{
+          source: string
+          expected_json: string | null
+          expected_text: string | null
+          expected_element_json: string | null
+          expected_element_text: string | null
+          expected_count: number | null
+          expected_exists: boolean
+          check_count: boolean
+        }>(
+          `SELECT document::text source,(document->$2::text)::text expected_json,document->>$2::text expected_text,(document->$3::int)::text expected_element_json,document->>$3::int expected_element_text,CASE WHEN jsonb_typeof(document)='array' THEN jsonb_array_length(document) ELSE NULL END expected_count,document ? $2::text expected_exists,jsonb_typeof(document)='array' check_count FROM (SELECT $1::jsonb document) q`,
+          [source, key, index],
+        )
+      ).rows[0]!
+      const { source: normalized, ...expected } = row
+      const value = runtime.makeJsonbValue(normalized),
+        before = JSON.stringify(value)
+      const inputs = { ...expected, field_name: key, element_index: index }
+      expect(
+        Object.values(evaluateReads(value, inputs)).every((r) => r.certain && r.value === true),
+        source,
+      ).toBe(true)
+      expect(JSON.stringify(value)).toBe(before)
+      await pg.query(
+        'INSERT INTO jsonb_read_inputs VALUES($1::jsonb,$2,$3,$4,$5,$6,$7,$8,$9,$10,false)',
+        [
+          source,
+          key,
+          index,
+          row.expected_json,
+          row.expected_text,
+          row.expected_element_json,
+          row.expected_element_text,
+          row.expected_count,
+          row.expected_exists,
+          row.check_count,
+        ],
+      )
+      expect(evaluateReads(value, { ...inputs, expected_text: 'wrong' }).field_text).toEqual({
+        certain: true,
+        value: false,
+      })
+      expect(
+        evaluateReads(value, { ...inputs, expected_exists: !row.expected_exists }).key_exists,
+      ).toEqual({ certain: true, value: false })
+    }
+    expect(evaluateReads(runtime.makeJsonbValue('{}')).array_length).toEqual({
+      certain: true,
+      error: '22023',
+    })
+    const uncertainSubtree = runtime.makeJsonbValue('{"a":{"aa":1,"é":2},"plain":"known"}')
+    expect(evaluateReads(uncertainSubtree).field_source).toEqual({ certain: false })
+    expect(
+      evaluateReads(uncertainSubtree, { field_name: 'plain', expected_text: 'known' }).field_text,
+    ).toEqual({ certain: true, value: true })
     const evaluateText = (
       source_text: unknown,
       expected_source: unknown = '{}',
@@ -230,6 +331,10 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         certain: true,
         value: true,
       })
+      expect(Object.values(evaluateReads(value)).every((r) => r.certain === false)).toBe(true)
+      expect(
+        Object.values(evaluateReads(value, {}, true)).every((r) => r.certain && r.value === true),
+      ).toBe(true)
     }
     expect(evaluate(null).present).toEqual({ certain: true, value: false })
     expect(evaluate(runtime.makeJsonbValue('null'), 'null', 'null').present).toEqual({

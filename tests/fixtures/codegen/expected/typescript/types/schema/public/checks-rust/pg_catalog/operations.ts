@@ -10484,6 +10484,233 @@ export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.Te
     }
     return { kind: "Unknown" };
 }
+const jsonbExtractParameter = 3452619;
+interface JsonbExtractKey {
+    characters: string[];
+}
+function copyJsonbExtractKey(value: JsonbExtractKey): JsonbExtractKey {
+    return { characters: langruntime.checkedChars(value.characters) };
+}
+function jsonbExtractMatches(source: checkruntime.JsonbPayload, begin: number, end: number, key: JsonbExtractKey): boolean {
+    begin = langruntime.checkedIndex(begin);
+    end = langruntime.checkedIndex(end);
+    if (!(langruntime.checkedSubtract(end, begin) === key.characters.length)) {
+        return false;
+    }
+    let index: number = 0;
+    while (index < key.characters.length) {
+        if (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(begin, index))) === langruntime.indexChar(key.characters, langruntime.checkedIndex(index)))) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+function jsonbExtractMember(source: checkruntime.JsonbPayload, key: JsonbExtractKey): number {
+    const root: checkruntime.JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(source.root), checkruntime.copyJsonbNode);
+    if (!(root.kind === 6)) {
+        return 0;
+    }
+    let child: number = root.child;
+    while (child > 0) {
+        const node: checkruntime.JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode);
+        if (jsonbExtractMatches(source, node.keyStart, node.keyEnd, key)) {
+            return child;
+        }
+        child = langruntime.checkedIndex(node.next);
+    }
+    return 0;
+}
+function jsonbExtractText(input: checkruntime.JsonbValue): checkruntime.TextValue {
+    input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        const node: checkruntime.JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode);
+        if (node.kind === 0) {
+            return { kind: "Null" };
+        }
+        if (node.kind === 4) {
+            let text: string = "";
+            let position: number = node.textStart;
+            while (position < node.textEnd) {
+                text = text + langruntime.checkedChar(langruntime.indexChar(value.characters, langruntime.checkedIndex(position)));
+                position = langruntime.checkedAdd(position, 1);
+            }
+            return { kind: "Value", value: text };
+        }
+        return checkruntime.jsonbToText({ kind: "Value", value: value });
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbObjectField4uf3(input: checkruntime.JsonbValue, key: checkruntime.TextValue): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (key.kind === "Error") {
+        const error: checkruntime.SqlError = key.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (key.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        if (key.kind === "Value") {
+            const text: string = langruntime.checkedString(key.value);
+            const characters: JsonbExtractKey = { characters: Array.from(text) };
+            const selected: number = jsonbExtractMember(value, characters);
+            if (selected > 0) {
+                return { kind: "Value", value: { characters: value.characters, nodes: value.nodes, root: selected } };
+            }
+        }
+    }
+    return { kind: "Null" };
+}
+export function jsonbObjectFieldTextJpuz(input: checkruntime.JsonbValue, key: checkruntime.TextValue): checkruntime.TextValue {
+    input = checkruntime.copyJsonbValue(input);
+    const selected: checkruntime.JsonbValue = jsonbObjectField4uf3(input, key);
+    return jsonbExtractText(selected);
+}
+export function jsonbArrayElement08oi(input: checkruntime.JsonbValue, index: checkruntime.Int4Value): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (index.kind === "Error") {
+        const error: checkruntime.SqlError = index.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (index.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        if (index.kind === "Value") {
+            const position: number = langruntime.checkedI32(index.value);
+            const root: checkruntime.JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode);
+            if (root.kind < 5) {
+                if (position === 0 || position === langruntime.checkedSignedNegate(1)) {
+                    return { kind: "Value", value: value };
+                }
+                return { kind: "Null" };
+            }
+            if (!(root.kind === 5)) {
+                return { kind: "Null" };
+            }
+            let offset: bigint = BigInt(langruntime.checkedI32(position));
+            if (offset < 0n) {
+                let count: bigint = 0n;
+                let child: number = root.child;
+                while (child > 0) {
+                    count = langruntime.checkedI64(langruntime.checkedI64Add(count, 1n));
+                    child = langruntime.checkedIndex(langruntime.indexStruct(value.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode).next);
+                }
+                offset = langruntime.checkedI64(langruntime.checkedI64Add(offset, count));
+            }
+            if (offset < 0n) {
+                return { kind: "Null" };
+            }
+            let selected: number = root.child;
+            while (selected > 0 && offset > 0n) {
+                selected = langruntime.checkedIndex(langruntime.indexStruct(value.nodes, langruntime.checkedIndex(selected), checkruntime.copyJsonbNode).next);
+                offset = langruntime.checkedI64(langruntime.checkedI64Subtract(offset, 1n));
+            }
+            if (selected > 0) {
+                return { kind: "Value", value: { characters: value.characters, nodes: value.nodes, root: selected } };
+            }
+        }
+    }
+    return { kind: "Null" };
+}
+export function jsonbArrayElementText83ql(input: checkruntime.JsonbValue, index: checkruntime.Int4Value): checkruntime.TextValue {
+    input = checkruntime.copyJsonbValue(input);
+    const selected: checkruntime.JsonbValue = jsonbArrayElement08oi(input, index);
+    return jsonbExtractText(selected);
+}
+export function jsonbArrayLength1gng(input: checkruntime.JsonbValue): checkruntime.Int4Value {
+    input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        const root: checkruntime.JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode);
+        if (!(root.kind === 5)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonbExtractParameter) };
+        }
+        let count: number = 0;
+        let child: number = root.child;
+        while (child > 0) {
+            count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+            child = langruntime.checkedIndex(langruntime.indexStruct(value.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode).next);
+        }
+        return { kind: "Value", value: count };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbExistsF8f8(input: checkruntime.JsonbValue, key: checkruntime.TextValue): checkruntime.BoolValue {
+    input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (key.kind === "Error") {
+        const error: checkruntime.SqlError = key.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (key.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        if (key.kind === "Value") {
+            const text: string = langruntime.checkedString(key.value);
+            const characters: JsonbExtractKey = { characters: Array.from(text) };
+            const root: checkruntime.JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode);
+            if (root.kind === 6) {
+                return { kind: "Value", value: jsonbExtractMember(value, characters) > 0 };
+            }
+            if (root.kind === 4) {
+                return { kind: "Value", value: jsonbExtractMatches(value, root.textStart, root.textEnd, characters) };
+            }
+            if (root.kind === 5) {
+                let child: number = root.child;
+                while (child > 0) {
+                    const node: checkruntime.JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode);
+                    if (node.kind === 4 && jsonbExtractMatches(value, node.textStart, node.textEnd, characters)) {
+                        return { kind: "Value", value: true };
+                    }
+                    child = langruntime.checkedIndex(node.next);
+                }
+            }
+            return { kind: "Value", value: false };
+        }
+    }
+    return { kind: "Null" };
+}
 function lineEqualProduct(left: bigint, right: bigint, ratio: checkruntime.Float8Value): checkruntime.BoolValue {
     left = langruntime.checkedI64(left);
     right = langruntime.checkedI64(right);

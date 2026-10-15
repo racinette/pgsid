@@ -149,7 +149,30 @@ describe('CHECK measurement boundaries', () => {
         owner: 'tests/sql-semantics/check-jsonb-payload.test.ts',
       },
     ])
-    for (const name of ['json_typeof', 'json_array_length', 'jsonb_typeof'])
+    for (const name of ['jsonb_object_field_text', 'jsonb_array_element_text']) {
+      expect(
+        jsonValueRequirements(
+          catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata,
+        ),
+      ).toEqual([
+        {
+          kind: 'database',
+          setting: 'server_encoding',
+          requirement:
+            'Text rendering of objects with multiple nonempty keys including non-ASCII keys can require server_encoding for key ordering; logical values, type inspection and SQL nullness remain portable.',
+          owner: 'tests/sql-semantics/check-jsonb-extraction.test.ts',
+        },
+      ])
+    }
+    for (const name of [
+      'json_typeof',
+      'json_array_length',
+      'jsonb_typeof',
+      'jsonb_object_field',
+      'jsonb_array_element',
+      'jsonb_array_length',
+      'jsonb_exists',
+    ])
       expect(
         jsonValueRequirements(
           catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata,

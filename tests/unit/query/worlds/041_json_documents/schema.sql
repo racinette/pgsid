@@ -117,3 +117,35 @@ CREATE TABLE document_normalizations (
  CONSTRAINT normalization_presence CHECK(CASE WHEN bypass THEN true ELSE (source_text::jsonb IS NULL)=allow_absent END),
  CONSTRAINT normalization_bridge CHECK(CASE WHEN bypass THEN true ELSE COALESCE(source_text::json::jsonb,'null'::jsonb)::json::text COLLATE "C"=recorded_source COLLATE "C" END)
 );
+CREATE TABLE normalized_fields (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ document retained_normalized_document,
+ field_name text NOT NULL,
+ recorded_json text,
+ recorded_text text,
+ allow_missing boolean NOT NULL,
+ recorded_exists boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT normalized_field_source CHECK(CASE WHEN bypass THEN true ELSE (document->field_name)::text COLLATE "C" IS NOT DISTINCT FROM recorded_json COLLATE "C" END),
+ CONSTRAINT normalized_field_text CHECK(CASE WHEN bypass THEN true ELSE (document->>field_name) COLLATE "C" IS NOT DISTINCT FROM recorded_text COLLATE "C" END),
+ CONSTRAINT normalized_field_presence CHECK(CASE WHEN bypass THEN true ELSE (document->field_name IS NULL)=allow_missing END),
+ CONSTRAINT normalized_field_exists CHECK(CASE WHEN bypass THEN true ELSE (document ? field_name) IS NOT DISTINCT FROM recorded_exists END)
+);
+CREATE TABLE normalized_elements (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ document retained_normalized_document,
+ element_index integer NOT NULL,
+ recorded_json text,
+ recorded_text text,
+ recorded_count integer,
+ allow_missing boolean NOT NULL,
+ bypass boolean NOT NULL,
+ CONSTRAINT normalized_element_source CHECK(CASE WHEN bypass THEN true ELSE (document->element_index)::text COLLATE "C" IS NOT DISTINCT FROM recorded_json COLLATE "C" END),
+ CONSTRAINT normalized_element_text CHECK(CASE WHEN bypass THEN true ELSE (document->>element_index) COLLATE "C" IS NOT DISTINCT FROM recorded_text COLLATE "C" END),
+ CONSTRAINT normalized_element_presence CHECK(CASE WHEN bypass THEN true ELSE (document->element_index IS NULL)=allow_missing END),
+ CONSTRAINT normalized_element_count CHECK(CASE WHEN bypass THEN true ELSE jsonb_array_length(document)=recorded_count END)
+);
