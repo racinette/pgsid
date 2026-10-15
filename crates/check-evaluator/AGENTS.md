@@ -31,8 +31,14 @@ import them. Keep schema-only helpers with their callables.
 - Keep operation behavior in Rust. Go and TypeScript adapters only convert row
   values and expose the stable validator interface.
 - Add a PostgreSQL/PGlite comparison for migrated behavior and exercise the
-  same cases in Rust, generated Go, and generated TypeScript. Run
-  `pnpm check-rust:check` from the repository root.
+  same cases in Rust, generated Go, and generated TypeScript. For an isolated
+  operation or type extension, run its focused suites and regressions for the
+  shared behavior it changes. Rebuild affected assets and verify relevant codegen
+  goldens, static checks, corpus contracts and measurements. Record the selection
+  and its dependency rationale. Run `pnpm check-rust:check` for broad shared
+  semantic changes and integration milestones; adding an isolated type does not
+  by itself require every unrelated family suite. Never report a partial run as
+  a full-suite pass.
 - Text equality, hashing, searches and LIKE accept deterministic collations; bpchar hashes remove trailing spaces.
   Ordering requires C and follows UTF8 byte order after resolving collation identity and overrides.
   Lengths, trims, slicing, padding, repeats, translation, concatenation, overlay, widths, literal quoting, pattern and index comparisons ignore collation; explicit conflicts defer.
@@ -597,3 +603,12 @@ import them. Keep schema-only helpers with their callables.
   preserves ASCII bytes; other output and conversion errors require client
   encoding. Run refcursor parity, payload, raw-write and report-cursor INSERT
   suites.
+
+- Snapshot types retain nominal SQL identity over an owned list of full transaction
+  identifier words. SQL-coerced public rows use validated snapshot wrappers;
+  raw query parameters retain database conversion. Text input excludes the upper
+  bound from the in-progress list; binary input can include it. Keep native word
+  bits intact in legacy signed results. Snapshot retrieval requires transaction
+  state; supplied snapshots support pure local operations.
+- Public text adapters accept well-formed UTF8 without NUL. Values outside that input
+  contract defer local operations; preserve raw bytes for database conversion.

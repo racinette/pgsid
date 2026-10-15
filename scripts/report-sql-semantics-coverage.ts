@@ -39,6 +39,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'pg_lsn' ||
       expression.kind === 'tid' ||
       expression.kind === 'xid8' ||
+      expression.kind === 'snapshot' ||
       expression.kind === 'oid' ||
       expression.kind === 'polygon' ||
       expression.kind === 'path' ||

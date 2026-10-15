@@ -24,6 +24,9 @@ export type CidType = 'pg_catalog.cid'
 export type PgLsnType = 'pg_catalog.pg_lsn'
 export type TidType = 'pg_catalog.tid'
 export type Xid8Type = 'pg_catalog.xid8'
+export type SnapshotType = 'pg_catalog.pg_snapshot' | 'pg_catalog.txid_snapshot'
+export const isSnapshotType = (type: string | null | undefined): type is SnapshotType =>
+  type === 'pg_catalog.pg_snapshot' || type === 'pg_catalog.txid_snapshot'
 export const oidAliasTypes = [
   'pg_catalog.regclass',
   'pg_catalog.regcollation',
@@ -87,6 +90,7 @@ export type ScalarType =
   | PgLsnType
   | TidType
   | Xid8Type
+  | SnapshotType
   | OidType
   | PolygonType
   | PathType
@@ -339,6 +343,7 @@ export type SqlExpression =
   | { kind: 'pg_lsn'; type: PgLsnType; value: string | null }
   | { kind: 'tid'; type: TidType; value: string | null }
   | { kind: 'xid8'; type: Xid8Type; value: string | null }
+  | { kind: 'snapshot'; type: SnapshotType; value: string | null }
   | { kind: 'oid'; type: OidType; value: string | null }
   | { kind: 'polygon'; type: PolygonType; value: string | null }
   | { kind: 'path'; type: PathType; value: string | null }
@@ -1018,6 +1023,10 @@ export function emitSqlExpression<Ast>(
     }
     if (node.kind === 'xid8') {
       if (node.value !== null) throw new Error('Xid8 literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
+    if (node.kind === 'snapshot') {
+      if (node.value !== null) throw new Error('Snapshot literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'oid') {

@@ -75,6 +75,7 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
       value.kind === 'text-to-pg_lsn' ||
       value.kind === 'text-to-tid' ||
       value.kind === 'text-to-xid8' ||
+      value.kind === 'text-to-snapshot' ||
       value.kind === 'text-to-oid' ||
       value.kind === 'text-to-circle' ||
       value.kind === 'text-to-box' ||

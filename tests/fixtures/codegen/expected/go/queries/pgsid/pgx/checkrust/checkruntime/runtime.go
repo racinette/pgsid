@@ -2026,6 +2026,119 @@ func CidFromCaseGuard(input CheckOutcome) CidValue {
 	return CidValue{Kind: CidValueUnknown}
 }
 
+type SnapshotXid struct {
+	Bits int64
+}
+
+func copySnapshotXid(value SnapshotXid) SnapshotXid {
+	return SnapshotXid{Bits: value.Bits}
+}
+
+type SnapshotPayload struct {
+	Xmin int64
+	Xmax int64
+	Xip  []SnapshotXid
+}
+
+func CopySnapshotPayload(value SnapshotPayload) SnapshotPayload {
+	return SnapshotPayload{Xmin: value.Xmin, Xmax: value.Xmax, Xip: langruntime.CheckedStructs(value.Xip, copySnapshotXid)}
+}
+
+type SnapshotValueKind uint8
+
+const (
+	SnapshotValueUnknown SnapshotValueKind = iota
+	SnapshotValueNull
+	SnapshotValueValue
+	SnapshotValueError
+)
+
+type SnapshotValue struct {
+	Kind  SnapshotValueKind
+	Value SnapshotPayload
+	Error SqlError
+}
+
+func CopySnapshotValue(value SnapshotValue) SnapshotValue {
+	switch value.Kind {
+	case SnapshotValueUnknown:
+		return SnapshotValue{Kind: SnapshotValueUnknown}
+	case SnapshotValueNull:
+		return SnapshotValue{Kind: SnapshotValueNull}
+	case SnapshotValueValue:
+		return SnapshotValue{Kind: SnapshotValueValue, Value: CopySnapshotPayload(value.Value)}
+	case SnapshotValueError:
+		return SnapshotValue{Kind: SnapshotValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func SnapshotXidOrder(left int64, right int64) int {
+	if left < int64(0) && right >= int64(0) {
+		return 1
+	}
+	if left >= int64(0) && right < int64(0) {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if left < right {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if left > right {
+		return 1
+	}
+	return 0
+}
+func SnapshotUnknown() SnapshotValue {
+	return SnapshotValue{Kind: SnapshotValueUnknown}
+}
+func SnapshotNull() SnapshotValue {
+	return SnapshotValue{Kind: SnapshotValueNull}
+}
+func SnapshotCountFits(count int) bool {
+	count = langruntime.CheckedIndex(count)
+	return count <= 134217724
+}
+func MakeSnapshotValue(payload SnapshotPayload) SnapshotValue {
+	payload = CopySnapshotPayload(payload)
+	if SnapshotCountFits(len(payload.Xip)) == false {
+		return SnapshotValue{Kind: SnapshotValueUnknown}
+	}
+	if payload.Xmin == int64(0) || payload.Xmax == int64(0) || SnapshotXidOrder(payload.Xmin, payload.Xmax) > 0 {
+		return SnapshotValue{Kind: SnapshotValueUnknown}
+	}
+	index := 0
+	previous := int64(0)
+	for index < len(payload.Xip) {
+		bits := payload.Xip[index].Bits
+		if SnapshotXidOrder(bits, payload.Xmin) < 0 || SnapshotXidOrder(bits, payload.Xmax) > 0 || SnapshotXidOrder(bits, previous) <= 0 {
+			return SnapshotValue{Kind: SnapshotValueUnknown}
+		}
+		previous = bits
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return SnapshotValue{Kind: SnapshotValueValue, Value: payload}
+}
+func SnapshotIsNull(input SnapshotValue) BoolValue {
+	input = CopySnapshotValue(input)
+	if input.Kind == SnapshotValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == SnapshotValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == SnapshotValueNull {
+		return MakeBoolValue(true)
+	}
+	return MakeBoolValue(false)
+}
+func SnapshotFromCaseGuard(input CheckOutcome) SnapshotValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return SnapshotValue{Kind: SnapshotValueError, Error: error}
+	}
+	return SnapshotValue{Kind: SnapshotValueUnknown}
+}
+
 type Xid8ValueKind uint8
 
 const (

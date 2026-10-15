@@ -1,5 +1,10 @@
 import { refcursorInputForms } from '../../tests/sql-semantics/check-refcursor-input-forms.js'
 import {
+  snapshotInputForms,
+  invalidSnapshotInputForms,
+} from '../../tests/sql-semantics/check-snapshot-input-forms.js'
+import { isSnapshotType } from '../../src/sql-semantics/expressions.js'
+import {
   polygonInputForms,
   deferredPolygonPlatformForms,
 } from '../../tests/sql-semantics/check-polygon-input-forms.js'
@@ -87,6 +92,44 @@ const nanBinaryPrecision = {
 } as const
 
 const inputForms = [
+  ...(['pg_catalog.pg_snapshot', 'pg_catalog.txid_snapshot'] as const).map((type) => ({
+    type,
+    suite: 'tests/sql-semantics/check-snapshot-runtime.test.ts',
+    handled: snapshotInputForms,
+    rejected: invalidSnapshotInputForms,
+    deferred: [],
+    platformDependent: [],
+    contextRequired: [],
+    unimplementedGrammar: [],
+    rowInput: {
+      representation: 'SnapshotValue with owned unsigned full-transaction words in signed carriers',
+      rawQueryParameters: 'defer to PostgreSQL',
+      owner: 'tests/sql-semantics/check-snapshot-write-input.test.ts',
+    },
+    allocationLimits: {
+      maximumInProgress: 134217724,
+      textBufferMaximum: 1073741823,
+      printfMinimumSpace: 16,
+      exceededSqlstate: '54000',
+      owner: 'tests/sql-semantics/check-snapshot-limits.test.ts',
+    },
+    stringCasts: {
+      inputs: ['text', 'varchar', 'bpchar', 'name'],
+      bpcharOutputSpaces: 'preserved',
+      nameOutputContext: ['max_identifier_length'],
+      owner: 'tests/sql-semantics/check-snapshot.test.ts',
+    },
+    binaryInput: {
+      inProgressUpperBound: 'inclusive',
+      textInputUpperBound: 'exclusive',
+      duplicates: 'removed by PostgreSQL before row input',
+      owner: 'tests/sql-semantics/check-snapshot-payload.test.ts',
+    },
+    currentSnapshot: {
+      contextRequired: ['active PostgreSQL transaction snapshot'],
+      owner: 'tests/sql-semantics/check-snapshot.test.ts',
+    },
+  })),
   {
     type: 'pg_catalog.name',
     binaryOutput: {
@@ -362,8 +405,9 @@ export async function measureCoercions(pg: PGlite) {
       target === 'pg_catalog.refcursor'
         ? `CAST(CAST(value AS ${target}) AS pg_catalog.text)`
         : `CAST(value AS ${target})`
-    const send =
-      target === 'pg_catalog.point'
+    const send = isSnapshotType(target)
+      ? target.slice('pg_catalog.'.length) + '_send'
+      : target === 'pg_catalog.point'
         ? 'point_send'
         : target === 'pg_catalog.polygon'
           ? 'poly_send'

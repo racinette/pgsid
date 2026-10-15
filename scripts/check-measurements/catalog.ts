@@ -99,6 +99,12 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   )
     categories.push('session-state:cursor')
   if (!item.strict) categories.push('non-strict')
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    ['pg_current_snapshot', 'txid_current_snapshot'].includes(item.name)
+  )
+    categories.push('transaction-state:snapshot')
   if (item.schema === 'pg_catalog' && item.name === 'quote_ident')
     categories.push('session-setting:quote_all_identifiers')
   const geometricOutput =

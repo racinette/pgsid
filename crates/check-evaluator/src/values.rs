@@ -1799,6 +1799,94 @@ pub fn cid_from_case_guard(input: CheckOutcome) -> CidValue {
     CidValue::Unknown
 }
 
+#[derive(Clone, Copy)]
+pub struct SnapshotXid {
+    pub bits: i64,
+}
+
+#[derive(Clone)]
+pub struct SnapshotPayload {
+    pub xmin: i64,
+    pub xmax: i64,
+    pub xip: Vec<SnapshotXid>,
+}
+
+#[derive(Clone)]
+pub enum SnapshotValue {
+    Unknown,
+    Null,
+    Value(SnapshotPayload),
+    Error(SqlError),
+}
+
+pub fn snapshot_xid_order(left: i64, right: i64) -> i32 {
+    if left < 0i64 && right >= 0i64 {
+        return 1;
+    };
+    if left >= 0i64 && right < 0i64 {
+        return -1;
+    };
+    if left < right {
+        return -1;
+    };
+    if left > right {
+        return 1;
+    };
+    0
+}
+pub fn snapshot_unknown() -> SnapshotValue {
+    SnapshotValue::Unknown
+}
+pub fn snapshot_null() -> SnapshotValue {
+    SnapshotValue::Null
+}
+pub fn snapshot_count_fits(count: usize) -> bool {
+    count <= 134217724
+}
+pub fn make_snapshot_value(payload: SnapshotPayload) -> SnapshotValue {
+    if snapshot_count_fits(payload.xip.len()) == false {
+        return SnapshotValue::Unknown;
+    };
+    if payload.xmin == 0i64
+        || payload.xmax == 0i64
+        || snapshot_xid_order(payload.xmin, payload.xmax) > 0
+    {
+        return SnapshotValue::Unknown;
+    };
+    let mut index: usize = 0;
+    let mut previous = 0i64;
+    while index < payload.xip.len() {
+        let bits = payload.xip[index].bits;
+        if snapshot_xid_order(bits, payload.xmin) < 0
+            || snapshot_xid_order(bits, payload.xmax) > 0
+            || snapshot_xid_order(bits, previous) <= 0
+        {
+            return SnapshotValue::Unknown;
+        };
+        previous = bits;
+        index += 1;
+    }
+    SnapshotValue::Value(payload)
+}
+pub fn snapshot_is_null(input: SnapshotValue) -> BoolValue {
+    if let SnapshotValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if let SnapshotValue::Unknown = input {
+        return BoolValue::Unknown;
+    };
+    if let SnapshotValue::Null = input {
+        return make_bool_value(true);
+    };
+    make_bool_value(false)
+}
+pub fn snapshot_from_case_guard(input: CheckOutcome) -> SnapshotValue {
+    if let CheckOutcome::Error(error) = input {
+        return SnapshotValue::Error(error);
+    };
+    SnapshotValue::Unknown
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Xid8Value {
     Unknown,

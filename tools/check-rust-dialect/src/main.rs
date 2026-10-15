@@ -103,6 +103,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("PathValue") => {
             Ok("PathValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("SnapshotValue") => {
+            Ok("SnapshotValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("CircleValue") => {
             Ok("CircleValue")
         }
@@ -440,6 +443,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "OidValue"
                     | "PolygonValue"
                     | "PathValue"
+                    | "SnapshotValue"
                     | "CircleValue"
                     | "BoxValue"
                     | "UuidValue"
@@ -742,6 +746,29 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             );
         }
         assert!(check_source(&source.replace("left: PathValue", "mut left: PathValue")).is_err());
+    }
+
+    #[test]
+    fn accepts_snapshot_wrappers_and_owned_branch_results_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(input: SnapshotValue) -> CheckOutcome { let mut saved: SnapshotValue = snapshot_unknown(); saved = input.clone(); let nullness = snapshot_is_null(saved); check_from_bool(nullness) }";
+        check_source(source).unwrap();
+        for ty in [
+            "SnapshotPayload",
+            "SnapshotXid",
+            "Vec<SnapshotXid>",
+            "i64",
+            "SnapshotValue<i64>",
+            "&SnapshotValue",
+        ] {
+            assert!(
+                check_source(&source.replace("input: SnapshotValue", &format!("input: {ty}")))
+                    .is_err()
+            );
+        }
+        assert!(
+            check_source(&source.replace("input: SnapshotValue", "mut input: SnapshotValue"))
+                .is_err()
+        );
     }
 
     #[test]

@@ -248,6 +248,9 @@ exposes a prerequisite:
       inputs and explicit build-limit requirements for text truncation.
 - [x] Establish nominal refcursor names, explicit text I/O casts, domains, literals,
       composition and SQL-coerced public inputs; retain session requirements for portals.
+- [x] Establish owned transaction snapshot values, portable I/O, binary output, bounds,
+      visibility, domains, literals, composition and SQL-coerced public inputs;
+      retain active-transaction requirements for current snapshot retrieval.
 - [x] Remove generation-time enum OIDs from emitted literals and public label
       adapters, and verify hash deferral across independent databases.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
@@ -262,6 +265,9 @@ exposes a prerequisite:
 Use the type audit to enumerate the entire remaining surface, including internal
 types. XML text predicates do not establish an XML value representation; private
 floating-point helpers do not establish public SQL float support.
+
+Defer ACL and full-text values until common CHECK families, including arrays and
+JSON, are covered. Keep deferred families and catalog requirements visible.
 
 Done per family when its portable values, SQL-coerced row input conversion,
 literals, catalog-resolved casts, applicable comparisons, core operations,
@@ -283,8 +289,12 @@ Keep PostgreSQL behavior in maintained Rust. Generate evaluator control flow and
 target code through ASTs. Preserve schema namespaces, separate CHECK and regex
 transpilers, errors as values, and diagnostic Unknown results.
 
-For each implementation task, run the applicable `AGENTS.md` gates: rebuild
-assets, execute the full CHECK gate, verify codegen goldens, and run typecheck,
-maintained-code lint/format, and corpus health checks. Include parser/transpiler
-checks when those foundations change. Refresh measurements after the verified
-change and update this ledger. Commit each verified slice.
+For each implementation task, select focused family suites and regressions for
+the shared behavior it changes. Verify Rust, Go and TypeScript against PostgreSQL,
+including raw/stored binding, public inputs and NULL/Unknown/error behavior. Rebuild
+affected assets, verify relevant codegen goldens, and run applicable static, corpus
+and measurement checks. Record selected dependencies and any reused evidence.
+Run the full CHECK gate for broad shared semantic changes and integration
+milestones; an isolated type extension does not require every unrelated family
+suite. Keep interrupted or partial runs explicitly partial. Refresh measurements
+and this ledger after verification, then commit the verified slice.

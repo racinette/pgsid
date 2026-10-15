@@ -1,0 +1,4 @@
+INSERT INTO snapshot_captures(id,label,captured,expected_wire,expected_lower,expected_upper,allow_absent) VALUES(1,'export capture','1:9:3,5','\x000000020000000000000001000000000000000900000000000000030000000000000005','1','9',false);
+INSERT INTO visibility_requests(id,capture_id,label,candidate,submitted,expected_visible,bypass,allow_absent) VALUES(1,1,'pending export','3','1:9:3,5',false,false,false);
+INSERT INTO legacy_captures(id,capture_id,label,captured,candidate,expected_wire,expected_lower,expected_upper,expected_visible,allow_absent) VALUES(1,1,'legacy export','1:9:3,5',3,'\x000000020000000000000001000000000000000900000000000000030000000000000005',1,9,false,false);
+INSERT INTO snapshot_imports(id,capture_id,label,source_text,expected_text,expected_lower,bypass) VALUES(1,1,'imported capture','1:9:3,3,5,','1:9:3,5','1',false);
