@@ -12285,6 +12285,1172 @@ func JsonbContained3itb(left checkruntime.JsonbValue, right checkruntime.JsonbVa
 	}
 	return jsonbRelationValues(right, left, true, false)
 }
+
+type jsonpathParseNode struct {
+	kind      int
+	next      int
+	left      int
+	right     int
+	textStart int
+	textEnd   int
+	first     int
+	last      int
+	flags     int
+}
+
+func copyjsonpathParseNode(value jsonpathParseNode) jsonpathParseNode {
+	return jsonpathParseNode{kind: langruntime.CheckedI32(value.kind), next: langruntime.CheckedIndex(value.next), left: langruntime.CheckedIndex(value.left), right: langruntime.CheckedIndex(value.right), textStart: langruntime.CheckedIndex(value.textStart), textEnd: langruntime.CheckedIndex(value.textEnd), first: langruntime.CheckedI32(value.first), last: langruntime.CheckedI32(value.last), flags: langruntime.CheckedI32(value.flags)}
+}
+
+type jsonpathParseSlot struct {
+	head  int
+	tail  int
+	token int
+	count int
+	level int
+}
+
+func copyjsonpathParseSlot(value jsonpathParseSlot) jsonpathParseSlot {
+	return jsonpathParseSlot{head: langruntime.CheckedIndex(value.head), tail: langruntime.CheckedIndex(value.tail), token: langruntime.CheckedIndex(value.token), count: langruntime.CheckedIndex(value.count), level: langruntime.CheckedI32(value.level)}
+}
+
+type jsonpathParseVisit struct {
+	node      int
+	filters   int
+	subscript bool
+}
+
+func copyjsonpathParseVisit(value jsonpathParseVisit) jsonpathParseVisit {
+	return jsonpathParseVisit{node: langruntime.CheckedIndex(value.node), filters: langruntime.CheckedIndex(value.filters), subscript: value.subscript}
+}
+
+type jsonpathParseTree struct {
+	source                    []rune
+	text                      []rune
+	nodes                     []jsonpathParseNode
+	validation                []int
+	root                      int
+	lax                       bool
+	error                     int
+	requiresNumericValidation bool
+	requiresRegexValidation   bool
+}
+
+func copyjsonpathParseTree(value jsonpathParseTree) jsonpathParseTree {
+	return jsonpathParseTree{source: langruntime.CheckedChars(value.source), text: langruntime.CheckedChars(value.text), nodes: langruntime.CheckedStructs(value.nodes, copyjsonpathParseNode), validation: langruntime.CheckedIndices(value.validation), root: langruntime.CheckedIndex(value.root), lax: value.lax, error: langruntime.CheckedIndex(value.error), requiresNumericValidation: value.requiresNumericValidation, requiresRegexValidation: value.requiresRegexValidation}
+}
+
+type jsonpathParseLevel struct {
+	value int
+	error int
+}
+
+func copyjsonpathParseLevel(value jsonpathParseLevel) jsonpathParseLevel {
+	return jsonpathParseLevel{value: langruntime.CheckedI32(value.value), error: langruntime.CheckedIndex(value.error)}
+}
+
+const jsonpathNodeRoot = 1
+const jsonpathNodeCurrent = 2
+const jsonpathNodeLast = 3
+const jsonpathNodeString = 4
+const jsonpathNodeNumber = 5
+const jsonpathNodeVariable = 6
+const jsonpathNodeNull = 7
+const jsonpathNodeTrue = 8
+const jsonpathNodeFalse = 9
+const jsonpathNodeKey = 10
+const jsonpathNodeAnyKey = 11
+const jsonpathNodeAnyArray = 12
+const jsonpathNodeIndex = 13
+const jsonpathNodeSubscript = 14
+const jsonpathNodeDescendant = 15
+const jsonpathNodeFilter = 16
+const jsonpathNodeExists = 17
+const jsonpathNodeNot = 18
+const jsonpathNodeIsUnknown = 19
+const jsonpathNodePlus = 20
+const jsonpathNodeMinus = 21
+const jsonpathNodeAdd = 22
+const jsonpathNodeSub = 23
+const jsonpathNodeMul = 24
+const jsonpathNodeDiv = 25
+const jsonpathNodeMod = 26
+const jsonpathNodeEq = 27
+const jsonpathNodeNe = 28
+const jsonpathNodeLt = 29
+const jsonpathNodeLe = 30
+const jsonpathNodeGt = 31
+const jsonpathNodeGe = 32
+const jsonpathNodeAnd = 33
+const jsonpathNodeOr = 34
+const jsonpathNodeStarts = 35
+const jsonpathNodeRegex = 36
+const jsonpathNodeMethod = 100
+const jsonpathParseRange = 3452547
+const jsonpathParseUnsupported = 466560
+
+func jsonpathNewNode(kind int, left int, right int, start int, end int, first int, last int, flags int) jsonpathParseNode {
+	kind = langruntime.CheckedI32(kind)
+	left = langruntime.CheckedIndex(left)
+	right = langruntime.CheckedIndex(right)
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	first = langruntime.CheckedI32(first)
+	last = langruntime.CheckedI32(last)
+	flags = langruntime.CheckedI32(flags)
+	return jsonpathParseNode{kind: kind, next: 0, left: left, right: right, textStart: start, textEnd: end, first: first, last: last, flags: flags}
+}
+func jsonpathNodeLink(node jsonpathParseNode, next int) jsonpathParseNode {
+	node = copyjsonpathParseNode(node)
+	next = langruntime.CheckedIndex(next)
+	return jsonpathParseNode{kind: node.kind, next: next, left: node.left, right: node.right, textStart: node.textStart, textEnd: node.textEnd, first: node.first, last: node.last, flags: node.flags}
+}
+func jsonpathTokenNode(scan *jsonpathScan, index int, kind int) jsonpathParseNode {
+	index = langruntime.CheckedIndex(index)
+	kind = langruntime.CheckedI32(kind)
+	token := scan.tokens[langruntime.CheckedSubtract(index, 1)]
+	start := token.textStart
+	end := token.textEnd
+	if kind == jsonpathNodeNumber {
+		start = langruntime.CheckedIndex(token.start)
+		end = langruntime.CheckedIndex(token.end)
+	}
+	return jsonpathNewNode(kind, 0, 0, start, end, 0, 0, 0)
+}
+func jsonpathEmptySlot() jsonpathParseSlot {
+	return jsonpathParseSlot{head: 0, tail: 0, token: 0, count: 0, level: 0}
+}
+func jsonpathNodeSlot(node int) jsonpathParseSlot {
+	node = langruntime.CheckedIndex(node)
+	return jsonpathParseSlot{head: node, tail: node, token: 0, count: 1, level: 0}
+}
+func jsonpathTableAction(state int, token int) int {
+	state = langruntime.CheckedIndex(state)
+	token = langruntime.CheckedI32(token)
+	position := jsonpathTableActionOffsets[state]
+	end := jsonpathTableActionOffsets[langruntime.CheckedAdd(state, 1)]
+	for position < end {
+		if jsonpathTableActionTokens[position] == token {
+			return jsonpathTableActionValues[position]
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return 0
+}
+func jsonpathTableGoto(state int, symbol int) int {
+	state = langruntime.CheckedIndex(state)
+	symbol = langruntime.CheckedIndex(symbol)
+	position := jsonpathTableGotoOffsets[state]
+	end := jsonpathTableGotoOffsets[langruntime.CheckedAdd(state, 1)]
+	for position < end {
+		if jsonpathTableGotoSymbols[position] == symbol {
+			return jsonpathTableGotoValues[position]
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return 0
+}
+func jsonpathBinaryKind(token int) int {
+	token = langruntime.CheckedI32(token)
+	if token == 43 {
+		return jsonpathNodeAdd
+	}
+	if token == 45 {
+		return jsonpathNodeSub
+	}
+	if token == 42 {
+		return jsonpathNodeMul
+	}
+	if token == 47 {
+		return jsonpathNodeDiv
+	}
+	if token == 37 {
+		return jsonpathNodeMod
+	}
+	if token == jsonpathScanEq {
+		return jsonpathNodeEq
+	}
+	if token == jsonpathScanNe {
+		return jsonpathNodeNe
+	}
+	if token == 60 {
+		return jsonpathNodeLt
+	}
+	if token == jsonpathScanLe {
+		return jsonpathNodeLe
+	}
+	if token == 62 {
+		return jsonpathNodeGt
+	}
+	if token == jsonpathScanGe {
+		return jsonpathNodeGe
+	}
+	if token == jsonpathScanAnd {
+		return jsonpathNodeAnd
+	}
+	return jsonpathNodeOr
+}
+func jsonpathReadLevel(scan *jsonpathScan, index int) jsonpathParseLevel {
+	index = langruntime.CheckedIndex(index)
+	token := scan.tokens[langruntime.CheckedSubtract(index, 1)]
+	position := token.start
+	radix := int64(10)
+	if langruntime.CheckedAdd(position, 2) < token.end && scan.source[position] == '0' {
+		prefix := scan.source[langruntime.CheckedAdd(position, 1)]
+		if prefix == 'x' || prefix == 'X' {
+			radix = int64(16)
+			position = langruntime.CheckedAdd(position, 2)
+		}
+		if prefix == 'o' || prefix == 'O' {
+			radix = int64(8)
+			position = langruntime.CheckedAdd(position, 2)
+		}
+		if prefix == 'b' || prefix == 'B' {
+			radix = int64(2)
+			position = langruntime.CheckedAdd(position, 2)
+		}
+	}
+	value := int64(0)
+	for position < token.end {
+		character := scan.source[position]
+		position = langruntime.CheckedAdd(position, 1)
+		if character != '_' {
+			digit := int64(langruntime.CheckedI32(jsonpathScanHex(character)))
+			if value > langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(int64(2147483647), digit)), radix) {
+				return jsonpathParseLevel{value: 0, error: jsonpathParseRange}
+			}
+			value = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(value, radix), digit)
+		}
+	}
+	return jsonpathParseLevel{value: int(int32(value)), error: 0}
+}
+func jsonpathParseScope(tree *jsonpathParseTree) int {
+	pending := []jsonpathParseVisit{}
+	langruntime.CheckedAdd(len(pending), 1)
+	pending = append(pending, copyjsonpathParseVisit(jsonpathParseVisit{node: tree.root, filters: 0, subscript: false}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		visit := pending[depth]
+		node := tree.nodes[visit.node]
+		if node.kind == jsonpathNodeCurrent && visit.filters == 0 {
+			return jsonpathScanSyntax
+		}
+		if node.kind == jsonpathNodeLast && visit.subscript == false {
+			return jsonpathScanSyntax
+		}
+		child := 0
+		for child < 3 {
+			index := node.next
+			filters := visit.filters
+			subscript := visit.subscript
+			if child == 1 {
+				index = langruntime.CheckedIndex(node.left)
+				if node.kind == jsonpathNodeFilter {
+					filters = langruntime.CheckedAdd(filters, 1)
+				}
+				if node.kind == jsonpathNodeIndex || node.kind == jsonpathNodeSubscript {
+					subscript = true
+				}
+			}
+			if child == 2 {
+				index = langruntime.CheckedIndex(node.right)
+				if node.kind == jsonpathNodeSubscript {
+					subscript = true
+				}
+			}
+			if index > 0 {
+				next := jsonpathParseVisit{node: index, filters: filters, subscript: subscript}
+				if depth == len(pending) {
+					langruntime.CheckedAdd(len(pending), 1)
+					pending = append(pending, copyjsonpathParseVisit(next))
+				} else {
+					pending[depth] = copyjsonpathParseVisit(next)
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+			child = langruntime.CheckedAdd(child, 1)
+		}
+	}
+	return 0
+}
+func jsonpathParse(input string) jsonpathParseTree {
+	input = langruntime.CheckedString(input)
+	scan := jsonpathScanTokens(input)
+	nodes := []jsonpathParseNode{}
+	validation := []int{}
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, copyjsonpathParseNode(jsonpathNewNode(0, 0, 0, 0, 0, 0, 0, 0)))
+	states := []int{}
+	langruntime.CheckedAdd(len(states), 1)
+	states = append(states, langruntime.CheckedIndex(0))
+	slots := []jsonpathParseSlot{}
+	depth := 1
+	position := 0
+	root := 0
+	lax := true
+	error := 0
+	requiresNumeric := false
+	requiresRegex := false
+	done := false
+	for done == false && error == 0 {
+		state := states[langruntime.CheckedSubtract(depth, 1)]
+		action := jsonpathTableDefaults[state]
+		if action == 0 {
+			lookahead := 0
+			if position < len(scan.tokens) {
+				lookahead = langruntime.CheckedI32(scan.tokens[position].kind)
+			} else if scan.error != 0 {
+				error = langruntime.CheckedIndex(scan.error)
+			}
+			if error == 0 {
+				action = langruntime.CheckedI32(jsonpathTableAction(state, lookahead))
+			}
+		}
+		if error == 0 {
+			if action == 2147483647 {
+				done = true
+			} else if action == 0 {
+				error = langruntime.CheckedIndex(jsonpathScanSyntax)
+			} else if action > 0 {
+				shifted := jsonpathParseSlot{head: 0, tail: 0, token: langruntime.CheckedAdd(position, 1), count: 0, level: scan.tokens[position].kind}
+				if langruntime.CheckedSubtract(depth, 1) == len(slots) {
+					langruntime.CheckedAdd(len(slots), 1)
+					slots = append(slots, copyjsonpathParseSlot(shifted))
+				} else {
+					slots[langruntime.CheckedSubtract(depth, 1)] = copyjsonpathParseSlot(shifted)
+				}
+				next := langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(action, 1), 0)
+				if depth == len(states) {
+					langruntime.CheckedAdd(len(states), 1)
+					states = append(states, langruntime.CheckedIndex(next))
+				} else {
+					states[depth] = langruntime.CheckedIndex(next)
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+				position = langruntime.CheckedAdd(position, 1)
+			} else {
+				rule := langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(0, action), 1), 0)
+				length := jsonpathTableRuleLengths[rule]
+				reduce := jsonpathTableRuleActions[rule]
+				begin := langruntime.CheckedSubtract(langruntime.CheckedSubtract(depth, length), 1)
+				first := jsonpathEmptySlot()
+				second := jsonpathEmptySlot()
+				third := jsonpathEmptySlot()
+				fourth := jsonpathEmptySlot()
+				fifth := jsonpathEmptySlot()
+				if length > 0 {
+					first = copyjsonpathParseSlot(slots[begin])
+				}
+				if length > 1 {
+					second = copyjsonpathParseSlot(slots[langruntime.CheckedAdd(begin, 1)])
+				}
+				if length > 2 {
+					third = copyjsonpathParseSlot(slots[langruntime.CheckedAdd(begin, 2)])
+				}
+				if length > 3 {
+					fourth = copyjsonpathParseSlot(slots[langruntime.CheckedAdd(begin, 3)])
+				}
+				if length > 4 {
+					fifth = copyjsonpathParseSlot(slots[langruntime.CheckedAdd(begin, 4)])
+				}
+				value := first
+				node := jsonpathNewNode(0, 0, 0, 0, 0, 0, 0, 0)
+				if reduce == jsonpathReducePass {
+					value = copyjsonpathParseSlot(first)
+				}
+				if reduce == jsonpathReduceResult {
+					root = langruntime.CheckedIndex(second.head)
+					lax = first.count > 0
+					value = copyjsonpathParseSlot(second)
+				}
+				if reduce == jsonpathReduceEmptyResult {
+					error = langruntime.CheckedIndex(jsonpathScanSurrogate)
+				}
+				if reduce == jsonpathReduceLax {
+					value = copyjsonpathParseSlot(jsonpathNodeSlot(0))
+				}
+				if reduce == jsonpathReduceStrict || reduce == jsonpathReduceNone {
+					value = copyjsonpathParseSlot(jsonpathEmptySlot())
+				}
+				if reduce == jsonpathReduceMiddle {
+					value = copyjsonpathParseSlot(second)
+				}
+				if reduce == jsonpathReduceString || reduce == jsonpathReduceVariable || reduce == jsonpathReduceNumber || reduce == jsonpathReduceKey {
+					kind := jsonpathNodeString
+					if reduce == jsonpathReduceVariable {
+						kind = langruntime.CheckedI32(jsonpathNodeVariable)
+					}
+					if reduce == jsonpathReduceNumber {
+						kind = langruntime.CheckedI32(jsonpathNodeNumber)
+						requiresNumeric = true
+					}
+					if reduce == jsonpathReduceKey {
+						kind = langruntime.CheckedI32(jsonpathNodeKey)
+					}
+					node = copyjsonpathParseNode(jsonpathTokenNode(&scan, first.token, kind))
+				}
+				if reduce == jsonpathReduceNull {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeNull, 0, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceTrue {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeTrue, 0, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceFalse {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeFalse, 0, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceRoot {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeRoot, 0, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceCurrent {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeCurrent, 0, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceLast {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeLast, 0, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceBinary {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathBinaryKind(second.level), first.head, third.head, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReducePlus || reduce == jsonpathReduceMinus || reduce == jsonpathReduceNot || reduce == jsonpathReduceExists || reduce == jsonpathReduceIsUnknown || reduce == jsonpathReduceFilter {
+					kind := jsonpathNodePlus
+					child := second.head
+					if reduce == jsonpathReduceMinus {
+						kind = langruntime.CheckedI32(jsonpathNodeMinus)
+					}
+					if reduce == jsonpathReduceNot {
+						kind = langruntime.CheckedI32(jsonpathNodeNot)
+					}
+					if reduce == jsonpathReduceExists {
+						kind = langruntime.CheckedI32(jsonpathNodeExists)
+						child = langruntime.CheckedIndex(third.head)
+					}
+					if reduce == jsonpathReduceIsUnknown {
+						kind = langruntime.CheckedI32(jsonpathNodeIsUnknown)
+					}
+					if reduce == jsonpathReduceFilter {
+						kind = langruntime.CheckedI32(jsonpathNodeFilter)
+						child = langruntime.CheckedIndex(third.head)
+					}
+					node = copyjsonpathParseNode(jsonpathNewNode(kind, child, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceStarts {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeStarts, first.head, fourth.head, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceRegex || reduce == jsonpathReduceRegexFlags {
+					requiresRegex = true
+					insensitive := false
+					dotall := false
+					multiline := false
+					expanded := false
+					quoted := false
+					if reduce == jsonpathReduceRegexFlags {
+						token := scan.tokens[langruntime.CheckedSubtract(fifth.token, 1)]
+						flag := token.textStart
+						for flag < token.textEnd {
+							character := scan.text[flag]
+							if character == 'i' {
+								insensitive = true
+							} else if character == 's' {
+								dotall = true
+							} else if character == 'm' {
+								multiline = true
+							} else if character == 'x' {
+								expanded = true
+							} else if character == 'q' {
+								quoted = true
+							} else {
+								error = langruntime.CheckedIndex(jsonpathScanSyntax)
+							}
+							flag = langruntime.CheckedAdd(flag, 1)
+						}
+					}
+					flags := 0
+					if insensitive {
+						flags = langruntime.CheckedI32(langruntime.CheckedSignedAdd(flags, 1))
+					}
+					if dotall {
+						flags = langruntime.CheckedI32(langruntime.CheckedSignedAdd(flags, 2))
+					}
+					if multiline {
+						flags = langruntime.CheckedI32(langruntime.CheckedSignedAdd(flags, 4))
+					}
+					if expanded {
+						flags = langruntime.CheckedI32(langruntime.CheckedSignedAdd(flags, 8))
+					}
+					if quoted {
+						flags = langruntime.CheckedI32(langruntime.CheckedSignedAdd(flags, 16))
+					}
+					if expanded && quoted == false && error == 0 {
+						error = langruntime.CheckedIndex(jsonpathParseUnsupported)
+					}
+					token := scan.tokens[langruntime.CheckedSubtract(third.token, 1)]
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeRegex, first.head, 0, token.textStart, token.textEnd, 0, 0, flags))
+				}
+				if reduce == jsonpathReduceChain || reduce == jsonpathReduceGroupChain {
+					left := first
+					right := second
+					if reduce == jsonpathReduceGroupChain {
+						left = copyjsonpathParseSlot(second)
+						right = copyjsonpathParseSlot(fourth)
+					}
+					tail := nodes[left.tail]
+					nodes[left.tail] = copyjsonpathParseNode(jsonpathNodeLink(tail, right.head))
+					value = copyjsonpathParseSlot(jsonpathParseSlot{head: left.head, tail: right.tail, token: 0, count: 1, level: 0})
+				}
+				if reduce == jsonpathReduceSubscript || reduce == jsonpathReduceSlice {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeSubscript, first.head, third.head, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceList {
+					tail := nodes[first.tail]
+					nodes[first.tail] = copyjsonpathParseNode(jsonpathNodeLink(tail, third.head))
+					value = copyjsonpathParseSlot(jsonpathParseSlot{head: first.head, tail: third.tail, token: 0, count: langruntime.CheckedAdd(first.count, third.count), level: 0})
+				}
+				if reduce == jsonpathReduceArrayAny {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeAnyArray, 0, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceArrayIndex {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeIndex, second.head, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceLevelNumber {
+					level := jsonpathReadLevel(&scan, first.token)
+					error = langruntime.CheckedIndex(level.error)
+					value = copyjsonpathParseSlot(jsonpathParseSlot{head: 0, tail: 0, token: 0, count: 0, level: level.value})
+				}
+				if reduce == jsonpathReduceLevelLast {
+					value = copyjsonpathParseSlot(jsonpathParseSlot{head: 0, tail: 0, token: 0, count: 0, level: langruntime.CheckedSignedNegate(1)})
+				}
+				if reduce == jsonpathReduceAnyAll || reduce == jsonpathReduceAnyOne || reduce == jsonpathReduceAnyRange {
+					begin := 0
+					end := langruntime.CheckedSignedNegate(1)
+					if reduce != jsonpathReduceAnyAll {
+						begin = langruntime.CheckedI32(third.level)
+						end = langruntime.CheckedI32(third.level)
+					}
+					if reduce == jsonpathReduceAnyRange {
+						end = langruntime.CheckedI32(fifth.level)
+					}
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeDescendant, 0, 0, 0, 0, begin, end, 0))
+				}
+				if reduce == jsonpathReduceKeyAny {
+					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeAnyKey, 0, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceMethod || reduce == jsonpathReduceDatetime {
+					node = copyjsonpathParseNode(jsonpathNewNode(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(jsonpathNodeMethod, second.level), jsonpathScanKeyword), fourth.head, 0, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceDecimal {
+					if fourth.count > 2 {
+						error = langruntime.CheckedIndex(jsonpathScanSyntax)
+					}
+					right := 0
+					if fourth.count > 1 {
+						argument := nodes[fourth.head]
+						right = langruntime.CheckedIndex(argument.next)
+						nodes[fourth.head] = copyjsonpathParseNode(jsonpathNodeLink(argument, 0))
+					}
+					node = copyjsonpathParseNode(jsonpathNewNode(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(jsonpathNodeMethod, second.level), jsonpathScanKeyword), fourth.head, right, 0, 0, 0, 0, 0))
+				}
+				if reduce == jsonpathReduceSignedPlus || reduce == jsonpathReduceSignedMinus {
+					requiresNumeric = true
+					number := jsonpathTokenNode(&scan, second.token, jsonpathNodeNumber)
+					index := len(nodes)
+					langruntime.CheckedAdd(len(nodes), 1)
+					nodes = append(nodes, copyjsonpathParseNode(number))
+					langruntime.CheckedAdd(len(validation), 1)
+					validation = append(validation, langruntime.CheckedIndex(index))
+					kind := jsonpathNodePlus
+					if reduce == jsonpathReduceSignedMinus {
+						kind = langruntime.CheckedI32(jsonpathNodeMinus)
+					}
+					node = copyjsonpathParseNode(jsonpathNewNode(kind, index, 0, 0, 0, 0, 0, 0))
+				}
+				if node.kind > 0 {
+					index := len(nodes)
+					langruntime.CheckedAdd(len(nodes), 1)
+					nodes = append(nodes, copyjsonpathParseNode(node))
+					if error == 0 && (node.kind == jsonpathNodeNumber || node.kind == jsonpathNodeRegex) {
+						langruntime.CheckedAdd(len(validation), 1)
+						validation = append(validation, langruntime.CheckedIndex(index))
+					}
+					value = copyjsonpathParseSlot(jsonpathNodeSlot(index))
+				}
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, length))
+				next := jsonpathTableGoto(states[langruntime.CheckedSubtract(depth, 1)], jsonpathTableRuleSymbols[rule])
+				if langruntime.CheckedSubtract(depth, 1) == len(slots) {
+					langruntime.CheckedAdd(len(slots), 1)
+					slots = append(slots, copyjsonpathParseSlot(value))
+				} else {
+					slots[langruntime.CheckedSubtract(depth, 1)] = copyjsonpathParseSlot(value)
+				}
+				if depth == len(states) {
+					langruntime.CheckedAdd(len(states), 1)
+					states = append(states, langruntime.CheckedIndex(next))
+				} else {
+					states[depth] = langruntime.CheckedIndex(next)
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+		}
+	}
+	tree := jsonpathParseTree{source: scan.source, text: scan.text, nodes: nodes, validation: validation, root: root, lax: lax, error: error, requiresNumericValidation: requiresNumeric, requiresRegexValidation: requiresRegex}
+	if error == 0 {
+		scope := jsonpathParseScope(&tree)
+		if scope != 0 {
+			return jsonpathParseTree{source: tree.source, text: tree.text, nodes: tree.nodes, validation: tree.validation, root: tree.root, lax: tree.lax, error: scope, requiresNumericValidation: tree.requiresNumericValidation, requiresRegexValidation: tree.requiresRegexValidation}
+		}
+	}
+	return tree
+}
+
+type jsonpathScanSource struct {
+	characters []rune
+}
+
+func copyjsonpathScanSource(value jsonpathScanSource) jsonpathScanSource {
+	return jsonpathScanSource{characters: langruntime.CheckedChars(value.characters)}
+}
+
+type jsonpathScanToken struct {
+	kind      int
+	start     int
+	end       int
+	textStart int
+	textEnd   int
+}
+
+func copyjsonpathScanToken(value jsonpathScanToken) jsonpathScanToken {
+	return jsonpathScanToken{kind: langruntime.CheckedI32(value.kind), start: langruntime.CheckedIndex(value.start), end: langruntime.CheckedIndex(value.end), textStart: langruntime.CheckedIndex(value.textStart), textEnd: langruntime.CheckedIndex(value.textEnd)}
+}
+
+type jsonpathScanRead struct {
+	kind  int
+	end   int
+	text  []rune
+	error int
+}
+
+func copyjsonpathScanRead(value jsonpathScanRead) jsonpathScanRead {
+	return jsonpathScanRead{kind: langruntime.CheckedI32(value.kind), end: langruntime.CheckedIndex(value.end), text: langruntime.CheckedChars(value.text), error: langruntime.CheckedIndex(value.error)}
+}
+
+type jsonpathScan struct {
+	source []rune
+	tokens []jsonpathScanToken
+	text   []rune
+	error  int
+}
+
+func copyjsonpathScan(value jsonpathScan) jsonpathScan {
+	return jsonpathScan{source: langruntime.CheckedChars(value.source), tokens: langruntime.CheckedStructs(value.tokens, copyjsonpathScanToken), text: langruntime.CheckedChars(value.text), error: langruntime.CheckedIndex(value.error)}
+}
+
+const jsonpathScanIdent = 256
+const jsonpathScanString = 257
+const jsonpathScanVariable = 258
+const jsonpathScanInt = 259
+const jsonpathScanNumeric = 260
+const jsonpathScanAnd = 261
+const jsonpathScanOr = 262
+const jsonpathScanAny = 263
+const jsonpathScanLe = 264
+const jsonpathScanEq = 265
+const jsonpathScanNe = 266
+const jsonpathScanGe = 267
+const jsonpathScanKeyword = 280
+const jsonpathScanSyntax = 6819553
+const jsonpathScanSurrogate = 3484946
+const jsonpathScanZero = 3484949
+
+var jsonpathScanKeywords = []string{"is", "to", "abs", "lax", "date", "flag", "last", "null", "size", "time", "true", "type", "with", "false", "floor", "bigint", "double", "exists", "number", "starts", "strict", "string", "boolean", "ceiling", "decimal", "integer", "time_tz", "unknown", "datetime", "keyvalue", "timestamp", "like_regex", "timestamp_tz"}
+
+func jsonpathScanSpace(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == ' ' || character == '\t' || character == '\n' || character == '\r' || character == '\f'
+}
+func jsonpathScanSpecial(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == '?' || character == '%' || character == '$' || character == '.' || character == '[' || character == ']' || character == '{' || character == '}' || character == '(' || character == ')' || character == '|' || character == '&' || character == '!' || character == '=' || character == '<' || character == '>' || character == '@' || character == '#' || character == ',' || character == '*' || character == ':' || character == '-' || character == '+' || character == '/'
+}
+func jsonpathScanOther(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return jsonpathScanSpace(character) == false && jsonpathScanSpecial(character) == false && character != '\\' && character != '"'
+}
+func jsonpathScanHex(character rune) int {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	if code >= 48 && code <= 57 {
+		return langruntime.CheckedSignedSubtract(code, 48)
+	}
+	if code >= 65 && code <= 70 {
+		return langruntime.CheckedSignedSubtract(code, 55)
+	}
+	if code >= 97 && code <= 102 {
+		return langruntime.CheckedSignedSubtract(code, 87)
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func jsonpathScanDigits(source *jsonpathScanSource, begin int, radix int) int {
+	begin = langruntime.CheckedIndex(begin)
+	radix = langruntime.CheckedI32(radix)
+	position := begin
+	for position < len(source.characters) {
+		digit := jsonpathScanHex(source.characters[position])
+		if digit < 0 || digit >= radix {
+			return position
+		}
+		position = langruntime.CheckedAdd(position, 1)
+		if langruntime.CheckedAdd(position, 1) < len(source.characters) && source.characters[position] == '_' {
+			next := jsonpathScanHex(source.characters[langruntime.CheckedAdd(position, 1)])
+			if next >= 0 && next < radix {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
+	}
+	return position
+}
+func jsonpathScanEmptyRead(kind int, end int, error int) jsonpathScanRead {
+	kind = langruntime.CheckedI32(kind)
+	end = langruntime.CheckedIndex(end)
+	error = langruntime.CheckedIndex(error)
+	text := []rune{}
+	return jsonpathScanRead{kind: kind, end: end, text: text, error: error}
+}
+func jsonpathScanNumber(source *jsonpathScanSource, begin int) jsonpathScanRead {
+	begin = langruntime.CheckedIndex(begin)
+	integer := begin
+	if source.characters[begin] == '0' {
+		integer = langruntime.CheckedAdd(integer, 1)
+	} else {
+		integer = langruntime.CheckedIndex(jsonpathScanDigits(source, begin, 10))
+	}
+	decimal := begin
+	if integer < len(source.characters) && source.characters[integer] == '.' {
+		decimal = langruntime.CheckedIndex(jsonpathScanDigits(source, langruntime.CheckedAdd(integer, 1), 10))
+	}
+	base := integer
+	if decimal > base {
+		base = langruntime.CheckedIndex(decimal)
+	}
+	real := begin
+	failedReal := begin
+	if base > begin && base < len(source.characters) && (source.characters[base] == 'e' || source.characters[base] == 'E') {
+		digits := langruntime.CheckedAdd(base, 1)
+		if digits < len(source.characters) && (source.characters[digits] == '+' || source.characters[digits] == '-') {
+			digits = langruntime.CheckedAdd(digits, 1)
+			failedReal = langruntime.CheckedIndex(digits)
+		}
+		end := jsonpathScanDigits(source, digits, 10)
+		if end > digits {
+			real = langruntime.CheckedIndex(end)
+		}
+	}
+	prefixed := begin
+	if langruntime.CheckedAdd(begin, 2) < len(source.characters) && source.characters[begin] == '0' {
+		prefix := source.characters[langruntime.CheckedAdd(begin, 1)]
+		radix := 0
+		if prefix == 'x' || prefix == 'X' {
+			radix = langruntime.CheckedI32(16)
+		}
+		if prefix == 'o' || prefix == 'O' {
+			radix = langruntime.CheckedI32(8)
+		}
+		if prefix == 'b' || prefix == 'B' {
+			radix = langruntime.CheckedI32(2)
+		}
+		if radix > 0 {
+			end := jsonpathScanDigits(source, langruntime.CheckedAdd(begin, 2), radix)
+			if end > langruntime.CheckedAdd(begin, 2) {
+				prefixed = langruntime.CheckedIndex(end)
+			}
+		}
+	}
+	kind := jsonpathScanInt
+	end := integer
+	if decimal > end {
+		end = langruntime.CheckedIndex(decimal)
+		kind = langruntime.CheckedI32(jsonpathScanNumeric)
+	}
+	if real > end {
+		end = langruntime.CheckedIndex(real)
+		kind = langruntime.CheckedI32(jsonpathScanNumeric)
+	}
+	if prefixed > end {
+		end = langruntime.CheckedIndex(prefixed)
+		kind = langruntime.CheckedI32(jsonpathScanInt)
+	}
+	junk := begin
+	if integer > begin && integer < len(source.characters) && jsonpathScanOther(source.characters[integer]) {
+		junk = langruntime.CheckedIndex(langruntime.CheckedAdd(integer, 1))
+	}
+	if decimal > begin && decimal < len(source.characters) && jsonpathScanOther(source.characters[decimal]) && langruntime.CheckedAdd(decimal, 1) > junk {
+		junk = langruntime.CheckedIndex(langruntime.CheckedAdd(decimal, 1))
+	}
+	if real > begin && real < len(source.characters) && jsonpathScanOther(source.characters[real]) && langruntime.CheckedAdd(real, 1) > junk {
+		junk = langruntime.CheckedIndex(langruntime.CheckedAdd(real, 1))
+	}
+	error := 0
+	if failedReal > end {
+		end = langruntime.CheckedIndex(failedReal)
+		error = langruntime.CheckedIndex(jsonpathScanSyntax)
+	}
+	if junk > end {
+		end = langruntime.CheckedIndex(junk)
+		error = langruntime.CheckedIndex(jsonpathScanSyntax)
+	}
+	other := begin
+	for other < len(source.characters) && jsonpathScanOther(source.characters[other]) {
+		other = langruntime.CheckedAdd(other, 1)
+	}
+	if other > end || (other == end && other > begin && error != 0 && (int(langruntime.CheckedChar(source.characters[langruntime.CheckedSubtract(end, 1)]))) >= 128) {
+		return jsonpathScanEmptyRead(0, begin, 0)
+	}
+	return jsonpathScanEmptyRead(kind, end, error)
+}
+func jsonpathScanUnicode(source *jsonpathScanSource, begin int) jsonpathScanRead {
+	begin = langruntime.CheckedIndex(begin)
+	codes := []int{}
+	position := begin
+	for langruntime.CheckedAdd(position, 1) < len(source.characters) && source.characters[position] == '\\' && source.characters[langruntime.CheckedAdd(position, 1)] == 'u' {
+		position = langruntime.CheckedAdd(position, 2)
+		braced := position < len(source.characters) && source.characters[position] == '{'
+		if braced {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		count := 0
+		code := 0
+		limit := 4
+		if braced {
+			limit = langruntime.CheckedIndex(6)
+		}
+		for position < len(source.characters) && count < limit {
+			digit := jsonpathScanHex(source.characters[position])
+			if digit < 0 {
+				break
+			}
+			code = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(code, 16), digit))
+			position = langruntime.CheckedAdd(position, 1)
+			count = langruntime.CheckedAdd(count, 1)
+		}
+		if (braced && (count == 0 || position == len(source.characters) || source.characters[position] != '}')) || (braced == false && count != 4) {
+			return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+		}
+		if braced {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		langruntime.CheckedAdd(len(codes), 1)
+		codes = append(codes, langruntime.CheckedIndex(langruntime.IndexFromI32(code, 0)))
+	}
+	text := []rune{}
+	index := 0
+	high := langruntime.CheckedSignedNegate(1)
+	for index < len(codes) {
+		code := int(int32(codes[index]))
+		index = langruntime.CheckedAdd(index, 1)
+		if code >= 55296 && code <= 56319 {
+			if high >= 0 {
+				return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate)
+			}
+			high = langruntime.CheckedI32(code)
+		} else {
+			if code >= 56320 && code <= 57343 {
+				if high < 0 {
+					return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate)
+				}
+				code = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(65536, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(high, 55296)), 1024)), code), 56320))
+				high = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+			} else if high >= 0 {
+				return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate)
+			}
+			if code == 0 {
+				return jsonpathScanEmptyRead(0, position, jsonpathScanZero)
+			}
+			if code > 1114111 {
+				return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+			}
+			langruntime.CheckedAdd(len(text), 1)
+			text = append(text, langruntime.CheckedChar(langruntime.CharacterFromI32(code, ' ')))
+		}
+	}
+	if high >= 0 {
+		return jsonpathScanEmptyRead(0, position, jsonpathScanSurrogate)
+	}
+	return jsonpathScanRead{kind: 0, end: position, text: text, error: 0}
+}
+func jsonpathScanLookupKeyword(text *jsonpathScanSource) int {
+	original := langruntime.NewTextBuffer("")
+	folded := langruntime.NewTextBuffer("")
+	position := 0
+	for position < len(text.characters) {
+		character := text.characters[position]
+		original = append(original, string(langruntime.CheckedChar(character))...)
+		code := int(langruntime.CheckedChar(character))
+		if code >= 65 && code <= 90 {
+			folded = append(folded, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(code, 32)), ' ')))...)
+		} else {
+			folded = append(folded, string(langruntime.CheckedChar(character))...)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	index := 0
+	for index < len(jsonpathScanKeywords) {
+		keyword := jsonpathScanKeywords[index]
+		if string(folded) == keyword {
+			if (keyword == "null" || keyword == "true" || keyword == "false") && string(original) != keyword {
+				return jsonpathScanIdent
+			}
+			return langruntime.CheckedSignedAdd(jsonpathScanKeyword, int(int32(index)))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return jsonpathScanIdent
+}
+func jsonpathScanName(source *jsonpathScanSource, begin int, kind int) jsonpathScanRead {
+	begin = langruntime.CheckedIndex(begin)
+	kind = langruntime.CheckedI32(kind)
+	quoted := kind == jsonpathScanString || kind == jsonpathScanVariable
+	position := begin
+	text := []rune{}
+	for position < len(source.characters) {
+		character := source.characters[position]
+		if quoted && character == '"' {
+			return jsonpathScanRead{kind: kind, end: langruntime.CheckedAdd(position, 1), text: text, error: 0}
+		}
+		if quoted == false && (jsonpathScanSpace(character) || jsonpathScanSpecial(character) || character == '"') {
+			if character == '/' && langruntime.CheckedAdd(position, 1) < len(source.characters) && source.characters[langruntime.CheckedAdd(position, 1)] == '*' {
+				return jsonpathScanEmptyRead(langruntime.CheckedSignedNegate(1), position, 0)
+			}
+			break
+		}
+		if character == '\\' {
+			if langruntime.CheckedAdd(position, 1) == len(source.characters) || source.characters[langruntime.CheckedAdd(position, 1)] == '\n' {
+				return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+			}
+			escape := source.characters[langruntime.CheckedAdd(position, 1)]
+			if escape == 'u' {
+				decoded := jsonpathScanUnicode(source, position)
+				if decoded.error != 0 {
+					return decoded
+				}
+				index := 0
+				for index < len(decoded.text) {
+					langruntime.CheckedAdd(len(text), 1)
+					text = append(text, langruntime.CheckedChar(decoded.text[index]))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				position = langruntime.CheckedIndex(decoded.end)
+			} else if escape == 'x' {
+				if langruntime.CheckedAdd(position, 3) >= len(source.characters) {
+					return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+				}
+				first := jsonpathScanHex(source.characters[langruntime.CheckedAdd(position, 2)])
+				second := jsonpathScanHex(source.characters[langruntime.CheckedAdd(position, 3)])
+				if first < 0 || second < 0 {
+					return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+				}
+				code := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(first, 16), second)
+				if code == 0 {
+					return jsonpathScanEmptyRead(0, position, jsonpathScanZero)
+				}
+				langruntime.CheckedAdd(len(text), 1)
+				text = append(text, langruntime.CheckedChar(langruntime.CharacterFromI32(code, ' ')))
+				position = langruntime.CheckedAdd(position, 4)
+			} else {
+				decoded := escape
+				if escape == 'b' {
+					decoded = langruntime.CheckedChar('\b')
+				}
+				if escape == 'f' {
+					decoded = langruntime.CheckedChar('\f')
+				}
+				if escape == 'n' {
+					decoded = langruntime.CheckedChar('\n')
+				}
+				if escape == 'r' {
+					decoded = langruntime.CheckedChar('\r')
+				}
+				if escape == 't' {
+					decoded = langruntime.CheckedChar('\t')
+				}
+				if escape == 'v' {
+					decoded = langruntime.CheckedChar('\v')
+				}
+				langruntime.CheckedAdd(len(text), 1)
+				text = append(text, langruntime.CheckedChar(decoded))
+				position = langruntime.CheckedAdd(position, 2)
+			}
+		} else {
+			langruntime.CheckedAdd(len(text), 1)
+			text = append(text, langruntime.CheckedChar(character))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	if quoted {
+		return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+	}
+	decoded := jsonpathScanSource{characters: text}
+	keyword := jsonpathScanLookupKeyword(&decoded)
+	return jsonpathScanRead{kind: keyword, end: position, text: decoded.characters, error: 0}
+}
+func jsonpathScanNext(source *jsonpathScanSource, begin int) jsonpathScanRead {
+	begin = langruntime.CheckedIndex(begin)
+	character := source.characters[begin]
+	next := '\x00'
+	if langruntime.CheckedAdd(begin, 1) < len(source.characters) {
+		next = langruntime.CheckedChar(source.characters[langruntime.CheckedAdd(begin, 1)])
+	}
+	if character == '/' && next == '*' {
+		position := langruntime.CheckedAdd(begin, 2)
+		for langruntime.CheckedAdd(position, 1) < len(source.characters) {
+			if source.characters[position] == '*' && source.characters[langruntime.CheckedAdd(position, 1)] == '/' {
+				return jsonpathScanEmptyRead(langruntime.CheckedSignedNegate(1), langruntime.CheckedAdd(position, 2), 0)
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return jsonpathScanEmptyRead(0, position, jsonpathScanSyntax)
+	}
+	if character == '$' {
+		if next == '"' {
+			return jsonpathScanName(source, langruntime.CheckedAdd(begin, 2), jsonpathScanVariable)
+		}
+		if langruntime.CheckedAdd(begin, 1) < len(source.characters) && jsonpathScanOther(next) {
+			end := langruntime.CheckedAdd(begin, 1)
+			text := []rune{}
+			for end < len(source.characters) && jsonpathScanOther(source.characters[end]) {
+				langruntime.CheckedAdd(len(text), 1)
+				text = append(text, langruntime.CheckedChar(source.characters[end]))
+				end = langruntime.CheckedAdd(end, 1)
+			}
+			return jsonpathScanRead{kind: jsonpathScanVariable, end: end, text: text, error: 0}
+		}
+	}
+	if character == '"' {
+		return jsonpathScanName(source, langruntime.CheckedAdd(begin, 1), jsonpathScanString)
+	}
+	pair := 0
+	if character == '&' && next == '&' {
+		pair = langruntime.CheckedI32(jsonpathScanAnd)
+	}
+	if character == '|' && next == '|' {
+		pair = langruntime.CheckedI32(jsonpathScanOr)
+	}
+	if character == '*' && next == '*' {
+		pair = langruntime.CheckedI32(jsonpathScanAny)
+	}
+	if character == '<' && next == '=' {
+		pair = langruntime.CheckedI32(jsonpathScanLe)
+	}
+	if character == '=' && next == '=' {
+		pair = langruntime.CheckedI32(jsonpathScanEq)
+	}
+	if (character == '!' && next == '=') || (character == '<' && next == '>') {
+		pair = langruntime.CheckedI32(jsonpathScanNe)
+	}
+	if character == '>' && next == '=' {
+		pair = langruntime.CheckedI32(jsonpathScanGe)
+	}
+	if pair > 0 {
+		return jsonpathScanEmptyRead(pair, langruntime.CheckedAdd(begin, 2), 0)
+	}
+	digit := jsonpathScanHex(character)
+	nextDigit := jsonpathScanHex(next)
+	if (digit >= 0 && digit < 10) || (character == '.' && nextDigit >= 0 && nextDigit < 10) {
+		number := jsonpathScanNumber(source, begin)
+		if number.end > begin {
+			return number
+		}
+	}
+	if jsonpathScanSpecial(character) {
+		return jsonpathScanEmptyRead(int(langruntime.CheckedChar(character)), langruntime.CheckedAdd(begin, 1), 0)
+	}
+	return jsonpathScanName(source, begin, jsonpathScanIdent)
+}
+func jsonpathScanTokens(input string) jsonpathScan {
+	input = langruntime.CheckedString(input)
+	source := jsonpathScanSource{characters: []rune(input)}
+	tokens := []jsonpathScanToken{}
+	text := []rune{}
+	position := 0
+	for position < len(source.characters) {
+		if jsonpathScanSpace(source.characters[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		} else {
+			read := jsonpathScanNext(&source, position)
+			if read.error != 0 {
+				return jsonpathScan{source: source.characters, tokens: tokens, text: text, error: read.error}
+			}
+			if read.kind >= 0 {
+				start := len(text)
+				index := 0
+				for index < len(read.text) {
+					langruntime.CheckedAdd(len(text), 1)
+					text = append(text, langruntime.CheckedChar(read.text[index]))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				langruntime.CheckedAdd(len(tokens), 1)
+				tokens = append(tokens, copyjsonpathScanToken(jsonpathScanToken{kind: read.kind, start: position, end: read.end, textStart: start, textEnd: len(text)}))
+			}
+			position = langruntime.CheckedIndex(read.end)
+		}
+	}
+	return jsonpathScan{source: source.characters, tokens: tokens, text: text, error: 0}
+}
+
+var jsonpathTableActionOffsets = []int{0, 18, 33, 48, 63, 64, 87, 88, 111, 134, 157, 172, 185, 187, 210, 233, 246, 269, 292, 315, 338, 361, 365, 379, 380, 403, 406, 429, 442, 456, 459, 474, 494, 509, 513, 533, 570, 584, 585, 608, 631, 644, 657, 670, 683, 684, 697, 710, 723, 736, 749, 762, 775, 776, 789, 804, 819, 825, 848, 856, 859, 872, 875, 899, 923, 947, 971, 995, 1019, 1043, 1067, 1091, 1114, 1137, 1160, 1184, 1207, 1231, 1254, 1278, 1301, 1324, 1347, 1370, 1394, 1418, 1441, 1464, 1487, 1510, 1534, 1558, 1582, 1606, 1630, 1653, 1676, 1700, 1723, 1746, 1769, 1792, 1815, 1816, 1817, 1825, 1827, 1829, 1844, 1849, 1869, 1889, 1909, 1929, 1949, 1951, 1960, 1964, 1968, 1972, 1995, 1996, 2019, 2022, 2026, 2028, 2030, 2034, 2036, 2038, 2040, 2042, 2043, 2066, 2079, 2092, 2115, 2118, 2119, 2123, 2127, 2131, 2135, 2137, 2139, 2141, 2142, 2143, 2144, 2146, 2147, 2148, 2150, 2152, 2153, 2154, 2155, 2156, 2157, 2158, 2159, 2182, 2189, 2191, 2214, 2218, 2241, 2243, 2266, 2268, 2270, 2273, 2296, 2319, 2342, 2365, 2388, 2389, 2391, 2414}
+var jsonpathTableActionTokens = []int{0, 33, 36, 40, 43, 45, 64, 257, 258, 259, 260, 283, 286, 287, 290, 293, 297, 300, 33, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 297, 33, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 297, 33, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 297, 0, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 40, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 33, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 297, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 40, 297, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 41, 261, 262, 0, 37, 42, 43, 45, 47, 60, 62, 264, 265, 266, 267, 299, 311, 0, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 261, 262, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 37, 41, 42, 43, 45, 47, 60, 62, 264, 265, 266, 267, 299, 311, 41, 261, 262, 33, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 297, 0, 37, 41, 42, 43, 44, 45, 47, 60, 62, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 33, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 297, 0, 41, 261, 262, 0, 37, 41, 42, 43, 44, 45, 47, 60, 62, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 42, 256, 257, 263, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 36, 40, 42, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 40, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 257, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 292, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 33, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 297, 33, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 297, 37, 41, 42, 43, 45, 47, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 41, 46, 63, 91, 261, 262, 280, 41, 261, 262, 37, 42, 43, 45, 47, 60, 62, 264, 265, 266, 267, 299, 311, 41, 261, 262, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 123, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 40, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 40, 93, 37, 42, 43, 44, 45, 47, 93, 281, 44, 93, 44, 93, 33, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 297, 0, 41, 261, 262, 285, 0, 37, 41, 42, 43, 44, 45, 47, 60, 62, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 47, 60, 62, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 47, 60, 62, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 47, 60, 62, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 47, 60, 62, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 257, 258, 0, 37, 41, 42, 43, 45, 47, 261, 262, 0, 41, 261, 262, 0, 41, 261, 262, 0, 41, 261, 262, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 307, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 46, 63, 91, 0, 41, 261, 262, 259, 286, 41, 257, 41, 43, 45, 259, 41, 259, 41, 259, 41, 259, 41, 259, 41, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 36, 40, 43, 45, 64, 257, 258, 259, 260, 286, 287, 290, 293, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 41, 261, 262, 257, 0, 41, 261, 262, 0, 41, 261, 262, 0, 41, 261, 262, 0, 41, 261, 262, 125, 281, 125, 281, 125, 281, 41, 41, 41, 41, 44, 259, 259, 41, 44, 41, 44, 41, 41, 41, 41, 41, 41, 41, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 37, 42, 43, 44, 45, 47, 93, 44, 93, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 41, 261, 262, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 259, 286, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 41, 44, 41, 44, 43, 45, 259, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311, 125, 41, 44, 0, 37, 41, 42, 43, 44, 45, 46, 47, 60, 62, 63, 91, 93, 261, 262, 264, 265, 266, 267, 281, 299, 311}
+var jsonpathTableActionValues = []int{-2, -7, -7, -7, -7, -7, -7, -7, -7, -7, -7, 2, -7, -7, -7, -7, -7, 3, -6, -6, -6, -6, -6, -6, -6, -6, -6, -6, -6, -6, -6, -6, -6, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, -5, 13, 17, 11, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 7, 2147483647, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, -36, 28, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -13, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, -37, 13, 17, 11, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 7, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 33, 7, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -9, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -35, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -8, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -14, -42, -42, -42, -42, -42, -42, -42, 36, -42, -42, -42, 38, 37, -42, -42, -42, -42, -42, -42, -42, -42, -42, -42, -23, -23, -23, -23, -3, 49, 52, 50, 47, 51, 46, 43, 44, 41, 48, 42, 53, 45, -1, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -38, -4, 55, 56, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, -34, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 49, 58, 52, 50, 47, 51, 46, 43, 44, 41, 48, 42, 53, 45, 59, 55, 56, 13, 17, 11, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 7, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, -45, 13, 17, 11, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 7, -27, -27, -27, -27, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, -44, 86, 76, 89, 64, 78, 95, 63, 81, 68, 74, 80, 83, 85, 91, 96, 97, 99, 73, 75, 65, 71, 72, 84, 87, 88, 90, 66, 67, 70, 77, 94, 98, 69, 79, 92, 82, 93, 17, 31, 104, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 108, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -41, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -15, -15, -15, -15, -15, -15, -15, -15, -15, -15, -15, -15, -15, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -20, -18, -18, -18, -18, -18, -18, -18, -18, -18, -18, -18, -18, -18, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, -19, 109, -17, -17, -17, -17, -17, -17, -17, -17, -17, -17, -17, -17, -17, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, -16, -16, -16, -16, -16, -16, -16, -16, -16, -16, -16, -16, -16, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 115, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 13, 17, 11, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 7, 13, 17, 11, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 7, 49, 119, 52, 50, 47, 51, -43, -43, -43, -43, -43, -43, -43, 36, -43, -43, -43, 38, 37, -43, -43, -43, -43, -43, -43, -43, -43, -43, -43, -21, -21, 36, 38, 37, -21, -21, 121, 123, 55, 56, 49, 52, 50, 47, 51, 46, 43, 44, 41, 48, 42, 53, 45, 124, 55, 56, -92, -92, -123, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -92, -59, -59, -59, -59, -59, -59, -59, -59, -59, -59, -59, -59, -59, -59, 125, -59, -59, -59, -59, -59, -59, -59, -59, -59, -105, -105, -130, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -105, -112, -112, -131, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -112, -113, -113, -128, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -94, -94, -132, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -94, -118, -118, 126, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -118, -114, -114, 127, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -114, -106, -106, -127, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -106, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -107, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -103, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -95, -104, -104, -126, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -88, -115, -115, -133, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -115, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -90, -119, -119, -129, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -119, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -96, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -93, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -121, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -97, -108, -108, -134, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -108, -98, -98, -124, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -98, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -63, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -110, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -89, -111, -111, -135, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -99, -99, 128, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -120, -120, 129, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -120, -122, -122, 130, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -122, -116, -116, 131, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -91, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -101, -101, -125, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -117, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -102, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -65, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -62, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, -87, 132, 133, 49, 52, 50, -51, 47, 51, -51, 134, -53, -53, 135, 136, 13, 17, 11, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 7, -30, -30, -30, -30, 138, -47, 49, -47, 52, -47, -47, -47, 51, -47, -47, -47, -47, -47, -47, -47, -47, -47, -47, -47, -47, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -50, -46, 49, -46, 52, -46, -46, -46, 51, -46, -46, -46, -46, -46, -46, -46, -46, -46, -46, -46, -46, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -49, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, -48, 139, 140, -24, 49, -24, 52, 50, 47, 51, -24, -24, -25, -25, -25, -25, -26, -26, 55, -26, -22, -22, -22, -22, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, -39, 142, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, -40, 36, 38, 37, -21, -21, -21, -21, 143, 144, -86, 146, -80, 151, 150, 149, -83, 155, -83, 155, -83, 155, -83, 155, 161, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, -55, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, 17, 31, 16, 12, 6, 18, 20, 9, 15, 10, 14, 19, 8, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, -56, 164, 55, 56, 165, -32, -32, -32, -32, -33, -33, -33, -33, -29, -29, -29, -29, -28, -28, -28, -28, -57, -57, -58, -58, 166, 167, -84, -85, 168, -74, -74, 169, 170, -77, -77, -79, 171, 172, -81, -82, 173, 174, 175, 176, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, -66, 49, 52, 50, -52, 47, 51, -52, -54, -54, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -67, -31, -31, -31, -31, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, -60, 143, 144, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -69, -76, -76, -75, -75, 151, 150, 149, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -68, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -72, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -73, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, -71, 179, -78, -78, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61, -61}
+var jsonpathTableDefaults = []int{0, -6, -5, 0, 0, -36, 0, -11, -13, -37, 0, 0, 0, -9, -12, 0, -35, -8, -10, -14, 0, -23, 0, -1, -38, 0, -34, 0, 0, 0, 0, -45, 0, -27, -44, 0, 0, 0, -41, -64, -15, -20, -18, -19, 0, -17, 0, -16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -107, -103, -95, 0, -88, 0, -90, 0, -96, -93, -121, -97, 0, 0, -63, -109, -110, -89, 0, 0, 0, 0, 0, -91, -100, 0, -117, -102, -65, -62, -87, 0, 0, 0, -53, 0, 0, 0, 0, -50, 0, -49, -48, 0, 0, -25, 0, -22, -39, 0, -40, 0, -21, 0, 0, 0, 0, 0, 0, 0, 0, -55, 0, 0, -56, 0, 0, -32, -33, -29, -28, -57, -58, 0, -84, -85, 0, -74, 0, 0, -77, 0, 0, -81, -82, 0, 0, 0, 0, -66, 0, -54, -67, -31, -60, 0, -69, -76, -75, 0, -68, -70, -72, -73, -71, 0, -78, -61}
+var jsonpathTableGotoOffsets = []int{0, 2, 2, 2, 9, 9, 9, 9, 9, 9, 9, 15, 19, 20, 20, 20, 24, 24, 24, 24, 24, 26, 26, 27, 27, 27, 27, 27, 31, 32, 32, 38, 38, 44, 44, 44, 48, 54, 54, 54, 54, 54, 54, 54, 54, 54, 54, 58, 58, 62, 66, 70, 74, 74, 78, 84, 90, 90, 92, 94, 94, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 95, 101, 101, 101, 101, 101, 101, 101, 102, 102, 102, 102, 102, 102, 102, 102, 104, 104, 105, 107, 110, 112, 114, 116, 118, 118, 118, 122, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 128, 128, 128, 128, 129, 129, 129, 129, 129, 129, 129, 129, 129}
+var jsonpathTableGotoSymbols = []int{18, 24, 0, 10, 11, 12, 22, 23, 25, 0, 10, 11, 22, 23, 25, 0, 11, 22, 25, 10, 0, 11, 22, 25, 1, 4, 5, 0, 11, 22, 25, 5, 0, 10, 11, 22, 23, 25, 0, 10, 11, 22, 23, 25, 3, 15, 16, 17, 0, 11, 13, 14, 22, 25, 0, 11, 22, 25, 0, 11, 22, 25, 0, 11, 22, 25, 0, 11, 22, 25, 0, 11, 22, 25, 0, 11, 22, 25, 0, 10, 11, 22, 23, 25, 0, 10, 11, 22, 23, 25, 1, 4, 1, 4, 5, 0, 10, 11, 22, 23, 25, 26, 1, 4, 2, 9, 21, 6, 7, 19, 8, 20, 8, 20, 8, 20, 8, 20, 0, 11, 22, 25, 0, 11, 13, 22, 25, 2, 6}
+var jsonpathTableGotoValues = []int{3, 4, 20, 21, 22, 23, 24, 25, 26, 20, 21, 28, 24, 29, 26, 20, 31, 24, 26, 33, 20, 34, 24, 26, 38, 39, 53, 20, 56, 24, 26, 53, 20, 21, 28, 24, 59, 26, 20, 21, 60, 24, 61, 26, 99, 100, 101, 102, 20, 104, 105, 106, 24, 26, 20, 109, 24, 26, 20, 110, 24, 26, 20, 111, 24, 26, 20, 112, 24, 26, 20, 113, 24, 26, 20, 115, 24, 26, 20, 21, 60, 24, 116, 26, 20, 21, 60, 24, 117, 26, 119, 39, 121, 39, 53, 20, 21, 60, 24, 136, 26, 140, 121, 39, 144, 146, 147, 151, 152, 153, 155, 156, 155, 157, 155, 158, 155, 159, 20, 161, 24, 26, 20, 104, 162, 24, 26, 176, 177}
+var jsonpathTableRuleLengths = []int{2, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 4, 1, 3, 3, 3, 2, 5, 4, 3, 5, 1, 1, 1, 1, 1, 1, 1, 4, 4, 2, 1, 3, 2, 2, 3, 3, 3, 3, 3, 1, 3, 1, 3, 3, 3, 1, 1, 1, 4, 6, 2, 2, 1, 2, 4, 4, 5, 5, 5, 5, 5, 5, 1, 2, 2, 1, 3, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+var jsonpathTableRuleSymbols = []int{24, 24, 12, 12, 18, 18, 18, 25, 25, 25, 25, 25, 25, 25, 5, 5, 5, 5, 5, 5, 10, 10, 23, 23, 23, 23, 23, 23, 23, 23, 23, 26, 26, 22, 22, 22, 22, 0, 0, 0, 0, 11, 11, 11, 11, 11, 11, 11, 11, 11, 13, 13, 14, 14, 4, 4, 2, 2, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 6, 6, 6, 7, 7, 19, 19, 8, 20, 20, 9, 21, 21, 15, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17}
+var jsonpathTableRuleActions = []int{0, 1, 2, 2, 3, 4, 4, 5, 6, 7, 8, 9, 9, 10, 2, 2, 2, 2, 2, 2, 11, 12, 2, 13, 13, 13, 14, 15, 16, 17, 18, 5, 10, 2, 19, 20, 21, 2, 22, 22, 23, 2, 11, 24, 25, 13, 13, 13, 13, 13, 26, 27, 2, 28, 29, 30, 31, 32, 33, 34, 35, 11, 36, 2, 11, 37, 38, 39, 40, 40, 40, 40, 40, 9, 41, 42, 2, 28, 2, 43, 9, 2, 43, 5, 2, 43, 44, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}
+
+const jsonpathReduceResult = 0
+const jsonpathReduceEmptyResult = 1
+const jsonpathReducePass = 2
+const jsonpathReduceStrict = 3
+const jsonpathReduceLax = 4
+const jsonpathReduceString = 5
+const jsonpathReduceNull = 6
+const jsonpathReduceTrue = 7
+const jsonpathReduceFalse = 8
+const jsonpathReduceNumber = 9
+const jsonpathReduceVariable = 10
+const jsonpathReduceMiddle = 11
+const jsonpathReduceExists = 12
+const jsonpathReduceBinary = 13
+const jsonpathReduceNot = 14
+const jsonpathReduceIsUnknown = 15
+const jsonpathReduceStarts = 16
+const jsonpathReduceRegex = 17
+const jsonpathReduceRegexFlags = 18
+const jsonpathReduceRoot = 19
+const jsonpathReduceCurrent = 20
+const jsonpathReduceLast = 21
+const jsonpathReduceGroupChain = 22
+const jsonpathReduceChain = 23
+const jsonpathReducePlus = 24
+const jsonpathReduceMinus = 25
+const jsonpathReduceSubscript = 26
+const jsonpathReduceSlice = 27
+const jsonpathReduceList = 28
+const jsonpathReduceArrayAny = 29
+const jsonpathReduceArrayIndex = 30
+const jsonpathReduceLevelNumber = 31
+const jsonpathReduceLevelLast = 32
+const jsonpathReduceAnyAll = 33
+const jsonpathReduceAnyOne = 34
+const jsonpathReduceAnyRange = 35
+const jsonpathReduceKeyAny = 36
+const jsonpathReduceMethod = 37
+const jsonpathReduceFilter = 38
+const jsonpathReduceDecimal = 39
+const jsonpathReduceDatetime = 40
+const jsonpathReduceSignedPlus = 41
+const jsonpathReduceSignedMinus = 42
+const jsonpathReduceNone = 43
+const jsonpathReduceKey = 44
+
 func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) checkruntime.BoolValue {
 	product := Float8mulD3nd(ratio, checkruntime.MakeFloat8Bits(right))
 	if product.Kind == checkruntime.Float8ValueError {

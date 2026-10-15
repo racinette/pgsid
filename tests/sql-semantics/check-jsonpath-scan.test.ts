@@ -291,7 +291,10 @@ describe('CHECK JSONPath lexical foundation', () => {
         tokens: [token('identifier', 'a'.repeat(50000), 'a'.repeat(50000))],
       },
     ]
-    const scanner = await readFile('crates/check-evaluator/src/jsonpath_scan.rs', 'utf8')
+    const scanner = await readFile(
+      'crates/check-evaluator/src/operations/pg_catalog/jsonpath_scan.rs',
+      'utf8',
+    )
     const packaged = assembleCheckRust({ source: '', callables: [] })
     expect(
       packaged.modules

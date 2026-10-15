@@ -72,6 +72,10 @@ function fixture(): CheckRustSource {
           },
           { path: 'operations/pg_catalog/regex.rs', source: `pub fn ${regex.rustName}() {}` },
           { path: 'operations/pg_catalog/regex_count.rs', source: `pub fn ${count.rustName}() {}` },
+          {
+            path: 'operations/pg_catalog/jsonpath_input.rs',
+            source: 'pub fn jsonpath_validate_utf8() {}',
+          },
         ],
       },
     ],
@@ -88,7 +92,10 @@ describe('CHECK operation source dependencies', () => {
       const assembled = assembleCheckRust({ source: '', callables: [name] })
       expect(assembled.modules.find((module) => module.name === 'pg_catalog')?.files).toEqual(
         source.modules[2]!.files.filter(
-          (file) => !file.path.includes('/regex') && !file.path.includes('/text_unicode'),
+          (file) =>
+            !file.path.includes('/regex') &&
+            !file.path.includes('/text_unicode') &&
+            !file.path.endsWith('/jsonpath_input.rs'),
         ),
       )
     }
@@ -101,6 +108,7 @@ describe('CHECK operation source dependencies', () => {
         (file) =>
           !file.path.includes('/timezone') &&
           !file.path.includes('/regex') &&
+          !file.path.endsWith('/jsonpath_input.rs') &&
           !file.path.includes('/text_unicode'),
       ),
     )
@@ -138,12 +146,18 @@ describe('CHECK operation source dependencies', () => {
       const schema = assembled.modules.find((module) => module.name === 'pg_catalog')!
       expect(schema.dependencies).toContain('regex_engine')
       expect(schema.files.filter((file) => file.path.includes('/regex'))).toHaveLength(2)
+      expect(schema.files.some((file) => file.path.endsWith('/jsonpath_input.rs'))).toBe(true)
       expect(schema.files.some((file) => file.path.includes('/timezone'))).toBe(false)
     }
   })
   it('retains regex support for legacy evaluator expressions and omits it otherwise', () => {
     const legacy = assembleCheckRust({ source: '', callables: [], requiresRegex: true })
     expect(legacy.modules.find((module) => module.name === 'regex_engine')).toBeDefined()
+    expect(
+      legacy.modules
+        .find((module) => module.name === 'pg_catalog')!
+        .files.some((file) => file.path.endsWith('/jsonpath_input.rs')),
+    ).toBe(true)
     const scalar = assembleCheckRust({ source: '', callables: [] })
     expect(scalar.modules.find((module) => module.name === 'regex_engine')).toBeUndefined()
     expect(scalar.modules.find((module) => module.name === 'pg_catalog')!.dependencies).toEqual([

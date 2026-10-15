@@ -276,8 +276,9 @@ exposes a prerequisite:
 - [x] JSON/JSONB binary send, source/canonical bytes, version framing and strict states; retain encoding requirements and classify receive functions as internal interfaces.
 - [ ] Explicit VARIADIC arrays and path-array access follow arrays.
 - [x] JSONPath lexical foundation: owned source/token/decoded arenas, comments, names, variables, numeric forms and Unicode error precedence; no public SQL admission.
-- [x] JSONPath grammar/query graph foundation: precedence, accessor/method arguments, @/last scopes, parser errors and ordered literal-validation events; numeric/regex validation remain explicit before public SQL admission.
-- [ ] JSONPath literal validation, portable values, SQL integration and execution over the logical JSONB tree.
+- [x] JSONPath grammar/query graph foundation: precedence, accessor/method arguments, @/last scopes, parser errors and ordered literal-validation events.
+- [x] Private UTF8/C JSONPath literal validation: exact numeric forms, regex compilation/flags and error order; retain collation requirements and regex compiler limits as Unknown.
+- [ ] JSONPath portable values, encoding admission, SQL integration and execution over the logical JSONB tree.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
 Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations,
@@ -292,8 +293,7 @@ Keep PostgreSQL behavior in maintained Rust. Generate evaluator control flow and
 transpilers, errors as values, and diagnostic Unknown results.
 
 For each implementation task, select focused family suites and regressions for the shared behavior it changes. Verify Rust, Go and TypeScript against PostgreSQL,
-including raw/stored binding, public inputs and NULL/Unknown/error behavior. Rebuild
-affected assets, verify relevant codegen goldens, and run applicable static, corpus
+including raw/stored binding, public inputs and NULL/Unknown/error behavior. Rebuild affected assets, verify relevant codegen goldens, and run applicable static, corpus
 and measurement checks. Record selected dependencies and any reused evidence.
 Select INSERT worlds with `PGSID_CHECK_WORLDS=directory[,directory]`; keep scoped reports separate.
 Run the full CHECK gate for broad semantic changes and integration milestones. Keep partial runs explicitly partial. Refresh
