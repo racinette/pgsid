@@ -772,7 +772,15 @@ const candidate = (
         item.args.length > args.length &&
         item.args.length - args.length <= item.numArgDefaults,
     )
+  const hasAnyElement = callables.some(
+    ({ item }) =>
+      item.kind === kind &&
+      item.schema === 'pg_catalog' &&
+      item.name === name &&
+      item.args.includes('pg_catalog.anyelement'),
+  )
   if (
+    !hasAnyElement &&
     !hasOmittedDefaults &&
     ((kind === 'function' && name === 'char') ||
       args.some(
@@ -783,7 +791,8 @@ const candidate = (
       ))
   )
     return comparisonCandidate(args, name, true, kind, false)
-  const integer = hasOmittedDefaults ? undefined : integerCandidate(kind, name, args)
+  const integer =
+    hasOmittedDefaults || hasAnyElement ? undefined : integerCandidate(kind, name, args)
   if (integer !== undefined) return integer
   const matches = callables.flatMap(({ signature, item }) => {
     if (
@@ -824,6 +833,12 @@ const candidate = (
       !supportsTextCallableCollation(signature, collation?.kind)
     )
       return []
+    const elementTypes = fullArgs.flatMap((arg, index) =>
+      item.args[index] === 'pg_catalog.anyelement' ? [boundType(arg)] : [],
+    )
+    const elementType = elementTypes[0]
+    if (elementTypes.length && (!elementType || elementTypes.some((type) => type !== elementType)))
+      return []
     const enumCall = item.args.includes('pg_catalog.anyenum')
     const definition = fullArgs.find(
       (arg, index) => item.args[index] === 'pg_catalog.anyenum' && arg.enum,
@@ -841,15 +856,17 @@ const candidate = (
     )
       return []
     const operands = fullArgs.map((arg, index) =>
-      isIntegerType(item.args[index]!)
-        ? materializeInteger(arg, item.args[index]! as ScalarType)
-        : materialize(
-            arg,
-            item.args[index] === 'pg_catalog.anyenum'
-              ? enumType(definition!)
-              : (item.args[index]! as ScalarType),
-            definition,
-          ),
+      item.args[index] === 'pg_catalog.anyelement'
+        ? materialize(arg, elementType!, arg.enum)
+        : isIntegerType(item.args[index]!)
+          ? materializeInteger(arg, item.args[index]! as ScalarType)
+          : materialize(
+              arg,
+              item.args[index] === 'pg_catalog.anyenum'
+                ? enumType(definition!)
+                : (item.args[index]! as ScalarType),
+              definition,
+            ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [{ signature, item, operands: operands as EvalExpression[], collation, enum: definition }]

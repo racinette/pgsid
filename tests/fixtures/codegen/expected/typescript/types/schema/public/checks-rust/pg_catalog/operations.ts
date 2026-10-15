@@ -10534,6 +10534,51 @@ export function float8Ncq4(input: checkruntime.JsonbValue): checkruntime.Float8V
     input = checkruntime.copyJsonbValue(input);
     return float8Bkfn(numericUnkz(input));
 }
+export function toJsonb9y7o(input: checkruntime.JsonbInput): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbInput(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Boolean") {
+        const value: boolean = langruntime.checkedBool(input.value);
+        if (value) {
+            return checkruntime.makeJsonbValue("true");
+        }
+        return checkruntime.makeJsonbValue("false");
+    }
+    if (input.kind === "Number") {
+        const value: string = langruntime.checkedString(input.value);
+        if (value === "NaN" || value === "Infinity" || value === "-Infinity") {
+            return checkruntime.jsonbFromString({ kind: "Value", value: value });
+        }
+        return checkruntime.jsonbFromText({ kind: "Value", value: value });
+    }
+    if (input.kind === "Text") {
+        const value: string = langruntime.checkedString(input.value);
+        return checkruntime.jsonbFromString({ kind: "Value", value: value });
+    }
+    if (input.kind === "Json") {
+        const value: checkruntime.JsonPayload = input.value;
+        return checkruntime.jsonbFromText({ kind: "Value", value: value.source });
+    }
+    if (input.kind === "Jsonb") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromUuid(input: checkruntime.UuidValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = uuidToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromOid(input: checkruntime.OidValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = oidToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
 export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
     if (input.kind === "Error") {

@@ -824,6 +824,165 @@ export function copyJsonbValue(value: JsonbValue): JsonbValue {
         case "Error": return { kind: "Error", value: value.value };
     }
 }
+export type JsonbInput = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+} | {
+    readonly kind: "Boolean";
+    readonly value: boolean;
+} | {
+    readonly kind: "Number";
+    readonly value: string;
+} | {
+    readonly kind: "Text";
+    readonly value: string;
+} | {
+    readonly kind: "Json";
+    readonly value: JsonPayload;
+} | {
+    readonly kind: "Jsonb";
+    readonly value: JsonbPayload;
+};
+export function copyJsonbInput(value: JsonbInput): JsonbInput {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Boolean": return { kind: "Boolean", value: langruntime.checkedBool(value.value) };
+        case "Number": return { kind: "Number", value: langruntime.checkedString(value.value) };
+        case "Text": return { kind: "Text", value: langruntime.checkedString(value.value) };
+        case "Json": return { kind: "Json", value: value.value };
+        case "Jsonb": return { kind: "Jsonb", value: copyJsonbPayload(value.value) };
+    }
+}
+export function jsonbInputFromBool(input: BoolValue): JsonbInput {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: boolean = langruntime.checkedBool(input.value);
+        return { kind: "Boolean", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromNumeric(input: NumericValue): JsonbInput {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Number", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromText(input: TextValue): JsonbInput {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Text", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromJson(input: JsonValue): JsonbInput {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonPayload = input.value;
+        return { kind: "Json", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromJsonb(input: JsonbValue): JsonbInput {
+    input = copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonbPayload = copyJsonbPayload(input.value);
+        return { kind: "Jsonb", value: value };
+    }
+    return { kind: "Unknown" };
+}
+function jsonbInputFloat(number: number): JsonbInput {
+    number = langruntime.checkedF64(number);
+    if (!(number === number)) {
+        return { kind: "Number", value: "NaN" };
+    }
+    const infinity: number = langruntime.f64Divide(1.0, 0.0);
+    if (number === infinity) {
+        return { kind: "Number", value: "Infinity" };
+    }
+    if (number === langruntime.f64Subtract(0.0, infinity)) {
+        return { kind: "Number", value: "-Infinity" };
+    }
+    if (number === 0.0) {
+        return { kind: "Number", value: "0" };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromFloat4(input: Float4Value): JsonbInput {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalFloat4Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (equalFloat4Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "Number", value: "NaN" };
+    }
+    if (input.kind === "Value") {
+        const bits: number = langruntime.checkedI32(input.value);
+        const number: number = float4Number(bits);
+        return jsonbInputFloat(number);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromFloat8(input: Float8Value): JsonbInput {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalFloat8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "Number", value: "NaN" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const number: number = float8Number(bits);
+        return jsonbInputFloat(number);
+    }
+    return { kind: "Unknown" };
+}
 export function makeJsonbValue(source: string): JsonbValue {
     source = langruntime.checkedString(source);
     const parsed: JsonbValue = jsonbParseText({ kind: "Value", value: source }, false);
@@ -5172,6 +5331,32 @@ export function jsonbRebuild(input: JsonbValue, admission: boolean): JsonbValue 
         return { kind: "Value", value: normalized };
     }
     return input;
+}
+export function jsonbFromString(input: TextValue): JsonbValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let position: number = 0;
+        while (position < characters.length) {
+            if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\0") {
+                return { kind: "Unknown" };
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        let nodes: JsonbNode[] = [];
+        langruntime.pushStruct(nodes, { kind: langruntime.checkedSignedNegate(1), child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }, copyJsonbNode);
+        langruntime.pushStruct(nodes, { kind: 4, child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: characters.length }, copyJsonbNode);
+        const result: JsonbValue = { kind: "Value", value: { characters: characters, nodes: nodes, root: 1 } };
+        return jsonbRebuild(result, true);
+    }
+    return { kind: "Unknown" };
 }
 interface JsonbStorageSize {
     low: bigint;

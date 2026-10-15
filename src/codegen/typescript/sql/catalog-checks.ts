@@ -402,7 +402,7 @@ export function renderTypescriptSchemaCheckArtifacts(
         }
       }
       const result = emitEvalBoolExpression(
-        portableCheckAtoms(plan.expression),
+        portableCheckAtoms(plan.expression, false),
         { ...typescriptSqlBackend, input: (name) => callInput('checkTextValue', name) },
         {
           ...backend,

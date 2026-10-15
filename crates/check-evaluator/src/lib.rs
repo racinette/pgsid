@@ -58,6 +58,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/jsonb_cast.rs");
     include!("operations/pg_catalog/jsonb_edit.rs");
     include!("operations/pg_catalog/jsonb_format.rs");
+    include!("operations/pg_catalog/jsonb_convert.rs");
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/timestamptz.rs");

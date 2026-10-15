@@ -19,3 +19,4 @@ INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_de
         1
     ]
 }',false);
+INSERT INTO document_conversions(id,store_id,label,source_text,source_number,source_flag,source_integer,source_json,source_stored,source_uuid,source_oid,expected_text,expected_number,expected_flag,expected_integer,expected_json,expected_stored,expected_uuid,expected_oid,bypass) VALUES(1,1,'stored conversion','[1,null]'::text,'9007199254740993.12300'::numeric,true::bool,'9223372036854775807'::bigint,'{"a":1,"a":2}'::json,'{"aa":1,"é":2}'::jsonb,'550e8400-e29b-41d4-a716-446655440000'::uuid,'4294967295'::oid,'"[1,null]"'::jsonb,'9007199254740993.12300'::jsonb,'true'::jsonb,'9223372036854775807'::jsonb,'{"a": 2}'::jsonb,'{"aa": 1, "é": 2}'::jsonb,'"550e8400-e29b-41d4-a716-446655440000"'::jsonb,'"4294967295"'::jsonb,false);

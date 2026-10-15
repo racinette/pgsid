@@ -36,6 +36,30 @@ const rustValuePrefix = (kind: string): string =>
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
     .toLowerCase()
 
+const jsonbConversionHelpers = new Map<string, string>(
+  (
+    [
+      [['pg_catalog.bool'], 'bool'],
+      [
+        ['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8', 'pg_catalog."numeric"'],
+        'numeric',
+      ],
+      [['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'], 'text'],
+      [['pg_catalog."json"'], 'json'],
+      [['pg_catalog.jsonb'], 'jsonb'],
+      [['pg_catalog.float4'], 'float4'],
+      [['pg_catalog.float8'], 'float8'],
+      [['pg_catalog.uuid'], 'uuid'],
+      [['pg_catalog.oid'], 'oid'],
+    ] as const
+  ).flatMap(([types, suffix]) =>
+    types.map((type) => [type, 'jsonb_input_from_' + suffix] as const),
+  ),
+)
+
+export const jsonbConversionHelper = (type: string): string | undefined =>
+  jsonbConversionHelpers.get(type)
+
 export class UnsupportedCheckRustExpression extends Error {}
 
 const rustType = (type: string): string => {
@@ -445,6 +469,15 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           'JSONB ordering requires declared database default collation C and server encoding UTF8',
         )
+      const jsonbConversion =
+        implementation.kind === 'function' &&
+        implementation.schema === 'pg_catalog' &&
+        implementation.name === 'to_jsonb' &&
+        implementation.args.length === 1 &&
+        implementation.args[0] === 'pg_catalog.anyelement' &&
+        implementation.result === 'pg_catalog.jsonb' &&
+        implementation.strict &&
+        implementation.volatility === 's'
       const enumOperands = implementation.args.flatMap((type, index) =>
         type === 'pg_catalog.anyenum' ? [operands[index]?.type] : [],
       )
@@ -459,6 +492,7 @@ export function emitCheckRustEvaluator(
         (!implementation.strict &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
+          !jsonbConversion &&
           !(
             (['namesend', 'textsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&
@@ -506,13 +540,15 @@ export function emitCheckRustEvaluator(
         implementation.args.some((type, index) =>
           type === 'pg_catalog.anyenum' && enumCall
             ? !operands[index]?.type.startsWith('enum:')
-            : operands[index]?.type !== type &&
-              !(
-                call.kind === 'cast' &&
-                call.type === 'pg_catalog."char"' &&
-                type === 'pg_catalog.text' &&
-                operands[index]?.type === 'pg_catalog.bpchar'
-              ),
+            : type === 'pg_catalog.anyelement' && jsonbConversion
+              ? false
+              : operands[index]?.type !== type &&
+                !(
+                  call.kind === 'cast' &&
+                  call.type === 'pg_catalog."char"' &&
+                  type === 'pg_catalog.text' &&
+                  operands[index]?.type === 'pg_catalog.bpchar'
+                ),
         )
       )
         throw new UnsupportedCheckRustExpression(
@@ -520,11 +556,50 @@ export function emitCheckRustEvaluator(
         )
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
+      let arguments_ = operands.map((operand) => ownedOperand(operand))
+      if (jsonbConversion) {
+        let operand = operands[0]!
+        if (['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'].includes(operand.type)) {
+          const conversion = builtinCast(operand.type, 'pg_catalog."numeric"')
+          if (conversion?.method !== 'f' || !conversion.implementation)
+            throw new UnsupportedCheckRustExpression(
+              'JSONB integer conversion requires its catalog numeric cast',
+            )
+          operand = emitCall(
+            { kind: 'cast', signature: conversion.implementation, type: 'pg_catalog."numeric"' },
+            [operand],
+            destination,
+          )
+        }
+        if (operand.type === 'pg_catalog.uuid' || operand.type === 'pg_catalog.oid') {
+          const output = builtinTypeIO(operand.type)?.output
+          const metadata = output ? builtinMetadata(output) : null
+          if (
+            !metadata ||
+            metadata.kind !== 'function' ||
+            !metadata.strict ||
+            metadata.volatility !== 'i' ||
+            metadata.returnsSet ||
+            metadata.args.length !== 1 ||
+            metadata.args[0] !== operand.type ||
+            metadata.result !== 'pg_catalog.cstring'
+          )
+            throw new UnsupportedCheckRustExpression(
+              'JSONB string conversion requires its catalog output identity',
+            )
+        }
+        const helper = jsonbConversionHelper(operand.type)
+        if (!helper)
+          throw new UnsupportedCheckRustExpression(
+            `JSONB conversion requires a supported concrete input category: ${operand.type}`,
+          )
+        const carrier = fresh('jsonb_input')
+        destination.push(`let ${carrier} = ${helper}(${ownedOperand(operand)});`)
+        arguments_ = [carrier]
+      }
       callables.add(implementation.rustName)
       const name = fresh('value')
-      destination.push(
-        `let ${name} = ${implementation.rustName}(${operands.map((operand) => ownedOperand(operand)).join(', ')});`,
-      )
+      destination.push(`let ${name} = ${implementation.rustName}(${arguments_.join(', ')});`)
       return { name, type: call.type }
     }
     if (node.kind === 'check') {

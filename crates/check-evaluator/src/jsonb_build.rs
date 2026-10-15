@@ -92,3 +92,48 @@ pub fn jsonb_rebuild(input: JsonbValue, admission: bool) -> JsonbValue {
     };
     input
 }
+
+pub fn jsonb_from_string(input: TextValue) -> JsonbValue {
+    if let TextValue::Error(error) = input {
+        return JsonbValue::Error(error);
+    };
+    if let TextValue::Null = input {
+        return JsonbValue::Null;
+    };
+    if let TextValue::Value(value) = input {
+        let characters: Vec<char> = value.chars().collect();
+        let mut position: usize = 0;
+        while position < characters.len() {
+            if characters[position] == '\0' {
+                return JsonbValue::Unknown;
+            };
+            position += 1;
+        }
+        let mut nodes: Vec<JsonbNode> = Vec::new();
+        nodes.push(JsonbNode {
+            kind: -1,
+            child: 0,
+            next: 0,
+            key_start: 0,
+            key_end: 0,
+            text_start: 0,
+            text_end: 0,
+        });
+        nodes.push(JsonbNode {
+            kind: 4,
+            child: 0,
+            next: 0,
+            key_start: 0,
+            key_end: 0,
+            text_start: 0,
+            text_end: characters.len(),
+        });
+        let result = JsonbValue::Value(JsonbPayload {
+            characters: characters,
+            nodes: nodes,
+            root: 1,
+        });
+        return jsonb_rebuild(result, true);
+    };
+    JsonbValue::Unknown
+}

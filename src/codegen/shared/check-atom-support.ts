@@ -3,6 +3,7 @@ import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.j
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import type { SqlBindingGroup } from '../../sql-semantics/signatures.js'
 import { checkRustCallableNames } from './check-rust-source.js'
+import { jsonbConversionHelper } from './check-rust-evaluator.js'
 import { builtinCast, builtinMetadata } from '../../postgres/builtins/inventory.js'
 import { enumEqualityOperation } from '../../sql-semantics/expressions.js'
 import { goSqlBackend } from '../go/sql/registry.js'
@@ -17,7 +18,7 @@ const signatures = <Ast>(bindings: readonly SqlBindingGroup<Ast>[]): Set<string>
   )
 const go = signatures(goSqlBackend.bindings)
 const typescript = signatures(typescriptSqlBackend.bindings)
-const portable = (signature: string, rustNames: ReadonlySet<string>): boolean => {
+const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boolean): boolean => {
   if (enumEqualityOperation(signature) !== null) return true
   const metadata = builtinMetadata(signature)
   const implementation =
@@ -35,6 +36,17 @@ const portable = (signature: string, rustNames: ReadonlySet<string>): boolean =>
       builtinCast('pg_catalog.text', implementation.result)?.implementation === signature)
   return (
     (metadata.volatility === 'i' ||
+      (rust &&
+        implementation.kind === 'function' &&
+        implementation.schema === 'pg_catalog' &&
+        implementation.name === 'to_jsonb' &&
+        implementation.strict &&
+        implementation.volatility === 's' &&
+        !implementation.returnsSet &&
+        implementation.args.length === 1 &&
+        implementation.args[0] === 'pg_catalog.anyelement' &&
+        implementation.result === 'pg_catalog.jsonb' &&
+        rustNames.has(implementation.rustName)) ||
       conditionalCatalogInput ||
       (implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
@@ -51,7 +63,10 @@ const portable = (signature: string, rustNames: ReadonlySet<string>): boolean =>
   )
 }
 
-export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpression {
+export function portableCheckAtoms(
+  expression: EvalBoolExpression,
+  rust = true,
+): EvalBoolExpression {
   const rustNames = checkRustCallableNames()
   const scalar = (value: EvalExpression): EvalExpression => {
     if (
@@ -91,8 +106,29 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
     if (value.kind === 'check') return { ...value, expression: bool(value.expression) }
     if (value.kind === 'call' && value.call.kind === 'cast' && value.call.signature === null)
       return { ...value, operands: value.operands.map(scalar) }
+    if (value.kind === 'call' && value.call.signature !== null) {
+      const item = builtinMetadata(value.call.signature)
+      if (
+        item.kind === 'function' &&
+        item.schema === 'pg_catalog' &&
+        item.name === 'to_jsonb' &&
+        item.args[0] === 'pg_catalog.anyelement'
+      ) {
+        const operand = value.operands[0]
+        const type =
+          operand?.kind === 'certain'
+            ? operand.expression.type
+            : operand?.kind === 'call'
+              ? operand.call.type
+              : operand?.kind === 'regex-count'
+                ? builtinMetadata(operand.signature).result
+                : operand?.type
+        if (!type || !jsonbConversionHelper(type))
+          return { kind: 'uncertain', type: value.call.type }
+      }
+    }
     if (value.kind === 'call')
-      return value.call.signature !== null && portable(value.call.signature, rustNames)
+      return value.call.signature !== null && portable(value.call.signature, rustNames, rust)
         ? { ...value, operands: value.operands.map(scalar) }
         : { kind: 'uncertain', type: value.call.type }
     if (value.kind === 'boolean-logic' || value.kind === 'coalesce')
@@ -104,17 +140,20 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
         groups: value.groups.map((group) => group.map(scalar)),
       }
     if (value.kind === 'distinct' || value.kind === 'nullif')
-      return value.comparison.signature !== null && portable(value.comparison.signature, rustNames)
+      return value.comparison.signature !== null &&
+        portable(value.comparison.signature, rustNames, rust)
         ? { ...value, operands: [scalar(value.operands[0]), scalar(value.operands[1])] }
         : { kind: 'uncertain', type: value.type }
     if (value.kind === 'minmax')
-      return value.comparison.signature !== null && portable(value.comparison.signature, rustNames)
+      return value.comparison.signature !== null &&
+        portable(value.comparison.signature, rustNames, rust)
         ? { ...value, operands: value.operands.map(scalar) }
         : { kind: 'uncertain', type: value.type }
     if (value.kind === 'row-compare')
       return value.pairs.every(
         (pair) =>
-          pair.comparison.signature !== null && portable(pair.comparison.signature, rustNames),
+          pair.comparison.signature !== null &&
+          portable(pair.comparison.signature, rustNames, rust),
       )
         ? {
             ...value,

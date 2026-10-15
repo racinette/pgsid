@@ -35,6 +35,18 @@ it('validates SQL-coerced Go JSONB graphs and forwards raw JSONB query parameter
   CONSTRAINT merged_document CHECK(CASE WHEN bypass THEN true ELSE (lhs||rhs) IS NOT DISTINCT FROM expected_concat END),
   CONSTRAINT without_key CHECK(CASE WHEN bypass THEN true ELSE (lhs-key_name) IS NOT DISTINCT FROM expected_key END),
   CONSTRAINT without_index CHECK(CASE WHEN bypass THEN true ELSE (lhs-element_index) IS NOT DISTINCT FROM expected_index END));
+  CREATE TYPE conversion_label AS ENUM('plain');
+  CREATE FUNCTION conversion_label_json(conversion_label) RETURNS json LANGUAGE SQL IMMUTABLE STRICT AS $$ SELECT '"custom"'::json $$;
+  CREATE CAST(conversion_label AS json) WITH FUNCTION conversion_label_json(conversion_label);
+  CREATE TABLE jsonb_conversion_boundaries(label conversion_label,expected jsonb,bypass boolean,
+  CONSTRAINT custom_conversion CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(label) IS NOT DISTINCT FROM expected END));
+  CREATE TABLE jsonb_conversion_writes(source_text text,source_number numeric,source_flag boolean,source_integer bigint,source_json json,source_stored jsonb,expected_text jsonb,expected_number jsonb,expected_flag jsonb,expected_integer jsonb,expected_json jsonb,expected_stored jsonb,bypass boolean,
+  CONSTRAINT converted_text CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_text) IS NOT DISTINCT FROM expected_text END),
+  CONSTRAINT converted_number CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_number) IS NOT DISTINCT FROM expected_number END),
+  CONSTRAINT converted_flag CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_flag) IS NOT DISTINCT FROM expected_flag END),
+  CONSTRAINT converted_integer CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_integer) IS NOT DISTINCT FROM expected_integer END),
+  CONSTRAINT converted_json CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_json) IS NOT DISTINCT FROM expected_json END),
+  CONSTRAINT converted_stored CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_stored) IS NOT DISTINCT FROM expected_stored END));
   CREATE TABLE jsonb_format_writes(document retained_document,strip_arrays boolean,expected_default jsonb,expected_strip jsonb,expected_pretty text,bypass boolean,
   CONSTRAINT default_stripped CHECK(CASE WHEN bypass THEN true ELSE jsonb_strip_nulls(document) IS NOT DISTINCT FROM expected_default END),
   CONSTRAINT flag_stripped CHECK(CASE WHEN bypass THEN true ELSE jsonb_strip_nulls(document,strip_arrays) IS NOT DISTINCT FROM expected_strip END),
@@ -43,7 +55,7 @@ it('validates SQL-coerced Go JSONB graphs and forwards raw JSONB query parameter
     )
     await writeFile(
       join(root, 'queries/documents.sql'),
-      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n-- name: InsertDocumentField :exec\nINSERT INTO jsonb_field_writes(document,field_name,expected_text,expected_exists,bypass) VALUES(@document,@field_name,@expected_text,@expected_exists,@bypass);\n-- name: InsertDocumentRelation :exec\nINSERT INTO jsonb_relation_writes(lhs,rhs,expected_equal,expected_contains,expected_order,bypass) VALUES(@lhs,@rhs,@expected_equal,@expected_contains,@expected_order,@bypass);\n-- name: InsertDocumentScalar :exec\nINSERT INTO jsonb_scalar_writes(numeric_document,boolean_document,expected_count,expected_flag,expected_numeric,bypass) VALUES(@numeric_document,@boolean_document,@expected_count,@expected_flag,@expected_numeric,@bypass);\n-- name: InsertDocumentEdit :exec\nINSERT INTO jsonb_edit_writes(lhs,rhs,key_name,element_index,expected_concat,expected_key,expected_index,bypass) VALUES(@lhs,@rhs,@key_name,@element_index,@expected_concat,@expected_key,@expected_index,@bypass);\n-- name: InsertDocumentFormat :exec\nINSERT INTO jsonb_format_writes(document,strip_arrays,expected_default,expected_strip,expected_pretty,bypass) VALUES(@document,@strip_arrays,@expected_default,@expected_strip,@expected_pretty,@bypass);\n',
+      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n-- name: InsertDocumentField :exec\nINSERT INTO jsonb_field_writes(document,field_name,expected_text,expected_exists,bypass) VALUES(@document,@field_name,@expected_text,@expected_exists,@bypass);\n-- name: InsertDocumentRelation :exec\nINSERT INTO jsonb_relation_writes(lhs,rhs,expected_equal,expected_contains,expected_order,bypass) VALUES(@lhs,@rhs,@expected_equal,@expected_contains,@expected_order,@bypass);\n-- name: InsertDocumentScalar :exec\nINSERT INTO jsonb_scalar_writes(numeric_document,boolean_document,expected_count,expected_flag,expected_numeric,bypass) VALUES(@numeric_document,@boolean_document,@expected_count,@expected_flag,@expected_numeric,@bypass);\n-- name: InsertDocumentEdit :exec\nINSERT INTO jsonb_edit_writes(lhs,rhs,key_name,element_index,expected_concat,expected_key,expected_index,bypass) VALUES(@lhs,@rhs,@key_name,@element_index,@expected_concat,@expected_key,@expected_index,@bypass);\n-- name: InsertDocumentFormat :exec\nINSERT INTO jsonb_format_writes(document,strip_arrays,expected_default,expected_strip,expected_pretty,bypass) VALUES(@document,@strip_arrays,@expected_default,@expected_strip,@expected_pretty,@bypass);\n-- name: InsertDocumentConversion :exec\nINSERT INTO jsonb_conversion_writes(source_text,source_flag,source_integer,source_json,source_stored,expected_text,expected_flag,expected_integer,expected_json,expected_stored,bypass) VALUES(@source_text,@source_flag,@source_integer,@source_json,@source_stored,@expected_text,@expected_flag,@expected_integer,@expected_json,@expected_stored,@bypass);\n',
     )
     await writeFile(
       join(root, 'pgsid.yaml'),
@@ -147,6 +159,35 @@ func TestJSONBFieldWrites(t *testing.T){
  params:=InsertDocumentFieldParams{Document:&domain,FieldName:&key,ExpectedText:&expected,ExpectedExists:&exists,Bypass:&bypass}
  if err:=queries.InsertDocumentField(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw JSONB extraction input failed",err)}
  if len(db.arguments)!=5||db.arguments[0]!=params.Document||db.arguments[1]!=params.FieldName||db.arguments[2]!=params.ExpectedText||db.arguments[3]!=params.ExpectedExists||db.arguments[4]!=params.Bypass{t.Fatal("raw JSONB read parameters changed")}
+}
+func TestJSONBCustomConversionBoundary(t *testing.T){
+ bypass:=false;label:=schema.ConversionLabel("plain")
+ input:=pgsid.PublicJsonbConversionBoundariesCheckInput{Label:pgsid.KnownCheckValue(&label),Expected:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('"custom"')})),Bypass:pgsid.KnownCheckValue(&bypass)}
+ for _,check:=range pgsid.EvaluatePublicJsonbConversionBoundariesChecks(input){if check.Result.Certain{t.Fatal("custom conversion guessed",check)}}
+ bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbConversionBoundariesChecks);err!=nil{t.Fatal("skipped custom conversion failed",err)}
+}
+func TestJSONBConversionWrites(t *testing.T){
+ text:="[1,null]";flag:=true;integer:=int64(9223372036854775807);bypass:=false
+ input:=pgsid.PublicJsonbConversionWritesCheckInput{SourceText:pgsid.KnownCheckValue(&text),SourceNumber:pgsid.KnownCheckValue(checkruntime.MakeNumericValue("9007199254740993.12300")),SourceFlag:pgsid.KnownCheckValue(&flag),SourceInteger:pgsid.KnownCheckValue(&integer),SourceJson:pgsid.KnownCheckValue(checkruntime.MakeJsonValue(${JSON.stringify('{"a":1,"a":2}')})),SourceStored:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('{"aa":1,"é":2}')})),ExpectedText:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('"[1,null]"')})),ExpectedNumber:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("9007199254740993.12300")),ExpectedFlag:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("true")),ExpectedInteger:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("9223372036854775807")),ExpectedJson:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('{"a":2}')})),ExpectedStored:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('{"aa":1,"é":2}')})),Bypass:pgsid.KnownCheckValue(&bypass)}
+ before,_:=json.Marshal(input)
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbConversionWritesChecks);err!=nil{t.Fatal(err)}
+ after,_:=json.Marshal(input);if string(before)!=string(after){t.Fatal("conversion mutated input")}
+ input.ExpectedText=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("false"))
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbConversionWritesChecks);err==nil{t.Fatal("string category lost")}
+ input.SourceText=pgsid.NullCheckValue[*string]();input.ExpectedText=pgsid.KnownCheckValue(checkruntime.JsonbNull())
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbConversionWritesChecks);err!=nil{t.Fatal("SQL NULL lost",err)}
+ input.SourceNumber=pgsid.KnownCheckValue(checkruntime.MakeNumericValue("NaN"));input.ExpectedNumber=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('"NaN"')}))
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbConversionWritesChecks);err!=nil{t.Fatal("NaN category lost",err)}
+ input.SourceJson=pgsid.KnownCheckValue(checkruntime.MakeJsonValue(${JSON.stringify('"\\u0000"')}))
+ for _,check:=range pgsid.EvaluatePublicJsonbConversionWritesChecks(input){if check.Constraint=="converted_json"&&(!check.Result.Certain||check.Result.Value.Error!="22P05"){t.Fatal("JSON decoding error lost",check)}}
+ input.SourceNumber=pgsid.KnownCheckValue(checkruntime.NumericValue{Kind:checkruntime.NumericValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
+ for _,check:=range pgsid.EvaluatePublicJsonbConversionWritesChecks(input){if check.Constraint=="converted_number"&&(!check.Result.Certain||check.Result.Value.Error!="22003"){t.Fatal("conversion error lost",check)}}
+ bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbConversionWritesChecks);err!=nil{t.Fatal("skipped conversion failed",err)}
+ db:=&recordingJSONBDB{};queries:=New(db);bypass=false
+ raw:=json.RawMessage(${JSON.stringify('{"a":1}')});expectedText:=json.RawMessage(${JSON.stringify('"[1,null]"')});expectedFlag:=json.RawMessage("true");expectedInteger:=json.RawMessage("9223372036854775807")
+ params:=InsertDocumentConversionParams{SourceText:&text,SourceFlag:&flag,SourceInteger:&integer,SourceJson:&raw,SourceStored:&raw,ExpectedText:&expectedText,ExpectedFlag:&expectedFlag,ExpectedInteger:&expectedInteger,ExpectedJson:&raw,ExpectedStored:&raw,Bypass:&bypass}
+ if err:=queries.InsertDocumentConversion(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw conversion rejected locally",err)}
+ if len(db.arguments)!=11||db.arguments[0]!=params.SourceText||db.arguments[1]!=params.SourceFlag||db.arguments[2]!=params.SourceInteger||db.arguments[3]!=params.SourceJson||db.arguments[4]!=params.SourceStored||db.arguments[5]!=params.ExpectedText||db.arguments[6]!=params.ExpectedFlag||db.arguments[7]!=params.ExpectedInteger||db.arguments[8]!=params.ExpectedJson||db.arguments[9]!=params.ExpectedStored||db.arguments[10]!=params.Bypass{t.Fatal("raw conversion parameters changed")}
 }
 func TestJSONBFormatWrites(t *testing.T){
  arrays:=true;bypass:=false;pretty:=${JSON.stringify(['{', '    "b": [', '        1', '    ]', '}'].join('\n'))}
