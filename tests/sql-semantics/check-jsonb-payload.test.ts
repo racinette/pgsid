@@ -34,11 +34,13 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     CONSTRAINT element_text CHECK(CASE WHEN bypass THEN true ELSE (document->>element_index) COLLATE "C" IS NOT DISTINCT FROM expected_element_text COLLATE "C" END),
     CONSTRAINT array_length CHECK(CASE WHEN bypass OR NOT check_count THEN true ELSE jsonb_array_length(document) IS NOT DISTINCT FROM expected_count END),
     CONSTRAINT key_exists CHECK(CASE WHEN bypass THEN true ELSE (document ? field_name) IS NOT DISTINCT FROM expected_exists END));
-    CREATE TABLE jsonb_relation_inputs(lhs retained_document,rhs jsonb,expected_equal boolean,expected_unequal boolean,expected_contains boolean,expected_contained boolean,bypass boolean,
+    CREATE TABLE jsonb_relation_inputs(lhs retained_document,rhs jsonb,expected_equal boolean,expected_unequal boolean,expected_contains boolean,expected_contained boolean,expected_lower boolean,expected_order integer,bypass boolean,
     CONSTRAINT same_value CHECK(CASE WHEN bypass THEN true ELSE (lhs=rhs) IS NOT DISTINCT FROM expected_equal END),
     CONSTRAINT different_value CHECK(CASE WHEN bypass THEN true ELSE (lhs<>rhs) IS NOT DISTINCT FROM expected_unequal END),
     CONSTRAINT includes_value CHECK(CASE WHEN bypass THEN true ELSE (lhs @> rhs) IS NOT DISTINCT FROM expected_contains END),
-    CONSTRAINT included_value CHECK(CASE WHEN bypass THEN true ELSE (lhs <@ rhs) IS NOT DISTINCT FROM expected_contained END));`)
+    CONSTRAINT included_value CHECK(CASE WHEN bypass THEN true ELSE (lhs <@ rhs) IS NOT DISTINCT FROM expected_contained END),
+    CONSTRAINT ordered_value CHECK(CASE WHEN bypass THEN true ELSE (lhs<rhs) IS NOT DISTINCT FROM expected_lower END),
+    CONSTRAINT compared_value CHECK(CASE WHEN bypass THEN true ELSE jsonb_cmp(lhs,rhs) IS NOT DISTINCT FROM expected_order END));`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'jsonb_payloads')!
     const textTable = catalog.tables.find((t) => t.name === 'jsonb_text_inputs')!
@@ -47,7 +49,11 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     const bundle = renderTypescriptSchemaCheckArtifacts(
       [table, textTable, readTable, relationTable],
       catalog.domains,
+      catalog.domains,
+      { executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' } },
     )
+    const deferred = renderTypescriptSchemaCheckArtifacts([relationTable], catalog.domains)
+    await writeFile(join(root, 'deferred-checks.ts'), deferred.checks)
     await writeFile(join(root, 'package.json'), '{"type":"module"}\n')
     await writeFile(join(root, 'checks.ts'), bundle.checks)
     for (const artifact of checkTypescriptArtifacts(bundle.rustFiles!)) {
@@ -67,6 +73,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       '--outDir',
       join(root, 'js'),
       join(root, 'checks.ts'),
+      join(root, 'deferred-checks.ts'),
     ]).catch((e: { stdout: string; stderr: string; message: string }) => {
       throw new Error(e.stdout + e.stderr || e.message, { cause: e })
     })
@@ -74,6 +81,20 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     const runtime = await import(
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
+    const deferredGenerated = await import(pathToFileURL(join(root, 'js/deferred-checks.js')).href)
+    for (const c of deferredGenerated.evaluatePublicJsonbRelationInputsChecks({
+      lhs: runtime.makeJsonbValue('1'),
+      rhs: runtime.makeJsonbValue('2'),
+      expected_lower: true,
+      expected_order: -1,
+      bypass: false,
+    }))
+      if (['ordered_value', 'compared_value'].includes(c.constraint)) {
+        expect(c.result.certain).toBe(false)
+        expect(JSON.stringify(c)).toContain(
+          'JSONB ordering requires declared database default collation C and server encoding UTF8',
+        )
+      }
     type Result = { certain: boolean; value?: boolean | null; error?: string }
     const evaluateRelations = (
       lhs: unknown,
@@ -90,6 +111,8 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
             expected_unequal: false,
             expected_contains: true,
             expected_contained: true,
+            expected_lower: false,
+            expected_order: 0,
             ...expected,
             bypass,
           })
@@ -100,6 +123,9 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       [null, '{}'],
       ['1.00', '1e0'],
       ['9007199254740993', '9007199254740992'],
+      ['[]', 'null'],
+      ['[null]', '[[]]'],
+      ['"é"', '"z"'],
       ['{"aa":1,"é":2}', '{"é":2,"aa":1.00}'],
       ['{"a":1,"a":2}', '{"a":2}'],
       ['[2,1,1]', '[1,2]'],
@@ -116,8 +142,10 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
           expected_unequal: boolean | null
           expected_contains: boolean | null
           expected_contained: boolean | null
+          expected_lower: boolean | null
+          expected_order: number | null
         }>(
-          `SELECT lhs::text lhs,rhs::text rhs,lhs=rhs expected_equal,lhs<>rhs expected_unequal,lhs @> rhs expected_contains,lhs <@ rhs expected_contained FROM (SELECT $1::jsonb lhs,$2::jsonb rhs) q`,
+          `SELECT lhs::text lhs,rhs::text rhs,lhs=rhs expected_equal,lhs<>rhs expected_unequal,lhs @> rhs expected_contains,lhs <@ rhs expected_contained,lhs<rhs expected_lower,jsonb_cmp(lhs,rhs) expected_order FROM (SELECT $1::jsonb lhs,$2::jsonb rhs) q`,
           [lhs, rhs],
         )
       ).rows[0]!
@@ -132,7 +160,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       ).toBe(true)
       expect(JSON.stringify([first, second])).toBe(before)
       await pg.query(
-        'INSERT INTO jsonb_relation_inputs VALUES($1::jsonb,$2::jsonb,$3,$4,$5,$6,false)',
+        'INSERT INTO jsonb_relation_inputs VALUES($1::jsonb,$2::jsonb,$3,$4,$5,$6,$7,$8,false)',
         [
           lhs,
           rhs,
@@ -140,6 +168,8 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
           row.expected_unequal,
           row.expected_contains,
           row.expected_contained,
+          row.expected_lower,
+          row.expected_order,
         ],
       )
     }

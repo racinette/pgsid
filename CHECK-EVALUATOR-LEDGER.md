@@ -265,11 +265,11 @@ exposes a prerequisite:
 - [x] JSONB literals, text/JSON I/O casts and stored-format admission; preserve eager errors and lazy branches.
 - [x] JSONB field/element extraction, decoded text, array length and top-level existence, including scalar indexing.
 - [x] JSONB equality/inequality and iterative containment, exact numeric scalars, NULL-safe composition and public inputs.
+- [x] JSONB C/UTF8 ordering, exact comparator results and container traversal, with declared database defaults and composed/public INSERT parity.
 - [ ] JSONB core operations; path-array access follows arrays.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types, with tested context requirements
       or exclusion from the public value contract.
-
 Use the type audit to enumerate the remaining surface, including internal types.
 Defer ACL and full-text values until common CHECK families, including arrays and JSON, are covered.
 Done per family when its portable values, SQL-coerced row input conversion,

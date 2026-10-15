@@ -140,6 +140,7 @@ export function renderGoSchemaCheckArtifacts(
             },
           })),
         ),
+        config.sql.codegen?.checks,
       )
     : null
   if (rustGroup?.source && !rustImportPath)

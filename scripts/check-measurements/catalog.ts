@@ -84,6 +84,33 @@ export function jsonValueRequirements(item: BuiltinCallable) {
     item.strict &&
     item.volatility === 'i' &&
     !item.returnsSet &&
+    item.args.length === 2 &&
+    item.args.every((type) => type === 'pg_catalog.jsonb') &&
+    ['jsonb_cmp', 'jsonb_lt', 'jsonb_le', 'jsonb_gt', 'jsonb_ge'].includes(item.name)
+  )
+    return [
+      {
+        kind: 'database',
+        setting: 'default_collation',
+        requirement:
+          'Generated JSONB ordering requires an explicit database default collation C declaration.',
+        owner: 'tests/sql-semantics/check-jsonb-ordering.test.ts',
+      },
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Generated JSONB ordering requires an explicit UTF8 server encoding declaration for string comparison and object key traversal.',
+        owner: 'tests/sql-semantics/check-jsonb-ordering.test.ts',
+      },
+    ]
+
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
     item.args[0] === 'pg_catalog.jsonb' &&
     ((item.name === 'jsonb_out' &&
       item.args.length === 1 &&

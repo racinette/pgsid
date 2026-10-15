@@ -304,6 +304,13 @@ export const goCodegenSchema = z
 
 export const codegenSchema = z
   .object({
+    checks: z
+      .object({
+        defaultCollation: z.literal('C').optional(),
+        serverEncoding: z.literal('UTF8').optional(),
+      })
+      .strict()
+      .optional(),
     typescript: typescriptCodegenSchema.optional(),
     go: goCodegenSchema.optional(),
   })

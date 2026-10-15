@@ -10711,6 +10711,326 @@ export function jsonbExistsF8f8(input: checkruntime.JsonbValue, key: checkruntim
     }
     return { kind: "Null" };
 }
+interface JsonbOrderFrame {
+    left: number;
+    right: number;
+    key: boolean;
+}
+function copyJsonbOrderFrame(value: JsonbOrderFrame): JsonbOrderFrame {
+    return { left: langruntime.checkedIndex(value.left), right: langruntime.checkedIndex(value.right), key: langruntime.checkedBool(value.key) };
+}
+function jsonbOrderWidth(code: number): number {
+    code = langruntime.checkedI32(code);
+    if (code < 128) {
+        return 1;
+    }
+    if (code < 2048) {
+        return 2;
+    }
+    if (code < 65536) {
+        return 3;
+    }
+    return 4;
+}
+function jsonbOrderByte(code: number, width: number, index: number): number {
+    code = langruntime.checkedI32(code);
+    width = langruntime.checkedIndex(width);
+    index = langruntime.checkedIndex(index);
+    if (width === 1) {
+        return code;
+    }
+    if (index === 0) {
+        if (width === 2) {
+            return langruntime.checkedSignedAdd(192, langruntime.checkedSignedDivide(code, 64));
+        }
+        if (width === 3) {
+            return langruntime.checkedSignedAdd(224, langruntime.checkedSignedDivide(code, 4096));
+        }
+        return langruntime.checkedSignedAdd(240, langruntime.checkedSignedDivide(code, 262144));
+    }
+    if (langruntime.checkedSubtract(width, index) === 3) {
+        return langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(code, 4096), 64));
+    }
+    if (langruntime.checkedSubtract(width, index) === 2) {
+        return langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(code, 64), 64));
+    }
+    return langruntime.checkedSignedAdd(128, langruntime.checkedSignedRemainder(code, 64));
+}
+function jsonbOrderSpan(left: checkruntime.JsonbPayload, right: checkruntime.JsonbPayload, startA: number, endA: number, startB: number, endB: number): number {
+    startA = langruntime.checkedIndex(startA);
+    endA = langruntime.checkedIndex(endA);
+    startB = langruntime.checkedIndex(startB);
+    endB = langruntime.checkedIndex(endB);
+    let a: number = startA;
+    let b: number = startB;
+    while (a < endA && b < endB) {
+        const first: number = langruntime.checkedChar(langruntime.indexChar(left.characters, langruntime.checkedIndex(a))).codePointAt(0)!;
+        const second: number = langruntime.checkedChar(langruntime.indexChar(right.characters, langruntime.checkedIndex(b))).codePointAt(0)!;
+        if (!(first === second)) {
+            const widthA: number = jsonbOrderWidth(first);
+            const widthB: number = jsonbOrderWidth(second);
+            let index: number = 0;
+            while (index < widthA && index < widthB) {
+                const byteA: number = jsonbOrderByte(first, widthA, index);
+                const byteB: number = jsonbOrderByte(second, widthB, index);
+                if (!(byteA === byteB)) {
+                    return langruntime.checkedSignedSubtract(byteA, byteB);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+        a = langruntime.checkedAdd(a, 1);
+        b = langruntime.checkedAdd(b, 1);
+    }
+    if (a < endA) {
+        return 1;
+    }
+    if (b < endB) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    return 0;
+}
+function jsonbOrderKeySize(source: checkruntime.JsonbPayload, node: checkruntime.JsonbNode): number {
+    let size: number = 0;
+    let index: number = node.keyStart;
+    while (index < node.keyEnd) {
+        size = langruntime.checkedAdd(size, jsonbOrderWidth(langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(index))).codePointAt(0)!));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return size;
+}
+function jsonbOrderKey(source: checkruntime.JsonbPayload, left: number, right: number): number {
+    left = langruntime.checkedIndex(left);
+    right = langruntime.checkedIndex(right);
+    const a: checkruntime.JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(left), checkruntime.copyJsonbNode);
+    const b: checkruntime.JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(right), checkruntime.copyJsonbNode);
+    const sizeA: number = jsonbOrderKeySize(source, a);
+    const sizeB: number = jsonbOrderKeySize(source, b);
+    if (sizeA < sizeB) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (sizeA > sizeB) {
+        return 1;
+    }
+    return jsonbOrderSpan(source, source, a.keyStart, a.keyEnd, b.keyStart, b.keyEnd);
+}
+function jsonbOrderChildren(source: checkruntime.JsonbPayload, node: checkruntime.JsonbNode): number[] {
+    let children: number[] = [];
+    let buffer: number[] = [];
+    let child: number = node.child;
+    while (child > 0) {
+        langruntime.pushIndex(children, child);
+        langruntime.pushIndex(buffer, child);
+        child = langruntime.checkedIndex(langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode).next);
+    }
+    if (!(node.kind === 6)) {
+        return children;
+    }
+    const count: number = children.length;
+    let width: number = 1;
+    while (width < count) {
+        let start: number = 0;
+        while (start < count) {
+            let middle: number = langruntime.checkedAdd(start, width);
+            if (middle > count) {
+                middle = langruntime.checkedIndex(count);
+            }
+            let end: number = langruntime.checkedAdd(middle, width);
+            if (end > count) {
+                end = langruntime.checkedIndex(count);
+            }
+            let a: number = start;
+            let b: number = middle;
+            let output: number = start;
+            while (output < end) {
+                if (b === end || (a < middle && jsonbOrderKey(source, langruntime.indexNumber(children, langruntime.checkedIndex(a)), langruntime.indexNumber(children, langruntime.checkedIndex(b))) <= 0)) {
+                    buffer[langruntime.checkedIndexIn(buffer, output)] = langruntime.checkedIndex(langruntime.indexNumber(children, langruntime.checkedIndex(a)));
+                    a = langruntime.checkedAdd(a, 1);
+                }
+                else {
+                    buffer[langruntime.checkedIndexIn(buffer, output)] = langruntime.checkedIndex(langruntime.indexNumber(children, langruntime.checkedIndex(b)));
+                    b = langruntime.checkedAdd(b, 1);
+                }
+                output = langruntime.checkedAdd(output, 1);
+            }
+            start = langruntime.checkedIndex(end);
+        }
+        let index: number = 0;
+        while (index < count) {
+            children[langruntime.checkedIndexIn(children, index)] = langruntime.checkedIndex(langruntime.indexNumber(buffer, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        width = langruntime.checkedIndex(langruntime.checkedAdd(width, width));
+    }
+    return children;
+}
+function jsonbOrderRank(kind: number): number {
+    kind = langruntime.checkedI32(kind);
+    if (kind === 4) {
+        return 1;
+    }
+    if (kind === 3) {
+        return 2;
+    }
+    if (kind === 1 || kind === 2) {
+        return 3;
+    }
+    if (kind === 5) {
+        return 16;
+    }
+    if (kind === 6) {
+        return 17;
+    }
+    return 0;
+}
+function jsonbOrderWalk(left: checkruntime.JsonbPayload, right: checkruntime.JsonbPayload): checkruntime.Int4Value {
+    const first: checkruntime.JsonbNode = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(left.root), checkruntime.copyJsonbNode);
+    const second: checkruntime.JsonbNode = langruntime.indexStruct(right.nodes, langruntime.checkedIndex(right.root), checkruntime.copyJsonbNode);
+    if (first.kind < 5 && second.kind === 5) {
+        if (second.child === 0) {
+            return { kind: "Value", value: 1 };
+        }
+        return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+    }
+    if (first.kind === 5 && second.kind < 5) {
+        if (first.child === 0) {
+            return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+        }
+        return { kind: "Value", value: 1 };
+    }
+    let frames: JsonbOrderFrame[] = [];
+    langruntime.pushStruct(frames, { left: left.root, right: right.root, key: false }, copyJsonbOrderFrame);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const frame: JsonbOrderFrame = copyJsonbOrderFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(depth), copyJsonbOrderFrame));
+        const a: checkruntime.JsonbNode = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(frame.left), checkruntime.copyJsonbNode);
+        const b: checkruntime.JsonbNode = langruntime.indexStruct(right.nodes, langruntime.checkedIndex(frame.right), checkruntime.copyJsonbNode);
+        if (frame.key) {
+            const compared: number = jsonbOrderSpan(left, right, a.keyStart, a.keyEnd, b.keyStart, b.keyEnd);
+            if (!(compared === 0)) {
+                return { kind: "Value", value: compared };
+            }
+        }
+        else {
+            const rankA: number = jsonbOrderRank(a.kind);
+            const rankB: number = jsonbOrderRank(b.kind);
+            if (rankA < rankB) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (rankA > rankB) {
+                return { kind: "Value", value: 1 };
+            }
+            let compared: checkruntime.Int4Value = { kind: "Value", value: 0 };
+            if (a.kind === 3) {
+                compared = numericCompare(jsonbRelationNumber(left, a), jsonbRelationNumber(right, b));
+            }
+            else if (a.kind === 4) {
+                compared = { kind: "Value", value: jsonbOrderSpan(left, right, a.textStart, a.textEnd, b.textStart, b.textEnd) };
+            }
+            else if (a.kind < 3) {
+                if (a.kind < b.kind) {
+                    compared = { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+                }
+                else if (a.kind > b.kind) {
+                    compared = { kind: "Value", value: 1 };
+                }
+            }
+            else {
+                const countA: number = jsonbRelationCount(left, a);
+                const countB: number = jsonbRelationCount(right, b);
+                if (countA < countB) {
+                    return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+                }
+                if (countA > countB) {
+                    return { kind: "Value", value: 1 };
+                }
+                const childrenA: number[] = jsonbOrderChildren(left, a);
+                const childrenB: number[] = jsonbOrderChildren(right, b);
+                let index: number = countA;
+                while (index > 0) {
+                    index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+                    const childA: number = langruntime.indexNumber(childrenA, langruntime.checkedIndex(index));
+                    const childB: number = langruntime.indexNumber(childrenB, langruntime.checkedIndex(index));
+                    const valueFrame: JsonbOrderFrame = copyJsonbOrderFrame({ left: childA, right: childB, key: false });
+                    if (depth === frames.length) {
+                        langruntime.pushStruct(frames, valueFrame, copyJsonbOrderFrame);
+                    }
+                    else {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyJsonbOrderFrame(valueFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                    if (a.kind === 6) {
+                        const keyFrame: JsonbOrderFrame = copyJsonbOrderFrame({ left: childA, right: childB, key: true });
+                        if (depth === frames.length) {
+                            langruntime.pushStruct(frames, keyFrame, copyJsonbOrderFrame);
+                        }
+                        else {
+                            frames[langruntime.checkedIndexIn(frames, depth)] = copyJsonbOrderFrame(keyFrame);
+                        }
+                        depth = langruntime.checkedAdd(depth, 1);
+                    }
+                }
+            }
+            if (!(checkruntime.equalInt4Value(compared, { kind: "Value", value: 0 }))) {
+                return compared;
+            }
+        }
+    }
+    return { kind: "Value", value: 0 };
+}
+export function jsonbCmpN2cx(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.Int4Value {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(right.value);
+            return jsonbOrderWalk(a, b);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbLtTn76(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.BoolValue {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    return valueOrderFinish(jsonbCmpN2cx(left, right), 2);
+}
+export function jsonbLeMrjw(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.BoolValue {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    return valueOrderFinish(jsonbCmpN2cx(left, right), 3);
+}
+export function jsonbGtOgc1(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.BoolValue {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    return valueOrderFinish(jsonbCmpN2cx(left, right), 4);
+}
+export function jsonbGeYmoh(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.BoolValue {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    return valueOrderFinish(jsonbCmpN2cx(left, right), 5);
+}
 interface JsonbRelationFrame {
     left: number;
     right: number;

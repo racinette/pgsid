@@ -165,3 +165,21 @@ CREATE TABLE document_comparisons (
  CONSTRAINT comparison_contains CHECK(CASE WHEN bypass THEN true ELSE (document @> compared_document) IS NOT DISTINCT FROM recorded_contains END),
  CONSTRAINT comparison_contained CHECK(CASE WHEN bypass THEN true ELSE (document <@ compared_document) IS NOT DISTINCT FROM recorded_contained END)
 );
+CREATE TABLE document_orderings (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ document retained_normalized_document,
+ compared_document jsonb,
+ recorded_order integer,
+ recorded_lower boolean,
+ recorded_lower_equal boolean,
+ recorded_greater boolean,
+ recorded_greater_equal boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT ordering_comparator CHECK(CASE WHEN bypass THEN true ELSE jsonb_cmp(document,compared_document) IS NOT DISTINCT FROM recorded_order END),
+ CONSTRAINT ordering_lower CHECK(CASE WHEN bypass THEN true ELSE (document<compared_document) IS NOT DISTINCT FROM recorded_lower END),
+ CONSTRAINT ordering_lower_equal CHECK(CASE WHEN bypass THEN true ELSE (document<=compared_document) IS NOT DISTINCT FROM recorded_lower_equal END),
+ CONSTRAINT ordering_greater CHECK(CASE WHEN bypass THEN true ELSE (document>compared_document) IS NOT DISTINCT FROM recorded_greater END),
+ CONSTRAINT ordering_greater_equal CHECK(CASE WHEN bypass THEN true ELSE (document>=compared_document) IS NOT DISTINCT FROM recorded_greater_equal END)
+);

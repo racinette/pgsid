@@ -1,7 +1,11 @@
 import { assertUniqueCheckEntryNames, type CheckConstraintIdentity } from './check-rust-names.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import { checkRustAsset } from './check-rust-assets.js'
-import { emitCheckRustEvaluator, UnsupportedCheckRustExpression } from './check-rust-evaluator.js'
+import {
+  emitCheckRustEvaluator,
+  UnsupportedCheckRustExpression,
+  type CheckExecutionContext,
+} from './check-rust-evaluator.js'
 import { createCheckRustSourceCache, checkRustSourceCallables } from './check-rust-source-cache.js'
 
 export type CheckRustSource = {
@@ -116,6 +120,7 @@ export function assembleCheckRust(evaluator: {
 export function prepareCheckRust(
   expression: EvalBoolExpression,
   identity?: CheckConstraintIdentity,
+  executionContext: CheckExecutionContext = {},
 ):
   | {
       kind: 'supported'
@@ -124,7 +129,7 @@ export function prepareCheckRust(
     }
   | { kind: 'unsupported'; reason: string } {
   try {
-    const evaluator = emitCheckRustEvaluator(expression, identity)
+    const evaluator = emitCheckRustEvaluator(expression, identity, executionContext)
     const source = assembleCheckRust(evaluator)
     return {
       kind: 'supported',
@@ -143,6 +148,7 @@ export function prepareCheckRust(
 
 export function prepareCheckRustGroup(
   constraints: readonly { expression: EvalBoolExpression; identity: CheckConstraintIdentity }[],
+  executionContext: CheckExecutionContext = {},
 ): {
   checks: readonly (
     | {
@@ -158,7 +164,7 @@ export function prepareCheckRustGroup(
 } {
   assertUniqueCheckEntryNames(constraints.map((constraint) => constraint.identity))
   const prepared = constraints.map(({ expression, identity }) =>
-    prepareCheckRust(expression, identity),
+    prepareCheckRust(expression, identity, executionContext),
   )
   const supported = prepared.flatMap((item) => (item.kind === 'supported' ? [item.evaluator] : []))
   const evaluatorSource = supported.length ? supported.map((item) => item.source).join('\n') : null

@@ -1,3 +1,4 @@
+import type { CheckExecutionContext } from '../../shared/check-rust-evaluator.js'
 import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo } from '../../../catalog/types.js'
 import { enumType } from '../../../sql-semantics/expressions.js'
@@ -38,7 +39,11 @@ export function renderTypescriptSchemaChecks(
   tables: readonly TableInfo[],
   domains: readonly DomainInfo[] = [],
   selectedDomains: readonly DomainInfo[] = domains,
-  options: { typedInputs?: boolean; enums?: readonly EnumInfo[] } = {},
+  options: {
+    typedInputs?: boolean
+    enums?: readonly EnumInfo[]
+    executionContext?: CheckExecutionContext
+  } = {},
 ): string {
   return renderTypescriptSchemaCheckArtifacts(tables, domains, selectedDomains, options, false)
     .checks
@@ -50,6 +55,7 @@ export function renderTypescriptSchemaCheckArtifacts(
   selectedDomains: readonly DomainInfo[] = domains,
   options: {
     typedInputs?: boolean
+    executionContext?: CheckExecutionContext
     rustModuleSpecifier?: string
     enums?: readonly EnumInfo[]
   } = {},
@@ -116,6 +122,7 @@ export function renderTypescriptSchemaCheckArtifacts(
             },
           })),
         ),
+        options.executionContext,
       )
     : null
   let rustIndex = 0
