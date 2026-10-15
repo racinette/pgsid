@@ -6,6 +6,7 @@ pub mod checkruntime {
     include!("network.rs");
     include!("mac.rs");
     include!("uuid.rs");
+    include!("json_syntax.rs");
     include!("bit.rs");
     include!("hash.rs");
     include!("text_builder.rs");
@@ -44,6 +45,7 @@ pub mod pg_catalog {
     use super::*;
 
     include!("operations/pg_catalog/boolean.rs");
+    include!("operations/pg_catalog/json_core.rs");
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/timestamptz.rs");

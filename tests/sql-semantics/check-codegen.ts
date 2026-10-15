@@ -18,6 +18,7 @@ export type GoCheckCase = {
   pgLsnColumns?: readonly string[]
   xid8Columns?: readonly string[]
   snapshotColumns?: readonly string[]
+  jsonColumns?: readonly string[]
   oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
   polygonColumns?: readonly string[]
@@ -68,6 +69,7 @@ export function renderGoCheckTests(
       pgLsnColumns,
       xid8Columns,
       snapshotColumns,
+      jsonColumns,
       oidColumns,
       moneyColumns,
       polygonColumns,
@@ -157,6 +159,16 @@ export function renderGoCheckTests(
         const wrapped = go.call(
           go.selector(go.ident('checkruntime'), oid === null ? 'Xid8Null' : 'MakeXid8Bits'),
           oid === null ? [] : [go.number(oid)],
+        )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
+        continue
+      }
+      if (options.dateRuntime && jsonColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const source = value as string | null
+        const wrapped = go.call(
+          go.selector(go.ident('checkruntime'), source === null ? 'JsonNull' : 'MakeJsonValue'),
+          source === null ? [] : [go.string(source)],
         )
         statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue

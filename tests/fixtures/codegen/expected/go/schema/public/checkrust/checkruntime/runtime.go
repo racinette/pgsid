@@ -669,6 +669,75 @@ func MakeNumericValue(value string) NumericValue {
 	return NumericValue{Kind: NumericValueValue, Value: value}
 }
 
+type JsonPayload struct {
+	Source string
+	Kind   int
+	Depth  int
+}
+type JsonValueKind uint8
+
+const (
+	JsonValueUnknown JsonValueKind = iota
+	JsonValueNull
+	JsonValueValue
+	JsonValueError
+)
+
+type JsonValue struct {
+	Kind  JsonValueKind
+	Value JsonPayload
+	Error SqlError
+}
+
+func JsonUnknown() JsonValue {
+	return JsonValue{Kind: JsonValueUnknown}
+}
+func JsonNull() JsonValue {
+	return JsonValue{Kind: JsonValueNull}
+}
+func MakeJsonValue(source string) JsonValue {
+	source = langruntime.CheckedString(source)
+	syntax := JsonSyntaxScan(source)
+	if syntax.Valid == false {
+		return JsonValue{Kind: JsonValueUnknown}
+	}
+	return JsonValue{Kind: JsonValueValue, Value: JsonPayload{Source: source, Kind: syntax.Kind, Depth: syntax.MaxDepth}}
+}
+func JsonFromCoercedText(input TextValue) JsonValue {
+	if input.Kind == TextValueError {
+		error := input.Error
+		return JsonValue{Kind: JsonValueError, Error: error}
+	}
+	if input.Kind == TextValueNull {
+		return JsonValue{Kind: JsonValueNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return MakeJsonValue(value)
+	}
+	return JsonValue{Kind: JsonValueUnknown}
+}
+func JsonIsNull(input JsonValue) BoolValue {
+	if input.Kind == JsonValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == JsonValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == JsonValueNull {
+		return BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: false}
+}
+func JsonFromCaseGuard(value CheckOutcome) JsonValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return JsonValue{Kind: JsonValueError, Error: error}
+	}
+	return JsonValue{Kind: JsonValueUnknown}
+}
+
 type NetworkAddress struct {
 	Family int
 	Prefix int
@@ -3257,6 +3326,332 @@ func UuidWord(value Uuid, index int) int {
 		return value.Word6
 	}
 	return value.Word7
+}
+
+type jsonSyntaxSource struct {
+	characters []rune
+}
+
+func copyjsonSyntaxSource(value jsonSyntaxSource) jsonSyntaxSource {
+	return jsonSyntaxSource{characters: langruntime.CheckedChars(value.characters)}
+}
+
+type jsonSyntaxToken struct {
+	kind int
+	end  int
+}
+
+func copyjsonSyntaxToken(value jsonSyntaxToken) jsonSyntaxToken {
+	return jsonSyntaxToken{kind: langruntime.CheckedI32(value.kind), end: langruntime.CheckedIndex(value.end)}
+}
+
+type jsonSyntaxFrame struct {
+	state int
+}
+
+func copyjsonSyntaxFrame(value jsonSyntaxFrame) jsonSyntaxFrame {
+	return jsonSyntaxFrame{state: langruntime.CheckedI32(value.state)}
+}
+
+type JsonSyntaxLayout struct {
+	Valid    bool
+	Kind     int
+	MaxDepth int
+}
+
+func copyJsonSyntaxLayout(value JsonSyntaxLayout) JsonSyntaxLayout {
+	return JsonSyntaxLayout{Valid: value.Valid, Kind: langruntime.CheckedI32(value.Kind), MaxDepth: langruntime.CheckedIndex(value.MaxDepth)}
+}
+
+const jsonSyntaxInvalid = 12
+const jsonSyntaxEnd = 0
+const jsonSyntaxString = 1
+const jsonSyntaxNumber = 2
+const jsonSyntaxTrue = 3
+const jsonSyntaxFalse = 4
+const jsonSyntaxNull = 5
+const jsonSyntaxObjectStart = 6
+const jsonSyntaxObjectEnd = 7
+const jsonSyntaxArrayStart = 8
+const jsonSyntaxArrayEnd = 9
+const jsonSyntaxColon = 10
+const jsonSyntaxComma = 11
+const jsonSyntaxRootValue = 0
+const jsonSyntaxRootEnd = 1
+const jsonSyntaxArrayFirst = 2
+const jsonSyntaxArrayNext = 3
+const jsonSyntaxArrayValue = 4
+const jsonSyntaxObjectFirst = 5
+const jsonSyntaxObjectColon = 6
+const jsonSyntaxObjectValue = 7
+const jsonSyntaxObjectNext = 8
+const jsonSyntaxObjectKey = 9
+
+func jsonSyntaxSpace(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == ' ' || character == '\t' || character == '\n' || character == '\r'
+}
+func jsonSyntaxDigit(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return code >= 48 && code <= 57
+}
+func jsonSyntaxHex(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return (code >= 48 && code <= 57) || (code >= 65 && code <= 70) || (code >= 97 && code <= 102)
+}
+func jsonSyntaxBadToken(end int) jsonSyntaxToken {
+	end = langruntime.CheckedIndex(end)
+	return jsonSyntaxToken{kind: jsonSyntaxInvalid, end: end}
+}
+func jsonSyntaxReadString(source *jsonSyntaxSource, begin int) jsonSyntaxToken {
+	begin = langruntime.CheckedIndex(begin)
+	position := langruntime.CheckedAdd(begin, 1)
+	for position < len(source.characters) {
+		character := source.characters[position]
+		position = langruntime.CheckedAdd(position, 1)
+		if character == '"' {
+			return jsonSyntaxToken{kind: jsonSyntaxString, end: position}
+		}
+		code := int(langruntime.CheckedChar(character))
+		if code < 32 {
+			return jsonSyntaxBadToken(position)
+		}
+		if character == '\\' {
+			if position >= len(source.characters) {
+				return jsonSyntaxBadToken(position)
+			}
+			escape := source.characters[position]
+			position = langruntime.CheckedAdd(position, 1)
+			if escape == 'u' {
+				digit := 0
+				for digit < 4 {
+					if position >= len(source.characters) || jsonSyntaxHex(source.characters[position]) == false {
+						return jsonSyntaxBadToken(position)
+					}
+					position = langruntime.CheckedAdd(position, 1)
+					digit = langruntime.CheckedAdd(digit, 1)
+				}
+			} else if escape != '"' && escape != '\\' && escape != '/' && escape != 'b' && escape != 'f' && escape != 'n' && escape != 'r' && escape != 't' {
+				return jsonSyntaxBadToken(position)
+			}
+		}
+	}
+	return jsonSyntaxBadToken(position)
+}
+func jsonSyntaxReadNumber(source *jsonSyntaxSource, begin int) jsonSyntaxToken {
+	begin = langruntime.CheckedIndex(begin)
+	position := begin
+	if source.characters[position] == '-' {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if position >= len(source.characters) || jsonSyntaxDigit(source.characters[position]) == false {
+		return jsonSyntaxBadToken(position)
+	}
+	if source.characters[position] == '0' {
+		position = langruntime.CheckedAdd(position, 1)
+	} else {
+		for position < len(source.characters) && jsonSyntaxDigit(source.characters[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	if position < len(source.characters) && source.characters[position] == '.' {
+		position = langruntime.CheckedAdd(position, 1)
+		first := position
+		for position < len(source.characters) && jsonSyntaxDigit(source.characters[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position == first {
+			return jsonSyntaxBadToken(position)
+		}
+	}
+	if position < len(source.characters) && (source.characters[position] == 'e' || source.characters[position] == 'E') {
+		position = langruntime.CheckedAdd(position, 1)
+		if position < len(source.characters) && (source.characters[position] == '+' || source.characters[position] == '-') {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		first := position
+		for position < len(source.characters) && jsonSyntaxDigit(source.characters[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position == first {
+			return jsonSyntaxBadToken(position)
+		}
+	}
+	return jsonSyntaxToken{kind: jsonSyntaxNumber, end: position}
+}
+func jsonSyntaxKeyword(source *jsonSyntaxSource, begin int, word string, kind int) jsonSyntaxToken {
+	begin = langruntime.CheckedIndex(begin)
+	word = langruntime.CheckedString(word)
+	kind = langruntime.CheckedI32(kind)
+	expected := []rune(word)
+	index := 0
+	position := begin
+	for index < len(expected) {
+		if position >= len(source.characters) || source.characters[position] != expected[index] {
+			return jsonSyntaxBadToken(position)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return jsonSyntaxToken{kind: kind, end: position}
+}
+func jsonSyntaxReadToken(source *jsonSyntaxSource, begin int) jsonSyntaxToken {
+	begin = langruntime.CheckedIndex(begin)
+	position := begin
+	for position < len(source.characters) && jsonSyntaxSpace(source.characters[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if position == len(source.characters) {
+		return jsonSyntaxToken{kind: jsonSyntaxEnd, end: position}
+	}
+	character := source.characters[position]
+	if character == '"' {
+		return jsonSyntaxReadString(source, position)
+	}
+	if character == '-' || jsonSyntaxDigit(character) {
+		return jsonSyntaxReadNumber(source, position)
+	}
+	if character == 't' {
+		return jsonSyntaxKeyword(source, position, "true", jsonSyntaxTrue)
+	}
+	if character == 'f' {
+		return jsonSyntaxKeyword(source, position, "false", jsonSyntaxFalse)
+	}
+	if character == 'n' {
+		return jsonSyntaxKeyword(source, position, "null", jsonSyntaxNull)
+	}
+	kind := jsonSyntaxInvalid
+	if character == '{' {
+		kind = langruntime.CheckedI32(jsonSyntaxObjectStart)
+	} else if character == '}' {
+		kind = langruntime.CheckedI32(jsonSyntaxObjectEnd)
+	} else if character == '[' {
+		kind = langruntime.CheckedI32(jsonSyntaxArrayStart)
+	} else if character == ']' {
+		kind = langruntime.CheckedI32(jsonSyntaxArrayEnd)
+	} else if character == ':' {
+		kind = langruntime.CheckedI32(jsonSyntaxColon)
+	} else if character == ',' {
+		kind = langruntime.CheckedI32(jsonSyntaxComma)
+	}
+	return jsonSyntaxToken{kind: kind, end: langruntime.CheckedAdd(position, 1)}
+}
+func jsonSyntaxRootKind(token int) int {
+	token = langruntime.CheckedI32(token)
+	if token == jsonSyntaxNull {
+		return 0
+	}
+	if token == jsonSyntaxFalse {
+		return 1
+	}
+	if token == jsonSyntaxTrue {
+		return 2
+	}
+	if token == jsonSyntaxNumber {
+		return 3
+	}
+	if token == jsonSyntaxString {
+		return 4
+	}
+	if token == jsonSyntaxArrayStart {
+		return 5
+	}
+	if token == jsonSyntaxObjectStart {
+		return 6
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func jsonSyntaxInvalidLayout(depth int) JsonSyntaxLayout {
+	depth = langruntime.CheckedIndex(depth)
+	return JsonSyntaxLayout{Valid: false, Kind: langruntime.CheckedSignedNegate(1), MaxDepth: depth}
+}
+func JsonSyntaxScan(value string) JsonSyntaxLayout {
+	value = langruntime.CheckedString(value)
+	source := jsonSyntaxSource{characters: []rune(value)}
+	frames := []jsonSyntaxFrame{}
+	langruntime.CheckedAdd(len(frames), 1)
+	frames = append(frames, copyjsonSyntaxFrame(jsonSyntaxFrame{state: jsonSyntaxRootValue}))
+	depth := 1
+	maximum := 0
+	position := 0
+	rootKind := langruntime.CheckedSignedNegate(1)
+	for depth > 0 {
+		token := jsonSyntaxReadToken(&source, position)
+		if token.kind == jsonSyntaxInvalid {
+			return jsonSyntaxInvalidLayout(maximum)
+		}
+		frame := langruntime.CheckedSubtract(depth, 1)
+		state := frames[frame].state
+		if state == jsonSyntaxRootEnd {
+			if token.kind != jsonSyntaxEnd {
+				return jsonSyntaxInvalidLayout(maximum)
+			}
+			return JsonSyntaxLayout{Valid: true, Kind: rootKind, MaxDepth: maximum}
+		}
+		if state == jsonSyntaxArrayNext || state == jsonSyntaxObjectNext {
+			expected := jsonSyntaxArrayEnd
+			continuation := jsonSyntaxArrayValue
+			if state == jsonSyntaxObjectNext {
+				expected = langruntime.CheckedI32(jsonSyntaxObjectEnd)
+				continuation = langruntime.CheckedI32(jsonSyntaxObjectKey)
+			}
+			if token.kind == expected {
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			} else if token.kind == jsonSyntaxComma {
+				frames[frame] = copyjsonSyntaxFrame(jsonSyntaxFrame{state: continuation})
+			} else {
+				return jsonSyntaxInvalidLayout(maximum)
+			}
+		} else if state == jsonSyntaxObjectColon {
+			if token.kind != jsonSyntaxColon {
+				return jsonSyntaxInvalidLayout(maximum)
+			}
+			frames[frame] = copyjsonSyntaxFrame(jsonSyntaxFrame{state: jsonSyntaxObjectValue})
+		} else if state == jsonSyntaxObjectFirst || state == jsonSyntaxObjectKey {
+			if state == jsonSyntaxObjectFirst && token.kind == jsonSyntaxObjectEnd {
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			} else if token.kind == jsonSyntaxString {
+				frames[frame] = copyjsonSyntaxFrame(jsonSyntaxFrame{state: jsonSyntaxObjectColon})
+			} else {
+				return jsonSyntaxInvalidLayout(maximum)
+			}
+		} else if state == jsonSyntaxArrayFirst && token.kind == jsonSyntaxArrayEnd {
+			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		} else {
+			kind := jsonSyntaxRootKind(token.kind)
+			if kind < 0 {
+				return jsonSyntaxInvalidLayout(maximum)
+			}
+			if state == jsonSyntaxRootValue {
+				rootKind = langruntime.CheckedI32(kind)
+				frames[frame] = copyjsonSyntaxFrame(jsonSyntaxFrame{state: jsonSyntaxRootEnd})
+			} else if state == jsonSyntaxObjectValue {
+				frames[frame] = copyjsonSyntaxFrame(jsonSyntaxFrame{state: jsonSyntaxObjectNext})
+			} else {
+				frames[frame] = copyjsonSyntaxFrame(jsonSyntaxFrame{state: jsonSyntaxArrayNext})
+			}
+			if token.kind == jsonSyntaxArrayStart || token.kind == jsonSyntaxObjectStart {
+				child := jsonSyntaxArrayFirst
+				if token.kind == jsonSyntaxObjectStart {
+					child = langruntime.CheckedI32(jsonSyntaxObjectFirst)
+				}
+				if depth > maximum {
+					maximum = langruntime.CheckedIndex(depth)
+				}
+				if depth < len(frames) {
+					frames[depth] = copyjsonSyntaxFrame(jsonSyntaxFrame{state: child})
+				} else {
+					langruntime.CheckedAdd(len(frames), 1)
+					frames = append(frames, copyjsonSyntaxFrame(jsonSyntaxFrame{state: child}))
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+		}
+		position = langruntime.CheckedIndex(token.end)
+	}
+	return jsonSyntaxInvalidLayout(maximum)
 }
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)

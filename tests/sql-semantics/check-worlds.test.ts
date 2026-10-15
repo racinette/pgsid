@@ -28,6 +28,7 @@ import {
   catalogPgLsnType,
   catalogXid8Type,
   catalogSnapshotType,
+  catalogJsonType,
   catalogOidType,
   catalogMoneyType,
   catalogPolygonType,
@@ -62,10 +63,31 @@ type Case = {
   sql: string
   values: Map<string, Node>
 }
-const worlds = (await readdir(worldsDirectory, { withFileTypes: true }))
+const availableWorlds = (await readdir(worldsDirectory, { withFileTypes: true }))
   .filter((entry) => entry.isDirectory())
   .map((entry) => ({ name: entry.name, schema: 'world_' + entry.name }))
   .sort((left, right) => left.name.localeCompare(right.name))
+const selectedWorldNames = process.env['PGSID_CHECK_WORLDS']?.split(',')
+if (
+  selectedWorldNames &&
+  (selectedWorldNames.some((name) => !availableWorlds.some((world) => world.name === name)) ||
+    new Set(selectedWorldNames).size !== selectedWorldNames.length)
+)
+  throw new Error(
+    'PGSID_CHECK_WORLDS must name distinct existing world directories, separated by commas',
+  )
+const worlds = selectedWorldNames
+  ? availableWorlds.filter((world) => selectedWorldNames.includes(world.name))
+  : availableWorlds
+const reportDirectory = fileURLToPath(
+  new URL(
+    selectedWorldNames
+      ? '../../artifacts/check-worlds/scoped/' + worlds.map((world) => world.name).join('+') + '/'
+      : '../../artifacts/check-worlds/',
+    import.meta.url,
+  ),
+)
+
 const cases: Case[] = []
 const checkWorlds = new Set<string>()
 const catalogDependentChecks = new Set([
@@ -237,7 +259,7 @@ describe('world CHECK INSERT parity', () => {
   beforeAll(async () => {
     const started = performance.now()
     const phases: { phase: string; elapsedMs: number; rssBytes: number }[] = []
-    await mkdir('artifacts/check-worlds', { recursive: true })
+    await mkdir(reportDirectory, { recursive: true })
     const progress = async (phase: string) => {
       const step = {
         phase,
@@ -247,7 +269,7 @@ describe('world CHECK INSERT parity', () => {
       phases.push(step)
       console.info('CHECK world setup', step)
       await writeFile(
-        'artifacts/check-worlds/setup.json',
+        join(reportDirectory, 'setup.json'),
         JSON.stringify({ directory, phases }, null, 2) + '\n',
       )
     }
@@ -281,7 +303,11 @@ describe('world CHECK INSERT parity', () => {
         .filter((table) => table.name === 'reservations')
         .map((table) => table.schema)
         .sort(),
-    ).toEqual(['world_002_library', 'world_008_inventory_allocation'])
+    ).toEqual(
+      ['world_002_library', 'world_008_inventory_allocation'].filter((schema) =>
+        worlds.some((world) => world.schema === schema),
+      ),
+    )
     const tables = catalog.tables.filter((table) =>
       cases.some((item) => item.schema === table.schema && item.relation === table.name),
     )
@@ -475,6 +501,13 @@ describe('world CHECK INSERT parity', () => {
             catalogXid8Type(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const jsonColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogJsonType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const snapshotColumns = table.columns
         .filter(
           (column) =>
@@ -620,6 +653,15 @@ describe('world CHECK INSERT parity', () => {
         const payload = bytes === null ? null : bytes.readBigInt64BE()
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+      }
+      for (const name of jsonColumns) {
+        const source = (
+          await pg.query<{ source: string | null }>(
+            `SELECT ${quote(name)}::text AS source FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.source
+        portableRow[name] = source === null ? null : { kind: 'Value', value: { source } }
+        goRow[name] = source
       }
       for (const name of snapshotColumns) {
         const column = table.columns.find((column) => column.name === name)!
@@ -878,6 +920,7 @@ describe('world CHECK INSERT parity', () => {
         pgLsnColumns,
         xid8Columns,
         snapshotColumns,
+        jsonColumns,
         oidColumns,
         moneyColumns,
         polygonColumns,
@@ -917,126 +960,135 @@ describe('world CHECK INSERT parity', () => {
     if (directory) await rm(directory, { recursive: true, force: true })
   })
 
-  it('defers malformed and oversized portable point payloads without throwing', () => {
-    const table = catalog.tables.find(
-      (table) => table.schema === 'world_027_survey_positions' && table.name === 'survey_matches',
-    )!
-    const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
-    const valid = { kind: 'Value', value: { x: 0n, y: 0n } }
-    const baseline = {
-      candidate_point: valid,
-      reference_point: valid,
-      recorded_match: true,
-      choose_candidate: true,
-      recorded_selection: new Uint8Array(16),
-      recorded_coalesced: new Uint8Array(16),
-      skip_validation: false,
-    }
-    for (const candidate of [
-      undefined,
-      '(0,0)',
-      {},
-      { kind: 'Invalid' },
-      { kind: 'Value', value: null },
-      { kind: 'Value', value: { x: 0, y: 0 } },
-      { kind: 'Value', value: { x: 0n } },
-      { kind: 'Value', value: { x: 0n, y: 0 } },
-      { kind: 'Value', value: { x: 9223372036854775808n, y: 0n } },
-      { kind: 'Value', value: { x: -9223372036854775809n, y: 0n } },
-      { kind: 'Value', value: { x: 0n, y: 9223372036854775808n } },
-      { kind: 'Value', value: { x: 0n, y: -9223372036854775809n } },
-      { kind: 'Value', value: { x: 0n, y: 0n, wireKnown: 'yes' } },
-    ]) {
-      const results = evaluate({ ...baseline, candidate_point: candidate })
-      expect(results).toHaveLength(3)
-      for (const result of results) {
-        expect(result.result.certain, result.constraint).toBe(false)
-        expect(result.message, result.constraint).toBeTruthy()
-      }
-    }
-    const missing: Record<string, unknown> = { ...baseline }
-    delete missing.candidate_point
-    expect(evaluate(missing).every(({ result }) => !result.certain)).toBe(true)
-    expect(normalized(evaluate(baseline)).map(({ result }) => result)).toEqual([
-      { certain: true, value: true },
-      { certain: true, value: true },
-      { certain: true, value: true },
-    ])
-    const nullResults = Object.fromEntries(
-      normalized(evaluate({ ...baseline, candidate_point: null })).map(({ constraint, result }) => [
-        constraint,
-        result,
-      ]),
-    )
-    expect(nullResults).toEqual({
-      survey_coalesced: { certain: true, value: true },
-      survey_same_position: { certain: true, value: null },
-      survey_selection: { certain: true, value: null },
-    })
-  })
-
-  it('retains point semantics when computed NaN wire bits are unavailable', () => {
-    const table = catalog.tables.find(
-      (table) => table.schema === 'world_027_survey_positions' && table.name === 'survey_matches',
-    )!
-    const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
-    const point = { kind: 'Value', value: { x: 0x7ff8000000000000n, y: 0n, wireKnown: false } }
-    const results = Object.fromEntries(
-      normalized(
-        evaluate({
-          candidate_point: point,
-          reference_point: point,
-          recorded_match: true,
-          choose_candidate: true,
-          recorded_selection: new Uint8Array(16),
-          recorded_coalesced: new Uint8Array(16),
-          skip_validation: false,
-        }),
-      ).map(({ constraint, result }) => [constraint, result]),
-    )
-    expect(results).toEqual({
-      survey_same_position: { certain: true, value: true },
-      survey_selection: { certain: false },
-      survey_coalesced: { certain: false },
-    })
-  })
-
-  it('defers enum hashes without deployment OIDs while retaining label comparisons and lazy states', () => {
-    const table = catalog.tables.find(
-      (table) =>
-        table.schema === 'world_014_shipment_defaults' && table.name === 'shipment_stage_decisions',
-    )!
-    const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
-    const row = {
-      stage: 'ready',
-      peer: 'held',
-      larger_stage: 'held',
-      smaller_stage: 'ready',
-      comparison_record: -1,
-      less_record: true,
-      not_after_record: true,
-      greater_record: false,
-      not_before_record: false,
-      seed: 0n,
-      skip: false,
-    }
-    const results = Object.fromEntries(
-      normalized(evaluate(row)).map(({ constraint, result }) => [constraint, result]),
-    )
-    expect(results.stage_larger).toEqual({ certain: true, value: true })
-    expect(results.stage_smaller).toEqual({ certain: true, value: true })
-    for (const constraint of ['stage_selected_hash', 'stage_selected_seeded_hash']) {
-      expect(results[constraint]).toEqual({ certain: false })
-      const skipped = normalized(evaluate({ ...row, skip: true })).find(
-        (c) => c.constraint === constraint,
+  it.runIf(worlds.some((world) => world.name === '027_survey_positions'))(
+    'defers malformed and oversized portable point payloads without throwing',
+    () => {
+      const table = catalog.tables.find(
+        (table) => table.schema === 'world_027_survey_positions' && table.name === 'survey_matches',
       )!
-      expect(skipped.result).toEqual({ certain: true, value: true })
-      const nulls = normalized(
-        evaluate({ ...row, stage: null, peer: null, larger_stage: null, smaller_stage: null }),
-      ).find((c) => c.constraint === constraint)!
-      expect(nulls.result).toEqual({ certain: true, value: null })
-    }
-  })
+      const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
+      const valid = { kind: 'Value', value: { x: 0n, y: 0n } }
+      const baseline = {
+        candidate_point: valid,
+        reference_point: valid,
+        recorded_match: true,
+        choose_candidate: true,
+        recorded_selection: new Uint8Array(16),
+        recorded_coalesced: new Uint8Array(16),
+        skip_validation: false,
+      }
+      for (const candidate of [
+        undefined,
+        '(0,0)',
+        {},
+        { kind: 'Invalid' },
+        { kind: 'Value', value: null },
+        { kind: 'Value', value: { x: 0, y: 0 } },
+        { kind: 'Value', value: { x: 0n } },
+        { kind: 'Value', value: { x: 0n, y: 0 } },
+        { kind: 'Value', value: { x: 9223372036854775808n, y: 0n } },
+        { kind: 'Value', value: { x: -9223372036854775809n, y: 0n } },
+        { kind: 'Value', value: { x: 0n, y: 9223372036854775808n } },
+        { kind: 'Value', value: { x: 0n, y: -9223372036854775809n } },
+        { kind: 'Value', value: { x: 0n, y: 0n, wireKnown: 'yes' } },
+      ]) {
+        const results = evaluate({ ...baseline, candidate_point: candidate })
+        expect(results).toHaveLength(3)
+        for (const result of results) {
+          expect(result.result.certain, result.constraint).toBe(false)
+          expect(result.message, result.constraint).toBeTruthy()
+        }
+      }
+      const missing: Record<string, unknown> = { ...baseline }
+      delete missing.candidate_point
+      expect(evaluate(missing).every(({ result }) => !result.certain)).toBe(true)
+      expect(normalized(evaluate(baseline)).map(({ result }) => result)).toEqual([
+        { certain: true, value: true },
+        { certain: true, value: true },
+        { certain: true, value: true },
+      ])
+      const nullResults = Object.fromEntries(
+        normalized(evaluate({ ...baseline, candidate_point: null })).map(
+          ({ constraint, result }) => [constraint, result],
+        ),
+      )
+      expect(nullResults).toEqual({
+        survey_coalesced: { certain: true, value: true },
+        survey_same_position: { certain: true, value: null },
+        survey_selection: { certain: true, value: null },
+      })
+    },
+  )
+
+  it.runIf(worlds.some((world) => world.name === '027_survey_positions'))(
+    'retains point semantics when computed NaN wire bits are unavailable',
+    () => {
+      const table = catalog.tables.find(
+        (table) => table.schema === 'world_027_survey_positions' && table.name === 'survey_matches',
+      )!
+      const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
+      const point = { kind: 'Value', value: { x: 0x7ff8000000000000n, y: 0n, wireKnown: false } }
+      const results = Object.fromEntries(
+        normalized(
+          evaluate({
+            candidate_point: point,
+            reference_point: point,
+            recorded_match: true,
+            choose_candidate: true,
+            recorded_selection: new Uint8Array(16),
+            recorded_coalesced: new Uint8Array(16),
+            skip_validation: false,
+          }),
+        ).map(({ constraint, result }) => [constraint, result]),
+      )
+      expect(results).toEqual({
+        survey_same_position: { certain: true, value: true },
+        survey_selection: { certain: false },
+        survey_coalesced: { certain: false },
+      })
+    },
+  )
+
+  it.runIf(worlds.some((world) => world.name === '014_shipment_defaults'))(
+    'defers enum hashes without deployment OIDs while retaining label comparisons and lazy states',
+    () => {
+      const table = catalog.tables.find(
+        (table) =>
+          table.schema === 'world_014_shipment_defaults' &&
+          table.name === 'shipment_stage_decisions',
+      )!
+      const evaluate = generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!
+      const row = {
+        stage: 'ready',
+        peer: 'held',
+        larger_stage: 'held',
+        smaller_stage: 'ready',
+        comparison_record: -1,
+        less_record: true,
+        not_after_record: true,
+        greater_record: false,
+        not_before_record: false,
+        seed: 0n,
+        skip: false,
+      }
+      const results = Object.fromEntries(
+        normalized(evaluate(row)).map(({ constraint, result }) => [constraint, result]),
+      )
+      expect(results.stage_larger).toEqual({ certain: true, value: true })
+      expect(results.stage_smaller).toEqual({ certain: true, value: true })
+      for (const constraint of ['stage_selected_hash', 'stage_selected_seeded_hash']) {
+        expect(results[constraint]).toEqual({ certain: false })
+        const skipped = normalized(evaluate({ ...row, skip: true })).find(
+          (c) => c.constraint === constraint,
+        )!
+        expect(skipped.result).toEqual({ certain: true, value: true })
+        const nulls = normalized(
+          evaluate({ ...row, stage: null, peer: null, larger_stage: null, smaller_stage: null }),
+        ).find((c) => c.constraint === constraint)!
+        expect(nulls.result).toEqual({ certain: true, value: null })
+      }
+    },
+  )
 
   it.each(cases)('$name', async (item) => {
     const table = catalog.tables.find(
@@ -1200,1358 +1252,1365 @@ describe('world CHECK INSERT parity', () => {
     expect(definite).toBeGreaterThan(0)
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
-    for (const [identity, constraint] of binaryContextCases) {
-      const slash = identity.lastIndexOf('/')
-      const item = caseResults.find((row) => row.name === identity.slice(0, slash))!
-      const check = item.checks.find((row) => row.constraint === identity.slice(slash + 1))!
-      expect(check.result.certain, identity).toBe(false)
-      expect(`${item.schema}.${item.relation}.${check.constraint}`, identity).toBe(constraint)
-      expect(item.database.accepted, identity).toBe(true)
-      expect(check.postgres, identity).toBe(true)
-    }
-    for (const identity of sessionDependentCases.values()) {
-      const measured = coverage.get(identity)!
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      for (const state of ['true', 'false', 'null'] as const)
-        expect(measured[state], identity).toBeGreaterThan(0)
-    }
-    for (const identity of catalogDependentChecks) {
-      const measured = coverage.get(identity)!
-      expect(measured.unknown, identity).toBeGreaterThan(0)
-      expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.true, identity).toBeGreaterThan(0)
-    }
-    for (const [table, names] of [
-      [
-        'shift_presence_reports',
-        ['presence_local', 'presence_zoned', 'presence_duration', 'presence_pair'],
-      ],
-      ['shift_templates', ['shift_clock_order', 'shift_duration']],
-      ['service_windows', ['service_duration_bounds', 'service_duration_span']],
-      ['zoned_dispatches', ['dispatch_local_clock', 'dispatch_adjustment']],
-      [
-        'duration_imports',
-        [
-          'duration_import_match',
-          'duration_import_precision',
-          'duration_import_justify',
-          'duration_import_scale',
-        ],
-      ],
-      ['clock_imports', ['clock_import_local', 'clock_import_zoned', 'clock_import_label']],
-      [
-        'maintenance_adjustments',
-        [
-          'maintenance_parts',
-          'maintenance_precision',
-          'maintenance_day',
-          'maintenance_clock',
-          'maintenance_elapsed',
-        ],
-      ],
-      [
-        'departure_plans',
-        ['departure_calendar_clock', 'departure_calendar_instant', 'departure_clock_precision'],
-      ],
-      [
-        'shift_audit_fields',
-        [
-          'audit_local_field',
-          'audit_zoned_field',
-          'audit_local_legacy',
-          'audit_zoned_legacy',
-          'audit_local_digest',
-          'audit_zoned_digest',
-          'audit_local_seeded_digest',
-          'audit_zoned_seeded_digest',
-          'audit_local_adjustment',
-          'audit_zoned_adjustment',
-        ],
-      ],
-      [
-        'duration_audit_fields',
-        [
-          'audit_duration_field',
-          'audit_duration_legacy',
-          'audit_duration_truncation',
-          'audit_duration_digest',
-          'audit_duration_seeded_digest',
-        ],
-      ],
-      [
-        'event_bucket_records',
-        ['event_local_bucket', 'event_instant_bucket', 'event_calendar_age'],
-      ],
-      [
-        'zoned_calendar_adjustments',
-        ['zoned_calendar_add', 'zoned_calendar_subtract', 'zoned_calendar_return'],
-      ],
-      [
-        'local_shift_conflicts',
-        [
-          'local_conflict_endpoints',
-          'local_conflict_first_duration',
-          'local_conflict_second_duration',
-          'local_conflict_both_durations',
-        ],
-      ],
-      [
-        'calendar_shift_conflicts',
-        [
-          'calendar_conflict_endpoints',
-          'calendar_conflict_first_duration',
-          'calendar_conflict_second_duration',
-          'calendar_conflict_both_durations',
-        ],
-      ],
-      ['zoned_shift_conflicts', ['zoned_conflict_forward', 'zoned_conflict_reverse']],
-      ['instant_shift_conflicts', ['instant_conflict_forward', 'instant_conflict_reverse']],
-      ['calendar_field_records', ['calendar_field_value', 'calendar_field_wire']],
-      ['clock_tolerances', ['tolerance_local', 'tolerance_zoned']],
-      [
-        'calendar_tolerances',
-        ['tolerance_calendar_day', 'tolerance_calendar_clock', 'tolerance_duration'],
-      ],
-      [
-        'fixed_zone_records',
-        [
-          'fixed_zone_instant',
-          'fixed_zone_local',
-          'fixed_zone_clock',
-          'fixed_zone_label',
-          'fixed_zone_offset',
-        ],
-      ],
-    ] as const) {
-      for (const name of names) {
-        const identity = `world_026_shift_schedules.${table}.${name}`
+    if (!selectedWorldNames) {
+      for (const [identity, constraint] of binaryContextCases) {
+        const slash = identity.lastIndexOf('/')
+        const item = caseResults.find((row) => row.name === identity.slice(0, slash))!
+        const check = item.checks.find((row) => row.constraint === identity.slice(slash + 1))!
+        expect(check.result.certain, identity).toBe(false)
+        expect(`${item.schema}.${item.relation}.${check.constraint}`, identity).toBe(constraint)
+        expect(item.database.accepted, identity).toBe(true)
+        expect(check.postgres, identity).toBe(true)
+      }
+      for (const identity of sessionDependentCases.values()) {
         const measured = coverage.get(identity)!
         expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-        expect(measured.true, identity).toBeGreaterThan(0)
-        expect(measured.false, identity).toBeGreaterThan(0)
-      }
-    }
-    for (const [world, table, names] of [
-      [
-        '028_axis_guides',
-        'guide_axes',
-        ['guide_wire', 'guide_presence', 'guide_horizontal', 'guide_vertical'],
-      ],
-      ['028_axis_guides', 'guide_matches', ['guide_same', 'guide_selected', 'guide_default']],
-      ['028_axis_guides', 'guide_imports', ['import_equation', 'import_wire', 'import_present']],
-      [
-        '028_axis_guides',
-        'guide_constructions',
-        ['construction_equation', 'construction_horizontal', 'construction_vertical'],
-      ],
-      [
-        '028_axis_guides',
-        'guide_relations',
-        [
-          'relation_parallel',
-          'relation_perpendicular',
-          'relation_crossing',
-          'relation_point',
-          'relation_distance',
-        ],
-      ],
-      [
-        '028_axis_guides',
-        'guide_projections',
-        ['projection_on_axis', 'projection_closest', 'projection_distance'],
-      ],
-      [
-        '028_axis_guides',
-        'guide_segment_imports',
-        [
-          'segment_import_wire',
-          'segment_import_length',
-          'segment_import_center',
-          'segment_import_horizontal',
-          'segment_import_vertical',
-          'segment_import_present',
-        ],
-      ],
-      [
-        '028_axis_guides',
-        'guide_segment_relations',
-        [
-          'segment_relation_same',
-          'segment_relation_length',
-          'segment_relation_parallel',
-          'segment_relation_perpendicular',
-          'segment_relation_selected',
-        ],
-      ],
-      [
-        '028_axis_guides',
-        'guide_segment_constructions',
-        ['segment_construct_same', 'segment_construct_wire'],
-      ],
-      [
-        '028_axis_guides',
-        'guide_segment_crossings',
-        [
-          'segment_cross_intersects',
-          'segment_cross_point',
-          'segment_cross_distance',
-          'segment_cross_closest',
-          'segment_cross_line_intersects',
-          'segment_cross_on_line',
-          'segment_cross_line_distance',
-          'segment_cross_line_closest',
-        ],
-      ],
-      [
-        '028_axis_guides',
-        'guide_segment_projections',
-        ['segment_project_on', 'segment_project_closest', 'segment_project_distance'],
-      ],
-      [
-        '028_axis_guides',
-        'guide_regions',
-        [
-          'region_wire',
-          'region_area',
-          'region_width',
-          'region_height',
-          'region_center',
-          'region_diagonal',
-          'region_present',
-        ],
-      ],
-      ['028_axis_guides', 'guide_region_imports', ['region_import_same', 'region_import_wire']],
-      [
-        '028_axis_guides',
-        'guide_region_relations',
-        ['region_relation_same', 'region_relation_area', 'region_relation_distance'],
-      ],
-      [
-        '028_axis_guides',
-        'guide_region_spatial',
-        [
-          'region_space_horizontal',
-          'region_space_vertical',
-          'region_space_topology',
-          'region_space_intersection',
-          'region_space_container',
-        ],
-      ],
-      [
-        '028_axis_guides',
-        'guide_region_contacts',
-        [
-          'region_contact_point_inside',
-          'region_contact_segment_inside',
-          'region_contact_crossings',
-          'region_contact_point_closest',
-          'region_contact_point_distance',
-          'region_contact_segment_closest',
-          'region_contact_segment_distance',
-        ],
-      ],
-      [
-        '028_axis_guides',
-        'guide_region_transforms',
-        [
-          'region_transform_addition',
-          'region_transform_subtraction',
-          'region_transform_scale',
-          'region_transform_division',
-        ],
-      ],
-
-      [
-        '025_sensor_measurements',
-        'calibrated_magnitudes',
-        ['calibrated_magnitude_value', 'calibrated_magnitude_wire'],
-      ],
-      ['027_survey_positions', 'survey_locations', ['location_wire', 'location_presence']],
-      [
-        '027_survey_positions',
-        'coordinate_constructions',
-        ['construction_position', 'construction_wire'],
-      ],
-      [
-        '027_survey_positions',
-        'survey_matches',
-        ['survey_same_position', 'survey_selection', 'survey_coalesced'],
-      ],
-      ['027_survey_positions', 'survey_offsets', ['offset_sum', 'offset_difference']],
-      ['027_survey_positions', 'survey_transforms', ['transform_product', 'transform_quotient']],
-      [
-        '027_survey_positions',
-        'survey_measurements',
-        [
-          'measurement_distance',
-          'measurement_slope',
-          'measurement_left',
-          'measurement_right',
-          'measurement_above',
-          'measurement_below',
-          'measurement_horizontal',
-          'measurement_vertical',
-        ],
-      ],
-      [
-        '027_survey_positions',
-        'survey_imports',
-        ['import_position', 'import_wire', 'import_origin'],
-      ],
-      [
-        '027_survey_positions',
-        'survey_slope_reports',
-        ['slope_nan', 'slope_present', 'slope_scalar_cast'],
-      ],
-    ] as const) {
-      for (const name of names) {
-        const identity = `world_${world}.${table}.${name}`
-        const measured = coverage.get(identity)!
-        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-        expect(measured.true, identity).toBeGreaterThan(0)
-        expect(measured.false, identity).toBeGreaterThan(0)
-      }
-    }
-    let numericFunctionConstraints = 0
-    for (const table of [
-      'shipment_fee_sign',
-      'shipment_fee_scale',
-      'shipment_fee_whole',
-      'shipment_fee_precision',
-    ]) {
-      const checks = [...coverage].filter(([identity]) =>
-        identity.startsWith(`world_014_shipment_defaults.${table}.`),
-      )
-      expect(checks.length, table).toBeGreaterThan(0)
-      for (const [identity, measured] of checks) {
-        for (const kind of ['true', 'false', 'null'] as const)
-          expect(measured[kind], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-        numericFunctionConstraints++
-      }
-    }
-    expect(numericFunctionConstraints).toBe(18)
-    for (const [world, table, count] of [
-      ['013_label_registry', 'unicode_labels', 3],
-      ['011_flight_arrivals', 'arrival_calendar_buckets', 1],
-      ['011_flight_arrivals', 'arrival_calendar_fields', 1],
-      ['011_flight_arrivals', 'arrival_calendar_zone_buckets', 1],
-      ['011_flight_arrivals', 'arrival_calendar_clock_fields', 3],
-      ['014_shipment_defaults', 'shipment_fee_small_units', 2],
-      ['014_shipment_defaults', 'shipment_fee_regular_units', 2],
-      ['014_shipment_defaults', 'shipment_fee_bulk_units', 2],
-    ] as const) {
-      const checks = [...coverage].filter(([identity]) =>
-        identity.startsWith(`world_${world}.${table}.`),
-      )
-      expect(checks).toHaveLength(count)
-      for (const [identity, measured] of checks) {
-        for (const kind of ['true', 'false', 'null'] as const)
-          expect(measured[kind], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      }
-    }
-    for (const identity of [
-      'world_014_shipment_defaults.shipment_fee_small_units.fee_small_rounded',
-      'world_014_shipment_defaults.shipment_fee_regular_units.fee_regular_rounded',
-      'world_014_shipment_defaults.shipment_fee_bulk_units.fee_bulk_rounded',
-      'world_011_flight_arrivals.arrival_calendar_fields.arrival_calendar_field',
-      'world_011_flight_arrivals.flight_arrivals.arrival_interpretation',
-      'world_011_flight_arrivals.arrival_displays.displayed_arrival',
-      'world_012_package_capacity.package_capacity.area_limit',
-      'world_012_package_capacity.package_capacity.slot_limit',
-      'world_012_package_capacity.package_capacity.whole_batches',
-      'world_012_package_capacity.package_capacity.adjustment_limit',
-      'world_012_package_capacity.compact_stock_corrections.compact_correction',
-      'world_012_package_capacity.compact_inventory_adjustments.compact_adjustment',
-      'world_012_package_capacity.tiny_inventory_adjustments.tiny_adjustment',
-      'world_012_package_capacity.bulk_package_products.bulk_package_product',
-      'world_012_package_capacity.chosen_package_counts.chosen_double',
-      'world_012_package_capacity.chosen_package_counts.chosen_ratio',
-      'world_014_shipment_defaults.replenishment_picks.fallback_double',
-      'world_014_shipment_defaults.replenishment_picks.fallback_ratio',
-      'world_012_package_capacity.mixed_batch_remainders.small_integer_remainder',
-      'world_012_package_capacity.mixed_batch_remainders.integer_small_remainder',
-      'world_012_package_capacity.mixed_batch_remainders.small_big_remainder',
-      'world_012_package_capacity.mixed_batch_remainders.big_small_remainder',
-      'world_012_package_capacity.mixed_batch_remainders.integer_big_remainder',
-      'world_012_package_capacity.mixed_batch_remainders.big_integer_remainder',
-      'world_012_package_capacity.mixed_batch_remainders.widened_remainder_call',
-      'world_012_package_capacity.bulk_package_divisions.bulk_package_quotient',
-      'world_012_package_capacity.bulk_package_divisions.bulk_package_remainder',
-      'world_012_package_capacity.mixed_bulk_packages.bulk_small_product',
-      'world_012_package_capacity.mixed_bulk_packages.small_bulk_product',
-      'world_012_package_capacity.mixed_bulk_packages.bulk_integer_product',
-      'world_012_package_capacity.mixed_bulk_packages.integer_bulk_product',
-      'world_012_package_capacity.mixed_bulk_packages.bulk_small_quotient',
-      'world_012_package_capacity.mixed_bulk_packages.small_bulk_quotient',
-      'world_012_package_capacity.mixed_bulk_packages.bulk_integer_quotient',
-      'world_012_package_capacity.mixed_bulk_packages.integer_bulk_quotient',
-      'world_012_package_capacity.bulk_stock_reconciliations.bulk_stock_balance',
-      'world_012_package_capacity.bulk_warehouse_corrections.bulk_correction_reversal',
-      'world_012_package_capacity.bulk_warehouse_corrections.bulk_correction_magnitude',
-      'world_012_package_capacity.mixed_bulk_adjustments.bulk_small_total',
-      'world_012_package_capacity.mixed_bulk_adjustments.small_bulk_total',
-      'world_012_package_capacity.mixed_bulk_adjustments.bulk_integer_total',
-      'world_012_package_capacity.mixed_bulk_adjustments.integer_bulk_total',
-      'world_012_package_capacity.mixed_bulk_adjustments.bulk_small_residual',
-      'world_012_package_capacity.mixed_bulk_adjustments.small_bulk_balance',
-      'world_012_package_capacity.mixed_bulk_adjustments.bulk_integer_residual',
-      'world_012_package_capacity.mixed_bulk_adjustments.integer_bulk_balance',
-    ]) {
-      const measured = coverage.get(identity)!
-      expect(measured.error, identity).toBeGreaterThan(0)
-      expect(measured.error, identity).toBe(measured.postgres.error)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-    }
-    let integerFunctionConstraints = 0
-    for (const table of [
-      'stock_count_comparisons',
-      'stock_integer_masks',
-      'stock_count_math',
-      'stock_window_bounds',
-      'stock_boolean_records',
-      'stock_radix_records',
-      'stock_hash_records',
-    ]) {
-      const prefix = `world_012_package_capacity.${table}.`
-      const checks = [...coverage].filter(([identity]) => identity.startsWith(prefix))
-      expect(checks.length, table).toBeGreaterThan(0)
-      for (const [identity, measured] of checks) {
-        for (const kind of ['true', 'false', 'null'] as const)
-          expect(measured[kind], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-        integerFunctionConstraints++
-      }
-    }
-    expect(integerFunctionConstraints).toBe(74)
-    let temporalFunctionConstraints = 0
-    for (const table of [
-      'flight_date_order',
-      'flight_timestamp_order',
-      'flight_instant_order',
-      'flight_mixed_order',
-      'flight_calendar_shift',
-      'flight_precision',
-    ]) {
-      const prefix = `world_011_flight_arrivals.${table}.`
-      const checks = [...coverage].filter(([identity]) => identity.startsWith(prefix))
-      expect(checks.length, table).toBeGreaterThan(0)
-      for (const [identity, measured] of checks) {
-        for (const kind of ['true', 'false', 'null'] as const)
-          expect(measured[kind], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-        temporalFunctionConstraints++
-      }
-    }
-    expect(temporalFunctionConstraints).toBe(40)
-    for (const name of [
-      'chosen_pair',
-      'chosen_stock',
-      'chosen_baseline',
-      'chosen_double',
-      'chosen_ratio',
-      'chosen_nested',
-      'chosen_simple',
-      'chosen_without_else',
-    ]) {
-      const identity = `world_012_package_capacity.chosen_package_counts.${name}`
-      const measured = coverage.get(identity)!
-      expect(measured.true, identity).toBeGreaterThan(0)
-      expect(measured.false, identity).toBeGreaterThan(0)
-      expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-    }
-    for (const [table, names] of [
-      [
-        'replenishment_picks',
-        ['fallback_units', 'fallback_baseline', 'fallback_double', 'fallback_ratio'],
-      ],
-      [
-        'delivery_defaults',
-        ['fallback_day', 'fallback_schedule', 'fallback_confirmation', 'fallback_enabled'],
-      ],
-      ['shipment_labels', ['fallback_label', 'fallback_code', 'fallback_fee', 'fallback_stage']],
-    ] as const) {
-      for (const name of names) {
-        const identity = `world_014_shipment_defaults.${table}.${name}`
-        const measured = coverage.get(identity)!
-        expect(measured.true, identity).toBeGreaterThan(0)
-        expect(measured.false, identity).toBeGreaterThan(0)
-        expect(measured.null, identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      }
-    }
-    for (const [table, names] of [
-      [
-        'network_peers',
-        [
-          'peer_within_allowed',
-          'peer_in_address_range',
-          'peer_default_recorded',
-          'peer_selected_recorded',
-        ],
-      ],
-      ['network_subnets', ['subnet_strictly_inside_parent', 'subnet_avoids_forbidden']],
-      ['network_imports', ['import_address_parsed', 'import_network_parsed']],
-      [
-        'network_allocations',
-        [
-          'allocation_shifted',
-          'allocation_shifted_reverse',
-          'allocation_restored',
-          'allocation_distance',
-        ],
-      ],
-      [
-        'network_plans',
-        [
-          'plan_family',
-          'plan_prefix',
-          'plan_same_family',
-          'plan_network',
-          'plan_broadcast',
-          'plan_netmask',
-          'plan_hostmask',
-          'plan_converted',
-          'plan_combined',
-        ],
-      ],
-      [
-        'network_outputs',
-        [
-          'output_host',
-          'output_text',
-          'output_abbrev',
-          'output_cidr_abbrev',
-          'output_inet_send',
-          'output_cidr_send',
-          'output_hash',
-          'output_hash_extended',
-        ],
-      ],
-      [
-        'hardware_devices',
-        [
-          'device_nonzero',
-          'device_in_range',
-          'device_allowed',
-          'device_comparison',
-          'device_selected',
-          'device_default',
-          'device_recognized',
-        ],
-      ],
-      [
-        'hardware_interfaces',
-        [
-          'interface_nonzero',
-          'interface_in_range',
-          'interface_allowed',
-          'interface_comparison',
-          'interface_selected',
-          'interface_default',
-          'interface_recognized',
-        ],
-      ],
-      [
-        'hardware_masks',
-        [
-          'hardware_invert6',
-          'hardware_intersect6',
-          'hardware_union6',
-          'hardware_manufacturer6',
-          'hardware_invert8',
-          'hardware_intersect8',
-          'hardware_union8',
-          'hardware_manufacturer8',
-          'hardware_modified8',
-        ],
-      ],
-      [
-        'hardware_conversions',
-        [
-          'hardware_extend',
-          'hardware_shorten',
-          'hardware_case_short',
-          'hardware_case_extended',
-          'hardware_default_short',
-          'hardware_default_extended',
-        ],
-      ],
-      [
-        'hardware_imports',
-        [
-          'hardware_parse_short',
-          'hardware_parse_extended',
-          'hardware_parse_varchar_short',
-          'hardware_parse_varchar_extended',
-        ],
-      ],
-      [
-        'hardware_outputs',
-        [
-          'hardware_text6',
-          'hardware_text8',
-          'hardware_wire6',
-          'hardware_wire8',
-          'hardware_hash6',
-          'hardware_hash8',
-          'hardware_seed6',
-          'hardware_seed8',
-          'hardware_zero6',
-          'hardware_zero8',
-          'hardware_output_case',
-          'hardware_output_default',
-        ],
-      ],
-      ['network_resizes', ['resize_address', 'resize_subnet']],
-      ['network_filters', ['filter_complement', 'filter_intersection', 'filter_union']],
-      [
-        'network_priorities',
-        ['priority_comparison', 'priority_larger', 'priority_smaller', 'priority_selected'],
-      ],
-    ] as const) {
-      for (const name of names) {
-        const identity = `world_015_network_access.${table}.${name}`
-        const measured = coverage.get(identity)!
-        expect(measured.true, identity).toBeGreaterThan(0)
-        expect(measured.false, identity).toBeGreaterThan(0)
-        expect(measured.null, identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      }
-    }
-    for (const [table, names] of [
-      [
-        'hardware_conversions',
-        ['hardware_shorten', 'hardware_case_short', 'hardware_default_short'],
-      ],
-      [
-        'hardware_imports',
-        [
-          'hardware_parse_short',
-          'hardware_parse_extended',
-          'hardware_parse_varchar_short',
-          'hardware_parse_varchar_extended',
-        ],
-      ],
-    ] as const)
-      for (const name of names) {
-        const identity = `world_015_network_access.${table}.${name}`
-        expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
-        expect(coverage.get(identity)!.true, identity).toBeGreaterThan(0)
-      }
-    for (const name of [
-      'import_address_parsed',
-      'import_network_parsed',
-      'allocation_shifted',
-      'allocation_shifted_reverse',
-      'allocation_restored',
-      'allocation_distance',
-    ]) {
-      const table = name.startsWith('import_') ? 'network_imports' : 'network_allocations'
-      const identity = `world_015_network_access.${table}.${name}`
-      expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
-    }
-    for (const [table, name] of [
-      ['network_plans', 'plan_combined'],
-      ['network_resizes', 'resize_address'],
-      ['network_resizes', 'resize_subnet'],
-      ['network_filters', 'filter_intersection'],
-      ['network_filters', 'filter_union'],
-    ]) {
-      const identity = `world_015_network_access.${table}.${name}`
-      expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
-    }
-    for (const name of [
-      'identifier_nonzero',
-      'identifier_range',
-      'identifier_default',
-      'identifier_selected',
-      'identifier_allowed',
-      'identifier_text',
-      'identifier_comparison',
-    ]) {
-      const identity = `world_016_device_identifiers.device_identifiers.${name}`
-      const measured = coverage.get(identity)!
-      expect(measured.true, identity).toBeGreaterThan(0)
-      expect(measured.false, identity).toBeGreaterThan(0)
-      expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-    }
-    for (const name of [
-      'import_parsed',
-      'import_legacy',
-      'import_lazy',
-      'import_selected',
-      'import_default',
-    ]) {
-      const identity = `world_016_device_identifiers.identifier_imports.${name}`
-      const measured = coverage.get(identity)!
-      expect(measured.true, identity).toBeGreaterThan(0)
-      expect(measured.error, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-    }
-    for (const name of [
-      'fingerprint_wire',
-      'fingerprint_hash',
-      'fingerprint_seeded',
-      'fingerprint_zero',
-      'fingerprint_version',
-      'fingerprint_parsed_hash',
-      'fingerprint_parsed_wire',
-      'fingerprint_parsed_version',
-      'fingerprint_lazy_parse',
-    ]) {
-      const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
-      const measured = coverage.get(identity)!
-      expect(measured.true, identity).toBeGreaterThan(0)
-      expect(measured.false, identity).toBeGreaterThan(0)
-      expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-    }
-    for (const name of ['fingerprint_version_null', 'fingerprint_version_default']) {
-      const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
-      const measured = coverage.get(identity)!
-      expect(measured.true, identity).toBeGreaterThan(0)
-      expect(measured.false, identity).toBeGreaterThan(0)
-      expect(measured.null, identity).toBe(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-    }
-    for (const name of [
-      'fingerprint_parsed_hash',
-      'fingerprint_parsed_wire',
-      'fingerprint_parsed_version',
-      'fingerprint_lazy_parse',
-    ]) {
-      const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
-      expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
-    }
-    for (const name of [
-      'event_recorded',
-      'event_window',
-      'event_selected',
-      'event_parsed',
-      'event_lazy_parse',
-    ]) {
-      const identity = `world_016_device_identifiers.identifier_events.${name}`
-      const measured = coverage.get(identity)!
-      expect(measured.true, identity).toBeGreaterThan(0)
-      expect(measured.false, identity).toBeGreaterThan(0)
-      expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-    }
-    for (const name of ['event_timestamp_null', 'event_timestamp_default']) {
-      const identity = `world_016_device_identifiers.identifier_events.${name}`
-      const measured = coverage.get(identity)!
-      expect(measured.true, identity).toBeGreaterThan(0)
-      expect(measured.false, identity).toBeGreaterThan(0)
-      expect(measured.null, identity).toBe(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-    }
-    for (const name of ['event_parsed', 'event_lazy_parse']) {
-      const identity = `world_016_device_identifiers.identifier_events.${name}`
-      expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
-    }
-    for (const [table, names] of [
-      [
-        'mask_profiles',
-        [
-          'profile_width',
-          'profile_length',
-          'profile_octets',
-          'profile_recorded',
-          'profile_range',
-          'profile_comparison',
-        ],
-      ],
-      [
-        'device_mask_rules',
-        [
-          'rule_default',
-          'rule_selected',
-          'rule_membership',
-          'rule_window',
-          'rule_comparison',
-          'rule_width',
-          'rule_length',
-          'rule_octets',
-        ],
-      ],
-      [
-        'mask_snapshots',
-        [
-          'snapshot_equal',
-          'snapshot_case',
-          'snapshot_reverse_case',
-          'snapshot_default',
-          'snapshot_recognized',
-          'snapshot_allowed',
-          'snapshot_empty',
-        ],
-      ],
-    ] as const) {
-      for (const name of names) {
-        const identity = `world_017_feature_masks.${table}.${name}`
-        const measured = coverage.get(identity)!
-        expect(measured.true, identity).toBeGreaterThan(0)
-        expect(measured.false, identity).toBeGreaterThan(0)
-        expect(measured.null, identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      }
-    }
-    for (const name of [
-      'patch_combination',
-      'patch_direct_combination',
-      'patch_read',
-      'patch_write',
-      'patch_flexible_read',
-      'patch_flexible_write',
-      'patch_selected',
-      'patch_default',
-    ]) {
-      const identity = `world_017_feature_masks.mask_patches.${name}`
-      const measured = coverage.get(identity)!
-      for (const kind of ['true', 'false', 'null'] as const)
-        expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      if (!name.includes('combination')) expect(measured.error, identity).toBeGreaterThan(0)
-    }
-    for (const name of [
-      'window_fixed',
-      'window_flexible',
-      'window_direct',
-      'window_suffix',
-      'window_flexible_suffix',
-      'window_selected',
-      'window_default',
-    ]) {
-      const identity = `world_017_feature_masks.mask_windows.${name}`
-      const measured = coverage.get(identity)!
-      for (const kind of ['true', 'false', 'null'] as const)
-        expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      if (!name.includes('suffix')) expect(measured.error, identity).toBeGreaterThan(0)
-    }
-    for (const name of [
-      'overlay_fixed',
-      'overlay_flexible',
-      'overlay_direct',
-      'overlay_omitted',
-      'overlay_flexible_omitted',
-      'overlay_selected',
-      'overlay_default',
-    ]) {
-      const identity = `world_017_feature_masks.mask_overlays.${name}`
-      const measured = coverage.get(identity)!
-      for (const kind of ['true', 'false', 'null', 'error'] as const)
-        expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-    }
-    const skippedOverlay = caseResults.find(
-      (row) => row.name === '017_feature_masks/mask_overlay_skips_invalid_start',
-    )!
-    for (const check of skippedOverlay.checks)
-      expect(check.result).toEqual({ certain: true, value: true })
-    const defaultedOverlay = caseResults.find(
-      (row) => row.name === '017_feature_masks/mask_overlay_known_default_skips_overflow',
-    )!
-    expect(
-      defaultedOverlay.checks.find((check) => check.constraint === 'overlay_default')!.result,
-    ).toEqual({ certain: true, value: true })
-    expect(
-      defaultedOverlay.checks.find((check) => check.constraint === 'overlay_fixed')!.result.error,
-    ).toBe('22003')
-    for (const name of [
-      'search_fixed',
-      'search_flexible',
-      'search_direct',
-      'search_present',
-      'search_selected',
-      'search_default',
-      'search_flexible_default',
-    ]) {
-      const identity = `world_017_feature_masks.mask_searches.${name}`
-      const measured = coverage.get(identity)!
-      for (const kind of ['true', 'false', 'null'] as const)
-        expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      expect(measured.error, identity).toBe(0)
-    }
-    const defaultedSearch = caseResults.find(
-      (row) => row.name === '017_feature_masks/mask_search_default_skips_null_search',
-    )!
-    for (const check of defaultedSearch.checks)
-      expect(check.result).toEqual({ certain: true, value: true })
-    for (const name of [
-      'count_fixed',
-      'count_flexible',
-      'count_direct',
-      'count_small',
-      'count_selected',
-      'count_default',
-      'count_flexible_default',
-    ]) {
-      const identity = `world_017_feature_masks.mask_counts.${name}`
-      const measured = coverage.get(identity)!
-      for (const kind of ['true', 'false', 'null'] as const)
-        expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      expect(measured.error, identity).toBe(0)
-    }
-    const defaultedCount = caseResults.find(
-      (row) => row.name === '017_feature_masks/mask_count_default_skips_null_count',
-    )!
-    for (const check of defaultedCount.checks)
-      expect(check.result).toEqual({ certain: true, value: true })
-    for (const name of [
-      'packet_fixed',
-      'packet_flexible',
-      'packet_relabel',
-      'packet_selected',
-      'packet_default',
-      'packet_flexible_default',
-    ]) {
-      const identity = `world_017_feature_masks.mask_packets.${name}`
-      const measured = coverage.get(identity)!
-      for (const kind of ['true', 'false', 'null'] as const)
-        expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      expect(measured.error, identity).toBe(0)
-    }
-    const defaultedPacket = caseResults.find(
-      (row) => row.name === '017_feature_masks/mask_packet_default_skips_null_mask',
-    )!
-    for (const check of defaultedPacket.checks)
-      expect(check.result).toEqual({ certain: true, value: true })
-    for (const name of [
-      'payload_compare',
-      'payload_less',
-      'payload_less_equal',
-      'payload_greater',
-      'payload_greater_equal',
-      'payload_larger',
-      'payload_smaller',
-      'payload_length',
-      'payload_octets',
-      'payload_bits',
-      'payload_count',
-      'payload_reversed',
-      'payload_sent',
-    ]) {
-      const identity = `world_017_feature_masks.mask_payloads.${name}`
-      const measured = coverage.get(identity)!
-      for (const kind of ['true', 'false', 'null'] as const)
-        expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      expect(measured.error, identity).toBe(0)
-    }
-    for (const name of [
-      'patch_byte_value',
-      'patch_bit_value',
-      'patch_byte_result',
-      'patch_bit_result',
-      'patch_preserves_byte',
-      'patch_preserves_bit',
-    ]) {
-      const identity = `world_017_feature_masks.payload_patches.${name}`
-      const measured = coverage.get(identity)!
-      for (const kind of ['true', 'null', 'error'] as const)
-        expect(measured[kind], identity).toBeGreaterThan(0)
-      if (!name.startsWith('patch_preserves_')) expect(measured.false, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-    }
-    const invalidBit = caseResults.find(
-      (row) => row.name === '017_feature_masks/payload_patch_rejects_invalid_bit',
-    )!
-    expect(
-      invalidBit.checks.find((check) => check.constraint === 'patch_bit_result')!.result.error,
-    ).toBe('22023')
-    const negativePosition = caseResults.find(
-      (row) => row.name === '017_feature_masks/payload_patch_rejects_negative_positions',
-    )!
-    expect(
-      negativePosition.checks.find((check) => check.constraint === 'patch_bit_result')!.result
-        .error,
-    ).toBe('2202E')
-    for (const [table, names] of [
-      [
-        'payload_ranges',
-        [
-          'range_combination',
-          'range_window',
-          'range_window_alias',
-          'range_suffix',
-          'range_suffix_alias',
-          'range_overlay',
-          'range_default_overlay',
-          'range_position',
-          'range_trim',
-          'range_left_trim',
-          'range_right_trim',
-        ],
-      ],
-      [
-        'payload_scalar_wires',
-        [
-          'scalar_small_read',
-          'scalar_integer_read',
-          'scalar_bigint_read',
-          'scalar_small_cast',
-          'scalar_small_send',
-          'scalar_integer_cast',
-          'scalar_integer_send',
-          'scalar_bigint_cast',
-          'scalar_bigint_send',
-          'scalar_boolean_send',
-          'scalar_date_send',
-          'scalar_timestamp_send',
-          'scalar_instant_send',
-        ],
-      ],
-      ['payload_hashes', ['digest_hash', 'digest_seeded', 'digest_crc', 'digest_crc_c']],
-      ['payload_labels', ['label_code', 'label_varchar_code', 'label_fixed_code', 'label_trimmed']],
-      [
-        'payload_encodings',
-        [
-          'encoding_text',
-          'encoding_bytes',
-          'encoding_roundtrip',
-          'encoding_selected',
-          'encoding_default',
-        ],
-      ],
-      [
-        'payload_crypto',
-        [
-          'crypto_md5',
-          'crypto_text_md5',
-          'crypto_sha224',
-          'crypto_sha256',
-          'crypto_sha384',
-          'crypto_sha512',
-        ],
-      ],
-      [
-        'payload_patterns',
-        [
-          'pattern_match',
-          'pattern_not_match',
-          'pattern_escaped_match',
-          'pattern_escape_record',
-          'pattern_selected',
-          'pattern_default',
-        ],
-      ],
-      [
-        'payload_decimal_records',
-        ['decimal_wire_record', 'decimal_wire_selected', 'decimal_wire_default'],
-      ],
-      [
-        'payload_text_inputs',
-        [
-          'input_text_bytes',
-          'input_direct_bytes',
-          'input_varying_bytes',
-          'input_fixed_bytes',
-          'input_selected',
-          'input_default',
-        ],
-      ],
-    ] as const) {
-      for (const name of names) {
-        const identity = `world_017_feature_masks.${table}.${name}`
-        const measured = coverage.get(identity)!
-        for (const kind of ['true', 'false', 'null'] as const)
-          expect(measured[kind], identity).toBeGreaterThan(0)
-        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      }
-    }
-    for (const name of [
-      'range_window',
-      'range_window_alias',
-      'range_overlay',
-      'range_default_overlay',
-    ])
-      expect(
-        coverage.get(`world_017_feature_masks.payload_ranges.${name}`)!.error,
-        name,
-      ).toBeGreaterThan(0)
-    for (const name of ['scalar_small_read', 'scalar_integer_read', 'scalar_bigint_read'])
-      expect(
-        coverage.get(`world_017_feature_masks.payload_scalar_wires.${name}`)!.error,
-        name,
-      ).toBeGreaterThan(0)
-    const signedSmall = caseResults.find(
-      (row) => row.name === '017_feature_masks/payload_scalar_signed_small_unsigned_larger',
-    )!
-    for (const check of signedSmall.checks)
-      expect(check.result).toEqual({ certain: true, value: true })
-    const substringErrors = caseResults.flatMap((row) =>
-      row.name.startsWith('017_feature_masks/')
-        ? row.checks.filter((check) => check.result.error === '22011')
-        : [],
-    )
-    expect(substringErrors.length).toBeGreaterThan(0)
-    for (const check of substringErrors) expect(check.message).toContain('substring error')
-    const escapeErrors = caseResults.flatMap((row) =>
-      row.name.startsWith('017_feature_masks/')
-        ? row.checks.filter((check) => check.result.error === '22025')
-        : [],
-    )
-    expect(escapeErrors.length).toBeGreaterThan(0)
-    for (const check of escapeErrors) expect(check.message).toContain('invalid escape sequence')
-    const skippedInput = caseResults.find(
-      (row) => row.name === '017_feature_masks/binary_text_input_skips_invalid_default',
-    )!
-    for (const name of ['input_selected', 'input_default'])
-      expect(skippedInput.checks.find((check) => check.constraint === name)!.result).toEqual({
-        certain: true,
-        value: true,
-      })
-    const skippedSubstring = caseResults.find(
-      (row) => row.name === '017_feature_masks/mask_window_skips_negative_length',
-    )!
-    for (const check of skippedSubstring.checks)
-      expect(check.result).toEqual({ certain: true, value: true })
-    const defaultedSubstring = caseResults.find(
-      (row) => row.name === '017_feature_masks/mask_window_known_default_skips_negative_length',
-    )!
-    expect(
-      defaultedSubstring.checks.find((check) => check.constraint === 'window_default')!.result,
-    ).toEqual({ certain: true, value: true })
-    expect(
-      defaultedSubstring.checks.find((check) => check.constraint === 'window_fixed')!.result.error,
-    ).toBe('22011')
-    const indexErrors = caseResults.flatMap((row) =>
-      row.name.startsWith('017_feature_masks/')
-        ? row.checks.filter((check) => check.result.error === '2202E')
-        : [],
-    )
-    expect(indexErrors.length).toBeGreaterThan(0)
-    for (const check of indexErrors) expect(check.message).toContain('array subscript error')
-    const orderedErrors = caseResults.find(
-      (row) => row.name === '017_feature_masks/mask_patch_checks_index_before_replacement',
-    )!
-    for (const name of ['patch_write', 'patch_selected', 'patch_default'])
-      expect(orderedErrors.checks.find((check) => check.constraint === name)!.result.error).toBe(
-        '2202E',
-      )
-    for (const name of [
-      'encoding_integer',
-      'encoding_bigint',
-      'encoding_decode_integer',
-      'encoding_decode_bigint',
-      'encoding_low_bit',
-      'encoding_selected',
-      'encoding_default',
-      'encoding_direct',
-    ]) {
-      const identity = `world_017_feature_masks.mask_encodings.${name}`
-      const measured = coverage.get(identity)!
-      for (const kind of ['true', 'false', 'null'] as const)
-        expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      if (
-        [
-          'encoding_decode_integer',
-          'encoding_decode_bigint',
-          'encoding_selected',
-          'encoding_default',
-        ].includes(name)
-      ) {
-        expect(measured.error, identity).toBeGreaterThan(0)
-        const errors = caseResults.flatMap((row) =>
-          row.name.startsWith('017_feature_masks/')
-            ? row.checks.filter(
-                (check) => check.constraint === name && check.result.error === '22003',
-              )
-            : [],
-        )
-        expect(errors.length, identity).toBeGreaterThan(0)
-        for (const check of errors) expect(check.message).toContain('numeric value out of range')
-      }
-    }
-    for (const name of [
-      'import_fixed',
-      'import_varying',
-      'import_varchar',
-      'import_resize',
-      'import_maximum',
-      'import_output',
-      'import_selected',
-      'import_default',
-      'import_fixed_assignment',
-      'import_varying_assignment',
-    ]) {
-      const identity = `world_017_feature_masks.mask_imports.${name}`
-      const measured = coverage.get(identity)!
-      for (const kind of ['true', 'false', 'null'] as const)
-        expect(measured[kind], identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      if (
-        [
-          'import_fixed',
-          'import_varying',
-          'import_varchar',
-          'import_selected',
-          'import_default',
-          'import_fixed_assignment',
-          'import_varying_assignment',
-        ].includes(name)
-      )
-        expect(measured.error, identity).toBeGreaterThan(0)
-    }
-    const truncationErrors = caseResults.flatMap((row) =>
-      row.name.startsWith('017_feature_masks/')
-        ? row.checks.filter(
-            (check) =>
-              check.constraint === 'import_varying_assignment' && check.result.error === '22001',
-          )
-        : [],
-    )
-    expect(truncationErrors.length).toBeGreaterThan(0)
-    for (const check of truncationErrors)
-      expect(check.message).toContain('string data right truncation')
-    for (const name of [
-      'transform_intersection',
-      'transform_union',
-      'transform_exclusive',
-      'transform_complement',
-      'transform_left',
-      'transform_right',
-      'transform_selected',
-      'transform_default',
-      'transform_direct',
-    ]) {
-      const identity = `world_017_feature_masks.mask_transforms.${name}`
-      const measured = coverage.get(identity)!
-      expect(measured.true, identity).toBeGreaterThan(0)
-      expect(measured.false, identity).toBeGreaterThan(0)
-      expect(measured.null, identity).toBeGreaterThan(0)
-      expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
-      if (['transform_selected', 'transform_default', 'transform_direct'].includes(name)) {
-        expect(measured.error, identity).toBeGreaterThan(0)
-        let describedErrors = 0
-        for (const row of caseResults) {
-          if (!row.name.startsWith('017_feature_masks/')) continue
-          for (const check of row.checks) {
-            if (check.constraint !== name || check.result.error !== '22026') continue
-            expect(check.message).toContain('string data length mismatch')
-            describedErrors++
-          }
-        }
-        expect(describedErrors, identity).toBeGreaterThan(0)
-      }
-    }
-    const recognizedMask = coverage.get(
-      'world_017_feature_masks.device_mask_rules.rule_recognized',
-    )!
-    expect(recognizedMask.true).toBeGreaterThan(0)
-    expect(recognizedMask.false).toBeGreaterThan(0)
-    expect(recognizedMask.null).toBe(0)
-    expect(recognizedMask.unknown).toBe(0)
-    for (const [table, count] of [
-      ['label_character_sizes', 9],
-      ['label_binary_order', 18],
-      ['cleaned_label_records', 6],
-      ['label_casing_records', 4],
-      ['label_fingerprints', 6],
-      ['label_previews', 8],
-      ['label_builder_records', 12],
-      ['label_edit_records', 13],
-      ['label_format_records', 12],
-      ['label_literal_records', 2],
-      ['label_storage_records', 2],
-      ['label_pattern_records', 14],
-      ['label_regex_records', 19],
-      ['label_count_records', 3],
-      ['label_position_records', 6],
-      ['label_extract_records', 5],
-      ['label_replacement_records', 5],
-      ['label_pattern_conversions', 2],
-    ] as const) {
-      const prefix = `world_013_label_registry.${table}.`
-      const constraints = [...coverage.values()].filter((item) =>
-        item.constraint.startsWith(prefix),
-      )
-      expect(constraints, table).toHaveLength(count)
-      for (const measured of constraints) {
-        for (const kind of ['true', 'false', 'null'] as const)
-          expect(measured[kind], measured.constraint).toBeGreaterThan(0)
-        expect(measured.unknown, measured.constraint).toBe(0)
-      }
-    }
-    for (const name of ['label_size_bytes', 'label_size_limit']) {
-      const identity = `world_013_label_registry.label_storage_records.${name}`
-      expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
-      const states = new Set(
-        caseResults.flatMap((row) =>
-          row.name.startsWith('013_label_registry/')
-            ? row.checks
-                .filter(
-                  (check) => check.constraint === name && typeof check.result.error === 'string',
-                )
-                .map((check) => check.result.error)
-            : [],
-        ),
-      )
-      expect(states, identity).toEqual(new Set(['22003', '22023', '22P02']))
-    }
-    for (const name of ['lpad_2', 'lpad_3', 'rpad_2', 'rpad_3', 'repeat_2']) {
-      for (const output of ['value', 'octets']) {
-        const identity = `world_013_label_registry.label_builder_records.${name}_${output}`
-        expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
-      }
-    }
-    for (const [table, count] of [
-      ['shipment_fee_totals', 7],
-      ['shipment_fee_fingerprints', 2],
-      ['shipment_fee_window', 1],
-      ['shipment_fee_bounds', 3],
-      ['shipment_fee_quotients', 10],
-      ['shipment_fee_common_units', 4],
-      ['shipment_storage_sizes', 2],
-      ['shipment_fee_histograms', 1],
-      ['shipment_package_permutations', 3],
-      ['shipment_package_dimensions', 4],
-      ['shipment_fee_logarithms', 4],
-      ['shipment_fee_log_bases', 4],
-      ['shipment_fee_decimal_logs', 4],
-      ['shipment_fee_exponentials', 4],
-      ['shipment_fee_powers', 6],
-    ] as const) {
-      const checks = [...coverage].filter(([identity]) =>
-        identity.startsWith(`world_014_shipment_defaults.${table}.`),
-      )
-      expect(checks).toHaveLength(count)
-      for (const [identity, measured] of checks) {
         for (const state of ['true', 'false', 'null'] as const)
           expect(measured[state], identity).toBeGreaterThan(0)
+      }
+      for (const identity of catalogDependentChecks) {
+        const measured = coverage.get(identity)!
+        expect(measured.unknown, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBeGreaterThan(0)
+        expect(measured.true, identity).toBeGreaterThan(0)
+      }
+      for (const [table, names] of [
+        [
+          'shift_presence_reports',
+          ['presence_local', 'presence_zoned', 'presence_duration', 'presence_pair'],
+        ],
+        ['shift_templates', ['shift_clock_order', 'shift_duration']],
+        ['service_windows', ['service_duration_bounds', 'service_duration_span']],
+        ['zoned_dispatches', ['dispatch_local_clock', 'dispatch_adjustment']],
+        [
+          'duration_imports',
+          [
+            'duration_import_match',
+            'duration_import_precision',
+            'duration_import_justify',
+            'duration_import_scale',
+          ],
+        ],
+        ['clock_imports', ['clock_import_local', 'clock_import_zoned', 'clock_import_label']],
+        [
+          'maintenance_adjustments',
+          [
+            'maintenance_parts',
+            'maintenance_precision',
+            'maintenance_day',
+            'maintenance_clock',
+            'maintenance_elapsed',
+          ],
+        ],
+        [
+          'departure_plans',
+          ['departure_calendar_clock', 'departure_calendar_instant', 'departure_clock_precision'],
+        ],
+        [
+          'shift_audit_fields',
+          [
+            'audit_local_field',
+            'audit_zoned_field',
+            'audit_local_legacy',
+            'audit_zoned_legacy',
+            'audit_local_digest',
+            'audit_zoned_digest',
+            'audit_local_seeded_digest',
+            'audit_zoned_seeded_digest',
+            'audit_local_adjustment',
+            'audit_zoned_adjustment',
+          ],
+        ],
+        [
+          'duration_audit_fields',
+          [
+            'audit_duration_field',
+            'audit_duration_legacy',
+            'audit_duration_truncation',
+            'audit_duration_digest',
+            'audit_duration_seeded_digest',
+          ],
+        ],
+        [
+          'event_bucket_records',
+          ['event_local_bucket', 'event_instant_bucket', 'event_calendar_age'],
+        ],
+        [
+          'zoned_calendar_adjustments',
+          ['zoned_calendar_add', 'zoned_calendar_subtract', 'zoned_calendar_return'],
+        ],
+        [
+          'local_shift_conflicts',
+          [
+            'local_conflict_endpoints',
+            'local_conflict_first_duration',
+            'local_conflict_second_duration',
+            'local_conflict_both_durations',
+          ],
+        ],
+        [
+          'calendar_shift_conflicts',
+          [
+            'calendar_conflict_endpoints',
+            'calendar_conflict_first_duration',
+            'calendar_conflict_second_duration',
+            'calendar_conflict_both_durations',
+          ],
+        ],
+        ['zoned_shift_conflicts', ['zoned_conflict_forward', 'zoned_conflict_reverse']],
+        ['instant_shift_conflicts', ['instant_conflict_forward', 'instant_conflict_reverse']],
+        ['calendar_field_records', ['calendar_field_value', 'calendar_field_wire']],
+        ['clock_tolerances', ['tolerance_local', 'tolerance_zoned']],
+        [
+          'calendar_tolerances',
+          ['tolerance_calendar_day', 'tolerance_calendar_clock', 'tolerance_duration'],
+        ],
+        [
+          'fixed_zone_records',
+          [
+            'fixed_zone_instant',
+            'fixed_zone_local',
+            'fixed_zone_clock',
+            'fixed_zone_label',
+            'fixed_zone_offset',
+          ],
+        ],
+      ] as const) {
+        for (const name of names) {
+          const identity = `world_026_shift_schedules.${table}.${name}`
+          const measured = coverage.get(identity)!
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+          expect(measured.true, identity).toBeGreaterThan(0)
+          expect(measured.false, identity).toBeGreaterThan(0)
+        }
+      }
+      for (const [world, table, names] of [
+        [
+          '028_axis_guides',
+          'guide_axes',
+          ['guide_wire', 'guide_presence', 'guide_horizontal', 'guide_vertical'],
+        ],
+        ['028_axis_guides', 'guide_matches', ['guide_same', 'guide_selected', 'guide_default']],
+        ['028_axis_guides', 'guide_imports', ['import_equation', 'import_wire', 'import_present']],
+        [
+          '028_axis_guides',
+          'guide_constructions',
+          ['construction_equation', 'construction_horizontal', 'construction_vertical'],
+        ],
+        [
+          '028_axis_guides',
+          'guide_relations',
+          [
+            'relation_parallel',
+            'relation_perpendicular',
+            'relation_crossing',
+            'relation_point',
+            'relation_distance',
+          ],
+        ],
+        [
+          '028_axis_guides',
+          'guide_projections',
+          ['projection_on_axis', 'projection_closest', 'projection_distance'],
+        ],
+        [
+          '028_axis_guides',
+          'guide_segment_imports',
+          [
+            'segment_import_wire',
+            'segment_import_length',
+            'segment_import_center',
+            'segment_import_horizontal',
+            'segment_import_vertical',
+            'segment_import_present',
+          ],
+        ],
+        [
+          '028_axis_guides',
+          'guide_segment_relations',
+          [
+            'segment_relation_same',
+            'segment_relation_length',
+            'segment_relation_parallel',
+            'segment_relation_perpendicular',
+            'segment_relation_selected',
+          ],
+        ],
+        [
+          '028_axis_guides',
+          'guide_segment_constructions',
+          ['segment_construct_same', 'segment_construct_wire'],
+        ],
+        [
+          '028_axis_guides',
+          'guide_segment_crossings',
+          [
+            'segment_cross_intersects',
+            'segment_cross_point',
+            'segment_cross_distance',
+            'segment_cross_closest',
+            'segment_cross_line_intersects',
+            'segment_cross_on_line',
+            'segment_cross_line_distance',
+            'segment_cross_line_closest',
+          ],
+        ],
+        [
+          '028_axis_guides',
+          'guide_segment_projections',
+          ['segment_project_on', 'segment_project_closest', 'segment_project_distance'],
+        ],
+        [
+          '028_axis_guides',
+          'guide_regions',
+          [
+            'region_wire',
+            'region_area',
+            'region_width',
+            'region_height',
+            'region_center',
+            'region_diagonal',
+            'region_present',
+          ],
+        ],
+        ['028_axis_guides', 'guide_region_imports', ['region_import_same', 'region_import_wire']],
+        [
+          '028_axis_guides',
+          'guide_region_relations',
+          ['region_relation_same', 'region_relation_area', 'region_relation_distance'],
+        ],
+        [
+          '028_axis_guides',
+          'guide_region_spatial',
+          [
+            'region_space_horizontal',
+            'region_space_vertical',
+            'region_space_topology',
+            'region_space_intersection',
+            'region_space_container',
+          ],
+        ],
+        [
+          '028_axis_guides',
+          'guide_region_contacts',
+          [
+            'region_contact_point_inside',
+            'region_contact_segment_inside',
+            'region_contact_crossings',
+            'region_contact_point_closest',
+            'region_contact_point_distance',
+            'region_contact_segment_closest',
+            'region_contact_segment_distance',
+          ],
+        ],
+        [
+          '028_axis_guides',
+          'guide_region_transforms',
+          [
+            'region_transform_addition',
+            'region_transform_subtraction',
+            'region_transform_scale',
+            'region_transform_division',
+          ],
+        ],
+
+        [
+          '025_sensor_measurements',
+          'calibrated_magnitudes',
+          ['calibrated_magnitude_value', 'calibrated_magnitude_wire'],
+        ],
+        ['027_survey_positions', 'survey_locations', ['location_wire', 'location_presence']],
+        [
+          '027_survey_positions',
+          'coordinate_constructions',
+          ['construction_position', 'construction_wire'],
+        ],
+        [
+          '027_survey_positions',
+          'survey_matches',
+          ['survey_same_position', 'survey_selection', 'survey_coalesced'],
+        ],
+        ['027_survey_positions', 'survey_offsets', ['offset_sum', 'offset_difference']],
+        ['027_survey_positions', 'survey_transforms', ['transform_product', 'transform_quotient']],
+        [
+          '027_survey_positions',
+          'survey_measurements',
+          [
+            'measurement_distance',
+            'measurement_slope',
+            'measurement_left',
+            'measurement_right',
+            'measurement_above',
+            'measurement_below',
+            'measurement_horizontal',
+            'measurement_vertical',
+          ],
+        ],
+        [
+          '027_survey_positions',
+          'survey_imports',
+          ['import_position', 'import_wire', 'import_origin'],
+        ],
+        [
+          '027_survey_positions',
+          'survey_slope_reports',
+          ['slope_nan', 'slope_present', 'slope_scalar_cast'],
+        ],
+      ] as const) {
+        for (const name of names) {
+          const identity = `world_${world}.${table}.${name}`
+          const measured = coverage.get(identity)!
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+          expect(measured.true, identity).toBeGreaterThan(0)
+          expect(measured.false, identity).toBeGreaterThan(0)
+        }
+      }
+      let numericFunctionConstraints = 0
+      for (const table of [
+        'shipment_fee_sign',
+        'shipment_fee_scale',
+        'shipment_fee_whole',
+        'shipment_fee_precision',
+      ]) {
+        const checks = [...coverage].filter(([identity]) =>
+          identity.startsWith(`world_014_shipment_defaults.${table}.`),
+        )
+        expect(checks.length, table).toBeGreaterThan(0)
+        for (const [identity, measured] of checks) {
+          for (const kind of ['true', 'false', 'null'] as const)
+            expect(measured[kind], identity).toBeGreaterThan(0)
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+          numericFunctionConstraints++
+        }
+      }
+      expect(numericFunctionConstraints).toBe(18)
+      for (const [world, table, count] of [
+        ['013_label_registry', 'unicode_labels', 3],
+        ['011_flight_arrivals', 'arrival_calendar_buckets', 1],
+        ['011_flight_arrivals', 'arrival_calendar_fields', 1],
+        ['011_flight_arrivals', 'arrival_calendar_zone_buckets', 1],
+        ['011_flight_arrivals', 'arrival_calendar_clock_fields', 3],
+        ['014_shipment_defaults', 'shipment_fee_small_units', 2],
+        ['014_shipment_defaults', 'shipment_fee_regular_units', 2],
+        ['014_shipment_defaults', 'shipment_fee_bulk_units', 2],
+      ] as const) {
+        const checks = [...coverage].filter(([identity]) =>
+          identity.startsWith(`world_${world}.${table}.`),
+        )
+        expect(checks).toHaveLength(count)
+        for (const [identity, measured] of checks) {
+          for (const kind of ['true', 'false', 'null'] as const)
+            expect(measured[kind], identity).toBeGreaterThan(0)
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        }
+      }
+      for (const identity of [
+        'world_014_shipment_defaults.shipment_fee_small_units.fee_small_rounded',
+        'world_014_shipment_defaults.shipment_fee_regular_units.fee_regular_rounded',
+        'world_014_shipment_defaults.shipment_fee_bulk_units.fee_bulk_rounded',
+        'world_011_flight_arrivals.arrival_calendar_fields.arrival_calendar_field',
+        'world_011_flight_arrivals.flight_arrivals.arrival_interpretation',
+        'world_011_flight_arrivals.arrival_displays.displayed_arrival',
+        'world_012_package_capacity.package_capacity.area_limit',
+        'world_012_package_capacity.package_capacity.slot_limit',
+        'world_012_package_capacity.package_capacity.whole_batches',
+        'world_012_package_capacity.package_capacity.adjustment_limit',
+        'world_012_package_capacity.compact_stock_corrections.compact_correction',
+        'world_012_package_capacity.compact_inventory_adjustments.compact_adjustment',
+        'world_012_package_capacity.tiny_inventory_adjustments.tiny_adjustment',
+        'world_012_package_capacity.bulk_package_products.bulk_package_product',
+        'world_012_package_capacity.chosen_package_counts.chosen_double',
+        'world_012_package_capacity.chosen_package_counts.chosen_ratio',
+        'world_014_shipment_defaults.replenishment_picks.fallback_double',
+        'world_014_shipment_defaults.replenishment_picks.fallback_ratio',
+        'world_012_package_capacity.mixed_batch_remainders.small_integer_remainder',
+        'world_012_package_capacity.mixed_batch_remainders.integer_small_remainder',
+        'world_012_package_capacity.mixed_batch_remainders.small_big_remainder',
+        'world_012_package_capacity.mixed_batch_remainders.big_small_remainder',
+        'world_012_package_capacity.mixed_batch_remainders.integer_big_remainder',
+        'world_012_package_capacity.mixed_batch_remainders.big_integer_remainder',
+        'world_012_package_capacity.mixed_batch_remainders.widened_remainder_call',
+        'world_012_package_capacity.bulk_package_divisions.bulk_package_quotient',
+        'world_012_package_capacity.bulk_package_divisions.bulk_package_remainder',
+        'world_012_package_capacity.mixed_bulk_packages.bulk_small_product',
+        'world_012_package_capacity.mixed_bulk_packages.small_bulk_product',
+        'world_012_package_capacity.mixed_bulk_packages.bulk_integer_product',
+        'world_012_package_capacity.mixed_bulk_packages.integer_bulk_product',
+        'world_012_package_capacity.mixed_bulk_packages.bulk_small_quotient',
+        'world_012_package_capacity.mixed_bulk_packages.small_bulk_quotient',
+        'world_012_package_capacity.mixed_bulk_packages.bulk_integer_quotient',
+        'world_012_package_capacity.mixed_bulk_packages.integer_bulk_quotient',
+        'world_012_package_capacity.bulk_stock_reconciliations.bulk_stock_balance',
+        'world_012_package_capacity.bulk_warehouse_corrections.bulk_correction_reversal',
+        'world_012_package_capacity.bulk_warehouse_corrections.bulk_correction_magnitude',
+        'world_012_package_capacity.mixed_bulk_adjustments.bulk_small_total',
+        'world_012_package_capacity.mixed_bulk_adjustments.small_bulk_total',
+        'world_012_package_capacity.mixed_bulk_adjustments.bulk_integer_total',
+        'world_012_package_capacity.mixed_bulk_adjustments.integer_bulk_total',
+        'world_012_package_capacity.mixed_bulk_adjustments.bulk_small_residual',
+        'world_012_package_capacity.mixed_bulk_adjustments.small_bulk_balance',
+        'world_012_package_capacity.mixed_bulk_adjustments.bulk_integer_residual',
+        'world_012_package_capacity.mixed_bulk_adjustments.integer_bulk_balance',
+      ]) {
+        const measured = coverage.get(identity)!
+        expect(measured.error, identity).toBeGreaterThan(0)
+        expect(measured.error, identity).toBe(measured.postgres.error)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      }
+      let integerFunctionConstraints = 0
+      for (const table of [
+        'stock_count_comparisons',
+        'stock_integer_masks',
+        'stock_count_math',
+        'stock_window_bounds',
+        'stock_boolean_records',
+        'stock_radix_records',
+        'stock_hash_records',
+      ]) {
+        const prefix = `world_012_package_capacity.${table}.`
+        const checks = [...coverage].filter(([identity]) => identity.startsWith(prefix))
+        expect(checks.length, table).toBeGreaterThan(0)
+        for (const [identity, measured] of checks) {
+          for (const kind of ['true', 'false', 'null'] as const)
+            expect(measured[kind], identity).toBeGreaterThan(0)
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+          integerFunctionConstraints++
+        }
+      }
+      expect(integerFunctionConstraints).toBe(74)
+      let temporalFunctionConstraints = 0
+      for (const table of [
+        'flight_date_order',
+        'flight_timestamp_order',
+        'flight_instant_order',
+        'flight_mixed_order',
+        'flight_calendar_shift',
+        'flight_precision',
+      ]) {
+        const prefix = `world_011_flight_arrivals.${table}.`
+        const checks = [...coverage].filter(([identity]) => identity.startsWith(prefix))
+        expect(checks.length, table).toBeGreaterThan(0)
+        for (const [identity, measured] of checks) {
+          for (const kind of ['true', 'false', 'null'] as const)
+            expect(measured[kind], identity).toBeGreaterThan(0)
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+          temporalFunctionConstraints++
+        }
+      }
+      expect(temporalFunctionConstraints).toBe(40)
+      for (const name of [
+        'chosen_pair',
+        'chosen_stock',
+        'chosen_baseline',
+        'chosen_double',
+        'chosen_ratio',
+        'chosen_nested',
+        'chosen_simple',
+        'chosen_without_else',
+      ]) {
+        const identity = `world_012_package_capacity.chosen_package_counts.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      }
+      for (const [table, names] of [
+        [
+          'replenishment_picks',
+          ['fallback_units', 'fallback_baseline', 'fallback_double', 'fallback_ratio'],
+        ],
+        [
+          'delivery_defaults',
+          ['fallback_day', 'fallback_schedule', 'fallback_confirmation', 'fallback_enabled'],
+        ],
+        ['shipment_labels', ['fallback_label', 'fallback_code', 'fallback_fee', 'fallback_stage']],
+      ] as const) {
+        for (const name of names) {
+          const identity = `world_014_shipment_defaults.${table}.${name}`
+          const measured = coverage.get(identity)!
+          expect(measured.true, identity).toBeGreaterThan(0)
+          expect(measured.false, identity).toBeGreaterThan(0)
+          expect(measured.null, identity).toBeGreaterThan(0)
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        }
+      }
+      for (const [table, names] of [
+        [
+          'network_peers',
+          [
+            'peer_within_allowed',
+            'peer_in_address_range',
+            'peer_default_recorded',
+            'peer_selected_recorded',
+          ],
+        ],
+        ['network_subnets', ['subnet_strictly_inside_parent', 'subnet_avoids_forbidden']],
+        ['network_imports', ['import_address_parsed', 'import_network_parsed']],
+        [
+          'network_allocations',
+          [
+            'allocation_shifted',
+            'allocation_shifted_reverse',
+            'allocation_restored',
+            'allocation_distance',
+          ],
+        ],
+        [
+          'network_plans',
+          [
+            'plan_family',
+            'plan_prefix',
+            'plan_same_family',
+            'plan_network',
+            'plan_broadcast',
+            'plan_netmask',
+            'plan_hostmask',
+            'plan_converted',
+            'plan_combined',
+          ],
+        ],
+        [
+          'network_outputs',
+          [
+            'output_host',
+            'output_text',
+            'output_abbrev',
+            'output_cidr_abbrev',
+            'output_inet_send',
+            'output_cidr_send',
+            'output_hash',
+            'output_hash_extended',
+          ],
+        ],
+        [
+          'hardware_devices',
+          [
+            'device_nonzero',
+            'device_in_range',
+            'device_allowed',
+            'device_comparison',
+            'device_selected',
+            'device_default',
+            'device_recognized',
+          ],
+        ],
+        [
+          'hardware_interfaces',
+          [
+            'interface_nonzero',
+            'interface_in_range',
+            'interface_allowed',
+            'interface_comparison',
+            'interface_selected',
+            'interface_default',
+            'interface_recognized',
+          ],
+        ],
+        [
+          'hardware_masks',
+          [
+            'hardware_invert6',
+            'hardware_intersect6',
+            'hardware_union6',
+            'hardware_manufacturer6',
+            'hardware_invert8',
+            'hardware_intersect8',
+            'hardware_union8',
+            'hardware_manufacturer8',
+            'hardware_modified8',
+          ],
+        ],
+        [
+          'hardware_conversions',
+          [
+            'hardware_extend',
+            'hardware_shorten',
+            'hardware_case_short',
+            'hardware_case_extended',
+            'hardware_default_short',
+            'hardware_default_extended',
+          ],
+        ],
+        [
+          'hardware_imports',
+          [
+            'hardware_parse_short',
+            'hardware_parse_extended',
+            'hardware_parse_varchar_short',
+            'hardware_parse_varchar_extended',
+          ],
+        ],
+        [
+          'hardware_outputs',
+          [
+            'hardware_text6',
+            'hardware_text8',
+            'hardware_wire6',
+            'hardware_wire8',
+            'hardware_hash6',
+            'hardware_hash8',
+            'hardware_seed6',
+            'hardware_seed8',
+            'hardware_zero6',
+            'hardware_zero8',
+            'hardware_output_case',
+            'hardware_output_default',
+          ],
+        ],
+        ['network_resizes', ['resize_address', 'resize_subnet']],
+        ['network_filters', ['filter_complement', 'filter_intersection', 'filter_union']],
+        [
+          'network_priorities',
+          ['priority_comparison', 'priority_larger', 'priority_smaller', 'priority_selected'],
+        ],
+      ] as const) {
+        for (const name of names) {
+          const identity = `world_015_network_access.${table}.${name}`
+          const measured = coverage.get(identity)!
+          expect(measured.true, identity).toBeGreaterThan(0)
+          expect(measured.false, identity).toBeGreaterThan(0)
+          expect(measured.null, identity).toBeGreaterThan(0)
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        }
+      }
+      for (const [table, names] of [
+        [
+          'hardware_conversions',
+          ['hardware_shorten', 'hardware_case_short', 'hardware_default_short'],
+        ],
+        [
+          'hardware_imports',
+          [
+            'hardware_parse_short',
+            'hardware_parse_extended',
+            'hardware_parse_varchar_short',
+            'hardware_parse_varchar_extended',
+          ],
+        ],
+      ] as const)
+        for (const name of names) {
+          const identity = `world_015_network_access.${table}.${name}`
+          expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+          expect(coverage.get(identity)!.true, identity).toBeGreaterThan(0)
+        }
+      for (const name of [
+        'import_address_parsed',
+        'import_network_parsed',
+        'allocation_shifted',
+        'allocation_shifted_reverse',
+        'allocation_restored',
+        'allocation_distance',
+      ]) {
+        const table = name.startsWith('import_') ? 'network_imports' : 'network_allocations'
+        const identity = `world_015_network_access.${table}.${name}`
+        expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+      }
+      for (const [table, name] of [
+        ['network_plans', 'plan_combined'],
+        ['network_resizes', 'resize_address'],
+        ['network_resizes', 'resize_subnet'],
+        ['network_filters', 'filter_intersection'],
+        ['network_filters', 'filter_union'],
+      ]) {
+        const identity = `world_015_network_access.${table}.${name}`
+        expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+      }
+      for (const name of [
+        'identifier_nonzero',
+        'identifier_range',
+        'identifier_default',
+        'identifier_selected',
+        'identifier_allowed',
+        'identifier_text',
+        'identifier_comparison',
+      ]) {
+        const identity = `world_016_device_identifiers.device_identifiers.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      }
+      for (const name of [
+        'import_parsed',
+        'import_legacy',
+        'import_lazy',
+        'import_selected',
+        'import_default',
+      ]) {
+        const identity = `world_016_device_identifiers.identifier_imports.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.error, identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      }
+      for (const name of [
+        'fingerprint_wire',
+        'fingerprint_hash',
+        'fingerprint_seeded',
+        'fingerprint_zero',
+        'fingerprint_version',
+        'fingerprint_parsed_hash',
+        'fingerprint_parsed_wire',
+        'fingerprint_parsed_version',
+        'fingerprint_lazy_parse',
+      ]) {
+        const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      }
+      for (const name of ['fingerprint_version_null', 'fingerprint_version_default']) {
+        const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBe(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      }
+      for (const name of [
+        'fingerprint_parsed_hash',
+        'fingerprint_parsed_wire',
+        'fingerprint_parsed_version',
+        'fingerprint_lazy_parse',
+      ]) {
+        const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
+        expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+      }
+      for (const name of [
+        'event_recorded',
+        'event_window',
+        'event_selected',
+        'event_parsed',
+        'event_lazy_parse',
+      ]) {
+        const identity = `world_016_device_identifiers.identifier_events.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      }
+      for (const name of ['event_timestamp_null', 'event_timestamp_default']) {
+        const identity = `world_016_device_identifiers.identifier_events.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBe(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      }
+      for (const name of ['event_parsed', 'event_lazy_parse']) {
+        const identity = `world_016_device_identifiers.identifier_events.${name}`
+        expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+      }
+      for (const [table, names] of [
+        [
+          'mask_profiles',
+          [
+            'profile_width',
+            'profile_length',
+            'profile_octets',
+            'profile_recorded',
+            'profile_range',
+            'profile_comparison',
+          ],
+        ],
+        [
+          'device_mask_rules',
+          [
+            'rule_default',
+            'rule_selected',
+            'rule_membership',
+            'rule_window',
+            'rule_comparison',
+            'rule_width',
+            'rule_length',
+            'rule_octets',
+          ],
+        ],
+        [
+          'mask_snapshots',
+          [
+            'snapshot_equal',
+            'snapshot_case',
+            'snapshot_reverse_case',
+            'snapshot_default',
+            'snapshot_recognized',
+            'snapshot_allowed',
+            'snapshot_empty',
+          ],
+        ],
+      ] as const) {
+        for (const name of names) {
+          const identity = `world_017_feature_masks.${table}.${name}`
+          const measured = coverage.get(identity)!
+          expect(measured.true, identity).toBeGreaterThan(0)
+          expect(measured.false, identity).toBeGreaterThan(0)
+          expect(measured.null, identity).toBeGreaterThan(0)
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        }
+      }
+      for (const name of [
+        'patch_combination',
+        'patch_direct_combination',
+        'patch_read',
+        'patch_write',
+        'patch_flexible_read',
+        'patch_flexible_write',
+        'patch_selected',
+        'patch_default',
+      ]) {
+        const identity = `world_017_feature_masks.mask_patches.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        if (!name.includes('combination')) expect(measured.error, identity).toBeGreaterThan(0)
+      }
+      for (const name of [
+        'window_fixed',
+        'window_flexible',
+        'window_direct',
+        'window_suffix',
+        'window_flexible_suffix',
+        'window_selected',
+        'window_default',
+      ]) {
+        const identity = `world_017_feature_masks.mask_windows.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        if (!name.includes('suffix')) expect(measured.error, identity).toBeGreaterThan(0)
+      }
+      for (const name of [
+        'overlay_fixed',
+        'overlay_flexible',
+        'overlay_direct',
+        'overlay_omitted',
+        'overlay_flexible_omitted',
+        'overlay_selected',
+        'overlay_default',
+      ]) {
+        const identity = `world_017_feature_masks.mask_overlays.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'false', 'null', 'error'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      }
+      const skippedOverlay = caseResults.find(
+        (row) => row.name === '017_feature_masks/mask_overlay_skips_invalid_start',
+      )!
+      for (const check of skippedOverlay.checks)
+        expect(check.result).toEqual({ certain: true, value: true })
+      const defaultedOverlay = caseResults.find(
+        (row) => row.name === '017_feature_masks/mask_overlay_known_default_skips_overflow',
+      )!
+      expect(
+        defaultedOverlay.checks.find((check) => check.constraint === 'overlay_default')!.result,
+      ).toEqual({ certain: true, value: true })
+      expect(
+        defaultedOverlay.checks.find((check) => check.constraint === 'overlay_fixed')!.result.error,
+      ).toBe('22003')
+      for (const name of [
+        'search_fixed',
+        'search_flexible',
+        'search_direct',
+        'search_present',
+        'search_selected',
+        'search_default',
+        'search_flexible_default',
+      ]) {
+        const identity = `world_017_feature_masks.mask_searches.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        expect(measured.error, identity).toBe(0)
+      }
+      const defaultedSearch = caseResults.find(
+        (row) => row.name === '017_feature_masks/mask_search_default_skips_null_search',
+      )!
+      for (const check of defaultedSearch.checks)
+        expect(check.result).toEqual({ certain: true, value: true })
+      for (const name of [
+        'count_fixed',
+        'count_flexible',
+        'count_direct',
+        'count_small',
+        'count_selected',
+        'count_default',
+        'count_flexible_default',
+      ]) {
+        const identity = `world_017_feature_masks.mask_counts.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        expect(measured.error, identity).toBe(0)
+      }
+      const defaultedCount = caseResults.find(
+        (row) => row.name === '017_feature_masks/mask_count_default_skips_null_count',
+      )!
+      for (const check of defaultedCount.checks)
+        expect(check.result).toEqual({ certain: true, value: true })
+      for (const name of [
+        'packet_fixed',
+        'packet_flexible',
+        'packet_relabel',
+        'packet_selected',
+        'packet_default',
+        'packet_flexible_default',
+      ]) {
+        const identity = `world_017_feature_masks.mask_packets.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        expect(measured.error, identity).toBe(0)
+      }
+      const defaultedPacket = caseResults.find(
+        (row) => row.name === '017_feature_masks/mask_packet_default_skips_null_mask',
+      )!
+      for (const check of defaultedPacket.checks)
+        expect(check.result).toEqual({ certain: true, value: true })
+      for (const name of [
+        'payload_compare',
+        'payload_less',
+        'payload_less_equal',
+        'payload_greater',
+        'payload_greater_equal',
+        'payload_larger',
+        'payload_smaller',
+        'payload_length',
+        'payload_octets',
+        'payload_bits',
+        'payload_count',
+        'payload_reversed',
+        'payload_sent',
+      ]) {
+        const identity = `world_017_feature_masks.mask_payloads.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        expect(measured.error, identity).toBe(0)
+      }
+      for (const name of [
+        'patch_byte_value',
+        'patch_bit_value',
+        'patch_byte_result',
+        'patch_bit_result',
+        'patch_preserves_byte',
+        'patch_preserves_bit',
+      ]) {
+        const identity = `world_017_feature_masks.payload_patches.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'null', 'error'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        if (!name.startsWith('patch_preserves_'))
+          expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+      }
+      const invalidBit = caseResults.find(
+        (row) => row.name === '017_feature_masks/payload_patch_rejects_invalid_bit',
+      )!
+      expect(
+        invalidBit.checks.find((check) => check.constraint === 'patch_bit_result')!.result.error,
+      ).toBe('22023')
+      const negativePosition = caseResults.find(
+        (row) => row.name === '017_feature_masks/payload_patch_rejects_negative_positions',
+      )!
+      expect(
+        negativePosition.checks.find((check) => check.constraint === 'patch_bit_result')!.result
+          .error,
+      ).toBe('2202E')
+      for (const [table, names] of [
+        [
+          'payload_ranges',
+          [
+            'range_combination',
+            'range_window',
+            'range_window_alias',
+            'range_suffix',
+            'range_suffix_alias',
+            'range_overlay',
+            'range_default_overlay',
+            'range_position',
+            'range_trim',
+            'range_left_trim',
+            'range_right_trim',
+          ],
+        ],
+        [
+          'payload_scalar_wires',
+          [
+            'scalar_small_read',
+            'scalar_integer_read',
+            'scalar_bigint_read',
+            'scalar_small_cast',
+            'scalar_small_send',
+            'scalar_integer_cast',
+            'scalar_integer_send',
+            'scalar_bigint_cast',
+            'scalar_bigint_send',
+            'scalar_boolean_send',
+            'scalar_date_send',
+            'scalar_timestamp_send',
+            'scalar_instant_send',
+          ],
+        ],
+        ['payload_hashes', ['digest_hash', 'digest_seeded', 'digest_crc', 'digest_crc_c']],
+        [
+          'payload_labels',
+          ['label_code', 'label_varchar_code', 'label_fixed_code', 'label_trimmed'],
+        ],
+        [
+          'payload_encodings',
+          [
+            'encoding_text',
+            'encoding_bytes',
+            'encoding_roundtrip',
+            'encoding_selected',
+            'encoding_default',
+          ],
+        ],
+        [
+          'payload_crypto',
+          [
+            'crypto_md5',
+            'crypto_text_md5',
+            'crypto_sha224',
+            'crypto_sha256',
+            'crypto_sha384',
+            'crypto_sha512',
+          ],
+        ],
+        [
+          'payload_patterns',
+          [
+            'pattern_match',
+            'pattern_not_match',
+            'pattern_escaped_match',
+            'pattern_escape_record',
+            'pattern_selected',
+            'pattern_default',
+          ],
+        ],
+        [
+          'payload_decimal_records',
+          ['decimal_wire_record', 'decimal_wire_selected', 'decimal_wire_default'],
+        ],
+        [
+          'payload_text_inputs',
+          [
+            'input_text_bytes',
+            'input_direct_bytes',
+            'input_varying_bytes',
+            'input_fixed_bytes',
+            'input_selected',
+            'input_default',
+          ],
+        ],
+      ] as const) {
+        for (const name of names) {
+          const identity = `world_017_feature_masks.${table}.${name}`
+          const measured = coverage.get(identity)!
+          for (const kind of ['true', 'false', 'null'] as const)
+            expect(measured[kind], identity).toBeGreaterThan(0)
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        }
+      }
+      for (const name of [
+        'range_window',
+        'range_window_alias',
+        'range_overlay',
+        'range_default_overlay',
+      ])
+        expect(
+          coverage.get(`world_017_feature_masks.payload_ranges.${name}`)!.error,
+          name,
+        ).toBeGreaterThan(0)
+      for (const name of ['scalar_small_read', 'scalar_integer_read', 'scalar_bigint_read'])
+        expect(
+          coverage.get(`world_017_feature_masks.payload_scalar_wires.${name}`)!.error,
+          name,
+        ).toBeGreaterThan(0)
+      const signedSmall = caseResults.find(
+        (row) => row.name === '017_feature_masks/payload_scalar_signed_small_unsigned_larger',
+      )!
+      for (const check of signedSmall.checks)
+        expect(check.result).toEqual({ certain: true, value: true })
+      const substringErrors = caseResults.flatMap((row) =>
+        row.name.startsWith('017_feature_masks/')
+          ? row.checks.filter((check) => check.result.error === '22011')
+          : [],
+      )
+      expect(substringErrors.length).toBeGreaterThan(0)
+      for (const check of substringErrors) expect(check.message).toContain('substring error')
+      const escapeErrors = caseResults.flatMap((row) =>
+        row.name.startsWith('017_feature_masks/')
+          ? row.checks.filter((check) => check.result.error === '22025')
+          : [],
+      )
+      expect(escapeErrors.length).toBeGreaterThan(0)
+      for (const check of escapeErrors) expect(check.message).toContain('invalid escape sequence')
+      const skippedInput = caseResults.find(
+        (row) => row.name === '017_feature_masks/binary_text_input_skips_invalid_default',
+      )!
+      for (const name of ['input_selected', 'input_default'])
+        expect(skippedInput.checks.find((check) => check.constraint === name)!.result).toEqual({
+          certain: true,
+          value: true,
+        })
+      const skippedSubstring = caseResults.find(
+        (row) => row.name === '017_feature_masks/mask_window_skips_negative_length',
+      )!
+      for (const check of skippedSubstring.checks)
+        expect(check.result).toEqual({ certain: true, value: true })
+      const defaultedSubstring = caseResults.find(
+        (row) => row.name === '017_feature_masks/mask_window_known_default_skips_negative_length',
+      )!
+      expect(
+        defaultedSubstring.checks.find((check) => check.constraint === 'window_default')!.result,
+      ).toEqual({ certain: true, value: true })
+      expect(
+        defaultedSubstring.checks.find((check) => check.constraint === 'window_fixed')!.result
+          .error,
+      ).toBe('22011')
+      const indexErrors = caseResults.flatMap((row) =>
+        row.name.startsWith('017_feature_masks/')
+          ? row.checks.filter((check) => check.result.error === '2202E')
+          : [],
+      )
+      expect(indexErrors.length).toBeGreaterThan(0)
+      for (const check of indexErrors) expect(check.message).toContain('array subscript error')
+      const orderedErrors = caseResults.find(
+        (row) => row.name === '017_feature_masks/mask_patch_checks_index_before_replacement',
+      )!
+      for (const name of ['patch_write', 'patch_selected', 'patch_default'])
+        expect(orderedErrors.checks.find((check) => check.constraint === name)!.result.error).toBe(
+          '2202E',
+        )
+      for (const name of [
+        'encoding_integer',
+        'encoding_bigint',
+        'encoding_decode_integer',
+        'encoding_decode_bigint',
+        'encoding_low_bit',
+        'encoding_selected',
+        'encoding_default',
+        'encoding_direct',
+      ]) {
+        const identity = `world_017_feature_masks.mask_encodings.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
         expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
         if (
-          table === 'shipment_fee_window' ||
-          table === 'shipment_fee_bounds' ||
-          table === 'shipment_fee_quotients' ||
-          table === 'shipment_fee_histograms' ||
-          table === 'shipment_package_permutations' ||
-          table === 'shipment_package_dimensions' ||
-          table === 'shipment_fee_logarithms' ||
-          table === 'shipment_fee_log_bases' ||
-          table === 'shipment_fee_decimal_logs' ||
-          table === 'shipment_fee_exponentials' ||
-          table === 'shipment_fee_powers' ||
           [
-            'fee_sum',
-            'fee_product',
-            'fee_sum_scale',
-            'fee_product_scale',
-            'fee_product_wire',
-            'fee_multiple',
-            'fee_multiple_wire',
-          ].includes(identity.split('.').at(-1)!)
+            'encoding_decode_integer',
+            'encoding_decode_bigint',
+            'encoding_selected',
+            'encoding_default',
+          ].includes(name)
+        ) {
+          expect(measured.error, identity).toBeGreaterThan(0)
+          const errors = caseResults.flatMap((row) =>
+            row.name.startsWith('017_feature_masks/')
+              ? row.checks.filter(
+                  (check) => check.constraint === name && check.result.error === '22003',
+                )
+              : [],
+          )
+          expect(errors.length, identity).toBeGreaterThan(0)
+          for (const check of errors) expect(check.message).toContain('numeric value out of range')
+        }
+      }
+      for (const name of [
+        'import_fixed',
+        'import_varying',
+        'import_varchar',
+        'import_resize',
+        'import_maximum',
+        'import_output',
+        'import_selected',
+        'import_default',
+        'import_fixed_assignment',
+        'import_varying_assignment',
+      ]) {
+        const identity = `world_017_feature_masks.mask_imports.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        if (
+          [
+            'import_fixed',
+            'import_varying',
+            'import_varchar',
+            'import_selected',
+            'import_default',
+            'import_fixed_assignment',
+            'import_varying_assignment',
+          ].includes(name)
         )
           expect(measured.error, identity).toBeGreaterThan(0)
+      }
+      const truncationErrors = caseResults.flatMap((row) =>
+        row.name.startsWith('017_feature_masks/')
+          ? row.checks.filter(
+              (check) =>
+                check.constraint === 'import_varying_assignment' && check.result.error === '22001',
+            )
+          : [],
+      )
+      expect(truncationErrors.length).toBeGreaterThan(0)
+      for (const check of truncationErrors)
+        expect(check.message).toContain('string data right truncation')
+      for (const name of [
+        'transform_intersection',
+        'transform_union',
+        'transform_exclusive',
+        'transform_complement',
+        'transform_left',
+        'transform_right',
+        'transform_selected',
+        'transform_default',
+        'transform_direct',
+      ]) {
+        const identity = `world_017_feature_masks.mask_transforms.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+        if (['transform_selected', 'transform_default', 'transform_direct'].includes(name)) {
+          expect(measured.error, identity).toBeGreaterThan(0)
+          let describedErrors = 0
+          for (const row of caseResults) {
+            if (!row.name.startsWith('017_feature_masks/')) continue
+            for (const check of row.checks) {
+              if (check.constraint !== name || check.result.error !== '22026') continue
+              expect(check.message).toContain('string data length mismatch')
+              describedErrors++
+            }
+          }
+          expect(describedErrors, identity).toBeGreaterThan(0)
+        }
+      }
+      const recognizedMask = coverage.get(
+        'world_017_feature_masks.device_mask_rules.rule_recognized',
+      )!
+      expect(recognizedMask.true).toBeGreaterThan(0)
+      expect(recognizedMask.false).toBeGreaterThan(0)
+      expect(recognizedMask.null).toBe(0)
+      expect(recognizedMask.unknown).toBe(0)
+      for (const [table, count] of [
+        ['label_character_sizes', 9],
+        ['label_binary_order', 18],
+        ['cleaned_label_records', 6],
+        ['label_casing_records', 4],
+        ['label_fingerprints', 6],
+        ['label_previews', 8],
+        ['label_builder_records', 12],
+        ['label_edit_records', 13],
+        ['label_format_records', 12],
+        ['label_literal_records', 2],
+        ['label_storage_records', 2],
+        ['label_pattern_records', 14],
+        ['label_regex_records', 19],
+        ['label_count_records', 3],
+        ['label_position_records', 6],
+        ['label_extract_records', 5],
+        ['label_replacement_records', 5],
+        ['label_pattern_conversions', 2],
+      ] as const) {
+        const prefix = `world_013_label_registry.${table}.`
+        const constraints = [...coverage.values()].filter((item) =>
+          item.constraint.startsWith(prefix),
+        )
+        expect(constraints, table).toHaveLength(count)
+        for (const measured of constraints) {
+          for (const kind of ['true', 'false', 'null'] as const)
+            expect(measured[kind], measured.constraint).toBeGreaterThan(0)
+          expect(measured.unknown, measured.constraint).toBe(0)
+        }
+      }
+      for (const name of ['label_size_bytes', 'label_size_limit']) {
+        const identity = `world_013_label_registry.label_storage_records.${name}`
+        expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+        const states = new Set(
+          caseResults.flatMap((row) =>
+            row.name.startsWith('013_label_registry/')
+              ? row.checks
+                  .filter(
+                    (check) => check.constraint === name && typeof check.result.error === 'string',
+                  )
+                  .map((check) => check.result.error)
+              : [],
+          ),
+        )
+        expect(states, identity).toEqual(new Set(['22003', '22023', '22P02']))
+      }
+      for (const name of ['lpad_2', 'lpad_3', 'rpad_2', 'rpad_3', 'repeat_2']) {
+        for (const output of ['value', 'octets']) {
+          const identity = `world_013_label_registry.label_builder_records.${name}_${output}`
+          expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+        }
+      }
+      for (const [table, count] of [
+        ['shipment_fee_totals', 7],
+        ['shipment_fee_fingerprints', 2],
+        ['shipment_fee_window', 1],
+        ['shipment_fee_bounds', 3],
+        ['shipment_fee_quotients', 10],
+        ['shipment_fee_common_units', 4],
+        ['shipment_storage_sizes', 2],
+        ['shipment_fee_histograms', 1],
+        ['shipment_package_permutations', 3],
+        ['shipment_package_dimensions', 4],
+        ['shipment_fee_logarithms', 4],
+        ['shipment_fee_log_bases', 4],
+        ['shipment_fee_decimal_logs', 4],
+        ['shipment_fee_exponentials', 4],
+        ['shipment_fee_powers', 6],
+      ] as const) {
+        const checks = [...coverage].filter(([identity]) =>
+          identity.startsWith(`world_014_shipment_defaults.${table}.`),
+        )
+        expect(checks).toHaveLength(count)
+        for (const [identity, measured] of checks) {
+          for (const state of ['true', 'false', 'null'] as const)
+            expect(measured[state], identity).toBeGreaterThan(0)
+          expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
+          if (
+            table === 'shipment_fee_window' ||
+            table === 'shipment_fee_bounds' ||
+            table === 'shipment_fee_quotients' ||
+            table === 'shipment_fee_histograms' ||
+            table === 'shipment_package_permutations' ||
+            table === 'shipment_package_dimensions' ||
+            table === 'shipment_fee_logarithms' ||
+            table === 'shipment_fee_log_bases' ||
+            table === 'shipment_fee_decimal_logs' ||
+            table === 'shipment_fee_exponentials' ||
+            table === 'shipment_fee_powers' ||
+            [
+              'fee_sum',
+              'fee_product',
+              'fee_sum_scale',
+              'fee_product_scale',
+              'fee_product_wire',
+              'fee_multiple',
+              'fee_multiple_wire',
+            ].includes(identity.split('.').at(-1)!)
+          )
+            expect(measured.error, identity).toBeGreaterThan(0)
+        }
       }
     }
     const constraints = [...coverage.values()].sort((left, right) =>
@@ -2571,6 +2630,7 @@ describe('world CHECK INSERT parity', () => {
       'world_012_package_capacity.warehouse_count_conversions.archived_unit_count',
       'world_012_package_capacity.warehouse_count_conversions.archived_integer_count',
     ]) {
+      if (selectedWorldNames && !coverage.has(identity)) continue
       const measured = coverage.get(identity)!
       expect(measured.unknown, identity).toBe(binaryDeferrals(identity))
       expect(measured.true, identity).toBeGreaterThan(0)
@@ -2629,6 +2689,11 @@ describe('world CHECK INSERT parity', () => {
         unknown: checks.reduce((sum, item) => sum + item.unknown, 0),
       }
     })
+    if (selectedWorldNames)
+      for (const measured of constraints) {
+        if (catalogDependentChecks.has(measured.constraint)) continue
+        expect(measured.unknown, measured.constraint).toBe(binaryDeferrals(measured.constraint))
+      }
     for (const name of checkWorlds) {
       const outcomes = caseResults.filter((item) => item.name.startsWith(name + '/'))
       expect(
@@ -2640,7 +2705,6 @@ describe('world CHECK INSERT parity', () => {
         `${name}: needs a rejected INSERT`,
       ).toBe(true)
     }
-    const reportDirectory = fileURLToPath(new URL('../../artifacts/check-worlds/', import.meta.url))
     expect(await worldSourceDigest(), 'World inputs changed during evaluation').toBe(sourceDigest)
     await mkdir(reportDirectory, { recursive: true })
     await writeFile(
@@ -2648,6 +2712,9 @@ describe('world CHECK INSERT parity', () => {
       JSON.stringify(
         {
           sourceDigest,
+          scope: selectedWorldNames
+            ? { kind: 'selected-worlds', worlds: worlds.map((world) => world.name) }
+            : { kind: 'full-corpus' },
           summary,
           worlds: worldStats,
           constraints,
@@ -2659,7 +2726,7 @@ describe('world CHECK INSERT parity', () => {
       ) + '\n',
     )
     console.table(worldStats)
-    console.info('Detailed CHECK results: artifacts/check-worlds/report.json')
+    console.info('Detailed CHECK results:', join(reportDirectory, 'report.json'))
     console.info(
       `World CHECK parity: ${cases.length} INSERT cases, ${definiteConstraints.length} distinct constraints with definite results, ${definite} definite CHECK comparisons, ${unknownComparisons} Unknown CHECK results; ${localRejections} of ${databaseRejections} database rejections detected locally; Go and TypeScript agree.`,
     )

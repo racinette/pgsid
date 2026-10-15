@@ -135,6 +135,8 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     macaddr: 'pg_catalog.macaddr',
     macaddr8: 'pg_catalog.macaddr8',
     bytea: 'pg_catalog.bytea',
+    json: 'pg_catalog."json"',
+    '"json"': 'pg_catalog."json"',
     bit: 'pg_catalog."bit"',
     '"bit"': 'pg_catalog."bit"',
     varbit: 'pg_catalog.varbit',
@@ -287,6 +289,14 @@ export function catalogSnapshotType(
   return isSnapshotType(type) ? type : null
 }
 
+export function catalogJsonType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog."json"'
+}
+
 export function catalogPolygonType(
   name: string,
   oid: number | undefined,
@@ -386,6 +396,8 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
+  if (type === 'pg_catalog."json"' && literal.kind === 'null')
+    return { kind: 'json', type, value: null }
   if (
     (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') &&
     (literal.kind === 'string' || literal.kind === 'null')
@@ -1569,6 +1581,7 @@ export function bindCatalogCheck(
         (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) ||
           (type === 'pg_catalog.name' && isSnapshotType(source))) &&
         (isIntegerType(source) ||
+          source === 'pg_catalog."json"' ||
           isSnapshotType(source) ||
           isOidAliasType(source) ||
           [

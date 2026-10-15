@@ -664,6 +664,74 @@ pub fn make_numeric_value(value: &str) -> NumericValue {
     NumericValue::Value(value.to_owned())
 }
 
+#[derive(Clone)]
+pub struct JsonPayload {
+    pub source: String,
+    pub kind: i32,
+    pub depth: usize,
+}
+
+#[derive(Clone)]
+pub enum JsonValue {
+    Unknown,
+    Null,
+    Value(JsonPayload),
+    Error(SqlError),
+}
+
+pub fn json_unknown() -> JsonValue {
+    JsonValue::Unknown
+}
+
+pub fn json_null() -> JsonValue {
+    JsonValue::Null
+}
+
+pub fn make_json_value(source: &str) -> JsonValue {
+    let syntax = json_syntax_scan(source);
+    if syntax.valid == false {
+        return JsonValue::Unknown;
+    };
+    JsonValue::Value(JsonPayload {
+        source: source.to_owned(),
+        kind: syntax.kind,
+        depth: syntax.max_depth,
+    })
+}
+
+pub fn json_from_coerced_text(input: TextValue) -> JsonValue {
+    if let TextValue::Error(error) = input {
+        return JsonValue::Error(error);
+    };
+    if let TextValue::Null = input {
+        return JsonValue::Null;
+    };
+    if let TextValue::Value(value) = input {
+        return make_json_value(value.as_str());
+    };
+    JsonValue::Unknown
+}
+
+pub fn json_is_null(input: JsonValue) -> BoolValue {
+    if let JsonValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if let JsonValue::Unknown = input {
+        return BoolValue::Unknown;
+    };
+    if let JsonValue::Null = input {
+        return BoolValue::Value(true);
+    };
+    BoolValue::Value(false)
+}
+
+pub fn json_from_case_guard(value: CheckOutcome) -> JsonValue {
+    if let CheckOutcome::Error(error) = value {
+        return JsonValue::Error(error);
+    };
+    JsonValue::Unknown
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct NetworkAddress {
     pub family: usize,

@@ -60,7 +60,14 @@ export async function loadWorldCatalog(pg: PGlite) {
   return snapshotCatalog(pg)
 }
 
-export function verifyWorldDigest(report: { sourceDigest?: string }, digest: string): void {
+export function verifyWorldDigest(
+  report: { sourceDigest?: string; scope?: { kind: string } },
+  digest: string,
+): void {
+  assert.ok(
+    report.scope === undefined || report.scope.kind === 'full-corpus',
+    'Scoped world outcomes cannot establish full-corpus coverage',
+  )
   assert.equal(
     report.sourceDigest,
     digest,

@@ -10405,6 +10405,51 @@ export function makeIntervalNlc1(years: checkruntime.Int4Value, months: checkrun
     }
     return { kind: "Error", value: checkruntime.makeSqlError(clockRange) };
 }
+export function jsonTypeofVzgr(input: checkruntime.JsonValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonPayload = input.value;
+        if (value.kind === 0) {
+            return checkruntime.makeTextValue("null");
+        }
+        if (value.kind === 1 || value.kind === 2) {
+            return checkruntime.makeTextValue("boolean");
+        }
+        if (value.kind === 3) {
+            return checkruntime.makeTextValue("number");
+        }
+        if (value.kind === 4) {
+            return checkruntime.makeTextValue("string");
+        }
+        if (value.kind === 5) {
+            return checkruntime.makeTextValue("array");
+        }
+        if (value.kind === 6) {
+            return checkruntime.makeTextValue("object");
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonToText(input: checkruntime.JsonValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonPayload = input.value;
+        return { kind: "Value", value: value.source };
+    }
+    return { kind: "Unknown" };
+}
 function lineEqualProduct(left: bigint, right: bigint, ratio: checkruntime.Float8Value): checkruntime.BoolValue {
     left = langruntime.checkedI64(left);
     right = langruntime.checkedI64(right);

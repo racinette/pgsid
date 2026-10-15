@@ -106,6 +106,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("SnapshotValue") => {
             Ok("SnapshotValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("JsonValue") => {
+            Ok("JsonValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("CircleValue") => {
             Ok("CircleValue")
         }
@@ -444,6 +447,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "PolygonValue"
                     | "PathValue"
                     | "SnapshotValue"
+                    | "JsonValue"
                     | "CircleValue"
                     | "BoxValue"
                     | "UuidValue"
@@ -769,6 +773,18 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             check_source(&source.replace("input: SnapshotValue", "mut input: SnapshotValue"))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn accepts_json_wrappers_and_owned_branch_results_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(input: JsonValue) -> CheckOutcome { let mut saved: JsonValue = json_unknown(); saved = input.clone(); let nullness = json_is_null(saved); check_from_bool(nullness) }";
+        check_source(source).unwrap();
+        for ty in ["JsonPayload", "String", "JsonValue<String>", "&JsonValue"] {
+            assert!(
+                check_source(&source.replace("input: JsonValue", &format!("input: {ty}"))).is_err()
+            );
+        }
+        assert!(check_source(&source.replace("input: JsonValue", "mut input: JsonValue")).is_err());
     }
 
     #[test]
