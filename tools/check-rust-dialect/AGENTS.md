@@ -24,7 +24,7 @@ update its tests when that boundary changes.
   standalone expression exports `evaluate_check`; catalog entries derive their
   names from schema, table/domain, constraint, and a short identity hash.
   Inherited domain entries also identify the declaring domain. Keep expression parts inside that function.
-- Parameters are immutable named values of `Int2Value`, `Int4Value`, `Int8Value`, `Float4Value`, `Float8Value`, `PointValue`, `LineValue`, `LsegValue`, `BoxValue`, `CircleValue`, `PathValue`, `MoneyValue`, `OidValue`, `XidValue`, `CidValue`, `Xid8Value`, `PgLsnValue`, `TidValue`, `InternalCharValue`, `TimeValue`, `TimetzValue`, `IntervalValue`, `DateValue`, `TimestampValue`, `TimestamptzValue`, `EnumValue`, `NetworkValue`, `MacaddrValue`, `Macaddr8Value`, `UuidValue`, `NumericValue`, `TextValue`, `ByteaValue`,
+- Parameters are immutable named values of `Int2Value`, `Int4Value`, `Int8Value`, `Float4Value`, `Float8Value`, `PointValue`, `LineValue`, `LsegValue`, `BoxValue`, `CircleValue`, `PathValue`, `SnapshotValue`, `MoneyValue`, `OidValue`, `XidValue`, `CidValue`, `Xid8Value`, `PgLsnValue`, `TidValue`, `InternalCharValue`, `TimeValue`, `TimetzValue`, `IntervalValue`, `DateValue`, `TimestampValue`, `TimestamptzValue`, `EnumValue`, `NetworkValue`, `MacaddrValue`, `Macaddr8Value`, `UuidValue`, `NumericValue`, `TextValue`, `ByteaValue`,
   `BitValue`, or `BoolValue`. Calls take bound identifiers, in-range signed `int2`/`int4`/`int8` literals,
   string literals, boolean literals, or a bound identifier cloned with `.clone()`
   for owned immutable wrappers. The `int4` minimum uses
@@ -32,7 +32,7 @@ update its tests when that boundary changes.
   `-9223372036854775808i64`. Keep integer literals in decimal syntax. Numeric constants pass exact decimal
   strings to `make_numeric_value`; they never become Rust floating-point literals.
 - Bodies contain local bindings initialized by direct calls, bound values, or bound immutable value clones.
-  Mutable `CheckOutcome`, `Int2Value`, `Int4Value`, `Int8Value`, `Float4Value`, `Float8Value`, `PointValue`, `LineValue`, `LsegValue`, `BoxValue`, `CircleValue`, `PathValue`, `MoneyValue`, `OidValue`, `XidValue`, `CidValue`, `Xid8Value`, `PgLsnValue`, `TidValue`, `InternalCharValue`, `TimeValue`, `TimetzValue`, `IntervalValue`, `DateValue`, `TimestampValue`, `TimestamptzValue`, `EnumValue`, `NetworkValue`, `MacaddrValue`, `Macaddr8Value`, `UuidValue`, `NumericValue`, `TextValue`, `ByteaValue`, `BitValue`, and `BoolValue` locals hold
+  Mutable `CheckOutcome`, `Int2Value`, `Int4Value`, `Int8Value`, `Float4Value`, `Float8Value`, `PointValue`, `LineValue`, `LsegValue`, `BoxValue`, `CircleValue`, `PathValue`, `SnapshotValue`, `MoneyValue`, `OidValue`, `XidValue`, `CidValue`, `Xid8Value`, `PgLsnValue`, `TidValue`, `InternalCharValue`, `TimeValue`, `TimetzValue`, `IntervalValue`, `DateValue`, `TimestampValue`, `TimestamptzValue`, `EnumValue`, `NetworkValue`, `MacaddrValue`, `Macaddr8Value`, `UuidValue`, `NumericValue`, `TextValue`, `ByteaValue`, `BitValue`, and `BoolValue` locals hold
   results shared across branches and may be
   assigned a direct call or bound value. `if` and `else` branches may contain
   those same statements; conditions are direct calls or a direct call compared
@@ -52,6 +52,8 @@ update its tests when that boundary changes.
 - Compile the assembled Rust source. Generate both targets and exercise the
   same values, NULL, unknown, errors, and lazy branches in each target.
   Compare supported SQL behavior with PostgreSQL or PGlite fixtures.
-- Run `bash tools/check-rust/check.sh` from the repository root. Follow the
-  downstream transpiler's own rules and verification gates when changing its
-  accepted syntax or lowering.
+- Run checker unit tests and the affected evaluator parity suites for an isolated
+  admission change. Follow the downstream transpiler's verification rules when
+  changing accepted syntax or lowering. Run `bash tools/check-rust/check.sh`
+  for broad language/runtime changes and integration milestones; record scoped
+  coverage without claiming a full-suite pass.

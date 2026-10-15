@@ -27,6 +27,7 @@ import {
   catalogInternalCharType,
   catalogPgLsnType,
   catalogXid8Type,
+  catalogSnapshotType,
   catalogOidType,
   catalogMoneyType,
   catalogPolygonType,
@@ -474,6 +475,13 @@ describe('world CHECK INSERT parity', () => {
             catalogXid8Type(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const snapshotColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogSnapshotType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const oidColumns = table.columns
         .filter(
           (column) =>
@@ -610,6 +618,33 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : bytes.readBigInt64BE()
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
+      }
+      for (const name of snapshotColumns) {
+        const column = table.columns.find((column) => column.name === name)!
+        const type = catalogSnapshotType(column.typeName, column.typeOid, catalog.domains)!
+        const send = type.slice('pg_catalog.'.length) + '_send'
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(pg_catalog.${send}(${quote(name)}), 'hex') binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const bytes = hex === null ? null : Buffer.from(hex, 'hex')
+        let payload: { xmin: bigint; xmax: bigint; xip: { bits: bigint }[] } | null = null
+        if (bytes) {
+          expect(bytes.length).toBeGreaterThanOrEqual(20)
+          const count = bytes.readUInt32BE(0)
+          expect(count).toBeLessThanOrEqual(134217724)
+          expect(bytes.length).toBe(20 + count * 8)
+          payload = {
+            xmin: bytes.readBigInt64BE(4),
+            xmax: bytes.readBigInt64BE(12),
+            xip: Array.from({ length: count }, (_, i) => ({
+              bits: bytes.readBigInt64BE(20 + i * 8),
+            })),
+          }
+        }
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
       }
@@ -842,6 +877,7 @@ describe('world CHECK INSERT parity', () => {
         internalCharColumns,
         pgLsnColumns,
         xid8Columns,
+        snapshotColumns,
         oidColumns,
         moneyColumns,
         polygonColumns,

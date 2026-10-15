@@ -15,6 +15,7 @@ import { measureTypes } from '../../scripts/check-measurements/types.js'
 import { measureCoercions } from '../../scripts/check-measurements/coercions.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
+import { snapshotInputForms, invalidSnapshotInputForms } from './check-snapshot-input-forms.js'
 
 describe('CHECK measurement boundaries', () => {
   let pg: PGlite
@@ -236,6 +237,35 @@ describe('CHECK measurement boundaries', () => {
     const floatInput = report.textInput.find((entry) => entry.type === 'pg_catalog.float4')!
     expect(floatInput.probe.raw.fullyBound).toBe(true)
     expect(floatInput.probe.stored!.fullyBound).toBe(true)
+    for (const type of ['pg_catalog.pg_snapshot', 'pg_catalog.txid_snapshot']) {
+      expect(valueRepresentation(type).represented).toBe(true)
+      const forms = report.inputForms.types.find((forms) => forms.type === type)!
+      expect(forms).toMatchObject({
+        handled: snapshotInputForms,
+        rejected: invalidSnapshotInputForms,
+        deferred: [],
+        contextRequired: [],
+        binaryInput: { inProgressUpperBound: 'inclusive', textInputUpperBound: 'exclusive' },
+        rowInput: { rawQueryParameters: 'defer to PostgreSQL' },
+        currentSnapshot: { contextRequired: ['active PostgreSQL transaction snapshot'] },
+      })
+      for (const entries of [report.textInput, report.textOutput]) {
+        const probe = entries.find((entry) => entry.type === type)!.probe
+        expect(probe.postgres.accepted).toBe(true)
+        expect(probe.raw.fullyBound).toBe(true)
+        expect(probe.raw.preparation.kind).toBe('supported')
+        expect(probe.stored!.fullyBound).toBe(true)
+        expect(probe.stored!.preparation.kind).toBe('supported')
+      }
+    }
+    for (const name of ['pg_current_snapshot', 'txid_current_snapshot']) {
+      const metadata = catalog.functions.find((entry) => entry.metadata.name === name)!.metadata
+      expect(
+        callableBoundary(metadata, new Set(['pg_catalog.pg_snapshot', 'pg_catalog.txid_snapshot']))
+          .categories,
+      ).toContain('transaction-state:snapshot')
+      expect(bindProbe(name + '() IS NOT NULL', []).preparation.kind).toBe('unsupported')
+    }
     for (const type of ['float4', 'float8', 'point', 'line', 'lseg', 'box', 'circle', 'path'])
       expect(
         report.inputForms.types.find((forms) => forms.type === 'pg_catalog.' + type),

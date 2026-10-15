@@ -20350,6 +20350,326 @@ func Int42div0fx0(left checkruntime.Int4Value, right checkruntime.Int2Value) che
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4div8ogr(left, rightWide)
 }
+
+const snapshotSizeError = 8584704
+
+func snapshotTextAppendFits(current int, digits int, separator bool) bool {
+	current = langruntime.CheckedIndex(current)
+	digits = langruntime.CheckedIndex(digits)
+	if current > 1073741807 {
+		return false
+	}
+	position := current
+	if separator {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if position > 1073741807 {
+		return false
+	}
+	return digits <= langruntime.CheckedSubtract(1073741822, position)
+}
+func SnapshotToText(input checkruntime.SnapshotValue) checkruntime.TextValue {
+	input = checkruntime.CopySnapshotValue(input)
+	if input.Kind == checkruntime.SnapshotValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.SnapshotValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.SnapshotValueValue {
+		payload := checkruntime.CopySnapshotPayload(input.Value)
+		output := langruntime.NewTextBuffer("")
+		length := 2
+		xminText := Xid8ToText(checkruntime.MakeXid8Bits(payload.Xmin))
+		if xminText.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(xminText.Value)
+			chars := []rune(text)
+			length = langruntime.CheckedAdd(length, len(chars))
+			output = append(output, text...)
+		}
+		output = append(output, string(langruntime.CheckedChar(':'))...)
+		xmaxText := Xid8ToText(checkruntime.MakeXid8Bits(payload.Xmax))
+		if xmaxText.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(xmaxText.Value)
+			chars := []rune(text)
+			length = langruntime.CheckedAdd(length, len(chars))
+			output = append(output, text...)
+		}
+		output = append(output, string(langruntime.CheckedChar(':'))...)
+		index := 0
+		for index < len(payload.Xip) {
+			wordText := Xid8ToText(checkruntime.MakeXid8Bits(payload.Xip[index].Bits))
+			if wordText.Kind == checkruntime.TextValueValue {
+				text := langruntime.CheckedString(wordText.Value)
+				chars := []rune(text)
+				extra := len(chars)
+				if index > 0 {
+					extra = langruntime.CheckedAdd(extra, 1)
+				}
+				if snapshotTextAppendFits(length, len(chars), index > 0) == false {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(snapshotSizeError)}
+				}
+				length = langruntime.CheckedAdd(length, extra)
+				if index > 0 {
+					output = append(output, string(langruntime.CheckedChar(','))...)
+				}
+				output = append(output, text...)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func snapshotSend(input checkruntime.SnapshotValue) checkruntime.ByteaValue {
+	input = checkruntime.CopySnapshotValue(input)
+	if input.Kind == checkruntime.SnapshotValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input.Kind == checkruntime.SnapshotValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.SnapshotValueValue {
+		payload := checkruntime.CopySnapshotPayload(input.Value)
+		count := int(int32(len(payload.Xip)))
+		output := langruntime.NewTextBuffer(byteaIntegerSend(int64(langruntime.CheckedI32(count)), 4))
+		xminWire := byteaIntegerSend(payload.Xmin, 8)
+		output = append(output, xminWire...)
+		xmaxWire := byteaIntegerSend(payload.Xmax, 8)
+		output = append(output, xmaxWire...)
+		index := 0
+		for index < len(payload.Xip) {
+			wordWire := byteaIntegerSend(payload.Xip[index].Bits, 8)
+			output = append(output, wordWire...)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func snapshotBound(input checkruntime.SnapshotValue, maximum bool) checkruntime.Int8Value {
+	input = checkruntime.CopySnapshotValue(input)
+	if input.Kind == checkruntime.SnapshotValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.SnapshotValueNull {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.SnapshotValueValue {
+		payload := checkruntime.CopySnapshotPayload(input.Value)
+		if maximum {
+			return checkruntime.MakeInt8Value(payload.Xmax)
+		}
+		return checkruntime.MakeInt8Value(payload.Xmin)
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func snapshotXidBound(input checkruntime.SnapshotValue, maximum bool) checkruntime.Xid8Value {
+	input = checkruntime.CopySnapshotValue(input)
+	bound := snapshotBound(input, maximum)
+	if bound.Kind == checkruntime.Int8ValueError {
+		error := bound.Error
+		return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueError, Error: error}
+	}
+	if bound.Kind == checkruntime.Int8ValueNull {
+		return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueNull}
+	}
+	if bound.Kind == checkruntime.Int8ValueValue {
+		bits := bound.Value
+		return checkruntime.MakeXid8Bits(bits)
+	}
+	return checkruntime.Xid8Value{Kind: checkruntime.Xid8ValueUnknown}
+}
+func snapshotVisible(value checkruntime.Int8Value, snapshot checkruntime.SnapshotValue) checkruntime.BoolValue {
+	snapshot = checkruntime.CopySnapshotValue(snapshot)
+	if value.Kind == checkruntime.Int8ValueError {
+		error := value.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if snapshot.Kind == checkruntime.SnapshotValueError {
+		error := snapshot.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if value.Kind == checkruntime.Int8ValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if snapshot.Kind == checkruntime.SnapshotValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if value.Kind == checkruntime.Int8ValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if snapshot.Kind == checkruntime.SnapshotValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if value.Kind == checkruntime.Int8ValueValue {
+		bits := value.Value
+		if snapshot.Kind == checkruntime.SnapshotValueValue {
+			payload := checkruntime.CopySnapshotPayload(snapshot.Value)
+			if checkruntime.SnapshotXidOrder(bits, payload.Xmin) < 0 {
+				return checkruntime.MakeBoolValue(true)
+			}
+			if checkruntime.SnapshotXidOrder(bits, payload.Xmax) >= 0 {
+				return checkruntime.MakeBoolValue(false)
+			}
+			index := 0
+			for index < len(payload.Xip) {
+				if bits == payload.Xip[index].Bits {
+					return checkruntime.MakeBoolValue(false)
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.MakeBoolValue(true)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func PgSnapshotSendUx8s(input checkruntime.SnapshotValue) checkruntime.ByteaValue {
+	input = checkruntime.CopySnapshotValue(input)
+	return snapshotSend(input)
+}
+func TxidSnapshotSendBjde(input checkruntime.SnapshotValue) checkruntime.ByteaValue {
+	input = checkruntime.CopySnapshotValue(input)
+	return snapshotSend(input)
+}
+func PgSnapshotXminJe8q(input checkruntime.SnapshotValue) checkruntime.Xid8Value {
+	input = checkruntime.CopySnapshotValue(input)
+	return snapshotXidBound(input, false)
+}
+func PgSnapshotXmaxEnpd(input checkruntime.SnapshotValue) checkruntime.Xid8Value {
+	input = checkruntime.CopySnapshotValue(input)
+	return snapshotXidBound(input, true)
+}
+func TxidSnapshotXminVg5z(input checkruntime.SnapshotValue) checkruntime.Int8Value {
+	input = checkruntime.CopySnapshotValue(input)
+	return snapshotBound(input, false)
+}
+func TxidSnapshotXmaxNuyq(input checkruntime.SnapshotValue) checkruntime.Int8Value {
+	input = checkruntime.CopySnapshotValue(input)
+	return snapshotBound(input, true)
+}
+func TxidVisibleInSnapshot1qno(value checkruntime.Int8Value, snapshot checkruntime.SnapshotValue) checkruntime.BoolValue {
+	snapshot = checkruntime.CopySnapshotValue(snapshot)
+	return snapshotVisible(value, snapshot)
+}
+func PgVisibleInSnapshot5zx2(value checkruntime.Xid8Value, snapshot checkruntime.SnapshotValue) checkruntime.BoolValue {
+	snapshot = checkruntime.CopySnapshotValue(snapshot)
+	return snapshotVisible(xid8Bits(value), snapshot)
+}
+
+type snapshotInput struct {
+	chars []rune
+}
+
+func copysnapshotInput(value snapshotInput) snapshotInput {
+	return snapshotInput{chars: langruntime.CheckedChars(value.chars)}
+}
+
+type snapshotNumber struct {
+	valid bool
+	end   int
+	bits  int64
+}
+
+func copysnapshotNumber(value snapshotNumber) snapshotNumber {
+	return snapshotNumber{valid: value.valid, end: langruntime.CheckedIndex(value.end), bits: value.bits}
+}
+func snapshotReadNumber(source *snapshotInput, start int) snapshotNumber {
+	start = langruntime.CheckedIndex(start)
+	index := start
+	for index < len(source.chars) && oidInputSpace(source.chars[index]) {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	negative := false
+	if index < len(source.chars) && (source.chars[index] == '+' || source.chars[index] == '-') {
+		negative = source.chars[index] == '-'
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	first := index
+	high := int64(0)
+	low := int64(0)
+	overflow := false
+	for index < len(source.chars) {
+		digit := oidInputDigit(source.chars[index])
+		if digit < int64(0) || digit > int64(9) {
+			break
+		}
+		if overflow == false {
+			next := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(low, int64(10)), digit)
+			low = langruntime.CheckedI64Remainder(next, int64(4294967296))
+			high = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(10)), langruntime.CheckedI64Divide(next, int64(4294967296)))
+			if high > int64(4294967295) {
+				overflow = true
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if index == first {
+		return snapshotNumber{valid: false, end: start, bits: int64(0)}
+	}
+	if overflow {
+		return snapshotNumber{valid: true, end: index, bits: int64(-1)}
+	}
+	bits := integerBitsValue(integerBits{high: high, low: low})
+	if negative && bits != int64(-9223372036854775808) {
+		bits = langruntime.CheckedI64Subtract(int64(0), bits)
+	}
+	return snapshotNumber{valid: true, end: index, bits: bits}
+}
+func snapshotParse(value string) checkruntime.SnapshotValue {
+	value = langruntime.CheckedString(value)
+	source := snapshotInput{chars: []rune(value)}
+	xmin := snapshotReadNumber(&source, 0)
+	if xmin.valid == false || xmin.end >= len(source.chars) || source.chars[xmin.end] != ':' {
+		return checkruntime.SnapshotValue{Kind: checkruntime.SnapshotValueError, Error: checkruntime.MakeSqlError(oidInputInvalid)}
+	}
+	xmax := snapshotReadNumber(&source, langruntime.CheckedAdd(xmin.end, 1))
+	if xmax.valid == false || xmax.end >= len(source.chars) || source.chars[xmax.end] != ':' || xmin.bits == int64(0) || xmax.bits == int64(0) || checkruntime.SnapshotXidOrder(xmin.bits, xmax.bits) > 0 {
+		return checkruntime.SnapshotValue{Kind: checkruntime.SnapshotValueError, Error: checkruntime.MakeSqlError(oidInputInvalid)}
+	}
+	index := langruntime.CheckedAdd(xmax.end, 1)
+	previous := int64(0)
+	xip := []checkruntime.SnapshotXid{}
+	for index < len(source.chars) {
+		parsed := snapshotReadNumber(&source, index)
+		if parsed.valid == false || checkruntime.SnapshotXidOrder(parsed.bits, xmin.bits) < 0 || checkruntime.SnapshotXidOrder(parsed.bits, xmax.bits) >= 0 || checkruntime.SnapshotXidOrder(parsed.bits, previous) < 0 {
+			return checkruntime.SnapshotValue{Kind: checkruntime.SnapshotValueError, Error: checkruntime.MakeSqlError(oidInputInvalid)}
+		}
+		if parsed.bits != previous {
+			if checkruntime.SnapshotCountFits(langruntime.CheckedAdd(len(xip), 1)) == false {
+				return checkruntime.SnapshotValue{Kind: checkruntime.SnapshotValueError, Error: checkruntime.MakeSqlError(snapshotSizeError)}
+			}
+			langruntime.CheckedAdd(len(xip), 1)
+			xip = append(xip, checkruntime.SnapshotXid{Bits: parsed.bits})
+		}
+		previous = parsed.bits
+		index = langruntime.CheckedIndex(parsed.end)
+		if index < len(source.chars) {
+			if source.chars[index] != ',' {
+				return checkruntime.SnapshotValue{Kind: checkruntime.SnapshotValueError, Error: checkruntime.MakeSqlError(oidInputInvalid)}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	return checkruntime.MakeSnapshotValue(checkruntime.SnapshotPayload{Xmin: xmin.bits, Xmax: xmax.bits, Xip: xip})
+}
+func SnapshotFromText(input checkruntime.TextValue) checkruntime.SnapshotValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.SnapshotValue{Kind: checkruntime.SnapshotValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.SnapshotValue{Kind: checkruntime.SnapshotValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return snapshotParse(value)
+	}
+	return checkruntime.SnapshotValue{Kind: checkruntime.SnapshotValueUnknown}
+}
 func xidToOid(input checkruntime.XidValue) checkruntime.OidValue {
 	if input.Kind == checkruntime.XidValueError {
 		error := input.Error

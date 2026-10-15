@@ -148,6 +148,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'text-to-pg_lsn' ||
     expression.kind === 'text-to-tid' ||
     expression.kind === 'text-to-xid8' ||
+    expression.kind === 'text-to-snapshot' ||
     expression.kind === 'text-to-oid' ||
     expression.kind === 'text-to-polygon' ||
     expression.kind === 'text-to-path' ||

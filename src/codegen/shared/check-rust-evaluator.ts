@@ -15,6 +15,7 @@ import {
   enumType,
   isOidType,
   isOidAliasType,
+  isSnapshotType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
   type EnumDefinition,
@@ -59,6 +60,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog."char"') return 'InternalCharValue'
   if (type === 'pg_catalog.tid') return 'TidValue'
   if (type === 'pg_catalog.xid8') return 'Xid8Value'
+  if (isSnapshotType(type)) return 'SnapshotValue'
   if (isOidType(type)) return 'OidValue'
   if (type === 'pg_catalog.polygon') return 'PolygonValue'
   if (type === 'pg_catalog.path') return 'PathValue'
@@ -197,9 +199,15 @@ export function emitCheckRustEvaluator(
       .map((item) => `${item.rustName}: ${item.rustType}`)
       .join(', ')
   const ownedOperand = (operand: { name: string; type: string }): string =>
-    ['PolygonValue', 'PathValue', 'TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(
-      rustType(operand.type),
-    )
+    [
+      'SnapshotValue',
+      'PolygonValue',
+      'PathValue',
+      'TextValue',
+      'ByteaValue',
+      'BitValue',
+      'NumericValue',
+    ].includes(rustType(operand.type))
       ? `${operand.name}.clone()`
       : operand.name
   const scalarType = (operand: EvalExpression): string =>
@@ -594,6 +602,8 @@ export function emitCheckRustEvaluator(
             'pg_catalog.tid',
             'pg_catalog."char"',
             'pg_catalog.xid8',
+            'pg_catalog.pg_snapshot',
+            'pg_catalog.txid_snapshot',
           ].includes(operand.type)) ||
         (metadata.volatility !== 'i' && !isOidAliasType(operand.type))
       )
@@ -605,6 +615,8 @@ export function emitCheckRustEvaluator(
           ),
           type: node.type,
         }
+      if (isSnapshotType(operand.type))
+        return { name: bind(`snapshot_to_text(${ownedOperand(operand)})`), type: node.type }
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
@@ -672,6 +684,23 @@ export function emitCheckRustEvaluator(
           'Tid input requires text and its catalog I/O identity',
         )
       return { name: bind(`tid_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-snapshot') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      if (
+        ![
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type) ||
+        !io ||
+        builtinMetadata(io).args[0] !== 'pg_catalog.cstring' ||
+        builtinMetadata(io).result !== node.type
+      )
+        throw new UnsupportedCheckRustExpression('Snapshot input requires its catalog I/O identity')
+      return { name: bind(`snapshot_from_text(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'text-to-xid8') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -951,6 +980,11 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`xid8_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'snapshot') {
+        if (value.value === null) return { name: bind('snapshot_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`snapshot_from_text(${text})`), type: value.type }
+      }
       if (value.kind === 'oid') {
         if (value.value === null) return { name: bind('oid_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -1139,6 +1173,8 @@ export function emitCheckRustEvaluator(
           'pg_catalog.tid',
           'pg_catalog."char"',
           'pg_catalog.xid8',
+          'pg_catalog.pg_snapshot',
+          'pg_catalog.txid_snapshot',
           'pg_catalog.oid',
           'pg_catalog.polygon',
           'pg_catalog.path',
@@ -1485,7 +1521,7 @@ export function emitCheckRustEvaluator(
       bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
       for (const operand of operands.slice(1)) {
         const nullness = bind(
-          `${prefix}_is_null(${['PolygonValue', 'PathValue', 'TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(kind) ? `${name}.clone()` : name})`,
+          `${prefix}_is_null(${['SnapshotValue', 'PolygonValue', 'PathValue', 'TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(kind) ? `${name}.clone()` : name})`,
         )
         const guard = bind(`check_from_bool(${nullness})`)
         bindings.push(

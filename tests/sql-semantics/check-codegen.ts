@@ -17,6 +17,7 @@ export type GoCheckCase = {
   tidColumns?: readonly string[]
   pgLsnColumns?: readonly string[]
   xid8Columns?: readonly string[]
+  snapshotColumns?: readonly string[]
   oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
   polygonColumns?: readonly string[]
@@ -66,6 +67,7 @@ export function renderGoCheckTests(
       internalCharColumns,
       pgLsnColumns,
       xid8Columns,
+      snapshotColumns,
       oidColumns,
       moneyColumns,
       polygonColumns,
@@ -156,6 +158,33 @@ export function renderGoCheckTests(
           go.selector(go.ident('checkruntime'), oid === null ? 'Xid8Null' : 'MakeXid8Bits'),
           oid === null ? [] : [go.number(oid)],
         )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
+        continue
+      }
+      if (options.dateRuntime && snapshotColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const payload = value as { xmin: bigint; xmax: bigint; xip: { bits: bigint }[] } | null
+        const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
+        const wrapped =
+          payload === null
+            ? go.call(runtime('SnapshotNull'), [])
+            : go.call(runtime('MakeSnapshotValue'), [
+                go.composite(runtime('SnapshotPayload'), [
+                  go.keyValue('Xmin', go.number(payload.xmin)),
+                  go.keyValue('Xmax', go.number(payload.xmax)),
+                  go.keyValue(
+                    'Xip',
+                    go.composite(
+                      go.slice(runtime('SnapshotXid')),
+                      payload.xip.map((word) =>
+                        go.composite(runtime('SnapshotXid'), [
+                          go.keyValue('Bits', go.number(word.bits)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ]),
+              ])
         statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }

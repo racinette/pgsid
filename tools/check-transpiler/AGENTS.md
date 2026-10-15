@@ -126,5 +126,9 @@ change to the regex transpiler unless the regex engine itself changes.
   Division truncates toward zero. Both division and remainder reject zero
   divisors and the signed minimum with a divisor of negative one. Multiplication
   rejects overflow. All arithmetic rejects mixed signed/unsigned operands.
-- Run `bash tools/check-rust/check.sh` and the relevant codegen golden checks
-  after changing parsing, lowering, file boundaries, or names.
+- After changing parsing, lowering, file boundaries or names, run the focused
+  acceptance/rejection tests, affected target parity suites and relevant codegen
+  goldens. Include dependents of shared behavior and record the selection.
+  Run `bash tools/check-rust/check.sh` for broad lowering/runtime changes and
+  integration milestones. An isolated extension does not require every unrelated
+  type suite; a partial run must remain explicitly partial.

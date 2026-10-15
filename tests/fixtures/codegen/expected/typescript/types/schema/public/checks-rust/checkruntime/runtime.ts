@@ -2207,6 +2207,107 @@ export function cidFromCaseGuard(input: CheckOutcome): CidValue {
     }
     return { kind: "Unknown" };
 }
+export interface SnapshotXid {
+    readonly bits: bigint;
+}
+export function copySnapshotXid(value: SnapshotXid): SnapshotXid {
+    return { bits: langruntime.checkedI64(value.bits) };
+}
+export interface SnapshotPayload {
+    readonly xmin: bigint;
+    readonly xmax: bigint;
+    readonly xip: SnapshotXid[];
+}
+export function copySnapshotPayload(value: SnapshotPayload): SnapshotPayload {
+    return { xmin: langruntime.checkedI64(value.xmin), xmax: langruntime.checkedI64(value.xmax), xip: langruntime.checkedStructs(value.xip, copySnapshotXid) };
+}
+export type SnapshotValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: SnapshotPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function copySnapshotValue(value: SnapshotValue): SnapshotValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copySnapshotPayload(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function snapshotXidOrder(left: bigint, right: bigint): number {
+    left = langruntime.checkedI64(left);
+    right = langruntime.checkedI64(right);
+    if (left < 0n && right >= 0n) {
+        return 1;
+    }
+    if (left >= 0n && right < 0n) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left < right) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left > right) {
+        return 1;
+    }
+    return 0;
+}
+export function snapshotUnknown(): SnapshotValue {
+    return { kind: "Unknown" };
+}
+export function snapshotNull(): SnapshotValue {
+    return { kind: "Null" };
+}
+export function snapshotCountFits(count: number): boolean {
+    count = langruntime.checkedIndex(count);
+    return count <= 134217724;
+}
+export function makeSnapshotValue(payload: SnapshotPayload): SnapshotValue {
+    payload = copySnapshotPayload(payload);
+    if (snapshotCountFits(payload.xip.length) === false) {
+        return { kind: "Unknown" };
+    }
+    if (payload.xmin === 0n || payload.xmax === 0n || snapshotXidOrder(payload.xmin, payload.xmax) > 0) {
+        return { kind: "Unknown" };
+    }
+    let index: number = 0;
+    let previous: bigint = 0n;
+    while (index < payload.xip.length) {
+        const bits: bigint = langruntime.indexStruct(payload.xip, langruntime.checkedIndex(index), copySnapshotXid).bits;
+        if (snapshotXidOrder(bits, payload.xmin) < 0 || snapshotXidOrder(bits, payload.xmax) > 0 || snapshotXidOrder(bits, previous) <= 0) {
+            return { kind: "Unknown" };
+        }
+        previous = langruntime.checkedI64(bits);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: payload };
+}
+export function snapshotIsNull(input: SnapshotValue): BoolValue {
+    input = copySnapshotValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return makeBoolValue(true);
+    }
+    return makeBoolValue(false);
+}
+export function snapshotFromCaseGuard(input: CheckOutcome): SnapshotValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export type Xid8Value = {
     readonly kind: "Unknown";
 } | {

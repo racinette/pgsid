@@ -109,6 +109,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/oid_aliases.rs");
     include!("operations/pg_catalog/system_identifiers.rs");
     include!("operations/pg_catalog/xid8_input.rs");
+    include!("operations/pg_catalog/snapshot_input.rs");
+    include!("operations/pg_catalog/snapshot_core.rs");
     include!("operations/pg_catalog/pg_lsn_core.rs");
     include!("operations/pg_catalog/pg_lsn_input.rs");
     include!("operations/pg_catalog/tid_core.rs");

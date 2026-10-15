@@ -20433,6 +20433,322 @@ export function int42div0fx0(left: checkruntime.Int4Value, right: checkruntime.I
     const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4div8ogr(left, rightWide);
 }
+const snapshotSizeError = 8584704;
+function snapshotTextAppendFits(current: number, digits: number, separator: boolean): boolean {
+    current = langruntime.checkedIndex(current);
+    digits = langruntime.checkedIndex(digits);
+    separator = langruntime.checkedBool(separator);
+    if (current > 1073741807) {
+        return false;
+    }
+    let position: number = current;
+    if (separator) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (position > 1073741807) {
+        return false;
+    }
+    return digits <= langruntime.checkedSubtract(1073741822, position);
+}
+export function snapshotToText(input: checkruntime.SnapshotValue): checkruntime.TextValue {
+    input = checkruntime.copySnapshotValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.SnapshotPayload = checkruntime.copySnapshotPayload(input.value);
+        let output: string = "";
+        let length: number = 2;
+        const xminText: checkruntime.TextValue = xid8ToText(checkruntime.makeXid8Bits(payload.xmin));
+        if (xminText.kind === "Value") {
+            const text: string = langruntime.checkedString(xminText.value);
+            const chars: string[] = Array.from(text);
+            length = langruntime.checkedAdd(length, chars.length);
+            output = output + text;
+        }
+        output = output + langruntime.checkedChar(":");
+        const xmaxText: checkruntime.TextValue = xid8ToText(checkruntime.makeXid8Bits(payload.xmax));
+        if (xmaxText.kind === "Value") {
+            const text: string = langruntime.checkedString(xmaxText.value);
+            const chars: string[] = Array.from(text);
+            length = langruntime.checkedAdd(length, chars.length);
+            output = output + text;
+        }
+        output = output + langruntime.checkedChar(":");
+        let index: number = 0;
+        while (index < payload.xip.length) {
+            const wordText: checkruntime.TextValue = xid8ToText(checkruntime.makeXid8Bits(langruntime.indexStruct(payload.xip, langruntime.checkedIndex(index), checkruntime.copySnapshotXid).bits));
+            if (wordText.kind === "Value") {
+                const text: string = langruntime.checkedString(wordText.value);
+                const chars: string[] = Array.from(text);
+                let extra: number = chars.length;
+                if (index > 0) {
+                    extra = langruntime.checkedAdd(extra, 1);
+                }
+                if (snapshotTextAppendFits(length, chars.length, index > 0) === false) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(snapshotSizeError) };
+                }
+                length = langruntime.checkedAdd(length, extra);
+                if (index > 0) {
+                    output = output + langruntime.checkedChar(",");
+                }
+                output = output + text;
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+function snapshotSend(input: checkruntime.SnapshotValue): checkruntime.ByteaValue {
+    input = checkruntime.copySnapshotValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.SnapshotPayload = checkruntime.copySnapshotPayload(input.value);
+        const count: number = langruntime.checkedI32(langruntime.checkedIndex(payload.xip.length));
+        let output: string = byteaIntegerSend(BigInt(langruntime.checkedI32(count)), 4);
+        const xminWire: string = byteaIntegerSend(payload.xmin, 8);
+        output = output + xminWire;
+        const xmaxWire: string = byteaIntegerSend(payload.xmax, 8);
+        output = output + xmaxWire;
+        let index: number = 0;
+        while (index < payload.xip.length) {
+            const wordWire: string = byteaIntegerSend(langruntime.indexStruct(payload.xip, langruntime.checkedIndex(index), checkruntime.copySnapshotXid).bits, 8);
+            output = output + wordWire;
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+function snapshotBound(input: checkruntime.SnapshotValue, maximum: boolean): checkruntime.Int8Value {
+    input = checkruntime.copySnapshotValue(input);
+    maximum = langruntime.checkedBool(maximum);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.SnapshotPayload = checkruntime.copySnapshotPayload(input.value);
+        if (maximum) {
+            return checkruntime.makeInt8Value(payload.xmax);
+        }
+        return checkruntime.makeInt8Value(payload.xmin);
+    }
+    return { kind: "Unknown" };
+}
+function snapshotXidBound(input: checkruntime.SnapshotValue, maximum: boolean): checkruntime.Xid8Value {
+    input = checkruntime.copySnapshotValue(input);
+    maximum = langruntime.checkedBool(maximum);
+    const bound: checkruntime.Int8Value = snapshotBound(input, maximum);
+    if (bound.kind === "Error") {
+        const error: checkruntime.SqlError = bound.value;
+        return { kind: "Error", value: error };
+    }
+    if (bound.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (bound.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(bound.value);
+        return checkruntime.makeXid8Bits(bits);
+    }
+    return { kind: "Unknown" };
+}
+function snapshotVisible(value: checkruntime.Int8Value, snapshot: checkruntime.SnapshotValue): checkruntime.BoolValue {
+    snapshot = checkruntime.copySnapshotValue(snapshot);
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (snapshot.kind === "Error") {
+        const error: checkruntime.SqlError = snapshot.value;
+        return { kind: "Error", value: error };
+    }
+    if (value.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (snapshot.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (value.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (snapshot.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(value.value);
+        if (snapshot.kind === "Value") {
+            const payload: checkruntime.SnapshotPayload = checkruntime.copySnapshotPayload(snapshot.value);
+            if (checkruntime.snapshotXidOrder(bits, payload.xmin) < 0) {
+                return checkruntime.makeBoolValue(true);
+            }
+            if (checkruntime.snapshotXidOrder(bits, payload.xmax) >= 0) {
+                return checkruntime.makeBoolValue(false);
+            }
+            let index: number = 0;
+            while (index < payload.xip.length) {
+                if (bits === langruntime.indexStruct(payload.xip, langruntime.checkedIndex(index), checkruntime.copySnapshotXid).bits) {
+                    return checkruntime.makeBoolValue(false);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return checkruntime.makeBoolValue(true);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function pgSnapshotSendUx8s(input: checkruntime.SnapshotValue): checkruntime.ByteaValue {
+    input = checkruntime.copySnapshotValue(input);
+    return snapshotSend(input);
+}
+export function txidSnapshotSendBjde(input: checkruntime.SnapshotValue): checkruntime.ByteaValue {
+    input = checkruntime.copySnapshotValue(input);
+    return snapshotSend(input);
+}
+export function pgSnapshotXminJe8q(input: checkruntime.SnapshotValue): checkruntime.Xid8Value {
+    input = checkruntime.copySnapshotValue(input);
+    return snapshotXidBound(input, false);
+}
+export function pgSnapshotXmaxEnpd(input: checkruntime.SnapshotValue): checkruntime.Xid8Value {
+    input = checkruntime.copySnapshotValue(input);
+    return snapshotXidBound(input, true);
+}
+export function txidSnapshotXminVg5z(input: checkruntime.SnapshotValue): checkruntime.Int8Value {
+    input = checkruntime.copySnapshotValue(input);
+    return snapshotBound(input, false);
+}
+export function txidSnapshotXmaxNuyq(input: checkruntime.SnapshotValue): checkruntime.Int8Value {
+    input = checkruntime.copySnapshotValue(input);
+    return snapshotBound(input, true);
+}
+export function txidVisibleInSnapshot1qno(value: checkruntime.Int8Value, snapshot: checkruntime.SnapshotValue): checkruntime.BoolValue {
+    snapshot = checkruntime.copySnapshotValue(snapshot);
+    return snapshotVisible(value, snapshot);
+}
+export function pgVisibleInSnapshot5zx2(value: checkruntime.Xid8Value, snapshot: checkruntime.SnapshotValue): checkruntime.BoolValue {
+    snapshot = checkruntime.copySnapshotValue(snapshot);
+    return snapshotVisible(xid8Bits(value), snapshot);
+}
+interface SnapshotInput {
+    chars: string[];
+}
+function copySnapshotInput(value: SnapshotInput): SnapshotInput {
+    return { chars: langruntime.checkedChars(value.chars) };
+}
+interface SnapshotNumber {
+    valid: boolean;
+    end: number;
+    bits: bigint;
+}
+function copySnapshotNumber(value: SnapshotNumber): SnapshotNumber {
+    return { valid: langruntime.checkedBool(value.valid), end: langruntime.checkedIndex(value.end), bits: langruntime.checkedI64(value.bits) };
+}
+function snapshotReadNumber(source: SnapshotInput, start: number): SnapshotNumber {
+    start = langruntime.checkedIndex(start);
+    let index: number = start;
+    while (index < source.chars.length && oidInputSpace(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)))) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let negative: boolean = false;
+    if (index < source.chars.length && (langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "-")) {
+        negative = langruntime.checkedBool(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === "-");
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const first: number = index;
+    let high: bigint = 0n;
+    let low: bigint = 0n;
+    let overflow: boolean = false;
+    while (index < source.chars.length) {
+        const digit: bigint = oidInputDigit(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)));
+        if (digit < 0n || digit > 9n) {
+            break;
+        }
+        if (overflow === false) {
+            const next: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(low, 10n), digit);
+            low = langruntime.checkedI64(langruntime.checkedI64Remainder(next, 4294967296n));
+            high = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 10n), langruntime.checkedI64Divide(next, 4294967296n)));
+            if (high > 4294967295n) {
+                overflow = langruntime.checkedBool(true);
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (index === first) {
+        return { valid: false, end: start, bits: 0n };
+    }
+    if (overflow) {
+        return { valid: true, end: index, bits: -1n };
+    }
+    let bits: bigint = integerBitsValue({ high: high, low: low });
+    if (negative && !(bits === -9223372036854775808n)) {
+        bits = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, bits));
+    }
+    return { valid: true, end: index, bits: bits };
+}
+function snapshotParse(value: string): checkruntime.SnapshotValue {
+    value = langruntime.checkedString(value);
+    const source: SnapshotInput = { chars: Array.from(value) };
+    const xmin: SnapshotNumber = copySnapshotNumber(snapshotReadNumber(source, 0));
+    if (xmin.valid === false || xmin.end >= source.chars.length || !(langruntime.indexChar(source.chars, langruntime.checkedIndex(xmin.end)) === ":")) {
+        return { kind: "Error", value: checkruntime.makeSqlError(oidInputInvalid) };
+    }
+    const xmax: SnapshotNumber = copySnapshotNumber(snapshotReadNumber(source, langruntime.checkedAdd(xmin.end, 1)));
+    if (xmax.valid === false || xmax.end >= source.chars.length || !(langruntime.indexChar(source.chars, langruntime.checkedIndex(xmax.end)) === ":") || xmin.bits === 0n || xmax.bits === 0n || checkruntime.snapshotXidOrder(xmin.bits, xmax.bits) > 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(oidInputInvalid) };
+    }
+    let index: number = langruntime.checkedAdd(xmax.end, 1);
+    let previous: bigint = 0n;
+    let xip: checkruntime.SnapshotXid[] = [];
+    while (index < source.chars.length) {
+        const parsed: SnapshotNumber = copySnapshotNumber(snapshotReadNumber(source, index));
+        if (parsed.valid === false || checkruntime.snapshotXidOrder(parsed.bits, xmin.bits) < 0 || checkruntime.snapshotXidOrder(parsed.bits, xmax.bits) >= 0 || checkruntime.snapshotXidOrder(parsed.bits, previous) < 0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(oidInputInvalid) };
+        }
+        if (!(parsed.bits === previous)) {
+            if (checkruntime.snapshotCountFits(langruntime.checkedAdd(xip.length, 1)) === false) {
+                return { kind: "Error", value: checkruntime.makeSqlError(snapshotSizeError) };
+            }
+            langruntime.pushStruct(xip, { bits: parsed.bits }, checkruntime.copySnapshotXid);
+        }
+        previous = langruntime.checkedI64(parsed.bits);
+        index = langruntime.checkedIndex(parsed.end);
+        if (index < source.chars.length) {
+            if (!(langruntime.indexChar(source.chars, langruntime.checkedIndex(index)) === ",")) {
+                return { kind: "Error", value: checkruntime.makeSqlError(oidInputInvalid) };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    return checkruntime.makeSnapshotValue({ xmin: xmin.bits, xmax: xmax.bits, xip: xip });
+}
+export function snapshotFromText(input: checkruntime.TextValue): checkruntime.SnapshotValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return snapshotParse(value);
+    }
+    return { kind: "Unknown" };
+}
 function xidToOid(input: checkruntime.XidValue): checkruntime.OidValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;

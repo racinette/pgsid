@@ -22,9 +22,11 @@ import {
   enumType,
   isOidType,
   isOidAliasType,
+  isSnapshotType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
   type ScalarType,
+  type SnapshotType,
   type SqlExpression,
 } from './expressions.js'
 
@@ -111,6 +113,8 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     char: 'pg_catalog."char"',
     '"char"': 'pg_catalog."char"',
     xid8: 'pg_catalog.xid8',
+    pg_snapshot: 'pg_catalog.pg_snapshot',
+    txid_snapshot: 'pg_catalog.txid_snapshot',
     regclass: 'pg_catalog.regclass',
     regcollation: 'pg_catalog.regcollation',
     regconfig: 'pg_catalog.regconfig',
@@ -274,6 +278,15 @@ export function catalogOidType(
   return isOidType(catalogBaseScalarType(name, oid, domains))
 }
 
+export function catalogSnapshotType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): SnapshotType | null {
+  const type = catalogBaseScalarType(name, oid, domains)
+  return isSnapshotType(type) ? type : null
+}
+
 export function catalogPolygonType(
   name: string,
   oid: number | undefined,
@@ -404,6 +417,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'tid', type, value: literal.value }
   if (type === 'pg_catalog.xid8' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'xid8', type, value: literal.value }
+  if (isSnapshotType(type) && (literal.kind === 'string' || literal.kind === 'null'))
+    return { kind: 'snapshot', type, value: literal.value }
   if (isOidAliasType(type) && (literal.kind === 'string' || literal.kind === 'null'))
     return {
       kind: 'oid',
@@ -1374,6 +1389,7 @@ export function bindCatalogCheck(
           domainType !== 'pg_catalog.tid' &&
           domainType !== 'pg_catalog."char"' &&
           domainType !== 'pg_catalog.xid8' &&
+          !isSnapshotType(domainType) &&
           !isOidType(domainType) &&
           domainType !== 'pg_catalog.polygon' &&
           domainType !== 'pg_catalog.path' &&
@@ -1550,8 +1566,10 @@ export function bindCatalogCheck(
           value: { kind: 'clock-to-text', type: 'pg_catalog.text', operand: operand.value },
         }
       if (
-        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&
+        (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) ||
+          (type === 'pg_catalog.name' && isSnapshotType(source))) &&
         (isIntegerType(source) ||
+          isSnapshotType(source) ||
           isOidAliasType(source) ||
           [
             'pg_catalog.oid',
@@ -1880,6 +1898,22 @@ export function bindCatalogCheck(
       ) {
         const text = materialize(operand, 'pg_catalog.text')
         return text ? { type, value: { kind: 'text-to-tid', type, operand: text } } : unknown
+      }
+      if (
+        isSnapshotType(type) &&
+        operand.value &&
+        [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type ?? '')
+      ) {
+        const text =
+          operand.type === 'pg_catalog.bpchar' || operand.type === 'pg_catalog.name'
+            ? operand.value
+            : materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-snapshot', type, operand: text } } : unknown
       }
       if (
         type === 'pg_catalog.xid8' &&
@@ -2642,7 +2676,8 @@ export function bindCatalogCheck(
       kind === 'function' &&
       nodes.length === 1 &&
       (aliasType === 'pg_catalog.refcursor' ||
-        (args[0]?.type === 'pg_catalog.refcursor' &&
+        isSnapshotType(aliasType) ||
+        ((args[0]?.type === 'pg_catalog.refcursor' || isSnapshotType(args[0]?.type)) &&
           [
             'pg_catalog.text',
             'pg_catalog."varchar"',
@@ -2687,6 +2722,8 @@ export function bindCatalogCheck(
         name === 'pg_lsn' ||
         name === 'tid' ||
         name === 'xid8' ||
+        name === 'pg_snapshot' ||
+        name === 'txid_snapshot' ||
         name === 'oid' ||
         name === 'path' ||
         name === 'circle' ||
@@ -2708,6 +2745,8 @@ export function bindCatalogCheck(
         | 'pg_catalog.pg_lsn'
         | 'pg_catalog.tid'
         | 'pg_catalog.xid8'
+        | 'pg_catalog.pg_snapshot'
+        | 'pg_catalog.txid_snapshot'
         | 'pg_catalog.oid'
         | 'pg_catalog.polygon'
         | 'pg_catalog.path'
@@ -2759,6 +2798,8 @@ export function bindCatalogCheck(
           'pg_lsn',
           'tid',
           'xid8',
+          'pg_snapshot',
+          'txid_snapshot',
           'oid',
           'polygon',
           'path',
@@ -2785,6 +2826,8 @@ export function bindCatalogCheck(
           | 'pg_catalog.pg_lsn'
           | 'pg_catalog.tid'
           | 'pg_catalog.xid8'
+          | 'pg_catalog.pg_snapshot'
+          | 'pg_catalog.txid_snapshot'
           | 'pg_catalog.oid'
           | 'pg_catalog.polygon'
           | 'pg_catalog.path'
@@ -2797,12 +2840,17 @@ export function bindCatalogCheck(
         if (
           operand.type === 'pg_catalog.text' ||
           operand.type === 'pg_catalog."varchar"' ||
-          (type === 'pg_catalog.bytea' && operand.type === 'pg_catalog.bpchar')
+          ((type === 'pg_catalog.bytea' || isSnapshotType(type)) &&
+            operand.type === 'pg_catalog.bpchar')
         ) {
           const text =
             operand.type === 'pg_catalog.bpchar'
               ? operand.value
               : materialize(operand, 'pg_catalog.text')
+          if (isSnapshotType(type))
+            return text
+              ? { type, value: { kind: 'text-to-snapshot', type, operand: text } }
+              : unknown
           return text
             ? type === 'pg_catalog.bytea'
               ? { type, value: { kind: 'text-to-bytea', type, operand: text } }
