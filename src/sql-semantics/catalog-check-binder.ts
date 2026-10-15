@@ -1401,6 +1401,13 @@ export function bindCatalogCheck(
         let domain: DomainInfo | undefined = castDomains[0]!
         const domainType = catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
         if (
+          domainType !== 'pg_catalog.bool' &&
+          domainType !== 'pg_catalog.int2' &&
+          domainType !== 'pg_catalog.int4' &&
+          domainType !== 'pg_catalog.int8' &&
+          domainType !== 'pg_catalog.float4' &&
+          domainType !== 'pg_catalog.float8' &&
+          domainType !== 'pg_catalog."numeric"' &&
           domainType !== 'pg_catalog.refcursor' &&
           domainType !== 'pg_catalog."json"' &&
           domainType !== 'pg_catalog.jsonb' &&
@@ -1445,7 +1452,7 @@ export function bindCatalogCheck(
               ...castType,
               names: [
                 { String: { sval: 'pg_catalog' } },
-                { String: { sval: domainType.slice('pg_catalog.'.length) } },
+                { String: { sval: domainType.slice('pg_catalog.'.length).replaceAll('"', '') } },
               ],
             },
           },
@@ -1461,6 +1468,45 @@ export function bindCatalogCheck(
         modifiers.length
       )
         return unknown
+      if (type === 'pg_catalog."numeric"' && Array.isArray(modifiers) && modifiers.length) {
+        if (modifiers.length > 2) return unknown
+        const values = modifiers.map((modifier) => {
+          const integer = fields(fields(fields(modifier)?.['A_Const'])?.['ival'])
+          return integer ? (integer['ival'] ?? 0) : undefined
+        })
+        const precision = values[0]
+        const scale = values.length === 2 ? values[1] : 0
+        if (
+          typeof precision !== 'number' ||
+          !Number.isInteger(precision) ||
+          precision < 1 ||
+          precision > 1000 ||
+          typeof scale !== 'number' ||
+          !Number.isInteger(scale) ||
+          scale < -1000 ||
+          scale > 1000
+        )
+          return unknown
+        const operand = bind({ TypeCast: { ...cast, typeName: { ...castType, typmods: [] } } })
+        const conversion = builtinCast(type, type)
+        if (!operand.value || conversion?.method !== 'f' || !conversion.implementation)
+          return unknown
+        const modifier = precision * 65536 + (scale < 0 ? scale + 2048 : scale) + 4
+        return {
+          type,
+          value: {
+            kind: 'call',
+            call: { kind: 'function', signature: conversion.implementation, type },
+            operands: [
+              operand.value,
+              {
+                kind: 'certain',
+                expression: { kind: 'integer', type: 'pg_catalog.int4', value: String(modifier) },
+              },
+            ],
+          },
+        }
+      }
       if (type === 'pg_catalog."interval"' && Array.isArray(modifiers) && modifiers.length) {
         if (modifiers.length > 2) return unknown
         const values = modifiers.map((modifier) => {
@@ -1548,8 +1594,7 @@ export function bindCatalogCheck(
       if (
         (type === 'pg_catalog."interval"' ||
           type === 'pg_catalog.timestamptz' ||
-          type === 'pg_catalog."timestamp"' ||
-          type === 'pg_catalog."numeric"') &&
+          type === 'pg_catalog."timestamp"') &&
         Array.isArray(castType?.['typmods']) &&
         castType['typmods'].length
       )

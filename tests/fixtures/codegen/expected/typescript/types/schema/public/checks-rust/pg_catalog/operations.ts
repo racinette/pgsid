@@ -10469,6 +10469,71 @@ export function jsonArrayElementTextT2sr(input: checkruntime.JsonValue, index: c
 export function jsonArrayLength97pw(input: checkruntime.JsonValue): checkruntime.Int4Value {
     return checkruntime.jsonReadLength(input);
 }
+const jsonbScalarCastError = 3452619;
+export function numericUnkz(input: checkruntime.JsonbValue): checkruntime.NumericValue {
+    input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        const root: checkruntime.JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode);
+        if (root.kind === 0) {
+            return { kind: "Null" };
+        }
+        if (root.kind === 3) {
+            return jsonbRelationNumber(value, root);
+        }
+        return { kind: "Error", value: checkruntime.makeSqlError(jsonbScalarCastError) };
+    }
+    return { kind: "Unknown" };
+}
+export function boolK8bw(input: checkruntime.JsonbValue): checkruntime.BoolValue {
+    input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        const root: checkruntime.JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode);
+        if (root.kind === 0) {
+            return { kind: "Null" };
+        }
+        if (root.kind === 1 || root.kind === 2) {
+            return { kind: "Value", value: root.kind === 2 };
+        }
+        return { kind: "Error", value: checkruntime.makeSqlError(jsonbScalarCastError) };
+    }
+    return { kind: "Unknown" };
+}
+export function int20vdl(input: checkruntime.JsonbValue): checkruntime.Int2Value {
+    input = checkruntime.copyJsonbValue(input);
+    return int2Zpjn(numericUnkz(input));
+}
+export function int4Cjcd(input: checkruntime.JsonbValue): checkruntime.Int4Value {
+    input = checkruntime.copyJsonbValue(input);
+    return int4Z4rh(numericUnkz(input));
+}
+export function int88pbn(input: checkruntime.JsonbValue): checkruntime.Int8Value {
+    input = checkruntime.copyJsonbValue(input);
+    return int8Xy54(numericUnkz(input));
+}
+export function float4Jqx8(input: checkruntime.JsonbValue): checkruntime.Float4Value {
+    input = checkruntime.copyJsonbValue(input);
+    return float490ur(numericUnkz(input));
+}
+export function float8Ncq4(input: checkruntime.JsonbValue): checkruntime.Float8Value {
+    input = checkruntime.copyJsonbValue(input);
+    return float8Bkfn(numericUnkz(input));
+}
 export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
     if (input.kind === "Error") {

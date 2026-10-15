@@ -27,11 +27,15 @@ it('validates SQL-coerced Go JSONB graphs and forwards raw JSONB query parameter
   CONSTRAINT same_value CHECK(CASE WHEN bypass THEN true ELSE (lhs=rhs) IS NOT DISTINCT FROM expected_equal END),
   CONSTRAINT includes_value CHECK(CASE WHEN bypass THEN true ELSE (lhs @> rhs) IS NOT DISTINCT FROM expected_contains END),
   CONSTRAINT compared_value CHECK(CASE WHEN bypass THEN true ELSE jsonb_cmp(lhs,rhs) IS NOT DISTINCT FROM expected_order END));
+  CREATE TABLE jsonb_scalar_writes(numeric_document retained_document,boolean_document jsonb,expected_count integer,expected_flag boolean,expected_numeric text,bypass boolean,
+  CONSTRAINT rounded_count CHECK(CASE WHEN bypass THEN true ELSE numeric_document::int4 IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT flag_value CHECK(CASE WHEN bypass THEN true ELSE boolean_document::bool IS NOT DISTINCT FROM expected_flag END),
+  CONSTRAINT limited_numeric CHECK(CASE WHEN bypass THEN true ELSE encode(numeric_send(numeric_document::numeric(6,2)),'hex') COLLATE "C" IS NOT DISTINCT FROM expected_numeric COLLATE "C" END));
   CREATE SCHEMA isolated;CREATE TABLE isolated.jsonb_presence(document jsonb CONSTRAINT required CHECK(document IS NOT NULL));`,
     )
     await writeFile(
       join(root, 'queries/documents.sql'),
-      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n-- name: InsertDocumentField :exec\nINSERT INTO jsonb_field_writes(document,field_name,expected_text,expected_exists,bypass) VALUES(@document,@field_name,@expected_text,@expected_exists,@bypass);\n-- name: InsertDocumentRelation :exec\nINSERT INTO jsonb_relation_writes(lhs,rhs,expected_equal,expected_contains,expected_order,bypass) VALUES(@lhs,@rhs,@expected_equal,@expected_contains,@expected_order,@bypass);\n',
+      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n-- name: InsertDocumentField :exec\nINSERT INTO jsonb_field_writes(document,field_name,expected_text,expected_exists,bypass) VALUES(@document,@field_name,@expected_text,@expected_exists,@bypass);\n-- name: InsertDocumentRelation :exec\nINSERT INTO jsonb_relation_writes(lhs,rhs,expected_equal,expected_contains,expected_order,bypass) VALUES(@lhs,@rhs,@expected_equal,@expected_contains,@expected_order,@bypass);\n-- name: InsertDocumentScalar :exec\nINSERT INTO jsonb_scalar_writes(numeric_document,boolean_document,expected_count,expected_flag,expected_numeric,bypass) VALUES(@numeric_document,@boolean_document,@expected_count,@expected_flag,@expected_numeric,@bypass);\n',
     )
     await writeFile(
       join(root, 'pgsid.yaml'),
@@ -135,6 +139,23 @@ func TestJSONBFieldWrites(t *testing.T){
  params:=InsertDocumentFieldParams{Document:&domain,FieldName:&key,ExpectedText:&expected,ExpectedExists:&exists,Bypass:&bypass}
  if err:=queries.InsertDocumentField(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw JSONB extraction input failed",err)}
  if len(db.arguments)!=5||db.arguments[0]!=params.Document||db.arguments[1]!=params.FieldName||db.arguments[2]!=params.ExpectedText||db.arguments[3]!=params.ExpectedExists||db.arguments[4]!=params.Bypass{t.Fatal("raw JSONB read parameters changed")}
+}
+func TestJSONBScalarWrites(t *testing.T){
+ count:=int32(2);flag:=true;wire:="000200000000000200011388";bypass:=false
+ input:=pgsid.PublicJsonbScalarWritesCheckInput{NumericDocument:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("1.5")),BooleanDocument:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("true")),ExpectedCount:pgsid.KnownCheckValue(&count),ExpectedFlag:pgsid.KnownCheckValue(&flag),ExpectedNumeric:pgsid.KnownCheckValue(&wire),Bypass:pgsid.KnownCheckValue(&bypass)}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbScalarWritesChecks);err!=nil{t.Fatal(err)}
+ count=1;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbScalarWritesChecks);err==nil{t.Fatal("wrong rounded count accepted")};count=2
+ input.NumericDocument=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('"1"')}));input.BooleanDocument=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("1"))
+ for _,check:=range pgsid.EvaluatePublicJsonbScalarWritesChecks(input){if !check.Result.Certain||check.Result.Value.Error!="22023"{t.Fatal("wrong scalar kind lost",check)}}
+ input.NumericDocument=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("2147483647.5"))
+ for _,check:=range pgsid.EvaluatePublicJsonbScalarWritesChecks(input){if check.Constraint=="rounded_count"&&(!check.Result.Certain||check.Result.Value.Error!="22003"){t.Fatal("rounding overflow lost",check)}}
+ bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbScalarWritesChecks);err!=nil{t.Fatal("skipped casts failed",err)};bypass=false
+ input.NumericDocument=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("null"));input.BooleanDocument=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("null"));input.ExpectedCount=pgsid.NullCheckValue[*int32]();input.ExpectedFlag=pgsid.NullCheckValue[*bool]();input.ExpectedNumeric=pgsid.NullCheckValue[*string]()
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbScalarWritesChecks);err!=nil{t.Fatal("JSON null cast was not SQL NULL",err)}
+ db:=&recordingJSONBDB{};queries:=New(db);raw:=json.RawMessage("1.5");domain:=schema.RetainedDocument(raw);boolean:=json.RawMessage("true")
+ params:=InsertDocumentScalarParams{NumericDocument:&domain,BooleanDocument:&boolean,ExpectedCount:&count,ExpectedFlag:&flag,ExpectedNumeric:&wire,Bypass:&bypass}
+ if err:=queries.InsertDocumentScalar(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw scalar casts failed locally",err)}
+ if len(db.arguments)!=6||db.arguments[0]!=params.NumericDocument||db.arguments[1]!=params.BooleanDocument||db.arguments[2]!=params.ExpectedCount||db.arguments[3]!=params.ExpectedFlag||db.arguments[4]!=params.ExpectedNumeric||db.arguments[5]!=params.Bypass{t.Fatal("raw scalar parameters changed")}
 }
 func TestJSONBRelationWrites(t *testing.T){
  equal:=true;contains:=true;order:=int32(0);bypass:=false;value:=checkruntime.MakeJsonbValue(${JSON.stringify('{"a":1}')})

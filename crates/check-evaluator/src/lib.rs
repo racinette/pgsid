@@ -54,6 +54,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/jsonb_extract.rs");
     include!("operations/pg_catalog/jsonb_relations.rs");
     include!("operations/pg_catalog/jsonb_order.rs");
+    include!("operations/pg_catalog/jsonb_cast.rs");
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/timestamptz.rs");

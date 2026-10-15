@@ -10411,6 +10411,73 @@ func JsonArrayElementTextT2sr(input checkruntime.JsonValue, index checkruntime.I
 func JsonArrayLength97pw(input checkruntime.JsonValue) checkruntime.Int4Value {
 	return checkruntime.JsonReadLength(input)
 }
+
+const jsonbScalarCastError = 3452619
+
+func NumericUnkz(input checkruntime.JsonbValue) checkruntime.NumericValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		root := value.Nodes[value.Root]
+		if root.Kind == 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+		}
+		if root.Kind == 3 {
+			return jsonbRelationNumber(&value, root)
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonbScalarCastError)}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func BoolK8bw(input checkruntime.JsonbValue) checkruntime.BoolValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		root := value.Nodes[value.Root]
+		if root.Kind == 0 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+		}
+		if root.Kind == 1 || root.Kind == 2 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: root.Kind == 2}
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(jsonbScalarCastError)}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Int20vdl(input checkruntime.JsonbValue) checkruntime.Int2Value {
+	input = checkruntime.CopyJsonbValue(input)
+	return Int2Zpjn(NumericUnkz(input))
+}
+func Int4Cjcd(input checkruntime.JsonbValue) checkruntime.Int4Value {
+	input = checkruntime.CopyJsonbValue(input)
+	return Int4Z4rh(NumericUnkz(input))
+}
+func Int88pbn(input checkruntime.JsonbValue) checkruntime.Int8Value {
+	input = checkruntime.CopyJsonbValue(input)
+	return Int8Xy54(NumericUnkz(input))
+}
+func Float4Jqx8(input checkruntime.JsonbValue) checkruntime.Float4Value {
+	input = checkruntime.CopyJsonbValue(input)
+	return Float490ur(NumericUnkz(input))
+}
+func Float8Ncq4(input checkruntime.JsonbValue) checkruntime.Float8Value {
+	input = checkruntime.CopyJsonbValue(input)
+	return Float8Bkfn(NumericUnkz(input))
+}
 func JsonbTypeof68xu(input checkruntime.JsonbValue) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
 	if input.Kind == checkruntime.JsonbValueError {

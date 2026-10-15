@@ -183,3 +183,29 @@ CREATE TABLE document_orderings (
  CONSTRAINT ordering_greater CHECK(CASE WHEN bypass THEN true ELSE (document>compared_document) IS NOT DISTINCT FROM recorded_greater END),
  CONSTRAINT ordering_greater_equal CHECK(CASE WHEN bypass THEN true ELSE (document>=compared_document) IS NOT DISTINCT FROM recorded_greater_equal END)
 );
+CREATE TABLE document_scalars (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ numeric_document retained_normalized_document,
+ boolean_document jsonb,
+ recorded_numeric numeric,
+ recorded_small smallint,
+ recorded_integer integer,
+ recorded_big bigint,
+ recorded_real real,
+ recorded_double double precision,
+ recorded_bounded numeric,
+ recorded_scale integer,
+ recorded_flag boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT scalar_numeric CHECK(CASE WHEN bypass THEN true ELSE numeric_document::numeric IS NOT DISTINCT FROM recorded_numeric END),
+ CONSTRAINT scalar_small CHECK(CASE WHEN bypass THEN true ELSE numeric_document::smallint IS NOT DISTINCT FROM recorded_small END),
+ CONSTRAINT scalar_integer CHECK(CASE WHEN bypass THEN true ELSE numeric_document::integer IS NOT DISTINCT FROM recorded_integer END),
+ CONSTRAINT scalar_big CHECK(CASE WHEN bypass THEN true ELSE numeric_document::bigint IS NOT DISTINCT FROM recorded_big END),
+ CONSTRAINT scalar_real CHECK(CASE WHEN bypass THEN true ELSE numeric_document::real IS NOT DISTINCT FROM recorded_real END),
+ CONSTRAINT scalar_double CHECK(CASE WHEN bypass THEN true ELSE numeric_document::double precision IS NOT DISTINCT FROM recorded_double END),
+ CONSTRAINT scalar_bounded CHECK(CASE WHEN bypass THEN true ELSE numeric_document::numeric(6,2) IS NOT DISTINCT FROM recorded_bounded END),
+ CONSTRAINT scalar_scale CHECK(CASE WHEN bypass THEN true ELSE scale(numeric_document::numeric(6,2)) IS NOT DISTINCT FROM recorded_scale END),
+ CONSTRAINT scalar_flag CHECK(CASE WHEN bypass THEN true ELSE boolean_document::boolean IS NOT DISTINCT FROM recorded_flag END)
+);

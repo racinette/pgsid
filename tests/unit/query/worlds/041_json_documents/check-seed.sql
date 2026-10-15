@@ -357,3 +357,50 @@ INSERT INTO document_orderings(id,store_id,label,document,compared_document,reco
 INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'incorrect greater_equal','1','2',-1,true,true,false,true,false);
 -- name: ordering_bypass
 INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'unreviewed ordering','1','2',1,false,false,true,true,true);
+
+-- name: scalar_half_away
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'half_away','1.5','true',1.5,2,2,2,1.5,1.5,1.5,2,true,false);
+-- name: scalar_negative_half
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'negative_half','-1.5','true',-1.5,-2,-2,-2,-1.5,-1.5,-1.5,2,true,false);
+-- name: scalar_below_half
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'below_half','1.49','true',1.49,1,1,1,1.49,1.49,1.49,2,true,false);
+-- name: scalar_negative_zero
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'negative_zero','-0.000','true',0,0,0,0,0,0,0,2,true,false);
+-- name: scalar_bounded_rounding
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'bounded_rounding','1.235','true',1.235,1,1,1,1.235,1.235,1.24,2,true,false);
+-- name: scalar_false
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'false','1.5','false',1.5,2,2,2,1.5,1.5,1.5,2,false,false);
+-- name: scalar_json_null
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'json_null','null','null',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: scalar_sql_null
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'sql_null',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: scalar_wrong_number_kind
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_number_kind','"1.5"','true',1.5,2,2,2,1.5,1.5,1.5,2,true,false);
+-- name: scalar_wrong_boolean_kind
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_boolean_kind','1.5','"true"',1.5,2,2,2,1.5,1.5,1.5,2,true,false);
+-- name: scalar_container
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'container','[1.5]','true',1.5,2,2,2,1.5,1.5,1.5,2,true,false);
+-- name: scalar_small_rounding_overflow
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'small_rounding_overflow','32767.5','true',32767.5,NULL,32768,32768,32767.5,32767.5,NULL,2,true,false);
+-- name: scalar_float_underflow
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'float_underflow','1e-1000','true','1e-1000',0,0,0,NULL,NULL,0,2,true,false);
+-- name: scalar_bypass
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'bypass','[1.5]','"true"',1.5,2,2,2,1.5,1.5,1.5,2,true,true);
+-- name: scalar_wrong_recorded_numeric
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_numeric','1.5','true',0,2,2,2,1.5,1.5,1.5,2,true,false);
+-- name: scalar_wrong_recorded_small
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_small','1.5','true',1.5,0,2,2,1.5,1.5,1.5,2,true,false);
+-- name: scalar_wrong_recorded_integer
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_integer','1.5','true',1.5,2,0,2,1.5,1.5,1.5,2,true,false);
+-- name: scalar_wrong_recorded_big
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_big','1.5','true',1.5,2,2,0,1.5,1.5,1.5,2,true,false);
+-- name: scalar_wrong_recorded_real
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_real','1.5','true',1.5,2,2,2,0,1.5,1.5,2,true,false);
+-- name: scalar_wrong_recorded_double
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_double','1.5','true',1.5,2,2,2,1.5,0,1.5,2,true,false);
+-- name: scalar_wrong_recorded_bounded
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_bounded','1.5','true',1.5,2,2,2,1.5,1.5,0,2,true,false);
+-- name: scalar_wrong_recorded_scale
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_scale','1.5','true',1.5,2,2,2,1.5,1.5,1.5,0,true,false);
+-- name: scalar_wrong_recorded_flag
+INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_flag','1.5','true',1.5,2,2,2,1.5,1.5,1.5,2,false,false);
