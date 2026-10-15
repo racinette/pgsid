@@ -3574,6 +3574,11 @@ function jsonSyntaxDigit(character: string): boolean {
     const code: number = langruntime.checkedChar(character).codePointAt(0)!;
     return code >= 48 && code <= 57;
 }
+function jsonSyntaxAlphanumeric(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    return jsonSyntaxDigit(character) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code >= 128 || character === "_";
+}
 function jsonSyntaxHex(character: string): boolean {
     character = langruntime.checkedChar(character);
     const code: number = langruntime.checkedChar(character).codePointAt(0)!;
@@ -3659,6 +3664,9 @@ function jsonSyntaxReadNumber(source: JsonSyntaxSource, begin: number): JsonSynt
             return jsonSyntaxBadToken(position);
         }
     }
+    if (position < source.characters.length && jsonSyntaxAlphanumeric(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+        return jsonSyntaxBadToken(position);
+    }
     return { kind: jsonSyntaxNumber, end: position };
 }
 function jsonSyntaxKeyword(source: JsonSyntaxSource, begin: number, word: string, kind: number): JsonSyntaxToken {
@@ -3674,6 +3682,9 @@ function jsonSyntaxKeyword(source: JsonSyntaxSource, begin: number, word: string
         }
         position = langruntime.checkedAdd(position, 1);
         index = langruntime.checkedAdd(index, 1);
+    }
+    if (position < source.characters.length && jsonSyntaxAlphanumeric(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+        return jsonSyntaxBadToken(position);
     }
     return { kind: kind, end: position };
 }
@@ -3752,6 +3763,82 @@ function jsonSyntaxInvalidLayout(depth: number): JsonSyntaxLayout {
     depth = langruntime.checkedIndex(depth);
     return { valid: false, kind: langruntime.checkedSignedNegate(1), maxDepth: depth };
 }
+interface JsonSyntaxTransition {
+    state: number;
+    action: number;
+}
+function copyJsonSyntaxTransition(value: JsonSyntaxTransition): JsonSyntaxTransition {
+    return { state: langruntime.checkedI32(value.state), action: langruntime.checkedI32(value.action) };
+}
+const jsonSyntaxReject = 7;
+const jsonSyntaxContinue = 0;
+const jsonSyntaxFinish = 1;
+const jsonSyntaxClose = 2;
+const jsonSyntaxKey = 3;
+const jsonSyntaxValue = 4;
+const jsonSyntaxOpenArray = 5;
+const jsonSyntaxOpenObject = 6;
+function jsonSyntaxStep(state: number, token: number): JsonSyntaxTransition {
+    state = langruntime.checkedI32(state);
+    token = langruntime.checkedI32(token);
+    let next: number = state;
+    let action: number = jsonSyntaxReject;
+    if (state === jsonSyntaxRootEnd) {
+        if (token === jsonSyntaxEnd) {
+            action = langruntime.checkedI32(jsonSyntaxFinish);
+        }
+    }
+    else if (state === jsonSyntaxArrayNext || state === jsonSyntaxObjectNext) {
+        let close: number = jsonSyntaxArrayEnd;
+        let continuation: number = jsonSyntaxArrayValue;
+        if (state === jsonSyntaxObjectNext) {
+            close = langruntime.checkedI32(jsonSyntaxObjectEnd);
+            continuation = langruntime.checkedI32(jsonSyntaxObjectKey);
+        }
+        if (token === close) {
+            action = langruntime.checkedI32(jsonSyntaxClose);
+        }
+        else if (token === jsonSyntaxComma) {
+            next = langruntime.checkedI32(continuation);
+            action = langruntime.checkedI32(jsonSyntaxContinue);
+        }
+    }
+    else if (state === jsonSyntaxObjectColon) {
+        if (token === jsonSyntaxColon) {
+            next = langruntime.checkedI32(jsonSyntaxObjectValue);
+            action = langruntime.checkedI32(jsonSyntaxContinue);
+        }
+    }
+    else if (state === jsonSyntaxObjectFirst || state === jsonSyntaxObjectKey) {
+        if (state === jsonSyntaxObjectFirst && token === jsonSyntaxObjectEnd) {
+            action = langruntime.checkedI32(jsonSyntaxClose);
+        }
+        else if (token === jsonSyntaxString) {
+            next = langruntime.checkedI32(jsonSyntaxObjectColon);
+            action = langruntime.checkedI32(jsonSyntaxKey);
+        }
+    }
+    else if (state === jsonSyntaxArrayFirst && token === jsonSyntaxArrayEnd) {
+        action = langruntime.checkedI32(jsonSyntaxClose);
+    }
+    else if (jsonSyntaxRootKind(token) >= 0) {
+        action = langruntime.checkedI32(jsonSyntaxValue);
+        if (token === jsonSyntaxArrayStart) {
+            action = langruntime.checkedI32(jsonSyntaxOpenArray);
+        }
+        else if (token === jsonSyntaxObjectStart) {
+            action = langruntime.checkedI32(jsonSyntaxOpenObject);
+        }
+        next = langruntime.checkedI32(jsonSyntaxArrayNext);
+        if (state === jsonSyntaxRootValue) {
+            next = langruntime.checkedI32(jsonSyntaxRootEnd);
+        }
+        else if (state === jsonSyntaxObjectValue) {
+            next = langruntime.checkedI32(jsonSyntaxObjectNext);
+        }
+    }
+    return { state: next, action: action };
+}
 export function jsonSyntaxScan(value: string): JsonSyntaxLayout {
     value = langruntime.checkedString(value);
     const source: JsonSyntaxSource = { characters: Array.from(value) };
@@ -3768,67 +3855,24 @@ export function jsonSyntaxScan(value: string): JsonSyntaxLayout {
         }
         const frame: number = langruntime.checkedSubtract(depth, 1);
         const state: number = langruntime.indexStruct(frames, langruntime.checkedIndex(frame), copyJsonSyntaxFrame).state;
-        if (state === jsonSyntaxRootEnd) {
-            if (!(token.kind === jsonSyntaxEnd)) {
-                return jsonSyntaxInvalidLayout(maximum);
-            }
+        const transition: JsonSyntaxTransition = copyJsonSyntaxTransition(jsonSyntaxStep(state, token.kind));
+        if (transition.action === jsonSyntaxReject) {
+            return jsonSyntaxInvalidLayout(maximum);
+        }
+        if (transition.action === jsonSyntaxFinish) {
             return { valid: true, kind: rootKind, maxDepth: maximum };
         }
-        if (state === jsonSyntaxArrayNext || state === jsonSyntaxObjectNext) {
-            let expected: number = jsonSyntaxArrayEnd;
-            let continuation: number = jsonSyntaxArrayValue;
-            if (state === jsonSyntaxObjectNext) {
-                expected = langruntime.checkedI32(jsonSyntaxObjectEnd);
-                continuation = langruntime.checkedI32(jsonSyntaxObjectKey);
-            }
-            if (token.kind === expected) {
-                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
-            }
-            else if (token.kind === jsonSyntaxComma) {
-                frames[langruntime.checkedIndexIn(frames, frame)] = copyJsonSyntaxFrame({ state: continuation });
-            }
-            else {
-                return jsonSyntaxInvalidLayout(maximum);
-            }
-        }
-        else if (state === jsonSyntaxObjectColon) {
-            if (!(token.kind === jsonSyntaxColon)) {
-                return jsonSyntaxInvalidLayout(maximum);
-            }
-            frames[langruntime.checkedIndexIn(frames, frame)] = copyJsonSyntaxFrame({ state: jsonSyntaxObjectValue });
-        }
-        else if (state === jsonSyntaxObjectFirst || state === jsonSyntaxObjectKey) {
-            if (state === jsonSyntaxObjectFirst && token.kind === jsonSyntaxObjectEnd) {
-                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
-            }
-            else if (token.kind === jsonSyntaxString) {
-                frames[langruntime.checkedIndexIn(frames, frame)] = copyJsonSyntaxFrame({ state: jsonSyntaxObjectColon });
-            }
-            else {
-                return jsonSyntaxInvalidLayout(maximum);
-            }
-        }
-        else if (state === jsonSyntaxArrayFirst && token.kind === jsonSyntaxArrayEnd) {
+        if (transition.action === jsonSyntaxClose) {
             depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
         }
         else {
-            const kind: number = jsonSyntaxRootKind(token.kind);
-            if (kind < 0) {
-                return jsonSyntaxInvalidLayout(maximum);
-            }
+            frames[langruntime.checkedIndexIn(frames, frame)] = copyJsonSyntaxFrame({ state: transition.state });
             if (state === jsonSyntaxRootValue) {
-                rootKind = langruntime.checkedI32(kind);
-                frames[langruntime.checkedIndexIn(frames, frame)] = copyJsonSyntaxFrame({ state: jsonSyntaxRootEnd });
+                rootKind = langruntime.checkedI32(jsonSyntaxRootKind(token.kind));
             }
-            else if (state === jsonSyntaxObjectValue) {
-                frames[langruntime.checkedIndexIn(frames, frame)] = copyJsonSyntaxFrame({ state: jsonSyntaxObjectNext });
-            }
-            else {
-                frames[langruntime.checkedIndexIn(frames, frame)] = copyJsonSyntaxFrame({ state: jsonSyntaxArrayNext });
-            }
-            if (token.kind === jsonSyntaxArrayStart || token.kind === jsonSyntaxObjectStart) {
+            if (transition.action === jsonSyntaxOpenArray || transition.action === jsonSyntaxOpenObject) {
                 let child: number = jsonSyntaxArrayFirst;
-                if (token.kind === jsonSyntaxObjectStart) {
+                if (transition.action === jsonSyntaxOpenObject) {
                     child = langruntime.checkedI32(jsonSyntaxObjectFirst);
                 }
                 if (depth > maximum) {
@@ -3846,6 +3890,998 @@ export function jsonSyntaxScan(value: string): JsonSyntaxLayout {
         position = langruntime.checkedIndex(token.end);
     }
     return jsonSyntaxInvalidLayout(maximum);
+}
+interface JsonReadToken {
+    start: number;
+    end: number;
+    kind: number;
+    syntax: number;
+}
+function copyJsonReadToken(value: JsonReadToken): JsonReadToken {
+    return { start: langruntime.checkedIndex(value.start), end: langruntime.checkedIndex(value.end), kind: langruntime.checkedI32(value.kind), syntax: langruntime.checkedI32(value.syntax) };
+}
+const jsonReadEnd = 0;
+const jsonReadQuote = 1;
+const jsonReadAtom = 2;
+const jsonReadObjectOpen = 3;
+const jsonReadObjectClose = 4;
+const jsonReadArrayOpen = 5;
+const jsonReadArrayClose = 6;
+const jsonReadColon = 7;
+const jsonReadComma = 8;
+const jsonReadZero = 3484949;
+const jsonReadNonArray = 3452619;
+const jsonReadInvalidText = 3484946;
+function jsonReadNextToken(source: JsonSyntaxSource, begin: number): JsonReadToken {
+    begin = langruntime.checkedIndex(begin);
+    let start: number = begin;
+    while (start < source.characters.length && jsonSyntaxSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(start)))) {
+        start = langruntime.checkedAdd(start, 1);
+    }
+    const token: JsonSyntaxToken = copyJsonSyntaxToken(jsonSyntaxReadToken(source, start));
+    let kind: number = jsonReadAtom;
+    if (token.kind === jsonSyntaxString) {
+        kind = langruntime.checkedI32(jsonReadQuote);
+    }
+    else if (token.kind === jsonSyntaxObjectStart) {
+        kind = langruntime.checkedI32(jsonReadObjectOpen);
+    }
+    else if (token.kind === jsonSyntaxObjectEnd) {
+        kind = langruntime.checkedI32(jsonReadObjectClose);
+    }
+    else if (token.kind === jsonSyntaxArrayStart) {
+        kind = langruntime.checkedI32(jsonReadArrayOpen);
+    }
+    else if (token.kind === jsonSyntaxArrayEnd) {
+        kind = langruntime.checkedI32(jsonReadArrayClose);
+    }
+    else if (token.kind === jsonSyntaxColon) {
+        kind = langruntime.checkedI32(jsonReadColon);
+    }
+    else if (token.kind === jsonSyntaxComma) {
+        kind = langruntime.checkedI32(jsonReadComma);
+    }
+    else if (token.kind === jsonSyntaxEnd) {
+        kind = langruntime.checkedI32(jsonReadEnd);
+    }
+    return { start: start, end: token.end, kind: kind, syntax: token.kind };
+}
+function jsonReadHex(character: string): number {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    if (code >= 48 && code <= 57) {
+        return langruntime.checkedSignedSubtract(code, 48);
+    }
+    if (code >= 65 && code <= 70) {
+        return langruntime.checkedSignedSubtract(code, 55);
+    }
+    return langruntime.checkedSignedSubtract(code, 87);
+}
+function jsonReadDecodeString(source: JsonSyntaxSource, token: JsonReadToken): TextValue {
+    token = copyJsonReadToken(token);
+    let position: number = langruntime.checkedAdd(token.start, 1);
+    let high: number = langruntime.checkedSignedNegate(1);
+    let output: string = "";
+    while (position < source.characters.length) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        position = langruntime.checkedAdd(position, 1);
+        if (character === "\"") {
+            if (high >= 0) {
+                return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+            }
+            return { kind: "Value", value: output };
+        }
+        if ((langruntime.checkedChar(character).codePointAt(0)!) < 32) {
+            return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+        }
+        if (character === "\\") {
+            if (position === source.characters.length) {
+                return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+            }
+            const escape: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+            position = langruntime.checkedAdd(position, 1);
+            if (escape === "u") {
+                let code: number = 0;
+                let digit: number = 0;
+                while (digit < 4) {
+                    if (position === source.characters.length || jsonSyntaxHex(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))) === false) {
+                        return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+                    }
+                    code = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(code, 16), jsonReadHex(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))));
+                    position = langruntime.checkedAdd(position, 1);
+                    digit = langruntime.checkedAdd(digit, 1);
+                }
+                if (code >= 55296 && code <= 56319) {
+                    if (high >= 0) {
+                        return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+                    }
+                    high = langruntime.checkedI32(code);
+                }
+                else {
+                    if (code >= 56320 && code <= 57343) {
+                        if (high < 0) {
+                            return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+                        }
+                        code = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(65536, langruntime.checkedSignedMultiply((langruntime.checkedSignedSubtract(high, 55296)), 1024)), code), 56320));
+                        high = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+                    }
+                    if (high >= 0) {
+                        return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+                    }
+                    if (code === 0) {
+                        return { kind: "Error", value: makeSqlError(jsonReadZero) };
+                    }
+                    if (code > 127) {
+                        return { kind: "Unknown" };
+                    }
+                    output = output + langruntime.checkedChar(langruntime.characterFromI32(code, " "));
+                }
+            }
+            else {
+                if (high >= 0) {
+                    return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+                }
+                let decoded: string = escape;
+                if (escape === "b") {
+                    decoded = langruntime.checkedChar("\b");
+                }
+                else if (escape === "f") {
+                    decoded = langruntime.checkedChar("\f");
+                }
+                else if (escape === "n") {
+                    decoded = langruntime.checkedChar("\n");
+                }
+                else if (escape === "r") {
+                    decoded = langruntime.checkedChar("\r");
+                }
+                else if (escape === "t") {
+                    decoded = langruntime.checkedChar("\t");
+                }
+                else if (!(escape === "\"") && !(escape === "\\") && !(escape === "/")) {
+                    return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+                }
+                output = output + langruntime.checkedChar(decoded);
+            }
+        }
+        else {
+            if (high >= 0) {
+                return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+            }
+            output = output + langruntime.checkedChar(character);
+        }
+    }
+    return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+}
+function jsonReadSlice(source: JsonSyntaxSource, start: number, end: number): TextValue {
+    start = langruntime.checkedIndex(start);
+    end = langruntime.checkedIndex(end);
+    let output: string = "";
+    let position: number = start;
+    while (position < end) {
+        output = output + langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { kind: "Value", value: output };
+}
+function jsonReadArrayCount(source: JsonSyntaxSource): bigint {
+    let depth: number = 0;
+    let position: number = 0;
+    let count: bigint = 0n;
+    let expecting: boolean = true;
+    while (position < source.characters.length) {
+        const token: JsonReadToken = copyJsonReadToken(jsonReadNextToken(source, position));
+        if (token.kind === jsonReadEnd) {
+            return count;
+        }
+        if (depth === 1) {
+            if (token.kind === jsonReadComma) {
+                expecting = langruntime.checkedBool(true);
+            }
+            else if (expecting && (token.kind === jsonReadQuote || token.kind === jsonReadAtom || token.kind === jsonReadArrayOpen || token.kind === jsonReadObjectOpen)) {
+                count = langruntime.checkedI64(langruntime.checkedI64Add(count, 1n));
+                expecting = langruntime.checkedBool(false);
+            }
+        }
+        if (token.kind === jsonReadObjectOpen || token.kind === jsonReadArrayOpen) {
+            depth = langruntime.checkedAdd(depth, 1);
+        }
+        else if (token.kind === jsonReadObjectClose || token.kind === jsonReadArrayClose) {
+            depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        }
+        position = langruntime.checkedIndex(token.end);
+    }
+    return count;
+}
+function jsonReadSelect(value: string, key: string, index: number, object: boolean, asText: boolean): TextValue {
+    value = langruntime.checkedString(value);
+    key = langruntime.checkedString(key);
+    index = langruntime.checkedI32(index);
+    object = langruntime.checkedBool(object);
+    asText = langruntime.checkedBool(asText);
+    const source: JsonSyntaxSource = { characters: Array.from(value) };
+    const root: JsonReadToken = copyJsonReadToken(jsonReadNextToken(source, 0));
+    const rootObject: boolean = root.kind === jsonReadObjectOpen;
+    const rootArray: boolean = root.kind === jsonReadArrayOpen;
+    let wanted: bigint = BigInt(langruntime.checkedI32(index));
+    if (wanted < 0n && rootArray) {
+        wanted = langruntime.checkedI64(langruntime.checkedI64Add(jsonReadArrayCount(source), wanted));
+    }
+    let depth: number = 0;
+    let position: number = 0;
+    let state: number = 0;
+    if (rootArray) {
+        state = langruntime.checkedI32(2);
+    }
+    let matched: boolean = false;
+    let element: bigint = 0n;
+    let capture: boolean = false;
+    let captureDepth: number = 0;
+    let captureStart: number = 0;
+    let result: TextValue = { kind: "Null" };
+    while (position < source.characters.length) {
+        const token: JsonReadToken = copyJsonReadToken(jsonReadNextToken(source, position));
+        if (token.kind === jsonReadEnd) {
+            return result;
+        }
+        let decoded: TextValue = { kind: "Null" };
+        if (token.kind === jsonReadQuote) {
+            decoded = jsonReadDecodeString(source, token);
+            if (decoded.kind === "Error") {
+                const error: SqlError = decoded.value;
+                return { kind: "Error", value: error };
+            }
+            if (decoded.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+        }
+        if (depth === 1) {
+            if (rootObject && state === 0 && token.kind === jsonReadQuote) {
+                const decodedName: TextValue = decoded;
+                if (decodedName.kind === "Value") {
+                    const name: string = langruntime.checkedString(decodedName.value);
+                    matched = langruntime.checkedBool(name === key);
+                }
+                state = langruntime.checkedI32(1);
+            }
+            else if (token.kind === jsonReadColon && rootObject) {
+                state = langruntime.checkedI32(2);
+            }
+            else if (token.kind === jsonReadComma) {
+                state = langruntime.checkedI32(0);
+                if (rootArray) {
+                    state = langruntime.checkedI32(2);
+                }
+            }
+            else if (state === 2 && (token.kind === jsonReadQuote || token.kind === jsonReadAtom || token.kind === jsonReadArrayOpen || token.kind === jsonReadObjectOpen)) {
+                const selected: boolean = (object && rootObject && matched) || (object === false && rootArray && element === wanted);
+                element = langruntime.checkedI64(langruntime.checkedI64Add(element, 1n));
+                state = langruntime.checkedI32(3);
+                if (selected) {
+                    if (token.kind === jsonReadArrayOpen || token.kind === jsonReadObjectOpen) {
+                        capture = langruntime.checkedBool(true);
+                        captureDepth = langruntime.checkedIndex(depth);
+                        captureStart = langruntime.checkedIndex(token.start);
+                    }
+                    else if (asText && token.kind === jsonReadQuote) {
+                        result = decoded;
+                    }
+                    else if (asText && token.kind === jsonReadAtom && langruntime.indexChar(source.characters, langruntime.checkedIndex(token.start)) === "n") {
+                        result = { kind: "Null" };
+                    }
+                    else {
+                        result = jsonReadSlice(source, token.start, token.end);
+                    }
+                }
+            }
+        }
+        if (token.kind === jsonReadObjectOpen || token.kind === jsonReadArrayOpen) {
+            depth = langruntime.checkedAdd(depth, 1);
+        }
+        else if (token.kind === jsonReadObjectClose || token.kind === jsonReadArrayClose) {
+            depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            if (capture && depth === captureDepth) {
+                result = jsonReadSlice(source, captureStart, token.end);
+                capture = langruntime.checkedBool(false);
+            }
+        }
+        position = langruntime.checkedIndex(token.end);
+    }
+    return result;
+}
+export function jsonReadField(input: JsonValue, key: TextValue, asText: boolean): TextValue {
+    asText = langruntime.checkedBool(asText);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (key.kind === "Error") {
+        const error: SqlError = key.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (key.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (key.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonPayload = input.value;
+        if (key.kind === "Value") {
+            const name: string = langruntime.checkedString(key.value);
+            return jsonReadSelect(value.source, name, 0, true, asText);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonReadElement(input: JsonValue, index: Int4Value, asText: boolean): TextValue {
+    asText = langruntime.checkedBool(asText);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (index.kind === "Error") {
+        const error: SqlError = index.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (index.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (index.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonPayload = input.value;
+        if (index.kind === "Value") {
+            const number: number = langruntime.checkedI32(index.value);
+            return jsonReadSelect(value.source, "", number, false, asText);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonReadLength(input: JsonValue): Int4Value {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonPayload = input.value;
+        if (!(value.kind === 5)) {
+            return { kind: "Error", value: makeSqlError(jsonReadNonArray) };
+        }
+        const source: JsonSyntaxSource = { characters: Array.from(value.source) };
+        const count: bigint = jsonReadArrayCount(source);
+        return makeInt4Value(Number(BigInt.asIntN(32, langruntime.checkedI64(count))));
+    }
+    return { kind: "Unknown" };
+}
+export function jsonKindText(kind: number): TextValue {
+    kind = langruntime.checkedI32(kind);
+    if (kind === 0) {
+        return makeTextValue("null");
+    }
+    if (kind === 1 || kind === 2) {
+        return makeTextValue("boolean");
+    }
+    if (kind === 3) {
+        return makeTextValue("number");
+    }
+    if (kind === 4) {
+        return makeTextValue("string");
+    }
+    if (kind === 5) {
+        return makeTextValue("array");
+    }
+    if (kind === 6) {
+        return makeTextValue("object");
+    }
+    return { kind: "Unknown" };
+}
+export interface JsonbNode {
+    readonly kind: number;
+    readonly child: number;
+    readonly next: number;
+    readonly keyStart: number;
+    readonly keyEnd: number;
+    readonly textStart: number;
+    readonly textEnd: number;
+}
+export function copyJsonbNode(value: JsonbNode): JsonbNode {
+    return { kind: langruntime.checkedI32(value.kind), child: langruntime.checkedIndex(value.child), next: langruntime.checkedIndex(value.next), keyStart: langruntime.checkedIndex(value.keyStart), keyEnd: langruntime.checkedIndex(value.keyEnd), textStart: langruntime.checkedIndex(value.textStart), textEnd: langruntime.checkedIndex(value.textEnd) };
+}
+export interface JsonbPayload {
+    readonly characters: string[];
+    readonly nodes: JsonbNode[];
+    readonly root: number;
+}
+export function copyJsonbPayload(value: JsonbPayload): JsonbPayload {
+    return { characters: langruntime.checkedChars(value.characters), nodes: langruntime.checkedStructs(value.nodes, copyJsonbNode), root: langruntime.checkedIndex(value.root) };
+}
+export type JsonbValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: JsonbPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function copyJsonbValue(value: JsonbValue): JsonbValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copyJsonbPayload(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+interface JsonbFrame {
+    state: number;
+    node: number;
+    tail: number;
+    keyStart: number;
+    keyEnd: number;
+}
+function copyJsonbFrame(value: JsonbFrame): JsonbFrame {
+    return { state: langruntime.checkedI32(value.state), node: langruntime.checkedIndex(value.node), tail: langruntime.checkedIndex(value.tail), keyStart: langruntime.checkedIndex(value.keyStart), keyEnd: langruntime.checkedIndex(value.keyEnd) };
+}
+interface JsonbCharacters {
+    characters: string[];
+}
+function copyJsonbCharacters(value: JsonbCharacters): JsonbCharacters {
+    return { characters: langruntime.checkedChars(value.characters) };
+}
+const jsonbNumericRange = 3452547;
+function jsonbNodeLink(node: JsonbNode, next: number): JsonbNode {
+    next = langruntime.checkedIndex(next);
+    return { kind: node.kind, child: node.child, next: next, keyStart: node.keyStart, keyEnd: node.keyEnd, textStart: node.textStart, textEnd: node.textEnd };
+}
+function jsonbNodeChild(node: JsonbNode, child: number): JsonbNode {
+    child = langruntime.checkedIndex(child);
+    return { kind: node.kind, child: child, next: node.next, keyStart: node.keyStart, keyEnd: node.keyEnd, textStart: node.textStart, textEnd: node.textEnd };
+}
+function jsonbNumberText(source: JsonSyntaxSource, token: JsonReadToken): TextValue {
+    token = copyJsonReadToken(token);
+    const following: JsonReadToken = copyJsonReadToken(jsonReadNextToken(source, token.end));
+    if (following.start < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(following.start)) === "\"") {
+        const decoded: TextValue = jsonReadDecodeString(source, following);
+        if (decoded.kind === "Error") {
+            const error: SqlError = decoded.value;
+            return { kind: "Error", value: error };
+        }
+        if (decoded.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+    }
+    if (following.syntax === jsonSyntaxInvalid) {
+        return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+    }
+    let position: number = token.start;
+    const negative: boolean = langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-";
+    if (negative) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let digits: string[] = [];
+    let before: number = 0;
+    let point: boolean = false;
+    let first: number = langruntime.checkedSignedNegate(1);
+    while (position < token.end && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "e") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "E")) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (character === ".") {
+            point = langruntime.checkedBool(true);
+        }
+        else {
+            if (first < 0 && !(character === "0")) {
+                first = langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(digits.length)));
+            }
+            langruntime.pushChar(digits, character);
+            if (point === false) {
+                before = langruntime.checkedI32(langruntime.checkedSignedAdd(before, 1));
+            }
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let exponent: number = 0;
+    if (position < token.end) {
+        position = langruntime.checkedAdd(position, 1);
+        let sign: number = 1;
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-") {
+            sign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "+") {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        while (position < token.end) {
+            const digit: number = langruntime.checkedSignedSubtract(langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))).codePointAt(0)!, 48);
+            if (exponent > 107374182 || (exponent === 107374182 && digit > 3)) {
+                return { kind: "Error", value: makeSqlError(jsonbNumericRange) };
+            }
+            exponent = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(exponent, 10), digit));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        exponent = langruntime.checkedI32(langruntime.checkedSignedMultiply(exponent, sign));
+    }
+    const count: number = langruntime.checkedI32(langruntime.checkedIndex(digits.length));
+    let scale: bigint = langruntime.checkedI64Subtract(BigInt(langruntime.checkedI32((langruntime.checkedSignedSubtract(count, before)))), BigInt(langruntime.checkedI32(exponent)));
+    if (scale < 0n) {
+        scale = langruntime.checkedI64(0n);
+    }
+    const boundary: bigint = langruntime.checkedI64Add(BigInt(langruntime.checkedI32(before)), BigInt(langruntime.checkedI32(exponent)));
+    const weight: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(boundary, BigInt(langruntime.checkedI32(first))), 1n);
+    if (scale > 16383n || (first >= 0 && weight > 131071n)) {
+        return { kind: "Error", value: makeSqlError(jsonbNumericRange) };
+    }
+    let output: string = "";
+    if (first >= 0 && negative) {
+        output = output + langruntime.checkedChar("-");
+    }
+    let place: bigint = 0n;
+    if (first >= 0 && weight > 0n) {
+        place = langruntime.checkedI64(weight);
+    }
+    while (place >= 0n) {
+        const index: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(boundary, place), 1n);
+        let digit: string = "0";
+        if (first >= 0 && index >= 0n && index < BigInt(langruntime.checkedI32(count))) {
+            digit = langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(langruntime.indexFromI32(Number(BigInt.asIntN(32, langruntime.checkedI64(index))), 0))));
+        }
+        output = output + langruntime.checkedChar(digit);
+        place = langruntime.checkedI64(langruntime.checkedI64Subtract(place, 1n));
+    }
+    if (scale > 0n) {
+        output = output + langruntime.checkedChar(".");
+    }
+    let fraction: bigint = 0n;
+    while (fraction < scale) {
+        const index: bigint = langruntime.checkedI64Add(boundary, fraction);
+        let digit: string = "0";
+        if (first >= 0 && index >= 0n && index < BigInt(langruntime.checkedI32(count))) {
+            digit = langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(langruntime.indexFromI32(Number(BigInt.asIntN(32, langruntime.checkedI64(index))), 0))));
+        }
+        output = output + langruntime.checkedChar(digit);
+        fraction = langruntime.checkedI64(langruntime.checkedI64Add(fraction, 1n));
+    }
+    const numeric: NumericLayout = copyNumericLayout(numericParts(output));
+    if (numeric.valid === false) {
+        return { kind: "Error", value: makeSqlError(jsonbNumericRange) };
+    }
+    return { kind: "Value", value: output };
+}
+function jsonbKeyCompare(source: JsonbCharacters, left: JsonbNode, right: JsonbNode): number {
+    const a: number = langruntime.checkedSubtract(left.keyEnd, left.keyStart);
+    const b: number = langruntime.checkedSubtract(right.keyEnd, right.keyStart);
+    if (a < b) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (a > b) {
+        return 1;
+    }
+    let offset: number = 0;
+    while (offset < a) {
+        const x: number = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(left.keyStart, offset)))).codePointAt(0)!;
+        const y: number = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(right.keyStart, offset)))).codePointAt(0)!;
+        if (x < y) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        if (x > y) {
+            return 1;
+        }
+        offset = langruntime.checkedAdd(offset, 1);
+    }
+    return 0;
+}
+function jsonbNormalizeObjects(input: JsonbPayload): JsonbPayload {
+    input = copyJsonbPayload(input);
+    const source: JsonbCharacters = { characters: input.characters };
+    let nodes: JsonbNode[] = input.nodes;
+    let index: number = 1;
+    while (index < nodes.length) {
+        const parent: JsonbNode = langruntime.indexStruct(nodes, langruntime.checkedIndex(index), copyJsonbNode);
+        if (parent.kind === 6) {
+            let entries: number[] = [];
+            let scratch: number[] = [];
+            let child: number = parent.child;
+            while (child > 0) {
+                langruntime.pushIndex(entries, child);
+                langruntime.pushIndex(scratch, 0);
+                child = langruntime.checkedIndex(langruntime.indexStruct(nodes, langruntime.checkedIndex(child), copyJsonbNode).next);
+            }
+            let width: number = 1;
+            while (width < entries.length) {
+                let begin: number = 0;
+                while (begin < entries.length) {
+                    let middle: number = langruntime.checkedAdd(begin, width);
+                    if (middle > entries.length) {
+                        middle = langruntime.checkedIndex(entries.length);
+                    }
+                    let end: number = langruntime.checkedAdd(middle, width);
+                    if (end > entries.length) {
+                        end = langruntime.checkedIndex(entries.length);
+                    }
+                    let a: number = begin;
+                    let b: number = middle;
+                    let out: number = begin;
+                    while (out < end) {
+                        let takeLeft: boolean = b === end;
+                        if (a < middle && b < end) {
+                            const comparison: number = jsonbKeyCompare(source, langruntime.indexStruct(nodes, langruntime.checkedIndex(langruntime.indexNumber(entries, langruntime.checkedIndex(a))), copyJsonbNode), langruntime.indexStruct(nodes, langruntime.checkedIndex(langruntime.indexNumber(entries, langruntime.checkedIndex(b))), copyJsonbNode));
+                            takeLeft = langruntime.checkedBool(comparison < 0 || (comparison === 0 && langruntime.indexNumber(entries, langruntime.checkedIndex(a)) > langruntime.indexNumber(entries, langruntime.checkedIndex(b))));
+                        }
+                        if (a < middle && takeLeft) {
+                            scratch[langruntime.checkedIndexIn(scratch, out)] = langruntime.checkedIndex(langruntime.indexNumber(entries, langruntime.checkedIndex(a)));
+                            a = langruntime.checkedAdd(a, 1);
+                        }
+                        else {
+                            scratch[langruntime.checkedIndexIn(scratch, out)] = langruntime.checkedIndex(langruntime.indexNumber(entries, langruntime.checkedIndex(b)));
+                            b = langruntime.checkedAdd(b, 1);
+                        }
+                        out = langruntime.checkedAdd(out, 1);
+                    }
+                    begin = langruntime.checkedIndex(end);
+                }
+                let out: number = 0;
+                while (out < entries.length) {
+                    entries[langruntime.checkedIndexIn(entries, out)] = langruntime.checkedIndex(langruntime.indexNumber(scratch, langruntime.checkedIndex(out)));
+                    out = langruntime.checkedAdd(out, 1);
+                }
+                width = langruntime.checkedIndex(langruntime.checkedAdd(width, width));
+            }
+            let first: number = 0;
+            let last: number = 0;
+            let out: number = 0;
+            while (out < entries.length) {
+                const current: number = langruntime.indexNumber(entries, langruntime.checkedIndex(out));
+                if (last === 0 || !(jsonbKeyCompare(source, langruntime.indexStruct(nodes, langruntime.checkedIndex(last), copyJsonbNode), langruntime.indexStruct(nodes, langruntime.checkedIndex(current), copyJsonbNode)) === 0)) {
+                    if (last === 0) {
+                        first = langruntime.checkedIndex(current);
+                    }
+                    else {
+                        nodes[langruntime.checkedIndexIn(nodes, last)] = jsonbNodeLink(langruntime.indexStruct(nodes, langruntime.checkedIndex(last), copyJsonbNode), current);
+                    }
+                    last = langruntime.checkedIndex(current);
+                }
+                out = langruntime.checkedAdd(out, 1);
+            }
+            if (last > 0) {
+                nodes[langruntime.checkedIndexIn(nodes, last)] = jsonbNodeLink(langruntime.indexStruct(nodes, langruntime.checkedIndex(last), copyJsonbNode), 0);
+            }
+            nodes[langruntime.checkedIndexIn(nodes, index)] = jsonbNodeChild(parent, first);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { characters: source.characters, nodes: nodes, root: input.root };
+}
+export function jsonbFromText(input: TextValue): JsonbValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const source: JsonSyntaxSource = { characters: Array.from(value) };
+        let characters: string[] = [];
+        let nodes: JsonbNode[] = [];
+        langruntime.pushStruct(nodes, { kind: langruntime.checkedSignedNegate(1), child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }, copyJsonbNode);
+        let frames: JsonbFrame[] = [];
+        langruntime.pushStruct(frames, { state: jsonSyntaxRootValue, node: 0, tail: 0, keyStart: 0, keyEnd: 0 }, copyJsonbFrame);
+        let depth: number = 1;
+        let position: number = 0;
+        let root: number = 0;
+        while (depth > 0) {
+            const token: JsonReadToken = copyJsonReadToken(jsonReadNextToken(source, position));
+            let decoded: TextValue = { kind: "Null" };
+            if (token.start < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(token.start)) === "\"") {
+                decoded = jsonReadDecodeString(source, token);
+                if (decoded.kind === "Error") {
+                    const error: SqlError = decoded.value;
+                    return { kind: "Error", value: error };
+                }
+                if (decoded.kind === "Unknown") {
+                    return { kind: "Unknown" };
+                }
+            }
+            if (token.syntax === jsonSyntaxInvalid) {
+                return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+            }
+            const frame: JsonbFrame = copyJsonbFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)), copyJsonbFrame));
+            const transition: JsonSyntaxTransition = copyJsonSyntaxTransition(jsonSyntaxStep(frame.state, token.syntax));
+            if (transition.action === jsonSyntaxReject) {
+                return { kind: "Error", value: makeSqlError(jsonReadInvalidText) };
+            }
+            if (transition.action === jsonSyntaxFinish) {
+                const payload: JsonbPayload = { characters: characters, nodes: nodes, root: root };
+                return { kind: "Value", value: jsonbNormalizeObjects(payload) };
+            }
+            let keyStart: number = frame.keyStart;
+            let keyEnd: number = frame.keyEnd;
+            let tail: number = frame.tail;
+            if (transition.action === jsonSyntaxClose) {
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            }
+            else {
+                if (transition.action === jsonSyntaxKey) {
+                    keyStart = langruntime.checkedIndex(characters.length);
+                    if (decoded.kind === "Value") {
+                        const key: string = langruntime.checkedString(decoded.value);
+                        const content: string[] = Array.from(key);
+                        let i: number = 0;
+                        while (i < content.length) {
+                            langruntime.pushChar(characters, langruntime.indexChar(content, langruntime.checkedIndex(i)));
+                            i = langruntime.checkedAdd(i, 1);
+                        }
+                    }
+                    keyEnd = langruntime.checkedIndex(characters.length);
+                }
+                else if (transition.action === jsonSyntaxValue || transition.action === jsonSyntaxOpenArray || transition.action === jsonSyntaxOpenObject) {
+                    if (token.syntax === jsonSyntaxNumber) {
+                        decoded = jsonbNumberText(source, token);
+                        if (decoded.kind === "Error") {
+                            const error: SqlError = decoded.value;
+                            return { kind: "Error", value: error };
+                        }
+                        if (decoded.kind === "Unknown") {
+                            return { kind: "Unknown" };
+                        }
+                    }
+                    const textStart: number = characters.length;
+                    if (decoded.kind === "Value") {
+                        const text: string = langruntime.checkedString(decoded.value);
+                        const content: string[] = Array.from(text);
+                        let i: number = 0;
+                        while (i < content.length) {
+                            langruntime.pushChar(characters, langruntime.indexChar(content, langruntime.checkedIndex(i)));
+                            i = langruntime.checkedAdd(i, 1);
+                        }
+                    }
+                    const current: number = nodes.length;
+                    langruntime.pushStruct(nodes, { kind: jsonSyntaxRootKind(token.syntax), child: 0, next: 0, keyStart: keyStart, keyEnd: keyEnd, textStart: textStart, textEnd: characters.length }, copyJsonbNode);
+                    if (frame.node === 0) {
+                        root = langruntime.checkedIndex(current);
+                    }
+                    else if (tail === 0) {
+                        nodes[langruntime.checkedIndexIn(nodes, frame.node)] = jsonbNodeChild(langruntime.indexStruct(nodes, langruntime.checkedIndex(frame.node), copyJsonbNode), current);
+                    }
+                    else {
+                        nodes[langruntime.checkedIndexIn(nodes, tail)] = jsonbNodeLink(langruntime.indexStruct(nodes, langruntime.checkedIndex(tail), copyJsonbNode), current);
+                    }
+                    tail = langruntime.checkedIndex(current);
+                }
+                frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonbFrame({ state: transition.state, node: frame.node, tail: tail, keyStart: keyStart, keyEnd: keyEnd });
+                if (transition.action === jsonSyntaxOpenArray || transition.action === jsonSyntaxOpenObject) {
+                    let state: number = jsonSyntaxArrayFirst;
+                    if (transition.action === jsonSyntaxOpenObject) {
+                        state = langruntime.checkedI32(jsonSyntaxObjectFirst);
+                    }
+                    const child: JsonbFrame = copyJsonbFrame({ state: state, node: tail, tail: 0, keyStart: 0, keyEnd: 0 });
+                    if (depth < frames.length) {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyJsonbFrame(child);
+                    }
+                    else {
+                        langruntime.pushStruct(frames, child, copyJsonbFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+            }
+            position = langruntime.checkedIndex(token.end);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function makeJsonbValue(source: string): JsonbValue {
+    source = langruntime.checkedString(source);
+    const parsed: JsonbValue = jsonbFromText({ kind: "Value", value: source });
+    if (parsed.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    return parsed;
+}
+export function jsonbUnknown(): JsonbValue {
+    return { kind: "Unknown" };
+}
+export function jsonbNull(): JsonbValue {
+    return { kind: "Null" };
+}
+export function jsonbFromCaseGuard(value: CheckOutcome): JsonbValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbIsNull(input: JsonbValue): BoolValue {
+    input = copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Value", value: true };
+    }
+    return { kind: "Value", value: false };
+}
+function jsonbQuote(source: JsonbPayload, begin: number, end: number): string {
+    begin = langruntime.checkedIndex(begin);
+    end = langruntime.checkedIndex(end);
+    let output: string = "";
+    output = output + langruntime.checkedChar("\"");
+    const hex: string[] = Array.from("0123456789abcdef");
+    let position: number = begin;
+    while (position < end) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        if (character === "\"") {
+            output = output + "\\\"";
+        }
+        else if (character === "\\") {
+            output = output + "\\\\";
+        }
+        else if (character === "\b") {
+            output = output + "\\b";
+        }
+        else if (character === "\f") {
+            output = output + "\\f";
+        }
+        else if (character === "\n") {
+            output = output + "\\n";
+        }
+        else if (character === "\r") {
+            output = output + "\\r";
+        }
+        else if (character === "\t") {
+            output = output + "\\t";
+        }
+        else if (code < 32) {
+            output = output + "\\u00";
+            output = output + langruntime.checkedChar(langruntime.indexChar(hex, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedDivide(code, 16), 0))));
+            output = output + langruntime.checkedChar(langruntime.indexChar(hex, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedRemainder(code, 16), 0))));
+        }
+        else {
+            output = output + langruntime.checkedChar(character);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    output = output + langruntime.checkedChar("\"");
+    return output;
+}
+interface JsonbOutputFrame {
+    node: number;
+    child: number;
+}
+function copyJsonbOutputFrame(value: JsonbOutputFrame): JsonbOutputFrame {
+    return { node: langruntime.checkedIndex(value.node), child: langruntime.checkedIndex(value.child) };
+}
+export function jsonbToText(input: JsonbValue): TextValue {
+    input = copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonbPayload = copyJsonbPayload(input.value);
+        let output: string = "";
+        let frames: JsonbOutputFrame[] = [];
+        let depth: number = 0;
+        let current: number = value.root;
+        let visiting: boolean = true;
+        while (visiting || depth > 0) {
+            if (visiting) {
+                const node: JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(current), copyJsonbNode);
+                if (node.kind === 0) {
+                    output = output + "null";
+                }
+                else if (node.kind === 1) {
+                    output = output + "false";
+                }
+                else if (node.kind === 2) {
+                    output = output + "true";
+                }
+                else if (node.kind === 3) {
+                    let position: number = node.textStart;
+                    while (position < node.textEnd) {
+                        output = output + langruntime.checkedChar(langruntime.indexChar(value.characters, langruntime.checkedIndex(position)));
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                }
+                else if (node.kind === 4) {
+                    const quoted: string = jsonbQuote(value, node.textStart, node.textEnd);
+                    output = output + quoted;
+                }
+                else {
+                    if (node.kind === 6) {
+                        let member: number = node.child;
+                        let nonempty: number = 0;
+                        let unicode: boolean = false;
+                        while (member > 0) {
+                            const entry: JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(member), copyJsonbNode);
+                            if (entry.keyEnd > entry.keyStart) {
+                                nonempty = langruntime.checkedAdd(nonempty, 1);
+                            }
+                            let position: number = entry.keyStart;
+                            while (position < entry.keyEnd) {
+                                if (langruntime.checkedChar(langruntime.indexChar(value.characters, langruntime.checkedIndex(position))).codePointAt(0)! > 127) {
+                                    unicode = langruntime.checkedBool(true);
+                                }
+                                position = langruntime.checkedAdd(position, 1);
+                            }
+                            member = langruntime.checkedIndex(entry.next);
+                        }
+                        if (unicode && nonempty > 1) {
+                            return { kind: "Unknown" };
+                        }
+                    }
+                    if (node.kind === 5) {
+                        output = output + langruntime.checkedChar("[");
+                    }
+                    else {
+                        output = output + langruntime.checkedChar("{");
+                    }
+                    const frame: JsonbOutputFrame = copyJsonbOutputFrame({ node: current, child: node.child });
+                    if (depth < frames.length) {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyJsonbOutputFrame(frame);
+                    }
+                    else {
+                        langruntime.pushStruct(frames, frame, copyJsonbOutputFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+                visiting = langruntime.checkedBool(false);
+            }
+            else {
+                const frame: JsonbOutputFrame = copyJsonbOutputFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)), copyJsonbOutputFrame));
+                const node: JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(frame.node), copyJsonbNode);
+                if (frame.child === 0) {
+                    if (node.kind === 5) {
+                        output = output + langruntime.checkedChar("]");
+                    }
+                    else {
+                        output = output + langruntime.checkedChar("}");
+                    }
+                    depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                }
+                else {
+                    const child: JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(frame.child), copyJsonbNode);
+                    if (!(frame.child === node.child)) {
+                        output = output + ", ";
+                    }
+                    if (node.kind === 6) {
+                        const key: string = jsonbQuote(value, child.keyStart, child.keyEnd);
+                        output = output + key;
+                        output = output + ": ";
+                    }
+                    frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonbOutputFrame({ node: frame.node, child: child.next });
+                    current = langruntime.checkedIndex(frame.child);
+                    visiting = langruntime.checkedBool(true);
+                }
+            }
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
 }
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);

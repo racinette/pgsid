@@ -261,14 +261,14 @@ exposes a prerequisite:
       NULL literals, lazy composition, public wrappers and raw-write preservation.
 - [x] JSON literals and runtime text I/O casts, preserving eager input errors and lazy branches.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.
-- [ ] JSONB normalization/core operations; JSON path-array extraction follows array support.
+- [x] JSONB logical representation and normalization through shared JSON parsing.
+- [ ] JSONB public inputs, literals/casts and core operations; path-array access follows arrays.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types, with tested context requirements
       or exclusion from the public value contract.
 
 Use the type audit to enumerate the remaining surface, including internal types.
 Defer ACL and full-text values until common CHECK families, including arrays and JSON, are covered.
-
 Done per family when its portable values, SQL-coerced row input conversion,
 literals, catalog-resolved casts, applicable comparisons, core operations,
 expression composition, and world INSERT parity work together. Preserve distinct
