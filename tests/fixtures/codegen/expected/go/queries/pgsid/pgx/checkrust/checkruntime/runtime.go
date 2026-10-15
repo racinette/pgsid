@@ -738,6 +738,110 @@ func JsonFromCaseGuard(value CheckOutcome) JsonValue {
 	return JsonValue{Kind: JsonValueUnknown}
 }
 
+type JsonbNode struct {
+	Kind      int
+	Child     int
+	Next      int
+	KeyStart  int
+	KeyEnd    int
+	TextStart int
+	TextEnd   int
+}
+
+func copyJsonbNode(value JsonbNode) JsonbNode {
+	return JsonbNode{Kind: langruntime.CheckedI32(value.Kind), Child: langruntime.CheckedIndex(value.Child), Next: langruntime.CheckedIndex(value.Next), KeyStart: langruntime.CheckedIndex(value.KeyStart), KeyEnd: langruntime.CheckedIndex(value.KeyEnd), TextStart: langruntime.CheckedIndex(value.TextStart), TextEnd: langruntime.CheckedIndex(value.TextEnd)}
+}
+
+type JsonbPayload struct {
+	Characters []rune
+	Nodes      []JsonbNode
+	Root       int
+}
+
+func CopyJsonbPayload(value JsonbPayload) JsonbPayload {
+	return JsonbPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, copyJsonbNode), Root: langruntime.CheckedIndex(value.Root)}
+}
+
+type JsonbValueKind uint8
+
+const (
+	JsonbValueUnknown JsonbValueKind = iota
+	JsonbValueNull
+	JsonbValueValue
+	JsonbValueError
+)
+
+type JsonbValue struct {
+	Kind  JsonbValueKind
+	Value JsonbPayload
+	Error SqlError
+}
+
+func CopyJsonbValue(value JsonbValue) JsonbValue {
+	switch value.Kind {
+	case JsonbValueUnknown:
+		return JsonbValue{Kind: JsonbValueUnknown}
+	case JsonbValueNull:
+		return JsonbValue{Kind: JsonbValueNull}
+	case JsonbValueValue:
+		return JsonbValue{Kind: JsonbValueValue, Value: CopyJsonbPayload(value.Value)}
+	case JsonbValueError:
+		return JsonbValue{Kind: JsonbValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func MakeJsonbValue(source string) JsonbValue {
+	source = langruntime.CheckedString(source)
+	parsed := JsonbFromText(TextValue{Kind: TextValueValue, Value: source})
+	if parsed.Kind == JsonbValueError {
+		return JsonbValue{Kind: JsonbValueUnknown}
+	}
+	return parsed
+}
+func JsonbUnknown() JsonbValue {
+	return JsonbValue{Kind: JsonbValueUnknown}
+}
+func JsonbNull() JsonbValue {
+	return JsonbValue{Kind: JsonbValueNull}
+}
+func JsonbFromCaseGuard(value CheckOutcome) JsonbValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return JsonbValue{Kind: JsonbValueError, Error: error}
+	}
+	return JsonbValue{Kind: JsonbValueUnknown}
+}
+func JsonbIsNull(input JsonbValue) BoolValue {
+	input = CopyJsonbValue(input)
+	if input.Kind == JsonbValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == JsonbValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == JsonbValueNull {
+		return BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: false}
+}
+func JsonbFromCoercedValue(input JsonbValue) JsonbValue {
+	input = CopyJsonbValue(input)
+	if input.Kind == JsonbValueValue {
+		value := CopyJsonbPayload(input.Value)
+		if jsonbInputValid(&value) == false {
+			return JsonbValue{Kind: JsonbValueUnknown}
+		}
+		source := jsonbRender(JsonbValue{Kind: JsonbValueValue, Value: value}, false)
+		if source.Kind == TextValueValue {
+			text := langruntime.CheckedString(source.Value)
+			return MakeJsonbValue(text)
+		}
+		return JsonbValue{Kind: JsonbValueUnknown}
+	}
+	return input
+}
+
 type NetworkAddress struct {
 	Family int
 	Prefix int
@@ -4078,59 +4182,6 @@ func JsonKindText(kind int) TextValue {
 	return TextValue{Kind: TextValueUnknown}
 }
 
-type JsonbNode struct {
-	Kind      int
-	Child     int
-	Next      int
-	KeyStart  int
-	KeyEnd    int
-	TextStart int
-	TextEnd   int
-}
-
-func copyJsonbNode(value JsonbNode) JsonbNode {
-	return JsonbNode{Kind: langruntime.CheckedI32(value.Kind), Child: langruntime.CheckedIndex(value.Child), Next: langruntime.CheckedIndex(value.Next), KeyStart: langruntime.CheckedIndex(value.KeyStart), KeyEnd: langruntime.CheckedIndex(value.KeyEnd), TextStart: langruntime.CheckedIndex(value.TextStart), TextEnd: langruntime.CheckedIndex(value.TextEnd)}
-}
-
-type JsonbPayload struct {
-	Characters []rune
-	Nodes      []JsonbNode
-	Root       int
-}
-
-func CopyJsonbPayload(value JsonbPayload) JsonbPayload {
-	return JsonbPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, copyJsonbNode), Root: langruntime.CheckedIndex(value.Root)}
-}
-
-type JsonbValueKind uint8
-
-const (
-	JsonbValueUnknown JsonbValueKind = iota
-	JsonbValueNull
-	JsonbValueValue
-	JsonbValueError
-)
-
-type JsonbValue struct {
-	Kind  JsonbValueKind
-	Value JsonbPayload
-	Error SqlError
-}
-
-func CopyJsonbValue(value JsonbValue) JsonbValue {
-	switch value.Kind {
-	case JsonbValueUnknown:
-		return JsonbValue{Kind: JsonbValueUnknown}
-	case JsonbValueNull:
-		return JsonbValue{Kind: JsonbValueNull}
-	case JsonbValueValue:
-		return JsonbValue{Kind: JsonbValueValue, Value: CopyJsonbPayload(value.Value)}
-	case JsonbValueError:
-		return JsonbValue{Kind: JsonbValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
-
 type jsonbFrame struct {
 	state    int
 	node     int
@@ -4492,41 +4543,6 @@ func JsonbFromText(input TextValue) JsonbValue {
 	}
 	return JsonbValue{Kind: JsonbValueUnknown}
 }
-func MakeJsonbValue(source string) JsonbValue {
-	source = langruntime.CheckedString(source)
-	parsed := JsonbFromText(TextValue{Kind: TextValueValue, Value: source})
-	if parsed.Kind == JsonbValueError {
-		return JsonbValue{Kind: JsonbValueUnknown}
-	}
-	return parsed
-}
-func JsonbUnknown() JsonbValue {
-	return JsonbValue{Kind: JsonbValueUnknown}
-}
-func JsonbNull() JsonbValue {
-	return JsonbValue{Kind: JsonbValueNull}
-}
-func JsonbFromCaseGuard(value CheckOutcome) JsonbValue {
-	if value.Kind == CheckOutcomeError {
-		error := value.Error
-		return JsonbValue{Kind: JsonbValueError, Error: error}
-	}
-	return JsonbValue{Kind: JsonbValueUnknown}
-}
-func JsonbIsNull(input JsonbValue) BoolValue {
-	input = CopyJsonbValue(input)
-	if input.Kind == JsonbValueError {
-		error := input.Error
-		return BoolValue{Kind: BoolValueError, Error: error}
-	}
-	if input.Kind == JsonbValueUnknown {
-		return BoolValue{Kind: BoolValueUnknown}
-	}
-	if input.Kind == JsonbValueNull {
-		return BoolValue{Kind: BoolValueValue, Value: true}
-	}
-	return BoolValue{Kind: BoolValueValue, Value: false}
-}
 func jsonbQuote(source *JsonbPayload, begin int, end int) string {
 	begin = langruntime.CheckedIndex(begin)
 	end = langruntime.CheckedIndex(end)
@@ -4572,7 +4588,7 @@ type jsonbOutputFrame struct {
 func copyjsonbOutputFrame(value jsonbOutputFrame) jsonbOutputFrame {
 	return jsonbOutputFrame{node: langruntime.CheckedIndex(value.node), child: langruntime.CheckedIndex(value.child)}
 }
-func JsonbToText(input JsonbValue) TextValue {
+func jsonbRender(input JsonbValue, requireOrder bool) TextValue {
 	input = CopyJsonbValue(input)
 	if input.Kind == JsonbValueError {
 		error := input.Error
@@ -4607,7 +4623,7 @@ func JsonbToText(input JsonbValue) TextValue {
 					quoted := jsonbQuote(&value, node.TextStart, node.TextEnd)
 					output = append(output, quoted...)
 				} else {
-					if node.Kind == 6 {
+					if node.Kind == 6 && requireOrder {
 						member := node.Child
 						nonempty := 0
 						unicode := false
@@ -4673,6 +4689,104 @@ func JsonbToText(input JsonbValue) TextValue {
 		return TextValue{Kind: TextValueValue, Value: string(output)}
 	}
 	return TextValue{Kind: TextValueUnknown}
+}
+func JsonbToText(input JsonbValue) TextValue {
+	input = CopyJsonbValue(input)
+	return jsonbRender(input, true)
+}
+
+type jsonbInputVisit struct {
+	node   int
+	parent int
+}
+
+func copyjsonbInputVisit(value jsonbInputVisit) jsonbInputVisit {
+	return jsonbInputVisit{node: langruntime.CheckedIndex(value.node), parent: langruntime.CheckedI32(value.parent)}
+}
+func jsonbInputSpan(source *JsonbPayload, begin int, end int) bool {
+	begin = langruntime.CheckedIndex(begin)
+	end = langruntime.CheckedIndex(end)
+	if end < begin || end > len(source.Characters) {
+		return false
+	}
+	position := begin
+	for position < end {
+		if source.Characters[position] == '\x00' {
+			return false
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return true
+}
+func jsonbInputValid(source *JsonbPayload) bool {
+	seen := []int{}
+	index := 0
+	for index < len(source.Nodes) {
+		langruntime.CheckedAdd(len(seen), 1)
+		seen = append(seen, langruntime.CheckedIndex(0))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	pending := []jsonbInputVisit{}
+	langruntime.CheckedAdd(len(pending), 1)
+	pending = append(pending, copyjsonbInputVisit(jsonbInputVisit{node: source.Root, parent: langruntime.CheckedSignedNegate(1)}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		visit := pending[depth]
+		if visit.node == 0 || visit.node >= len(source.Nodes) {
+			return false
+		}
+		if seen[visit.node] != 0 {
+			return false
+		}
+		seen[visit.node] = langruntime.CheckedIndex(1)
+		node := source.Nodes[visit.node]
+		if node.Kind < 0 || node.Kind > 6 {
+			return false
+		}
+		if jsonbInputSpan(source, node.TextStart, node.TextEnd) == false {
+			return false
+		}
+		if visit.parent == 6 && jsonbInputSpan(source, node.KeyStart, node.KeyEnd) == false {
+			return false
+		}
+		if node.Kind < 5 && node.Child != 0 {
+			return false
+		}
+		if node.Kind == 3 {
+			number := langruntime.NewTextBuffer("")
+			position := node.TextStart
+			for position < node.TextEnd {
+				number = append(number, string(langruntime.CheckedChar(source.Characters[position]))...)
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			syntax := JsonSyntaxScan(string(number))
+			if syntax.Valid == false || syntax.Kind != 3 {
+				return false
+			}
+		}
+		if visit.parent >= 0 && node.Next > 0 {
+			sibling := jsonbInputVisit{node: node.Next, parent: visit.parent}
+			if depth < len(pending) {
+				pending[depth] = copyjsonbInputVisit(sibling)
+			} else {
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyjsonbInputVisit(sibling))
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+		}
+		if node.Kind >= 5 && node.Child > 0 {
+			child := jsonbInputVisit{node: node.Child, parent: node.Kind}
+			if depth < len(pending) {
+				pending[depth] = copyjsonbInputVisit(child)
+			} else {
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyjsonbInputVisit(child))
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+		}
+	}
+	return true
 }
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)

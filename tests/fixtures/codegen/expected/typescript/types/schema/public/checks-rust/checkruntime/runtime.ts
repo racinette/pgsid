@@ -785,6 +785,96 @@ export function jsonFromCaseGuard(value: CheckOutcome): JsonValue {
     }
     return { kind: "Unknown" };
 }
+export interface JsonbNode {
+    readonly kind: number;
+    readonly child: number;
+    readonly next: number;
+    readonly keyStart: number;
+    readonly keyEnd: number;
+    readonly textStart: number;
+    readonly textEnd: number;
+}
+export function copyJsonbNode(value: JsonbNode): JsonbNode {
+    return { kind: langruntime.checkedI32(value.kind), child: langruntime.checkedIndex(value.child), next: langruntime.checkedIndex(value.next), keyStart: langruntime.checkedIndex(value.keyStart), keyEnd: langruntime.checkedIndex(value.keyEnd), textStart: langruntime.checkedIndex(value.textStart), textEnd: langruntime.checkedIndex(value.textEnd) };
+}
+export interface JsonbPayload {
+    readonly characters: string[];
+    readonly nodes: JsonbNode[];
+    readonly root: number;
+}
+export function copyJsonbPayload(value: JsonbPayload): JsonbPayload {
+    return { characters: langruntime.checkedChars(value.characters), nodes: langruntime.checkedStructs(value.nodes, copyJsonbNode), root: langruntime.checkedIndex(value.root) };
+}
+export type JsonbValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: JsonbPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function copyJsonbValue(value: JsonbValue): JsonbValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copyJsonbPayload(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function makeJsonbValue(source: string): JsonbValue {
+    source = langruntime.checkedString(source);
+    const parsed: JsonbValue = jsonbFromText({ kind: "Value", value: source });
+    if (parsed.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    return parsed;
+}
+export function jsonbUnknown(): JsonbValue {
+    return { kind: "Unknown" };
+}
+export function jsonbNull(): JsonbValue {
+    return { kind: "Null" };
+}
+export function jsonbFromCaseGuard(value: CheckOutcome): JsonbValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbIsNull(input: JsonbValue): BoolValue {
+    input = copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Value", value: true };
+    }
+    return { kind: "Value", value: false };
+}
+export function jsonbFromCoercedValue(input: JsonbValue): JsonbValue {
+    input = copyJsonbValue(input);
+    if (input.kind === "Value") {
+        const value: JsonbPayload = copyJsonbPayload(input.value);
+        if (jsonbInputValid(value) === false) {
+            return { kind: "Unknown" };
+        }
+        const source: TextValue = jsonbRender({ kind: "Value", value: value }, false);
+        if (source.kind === "Value") {
+            const text: string = langruntime.checkedString(source.value);
+            return makeJsonbValue(text);
+        }
+        return { kind: "Unknown" };
+    }
+    return input;
+}
 export interface NetworkAddress {
     readonly family: number;
     readonly prefix: number;
@@ -4291,45 +4381,6 @@ export function jsonKindText(kind: number): TextValue {
     }
     return { kind: "Unknown" };
 }
-export interface JsonbNode {
-    readonly kind: number;
-    readonly child: number;
-    readonly next: number;
-    readonly keyStart: number;
-    readonly keyEnd: number;
-    readonly textStart: number;
-    readonly textEnd: number;
-}
-export function copyJsonbNode(value: JsonbNode): JsonbNode {
-    return { kind: langruntime.checkedI32(value.kind), child: langruntime.checkedIndex(value.child), next: langruntime.checkedIndex(value.next), keyStart: langruntime.checkedIndex(value.keyStart), keyEnd: langruntime.checkedIndex(value.keyEnd), textStart: langruntime.checkedIndex(value.textStart), textEnd: langruntime.checkedIndex(value.textEnd) };
-}
-export interface JsonbPayload {
-    readonly characters: string[];
-    readonly nodes: JsonbNode[];
-    readonly root: number;
-}
-export function copyJsonbPayload(value: JsonbPayload): JsonbPayload {
-    return { characters: langruntime.checkedChars(value.characters), nodes: langruntime.checkedStructs(value.nodes, copyJsonbNode), root: langruntime.checkedIndex(value.root) };
-}
-export type JsonbValue = {
-    readonly kind: "Unknown";
-} | {
-    readonly kind: "Null";
-} | {
-    readonly kind: "Value";
-    readonly value: JsonbPayload;
-} | {
-    readonly kind: "Error";
-    readonly value: SqlError;
-};
-export function copyJsonbValue(value: JsonbValue): JsonbValue {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: copyJsonbPayload(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 interface JsonbFrame {
     state: number;
     node: number;
@@ -4686,41 +4737,6 @@ export function jsonbFromText(input: TextValue): JsonbValue {
     }
     return { kind: "Unknown" };
 }
-export function makeJsonbValue(source: string): JsonbValue {
-    source = langruntime.checkedString(source);
-    const parsed: JsonbValue = jsonbFromText({ kind: "Value", value: source });
-    if (parsed.kind === "Error") {
-        return { kind: "Unknown" };
-    }
-    return parsed;
-}
-export function jsonbUnknown(): JsonbValue {
-    return { kind: "Unknown" };
-}
-export function jsonbNull(): JsonbValue {
-    return { kind: "Null" };
-}
-export function jsonbFromCaseGuard(value: CheckOutcome): JsonbValue {
-    if (value.kind === "Error") {
-        const error: SqlError = value.value;
-        return { kind: "Error", value: error };
-    }
-    return { kind: "Unknown" };
-}
-export function jsonbIsNull(input: JsonbValue): BoolValue {
-    input = copyJsonbValue(input);
-    if (input.kind === "Error") {
-        const error: SqlError = input.value;
-        return { kind: "Error", value: error };
-    }
-    if (input.kind === "Unknown") {
-        return { kind: "Unknown" };
-    }
-    if (input.kind === "Null") {
-        return { kind: "Value", value: true };
-    }
-    return { kind: "Value", value: false };
-}
 function jsonbQuote(source: JsonbPayload, begin: number, end: number): string {
     begin = langruntime.checkedIndex(begin);
     end = langruntime.checkedIndex(end);
@@ -4772,8 +4788,9 @@ interface JsonbOutputFrame {
 function copyJsonbOutputFrame(value: JsonbOutputFrame): JsonbOutputFrame {
     return { node: langruntime.checkedIndex(value.node), child: langruntime.checkedIndex(value.child) };
 }
-export function jsonbToText(input: JsonbValue): TextValue {
+function jsonbRender(input: JsonbValue, requireOrder: boolean): TextValue {
     input = copyJsonbValue(input);
+    requireOrder = langruntime.checkedBool(requireOrder);
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -4812,7 +4829,7 @@ export function jsonbToText(input: JsonbValue): TextValue {
                     output = output + quoted;
                 }
                 else {
-                    if (node.kind === 6) {
+                    if (node.kind === 6 && requireOrder) {
                         let member: number = node.child;
                         let nonempty: number = 0;
                         let unicode: boolean = false;
@@ -4882,6 +4899,100 @@ export function jsonbToText(input: JsonbValue): TextValue {
         return { kind: "Value", value: output };
     }
     return { kind: "Unknown" };
+}
+export function jsonbToText(input: JsonbValue): TextValue {
+    input = copyJsonbValue(input);
+    return jsonbRender(input, true);
+}
+interface JsonbInputVisit {
+    node: number;
+    parent: number;
+}
+function copyJsonbInputVisit(value: JsonbInputVisit): JsonbInputVisit {
+    return { node: langruntime.checkedIndex(value.node), parent: langruntime.checkedI32(value.parent) };
+}
+function jsonbInputSpan(source: JsonbPayload, begin: number, end: number): boolean {
+    begin = langruntime.checkedIndex(begin);
+    end = langruntime.checkedIndex(end);
+    if (end < begin || end > source.characters.length) {
+        return false;
+    }
+    let position: number = begin;
+    while (position < end) {
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "\0") {
+            return false;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return true;
+}
+function jsonbInputValid(source: JsonbPayload): boolean {
+    let seen: number[] = [];
+    let index: number = 0;
+    while (index < source.nodes.length) {
+        langruntime.pushIndex(seen, 0);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let pending: JsonbInputVisit[] = [];
+    langruntime.pushStruct(pending, { node: source.root, parent: langruntime.checkedSignedNegate(1) }, copyJsonbInputVisit);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const visit: JsonbInputVisit = copyJsonbInputVisit(langruntime.indexStruct(pending, langruntime.checkedIndex(depth), copyJsonbInputVisit));
+        if (visit.node === 0 || visit.node >= source.nodes.length) {
+            return false;
+        }
+        if (!(langruntime.indexNumber(seen, langruntime.checkedIndex(visit.node)) === 0)) {
+            return false;
+        }
+        seen[langruntime.checkedIndexIn(seen, visit.node)] = langruntime.checkedIndex(1);
+        const node: JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(visit.node), copyJsonbNode);
+        if (node.kind < 0 || node.kind > 6) {
+            return false;
+        }
+        if (jsonbInputSpan(source, node.textStart, node.textEnd) === false) {
+            return false;
+        }
+        if (visit.parent === 6 && jsonbInputSpan(source, node.keyStart, node.keyEnd) === false) {
+            return false;
+        }
+        if (node.kind < 5 && !(node.child === 0)) {
+            return false;
+        }
+        if (node.kind === 3) {
+            let number: string = "";
+            let position: number = node.textStart;
+            while (position < node.textEnd) {
+                number = number + langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+                position = langruntime.checkedAdd(position, 1);
+            }
+            const syntax: JsonSyntaxLayout = copyJsonSyntaxLayout(jsonSyntaxScan(number));
+            if (syntax.valid === false || !(syntax.kind === 3)) {
+                return false;
+            }
+        }
+        if (visit.parent >= 0 && node.next > 0) {
+            const sibling: JsonbInputVisit = copyJsonbInputVisit({ node: node.next, parent: visit.parent });
+            if (depth < pending.length) {
+                pending[langruntime.checkedIndexIn(pending, depth)] = copyJsonbInputVisit(sibling);
+            }
+            else {
+                langruntime.pushStruct(pending, sibling, copyJsonbInputVisit);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+        }
+        if (node.kind >= 5 && node.child > 0) {
+            const child: JsonbInputVisit = copyJsonbInputVisit({ node: node.child, parent: node.kind });
+            if (depth < pending.length) {
+                pending[langruntime.checkedIndexIn(pending, depth)] = copyJsonbInputVisit(child);
+            }
+            else {
+                langruntime.pushStruct(pending, child, copyJsonbInputVisit);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+        }
+    }
+    return true;
 }
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);

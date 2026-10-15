@@ -29,6 +29,7 @@ import {
   catalogXid8Type,
   catalogSnapshotType,
   catalogJsonType,
+  catalogJsonbType,
   catalogOidType,
   catalogMoneyType,
   catalogPolygonType,
@@ -368,6 +369,9 @@ describe('world CHECK INSERT parity', () => {
     })
     await progress('typescript-load')
     generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
+    const jsonbRuntime = await import(
+      pathToFileURL(join(directory, 'js/checks-rust/checkruntime/runtime.js')).href
+    )
     for (const artifact of go.artifacts) {
       await mkdir(dirname(artifact.path), { recursive: true })
       await writeFile(artifact.path, artifact.content)
@@ -505,6 +509,13 @@ describe('world CHECK INSERT parity', () => {
           (column) =>
             column.generated === 'none' &&
             catalogXid8Type(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
+      const jsonbColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogJsonbType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
       const jsonColumns = table.columns
@@ -659,6 +670,15 @@ describe('world CHECK INSERT parity', () => {
         const payload = bytes === null ? null : bytes.readBigInt64BE()
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+      }
+      for (const name of jsonbColumns) {
+        const source = (
+          await pg.query<{ source: string | null }>(
+            `SELECT ${quote(name)}::text AS source FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.source
+        portableRow[name] = source === null ? null : jsonbRuntime.makeJsonbValue(source)
+        goRow[name] = source
       }
       for (const name of jsonColumns) {
         const source = (
@@ -927,6 +947,7 @@ describe('world CHECK INSERT parity', () => {
         xid8Columns,
         snapshotColumns,
         jsonColumns,
+        jsonbColumns,
         oidColumns,
         moneyColumns,
         polygonColumns,

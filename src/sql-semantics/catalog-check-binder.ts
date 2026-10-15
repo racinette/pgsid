@@ -136,6 +136,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     macaddr8: 'pg_catalog.macaddr8',
     bytea: 'pg_catalog.bytea',
     json: 'pg_catalog."json"',
+    jsonb: 'pg_catalog.jsonb',
     '"json"': 'pg_catalog."json"',
     bit: 'pg_catalog."bit"',
     '"bit"': 'pg_catalog."bit"',
@@ -297,6 +298,14 @@ export function catalogJsonType(
   return catalogBaseScalarType(name, oid, domains) === 'pg_catalog."json"'
 }
 
+export function catalogJsonbType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.jsonb'
+}
+
 export function catalogPolygonType(
   name: string,
   oid: number | undefined,
@@ -396,6 +405,8 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
+  if (type === 'pg_catalog.jsonb' && literal.kind === 'null')
+    return { kind: 'jsonb', type, value: null }
   if (type === 'pg_catalog."json"' && (literal.kind === 'null' || literal.kind === 'string'))
     return { kind: 'json', type, value: literal.value }
   if (
@@ -1392,6 +1403,7 @@ export function bindCatalogCheck(
         if (
           domainType !== 'pg_catalog.refcursor' &&
           domainType !== 'pg_catalog."json"' &&
+          domainType !== 'pg_catalog.jsonb' &&
           domainType !== 'pg_catalog.point' &&
           domainType !== 'pg_catalog.line' &&
           domainType !== 'pg_catalog.lseg' &&
@@ -1443,7 +1455,11 @@ export function bindCatalogCheck(
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
       const modifiers = castType?.['typmods']
-      if (type === 'pg_catalog."json"' && Array.isArray(modifiers) && modifiers.length)
+      if (
+        (type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb') &&
+        Array.isArray(modifiers) &&
+        modifiers.length
+      )
         return unknown
       if (type === 'pg_catalog."interval"' && Array.isArray(modifiers) && modifiers.length) {
         if (modifiers.length > 2) return unknown
@@ -1585,6 +1601,7 @@ export function bindCatalogCheck(
           (type === 'pg_catalog.name' && isSnapshotType(source))) &&
         (isIntegerType(source) ||
           source === 'pg_catalog."json"' ||
+          source === 'pg_catalog.jsonb' ||
           isSnapshotType(source) ||
           isOidAliasType(source) ||
           [
@@ -2709,9 +2726,11 @@ export function bindCatalogCheck(
       nodes.length === 1 &&
       (aliasType === 'pg_catalog.refcursor' ||
         aliasType === 'pg_catalog."json"' ||
+        aliasType === 'pg_catalog.jsonb' ||
         isSnapshotType(aliasType) ||
         ((args[0]?.type === 'pg_catalog.refcursor' ||
           args[0]?.type === 'pg_catalog."json"' ||
+          args[0]?.type === 'pg_catalog.jsonb' ||
           isSnapshotType(args[0]?.type)) &&
           [
             'pg_catalog.text',

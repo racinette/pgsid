@@ -11,7 +11,7 @@ import { builtinMetadata } from '../../src/postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../src/postgres/builtins/taxonomy.js'
 import { checkRustCallableNames } from '../../src/codegen/shared/check-rust-source.js'
 import { catalogCheckGroups, lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
-import { callableBoundary, verifiedCatalog, jsonExtractionValueRequirements } from './catalog.js'
+import { callableBoundary, verifiedCatalog, jsonValueRequirements } from './catalog.js'
 import { bindProbe, inspectExpression, quote, valueRepresentation } from './probes.js'
 import { loadWorldCatalog, verifyWorldDigest, worldSourceDigest, writeReport } from './worlds.js'
 
@@ -97,7 +97,7 @@ export async function measureSurface(pg: PGlite) {
       implementationPresent:
         implementation.kind === 'function' && available.has(implementation.rustName),
       valueRequirements:
-        jsonExtractionValueRequirements(implementation) ??
+        jsonValueRequirements(implementation) ??
         (implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
         ['pg_current_snapshot', 'txid_current_snapshot'].includes(implementation.name)

@@ -1,30 +1,4 @@
 #[derive(Clone, Copy)]
-pub struct JsonbNode {
-    pub kind: i32,
-    pub child: usize,
-    pub next: usize,
-    pub key_start: usize,
-    pub key_end: usize,
-    pub text_start: usize,
-    pub text_end: usize,
-}
-
-#[derive(Clone)]
-pub struct JsonbPayload {
-    pub characters: Vec<char>,
-    pub nodes: Vec<JsonbNode>,
-    pub root: usize,
-}
-
-#[derive(Clone)]
-pub enum JsonbValue {
-    Unknown,
-    Null,
-    Value(JsonbPayload),
-    Error(SqlError),
-}
-
-#[derive(Clone, Copy)]
 struct JsonbFrame {
     state: i32,
     node: usize,
@@ -437,39 +411,6 @@ pub fn jsonb_from_text(input: TextValue) -> JsonbValue {
     JsonbValue::Unknown
 }
 
-pub fn make_jsonb_value(source: &str) -> JsonbValue {
-    let parsed = jsonb_from_text(TextValue::Value(source.to_owned()));
-    if let JsonbValue::Error(_) = parsed {
-        return JsonbValue::Unknown;
-    };
-    parsed
-}
-
-pub fn jsonb_unknown() -> JsonbValue {
-    JsonbValue::Unknown
-}
-pub fn jsonb_null() -> JsonbValue {
-    JsonbValue::Null
-}
-pub fn jsonb_from_case_guard(value: CheckOutcome) -> JsonbValue {
-    if let CheckOutcome::Error(error) = value {
-        return JsonbValue::Error(error);
-    };
-    JsonbValue::Unknown
-}
-pub fn jsonb_is_null(input: JsonbValue) -> BoolValue {
-    if let JsonbValue::Error(error) = input {
-        return BoolValue::Error(error);
-    };
-    if let JsonbValue::Unknown = input {
-        return BoolValue::Unknown;
-    };
-    if let JsonbValue::Null = input {
-        return BoolValue::Value(true);
-    };
-    BoolValue::Value(false)
-}
-
 fn jsonb_quote(source: &JsonbPayload, begin: usize, end: usize) -> String {
     let mut output = String::new();
     output.push('"');
@@ -511,7 +452,7 @@ struct JsonbOutputFrame {
     child: usize,
 }
 
-pub fn jsonb_to_text(input: JsonbValue) -> TextValue {
+fn jsonb_render(input: JsonbValue, require_order: bool) -> TextValue {
     if let JsonbValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -543,7 +484,7 @@ pub fn jsonb_to_text(input: JsonbValue) -> TextValue {
                     let quoted = jsonb_quote(&value, node.text_start, node.text_end);
                     output.push_str(quoted.as_str());
                 } else {
-                    if node.kind == 6 {
+                    if node.kind == 6 && require_order {
                         let mut member = node.child;
                         let mut nonempty: usize = 0;
                         let mut unicode = false;
@@ -614,4 +555,104 @@ pub fn jsonb_to_text(input: JsonbValue) -> TextValue {
         return TextValue::Value(output);
     };
     TextValue::Unknown
+}
+
+pub fn jsonb_to_text(input: JsonbValue) -> TextValue {
+    jsonb_render(input, true)
+}
+
+#[derive(Clone, Copy)]
+struct JsonbInputVisit {
+    node: usize,
+    parent: i32,
+}
+
+fn jsonb_input_span(source: &JsonbPayload, begin: usize, end: usize) -> bool {
+    if end < begin || end > source.characters.len() {
+        return false;
+    };
+    let mut position = begin;
+    while position < end {
+        if source.characters[position] == '\u{0000}' {
+            return false;
+        };
+        position += 1;
+    }
+    true
+}
+
+fn jsonb_input_valid(source: &JsonbPayload) -> bool {
+    let mut seen: Vec<usize> = Vec::new();
+    let mut index: usize = 0;
+    while index < source.nodes.len() {
+        seen.push(0);
+        index += 1;
+    }
+    let mut pending: Vec<JsonbInputVisit> = Vec::new();
+    pending.push(JsonbInputVisit {
+        node: source.root,
+        parent: -1,
+    });
+    let mut depth: usize = 1;
+    while depth > 0 {
+        depth = depth - 1;
+        let visit = pending[depth];
+        if visit.node == 0 || visit.node >= source.nodes.len() {
+            return false;
+        };
+        if seen[visit.node] != 0 {
+            return false;
+        };
+        seen[visit.node] = 1;
+        let node = source.nodes[visit.node];
+        if node.kind < 0 || node.kind > 6 {
+            return false;
+        };
+        if jsonb_input_span(source, node.text_start, node.text_end) == false {
+            return false;
+        };
+        if visit.parent == 6 && jsonb_input_span(source, node.key_start, node.key_end) == false {
+            return false;
+        };
+        if node.kind < 5 && node.child != 0 {
+            return false;
+        };
+        if node.kind == 3 {
+            let mut number = String::new();
+            let mut position = node.text_start;
+            while position < node.text_end {
+                number.push(source.characters[position]);
+                position += 1;
+            }
+            let syntax = json_syntax_scan(number.as_str());
+            if syntax.valid == false || syntax.kind != 3 {
+                return false;
+            };
+        };
+        if visit.parent >= 0 && node.next > 0 {
+            let sibling = JsonbInputVisit {
+                node: node.next,
+                parent: visit.parent,
+            };
+            if depth < pending.len() {
+                pending[depth] = sibling;
+            } else {
+                pending.push(sibling);
+            };
+            depth += 1;
+        };
+        if node.kind >= 5 && node.child > 0 {
+            let child = JsonbInputVisit {
+                node: node.child,
+                parent: node.kind,
+            };
+            if depth < pending.len() {
+                pending[depth] = child;
+            } else {
+                pending.push(child);
+            };
+            depth += 1;
+        };
+    }
+    true
 }

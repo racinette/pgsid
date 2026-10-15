@@ -1,4 +1,29 @@
 -- @world checks
+CREATE DOMAIN normalized_document AS jsonb;
+CREATE DOMAIN retained_normalized_document AS normalized_document;
+CREATE TABLE stored_documents (
+ id integer PRIMARY KEY,
+ label text NOT NULL,
+ document retained_normalized_document,
+ recorded_kind text NOT NULL,
+ recorded_source text,
+ allow_absent boolean NOT NULL,
+ CONSTRAINT stored_kind CHECK(jsonb_typeof(document) COLLATE "C"=recorded_kind COLLATE "C"),
+ CONSTRAINT stored_source CHECK(document::text COLLATE "C"=recorded_source COLLATE "C"),
+ CONSTRAINT stored_presence CHECK((document IS NULL)=allow_absent)
+);
+CREATE TABLE document_choices (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ primary_document retained_normalized_document,
+ backup_document jsonb,
+ choose_primary boolean NOT NULL,
+ recorded_kind text,
+ recorded_source text,
+ CONSTRAINT choice_kind CHECK(jsonb_typeof(CASE WHEN choose_primary THEN primary_document ELSE backup_document END) COLLATE "C"=recorded_kind COLLATE "C"),
+ CONSTRAINT choice_source CHECK(COALESCE(primary_document,backup_document,NULL::jsonb)::text COLLATE "C"=recorded_source COLLATE "C")
+);
 CREATE DOMAIN archived_document AS json;
 CREATE DOMAIN retained_document AS archived_document;
 CREATE TABLE document_archives (

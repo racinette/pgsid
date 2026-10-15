@@ -40,6 +40,7 @@ export class UnsupportedCheckRustExpression extends Error {}
 
 const rustType = (type: string): string => {
   if (type === 'pg_catalog."json"') return 'JsonValue'
+  if (type === 'pg_catalog.jsonb') return 'JsonbValue'
   if (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') return 'BitValue'
   if (type === 'pg_catalog.uuid') return 'UuidValue'
   if (type === 'pg_catalog.bytea') return 'ByteaValue'
@@ -202,6 +203,7 @@ export function emitCheckRustEvaluator(
   const ownedOperand = (operand: { name: string; type: string }): string =>
     [
       'JsonValue',
+      'JsonbValue',
       'SnapshotValue',
       'PolygonValue',
       'PathValue',
@@ -608,6 +610,7 @@ export function emitCheckRustEvaluator(
             'pg_catalog.pg_snapshot',
             'pg_catalog.txid_snapshot',
             'pg_catalog."json"',
+            'pg_catalog.jsonb',
           ].includes(operand.type)) ||
         (metadata.volatility !== 'i' && !isOidAliasType(operand.type))
       )
@@ -621,6 +624,8 @@ export function emitCheckRustEvaluator(
         }
       if (isSnapshotType(operand.type))
         return { name: bind(`snapshot_to_text(${ownedOperand(operand)})`), type: node.type }
+      if (operand.type === 'pg_catalog.jsonb')
+        return { name: bind(`jsonb_to_text(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog."json"')
         return { name: bind(`json_to_text(${ownedOperand(operand)})`), type: node.type }
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'
@@ -1008,6 +1013,10 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`snapshot_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'jsonb') {
+        if (value.value === null) return { name: bind('jsonb_null()'), type: value.type }
+        throw new UnsupportedCheckRustExpression('JSONB literal input is not prepared')
+      }
       if (value.kind === 'json') {
         if (value.value === null) return { name: bind('json_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -1204,6 +1213,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.pg_snapshot',
           'pg_catalog.txid_snapshot',
           'pg_catalog."json"',
+          'pg_catalog.jsonb',
           'pg_catalog.oid',
           'pg_catalog.polygon',
           'pg_catalog.path',
@@ -1550,7 +1560,7 @@ export function emitCheckRustEvaluator(
       bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
       for (const operand of operands.slice(1)) {
         const nullness = bind(
-          `${prefix}_is_null(${['JsonValue', 'SnapshotValue', 'PolygonValue', 'PathValue', 'TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(kind) ? `${name}.clone()` : name})`,
+          `${prefix}_is_null(${['JsonValue', 'JsonbValue', 'SnapshotValue', 'PolygonValue', 'PathValue', 'TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(kind) ? `${name}.clone()` : name})`,
         )
         const guard = bind(`check_from_bool(${nullness})`)
         bindings.push(

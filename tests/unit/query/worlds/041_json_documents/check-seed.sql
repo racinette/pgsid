@@ -128,3 +128,40 @@ INSERT INTO document_elements(id,archive_id,label,document,element_index,recorde
 INSERT INTO document_elements(id,archive_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'bad unused array string','[1,"\u0000"]',0,'1','1',2,false,false);
 -- name: element_bad_unselected_surrogate
 INSERT INTO document_elements(id,archive_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'bad unused array surrogate','[1,"\ud800"]',0,'1','1',2,false,false);
+
+-- name: stored_object
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'duplicate keys','{"a":1,"a":2}','object','{"a": 2}',false);
+-- name: stored_array
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'array','[1,null,"x"]','array','[1, null, "x"]',false);
+-- name: stored_json_null
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'JSON null','null','null','null',false);
+-- name: stored_sql_null
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'absent document',NULL,'object',NULL,true);
+-- name: stored_unicode
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'Unicode string','"雪😊"','string','"雪😊"',false);
+-- name: stored_unicode_key
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'one Unicode key','{"雪":"😊"}','object','{"雪": "😊"}',false);
+-- name: stored_escaped_input
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'decoded stored string','"\u00e9"','string','"é"',false);
+-- name: stored_large_number
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'exact number','9007199254740993.00','number','9007199254740993.00',false);
+-- name: stored_exponent
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'numeric display scale','1.230e-5','number','0.00001230',false);
+-- name: stored_wrong_kind
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'wrong shape','{}','array','{}',false);
+-- name: stored_wrong_source
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'wrong source','{"a":2}','object','{"a": 1}',false);
+-- name: stored_wrong_presence
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(2,'missing document',NULL,'object',NULL,false);
+-- name: choice_primary
+INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,choose_primary,recorded_kind,recorded_source) VALUES(2,1,'preferred record','{"a":2}','[]',true,'object','{"a": 2}');
+-- name: choice_backup
+INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,choose_primary,recorded_kind,recorded_source) VALUES(2,1,'backup selected','{"a":2}','[]',false,'array','{"a": 2}');
+-- name: choice_primary_null
+INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,choose_primary,recorded_kind,recorded_source) VALUES(2,1,'missing primary',NULL,'[]',true,'array','[]');
+-- name: choice_both_null
+INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,choose_primary,recorded_kind,recorded_source) VALUES(2,1,'both absent',NULL,NULL,false,'object',NULL);
+-- name: choice_wrong_kind
+INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,choose_primary,recorded_kind,recorded_source) VALUES(2,1,'wrong selected shape','{"a":2}','[]',true,'string','{"a": 2}');
+-- name: choice_wrong_source
+INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,choose_primary,recorded_kind,recorded_source) VALUES(2,1,'wrong first source','{"a":2}','[]',true,'object','[]');

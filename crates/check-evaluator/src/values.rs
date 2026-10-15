@@ -732,6 +732,82 @@ pub fn json_from_case_guard(value: CheckOutcome) -> JsonValue {
     JsonValue::Unknown
 }
 
+#[derive(Clone, Copy)]
+pub struct JsonbNode {
+    pub kind: i32,
+    pub child: usize,
+    pub next: usize,
+    pub key_start: usize,
+    pub key_end: usize,
+    pub text_start: usize,
+    pub text_end: usize,
+}
+
+#[derive(Clone)]
+pub struct JsonbPayload {
+    pub characters: Vec<char>,
+    pub nodes: Vec<JsonbNode>,
+    pub root: usize,
+}
+
+#[derive(Clone)]
+pub enum JsonbValue {
+    Unknown,
+    Null,
+    Value(JsonbPayload),
+    Error(SqlError),
+}
+
+pub fn make_jsonb_value(source: &str) -> JsonbValue {
+    let parsed = jsonb_from_text(TextValue::Value(source.to_owned()));
+    if let JsonbValue::Error(_) = parsed {
+        return JsonbValue::Unknown;
+    };
+    parsed
+}
+
+pub fn jsonb_unknown() -> JsonbValue {
+    JsonbValue::Unknown
+}
+
+pub fn jsonb_null() -> JsonbValue {
+    JsonbValue::Null
+}
+
+pub fn jsonb_from_case_guard(value: CheckOutcome) -> JsonbValue {
+    if let CheckOutcome::Error(error) = value {
+        return JsonbValue::Error(error);
+    };
+    JsonbValue::Unknown
+}
+
+pub fn jsonb_is_null(input: JsonbValue) -> BoolValue {
+    if let JsonbValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if let JsonbValue::Unknown = input {
+        return BoolValue::Unknown;
+    };
+    if let JsonbValue::Null = input {
+        return BoolValue::Value(true);
+    };
+    BoolValue::Value(false)
+}
+
+pub fn jsonb_from_coerced_value(input: JsonbValue) -> JsonbValue {
+    if let JsonbValue::Value(value) = input {
+        if jsonb_input_valid(&value) == false {
+            return JsonbValue::Unknown;
+        };
+        let source = jsonb_render(JsonbValue::Value(value), false);
+        if let TextValue::Value(text) = source {
+            return make_jsonb_value(text.as_str());
+        };
+        return JsonbValue::Unknown;
+    };
+    input
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct NetworkAddress {
     pub family: usize,
@@ -1547,7 +1623,9 @@ pub enum PolygonValue {
 fn polygon_coordinate_less(left: i64, right: i64) -> bool {
     let a = float8_number(left);
     let b = float8_number(right);
-    if b != b { return a == a; };
+    if b != b {
+        return a == a;
+    };
     a < b
 }
 fn polygon_coordinate_equal(left: i64, right: i64) -> bool {
@@ -1557,7 +1635,9 @@ fn polygon_coordinate_equal(left: i64, right: i64) -> bool {
 }
 fn polygon_coordinate_known(point: PointPayload, y: bool) -> bool {
     let mut bits = point.x;
-    if y { bits = point.y; };
+    if y {
+        bits = point.y;
+    };
     let value = float8_number(bits);
     point.wire_known || value == value
 }
@@ -1592,17 +1672,26 @@ fn polygon_calculated_bounds(payload: PolygonPayload) -> BoxPayload {
         };
         index += 1;
     }
-    BoxPayload { high_x, high_y, low_x, low_y, wire_known: high_x_known && high_y_known && low_x_known && low_y_known }
+    BoxPayload {
+        high_x,
+        high_y,
+        low_x,
+        low_y,
+        wire_known: high_x_known && high_y_known && low_x_known && low_y_known,
+    }
 }
 fn polygon_bounds_ambiguous(payload: PolygonPayload, bounds: BoxPayload) -> bool {
-    if bounds.wire_known == false { return true; };
+    if bounds.wire_known == false {
+        return true;
+    };
     let mut index: usize = 0;
     while index < payload.points.len() {
         let point = payload.points[index];
         if (polygon_coordinate_equal(point.x, bounds.high_x) && point.x != bounds.high_x)
             || (polygon_coordinate_equal(point.x, bounds.low_x) && point.x != bounds.low_x)
             || (polygon_coordinate_equal(point.y, bounds.high_y) && point.y != bounds.high_y)
-            || (polygon_coordinate_equal(point.y, bounds.low_y) && point.y != bounds.low_y) {
+            || (polygon_coordinate_equal(point.y, bounds.low_y) && point.y != bounds.low_y)
+        {
             return true;
         };
         index += 1;
@@ -1628,13 +1717,21 @@ pub fn make_polygon_value(payload: PolygonPayload) -> PolygonValue {
         if polygon_coordinate_equal(actual.high_x, calculated.high_x) == false
             || polygon_coordinate_equal(actual.high_y, calculated.high_y) == false
             || polygon_coordinate_equal(actual.low_x, calculated.low_x) == false
-            || polygon_coordinate_equal(actual.low_y, calculated.low_y) == false {
+            || polygon_coordinate_equal(actual.low_y, calculated.low_y) == false
+        {
             return PolygonValue::Unknown;
         };
     };
-    if bounds == BoxValue::Null { return PolygonValue::Unknown; };
-    if let BoxValue::Error(_) = bounds { return PolygonValue::Unknown; };
-    PolygonValue::Value(PolygonPayload { points: payload.points, bounds })
+    if bounds == BoxValue::Null {
+        return PolygonValue::Unknown;
+    };
+    if let BoxValue::Error(_) = bounds {
+        return PolygonValue::Unknown;
+    };
+    PolygonValue::Value(PolygonPayload {
+        points: payload.points,
+        bounds,
+    })
 }
 pub fn make_polygon_points(payload: PolygonPayload) -> PolygonValue {
     let maximum_points: i32 = 134217725;
@@ -1644,18 +1741,33 @@ pub fn make_polygon_points(payload: PolygonPayload) -> PolygonValue {
         return PolygonValue::Unknown;
     };
     let bounds = polygon_calculated_bounds(payload.clone());
-    PolygonValue::Value(PolygonPayload { points: payload.points, bounds: BoxValue::Value(bounds) })
+    PolygonValue::Value(PolygonPayload {
+        points: payload.points,
+        bounds: BoxValue::Value(bounds),
+    })
 }
-pub fn polygon_unknown() -> PolygonValue { PolygonValue::Unknown }
-pub fn polygon_null() -> PolygonValue { PolygonValue::Null }
+pub fn polygon_unknown() -> PolygonValue {
+    PolygonValue::Unknown
+}
+pub fn polygon_null() -> PolygonValue {
+    PolygonValue::Null
+}
 pub fn polygon_is_null(input: PolygonValue) -> BoolValue {
-    if let PolygonValue::Error(error) = input { return BoolValue::Error(error); };
-    if let PolygonValue::Unknown = input { return BoolValue::Unknown; };
-    if let PolygonValue::Null = input { return make_bool_value(true); };
+    if let PolygonValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if let PolygonValue::Unknown = input {
+        return BoolValue::Unknown;
+    };
+    if let PolygonValue::Null = input {
+        return make_bool_value(true);
+    };
     make_bool_value(false)
 }
 pub fn polygon_from_case_guard(input: CheckOutcome) -> PolygonValue {
-    if let CheckOutcome::Error(error) = input { return PolygonValue::Error(error); };
+    if let CheckOutcome::Error(error) = input {
+        return PolygonValue::Error(error);
+    };
     PolygonValue::Unknown
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
