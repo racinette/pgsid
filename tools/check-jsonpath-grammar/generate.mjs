@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 
 const grammar = new URL('../../crates/check-evaluator/src/jsonpath_grammar.rs', import.meta.url)
 const output = new URL(
-  '../../crates/check-evaluator/src/jsonpath_tables.generated.rs',
+  '../../crates/check-evaluator/src/operations/pg_catalog/jsonpath_tables.generated.rs',
   import.meta.url,
 )
 const source = readFileSync(grammar, 'utf8')
@@ -40,7 +40,10 @@ for (const entry of strings('JSONPATH_GRAMMAR_RULES')) {
 }
 const nonterminals = new Set(rules.map(({ lhs }) => lhs))
 const reductions = readFileSync(
-  new URL('../../crates/check-evaluator/src/jsonpath_parse.rs', import.meta.url),
+  new URL(
+    '../../crates/check-evaluator/src/operations/pg_catalog/jsonpath_parse.rs',
+    import.meta.url,
+  ),
   'utf8',
 )
 for (const action of actions) {

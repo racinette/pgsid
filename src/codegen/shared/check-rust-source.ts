@@ -86,7 +86,7 @@ export function assembleCheckRust(evaluator: {
           if (
             module.name === 'pg_catalog' &&
             !requiresRegex &&
-            /\/regex(?:_|\.rs$)/u.test(file.path)
+            (/\/regex(?:_|\.rs$)/u.test(file.path) || /\/jsonpath_input\.rs$/u.test(file.path))
           )
             return false
           if (
