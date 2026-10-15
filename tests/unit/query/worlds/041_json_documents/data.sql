@@ -10,3 +10,4 @@ INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,
 INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(1,1,'normalize import','{"a":1,"a":2}','object','{"a": 2}',false,false);
 INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(1,1,'stored name','{"name":"first","name":"last"}','name','"last"','last',false,true,false);
 INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(1,1,'stored tail','[1,null,"last"]',-1,'"last"','last',3,false,false);
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(1,1,'equivalent record','{"a":1}','{"a":1.00}',true,false,true,true,false);

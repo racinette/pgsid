@@ -149,3 +149,19 @@ CREATE TABLE normalized_elements (
  CONSTRAINT normalized_element_presence CHECK(CASE WHEN bypass THEN true ELSE (document->element_index IS NULL)=allow_missing END),
  CONSTRAINT normalized_element_count CHECK(CASE WHEN bypass THEN true ELSE jsonb_array_length(document)=recorded_count END)
 );
+CREATE TABLE document_comparisons (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ document retained_normalized_document,
+ compared_document jsonb,
+ recorded_equal boolean,
+ recorded_unequal boolean,
+ recorded_contains boolean,
+ recorded_contained boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT comparison_equal CHECK(CASE WHEN bypass THEN true ELSE (document=compared_document) IS NOT DISTINCT FROM recorded_equal END),
+ CONSTRAINT comparison_unequal CHECK(CASE WHEN bypass THEN true ELSE (document<>compared_document) IS NOT DISTINCT FROM recorded_unequal END),
+ CONSTRAINT comparison_contains CHECK(CASE WHEN bypass THEN true ELSE (document @> compared_document) IS NOT DISTINCT FROM recorded_contains END),
+ CONSTRAINT comparison_contained CHECK(CASE WHEN bypass THEN true ELSE (document <@ compared_document) IS NOT DISTINCT FROM recorded_contained END)
+);

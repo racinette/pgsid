@@ -10711,6 +10711,281 @@ export function jsonbExistsF8f8(input: checkruntime.JsonbValue, key: checkruntim
     }
     return { kind: "Null" };
 }
+interface JsonbRelationFrame {
+    left: number;
+    right: number;
+    leftChild: number;
+    rightChild: number;
+    state: number;
+}
+function copyJsonbRelationFrame(value: JsonbRelationFrame): JsonbRelationFrame {
+    return { left: langruntime.checkedIndex(value.left), right: langruntime.checkedIndex(value.right), leftChild: langruntime.checkedIndex(value.leftChild), rightChild: langruntime.checkedIndex(value.rightChild), state: langruntime.checkedI32(value.state) };
+}
+function jsonbRelationCursor(left: number, right: number, a: number, b: number, state: number): JsonbRelationFrame {
+    left = langruntime.checkedIndex(left);
+    right = langruntime.checkedIndex(right);
+    a = langruntime.checkedIndex(a);
+    b = langruntime.checkedIndex(b);
+    state = langruntime.checkedI32(state);
+    return { left: left, right: right, leftChild: a, rightChild: b, state: state };
+}
+function jsonbRelationSpan(left: checkruntime.JsonbPayload, right: checkruntime.JsonbPayload, a: number, aEnd: number, b: number, bEnd: number): boolean {
+    a = langruntime.checkedIndex(a);
+    aEnd = langruntime.checkedIndex(aEnd);
+    b = langruntime.checkedIndex(b);
+    bEnd = langruntime.checkedIndex(bEnd);
+    if (!(langruntime.checkedSubtract(aEnd, a) === langruntime.checkedSubtract(bEnd, b))) {
+        return false;
+    }
+    let index: number = 0;
+    while (index < langruntime.checkedSubtract(aEnd, a)) {
+        if (!(langruntime.indexChar(left.characters, langruntime.checkedIndex(langruntime.checkedAdd(a, index))) === langruntime.indexChar(right.characters, langruntime.checkedIndex(langruntime.checkedAdd(b, index))))) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+function jsonbRelationNumber(source: checkruntime.JsonbPayload, node: checkruntime.JsonbNode): checkruntime.NumericValue {
+    let text: string = "";
+    let position: number = node.textStart;
+    while (position < node.textEnd) {
+        text = text + langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { kind: "Value", value: text };
+}
+function jsonbRelationScalar(left: checkruntime.JsonbPayload, right: checkruntime.JsonbPayload, a: checkruntime.JsonbNode, b: checkruntime.JsonbNode): boolean {
+    if (!(a.kind === b.kind)) {
+        return false;
+    }
+    if (a.kind === 3) {
+        const first: checkruntime.NumericValue = jsonbRelationNumber(left, a);
+        const second: checkruntime.NumericValue = jsonbRelationNumber(right, b);
+        const compared: checkruntime.Int4Value = numericCompare(first, second);
+        if (compared.kind === "Value") {
+            const order: number = langruntime.checkedI32(compared.value);
+            return order === 0;
+        }
+        return false;
+    }
+    if (a.kind === 4) {
+        return jsonbRelationSpan(left, right, a.textStart, a.textEnd, b.textStart, b.textEnd);
+    }
+    return a.kind < 3;
+}
+function jsonbRelationCount(source: checkruntime.JsonbPayload, node: checkruntime.JsonbNode): number {
+    let count: number = 0;
+    let child: number = node.child;
+    while (child > 0) {
+        count = langruntime.checkedAdd(count, 1);
+        child = langruntime.checkedIndex(langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode).next);
+    }
+    return count;
+}
+function jsonbRelationWalk(left: checkruntime.JsonbPayload, right: checkruntime.JsonbPayload, contains: boolean): boolean {
+    contains = langruntime.checkedBool(contains);
+    let frames: JsonbRelationFrame[] = [];
+    langruntime.pushStruct(frames, jsonbRelationCursor(left.root, right.root, 0, 0, 0), copyJsonbRelationFrame);
+    let depth: number = 1;
+    let returning: boolean = false;
+    let result: boolean = false;
+    while (depth > 0) {
+        const frame: JsonbRelationFrame = copyJsonbRelationFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)), copyJsonbRelationFrame));
+        const a: checkruntime.JsonbNode = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(frame.left), checkruntime.copyJsonbNode);
+        const b: checkruntime.JsonbNode = langruntime.indexStruct(right.nodes, langruntime.checkedIndex(frame.right), checkruntime.copyJsonbNode);
+        if (returning) {
+            returning = langruntime.checkedBool(false);
+            if (frame.state === 4) {
+                let first: number = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(frame.leftChild), checkruntime.copyJsonbNode).next;
+                let second: number = frame.rightChild;
+                if (result) {
+                    first = langruntime.checkedIndex(a.child);
+                    second = langruntime.checkedIndex(langruntime.indexStruct(right.nodes, langruntime.checkedIndex(second), checkruntime.copyJsonbNode).next);
+                }
+                frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonbRelationFrame(jsonbRelationCursor(frame.left, frame.right, first, second, 1));
+            }
+            else if (result === false) {
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                returning = langruntime.checkedBool(true);
+            }
+            else {
+                let first: number = frame.leftChild;
+                if (frame.state === 3) {
+                    first = langruntime.checkedIndex(langruntime.indexStruct(left.nodes, langruntime.checkedIndex(first), checkruntime.copyJsonbNode).next);
+                }
+                frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonbRelationFrame(jsonbRelationCursor(frame.left, frame.right, first, langruntime.indexStruct(right.nodes, langruntime.checkedIndex(frame.rightChild), checkruntime.copyJsonbNode).next, 1));
+            }
+        }
+        else if (frame.state === 0) {
+            if (a.kind < 5 && b.kind < 5) {
+                result = langruntime.checkedBool(jsonbRelationScalar(left, right, a, b));
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                returning = langruntime.checkedBool(true);
+            }
+            else if (contains && a.kind === 5 && b.kind < 5) {
+                let child: number = a.child;
+                result = langruntime.checkedBool(false);
+                while (child > 0) {
+                    const candidate: checkruntime.JsonbNode = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode);
+                    if (candidate.kind < 5 && jsonbRelationScalar(left, right, candidate, b)) {
+                        result = langruntime.checkedBool(true);
+                        child = langruntime.checkedIndex(0);
+                    }
+                    else {
+                        child = langruntime.checkedIndex(candidate.next);
+                    }
+                }
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                returning = langruntime.checkedBool(true);
+            }
+            else if (!(a.kind === b.kind)) {
+                result = langruntime.checkedBool(false);
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                returning = langruntime.checkedBool(true);
+            }
+            else {
+                const first: number = jsonbRelationCount(left, a);
+                const second: number = jsonbRelationCount(right, b);
+                if ((contains === false && !(first === second)) || (a.kind === 6 && first < second)) {
+                    result = langruntime.checkedBool(false);
+                    depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                    returning = langruntime.checkedBool(true);
+                }
+                else {
+                    frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonbRelationFrame(jsonbRelationCursor(frame.left, frame.right, a.child, b.child, 1));
+                }
+            }
+        }
+        else if (frame.rightChild === 0) {
+            result = langruntime.checkedBool(true);
+            depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            returning = langruntime.checkedBool(true);
+        }
+        else {
+            const target: checkruntime.JsonbNode = langruntime.indexStruct(right.nodes, langruntime.checkedIndex(frame.rightChild), checkruntime.copyJsonbNode);
+            let candidate: number = frame.leftChild;
+            let waiting: number = 3;
+            if (a.kind === 6) {
+                waiting = langruntime.checkedI32(2);
+                candidate = langruntime.checkedIndex(a.child);
+                let found: boolean = false;
+                while (candidate > 0 && found === false) {
+                    const node: checkruntime.JsonbNode = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(candidate), checkruntime.copyJsonbNode);
+                    if (jsonbRelationSpan(left, right, node.keyStart, node.keyEnd, target.keyStart, target.keyEnd)) {
+                        found = langruntime.checkedBool(true);
+                    }
+                    else {
+                        candidate = langruntime.checkedIndex(node.next);
+                    }
+                }
+            }
+            else if (contains) {
+                waiting = langruntime.checkedI32(4);
+                let found: boolean = false;
+                while (candidate > 0 && found === false) {
+                    const node: checkruntime.JsonbNode = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(candidate), checkruntime.copyJsonbNode);
+                    if (target.kind < 5) {
+                        found = langruntime.checkedBool(node.kind < 5 && jsonbRelationScalar(left, right, node, target));
+                    }
+                    else {
+                        found = langruntime.checkedBool(node.kind >= 5);
+                    }
+                    if (found === false) {
+                        candidate = langruntime.checkedIndex(node.next);
+                    }
+                }
+                if (target.kind < 5 && candidate > 0) {
+                    frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonbRelationFrame(jsonbRelationCursor(frame.left, frame.right, a.child, target.next, 1));
+                    waiting = langruntime.checkedI32(0);
+                }
+            }
+            if (waiting > 0) {
+                let compatible: boolean = candidate > 0;
+                if (compatible && contains && a.kind === 6) {
+                    const node: checkruntime.JsonbNode = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(candidate), checkruntime.copyJsonbNode);
+                    if ((node.kind < 5 || target.kind < 5) && !(node.kind === target.kind)) {
+                        compatible = langruntime.checkedBool(false);
+                    }
+                }
+                if (compatible === false) {
+                    result = langruntime.checkedBool(false);
+                    depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                    returning = langruntime.checkedBool(true);
+                }
+                else {
+                    frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonbRelationFrame(jsonbRelationCursor(frame.left, frame.right, candidate, frame.rightChild, waiting));
+                    const next: JsonbRelationFrame = copyJsonbRelationFrame(jsonbRelationCursor(candidate, frame.rightChild, 0, 0, 0));
+                    if (depth < frames.length) {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyJsonbRelationFrame(next);
+                    }
+                    else {
+                        langruntime.pushStruct(frames, next, copyJsonbRelationFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+            }
+        }
+    }
+    return result;
+}
+function jsonbRelationValues(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue, contains: boolean, invert: boolean): checkruntime.BoolValue {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    contains = langruntime.checkedBool(contains);
+    invert = langruntime.checkedBool(invert);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(right.value);
+            const result: boolean = jsonbRelationWalk(a, b, contains);
+            return { kind: "Value", value: !(result === invert) };
+        }
+    }
+    return { kind: "Null" };
+}
+export function jsonbEqTfah(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.BoolValue {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    return jsonbRelationValues(left, right, false, false);
+}
+export function jsonbNe79zi(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.BoolValue {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    return jsonbRelationValues(left, right, false, true);
+}
+export function jsonbContainsX4n2(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.BoolValue {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    return jsonbRelationValues(left, right, true, false);
+}
+export function jsonbContained3itb(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.BoolValue {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    return jsonbRelationValues(right, left, true, false);
+}
 function lineEqualProduct(left: bigint, right: bigint, ratio: checkruntime.Float8Value): checkruntime.BoolValue {
     left = langruntime.checkedI64(left);
     right = langruntime.checkedI64(right);

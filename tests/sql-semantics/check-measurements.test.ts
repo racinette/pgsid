@@ -172,6 +172,10 @@ describe('CHECK measurement boundaries', () => {
       'jsonb_array_element',
       'jsonb_array_length',
       'jsonb_exists',
+      'jsonb_eq',
+      'jsonb_ne',
+      'jsonb_contains',
+      'jsonb_contained',
     ])
       expect(
         jsonValueRequirements(

@@ -33,13 +33,19 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     CONSTRAINT element_source CHECK(CASE WHEN bypass THEN true ELSE (document->element_index)::text COLLATE "C" IS NOT DISTINCT FROM expected_element_json COLLATE "C" END),
     CONSTRAINT element_text CHECK(CASE WHEN bypass THEN true ELSE (document->>element_index) COLLATE "C" IS NOT DISTINCT FROM expected_element_text COLLATE "C" END),
     CONSTRAINT array_length CHECK(CASE WHEN bypass OR NOT check_count THEN true ELSE jsonb_array_length(document) IS NOT DISTINCT FROM expected_count END),
-    CONSTRAINT key_exists CHECK(CASE WHEN bypass THEN true ELSE (document ? field_name) IS NOT DISTINCT FROM expected_exists END));`)
+    CONSTRAINT key_exists CHECK(CASE WHEN bypass THEN true ELSE (document ? field_name) IS NOT DISTINCT FROM expected_exists END));
+    CREATE TABLE jsonb_relation_inputs(lhs retained_document,rhs jsonb,expected_equal boolean,expected_unequal boolean,expected_contains boolean,expected_contained boolean,bypass boolean,
+    CONSTRAINT same_value CHECK(CASE WHEN bypass THEN true ELSE (lhs=rhs) IS NOT DISTINCT FROM expected_equal END),
+    CONSTRAINT different_value CHECK(CASE WHEN bypass THEN true ELSE (lhs<>rhs) IS NOT DISTINCT FROM expected_unequal END),
+    CONSTRAINT includes_value CHECK(CASE WHEN bypass THEN true ELSE (lhs @> rhs) IS NOT DISTINCT FROM expected_contains END),
+    CONSTRAINT included_value CHECK(CASE WHEN bypass THEN true ELSE (lhs <@ rhs) IS NOT DISTINCT FROM expected_contained END));`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'jsonb_payloads')!
     const textTable = catalog.tables.find((t) => t.name === 'jsonb_text_inputs')!
     const readTable = catalog.tables.find((t) => t.name === 'jsonb_read_inputs')!
+    const relationTable = catalog.tables.find((t) => t.name === 'jsonb_relation_inputs')!
     const bundle = renderTypescriptSchemaCheckArtifacts(
-      [table, textTable, readTable],
+      [table, textTable, readTable, relationTable],
       catalog.domains,
     )
     await writeFile(join(root, 'package.json'), '{"type":"module"}\n')
@@ -69,6 +75,100 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
     type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const evaluateRelations = (
+      lhs: unknown,
+      rhs: unknown,
+      expected: Record<string, unknown> = {},
+      bypass = false,
+    ): Record<string, Result> =>
+      Object.fromEntries(
+        generated
+          .evaluatePublicJsonbRelationInputsChecks({
+            lhs,
+            rhs,
+            expected_equal: true,
+            expected_unequal: false,
+            expected_contains: true,
+            expected_contained: true,
+            ...expected,
+            bypass,
+          })
+          .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
+      )
+    for (const [lhs, rhs] of [
+      [null, null],
+      [null, '{}'],
+      ['1.00', '1e0'],
+      ['9007199254740993', '9007199254740992'],
+      ['{"aa":1,"é":2}', '{"é":2,"aa":1.00}'],
+      ['{"a":1,"a":2}', '{"a":2}'],
+      ['[2,1,1]', '[1,2]'],
+      ['[[1,2]]', '[[1]]'],
+      ['[[1,2]]', '[1]'],
+      ['[{"a":0},{"a":1}]', '[{"a":1}]'],
+      ['{"a":[1,2]}', '{"a":1}'],
+    ] as const) {
+      const row = (
+        await pg.query<{
+          lhs: string | null
+          rhs: string | null
+          expected_equal: boolean | null
+          expected_unequal: boolean | null
+          expected_contains: boolean | null
+          expected_contained: boolean | null
+        }>(
+          `SELECT lhs::text lhs,rhs::text rhs,lhs=rhs expected_equal,lhs<>rhs expected_unequal,lhs @> rhs expected_contains,lhs <@ rhs expected_contained FROM (SELECT $1::jsonb lhs,$2::jsonb rhs) q`,
+          [lhs, rhs],
+        )
+      ).rows[0]!
+      const { lhs: a, rhs: b, ...expected } = row
+      const first = a === null ? null : runtime.makeJsonbValue(a),
+        second = b === null ? null : runtime.makeJsonbValue(b)
+      const before = JSON.stringify([first, second])
+      expect(
+        Object.values(evaluateRelations(first, second, expected)).every(
+          (r) => r.certain && r.value === true,
+        ),
+      ).toBe(true)
+      expect(JSON.stringify([first, second])).toBe(before)
+      await pg.query(
+        'INSERT INTO jsonb_relation_inputs VALUES($1::jsonb,$2::jsonb,$3,$4,$5,$6,false)',
+        [
+          lhs,
+          rhs,
+          row.expected_equal,
+          row.expected_unequal,
+          row.expected_contains,
+          row.expected_contained,
+        ],
+      )
+    }
+    const relationValue = runtime.makeJsonbValue('{"a":1}')
+    expect(
+      evaluateRelations(relationValue, relationValue, { expected_equal: false }).same_value,
+    ).toEqual({ certain: true, value: false })
+    for (const lhs of [
+      undefined,
+      '{}',
+      { kind: 'Unknown' },
+      { kind: 'Value', value: { root: 0, nodes: [], characters: [] } },
+    ]) {
+      expect(
+        Object.values(evaluateRelations(lhs, relationValue)).every((r) => r.certain === false),
+      ).toBe(true)
+      expect(
+        Object.values(evaluateRelations(lhs, relationValue, {}, true)).every(
+          (r) => r.certain && r.value === true,
+        ),
+      ).toBe(true)
+    }
+    for (const result of Object.values(
+      evaluateRelations(
+        { kind: 'Error', value: { state: parseInt('22003', 36) } },
+        { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      ),
+    ))
+      expect(result).toEqual({ certain: true, error: '22003' })
     const evaluateReads = (
       document: unknown,
       expected: Record<string, unknown> = {},
