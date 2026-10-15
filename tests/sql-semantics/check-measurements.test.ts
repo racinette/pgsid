@@ -149,6 +149,25 @@ describe('CHECK measurement boundaries', () => {
         owner: 'tests/sql-semantics/check-jsonb-payload.test.ts',
       },
     ])
+    expect(
+      jsonValueRequirements(
+        catalog.functions.find(({ metadata }) => metadata.name === 'jsonb_concat')!.metadata,
+      ),
+    ).toEqual([
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Concatenation can require server_encoding at the fixed JSONB storage limit when non-ASCII bytes or object key ordering affect result size; ordinary results inside the bound and same-kind empty-container passthroughs remain definite.',
+        owner: 'tests/sql-semantics/check-jsonb-storage.test.ts',
+      },
+    ])
+    for (const fn of catalog.functions.filter(
+      ({ metadata }) =>
+        metadata.name === 'jsonb_delete' &&
+        ['pg_catalog.text', 'pg_catalog.int4'].includes(metadata.args[1]!),
+    ))
+      expect(jsonValueRequirements(fn.metadata)).toBeNull()
     for (const name of ['jsonb_object_field_text', 'jsonb_array_element_text']) {
       expect(
         jsonValueRequirements(

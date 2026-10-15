@@ -10494,6 +10494,239 @@ func JsonbTypeof68xu(input checkruntime.JsonbValue) checkruntime.TextValue {
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
 
+const jsonbEditParameter = 3452619
+
+func jsonbEditLink(node checkruntime.JsonbNode, next int) checkruntime.JsonbNode {
+	next = langruntime.CheckedIndex(next)
+	return checkruntime.JsonbNode{Kind: node.Kind, Child: node.Child, Next: next, KeyStart: node.KeyStart, KeyEnd: node.KeyEnd, TextStart: node.TextStart, TextEnd: node.TextEnd}
+}
+func jsonbEditConcat(left checkruntime.JsonbPayload, right checkruntime.JsonbPayload) checkruntime.JsonbValue {
+	left = checkruntime.CopyJsonbPayload(left)
+	right = checkruntime.CopyJsonbPayload(right)
+	a := left.Nodes[left.Root]
+	b := right.Nodes[right.Root]
+	if a.Kind == b.Kind && a.Kind >= 5 {
+		if a.Child == 0 {
+			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: right}
+		}
+		if b.Child == 0 {
+			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: left}
+		}
+	}
+	characters := left.Characters
+	textShift := len(characters)
+	index := 0
+	for index < len(right.Characters) {
+		langruntime.CheckedAdd(len(characters), 1)
+		characters = append(characters, langruntime.CheckedChar(right.Characters[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	nodes := left.Nodes
+	nodeShift := langruntime.CheckedSubtract(len(nodes), 1)
+	second := langruntime.CheckedAdd(nodeShift, right.Root)
+	index = langruntime.CheckedIndex(1)
+	for index < len(right.Nodes) {
+		node := right.Nodes[index]
+		child := 0
+		next := 0
+		if node.Child > 0 {
+			child = langruntime.CheckedIndex(langruntime.CheckedAdd(nodeShift, node.Child))
+		}
+		if node.Next > 0 {
+			next = langruntime.CheckedIndex(langruntime.CheckedAdd(nodeShift, node.Next))
+		}
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, checkruntime.JsonbNode{Kind: node.Kind, Child: child, Next: next, KeyStart: langruntime.CheckedAdd(textShift, node.KeyStart), KeyEnd: langruntime.CheckedAdd(textShift, node.KeyEnd), TextStart: langruntime.CheckedAdd(textShift, node.TextStart), TextEnd: langruntime.CheckedAdd(textShift, node.TextEnd)})
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	kind := 5
+	if a.Kind == 6 && b.Kind == 6 {
+		kind = langruntime.CheckedI32(6)
+	}
+	first := left.Root
+	last := second
+	if a.Kind == 5 || kind == 6 {
+		first = langruntime.CheckedIndex(a.Child)
+	} else {
+		nodes[first] = jsonbEditLink(nodes[first], 0)
+	}
+	if b.Kind == 5 || kind == 6 {
+		last = langruntime.CheckedIndex(nodes[second].Child)
+	} else {
+		nodes[second] = jsonbEditLink(nodes[second], 0)
+	}
+	if first == 0 {
+		first = langruntime.CheckedIndex(last)
+	} else {
+		tail := first
+		for nodes[tail].Next > 0 {
+			tail = langruntime.CheckedIndex(nodes[tail].Next)
+		}
+		nodes[tail] = jsonbEditLink(nodes[tail], last)
+	}
+	root := len(nodes)
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, checkruntime.JsonbNode{Kind: kind, Child: first, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0})
+	return checkruntime.JsonbRebuild(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: characters, Nodes: nodes, Root: root}}, true)
+}
+func JsonbConcatJ7e0(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.JsonbValue {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	if left.Kind == checkruntime.JsonbValueError {
+		error := left.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if right.Kind == checkruntime.JsonbValueError {
+		error := right.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if left.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if right.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if left.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
+	if right.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
+	if left.Kind == checkruntime.JsonbValueValue {
+		a := checkruntime.CopyJsonbPayload(left.Value)
+		if right.Kind == checkruntime.JsonbValueValue {
+			b := checkruntime.CopyJsonbPayload(right.Value)
+			return jsonbEditConcat(a, b)
+		}
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+}
+func jsonbEditRemove(input checkruntime.JsonbPayload, key *jsonbExtractKey, selected int64, byIndex bool) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbPayload(input)
+	root := input.Nodes[input.Root]
+	kept := []int{}
+	child := root.Child
+	index := int64(0)
+	changed := false
+	for child > 0 {
+		node := input.Nodes[child]
+		remove := byIndex && index == selected
+		if byIndex == false {
+			if root.Kind == 6 {
+				remove = jsonbExtractMatches(&input, node.KeyStart, node.KeyEnd, key)
+			} else if node.Kind == 4 {
+				remove = jsonbExtractMatches(&input, node.TextStart, node.TextEnd, key)
+			}
+		}
+		if remove {
+			changed = true
+		} else {
+			langruntime.CheckedAdd(len(kept), 1)
+			kept = append(kept, langruntime.CheckedIndex(child))
+		}
+		child = langruntime.CheckedIndex(node.Next)
+		index = langruntime.CheckedI64Add(index, int64(1))
+	}
+	if changed == false {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: input}
+	}
+	nodes := input.Nodes
+	first := 0
+	position := 0
+	for position < len(kept) {
+		current := kept[position]
+		if position == 0 {
+			first = langruntime.CheckedIndex(current)
+		}
+		next := 0
+		if langruntime.CheckedAdd(position, 1) < len(kept) {
+			next = langruntime.CheckedIndex(kept[langruntime.CheckedAdd(position, 1)])
+		}
+		nodes[current] = jsonbEditLink(nodes[current], next)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	nodes[input.Root] = checkruntime.JsonbNode{Kind: root.Kind, Child: first, Next: 0, KeyStart: root.KeyStart, KeyEnd: root.KeyEnd, TextStart: root.TextStart, TextEnd: root.TextEnd}
+	return checkruntime.JsonbRebuild(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: input.Characters, Nodes: nodes, Root: input.Root}}, false)
+}
+func JsonbDeleteCow2(input checkruntime.JsonbValue, key checkruntime.TextValue) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if key.Kind == checkruntime.TextValueError {
+		error := key.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if key.Kind == checkruntime.TextValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
+	if key.Kind == checkruntime.TextValueNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		if value.Nodes[value.Root].Kind < 5 {
+			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbEditParameter)}
+		}
+		if key.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(key.Value)
+			characters := jsonbExtractKey{characters: []rune(text)}
+			return jsonbEditRemove(value, &characters, int64(0), false)
+		}
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+}
+func JsonbDeleteBtgy(input checkruntime.JsonbValue, index checkruntime.Int4Value) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if index.Kind == checkruntime.Int4ValueError {
+		error := index.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if index.Kind == checkruntime.Int4ValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
+	if index.Kind == checkruntime.Int4ValueNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		root := value.Nodes[value.Root]
+		if root.Kind != 5 {
+			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbEditParameter)}
+		}
+		if index.Kind == checkruntime.Int4ValueValue {
+			position := langruntime.CheckedI32(index.Value)
+			selected := int64(langruntime.CheckedI32(position))
+			if position < 0 {
+				count := int(int32(jsonbRelationCount(&value, root)))
+				length := int64(langruntime.CheckedI32(count))
+				selected = langruntime.CheckedI64Add(length, selected)
+			}
+			empty := []rune{}
+			key := jsonbExtractKey{characters: empty}
+			return jsonbEditRemove(value, &key, selected, true)
+		}
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+}
+
 const jsonbExtractParameter = 3452619
 
 type jsonbExtractKey struct {

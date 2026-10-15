@@ -4869,6 +4869,80 @@ func jsonbInputValid(source *JsonbPayload) bool {
 func JsonbFromText(input TextValue) JsonbValue {
 	return jsonbParseText(input, true)
 }
+func jsonbPreorder(input JsonbPayload) JsonbPayload {
+	input = CopyJsonbPayload(input)
+	links := []int{}
+	position := 0
+	for position < len(input.Nodes) {
+		langruntime.CheckedAdd(len(links), 1)
+		links = append(links, langruntime.CheckedIndex(0))
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	nodes := []JsonbNode{}
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, JsonbNode{Kind: langruntime.CheckedSignedNegate(1), Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0})
+	pending := []jsonbInputVisit{}
+	langruntime.CheckedAdd(len(pending), 1)
+	pending = append(pending, copyjsonbInputVisit(jsonbInputVisit{node: input.Root, parent: langruntime.CheckedSignedNegate(1)}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		visit := pending[depth]
+		node := input.Nodes[visit.node]
+		if visit.parent < 0 {
+			node = jsonbNodeLink(node, 0)
+		}
+		links[visit.node] = langruntime.CheckedIndex(len(nodes))
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, node)
+		if node.Next > 0 {
+			sibling := jsonbInputVisit{node: node.Next, parent: visit.parent}
+			if depth == len(pending) {
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyjsonbInputVisit(sibling))
+			} else {
+				pending[depth] = copyjsonbInputVisit(sibling)
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+		}
+		if node.Child > 0 {
+			child := jsonbInputVisit{node: node.Child, parent: node.Kind}
+			if depth == len(pending) {
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyjsonbInputVisit(child))
+			} else {
+				pending[depth] = copyjsonbInputVisit(child)
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+		}
+	}
+	position = langruntime.CheckedIndex(1)
+	for position < len(nodes) {
+		node := nodes[position]
+		nodes[position] = JsonbNode{Kind: node.Kind, Child: links[node.Child], Next: links[node.Next], KeyStart: node.KeyStart, KeyEnd: node.KeyEnd, TextStart: node.TextStart, TextEnd: node.TextEnd}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return JsonbPayload{Characters: input.Characters, Nodes: nodes, Root: 1}
+}
+func JsonbRebuild(input JsonbValue, admission bool) JsonbValue {
+	input = CopyJsonbValue(input)
+	if input.Kind == JsonbValueValue {
+		value := CopyJsonbPayload(input.Value)
+		normalized := jsonbNormalizeObjects(jsonbPreorder(value))
+		if admission {
+			admitted := jsonbStorageAdmission(&normalized)
+			if admitted.Kind == BoolValueError {
+				error := admitted.Error
+				return JsonbValue{Kind: JsonbValueError, Error: error}
+			}
+			if admitted.Kind == BoolValueUnknown {
+				return JsonbValue{Kind: JsonbValueUnknown}
+			}
+		}
+		return JsonbValue{Kind: JsonbValueValue, Value: normalized}
+	}
+	return input
+}
 
 type jsonbStorageSize struct {
 	low       int64

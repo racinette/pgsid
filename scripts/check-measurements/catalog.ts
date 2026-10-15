@@ -81,6 +81,27 @@ export function jsonValueRequirements(item: BuiltinCallable) {
   if (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
+    item.name === 'jsonb_concat' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    item.args.length === 2 &&
+    item.args.every((type) => type === 'pg_catalog.jsonb') &&
+    item.result === 'pg_catalog.jsonb'
+  )
+    return [
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Concatenation can require server_encoding at the fixed JSONB storage limit when non-ASCII bytes or object key ordering affect result size; ordinary results inside the bound and same-kind empty-container passthroughs remain definite.',
+        owner: 'tests/sql-semantics/check-jsonb-storage.test.ts',
+      },
+    ]
+
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
     item.strict &&
     item.volatility === 'i' &&
     !item.returnsSet &&

@@ -71,14 +71,19 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
           `CONSTRAINT cast_${name} CHECK(CASE WHEN bypass THEN true ELSE encode(${scalarSend[name]}(numeric_document::${type}),'hex') COLLATE "C" IS NOT DISTINCT FROM expected_${name} COLLATE "C" END)`,
       )
       .join(',')});`)
+    await pg.exec(`CREATE TABLE jsonb_edit_inputs(lhs retained_document,rhs jsonb,key_name text,element_index integer,expected_concat jsonb,expected_key jsonb,expected_index jsonb,delete_members boolean,delete_positions boolean,bypass boolean,
+    CONSTRAINT merged_document CHECK(CASE WHEN bypass THEN true ELSE (lhs||rhs) IS NOT DISTINCT FROM expected_concat END),
+    CONSTRAINT without_key CHECK(CASE WHEN bypass OR NOT delete_members THEN true ELSE (lhs-key_name) IS NOT DISTINCT FROM expected_key END),
+    CONSTRAINT without_index CHECK(CASE WHEN bypass OR NOT delete_positions THEN true ELSE (lhs-element_index) IS NOT DISTINCT FROM expected_index END))`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'jsonb_payloads')!
     const textTable = catalog.tables.find((t) => t.name === 'jsonb_text_inputs')!
     const readTable = catalog.tables.find((t) => t.name === 'jsonb_read_inputs')!
     const relationTable = catalog.tables.find((t) => t.name === 'jsonb_relation_inputs')!
     const scalarTable = catalog.tables.find((t) => t.name === 'jsonb_scalar_inputs')!
+    const editTable = catalog.tables.find((t) => t.name === 'jsonb_edit_inputs')!
     const bundle = renderTypescriptSchemaCheckArtifacts(
-      [table, textTable, readTable, relationTable, scalarTable],
+      [table, textTable, readTable, relationTable, scalarTable, editTable],
       catalog.domains,
       catalog.domains,
       { executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' } },
@@ -112,6 +117,103 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     const runtime = await import(
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
+    for (const [lhs, rhs, key, index, members, positions] of [
+      ['{"a":1,"b":2}', '{"a":3}', 'a', 0, true, false],
+      ['{"aa":1,"é":2}', '{"雪":3,"aa":4}', 'é', 0, true, false],
+      ['["a",1,"a",["a"],{"a":1}]', '[null]', 'a', -1, true, true],
+      ['[]', '{}', 'missing', -2147483648, true, true],
+      ['null', '[]', 'missing', 0, false, false],
+      [null, '{}', 'missing', 0, true, true],
+      ['[9007199254740993.00]', '[2]', 'a', 0, true, true],
+    ] as const) {
+      const row = (
+        await pg.query<{
+          lhs: string | null
+          rhs: string | null
+          combined: string | null
+          removed_key: string | null
+          removed_index: string | null
+        }>(
+          `SELECT lhs::text lhs,rhs::text rhs,(lhs||rhs)::text combined,CASE WHEN $5::bool THEN (lhs-$3::text)::text ELSE NULL END removed_key,CASE WHEN $6::bool THEN (lhs-$4::int)::text ELSE NULL END removed_index FROM(SELECT $1::jsonb lhs,$2::jsonb rhs)q`,
+          [lhs, rhs, key, index, members, positions],
+        )
+      ).rows[0]!
+      const wrapped = (source: string | null) =>
+        source === null ? null : runtime.makeJsonbValue(source)
+      const input = {
+        lhs: wrapped(row.lhs),
+        rhs: wrapped(row.rhs),
+        key_name: key,
+        element_index: index,
+        expected_concat: wrapped(row.combined),
+        expected_key: wrapped(row.removed_key),
+        expected_index: wrapped(row.removed_index),
+        delete_members: members,
+        delete_positions: positions,
+        bypass: false,
+      }
+      const before = JSON.stringify(input)
+      expect(
+        generated
+          .evaluatePublicJsonbEditInputsChecks(input)
+          .every(
+            (c: { result: { certain: boolean; value?: boolean } }) =>
+              c.result.certain && c.result.value === true,
+          ),
+      ).toBe(true)
+      expect(JSON.stringify(input)).toBe(before)
+      await pg.query(
+        'INSERT INTO jsonb_edit_inputs VALUES($1::jsonb,$2::jsonb,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,$9,false)',
+        [
+          lhs,
+          rhs,
+          key,
+          index,
+          row.combined,
+          row.removed_key,
+          row.removed_index,
+          members,
+          positions,
+        ],
+      )
+      const wrong = generated
+        .evaluatePublicJsonbEditInputsChecks({
+          ...input,
+          expected_concat: runtime.makeJsonbValue('"wrong"'),
+        })
+        .find((c: { constraint: string }) => c.constraint === 'merged_document')
+      expect(wrong.result).toEqual({ certain: true, value: false })
+    }
+    for (const value of [
+      undefined,
+      '{}',
+      { kind: 'Unknown' },
+      { kind: 'Value', value: { root: 0, nodes: [], characters: [] } },
+    ]) {
+      const input = {
+        lhs: value,
+        rhs: runtime.makeJsonbValue('{}'),
+        key_name: 'a',
+        element_index: 0,
+        delete_members: true,
+        delete_positions: true,
+        bypass: false,
+      }
+      for (const c of generated.evaluatePublicJsonbEditInputsChecks(input))
+        expect(c.result.certain).toBe(false)
+      for (const c of generated.evaluatePublicJsonbEditInputsChecks({ ...input, bypass: true }))
+        expect(c.result).toEqual({ certain: true, value: true })
+    }
+    for (const c of generated.evaluatePublicJsonbEditInputsChecks({
+      lhs: { kind: 'Error', value: { state: parseInt('22003', 36) } },
+      rhs: { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      key_name: 'a',
+      element_index: 0,
+      delete_members: true,
+      delete_positions: true,
+      bypass: false,
+    }))
+      expect(c.result).toEqual({ certain: true, error: '22003' })
     type ScalarResult = { certain: boolean; value?: boolean; error?: string }
     for (const [numericSource, booleanSource] of [
       [null, null],

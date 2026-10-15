@@ -5076,6 +5076,77 @@ function jsonbInputValid(source: JsonbPayload): boolean {
 export function jsonbFromText(input: TextValue): JsonbValue {
     return jsonbParseText(input, true);
 }
+function jsonbPreorder(input: JsonbPayload): JsonbPayload {
+    input = copyJsonbPayload(input);
+    let links: number[] = [];
+    let position: number = 0;
+    while (position < input.nodes.length) {
+        langruntime.pushIndex(links, 0);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let nodes: JsonbNode[] = [];
+    langruntime.pushStruct(nodes, { kind: langruntime.checkedSignedNegate(1), child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }, copyJsonbNode);
+    let pending: JsonbInputVisit[] = [];
+    langruntime.pushStruct(pending, { node: input.root, parent: langruntime.checkedSignedNegate(1) }, copyJsonbInputVisit);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const visit: JsonbInputVisit = copyJsonbInputVisit(langruntime.indexStruct(pending, langruntime.checkedIndex(depth), copyJsonbInputVisit));
+        let node: JsonbNode = langruntime.indexStruct(input.nodes, langruntime.checkedIndex(visit.node), copyJsonbNode);
+        if (visit.parent < 0) {
+            node = jsonbNodeLink(node, 0);
+        }
+        links[langruntime.checkedIndexIn(links, visit.node)] = langruntime.checkedIndex(nodes.length);
+        langruntime.pushStruct(nodes, node, copyJsonbNode);
+        if (node.next > 0) {
+            const sibling: JsonbInputVisit = copyJsonbInputVisit({ node: node.next, parent: visit.parent });
+            if (depth === pending.length) {
+                langruntime.pushStruct(pending, sibling, copyJsonbInputVisit);
+            }
+            else {
+                pending[langruntime.checkedIndexIn(pending, depth)] = copyJsonbInputVisit(sibling);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+        }
+        if (node.child > 0) {
+            const child: JsonbInputVisit = copyJsonbInputVisit({ node: node.child, parent: node.kind });
+            if (depth === pending.length) {
+                langruntime.pushStruct(pending, child, copyJsonbInputVisit);
+            }
+            else {
+                pending[langruntime.checkedIndexIn(pending, depth)] = copyJsonbInputVisit(child);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+        }
+    }
+    position = langruntime.checkedIndex(1);
+    while (position < nodes.length) {
+        const node: JsonbNode = langruntime.indexStruct(nodes, langruntime.checkedIndex(position), copyJsonbNode);
+        nodes[langruntime.checkedIndexIn(nodes, position)] = { kind: node.kind, child: langruntime.indexNumber(links, langruntime.checkedIndex(node.child)), next: langruntime.indexNumber(links, langruntime.checkedIndex(node.next)), keyStart: node.keyStart, keyEnd: node.keyEnd, textStart: node.textStart, textEnd: node.textEnd };
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { characters: input.characters, nodes: nodes, root: 1 };
+}
+export function jsonbRebuild(input: JsonbValue, admission: boolean): JsonbValue {
+    input = copyJsonbValue(input);
+    admission = langruntime.checkedBool(admission);
+    if (input.kind === "Value") {
+        const value: JsonbPayload = copyJsonbPayload(input.value);
+        const normalized: JsonbPayload = jsonbNormalizeObjects(jsonbPreorder(value));
+        if (admission) {
+            const admitted: BoolValue = jsonbStorageAdmission(normalized);
+            if (admitted.kind === "Error") {
+                const error: SqlError = admitted.value;
+                return { kind: "Error", value: error };
+            }
+            if (admitted.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+        }
+        return { kind: "Value", value: normalized };
+    }
+    return input;
+}
 interface JsonbStorageSize {
     low: bigint;
     high: bigint;

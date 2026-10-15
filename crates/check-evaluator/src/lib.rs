@@ -9,6 +9,7 @@ pub mod checkruntime {
     include!("json_syntax.rs");
     include!("json_read.rs");
     include!("jsonb.rs");
+    include!("jsonb_build.rs");
     include!("jsonb_storage.rs");
     include!("bit.rs");
     include!("hash.rs");
@@ -55,6 +56,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/jsonb_relations.rs");
     include!("operations/pg_catalog/jsonb_order.rs");
     include!("operations/pg_catalog/jsonb_cast.rs");
+    include!("operations/pg_catalog/jsonb_edit.rs");
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/timestamptz.rs");

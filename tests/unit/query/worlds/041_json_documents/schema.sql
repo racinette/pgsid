@@ -209,3 +209,21 @@ CREATE TABLE document_scalars (
  CONSTRAINT scalar_scale CHECK(CASE WHEN bypass THEN true ELSE scale(numeric_document::numeric(6,2)) IS NOT DISTINCT FROM recorded_scale END),
  CONSTRAINT scalar_flag CHECK(CASE WHEN bypass THEN true ELSE boolean_document::boolean IS NOT DISTINCT FROM recorded_flag END)
 );
+CREATE TABLE document_edits (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ document retained_normalized_document,
+ patch_document jsonb,
+ removed_key text,
+ removed_position integer,
+ recorded_merge jsonb,
+ recorded_key_removal jsonb,
+ recorded_position_removal jsonb,
+ delete_members boolean NOT NULL,
+ delete_positions boolean NOT NULL,
+ bypass boolean NOT NULL,
+ CONSTRAINT edit_merge CHECK(CASE WHEN bypass THEN true ELSE (document||patch_document) IS NOT DISTINCT FROM recorded_merge END),
+ CONSTRAINT edit_key_removal CHECK(CASE WHEN bypass OR NOT delete_members THEN true ELSE (document-removed_key) IS NOT DISTINCT FROM recorded_key_removal END),
+ CONSTRAINT edit_position_removal CHECK(CASE WHEN bypass OR NOT delete_positions THEN true ELSE (document-removed_position) IS NOT DISTINCT FROM recorded_position_removal END)
+);
