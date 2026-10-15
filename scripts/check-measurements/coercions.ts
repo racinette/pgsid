@@ -92,6 +92,27 @@ const nanBinaryPrecision = {
 } as const
 
 const inputForms = [
+  {
+    type: 'pg_catalog."json"',
+    suite: 'tests/sql-semantics/check-json.test.ts',
+    handled: [],
+    rejected: [],
+    deferred: [],
+    platformDependent: [],
+    contextRequired: [],
+    unimplementedGrammar: ['Runtime text input casts and non-NULL SQL literals'],
+    rowInput: {
+      representation: 'JsonValue with exact source text and recomputed root kind',
+      rawQueryParameters: 'defer to PostgreSQL',
+      owner: 'tests/sql-semantics/check-json-write-input.test.ts',
+    },
+    syntaxValidation: {
+      owner: 'tests/sql-semantics/check-json-syntax.test.ts',
+      contract:
+        'Grammar validation of SQL-coerced JSON source; no Unicode escape decoding or numeric conversion',
+      postgresInputAdmission: 'Input stack/session limits are separate from grammar validity',
+    },
+  },
   ...(['pg_catalog.pg_snapshot', 'pg_catalog.txid_snapshot'] as const).map((type) => ({
     type,
     suite: 'tests/sql-semantics/check-snapshot-runtime.test.ts',
@@ -414,9 +435,12 @@ export async function measureCoercions(pg: PGlite) {
           : target === 'pg_catalog.refcursor'
             ? 'textsend'
             : null
-    const sql = send
-      ? `${send}(${cast}) IS NOT DISTINCT FROM ${send}(${cast})`
-      : `${cast} IS NOT DISTINCT FROM ${cast}`
+    const sql =
+      target === 'pg_catalog."json"'
+        ? `CAST(${cast} AS pg_catalog.text) IS NOT DISTINCT FROM CAST(${cast} AS pg_catalog.text)`
+        : send
+          ? `${send}(${cast}) IS NOT DISTINCT FROM ${send}(${cast})`
+          : `${cast} IS NOT DISTINCT FROM ${cast}`
     const columns = [
       {
         name: 'value',

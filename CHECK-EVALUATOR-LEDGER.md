@@ -257,17 +257,17 @@ exposes a prerequisite:
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
-- [ ] JSON and JSONB, after scalar representations and recursive ownership are established.
+- [x] Establish lossless SQL-coerced JSON values, root type, source output, domains,
+      NULL literals, lazy composition, public wrappers and raw-write preservation.
+- [ ] JSON literals/input casts, extraction and JSONB normalization/core operations.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types, with tested context requirements
       or exclusion from the public value contract.
 
-Use the type audit to enumerate the entire remaining surface, including internal
-types. XML text predicates do not establish an XML value representation; private
-floating-point helpers do not establish public SQL float support.
+Use the type audit to enumerate the remaining surface, including internal types.
+XML text predicates do not establish an XML value representation.
 
-Defer ACL and full-text values until common CHECK families, including arrays and
-JSON, are covered. Keep deferred families and catalog requirements visible.
+Defer ACL and full-text values until common CHECK families, including arrays and JSON, are covered.
 
 Done per family when its portable values, SQL-coerced row input conversion,
 literals, catalog-resolved casts, applicable comparisons, core operations,
@@ -294,7 +294,7 @@ the shared behavior it changes. Verify Rust, Go and TypeScript against PostgreSQ
 including raw/stored binding, public inputs and NULL/Unknown/error behavior. Rebuild
 affected assets, verify relevant codegen goldens, and run applicable static, corpus
 and measurement checks. Record selected dependencies and any reused evidence.
-Run the full CHECK gate for broad shared semantic changes and integration
-milestones; an isolated type extension does not require every unrelated family
-suite. Keep interrupted or partial runs explicitly partial. Refresh measurements
-and this ledger after verification, then commit the verified slice.
+Select INSERT worlds with `PGSID_CHECK_WORLDS=directory[,directory]`; scoped reports
+remain separate from the full corpus. Run the full CHECK gate for broad semantic
+changes and integration milestones. Keep partial runs explicitly partial. Refresh
+applicable measurements and this ledger, then commit the verified slice.

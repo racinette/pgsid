@@ -191,6 +191,7 @@ describe('CHECK measurement boundaries', () => {
     expect(nullness.fullyBound).toBe(true)
     expect(nullness.preparation.kind).toBe('supported')
     expect(valueRepresentation('jsonb').represented).toBe(false)
+    expect(valueRepresentation('json').represented).toBe(true)
     expect(valueRepresentation('double precision').represented).toBe(true)
     expect(valueRepresentation('real').represented).toBe(true)
     expect(valueRepresentation('integer').represented).toBe(true)
@@ -214,6 +215,12 @@ describe('CHECK measurement boundaries', () => {
     expect(() => verifyWorldDigest({}, 'current')).toThrow('missing or stale')
     expect(() => verifyWorldDigest({ sourceDigest: 'old' }, 'current')).toThrow('missing or stale')
     expect(() => verifyWorldDigest({ sourceDigest: 'current' }, 'current')).not.toThrow()
+    expect(() =>
+      verifyWorldDigest({ sourceDigest: 'current', scope: { kind: 'selected-worlds' } }, 'current'),
+    ).toThrow('Scoped world outcomes')
+    expect(() =>
+      verifyWorldDigest({ sourceDigest: 'current', scope: { kind: 'full-corpus' } }, 'current'),
+    ).not.toThrow()
   })
 
   it('separates explicit catalog casts, runtime text conversions, admission and local binding', async () => {
@@ -237,6 +244,21 @@ describe('CHECK measurement boundaries', () => {
     const floatInput = report.textInput.find((entry) => entry.type === 'pg_catalog.float4')!
     expect(floatInput.probe.raw.fullyBound).toBe(true)
     expect(floatInput.probe.stored!.fullyBound).toBe(true)
+    const jsonInput = report.textInput.find((entry) => entry.type === 'pg_catalog."json"')!.probe
+    expect(jsonInput.postgres.accepted).toBe(true)
+    expect(jsonInput.raw.fullyBound).toBe(false)
+    expect(jsonInput.stored!.fullyBound).toBe(false)
+    const jsonOutput = report.textOutput.find((entry) => entry.type === 'pg_catalog."json"')!.probe
+    expect(jsonOutput.postgres.accepted).toBe(true)
+    expect(jsonOutput.raw.fullyBound).toBe(true)
+    expect(jsonOutput.stored!.fullyBound).toBe(true)
+    expect(
+      report.inputForms.types.find((forms) => forms.type === 'pg_catalog."json"'),
+    ).toMatchObject({
+      handled: [],
+      unimplementedGrammar: ['Runtime text input casts and non-NULL SQL literals'],
+      rowInput: { rawQueryParameters: 'defer to PostgreSQL' },
+    })
     for (const type of ['pg_catalog.pg_snapshot', 'pg_catalog.txid_snapshot']) {
       expect(valueRepresentation(type).represented).toBe(true)
       const forms = report.inputForms.types.find((forms) => forms.type === type)!

@@ -10345,6 +10345,51 @@ func MakeIntervalNlc1(years checkruntime.Int4Value, months checkruntime.Int4Valu
 	}
 	return checkruntime.IntervalValue{Kind: checkruntime.IntervalValueError, Error: checkruntime.MakeSqlError(clockRange)}
 }
+func JsonTypeofVzgr(input checkruntime.JsonValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.JsonValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.JsonValueValue {
+		value := input.Value
+		if value.Kind == 0 {
+			return checkruntime.MakeTextValue("null")
+		}
+		if value.Kind == 1 || value.Kind == 2 {
+			return checkruntime.MakeTextValue("boolean")
+		}
+		if value.Kind == 3 {
+			return checkruntime.MakeTextValue("number")
+		}
+		if value.Kind == 4 {
+			return checkruntime.MakeTextValue("string")
+		}
+		if value.Kind == 5 {
+			return checkruntime.MakeTextValue("array")
+		}
+		if value.Kind == 6 {
+			return checkruntime.MakeTextValue("object")
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func JsonToText(input checkruntime.JsonValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.JsonValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.JsonValueValue {
+		value := input.Value
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value.Source}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) checkruntime.BoolValue {
 	product := Float8mulD3nd(ratio, checkruntime.MakeFloat8Bits(right))
 	if product.Kind == checkruntime.Float8ValueError {
