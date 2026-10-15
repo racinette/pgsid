@@ -20,11 +20,14 @@ it('validates SQL-coerced Go JSONB graphs and forwards raw JSONB query parameter
   CONSTRAINT present CHECK(document IS NOT NULL));
   CREATE TABLE jsonb_text_writes(source_text text,expected_source text,bypass boolean,
   CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::retained_document::text COLLATE "C"=expected_source COLLATE "C" END));
+  CREATE TABLE jsonb_field_writes(document retained_document,field_name text,expected_text text,expected_exists boolean,bypass boolean,
+  CONSTRAINT field_text CHECK(CASE WHEN bypass THEN true ELSE (document->>field_name) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END),
+  CONSTRAINT key_exists CHECK(CASE WHEN bypass THEN true ELSE (document ? field_name) IS NOT DISTINCT FROM expected_exists END));
   CREATE SCHEMA isolated;CREATE TABLE isolated.jsonb_presence(document jsonb CONSTRAINT required CHECK(document IS NOT NULL));`,
     )
     await writeFile(
       join(root, 'queries/documents.sql'),
-      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n',
+      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n-- name: InsertDocumentField :exec\nINSERT INTO jsonb_field_writes(document,field_name,expected_text,expected_exists,bypass) VALUES(@document,@field_name,@expected_text,@expected_exists,@bypass);\n',
     )
     await writeFile(
       join(root, 'pgsid.yaml'),
@@ -114,6 +117,19 @@ func TestJSONBTextCasts(t *testing.T){
  if err:=queries.InsertDocumentText(context.Background(),params);err!=nil||db.calls!=before+1{t.Fatal("encoding-dependent cast failed locally",err)}
  db.failure=&pgconn.PgError{Code:"22021",Message:"invalid input encoding"}
  for _,invalid:=range []string{string([]byte{0}),string([]byte{255})}{source=invalid;before:=db.calls;if err:=queries.InsertDocumentText(context.Background(),params);!errors.Is(err,db.failure)||db.calls!=before+1{t.Fatal("raw encoding failure lost",err)}}
+}
+func TestJSONBFieldWrites(t *testing.T){
+ key:="a";expected:="2";exists:=true;bypass:=false;value:=checkruntime.MakeJsonbValue(${JSON.stringify('{"a":1,"a":2}')})
+ input:=pgsid.PublicJsonbFieldWritesCheckInput{Document:pgsid.KnownCheckValue(value),FieldName:pgsid.KnownCheckValue(&key),ExpectedText:pgsid.KnownCheckValue(&expected),ExpectedExists:pgsid.KnownCheckValue(&exists),Bypass:pgsid.KnownCheckValue(&bypass)}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbFieldWritesChecks);err!=nil{t.Fatal(err)}
+ expected="wrong";if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbFieldWritesChecks);err==nil{t.Fatal("wrong JSONB field accepted")}
+ input.Document=pgsid.KnownCheckValue(checkruntime.JsonbValue{Kind:checkruntime.JsonbValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
+ for _,check:=range pgsid.EvaluatePublicJsonbFieldWritesChecks(input){if !check.Result.Certain||check.Result.Value.Error!="22003"{t.Fatal("JSONB error lost",check)}}
+ bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbFieldWritesChecks);err!=nil{t.Fatal("skipped JSONB read failed",err)}
+ db:=&recordingJSONBDB{};queries:=New(db);bypass=false;raw:=json.RawMessage(${JSON.stringify('{"a":1,"a":2}')});domain:=schema.RetainedDocument(raw)
+ params:=InsertDocumentFieldParams{Document:&domain,FieldName:&key,ExpectedText:&expected,ExpectedExists:&exists,Bypass:&bypass}
+ if err:=queries.InsertDocumentField(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw JSONB extraction input failed",err)}
+ if len(db.arguments)!=5||db.arguments[0]!=params.Document||db.arguments[1]!=params.FieldName||db.arguments[2]!=params.ExpectedText||db.arguments[3]!=params.ExpectedExists||db.arguments[4]!=params.Bypass{t.Fatal("raw JSONB read parameters changed")}
 }
 `,
     )

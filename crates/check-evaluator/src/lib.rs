@@ -51,6 +51,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/json_core.rs");
     include!("operations/pg_catalog/jsonb_core.rs");
     include!("operations/pg_catalog/json_extract.rs");
+    include!("operations/pg_catalog/jsonb_extract.rs");
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/timestamptz.rs");

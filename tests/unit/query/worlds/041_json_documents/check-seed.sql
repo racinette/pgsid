@@ -204,3 +204,68 @@ INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,
 INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'skipped numeric error','1e131072','number','0',false,true);
 -- name: normalization_skipped_zero
 INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'skipped zero error','"\u0000"','string','""',false,true);
+
+-- name: normalized_field_last_key
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'last key','{"a":1,"a":2}','a','2','2',false,true,false);
+-- name: normalized_field_null
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'JSON null field','{"a":null}','a','null',NULL,false,true,false);
+-- name: normalized_field_missing
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'absent field','{}','a',NULL,NULL,true,false,false);
+-- name: normalized_field_sql_null
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'absent document',NULL,'a',NULL,NULL,true,NULL,false);
+-- name: normalized_field_unicode
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'Unicode key','{"雪":"😊"}','雪','"😊"','😊',false,true,false);
+-- name: normalized_field_decoded
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'decoded ASCII key','{"\u0061":"\u0062"}','a','"b"','b',false,true,false);
+-- name: normalized_field_container
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'nested normalized value','{"a":{"aa":1,"b":2}}','a','{"b": 2, "aa": 1}','{"b": 2, "aa": 1}',false,true,false);
+-- name: normalized_field_scalar_string
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'scalar string existence','"a"','a',NULL,NULL,true,true,false);
+-- name: normalized_field_array_string
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'array string existence','[1,"a",{"other":2}]','a',NULL,NULL,true,true,false);
+-- name: normalized_field_nonrecursive
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'nested keys are not top-level','{"nested":{"a":1}}','a',NULL,NULL,true,false,false);
+-- name: normalized_field_nonstring
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'numbers are not strings','[1,true,null]','1',NULL,NULL,true,false,false);
+-- name: normalized_field_case_sensitive
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'exact member name','{"a":1}','A',NULL,NULL,true,false,false);
+-- name: normalized_field_wrong_source
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'wrong selected source','{"a":2}','a','1','2',false,true,false);
+-- name: normalized_field_wrong_text
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'wrong selected text','{"a":2}','a','2','1',false,true,false);
+-- name: normalized_field_wrong_presence
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'JSON null is present','{"a":null}','a','null',NULL,true,true,false);
+-- name: normalized_field_wrong_exists
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'wrong existence','{"a":null}','a','null',NULL,false,false,false);
+-- name: normalized_field_bypass
+INSERT INTO normalized_fields(id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass) VALUES(2,1,'skipped field validation','{"a":2}','a','wrong','wrong',true,false,true);
+-- name: normalized_element_first
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'first element','[1,null,"last"]',0,'1','1',3,false,false);
+-- name: normalized_element_last
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'negative element','[1,null,"last"]',-1,'"last"','last',3,false,false);
+-- name: normalized_element_null
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'JSON null element','[1,null,"last"]',1,'null',NULL,3,false,false);
+-- name: normalized_element_empty
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'empty array','[]',0,NULL,NULL,0,true,false);
+-- name: normalized_element_minimum_index
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'minimum index','[1,2]',-2147483648,NULL,NULL,2,true,false);
+-- name: normalized_element_sql_null
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'absent array',NULL,0,NULL,NULL,NULL,true,false);
+-- name: normalized_element_exact_number
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'exact numeric element','[9007199254740993.00]',0,'9007199254740993.00','9007199254740993.00',1,false,false);
+-- name: normalized_element_container
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'nested normalized container','[{"aa":1,"b":2}]',0,'{"b": 2, "aa": 1}','{"b": 2, "aa": 1}',1,false,false);
+-- name: normalized_element_wrong_source
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'wrong source','[1]',0,'2','1',1,false,false);
+-- name: normalized_element_wrong_text
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'wrong text','[1]',0,'1','2',1,false,false);
+-- name: normalized_element_wrong_presence
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'JSON null is present','[null]',0,'null',NULL,1,true,false);
+-- name: normalized_element_wrong_count
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'wrong count','[1]',0,'1','1',2,false,false);
+-- name: normalized_element_scalar_count_error
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'scalar indexing with reached length error','42.00',-1,'42.00','42.00',1,false,false);
+-- name: normalized_element_object_count_error
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'non-array count error','{}',0,NULL,NULL,NULL,true,false);
+-- name: normalized_element_skip_error
+INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'skipped length error','42.00',0,'wrong','wrong',0,true,true);
