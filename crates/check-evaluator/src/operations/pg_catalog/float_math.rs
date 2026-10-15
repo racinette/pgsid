@@ -3,6 +3,7 @@ const FLOAT_SQRT_ARGUMENT: u32 = 3452595;
 pub fn sql__pg_catalog__dsqrt__5pmk(input: Float8Value) -> Float8Value {
     if let Float8Value::Value(bits) = input {
         let number = float8_number(bits);
+        if number != number { return Float8Value::UnspecifiedNan; };
         if number < 0.0f64 {
             return Float8Value::Error(make_sql_error(FLOAT_SQRT_ARGUMENT));
         };

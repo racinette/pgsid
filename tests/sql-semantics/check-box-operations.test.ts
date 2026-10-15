@@ -284,7 +284,8 @@ describe('box spatial operations', () => {
                   hasNan &&
                   ((d.type === 'pg_catalog.box' &&
                     ['box_add', 'box_sub', 'box_mul', 'box_div'].includes(d.fn.name)) ||
-                    (d.type === 'pg_catalog.point' && d.fn.name === 'center'))
+                    (d.type === 'pg_catalog.point' && d.fn.name === 'center') ||
+                    d.type === 'pg_catalog.float8')
                 )
                   wireOutcome = { kind: 'Unknown' }
               }

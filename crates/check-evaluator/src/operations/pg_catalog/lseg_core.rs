@@ -56,7 +56,7 @@ pub fn sql__pg_catalog__lseg_send__kc2a(input: LsegValue) -> ByteaValue {
     };
     if let LsegValue::Value(value) = input {
         if value.wire_known == false {
-            return ByteaValue::Unknown;
+            return ByteaValue::Unspecified(32);
         };
         let first = sql__pg_catalog__point_send__kuoa(lseg_endpoint(input, false));
         let second = sql__pg_catalog__point_send__kuoa(lseg_endpoint(input, true));

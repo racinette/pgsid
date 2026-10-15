@@ -178,9 +178,13 @@ describe('portable line segments', () => {
               )
             ).rows[0]!.wire
             const nanPoint =
-              call.result === 'pg_catalog.point' &&
               wire !== null &&
-              [0, 8].some((at) => Number.isNaN(Buffer.from(wire!, 'hex').readDoubleBE(at)))
+              (call.result === 'pg_catalog.point'
+                ? [0, 8]
+                : call.result === 'pg_catalog.float8'
+                  ? [0]
+                  : []
+              ).some((at) => Number.isNaN(Buffer.from(wire!, 'hex').readDoubleBE(at)))
             expected = { kind: nanPoint ? 'Unknown' : wire === null ? 'Null' : 'True' }
           } catch (caught) {
             const code = (caught as { code: string }).code
@@ -388,8 +392,13 @@ describe('portable line segments', () => {
         recorded_present: known(source !== null),
         skip: known(false),
       }
+      const nanWire =
+        wire !== null &&
+        Array.from({ length: 4 }, (_, index) => index * 8).some((at) =>
+          Number.isNaN(Buffer.from(wire!, 'hex').readDoubleBE(at)),
+        )
       for (const name of ['wire', 'varying', 'domain', 'typename', 'same', 'lazy'])
-        add(name, row, expected)
+        add(name, row, nanWire && name !== 'same' ? { kind: 'Unknown' } : expected)
       add('present', row, expected.kind === 'Null' ? { kind: 'True' } : expected)
       add('lazy', { ...row, skip: known(true) }, { kind: 'True' })
     }

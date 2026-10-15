@@ -801,12 +801,14 @@ const (
 	ByteaValueNull
 	ByteaValueValue
 	ByteaValueError
+	ByteaValueUnspecified
 )
 
 type ByteaValue struct {
-	Kind  ByteaValueKind
-	Value string
-	Error SqlError
+	Kind        ByteaValueKind
+	Value       string
+	Error       SqlError
+	Unspecified int
 }
 
 func ByteaUnknown() ByteaValue {
@@ -1037,6 +1039,14 @@ type Float4Value struct {
 	Error SqlError
 }
 
+func MakeFloat4LiteralBits(bits int) Float4Value {
+	bits = langruntime.CheckedI32(bits)
+	number := langruntime.F32FromI32Bits(bits)
+	if number != number {
+		return Float4Value{Kind: Float4ValueUnspecifiedNan}
+	}
+	return MakeFloat4Bits(bits)
+}
 func Float4Unknown() Float4Value {
 	return Float4Value{Kind: Float4ValueUnknown}
 }
@@ -1098,6 +1108,13 @@ func Float8Semantic(input Float8Value) Float8Value {
 		return MakeFloat8Bits(int64(9221120237041090560))
 	}
 	return input
+}
+func MakeFloat8LiteralBits(bits int64) Float8Value {
+	number := langruntime.F64FromI64Bits(bits)
+	if number != number {
+		return Float8Value{Kind: Float8ValueUnspecifiedNan}
+	}
+	return MakeFloat8Bits(bits)
 }
 func Float8Unknown() Float8Value {
 	return Float8Value{Kind: Float8ValueUnknown}

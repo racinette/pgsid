@@ -100,7 +100,14 @@ describe('point text input and literals', () => {
             text,
           ])
         ).rows[0]!.hex
-        expected = { kind: text === null ? 'Null' : 'True' }
+        expected = {
+          kind:
+            hex === null
+              ? 'Null'
+              : [0, 8].some((at) => Number.isNaN(Buffer.from(hex!, 'hex').readDoubleBE(at)))
+                ? 'Unknown'
+                : 'True',
+        }
       } catch (caught) {
         const code = (caught as { code: string }).code
         expect(['22P02', '22003']).toContain(code)

@@ -21,6 +21,30 @@ pub fn sql__pg_catalog__byteacat__zitv(left: ByteaValue, right: ByteaValue) -> B
     if left == ByteaValue::Null || right == ByteaValue::Null {
         return ByteaValue::Null;
     }
+    let first_length = bytea_length(left.clone());
+    let second_length = bytea_length(right.clone());
+    if let Int4Value::Value(first) = first_length {
+        if let Int4Value::Value(second) = second_length {
+            let length = bytea_concat_length(first, second);
+            if let Int4Value::Error(error) = length {
+                return ByteaValue::Error(error);
+            }
+            if first == 0 {
+                return right;
+            }
+            if second == 0 {
+                return left;
+            }
+            if let Int4Value::Value(size) = length {
+                if let ByteaValue::Unspecified(_) = left {
+                    return ByteaValue::Unspecified(size);
+                }
+                if let ByteaValue::Unspecified(_) = right {
+                    return ByteaValue::Unspecified(size);
+                }
+            }
+        }
+    }
     if let ByteaValue::Value(a) = left {
         if let ByteaValue::Value(b) = right {
             let first = bytea_payload_length(a.as_str());

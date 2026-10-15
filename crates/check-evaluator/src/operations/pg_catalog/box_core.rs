@@ -204,7 +204,7 @@ fn box_binary(input: BoxValue) -> ByteaValue {
     };
     if let BoxValue::Value(value) = input {
         if value.wire_known == false {
-            return ByteaValue::Unknown;
+            return ByteaValue::Unspecified(32);
         };
         return sql__pg_catalog__byteacat__zitv(
             sql__pg_catalog__point_send__kuoa(box_endpoint(input, false)),

@@ -162,6 +162,9 @@ fn bytea_length(input: ByteaValue) -> Int4Value {
     if input == ByteaValue::Null {
         return Int4Value::Null;
     }
+    if let ByteaValue::Unspecified(length) = input {
+        return make_int4_value(length);
+    };
     if let ByteaValue::Value(value) = input {
         let chars: Vec<char> = value.chars().collect();
         let mut index: usize = 0;
@@ -225,6 +228,9 @@ pub fn sql__pg_catalog__reverse__w0od(input: ByteaValue) -> ByteaValue {
         return ByteaValue::Error(error);
     }
     if input == ByteaValue::Unknown || input == ByteaValue::Null {
+        return input;
+    }
+    if let ByteaValue::Unspecified(_) = input {
         return input;
     }
     if let ByteaValue::Value(value) = input {

@@ -867,6 +867,9 @@ export type ByteaValue = {
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
+} | {
+    readonly kind: "Unspecified";
+    readonly value: number;
 };
 export function equalByteaValue(left: ByteaValue, right: ByteaValue): boolean {
     if (left.kind !== right.kind)
@@ -875,6 +878,8 @@ export function equalByteaValue(left: ByteaValue, right: ByteaValue): boolean {
         return left.value === right.value;
     if (left.kind === "Error" && right.kind === "Error")
         return equalSqlError(left.value, right.value);
+    if (left.kind === "Unspecified" && right.kind === "Unspecified")
+        return left.value === right.value;
     return true;
 }
 export function byteaUnknown(): ByteaValue {
@@ -1128,6 +1133,14 @@ export function equalFloat4Value(left: Float4Value, right: Float4Value): boolean
         return equalSqlError(left.value, right.value);
     return true;
 }
+export function makeFloat4LiteralBits(bits: number): Float4Value {
+    bits = langruntime.checkedI32(bits);
+    const number: number = langruntime.f32FromI32Bits(bits);
+    if (!(number === number)) {
+        return { kind: "UnspecifiedNan" };
+    }
+    return makeFloat4Bits(bits);
+}
 export function float4Unknown(): Float4Value {
     return { kind: "Unknown" };
 }
@@ -1195,6 +1208,14 @@ export function float8Semantic(input: Float8Value): Float8Value {
         return makeFloat8Bits(9221120237041090560n);
     }
     return input;
+}
+export function makeFloat8LiteralBits(bits: bigint): Float8Value {
+    bits = langruntime.checkedI64(bits);
+    const number: number = langruntime.f64FromI64Bits(bits);
+    if (!(number === number)) {
+        return { kind: "UnspecifiedNan" };
+    }
+    return makeFloat8Bits(bits);
 }
 export function float8Unknown(): Float8Value {
     return { kind: "Unknown" };

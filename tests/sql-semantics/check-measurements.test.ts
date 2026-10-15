@@ -224,6 +224,18 @@ describe('CHECK measurement boundaries', () => {
     const floatInput = report.textInput.find((entry) => entry.type === 'pg_catalog.float4')!
     expect(floatInput.probe.raw.fullyBound).toBe(true)
     expect(floatInput.probe.stored!.fullyBound).toBe(true)
+    for (const type of ['float4', 'float8', 'point', 'line', 'lseg', 'box', 'circle', 'path'])
+      expect(
+        report.inputForms.types.find((forms) => forms.type === 'pg_catalog.' + type),
+      ).toMatchObject({
+        nanBinaryPrecision: {
+          requirement: 'platform',
+          semanticValue: 'known',
+          binaryOutput: 'Unknown',
+          explicitRowBits: 'preserved',
+          owner: 'tests/sql-semantics/check-platform-nan.test.ts',
+        },
+      })
     const pointInput = report.textInput.find((entry) => entry.type === 'pg_catalog.point')!
     expect(pointInput.probe.postgres.accepted).toBe(true)
     expect(pointInput.probe.raw.fullyBound).toBe(true)

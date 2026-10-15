@@ -635,8 +635,13 @@ describe('portable circles', () => {
         recorded_present: known(source !== null),
         skip: known(false),
       }
+      const nanWire =
+        wire !== null &&
+        Array.from({ length: 3 }, (_, index) => index * 8).some((at) =>
+          Number.isNaN(Buffer.from(wire!, 'hex').readDoubleBE(at)),
+        )
       for (const name of ['wire', 'varying', 'domain', 'typename', 'same', 'lazy'])
-        add(name, row, expected)
+        add(name, row, nanWire && name !== 'same' ? { kind: 'Unknown' } : expected)
       add('present', row, expected.kind === 'Null' ? { kind: 'True' } : expected)
       add('lazy', { ...row, skip: known(true) }, { kind: 'True' })
     }
@@ -916,6 +921,10 @@ describe('portable circles', () => {
       disk_inscribe: { certain: true, value: true },
     })
     expect(evaluate({ ...row, recorded_disk_wire: Buffer.from([0]) }).disk_construct).toEqual({
+      certain: true,
+      value: false,
+    })
+    expect(evaluate({ ...row, recorded_disk_wire: Buffer.alloc(24) }).disk_construct).toEqual({
       certain: false,
     })
     const large = Buffer.alloc(8)

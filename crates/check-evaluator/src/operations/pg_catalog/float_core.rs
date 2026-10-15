@@ -9,7 +9,9 @@ fn float4_widen(input: Float4Value) -> Float8Value {
         return Float8Value::Null;
     }
     if let Float4Value::Value(bits) = input {
-        return make_float8_value(float4_number(bits));
+        let number = float4_number(bits);
+        if number != number { return Float8Value::UnspecifiedNan; };
+        return make_float8_value(number);
     };
     Float8Value::Unknown
 }
@@ -24,6 +26,7 @@ fn float8_narrow(input: Float8Value) -> Float4Value {
     }
     if let Float8Value::Value(bits) = input {
         let value = float8_number(bits);
+        if value != value { return Float4Value::UnspecifiedNan; };
         let rounded_bits = (value as f32).to_bits() as i32;
         let rounded = float4_number(rounded_bits);
         let infinity = 1.0f64 / 0.0f64;

@@ -721,6 +721,20 @@ export function byteaeqZ0yh(left: checkruntime.ByteaValue, right: checkruntime.B
     if (checkruntime.equalByteaValue(left, { kind: "Null" }) || checkruntime.equalByteaValue(right, { kind: "Null" })) {
         return { kind: "Null" };
     }
+    const leftLength: checkruntime.Int4Value = byteaLength(left);
+    const rightLength: checkruntime.Int4Value = byteaLength(right);
+    if (leftLength.kind === "Value") {
+        const a: number = langruntime.checkedI32(leftLength.value);
+        if (rightLength.kind === "Value") {
+            const b: number = langruntime.checkedI32(rightLength.value);
+            if (!(a === b)) {
+                return checkruntime.makeBoolValue(false);
+            }
+            if (a === 0) {
+                return checkruntime.makeBoolValue(true);
+            }
+        }
+    }
     if (left.kind === "Value") {
         const a: string = langruntime.checkedString(left.value);
         if (right.kind === "Value") {
@@ -744,6 +758,20 @@ export function byteaneVolo(left: checkruntime.ByteaValue, right: checkruntime.B
     }
     if (checkruntime.equalByteaValue(left, { kind: "Null" }) || checkruntime.equalByteaValue(right, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    const leftLength: checkruntime.Int4Value = byteaLength(left);
+    const rightLength: checkruntime.Int4Value = byteaLength(right);
+    if (leftLength.kind === "Value") {
+        const a: number = langruntime.checkedI32(leftLength.value);
+        if (rightLength.kind === "Value") {
+            const b: number = langruntime.checkedI32(rightLength.value);
+            if (!(a === b)) {
+                return checkruntime.makeBoolValue(true);
+            }
+            if (a === 0) {
+                return checkruntime.makeBoolValue(false);
+            }
+        }
     }
     if (left.kind === "Value") {
         const a: string = langruntime.checkedString(left.value);
@@ -2201,7 +2229,7 @@ function boxBinary(input: checkruntime.BoxValue): checkruntime.ByteaValue {
     if (input.kind === "Value") {
         const value: checkruntime.BoxPayload = input.value;
         if (value.wireKnown === false) {
-            return { kind: "Unknown" };
+            return { kind: "Unspecified", value: 32 };
         }
         return byteacatZitv(pointSendKuoa(boxEndpoint(input, false)), pointSendKuoa(boxEndpoint(input, true)));
     }
@@ -2919,6 +2947,34 @@ export function byteacatZitv(left: checkruntime.ByteaValue, right: checkruntime.
     if (checkruntime.equalByteaValue(left, { kind: "Null" }) || checkruntime.equalByteaValue(right, { kind: "Null" })) {
         return { kind: "Null" };
     }
+    const firstLength: checkruntime.Int4Value = byteaLength(left);
+    const secondLength: checkruntime.Int4Value = byteaLength(right);
+    if (firstLength.kind === "Value") {
+        const first: number = langruntime.checkedI32(firstLength.value);
+        if (secondLength.kind === "Value") {
+            const second: number = langruntime.checkedI32(secondLength.value);
+            const length: checkruntime.Int4Value = byteaConcatLength(first, second);
+            if (length.kind === "Error") {
+                const error: checkruntime.SqlError = length.value;
+                return { kind: "Error", value: error };
+            }
+            if (first === 0) {
+                return right;
+            }
+            if (second === 0) {
+                return left;
+            }
+            if (length.kind === "Value") {
+                const size: number = langruntime.checkedI32(length.value);
+                if (left.kind === "Unspecified") {
+                    return { kind: "Unspecified", value: size };
+                }
+                if (right.kind === "Unspecified") {
+                    return { kind: "Unspecified", value: size };
+                }
+            }
+        }
+    }
     if (left.kind === "Value") {
         const a: string = langruntime.checkedString(left.value);
         if (right.kind === "Value") {
@@ -3110,6 +3166,10 @@ function byteaLength(input: checkruntime.ByteaValue): checkruntime.Int4Value {
     if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
         return { kind: "Null" };
     }
+    if (input.kind === "Unspecified") {
+        const length: number = langruntime.checkedI32(input.value);
+        return checkruntime.makeInt4Value(length);
+    }
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         const chars: string[] = Array.from(value);
@@ -3173,6 +3233,9 @@ export function reverseW0od(input: checkruntime.ByteaValue): checkruntime.ByteaV
         return { kind: "Error", value: error };
     }
     if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Null" })) {
+        return input;
+    }
+    if (input.kind === "Unspecified") {
         return input;
     }
     if (input.kind === "Value") {
@@ -3263,6 +3326,16 @@ export function getByte48am(input: checkruntime.ByteaValue, position: checkrunti
     }
     if (checkruntime.equalByteaValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(position, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (input.kind === "Unspecified") {
+        const length: number = langruntime.checkedI32(input.value);
+        if (position.kind === "Value") {
+            const offset: number = langruntime.checkedI32(position.value);
+            if (offset < 0 || offset >= length) {
+                return { kind: "Error", value: checkruntime.makeSqlError(byteaArraySubscriptError) };
+            }
+        }
+        return { kind: "Unknown" };
     }
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
@@ -5786,7 +5859,7 @@ function circleBinary(input: checkruntime.CircleValue): checkruntime.ByteaValue 
     if (input.kind === "Value") {
         const value: checkruntime.CirclePayload = input.value;
         if (value.wireKnown === false) {
-            return { kind: "Unknown" };
+            return { kind: "Unspecified", value: 24 };
         }
         return byteacatZitv(pointSendKuoa(circleCenterValue(input)), float8send3bqt(circleRadiusValue(input)));
     }
@@ -6934,7 +7007,7 @@ function floatArithmetic(left: checkruntime.Float8Value, right: checkruntime.Flo
             if (value === 0.0 && !(a === 0.0) && ((mode === 2 && !(b === 0.0)) || (mode === 3 && !(langruntime.f64Abs(b) === infinity)))) {
                 return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
             }
-            if (checkruntime.equalFloat8Value(left, { kind: "UnspecifiedNan" }) || checkruntime.equalFloat8Value(right, { kind: "UnspecifiedNan" })) {
+            if (!(value === value)) {
                 return { kind: "UnspecifiedNan" };
             }
             return checkruntime.makeFloat8Value(value);
@@ -7154,7 +7227,11 @@ function float4Widen(input: checkruntime.Float4Value): checkruntime.Float8Value 
     }
     if (input.kind === "Value") {
         const bits: number = langruntime.checkedI32(input.value);
-        return checkruntime.makeFloat8Value(checkruntime.float4Number(bits));
+        const number: number = checkruntime.float4Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+        return checkruntime.makeFloat8Value(number);
     }
     return { kind: "Unknown" };
 }
@@ -7172,6 +7249,9 @@ function float8Narrow(input: checkruntime.Float8Value): checkruntime.Float4Value
     if (input.kind === "Value") {
         const bits: bigint = langruntime.checkedI64(input.value);
         const value: number = checkruntime.float8Number(bits);
+        if (!(value === value)) {
+            return { kind: "UnspecifiedNan" };
+        }
         const roundedBits: number = langruntime.f32ToI32Bits(value);
         const rounded: number = checkruntime.float4Number(roundedBits);
         const infinity: number = langruntime.f64Divide(1.0, 0.0);
@@ -7762,7 +7842,7 @@ export function float4FromText(input: checkruntime.TextValue): checkruntime.Floa
             return checkruntime.makeFloat4Bits(langruntime.checkedSignedNegate(8388608));
         }
         if (layout.kind === 3) {
-            return checkruntime.makeFloat4Bits(2143289344);
+            return { kind: "UnspecifiedNan" };
         }
         if (layout.kind === 0) {
             return floatInputSingle(layout);
@@ -7791,7 +7871,7 @@ export function float8FromText(input: checkruntime.TextValue): checkruntime.Floa
             return checkruntime.makeFloat8Bits(-4503599627370496n);
         }
         if (layout.kind === 3) {
-            return checkruntime.makeFloat8Bits(9221120237041090560n);
+            return { kind: "UnspecifiedNan" };
         }
         if (layout.kind === 0) {
             if (layout.zero) {
@@ -7816,6 +7896,9 @@ export function dsqrt5pmk(input: checkruntime.Float8Value): checkruntime.Float8V
     if (input.kind === "Value") {
         const bits: bigint = langruntime.checkedI64(input.value);
         const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
         if (number < 0.0) {
             return { kind: "Error", value: checkruntime.makeSqlError(floatSqrtArgument) };
         }
@@ -7922,6 +8005,9 @@ export function float4sendUk42(input: checkruntime.Float4Value): checkruntime.By
     if (checkruntime.equalFloat4Value(input, { kind: "Null" })) {
         return { kind: "Null" };
     }
+    if (checkruntime.equalFloat4Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "Unspecified", value: 4 };
+    }
     if (input.kind === "Value") {
         const bits: number = langruntime.checkedI32(input.value);
         return binarySendBits({ kind: "Value", value: BigInt(langruntime.checkedI32(bits)) }, 4);
@@ -7935,6 +8021,9 @@ export function float8send3bqt(input: checkruntime.Float8Value): checkruntime.By
     }
     if (checkruntime.equalFloat8Value(input, { kind: "Null" })) {
         return { kind: "Null" };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return { kind: "Unspecified", value: 8 };
     }
     if (input.kind === "Value") {
         const bits: bigint = langruntime.checkedI64(input.value);
@@ -10295,8 +10384,9 @@ function lineEqualProduct(left: bigint, right: bigint, ratio: checkruntime.Float
         const error: checkruntime.SqlError = product.value;
         return { kind: "Error", value: error };
     }
-    if (product.kind === "Value") {
-        const bits: bigint = langruntime.checkedI64(product.value);
+    const knownProduct: checkruntime.Float8Value = checkruntime.float8Semantic(product);
+    if (knownProduct.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(knownProduct.value);
         return checkruntime.makeBoolValue(geometricCoordinateEqual(checkruntime.float8Number(left), checkruntime.float8Number(bits)));
     }
     return { kind: "Unknown" };
@@ -10398,7 +10488,7 @@ export function lineSendB5ct(input: checkruntime.LineValue): checkruntime.ByteaV
     if (input.kind === "Value") {
         const value: checkruntime.LinePayload = input.value;
         if (value.wireKnown === false) {
-            return { kind: "Unknown" };
+            return { kind: "Unspecified", value: 24 };
         }
         const first: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: value.a }, 8);
         const second: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: value.b }, 8);
@@ -10980,7 +11070,7 @@ function lineProjectPoint(point: checkruntime.PointValue, line: checkruntime.Lin
                 return { point: projected, distance: { kind: "Error", value: error } };
             }
             if (checkruntime.equalPointValue(projected, { kind: "Null" })) {
-                return { point: point, distance: checkruntime.makeFloat8Bits(9221120237041090560n) };
+                return { point: point, distance: { kind: "UnspecifiedNan" } };
             }
             const distance: checkruntime.Float8Value = pointDistance2haq(projected, point);
             return { point: projected, distance: distance };
@@ -11109,7 +11199,7 @@ export function lsegSendKc2a(input: checkruntime.LsegValue): checkruntime.ByteaV
     if (input.kind === "Value") {
         const value: checkruntime.LsegPayload = input.value;
         if (value.wireKnown === false) {
-            return { kind: "Unknown" };
+            return { kind: "Unspecified", value: 32 };
         }
         const first: checkruntime.ByteaValue = pointSendKuoa(lsegEndpoint(input, false));
         const second: checkruntime.ByteaValue = pointSendKuoa(lsegEndpoint(input, true));
@@ -18219,6 +18309,10 @@ export function pathSendTszn(input: checkruntime.PathValue): checkruntime.ByteaV
                 const error: checkruntime.SqlError = encoded.value;
                 return { kind: "Error", value: error };
             }
+            if (encoded.kind === "Unspecified") {
+                const length: number = langruntime.checkedSignedAdd(5, langruntime.checkedSignedMultiply((langruntime.checkedI32(langruntime.checkedIndex(path.points.length))), 16));
+                return { kind: "Unspecified", value: length };
+            }
             if (checkruntime.equalByteaValue(encoded, { kind: "Unknown" }) || checkruntime.equalByteaValue(encoded, { kind: "Null" })) {
                 return { kind: "Unknown" };
             }
@@ -19101,7 +19195,7 @@ export function pointSendKuoa(input: checkruntime.PointValue): checkruntime.Byte
     if (input.kind === "Value") {
         const point: checkruntime.PointPayload = input.value;
         if (point.wireKnown === false) {
-            return { kind: "Unknown" };
+            return { kind: "Unspecified", value: 16 };
         }
         const x: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: point.x }, 8);
         const y: checkruntime.ByteaValue = binarySendBits({ kind: "Value", value: point.y }, 8);
@@ -19443,7 +19537,7 @@ function geometricHypot(first: checkruntime.Float8Value, second: checkruntime.Fl
                 return checkruntime.makeFloat8Bits(9218868437227405312n);
             }
             if (!(x === x) || !(y === y)) {
-                return checkruntime.makeFloat8Bits(9221120237041090560n);
+                return { kind: "UnspecifiedNan" };
             }
             if (x < y) {
                 const saved: number = x;

@@ -127,6 +127,7 @@ describe('known NaN values with unavailable binary precision', () => {
       'selected_wire',
       'coalesced_wire',
       'greatest_wire',
+      'recovered_wire',
     ])
     for (const [name, sql] of Object.entries(expressions)) {
       let expected: Outcome

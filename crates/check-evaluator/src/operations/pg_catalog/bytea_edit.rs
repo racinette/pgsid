@@ -65,6 +65,14 @@ pub fn sql__pg_catalog__get_byte__48am(input: ByteaValue, position: Int4Value) -
     if input == ByteaValue::Null || position == Int4Value::Null {
         return Int4Value::Null;
     }
+    if let ByteaValue::Unspecified(length) = input {
+        if let Int4Value::Value(offset) = position {
+            if offset < 0 || offset >= length {
+                return Int4Value::Error(make_sql_error(BYTEA_ARRAY_SUBSCRIPT_ERROR));
+            };
+        };
+        return Int4Value::Unknown;
+    };
     if let ByteaValue::Value(value) = input {
         if let Int4Value::Value(offset) = position {
             let length = bytea_payload_length(value.as_str());
