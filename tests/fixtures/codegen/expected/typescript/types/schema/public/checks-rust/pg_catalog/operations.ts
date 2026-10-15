@@ -10534,6 +10534,158 @@ export function float8Ncq4(input: checkruntime.JsonbValue): checkruntime.Float8V
     input = checkruntime.copyJsonbValue(input);
     return float8Bkfn(numericUnkz(input));
 }
+const jsonbBuildParameter = 3452619;
+function jsonbBuildKey(input: checkruntime.JsonbInput): checkruntime.TextValue {
+    input = checkruntime.copyJsonbInput(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Boolean") {
+        const value: boolean = langruntime.checkedBool(input.value);
+        if (value) {
+            return { kind: "Value", value: "true" };
+        }
+        return { kind: "Value", value: "false" };
+    }
+    if (input.kind === "Number") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: value };
+    }
+    if (input.kind === "Text") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Error", value: checkruntime.makeSqlError(jsonbBuildParameter) };
+}
+function jsonbBuildNode(node: checkruntime.JsonbNode, next: number, keyStart: number, keyEnd: number): checkruntime.JsonbNode {
+    next = langruntime.checkedIndex(next);
+    keyStart = langruntime.checkedIndex(keyStart);
+    keyEnd = langruntime.checkedIndex(keyEnd);
+    return { kind: node.kind, child: node.child, next: next, keyStart: keyStart, keyEnd: keyEnd, textStart: node.textStart, textEnd: node.textEnd };
+}
+function jsonbBuild(input: checkruntime.JsonbArguments, object: boolean): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbArguments(input);
+    object = langruntime.checkedBool(object);
+    if (input.kind === "Values") {
+        const batch: checkruntime.JsonbArgumentPayload = checkruntime.copyJsonbArgumentPayload(input.value);
+        let index: number = 0;
+        let odd: boolean = false;
+        while (index < batch.values.length) {
+            const argument: checkruntime.JsonbInput = checkruntime.copyJsonbInput(langruntime.indexStruct(batch.values, langruntime.checkedIndex(index), checkruntime.copyJsonbInput));
+            if (argument.kind === "Error") {
+                const error: checkruntime.SqlError = argument.value;
+                return { kind: "Error", value: error };
+            }
+            odd = langruntime.checkedBool(odd === false);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (object && odd) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonbBuildParameter) };
+        }
+        let kind: number = 5;
+        if (object) {
+            kind = langruntime.checkedI32(6);
+        }
+        let characters: string[] = [];
+        let nodes: checkruntime.JsonbNode[] = [];
+        langruntime.pushStruct(nodes, { kind: langruntime.checkedSignedNegate(1), child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }, checkruntime.copyJsonbNode);
+        langruntime.pushStruct(nodes, { kind: kind, child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }, checkruntime.copyJsonbNode);
+        let first: number = 0;
+        let tail: number = 0;
+        index = langruntime.checkedIndex(0);
+        while (index < batch.values.length) {
+            const keyStart: number = characters.length;
+            if (object) {
+                const key: checkruntime.TextValue = jsonbBuildKey(checkruntime.copyJsonbInput(langruntime.indexStruct(batch.values, langruntime.checkedIndex(index), checkruntime.copyJsonbInput)));
+                if (key.kind === "Error") {
+                    const error: checkruntime.SqlError = key.value;
+                    return { kind: "Error", value: error };
+                }
+                if (key.kind === "Unknown") {
+                    return { kind: "Unknown" };
+                }
+                if (key.kind === "Value") {
+                    const text: string = langruntime.checkedString(key.value);
+                    const keyCharacters: string[] = Array.from(text);
+                    let position: number = 0;
+                    while (position < keyCharacters.length) {
+                        langruntime.pushChar(characters, langruntime.indexChar(keyCharacters, langruntime.checkedIndex(position)));
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            const keyEnd: number = characters.length;
+            let converted: checkruntime.JsonbValue = toJsonb9y7o(checkruntime.copyJsonbInput(langruntime.indexStruct(batch.values, langruntime.checkedIndex(index), checkruntime.copyJsonbInput)));
+            if (converted.kind === "Null") {
+                converted = checkruntime.copyJsonbValue(checkruntime.makeJsonbValue("null"));
+            }
+            if (converted.kind === "Error") {
+                const error: checkruntime.SqlError = converted.value;
+                return { kind: "Error", value: error };
+            }
+            if (converted.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+            if (converted.kind === "Value") {
+                const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(converted.value);
+                const textShift: number = characters.length;
+                const nodeShift: number = langruntime.checkedSubtract(nodes.length, 1);
+                const root: number = langruntime.checkedAdd(nodeShift, value.root);
+                let position: number = 0;
+                while (position < value.characters.length) {
+                    langruntime.pushChar(characters, langruntime.indexChar(value.characters, langruntime.checkedIndex(position)));
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                position = langruntime.checkedIndex(1);
+                while (position < value.nodes.length) {
+                    const node: checkruntime.JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(position), checkruntime.copyJsonbNode);
+                    let child: number = 0;
+                    let next: number = 0;
+                    if (node.child > 0) {
+                        child = langruntime.checkedIndex(langruntime.checkedAdd(nodeShift, node.child));
+                    }
+                    if (node.next > 0) {
+                        next = langruntime.checkedIndex(langruntime.checkedAdd(nodeShift, node.next));
+                    }
+                    langruntime.pushStruct(nodes, { kind: node.kind, child: child, next: next, keyStart: langruntime.checkedAdd(textShift, node.keyStart), keyEnd: langruntime.checkedAdd(textShift, node.keyEnd), textStart: langruntime.checkedAdd(textShift, node.textStart), textEnd: langruntime.checkedAdd(textShift, node.textEnd) }, checkruntime.copyJsonbNode);
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                nodes[langruntime.checkedIndexIn(nodes, root)] = jsonbBuildNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(root), checkruntime.copyJsonbNode), 0, keyStart, keyEnd);
+                if (tail === 0) {
+                    first = langruntime.checkedIndex(root);
+                }
+                else {
+                    const previous: checkruntime.JsonbNode = langruntime.indexStruct(nodes, langruntime.checkedIndex(tail), checkruntime.copyJsonbNode);
+                    nodes[langruntime.checkedIndexIn(nodes, tail)] = jsonbBuildNode(previous, root, previous.keyStart, previous.keyEnd);
+                }
+                tail = langruntime.checkedIndex(root);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        nodes[langruntime.checkedIndexIn(nodes, 1)] = { kind: kind, child: first, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 };
+        return checkruntime.jsonbRebuild({ kind: "Value", value: { characters: characters, nodes: nodes, root: 1 } }, true);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbBuildArrayGfm5(input: checkruntime.JsonbArguments): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbArguments(input);
+    return jsonbBuild(input, false);
+}
+export function jsonbBuildArrayO9ke(): checkruntime.JsonbValue {
+    return checkruntime.makeJsonbValue("[]");
+}
+export function jsonbBuildObject8qt7(input: checkruntime.JsonbArguments): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbArguments(input);
+    return jsonbBuild(input, true);
+}
+export function jsonbBuildObjectA8ms(): checkruntime.JsonbValue {
+    return checkruntime.makeJsonbValue("{}");
+}
 export function toJsonb9y7o(input: checkruntime.JsonbInput): checkruntime.JsonbValue {
     input = checkruntime.copyJsonbInput(input);
     if (input.kind === "Error") {

@@ -835,6 +835,67 @@ func CopyJsonbInput(value JsonbInput) JsonbInput {
 	}
 	panic("unknown enum variant")
 }
+
+type JsonbArgumentPayload struct {
+	Values []JsonbInput
+}
+
+func CopyJsonbArgumentPayload(value JsonbArgumentPayload) JsonbArgumentPayload {
+	return JsonbArgumentPayload{Values: langruntime.CheckedStructs(value.Values, CopyJsonbInput)}
+}
+
+type JsonbArgumentsKind uint8
+
+const (
+	JsonbArgumentsValues JsonbArgumentsKind = iota
+)
+
+type JsonbArguments struct {
+	Kind   JsonbArgumentsKind
+	Values JsonbArgumentPayload
+}
+
+func CopyJsonbArguments(value JsonbArguments) JsonbArguments {
+	switch value.Kind {
+	case JsonbArgumentsValues:
+		return JsonbArguments{Kind: JsonbArgumentsValues, Values: CopyJsonbArgumentPayload(value.Values)}
+	}
+	panic("unknown enum variant")
+}
+func MakeJsonbArguments() JsonbArguments {
+	values := []JsonbInput{}
+	return JsonbArguments{Kind: JsonbArgumentsValues, Values: JsonbArgumentPayload{Values: values}}
+}
+func AppendJsonbArgument(input JsonbArguments, value JsonbInput) JsonbArguments {
+	input = CopyJsonbArguments(input)
+	value = CopyJsonbInput(value)
+	if input.Kind == JsonbArgumentsValues {
+		batch := CopyJsonbArgumentPayload(input.Values)
+		values := batch.Values
+		langruntime.CheckedAdd(len(values), 1)
+		values = append(values, CopyJsonbInput(value))
+		return JsonbArguments{Kind: JsonbArgumentsValues, Values: JsonbArgumentPayload{Values: values}}
+	}
+	return input
+}
+func JsonbKeyInputFromFloat4(input Float4Value) JsonbInput {
+	if input.Kind == Float4ValueValue {
+		bits := langruntime.CheckedI32(input.Value)
+		if bits == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
+			return JsonbInput{Kind: JsonbInputNumber, Number: "-0"}
+		}
+	}
+	return JsonbInputFromFloat4(input)
+}
+func JsonbKeyInputFromFloat8(input Float8Value) JsonbInput {
+	if input.Kind == Float8ValueValue {
+		bits := input.Value
+		if bits == int64(-9223372036854775808) {
+			return JsonbInput{Kind: JsonbInputNumber, Number: "-0"}
+		}
+	}
+	return JsonbInputFromFloat8(input)
+}
 func JsonbInputFromBool(input BoolValue) JsonbInput {
 	if input.Kind == BoolValueError {
 		error := input.Error

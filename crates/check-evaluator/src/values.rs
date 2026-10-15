@@ -770,6 +770,48 @@ pub enum JsonbInput {
     Jsonb(JsonbPayload),
 }
 
+#[derive(Clone)]
+pub struct JsonbArgumentPayload {
+    pub values: Vec<JsonbInput>,
+}
+
+#[derive(Clone)]
+pub enum JsonbArguments {
+    Values(JsonbArgumentPayload),
+}
+
+pub fn make_jsonb_arguments() -> JsonbArguments {
+    let values: Vec<JsonbInput> = Vec::new();
+    JsonbArguments::Values(JsonbArgumentPayload { values: values })
+}
+
+pub fn append_jsonb_argument(input: JsonbArguments, value: JsonbInput) -> JsonbArguments {
+    if let JsonbArguments::Values(batch) = input {
+        let mut values = batch.values;
+        values.push(value);
+        return JsonbArguments::Values(JsonbArgumentPayload { values: values });
+    };
+    input
+}
+
+pub fn jsonb_key_input_from_float4(input: Float4Value) -> JsonbInput {
+    if let Float4Value::Value(bits) = input {
+        if bits == -2147483647 - 1 {
+            return JsonbInput::Number("-0".to_owned());
+        };
+    };
+    jsonb_input_from_float4(input)
+}
+
+pub fn jsonb_key_input_from_float8(input: Float8Value) -> JsonbInput {
+    if let Float8Value::Value(bits) = input {
+        if bits == -9223372036854775808i64 {
+            return JsonbInput::Number("-0".to_owned());
+        };
+    };
+    jsonb_input_from_float8(input)
+}
+
 pub fn jsonb_input_from_bool(input: BoolValue) -> JsonbInput {
     if let BoolValue::Error(error) = input {
         return JsonbInput::Error(error);

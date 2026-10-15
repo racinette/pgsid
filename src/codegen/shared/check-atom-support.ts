@@ -3,7 +3,7 @@ import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.j
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import type { SqlBindingGroup } from '../../sql-semantics/signatures.js'
 import { checkRustCallableNames } from './check-rust-source.js'
-import { jsonbConversionHelper } from './check-rust-evaluator.js'
+import { jsonbConversionHelper, isJsonbBuilder } from './check-rust-evaluator.js'
 import { builtinCast, builtinMetadata } from '../../postgres/builtins/inventory.js'
 import { enumEqualityOperation } from '../../sql-semantics/expressions.js'
 import { goSqlBackend } from '../go/sql/registry.js'
@@ -36,6 +36,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
       builtinCast('pg_catalog.text', implementation.result)?.implementation === signature)
   return (
     (metadata.volatility === 'i' ||
+      (rust && isJsonbBuilder(implementation) && rustNames.has(implementation.rustName)) ||
       (rust &&
         implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
@@ -111,20 +112,21 @@ export function portableCheckAtoms(
       if (
         item.kind === 'function' &&
         item.schema === 'pg_catalog' &&
-        item.name === 'to_jsonb' &&
-        item.args[0] === 'pg_catalog.anyelement'
+        ((item.name === 'to_jsonb' && item.args[0] === 'pg_catalog.anyelement') ||
+          isJsonbBuilder(item))
       ) {
-        const operand = value.operands[0]
-        const type =
-          operand?.kind === 'certain'
-            ? operand.expression.type
-            : operand?.kind === 'call'
-              ? operand.call.type
-              : operand?.kind === 'regex-count'
-                ? builtinMetadata(operand.signature).result
-                : operand?.type
-        if (!type || !jsonbConversionHelper(type))
-          return { kind: 'uncertain', type: value.call.type }
+        for (const operand of value.operands) {
+          const type =
+            operand?.kind === 'certain'
+              ? operand.expression.type
+              : operand?.kind === 'call'
+                ? operand.call.type
+                : operand?.kind === 'regex-count'
+                  ? builtinMetadata(operand.signature).result
+                  : operand?.type
+          if (!type || !jsonbConversionHelper(type))
+            return { kind: 'uncertain', type: value.call.type }
+        }
       }
     }
     if (value.kind === 'call')

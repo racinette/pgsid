@@ -111,6 +111,24 @@ const jsonbConversionHelpers = new Map<string, string>(
 export const jsonbConversionHelper = (type: string): string | undefined =>
   type.startsWith('enum:') ? 'jsonb_input_from_enum' : jsonbConversionHelpers.get(type)
 
+export const isJsonbBuilder = (
+  item: ReturnType<typeof builtinMetadata>,
+): item is ReturnType<typeof builtinMetadata> & {
+  kind: 'function'
+  name: 'jsonb_build_array' | 'jsonb_build_object'
+} =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  ['jsonb_build_array', 'jsonb_build_object'].includes(item.name) &&
+  item.result === 'pg_catalog.jsonb' &&
+  !item.strict &&
+  !item.returnsSet &&
+  item.volatility === 's' &&
+  ((item.args.length === 0 && item.variadic === null) ||
+    (item.args.length === 1 &&
+      item.args[0] === 'pg_catalog."any"' &&
+      item.variadic === 'pg_catalog."any"'))
+
 export class UnsupportedCheckRustExpression extends Error {}
 
 const rustType = (type: string): string => {
@@ -529,6 +547,9 @@ export function emitCheckRustEvaluator(
         implementation.result === 'pg_catalog.jsonb' &&
         implementation.strict &&
         implementation.volatility === 's'
+      const jsonbBuilder =
+        isJsonbBuilder(implementation) &&
+        (implementation.args.length === 0 ? operands.length === 0 : operands.length > 0)
       const enumOperands = implementation.args.flatMap((type, index) =>
         type === 'pg_catalog.anyenum' ? [operands[index]?.type] : [],
       )
@@ -541,9 +562,11 @@ export function emitCheckRustEvaluator(
         implementation.kind !== 'function' ||
         resultType !== call.type ||
         (!implementation.strict &&
+          !jsonbBuilder &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
           !jsonbConversion &&
+          !jsonbBuilder &&
           !(
             (['namesend', 'textsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&
@@ -557,7 +580,7 @@ export function emitCheckRustEvaluator(
                   call.signature))
           )) ||
         implementation.returnsSet ||
-        implementation.args.length !== operands.length
+        (!jsonbBuilder && implementation.args.length !== operands.length)
       )
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK callable: ${call.signature}`,
@@ -588,6 +611,7 @@ export function emitCheckRustEvaluator(
           `Rust CHECK enum identity mismatch: ${call.signature}`,
         )
       if (
+        !jsonbBuilder &&
         implementation.args.some((type, index) =>
           type === 'pg_catalog.anyenum' && enumCall
             ? !operands[index]?.type.startsWith('enum:')
@@ -608,60 +632,78 @@ export function emitCheckRustEvaluator(
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
       let arguments_ = operands.map((operand) => ownedOperand(operand))
-      if (jsonbConversion) {
-        let operand = operands[0]!
-        if (['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'].includes(operand.type)) {
-          const conversion = builtinCast(operand.type, 'pg_catalog."numeric"')
-          if (conversion?.method !== 'f' || !conversion.implementation)
-            throw new UnsupportedCheckRustExpression(
-              'JSONB integer conversion requires its catalog numeric cast',
+      if (jsonbConversion || (jsonbBuilder && operands.length > 0)) {
+        const carriers: string[] = []
+        for (const [index, original] of operands.entries()) {
+          let operand = original
+          if (['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'].includes(operand.type)) {
+            const conversion = builtinCast(operand.type, 'pg_catalog."numeric"')
+            if (conversion?.method !== 'f' || !conversion.implementation)
+              throw new UnsupportedCheckRustExpression(
+                'JSONB integer conversion requires its catalog numeric cast',
+              )
+            operand = emitCall(
+              { kind: 'cast', signature: conversion.implementation, type: 'pg_catalog."numeric"' },
+              [operand],
+              destination,
             )
-          operand = emitCall(
-            { kind: 'cast', signature: conversion.implementation, type: 'pg_catalog."numeric"' },
-            [operand],
-            destination,
-          )
-        }
-        if (
-          !operand.type.startsWith('enum:') &&
-          ![
-            'pg_catalog.bool',
-            'pg_catalog."numeric"',
-            'pg_catalog.text',
-            'pg_catalog."varchar"',
-            'pg_catalog.bpchar',
-            'pg_catalog.name',
-            'pg_catalog.refcursor',
-            'pg_catalog."json"',
-            'pg_catalog.jsonb',
-            'pg_catalog.float4',
-            'pg_catalog.float8',
-          ].includes(operand.type)
-        ) {
-          const output = builtinTypeIO(operand.type)?.output
-          const metadata = output ? builtinMetadata(output) : null
+          }
           if (
-            !metadata ||
-            metadata.kind !== 'function' ||
-            !metadata.strict ||
-            (metadata.volatility !== 'i' && metadata.volatility !== 's') ||
-            metadata.returnsSet ||
-            metadata.args.length !== 1 ||
-            metadata.args[0] !== operand.type ||
-            metadata.result !== 'pg_catalog.cstring'
-          )
-            throw new UnsupportedCheckRustExpression(
-              'JSONB string conversion requires its catalog output identity',
+            !operand.type.startsWith('enum:') &&
+            ![
+              'pg_catalog.bool',
+              'pg_catalog."numeric"',
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+              'pg_catalog.name',
+              'pg_catalog.refcursor',
+              'pg_catalog."json"',
+              'pg_catalog.jsonb',
+              'pg_catalog.float4',
+              'pg_catalog.float8',
+            ].includes(operand.type)
+          ) {
+            const output = builtinTypeIO(operand.type)?.output
+            const metadata = output ? builtinMetadata(output) : null
+            if (
+              !metadata ||
+              metadata.kind !== 'function' ||
+              !metadata.strict ||
+              (metadata.volatility !== 'i' && metadata.volatility !== 's') ||
+              metadata.returnsSet ||
+              metadata.args.length !== 1 ||
+              metadata.args[0] !== operand.type ||
+              metadata.result !== 'pg_catalog.cstring'
             )
+              throw new UnsupportedCheckRustExpression(
+                'JSONB string conversion requires its catalog output identity',
+              )
+          }
+          const key =
+            jsonbBuilder && implementation.name === 'jsonb_build_object' && index % 2 === 0
+          const helper =
+            key && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+              ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
+              : jsonbConversionHelper(operand.type)
+          if (!helper)
+            throw new UnsupportedCheckRustExpression(
+              `JSONB conversion requires a supported concrete input category: ${operand.type}`,
+            )
+          const carrier = fresh('jsonb_input')
+          destination.push(`let ${carrier} = ${helper}(${ownedOperand(operand)});`)
+          carriers.push(carrier)
         }
-        const helper = jsonbConversionHelper(operand.type)
-        if (!helper)
-          throw new UnsupportedCheckRustExpression(
-            `JSONB conversion requires a supported concrete input category: ${operand.type}`,
-          )
-        const carrier = fresh('jsonb_input')
-        destination.push(`let ${carrier} = ${helper}(${ownedOperand(operand)});`)
-        arguments_ = [carrier]
+        if (jsonbBuilder) {
+          let batch = fresh('jsonb_arguments')
+          destination.push(`let ${batch} = make_jsonb_arguments();`)
+          for (const carrier of carriers) {
+            const next = fresh('jsonb_arguments')
+            destination.push(`let ${next} = append_jsonb_argument(${batch}, ${carrier});`)
+            batch = next
+          }
+          arguments_ = [batch]
+        } else arguments_ = carriers
       }
       callables.add(implementation.rustName)
       const name = fresh('value')
@@ -1433,6 +1475,12 @@ export function emitCheckRustEvaluator(
           (operand) => operand.kind !== 'certain' && constantScalarExpression(operand),
         )
       ) {
+        const callable = node.call.signature === null ? null : builtinMetadata(node.call.signature)
+        const implementation =
+          callable?.kind === 'operator' ? builtinMetadata(callable.implementation) : callable
+        const strict =
+          node.call.signature === null ||
+          (implementation?.kind === 'function' && implementation.strict)
         const guard = fresh('constant_operand_null')
         constantDeclarations.push(`let mut ${guard}: CheckOutcome = check_unknown();`)
         const initial = fresh('constant_operand_start')
@@ -1454,14 +1502,16 @@ export function emitCheckRustEvaluator(
           const prefix = rustValuePrefix(kind)
           const name = fresh('constant_argument')
           constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
-          const nullness = fresh('constant_argument_nullness')
-          const state = fresh('constant_argument_state')
-          preparationLines.push(
-            `${name} = ${ownedOperand(value)};`,
-            `let ${nullness} = ${prefix}_is_null(${ownedOperand({ name, type: value.type })});`,
-            `let ${state} = check_from_bool(${nullness});`,
-            `${guard} = or_finish(${guard}, ${state});`,
-          )
+          preparationLines.push(`${name} = ${ownedOperand(value)};`)
+          if (strict) {
+            const nullness = fresh('constant_argument_nullness')
+            const state = fresh('constant_argument_state')
+            preparationLines.push(
+              `let ${nullness} = ${prefix}_is_null(${ownedOperand({ name, type: value.type })});`,
+              `let ${state} = check_from_bool(${nullness});`,
+              `${guard} = or_finish(${guard}, ${state});`,
+            )
+          }
           return { name, type: value.type }
         })
         const value = emitCall(node.call, operands, lines)

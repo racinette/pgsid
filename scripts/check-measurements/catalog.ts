@@ -9,6 +9,7 @@ import { PG18_BTREE_COMPARISONS } from '../../src/postgres/builtins/btree-compar
 import { PG18_TYPE_IO } from '../../src/postgres/builtins/type-io.generated.js'
 import { builtinCallables, builtinTypeIO } from '../../src/postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../src/postgres/builtins/taxonomy.js'
+import { isJsonbBuilder } from '../../src/codegen/shared/check-rust-evaluator.js'
 
 export function verifyCatalog(catalog: BuiltinCatalog): void {
   assert.equal(catalog.serverVersion, PG18_BUILTINS_VERSION, 'PostgreSQL version mismatch')
@@ -78,24 +79,29 @@ export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
 }
 
 export function jsonValueRequirements(item: BuiltinCallable) {
+  const builder = isJsonbBuilder(item) && item.args.length === 1
   if (
-    item.kind === 'function' &&
-    item.schema === 'pg_catalog' &&
-    item.name === 'to_jsonb' &&
-    item.strict &&
-    item.volatility === 's' &&
-    !item.returnsSet &&
-    item.args.length === 1 &&
-    item.args[0] === 'pg_catalog.anyelement' &&
-    item.result === 'pg_catalog.jsonb'
+    builder ||
+    (item.kind === 'function' &&
+      item.schema === 'pg_catalog' &&
+      item.name === 'to_jsonb' &&
+      item.strict &&
+      item.volatility === 's' &&
+      !item.returnsSet &&
+      item.args.length === 1 &&
+      item.args[0] === 'pg_catalog.anyelement' &&
+      item.result === 'pg_catalog.jsonb')
   )
     return [
       {
         kind: 'database',
         setting: 'server_encoding',
-        requirement:
-          'JSON text conversion shares Unicode decoding and JSONB stored-format admission requirements. Non-ASCII Unicode escapes can require server_encoding; existing JSONB values pass through without rendering or new admission.',
-        owner: 'tests/sql-semantics/check-jsonb-conversion.test.ts',
+        requirement: builder
+          ? 'Builder arguments share scalar JSON conversion requirements. Non-ASCII Unicode escapes and fixed JSONB container storage bounds can require server_encoding; builders admit the new container even when its inputs are existing JSONB values.'
+          : 'JSON text conversion shares Unicode decoding and JSONB stored-format admission requirements. Non-ASCII Unicode escapes can require server_encoding; existing JSONB values pass through without rendering or new admission.',
+        owner: builder
+          ? 'tests/sql-semantics/check-jsonb-builders.test.ts'
+          : 'tests/sql-semantics/check-jsonb-conversion.test.ts',
       },
       {
         kind: 'session',

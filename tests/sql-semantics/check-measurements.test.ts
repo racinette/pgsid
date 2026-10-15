@@ -219,6 +219,26 @@ describe('CHECK measurement boundaries', () => {
     expect(callableBoundary(conversion, represented).categories).toContain(
       'session-or-database-state',
     )
+    const builders = catalog.functions.filter(({ metadata }) =>
+      ['jsonb_build_array', 'jsonb_build_object'].includes(metadata.name),
+    )
+    expect(builders).toHaveLength(4)
+    for (const { metadata } of builders) {
+      expect(jsonValueRequirements(metadata)).toEqual(
+        metadata.args.length === 0
+          ? null
+          : [
+              {
+                kind: 'database',
+                setting: 'server_encoding',
+                requirement:
+                  'Builder arguments share scalar JSON conversion requirements. Non-ASCII Unicode escapes and fixed JSONB container storage bounds can require server_encoding; builders admit the new container even when its inputs are existing JSONB values.',
+                owner: 'tests/sql-semantics/check-jsonb-builders.test.ts',
+              },
+              ...jsonValueRequirements(conversion)!.slice(1),
+            ],
+      )
+    }
     for (const fn of catalog.functions.filter(
       ({ metadata }) =>
         metadata.name === 'jsonb_delete' &&

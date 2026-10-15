@@ -427,3 +427,33 @@ CREATE TABLE document_context_conversions (
  CONSTRAINT context_regtype CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_regtype) IS NOT DISTINCT FROM expected_regtype END),
  CONSTRAINT context_enum CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_enum) IS NOT DISTINCT FROM expected_enum END)
 );
+
+CREATE TABLE document_builders (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ document retained_normalized_document,
+ source_json json,
+ amount numeric,
+ flag boolean,
+ key_name text,
+ expected_built_array jsonb,
+ expected_built_object jsonb,
+ expected_duplicate_key jsonb,
+ expected_selected_array jsonb,
+ expected_nested_builder jsonb,
+ expected_original_document jsonb,
+ expected_empty_array jsonb,
+ expected_empty_object jsonb,
+ expected_count integer,
+ bypass boolean NOT NULL,
+ CONSTRAINT built_array CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_array(document,source_json,amount,flag,label,NULL) IS NOT DISTINCT FROM expected_built_array END),
+ CONSTRAINT built_object CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object(key_name,document,'amount',amount,'flag',flag,'raw',source_json) IS NOT DISTINCT FROM expected_built_object END),
+ CONSTRAINT duplicate_key CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object('held',document,'held',amount) IS NOT DISTINCT FROM expected_duplicate_key END),
+ CONSTRAINT selected_array CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_array(document->'selected',document->'other') IS NOT DISTINCT FROM expected_selected_array END),
+ CONSTRAINT nested_builder CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object('payload',jsonb_build_array(document,amount,NULL)) IS NOT DISTINCT FROM expected_nested_builder END),
+ CONSTRAINT original_document CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object('held',document)->'held' IS NOT DISTINCT FROM expected_original_document END),
+ CONSTRAINT empty_array CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_array() IS NOT DISTINCT FROM expected_empty_array END),
+ CONSTRAINT empty_object CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object() IS NOT DISTINCT FROM expected_empty_object END),
+ CONSTRAINT builder_count CHECK(CASE WHEN bypass THEN true ELSE jsonb_array_length(jsonb_build_array(document,flag,NULL))=expected_count END)
+);
