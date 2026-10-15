@@ -275,10 +275,10 @@ exposes a prerequisite:
 - [x] JSONB scalar-argument builders, empty overloads, non-strict NULLs, scalar keys, duplicate normalization, eager argument errors and owned composition.
 - [x] JSON/JSONB binary send, source/canonical bytes, version framing and strict states; retain encoding requirements and classify receive functions as internal interfaces.
 - [ ] Explicit VARIADIC arrays and path-array access follow arrays.
-- [x] JSONPath lexical foundation: owned source/token/decoded arenas, comments, names, variables, numeric forms and Unicode error precedence; no public SQL admission.
-- [x] JSONPath grammar/query graph foundation: precedence, accessor/method arguments, @/last scopes, parser errors and ordered literal-validation events.
+- [x] JSONPath lexical/grammar foundation: owned arenas, comments, names, variables, numeric/Unicode forms, precedence, accessor/method arguments, @/last scopes and ordered validation events; no public SQL admission.
 - [x] Private UTF8/C JSONPath literal validation: exact numeric forms, regex compilation/flags and error order; retain collation requirements and regex compiler limits as Unknown.
-- [ ] JSONPath portable values, encoding admission, SQL integration and execution over the logical JSONB tree.
+- [x] Owned normalized JSONPath query graph, unary numeric folding, iterative canonical UTF8 text output and value-state/clone semantics; retain non-reparseable PostgreSQL output cases.
+- [ ] JSONPath encoding admission, public SQL input/literal/cast integration, binary send and execution over the logical JSONB tree.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
 Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations,

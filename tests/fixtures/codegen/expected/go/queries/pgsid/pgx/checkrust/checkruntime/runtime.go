@@ -5485,6 +5485,89 @@ func jsonbStorageLayout(source *JsonbPayload) jsonbStorageSize {
 func jsonbStorageAdmission(source *JsonbPayload) BoolValue {
 	return jsonbStorageDecision(jsonbStorageLayout(source))
 }
+
+type JsonpathNode struct {
+	Kind      int
+	Next      int
+	Left      int
+	Right     int
+	TextStart int
+	TextEnd   int
+	First     int
+	Last      int
+	Flags     int
+}
+
+func CopyJsonpathNode(value JsonpathNode) JsonpathNode {
+	return JsonpathNode{Kind: langruntime.CheckedI32(value.Kind), Next: langruntime.CheckedIndex(value.Next), Left: langruntime.CheckedIndex(value.Left), Right: langruntime.CheckedIndex(value.Right), TextStart: langruntime.CheckedIndex(value.TextStart), TextEnd: langruntime.CheckedIndex(value.TextEnd), First: langruntime.CheckedI32(value.First), Last: langruntime.CheckedI32(value.Last), Flags: langruntime.CheckedI32(value.Flags)}
+}
+
+type JsonpathPayload struct {
+	Characters []rune
+	Nodes      []JsonpathNode
+	Root       int
+	Lax        bool
+}
+
+func CopyJsonpathPayload(value JsonpathPayload) JsonpathPayload {
+	return JsonpathPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, CopyJsonpathNode), Root: langruntime.CheckedIndex(value.Root), Lax: value.Lax}
+}
+
+type JsonpathValueKind uint8
+
+const (
+	JsonpathValueUnknown JsonpathValueKind = iota
+	JsonpathValueNull
+	JsonpathValueValue
+	JsonpathValueError
+)
+
+type JsonpathValue struct {
+	Kind  JsonpathValueKind
+	Value JsonpathPayload
+	Error SqlError
+}
+
+func CopyJsonpathValue(value JsonpathValue) JsonpathValue {
+	switch value.Kind {
+	case JsonpathValueUnknown:
+		return JsonpathValue{Kind: JsonpathValueUnknown}
+	case JsonpathValueNull:
+		return JsonpathValue{Kind: JsonpathValueNull}
+	case JsonpathValueValue:
+		return JsonpathValue{Kind: JsonpathValueValue, Value: CopyJsonpathPayload(value.Value)}
+	case JsonpathValueError:
+		return JsonpathValue{Kind: JsonpathValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func JsonpathUnknown() JsonpathValue {
+	return JsonpathValue{Kind: JsonpathValueUnknown}
+}
+func JsonpathNull() JsonpathValue {
+	return JsonpathValue{Kind: JsonpathValueNull}
+}
+func JsonpathIsNull(input JsonpathValue) BoolValue {
+	input = CopyJsonpathValue(input)
+	if input.Kind == JsonpathValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == JsonpathValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == JsonpathValueNull {
+		return BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: false}
+}
+func JsonpathFromCaseGuard(input CheckOutcome) JsonpathValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return JsonpathValue{Kind: JsonpathValueError, Error: error}
+	}
+	return JsonpathValue{Kind: JsonpathValueUnknown}
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

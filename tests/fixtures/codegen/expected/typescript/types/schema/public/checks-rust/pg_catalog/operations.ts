@@ -12342,6 +12342,421 @@ export function jsonbContained3itb(left: checkruntime.JsonbValue, right: checkru
     }
     return jsonbRelationValues(right, left, true, false);
 }
+interface JsonpathPrintTask {
+    mode: number;
+    node: number;
+    brackets: boolean;
+    key: boolean;
+}
+function copyJsonpathPrintTask(value: JsonpathPrintTask): JsonpathPrintTask {
+    return { mode: langruntime.checkedI32(value.mode), node: langruntime.checkedIndex(value.node), brackets: langruntime.checkedBool(value.brackets), key: langruntime.checkedBool(value.key) };
+}
+const jsonpathPrintTokens: ReadonlyArray<string> = ["", "$", "@", "last", "", "", "$", "null", "true", "false", "", "*", "[*]", "[", "", "", "?(", "exists (", "!(", "(", "+", "-", " + ", " - ", " * ", " / ", " % ", " == ", " != ", " < ", " <= ", " > ", " >= ", " && ", " || ", " starts with ", " like_regex ", "(", ")", ") is unknown", "[", "]", ",", " to "];
+function jsonpathOutputTask(mode: number, node: number, brackets: boolean, key: boolean): JsonpathPrintTask {
+    mode = langruntime.checkedI32(mode);
+    node = langruntime.checkedIndex(node);
+    brackets = langruntime.checkedBool(brackets);
+    key = langruntime.checkedBool(key);
+    return { mode: mode, node: node, brackets: brackets, key: key };
+}
+function jsonpathPrintPriority(kind: number): number {
+    kind = langruntime.checkedI32(kind);
+    if (kind === jsonpathNodeOr) {
+        return 0;
+    }
+    if (kind === jsonpathNodeAnd) {
+        return 1;
+    }
+    if ((kind >= jsonpathNodeEq && kind <= jsonpathNodeGe) || kind === jsonpathNodeStarts) {
+        return 2;
+    }
+    if (kind === jsonpathNodeAdd || kind === jsonpathNodeSub) {
+        return 3;
+    }
+    if (kind >= jsonpathNodeMul && kind <= jsonpathNodeMod) {
+        return 4;
+    }
+    if (kind === jsonpathNodePlus || kind === jsonpathNodeMinus) {
+        return 5;
+    }
+    return 6;
+}
+function jsonpathPrintQuote(value: checkruntime.JsonpathPayload, begin: number, end: number): string {
+    begin = langruntime.checkedIndex(begin);
+    end = langruntime.checkedIndex(end);
+    let output: string = "";
+    output = output + langruntime.checkedChar("\"");
+    const hex: string[] = Array.from("0123456789abcdef");
+    let position: number = begin;
+    while (position < end) {
+        const character: string = langruntime.indexChar(value.characters, langruntime.checkedIndex(position));
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        if (character === "\"") {
+            output = output + "\\\"";
+        }
+        else if (character === "\\") {
+            output = output + "\\\\";
+        }
+        else if (character === "\b") {
+            output = output + "\\b";
+        }
+        else if (character === "\f") {
+            output = output + "\\f";
+        }
+        else if (character === "\n") {
+            output = output + "\\n";
+        }
+        else if (character === "\r") {
+            output = output + "\\r";
+        }
+        else if (character === "\t") {
+            output = output + "\\t";
+        }
+        else if (code < 32) {
+            output = output + "\\u00";
+            output = output + langruntime.checkedChar(langruntime.indexChar(hex, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedDivide(code, 16), 0))));
+            output = output + langruntime.checkedChar(langruntime.indexChar(hex, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedRemainder(code, 16), 0))));
+        }
+        else {
+            output = output + langruntime.checkedChar(character);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    output = output + langruntime.checkedChar("\"");
+    return output;
+}
+function jsonpathPrintLevel(level: number): string {
+    level = langruntime.checkedI32(level);
+    if (level === langruntime.checkedSignedNegate(1)) {
+        return "last";
+    }
+    const result: checkruntime.TextValue = int4ToText({ kind: "Value", value: level });
+    if (result.kind === "Value") {
+        const value: string = langruntime.checkedString(result.value);
+        return value;
+    }
+    return "";
+}
+export function jsonpathToText(input: checkruntime.JsonpathValue): checkruntime.TextValue {
+    input = checkruntime.copyJsonpathValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonpathPayload = checkruntime.copyJsonpathPayload(input.value);
+        let output: string = "";
+        if (value.lax === false) {
+            output = output + "strict ";
+        }
+        let stack: JsonpathPrintTask[] = [];
+        langruntime.pushStruct(stack, jsonpathOutputTask(0, value.root, true, false), copyJsonpathPrintTask);
+        let count: number = stack.length;
+        while (count > 0) {
+            count = langruntime.checkedIndex(langruntime.checkedSubtract(count, 1));
+            const task: JsonpathPrintTask = copyJsonpathPrintTask(langruntime.indexStruct(stack, langruntime.checkedIndex(count), copyJsonpathPrintTask));
+            if (task.mode === 1) {
+                output = output + langruntime.indexStatic(jsonpathPrintTokens, langruntime.checkedIndex(task.node));
+            }
+            else {
+                const node: checkruntime.JsonpathNode = checkruntime.copyJsonpathNode(langruntime.indexStruct(value.nodes, langruntime.checkedIndex(task.node), checkruntime.copyJsonpathNode));
+                if (task.mode === 2) {
+                    const quoted: string = jsonpathPrintQuote(value, node.textStart, node.textEnd);
+                    output = output + quoted;
+                    if (node.flags > 0) {
+                        output = output + " flag \"";
+                        if (langruntime.checkedSignedRemainder(node.flags, 2) === 1) {
+                            output = output + langruntime.checkedChar("i");
+                        }
+                        if (langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(node.flags, 2)), 2) === 1) {
+                            output = output + langruntime.checkedChar("s");
+                        }
+                        if (langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(node.flags, 4)), 2) === 1) {
+                            output = output + langruntime.checkedChar("m");
+                        }
+                        if (langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(node.flags, 8)), 2) === 1) {
+                            output = output + langruntime.checkedChar("x");
+                        }
+                        if (langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(node.flags, 16)), 2) === 1) {
+                            output = output + langruntime.checkedChar("q");
+                        }
+                        output = output + langruntime.checkedChar("\"");
+                    }
+                }
+                else if (task.mode === 3) {
+                    if (node.next > 0) {
+                        const next: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(3, node.next, false, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(next);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, next, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                        const comma: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(1, 42, false, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(comma);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, comma, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                    }
+                    if (node.right > 0) {
+                        const right: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(0, node.right, false, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(right);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, right, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                        const separator: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(1, 43, false, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(separator);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, separator, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                    }
+                    const left: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(0, node.left, false, false));
+                    if (count < stack.length) {
+                        stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(left);
+                    }
+                    else {
+                        langruntime.pushStruct(stack, left, copyJsonpathPrintTask);
+                    }
+                    count = langruntime.checkedAdd(count, 1);
+                }
+                else {
+                    if (node.next > 0) {
+                        const next: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(0, node.next, true, true));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(next);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, next, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                    }
+                    const kind: number = node.kind;
+                    if ((kind === jsonpathNodeKey || kind === jsonpathNodeAnyKey || kind === jsonpathNodeDescendant) && task.key) {
+                        output = output + langruntime.checkedChar(".");
+                    }
+                    if (kind === jsonpathNodeString || kind === jsonpathNodeKey || kind === jsonpathNodeVariable) {
+                        if (kind === jsonpathNodeVariable) {
+                            output = output + langruntime.checkedChar("$");
+                        }
+                        const quoted: string = jsonpathPrintQuote(value, node.textStart, node.textEnd);
+                        output = output + quoted;
+                    }
+                    if (kind === jsonpathNodeNumber) {
+                        if (node.next > 0) {
+                            output = output + langruntime.checkedChar("(");
+                        }
+                        let position: number = node.textStart;
+                        while (position < node.textEnd) {
+                            output = output + langruntime.checkedChar(langruntime.indexChar(value.characters, langruntime.checkedIndex(position)));
+                            position = langruntime.checkedAdd(position, 1);
+                        }
+                        if (node.next > 0) {
+                            output = output + langruntime.checkedChar(")");
+                        }
+                    }
+                    if (kind === jsonpathNodeRoot || kind === jsonpathNodeCurrent || kind === jsonpathNodeLast || kind === jsonpathNodeNull || kind === jsonpathNodeTrue || kind === jsonpathNodeFalse || kind === jsonpathNodeAnyKey || kind === jsonpathNodeAnyArray) {
+                        output = output + langruntime.indexStatic(jsonpathPrintTokens, langruntime.checkedIndex(langruntime.indexFromI32(kind, 0)));
+                    }
+                    if (kind >= jsonpathNodeAdd && kind <= jsonpathNodeStarts) {
+                        if (task.brackets) {
+                            output = output + langruntime.checkedChar("(");
+                            const closing: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(1, 38, false, false));
+                            if (count < stack.length) {
+                                stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(closing);
+                            }
+                            else {
+                                langruntime.pushStruct(stack, closing, copyJsonpathPrintTask);
+                            }
+                            count = langruntime.checkedAdd(count, 1);
+                        }
+                        const priority: number = jsonpathPrintPriority(kind);
+                        const rightNode: checkruntime.JsonpathNode = checkruntime.copyJsonpathNode(langruntime.indexStruct(value.nodes, langruntime.checkedIndex(node.right), checkruntime.copyJsonpathNode));
+                        const right: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(0, node.right, jsonpathPrintPriority(rightNode.kind) <= priority, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(right);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, right, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                        const operation: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(1, langruntime.indexFromI32(kind, 0), false, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(operation);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, operation, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                        const leftNode: checkruntime.JsonpathNode = checkruntime.copyJsonpathNode(langruntime.indexStruct(value.nodes, langruntime.checkedIndex(node.left), checkruntime.copyJsonpathNode));
+                        const left: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(0, node.left, jsonpathPrintPriority(leftNode.kind) <= priority, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(left);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, left, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                    }
+                    if (kind === jsonpathNodePlus || kind === jsonpathNodeMinus || kind === jsonpathNodeRegex) {
+                        if (task.brackets) {
+                            output = output + langruntime.checkedChar("(");
+                            const closing: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(1, 38, false, false));
+                            if (count < stack.length) {
+                                stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(closing);
+                            }
+                            else {
+                                langruntime.pushStruct(stack, closing, copyJsonpathPrintTask);
+                            }
+                            count = langruntime.checkedAdd(count, 1);
+                        }
+                        if (kind === jsonpathNodeRegex) {
+                            const pattern: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(2, task.node, false, false));
+                            if (count < stack.length) {
+                                stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(pattern);
+                            }
+                            else {
+                                langruntime.pushStruct(stack, pattern, copyJsonpathPrintTask);
+                            }
+                            count = langruntime.checkedAdd(count, 1);
+                            const operation: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(1, 36, false, false));
+                            if (count < stack.length) {
+                                stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(operation);
+                            }
+                            else {
+                                langruntime.pushStruct(stack, operation, copyJsonpathPrintTask);
+                            }
+                            count = langruntime.checkedAdd(count, 1);
+                        }
+                        else {
+                            output = output + langruntime.indexStatic(jsonpathPrintTokens, langruntime.checkedIndex(langruntime.indexFromI32(kind, 0)));
+                        }
+                        const childNode: checkruntime.JsonpathNode = checkruntime.copyJsonpathNode(langruntime.indexStruct(value.nodes, langruntime.checkedIndex(node.left), checkruntime.copyJsonpathNode));
+                        const child: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(0, node.left, jsonpathPrintPriority(childNode.kind) <= jsonpathPrintPriority(kind), false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(child);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, child, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                    }
+                    if (kind === jsonpathNodeNot || kind === jsonpathNodeIsUnknown || kind === jsonpathNodeFilter || kind === jsonpathNodeExists) {
+                        output = output + langruntime.indexStatic(jsonpathPrintTokens, langruntime.checkedIndex(langruntime.indexFromI32(kind, 0)));
+                        let closingToken: number = 38;
+                        if (kind === jsonpathNodeIsUnknown) {
+                            closingToken = langruntime.checkedIndex(39);
+                        }
+                        const closing: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(1, closingToken, false, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(closing);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, closing, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                        const child: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(0, node.left, false, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(child);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, child, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                    }
+                    if (kind === jsonpathNodeIndex) {
+                        output = output + langruntime.checkedChar("[");
+                        const closing: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(1, 41, false, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(closing);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, closing, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                        const subscript: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(3, node.left, false, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(subscript);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, subscript, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                    }
+                    if (kind === jsonpathNodeDescendant) {
+                        output = output + "**";
+                        if (!(node.first === 0) || !(node.last === langruntime.checkedSignedNegate(1))) {
+                            output = output + langruntime.checkedChar("{");
+                            const first: string = jsonpathPrintLevel(node.first);
+                            output = output + first;
+                            if (!(node.last === node.first)) {
+                                output = output + " to ";
+                                const last: string = jsonpathPrintLevel(node.last);
+                                output = output + last;
+                            }
+                            output = output + langruntime.checkedChar("}");
+                        }
+                    }
+                    if (kind >= jsonpathNodeMethod) {
+                        output = output + langruntime.checkedChar(".");
+                        output = output + langruntime.indexStatic(jsonpathScanKeywords, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedSubtract(kind, jsonpathNodeMethod), 0)));
+                        output = output + langruntime.checkedChar("(");
+                        const closing: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(1, 38, false, false));
+                        if (count < stack.length) {
+                            stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(closing);
+                        }
+                        else {
+                            langruntime.pushStruct(stack, closing, copyJsonpathPrintTask);
+                        }
+                        count = langruntime.checkedAdd(count, 1);
+                        if (node.right > 0) {
+                            const right: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(0, node.right, false, false));
+                            if (count < stack.length) {
+                                stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(right);
+                            }
+                            else {
+                                langruntime.pushStruct(stack, right, copyJsonpathPrintTask);
+                            }
+                            count = langruntime.checkedAdd(count, 1);
+                            const comma: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(1, 42, false, false));
+                            if (count < stack.length) {
+                                stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(comma);
+                            }
+                            else {
+                                langruntime.pushStruct(stack, comma, copyJsonpathPrintTask);
+                            }
+                            count = langruntime.checkedAdd(count, 1);
+                        }
+                        if (node.left > 0) {
+                            const left: JsonpathPrintTask = copyJsonpathPrintTask(jsonpathOutputTask(0, node.left, false, false));
+                            if (count < stack.length) {
+                                stack[langruntime.checkedIndexIn(stack, count)] = copyJsonpathPrintTask(left);
+                            }
+                            else {
+                                langruntime.pushStruct(stack, left, copyJsonpathPrintTask);
+                            }
+                            count = langruntime.checkedAdd(count, 1);
+                        }
+                    }
+                }
+            }
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 interface JsonpathParseNode {
     kind: number;
     next: number;
@@ -13483,6 +13898,224 @@ const jsonpathReduceSignedPlus = 41;
 const jsonpathReduceSignedMinus = 42;
 const jsonpathReduceNone = 43;
 const jsonpathReduceKey = 44;
+function jsonpathRadixLiteral(source: JsonpathScanSource, radix: number): checkruntime.TextValue {
+    radix = langruntime.checkedI32(radix);
+    let position: number = 2;
+    while (position < source.characters.length && (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "0" || langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "_")) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (position === source.characters.length) {
+        return { kind: "Value", value: "0" };
+    }
+    let words: number[] = [];
+    langruntime.pushIndex(words, 0);
+    while (position < source.characters.length) {
+        let factor: bigint = 1n;
+        let chunk: bigint = 0n;
+        const base: bigint = BigInt(langruntime.checkedI32(radix));
+        while (position < source.characters.length && factor <= langruntime.checkedI64Divide(268435456n, base)) {
+            const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+            position = langruntime.checkedAdd(position, 1);
+            if (!(character === "_")) {
+                const digit: bigint = BigInt(langruntime.checkedI32(jsonpathScanHex(character)));
+                chunk = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(chunk, base), digit));
+                factor = langruntime.checkedI64(langruntime.checkedI64Multiply(factor, base));
+            }
+        }
+        let index: number = 0;
+        let carry: bigint = chunk;
+        while (index < words.length) {
+            const word: number = langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(words, langruntime.checkedIndex(index))));
+            const combined: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(word))), factor), carry);
+            words[langruntime.checkedIndexIn(words, index)] = langruntime.checkedIndex(langruntime.indexFromI32(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(combined, 10000n))))), 0));
+            carry = langruntime.checkedI64(langruntime.checkedI64Divide(combined, 10000n));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        while (carry > 0n) {
+            langruntime.pushIndex(words, langruntime.indexFromI32(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Remainder(carry, 10000n))))), 0));
+            carry = langruntime.checkedI64(langruntime.checkedI64Divide(carry, 10000n));
+        }
+        if (words.length > 32768) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonpathParseRange) };
+        }
+    }
+    let output: string = "";
+    let index: number = words.length;
+    let leading: boolean = true;
+    while (index > 0) {
+        index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+        const word: number = langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(words, langruntime.checkedIndex(index))));
+        let divisor: number = 1000;
+        while (divisor > 0) {
+            const digit: number = langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(word, divisor)), 10);
+            if (leading === false || digit > 0 || divisor === 1) {
+                output = output + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(48, digit)), " "));
+                leading = langruntime.checkedBool(false);
+            }
+            divisor = langruntime.checkedI32(langruntime.checkedSignedDivide(divisor, 10));
+        }
+    }
+    return { kind: "Value", value: output };
+}
+function jsonpathNumericLiteral(input: string): checkruntime.TextValue {
+    input = langruntime.checkedString(input);
+    const source: JsonpathScanSource = { characters: Array.from(input) };
+    if (source.characters.length > 2 && langruntime.indexChar(source.characters, langruntime.checkedIndex(0)) === "0") {
+        const prefix: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(1));
+        let radix: number = 0;
+        if (prefix === "x" || prefix === "X") {
+            radix = langruntime.checkedI32(16);
+        }
+        if (prefix === "o" || prefix === "O") {
+            radix = langruntime.checkedI32(8);
+        }
+        if (prefix === "b" || prefix === "B") {
+            radix = langruntime.checkedI32(2);
+        }
+        if (radix > 0) {
+            return jsonpathRadixLiteral(source, radix);
+        }
+    }
+    let clean: string = "";
+    if (langruntime.indexChar(source.characters, langruntime.checkedIndex(0)) === ".") {
+        clean = clean + langruntime.checkedChar("0");
+    }
+    let position: number = 0;
+    while (position < source.characters.length) {
+        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        let appendCharacter: boolean = !(character === "_");
+        if (character === "." && (langruntime.checkedAdd(position, 1) === source.characters.length || langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "e" || langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "E")) {
+            appendCharacter = langruntime.checkedBool(false);
+        }
+        if (appendCharacter) {
+            clean = clean + langruntime.checkedChar(character);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    const parsed: checkruntime.JsonbValue = checkruntime.jsonbFromText({ kind: "Value", value: clean });
+    return checkruntime.jsonbToText(parsed);
+}
+function jsonpathValueFromTree(tree: JsonpathParseTree): checkruntime.JsonpathValue {
+    tree = copyJsonpathParseTree(tree);
+    let characters: string[] = [];
+    let nodes: checkruntime.JsonpathNode[] = [];
+    let position: number = 0;
+    while (position < tree.text.length) {
+        langruntime.pushChar(characters, langruntime.indexChar(tree.text, langruntime.checkedIndex(position)));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    position = langruntime.checkedIndex(0);
+    while (position < tree.nodes.length) {
+        const node: JsonpathParseNode = copyJsonpathParseNode(langruntime.indexStruct(tree.nodes, langruntime.checkedIndex(position), copyJsonpathParseNode));
+        langruntime.pushStruct(nodes, { kind: node.kind, next: node.next, left: node.left, right: node.right, textStart: node.textStart, textEnd: node.textEnd, first: node.first, last: node.last, flags: node.flags }, checkruntime.copyJsonpathNode);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let index: number = 0;
+    while (index < tree.validation.length) {
+        const number: number = langruntime.indexNumber(tree.validation, langruntime.checkedIndex(index));
+        const node: checkruntime.JsonpathNode = checkruntime.copyJsonpathNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(number), checkruntime.copyJsonpathNode));
+        let literal: string = "";
+        position = langruntime.checkedIndex(node.textStart);
+        while (position < node.textEnd) {
+            if (node.kind === jsonpathNodeNumber) {
+                literal = literal + langruntime.checkedChar(langruntime.indexChar(tree.source, langruntime.checkedIndex(position)));
+            }
+            else {
+                literal = literal + langruntime.checkedChar(langruntime.indexChar(tree.text, langruntime.checkedIndex(position)));
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (node.kind === jsonpathNodeNumber) {
+            const result: checkruntime.TextValue = jsonpathNumericLiteral(literal);
+            if (result.kind === "Error") {
+                const error: checkruntime.SqlError = result.value;
+                return { kind: "Error", value: error };
+            }
+            if (result.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+            if (result.kind === "Value") {
+                const normalized: string = langruntime.checkedString(result.value);
+                const text: string[] = Array.from(normalized);
+                const begin: number = characters.length;
+                position = langruntime.checkedIndex(0);
+                while (position < text.length) {
+                    langruntime.pushChar(characters, langruntime.indexChar(text, langruntime.checkedIndex(position)));
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                nodes[langruntime.checkedIndexIn(nodes, number)] = checkruntime.copyJsonpathNode(jsonpathNumberNode(node.next, begin, characters.length));
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (!(tree.error === 0)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(tree.error) };
+    }
+    index = langruntime.checkedIndex(1);
+    while (index < nodes.length) {
+        const node: checkruntime.JsonpathNode = checkruntime.copyJsonpathNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(index), checkruntime.copyJsonpathNode));
+        if (node.kind === jsonpathNodePlus || node.kind === jsonpathNodeMinus) {
+            const child: checkruntime.JsonpathNode = checkruntime.copyJsonpathNode(langruntime.indexStruct(nodes, langruntime.checkedIndex(node.left), checkruntime.copyJsonpathNode));
+            if (child.kind === jsonpathNodeNumber && child.next === 0) {
+                let begin: number = child.textStart;
+                let end: number = child.textEnd;
+                if (node.kind === jsonpathNodeMinus) {
+                    let number: string = "";
+                    position = langruntime.checkedIndex(begin);
+                    while (position < end) {
+                        number = number + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(position)));
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                    const result: checkruntime.NumericValue = numericUminusWcmy({ kind: "Value", value: number });
+                    let valid: boolean = false;
+                    if (result.kind === "Value") {
+                        const negated: string = langruntime.checkedString(result.value);
+                        valid = langruntime.checkedBool(true);
+                        const text: string[] = Array.from(negated);
+                        begin = langruntime.checkedIndex(characters.length);
+                        position = langruntime.checkedIndex(0);
+                        while (position < text.length) {
+                            langruntime.pushChar(characters, langruntime.indexChar(text, langruntime.checkedIndex(position)));
+                            position = langruntime.checkedAdd(position, 1);
+                        }
+                        end = langruntime.checkedIndex(characters.length);
+                    }
+                    if (valid === false) {
+                        return { kind: "Unknown" };
+                    }
+                }
+                nodes[langruntime.checkedIndexIn(nodes, index)] = checkruntime.copyJsonpathNode(jsonpathNumberNode(node.next, begin, end));
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: { characters: characters, nodes: nodes, root: tree.root, lax: tree.lax } };
+}
+function jsonpathNumberNode(next: number, begin: number, end: number): checkruntime.JsonpathNode {
+    next = langruntime.checkedIndex(next);
+    begin = langruntime.checkedIndex(begin);
+    end = langruntime.checkedIndex(end);
+    return { kind: jsonpathNodeNumber, next: next, left: 0, right: 0, textStart: begin, textEnd: end, first: 0, last: 0, flags: 0 };
+}
+export function jsonpathFromCoercedTextUtf8(input: checkruntime.TextValue): checkruntime.JsonpathValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const tree: JsonpathParseTree = jsonpathParse(value);
+        const result: checkruntime.JsonpathValue = jsonpathValueFromTree(tree);
+        if (result.kind === "Error") {
+            return { kind: "Unknown" };
+        }
+        return result;
+    }
+    return { kind: "Unknown" };
+}
 function lineEqualProduct(left: bigint, right: bigint, ratio: checkruntime.Float8Value): checkruntime.BoolValue {
     left = langruntime.checkedI64(left);
     right = langruntime.checkedI64(right);
