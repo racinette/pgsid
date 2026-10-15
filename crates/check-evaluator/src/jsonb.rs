@@ -38,19 +38,30 @@ fn jsonb_node_child(node: JsonbNode, child: usize) -> JsonbNode {
     }
 }
 
-fn jsonb_number_text(source: &JsonSyntaxSource, token: JsonReadToken) -> TextValue {
+fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken) -> BoolValue {
     let following = json_read_next_token(source, token.end);
     if following.start < source.characters.len() && source.characters[following.start] == '"' {
         let decoded = json_read_decode_string(source, following);
         if let TextValue::Error(error) = decoded {
-            return TextValue::Error(error);
+            return BoolValue::Error(error);
         };
         if let TextValue::Unknown = decoded {
-            return TextValue::Unknown;
+            return BoolValue::Unknown;
         };
     };
     if following.syntax == JSON_SYNTAX_INVALID {
-        return TextValue::Error(make_sql_error(JSON_READ_INVALID_TEXT));
+        return BoolValue::Error(make_sql_error(JSON_READ_INVALID_TEXT));
+    };
+    BoolValue::Value(true)
+}
+
+fn jsonb_number_text(source: &JsonSyntaxSource, token: JsonReadToken) -> TextValue {
+    let ready = jsonb_scalar_ready(source, token);
+    if let BoolValue::Error(error) = ready {
+        return TextValue::Error(error);
+    };
+    if let BoolValue::Unknown = ready {
+        return TextValue::Unknown;
     };
     let mut position = token.start;
     let negative = source.characters[position] == '-';
@@ -257,7 +268,7 @@ fn jsonb_normalize_objects(input: JsonbPayload) -> JsonbPayload {
     }
 }
 
-pub fn jsonb_from_text(input: TextValue) -> JsonbValue {
+fn jsonb_parse_text(input: TextValue, admission: bool) -> JsonbValue {
     if let TextValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -306,6 +317,26 @@ pub fn jsonb_from_text(input: TextValue) -> JsonbValue {
                 return JsonbValue::Error(make_sql_error(JSON_READ_INVALID_TEXT));
             };
             let frame = frames[depth - 1];
+            if admission && frame.state == JSON_SYNTAX_OBJECT_VALUE {
+                let mut low: i64 = 0i64;
+                let mut high: i64 = 0i64;
+                let mut key = frame.key_start;
+                while key < frame.key_end {
+                    low = low + 1i64;
+                    high = high + 1i64;
+                    if characters[key] as i32 > 127 {
+                        high = high + 3i64;
+                    };
+                    key += 1;
+                }
+                let decision = jsonb_storage_decision(jsonb_storage_bounds(low, high));
+                if let BoolValue::Error(error) = decision {
+                    return JsonbValue::Error(error);
+                };
+                if let BoolValue::Unknown = decision {
+                    return JsonbValue::Unknown;
+                };
+            };
             let transition = json_syntax_step(frame.state, token.syntax);
             if transition.action == JSON_SYNTAX_REJECT {
                 return JsonbValue::Error(make_sql_error(JSON_READ_INVALID_TEXT));
@@ -316,7 +347,17 @@ pub fn jsonb_from_text(input: TextValue) -> JsonbValue {
                     nodes: nodes,
                     root: root,
                 };
-                return JsonbValue::Value(jsonb_normalize_objects(payload));
+                let normalized = jsonb_normalize_objects(payload);
+                if admission {
+                    let decision = jsonb_storage_admission(&normalized);
+                    if let BoolValue::Error(error) = decision {
+                        return JsonbValue::Error(error);
+                    };
+                    if let BoolValue::Unknown = decision {
+                        return JsonbValue::Unknown;
+                    };
+                };
+                return JsonbValue::Value(normalized);
             };
             let mut key_start = frame.key_start;
             let mut key_end = frame.key_end;
@@ -346,6 +387,37 @@ pub fn jsonb_from_text(input: TextValue) -> JsonbValue {
                         };
                         if let TextValue::Unknown = decoded {
                             return JsonbValue::Unknown;
+                        };
+                    };
+                    if admission && token.kind == JSON_READ_QUOTE {
+                        let ready = jsonb_scalar_ready(&source, token);
+                        if let BoolValue::Error(error) = ready {
+                            return JsonbValue::Error(error);
+                        };
+                        if let BoolValue::Unknown = ready {
+                            return JsonbValue::Unknown;
+                        };
+                        let size_text = decoded.clone();
+                        if let TextValue::Value(text) = size_text {
+                            let content: Vec<char> = text.chars().collect();
+                            let mut low: i64 = 0i64;
+                            let mut high: i64 = 0i64;
+                            let mut position: usize = 0;
+                            while position < content.len() {
+                                low = low + 1i64;
+                                high = high + 1i64;
+                                if content[position] as i32 > 127 {
+                                    high = high + 3i64;
+                                };
+                                position += 1;
+                            }
+                            let decision = jsonb_storage_decision(jsonb_storage_bounds(low, high));
+                            if let BoolValue::Error(error) = decision {
+                                return JsonbValue::Error(error);
+                            };
+                            if let BoolValue::Unknown = decision {
+                                return JsonbValue::Unknown;
+                            };
                         };
                     };
                     let text_start = characters.len();
@@ -655,4 +727,8 @@ fn jsonb_input_valid(source: &JsonbPayload) -> bool {
         };
     }
     true
+}
+
+pub fn jsonb_from_text(input: TextValue) -> JsonbValue {
+    jsonb_parse_text(input, true)
 }

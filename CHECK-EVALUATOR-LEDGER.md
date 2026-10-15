@@ -262,7 +262,8 @@ exposes a prerequisite:
 - [x] JSON literals and runtime text I/O casts, preserving eager input errors and lazy branches.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.
 - [x] JSONB logical normalization, shared parsing, SQL-coerced public inputs, domains, NULL and lazy composition.
-- [ ] JSONB literals/casts and core operations; path-array access follows arrays.
+- [x] JSONB literals, text/JSON I/O casts and stored-format admission; preserve eager errors and lazy branches.
+- [ ] JSONB core operations; path-array access follows arrays.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types, with tested context requirements
       or exclusion from the public value contract.
@@ -278,8 +279,8 @@ representation support alone does not complete them.
 
 Assess recursive ownership before arrays, JSON, and composites. JSON evaluation
 assumes sufficient execution resources; server stack/allocation exhaustion is separate.
-Catalog identities and pseudo-types are not independent implementation tasks:
-array instances share a family, and polymorphic signatures resolve to concrete
+Catalog identities and pseudo-types are not independent tasks: array instances
+share a family, and polymorphic signatures resolve to concrete
 values. Database lookups and internal server interfaces require explicit
 requirements rather than fabricated local results.
 
@@ -294,7 +295,6 @@ the shared behavior it changes. Verify Rust, Go and TypeScript against PostgreSQ
 including raw/stored binding, public inputs and NULL/Unknown/error behavior. Rebuild
 affected assets, verify relevant codegen goldens, and run applicable static, corpus
 and measurement checks. Record selected dependencies and any reused evidence.
-Select INSERT worlds with `PGSID_CHECK_WORLDS=directory[,directory]`; scoped reports
-remain separate from the full corpus. Run the full CHECK gate for broad semantic
-changes and integration milestones. Keep partial runs explicitly partial. Refresh
+Select INSERT worlds with `PGSID_CHECK_WORLDS=directory[,directory]`; keep scoped reports separate.
+Run the full CHECK gate for broad semantic changes and integration milestones. Keep partial runs explicitly partial. Refresh
 applicable measurements and this ledger, then commit the verified slice.

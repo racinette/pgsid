@@ -18,11 +18,13 @@ it('validates SQL-coerced Go JSONB graphs and forwards raw JSONB query parameter
   CONSTRAINT domain_shape CHECK(jsonb_typeof(domain_document) COLLATE "C"=expected_kind),
   CONSTRAINT source CHECK(document::text COLLATE "C"=expected_source),
   CONSTRAINT present CHECK(document IS NOT NULL));
+  CREATE TABLE jsonb_text_writes(source_text text,expected_source text,bypass boolean,
+  CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::retained_document::text COLLATE "C"=expected_source COLLATE "C" END));
   CREATE SCHEMA isolated;CREATE TABLE isolated.jsonb_presence(document jsonb CONSTRAINT required CHECK(document IS NOT NULL));`,
     )
     await writeFile(
       join(root, 'queries/documents.sql'),
-      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n',
+      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n',
     )
     await writeFile(
       join(root, 'pgsid.yaml'),
@@ -95,6 +97,23 @@ func TestCoercedJSONBValues(t *testing.T){
  }
  input.Document=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("null"));kind="null";source="null"
  for _,check:=range pgsid.EvaluatePublicJsonbWritesChecks(input){if check.Constraint!="domain_shape"&&(!check.Result.Certain||!check.Result.Value.Valid||!check.Result.Value.Value){t.Fatal("JSON null became SQL NULL",check)}}
+}
+func TestJSONBTextCasts(t *testing.T){
+ db:=&recordingJSONBDB{};queries:=New(db);source:=${JSON.stringify('{"a":1,"a":2}')};expected:=${JSON.stringify('{"a": 2}')};bypass:=false
+ params:=InsertDocumentTextParams{SourceText:&source,ExpectedSource:&expected,Bypass:&bypass}
+ if err:=queries.InsertDocumentText(context.Background(),params);err!=nil||db.calls!=1{t.Fatal(err)}
+ for _,c:=range []struct{source,state string}{{"[1,]","22P02"},{"1e131072","22003"},{${JSON.stringify('"\\u0000"')},"22P05"}}{
+  source=c.source
+  input:=pgsid.PublicJsonbTextWritesCheckInput{SourceText:pgsid.KnownCheckValue(&source),ExpectedSource:pgsid.KnownCheckValue(&expected),Bypass:pgsid.KnownCheckValue(&bypass)}
+  result:=pgsid.EvaluatePublicJsonbTextWritesChecks(input)[0].Result
+  if !result.Certain||result.Value.Error!=c.state{t.Fatal("JSONB input error lost",c,result)}
+  before:=db.calls;if err:=queries.InsertDocumentText(context.Background(),params);err==nil||db.calls!=before{t.Fatal("invalid JSONB text reached database",err)}
+  bypass=true;if err:=queries.InsertDocumentText(context.Background(),params);err!=nil||db.calls!=before+1{t.Fatal("skipped JSONB cast failed",err)};bypass=false
+ }
+ source=${JSON.stringify('"\\u00e9"')};before:=db.calls
+ if err:=queries.InsertDocumentText(context.Background(),params);err!=nil||db.calls!=before+1{t.Fatal("encoding-dependent cast failed locally",err)}
+ db.failure=&pgconn.PgError{Code:"22021",Message:"invalid input encoding"}
+ for _,invalid:=range []string{string([]byte{0}),string([]byte{255})}{source=invalid;before:=db.calls;if err:=queries.InsertDocumentText(context.Background(),params);!errors.Is(err,db.failure)||db.calls!=before+1{t.Fatal("raw encoding failure lost",err)}}
 }
 `,
     )

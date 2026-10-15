@@ -2,6 +2,11 @@ import {
   jsonInputForms,
   invalidJsonInputForms,
 } from '../../tests/sql-semantics/check-json-input-forms.js'
+import {
+  jsonbInputForms,
+  invalidJsonbInputForms,
+  deferredJsonbEncodingForms,
+} from '../../tests/sql-semantics/check-jsonb-input-forms.js'
 import { refcursorInputForms } from '../../tests/sql-semantics/check-refcursor-input-forms.js'
 import {
   snapshotInputForms,
@@ -96,6 +101,29 @@ const nanBinaryPrecision = {
 } as const
 
 const inputForms = [
+  {
+    type: 'pg_catalog.jsonb',
+    suite: 'tests/sql-semantics/check-jsonb-input.test.ts',
+    handled: jsonbInputForms,
+    rejected: invalidJsonbInputForms,
+    deferred: deferredJsonbEncodingForms,
+    platformDependent: [],
+    contextRequired: deferredJsonbEncodingForms,
+    unimplementedGrammar: [],
+    rowInput: {
+      representation:
+        'JsonbValue with normalized logical nodes, decoded strings and exact decimal numbers',
+      rawQueryParameters: 'defer to PostgreSQL',
+      owner: 'tests/sql-semantics/check-jsonb-write-input.test.ts',
+    },
+    storageAdmission: {
+      owner: 'tests/sql-semantics/check-jsonb-storage.test.ts',
+      contract:
+        'Fixed string/container format limits; server_encoding required only when encoded size or key ordering changes admission',
+      executionResources:
+        'Assumes sufficient server stack and allocation resources, including temporary parser-builder capacity; no guessed nesting or allocation cutoff',
+    },
+  },
   {
     type: 'pg_catalog."json"',
     suite: 'tests/sql-semantics/check-json-input.test.ts',
@@ -441,7 +469,7 @@ export async function measureCoercions(pg: PGlite) {
             ? 'textsend'
             : null
     const sql =
-      target === 'pg_catalog."json"'
+      target === 'pg_catalog."json"' || target === 'pg_catalog.jsonb'
         ? `CAST(${cast} AS pg_catalog.text) IS NOT DISTINCT FROM CAST(${cast} AS pg_catalog.text)`
         : send
           ? `${send}(${cast}) IS NOT DISTINCT FROM ${send}(${cast})`

@@ -234,6 +234,7 @@ export function emitCheckRustEvaluator(
         (node.kind === 'certain' &&
           (node.expression.kind === 'point' ||
             node.expression.kind === 'json' ||
+            node.expression.kind === 'jsonb' ||
             (node.expression.kind === 'temporal' &&
               (node.expression.type === 'pg_catalog."interval"' ||
                 node.expression.type === 'pg_catalog."time"' ||
@@ -728,7 +729,8 @@ export function emitCheckRustEvaluator(
         builtinMetadata(io).result !== node.type
       )
         throw new UnsupportedCheckRustExpression('JSON input requires its catalog I/O identity')
-      return { name: bind(`json_from_text(${ownedOperand(operand)})`), type: node.type }
+      const helper = node.type === 'pg_catalog.jsonb' ? 'jsonb_from_text' : 'json_from_text'
+      return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'text-to-xid8') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -1015,7 +1017,8 @@ export function emitCheckRustEvaluator(
       }
       if (value.kind === 'jsonb') {
         if (value.value === null) return { name: bind('jsonb_null()'), type: value.type }
-        throw new UnsupportedCheckRustExpression('JSONB literal input is not prepared')
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`jsonb_from_text(${text})`), type: value.type }
       }
       if (value.kind === 'json') {
         if (value.value === null) return { name: bind('json_null()'), type: value.type }
