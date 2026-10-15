@@ -105,13 +105,13 @@ pub fn jsonpath_numeric_probe(input: TextValue, expected: TextValue) -> BoolValu
     expect(
       scalar.modules
         .find((module) => module.name === 'checkruntime')!
-        .files.some((file) => file.path.includes('/jsonpath_')),
-    ).toBe(false)
+        .files.some((file) => file.path.endsWith('/jsonpath.rs')),
+    ).toBe(true)
     expect(
       scalar.modules
         .find((module) => module.name === 'pg_catalog')!
         .files.filter((file) => file.path.includes('/jsonpath_')),
-    ).toHaveLength(3)
+    ).toHaveLength(5)
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     const oracle: unknown[] = []
     const extra = [
@@ -262,7 +262,7 @@ pub fn jsonpath_numeric_probe(input: TextValue, expected: TextValue) -> BoolValu
       JSON.stringify(
         {
           scope:
-            'Private UTF8/C input validation foundation. SQL JSONPath values, binder/adapters, canonical path output and query execution remain pending.',
+            'Private UTF8/C literal validation foundation. No SQL JSONPath binder, row adapters or query execution admission.',
           settings: settings.rows[0],
           fixtures: fixtures.length,
           referenceCases: oracle.length,

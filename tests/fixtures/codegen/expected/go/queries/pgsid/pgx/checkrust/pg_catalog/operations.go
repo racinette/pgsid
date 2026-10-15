@@ -12286,6 +12286,412 @@ func JsonbContained3itb(left checkruntime.JsonbValue, right checkruntime.JsonbVa
 	return jsonbRelationValues(right, left, true, false)
 }
 
+type jsonpathPrintTask struct {
+	mode     int
+	node     int
+	brackets bool
+	key      bool
+}
+
+func copyjsonpathPrintTask(value jsonpathPrintTask) jsonpathPrintTask {
+	return jsonpathPrintTask{mode: langruntime.CheckedI32(value.mode), node: langruntime.CheckedIndex(value.node), brackets: value.brackets, key: value.key}
+}
+
+var jsonpathPrintTokens = []string{"", "$", "@", "last", "", "", "$", "null", "true", "false", "", "*", "[*]", "[", "", "", "?(", "exists (", "!(", "(", "+", "-", " + ", " - ", " * ", " / ", " % ", " == ", " != ", " < ", " <= ", " > ", " >= ", " && ", " || ", " starts with ", " like_regex ", "(", ")", ") is unknown", "[", "]", ",", " to "}
+
+func jsonpathOutputTask(mode int, node int, brackets bool, key bool) jsonpathPrintTask {
+	mode = langruntime.CheckedI32(mode)
+	node = langruntime.CheckedIndex(node)
+	return jsonpathPrintTask{mode: mode, node: node, brackets: brackets, key: key}
+}
+func jsonpathPrintPriority(kind int) int {
+	kind = langruntime.CheckedI32(kind)
+	if kind == jsonpathNodeOr {
+		return 0
+	}
+	if kind == jsonpathNodeAnd {
+		return 1
+	}
+	if (kind >= jsonpathNodeEq && kind <= jsonpathNodeGe) || kind == jsonpathNodeStarts {
+		return 2
+	}
+	if kind == jsonpathNodeAdd || kind == jsonpathNodeSub {
+		return 3
+	}
+	if kind >= jsonpathNodeMul && kind <= jsonpathNodeMod {
+		return 4
+	}
+	if kind == jsonpathNodePlus || kind == jsonpathNodeMinus {
+		return 5
+	}
+	return 6
+}
+func jsonpathPrintQuote(value *checkruntime.JsonpathPayload, begin int, end int) string {
+	begin = langruntime.CheckedIndex(begin)
+	end = langruntime.CheckedIndex(end)
+	output := langruntime.NewTextBuffer("")
+	output = append(output, string(langruntime.CheckedChar('"'))...)
+	hex := []rune("0123456789abcdef")
+	position := begin
+	for position < end {
+		character := value.Characters[position]
+		code := int(langruntime.CheckedChar(character))
+		if character == '"' {
+			output = append(output, "\\\""...)
+		} else if character == '\\' {
+			output = append(output, "\\\\"...)
+		} else if character == '\b' {
+			output = append(output, "\\b"...)
+		} else if character == '\f' {
+			output = append(output, "\\f"...)
+		} else if character == '\n' {
+			output = append(output, "\\n"...)
+		} else if character == '\r' {
+			output = append(output, "\\r"...)
+		} else if character == '\t' {
+			output = append(output, "\\t"...)
+		} else if code < 32 {
+			output = append(output, "\\u00"...)
+			output = append(output, string(langruntime.CheckedChar(hex[langruntime.IndexFromI32(langruntime.CheckedSignedDivide(code, 16), 0)]))...)
+			output = append(output, string(langruntime.CheckedChar(hex[langruntime.IndexFromI32(langruntime.CheckedSignedRemainder(code, 16), 0)]))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar(character))...)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	output = append(output, string(langruntime.CheckedChar('"'))...)
+	return string(output)
+}
+func jsonpathPrintLevel(level int) string {
+	level = langruntime.CheckedI32(level)
+	if level == langruntime.CheckedSignedNegate(1) {
+		return "last"
+	}
+	result := Int4ToText(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: level})
+	if result.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(result.Value)
+		return value
+	}
+	return ""
+}
+func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
+	input = checkruntime.CopyJsonpathValue(input)
+	if input.Kind == checkruntime.JsonpathValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonpathValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.JsonpathValueValue {
+		value := checkruntime.CopyJsonpathPayload(input.Value)
+		output := langruntime.NewTextBuffer("")
+		if value.Lax == false {
+			output = append(output, "strict "...)
+		}
+		stack := []jsonpathPrintTask{}
+		langruntime.CheckedAdd(len(stack), 1)
+		stack = append(stack, copyjsonpathPrintTask(jsonpathOutputTask(0, value.Root, true, false)))
+		count := len(stack)
+		for count > 0 {
+			count = langruntime.CheckedIndex(langruntime.CheckedSubtract(count, 1))
+			task := stack[count]
+			if task.mode == 1 {
+				output = append(output, jsonpathPrintTokens[task.node]...)
+			} else {
+				node := value.Nodes[task.node]
+				if task.mode == 2 {
+					quoted := jsonpathPrintQuote(&value, node.TextStart, node.TextEnd)
+					output = append(output, quoted...)
+					if node.Flags > 0 {
+						output = append(output, " flag \""...)
+						if langruntime.CheckedSignedRemainder(node.Flags, 2) == 1 {
+							output = append(output, string(langruntime.CheckedChar('i'))...)
+						}
+						if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(node.Flags, 2)), 2) == 1 {
+							output = append(output, string(langruntime.CheckedChar('s'))...)
+						}
+						if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(node.Flags, 4)), 2) == 1 {
+							output = append(output, string(langruntime.CheckedChar('m'))...)
+						}
+						if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(node.Flags, 8)), 2) == 1 {
+							output = append(output, string(langruntime.CheckedChar('x'))...)
+						}
+						if langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(node.Flags, 16)), 2) == 1 {
+							output = append(output, string(langruntime.CheckedChar('q'))...)
+						}
+						output = append(output, string(langruntime.CheckedChar('"'))...)
+					}
+				} else if task.mode == 3 {
+					if node.Next > 0 {
+						next := jsonpathOutputTask(3, node.Next, false, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(next)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(next))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+						comma := jsonpathOutputTask(1, 42, false, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(comma)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(comma))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+					}
+					if node.Right > 0 {
+						right := jsonpathOutputTask(0, node.Right, false, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(right)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(right))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+						separator := jsonpathOutputTask(1, 43, false, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(separator)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(separator))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+					}
+					left := jsonpathOutputTask(0, node.Left, false, false)
+					if count < len(stack) {
+						stack[count] = copyjsonpathPrintTask(left)
+					} else {
+						langruntime.CheckedAdd(len(stack), 1)
+						stack = append(stack, copyjsonpathPrintTask(left))
+					}
+					count = langruntime.CheckedAdd(count, 1)
+				} else {
+					if node.Next > 0 {
+						next := jsonpathOutputTask(0, node.Next, true, true)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(next)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(next))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+					}
+					kind := node.Kind
+					if (kind == jsonpathNodeKey || kind == jsonpathNodeAnyKey || kind == jsonpathNodeDescendant) && task.key {
+						output = append(output, string(langruntime.CheckedChar('.'))...)
+					}
+					if kind == jsonpathNodeString || kind == jsonpathNodeKey || kind == jsonpathNodeVariable {
+						if kind == jsonpathNodeVariable {
+							output = append(output, string(langruntime.CheckedChar('$'))...)
+						}
+						quoted := jsonpathPrintQuote(&value, node.TextStart, node.TextEnd)
+						output = append(output, quoted...)
+					}
+					if kind == jsonpathNodeNumber {
+						if node.Next > 0 {
+							output = append(output, string(langruntime.CheckedChar('('))...)
+						}
+						position := node.TextStart
+						for position < node.TextEnd {
+							output = append(output, string(langruntime.CheckedChar(value.Characters[position]))...)
+							position = langruntime.CheckedAdd(position, 1)
+						}
+						if node.Next > 0 {
+							output = append(output, string(langruntime.CheckedChar(')'))...)
+						}
+					}
+					if kind == jsonpathNodeRoot || kind == jsonpathNodeCurrent || kind == jsonpathNodeLast || kind == jsonpathNodeNull || kind == jsonpathNodeTrue || kind == jsonpathNodeFalse || kind == jsonpathNodeAnyKey || kind == jsonpathNodeAnyArray {
+						output = append(output, jsonpathPrintTokens[langruntime.IndexFromI32(kind, 0)]...)
+					}
+					if kind >= jsonpathNodeAdd && kind <= jsonpathNodeStarts {
+						if task.brackets {
+							output = append(output, string(langruntime.CheckedChar('('))...)
+							closing := jsonpathOutputTask(1, 38, false, false)
+							if count < len(stack) {
+								stack[count] = copyjsonpathPrintTask(closing)
+							} else {
+								langruntime.CheckedAdd(len(stack), 1)
+								stack = append(stack, copyjsonpathPrintTask(closing))
+							}
+							count = langruntime.CheckedAdd(count, 1)
+						}
+						priority := jsonpathPrintPriority(kind)
+						rightNode := value.Nodes[node.Right]
+						right := jsonpathOutputTask(0, node.Right, jsonpathPrintPriority(rightNode.Kind) <= priority, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(right)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(right))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+						operation := jsonpathOutputTask(1, langruntime.IndexFromI32(kind, 0), false, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(operation)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(operation))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+						leftNode := value.Nodes[node.Left]
+						left := jsonpathOutputTask(0, node.Left, jsonpathPrintPriority(leftNode.Kind) <= priority, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(left)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(left))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+					}
+					if kind == jsonpathNodePlus || kind == jsonpathNodeMinus || kind == jsonpathNodeRegex {
+						if task.brackets {
+							output = append(output, string(langruntime.CheckedChar('('))...)
+							closing := jsonpathOutputTask(1, 38, false, false)
+							if count < len(stack) {
+								stack[count] = copyjsonpathPrintTask(closing)
+							} else {
+								langruntime.CheckedAdd(len(stack), 1)
+								stack = append(stack, copyjsonpathPrintTask(closing))
+							}
+							count = langruntime.CheckedAdd(count, 1)
+						}
+						if kind == jsonpathNodeRegex {
+							pattern := jsonpathOutputTask(2, task.node, false, false)
+							if count < len(stack) {
+								stack[count] = copyjsonpathPrintTask(pattern)
+							} else {
+								langruntime.CheckedAdd(len(stack), 1)
+								stack = append(stack, copyjsonpathPrintTask(pattern))
+							}
+							count = langruntime.CheckedAdd(count, 1)
+							operation := jsonpathOutputTask(1, 36, false, false)
+							if count < len(stack) {
+								stack[count] = copyjsonpathPrintTask(operation)
+							} else {
+								langruntime.CheckedAdd(len(stack), 1)
+								stack = append(stack, copyjsonpathPrintTask(operation))
+							}
+							count = langruntime.CheckedAdd(count, 1)
+						} else {
+							output = append(output, jsonpathPrintTokens[langruntime.IndexFromI32(kind, 0)]...)
+						}
+						childNode := value.Nodes[node.Left]
+						child := jsonpathOutputTask(0, node.Left, jsonpathPrintPriority(childNode.Kind) <= jsonpathPrintPriority(kind), false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(child)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(child))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+					}
+					if kind == jsonpathNodeNot || kind == jsonpathNodeIsUnknown || kind == jsonpathNodeFilter || kind == jsonpathNodeExists {
+						output = append(output, jsonpathPrintTokens[langruntime.IndexFromI32(kind, 0)]...)
+						closingToken := 38
+						if kind == jsonpathNodeIsUnknown {
+							closingToken = langruntime.CheckedIndex(39)
+						}
+						closing := jsonpathOutputTask(1, closingToken, false, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(closing)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(closing))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+						child := jsonpathOutputTask(0, node.Left, false, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(child)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(child))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+					}
+					if kind == jsonpathNodeIndex {
+						output = append(output, string(langruntime.CheckedChar('['))...)
+						closing := jsonpathOutputTask(1, 41, false, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(closing)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(closing))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+						subscript := jsonpathOutputTask(3, node.Left, false, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(subscript)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(subscript))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+					}
+					if kind == jsonpathNodeDescendant {
+						output = append(output, "**"...)
+						if node.First != 0 || node.Last != langruntime.CheckedSignedNegate(1) {
+							output = append(output, string(langruntime.CheckedChar('{'))...)
+							first := jsonpathPrintLevel(node.First)
+							output = append(output, first...)
+							if node.Last != node.First {
+								output = append(output, " to "...)
+								last := jsonpathPrintLevel(node.Last)
+								output = append(output, last...)
+							}
+							output = append(output, string(langruntime.CheckedChar('}'))...)
+						}
+					}
+					if kind >= jsonpathNodeMethod {
+						output = append(output, string(langruntime.CheckedChar('.'))...)
+						output = append(output, jsonpathScanKeywords[langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(kind, jsonpathNodeMethod), 0)]...)
+						output = append(output, string(langruntime.CheckedChar('('))...)
+						closing := jsonpathOutputTask(1, 38, false, false)
+						if count < len(stack) {
+							stack[count] = copyjsonpathPrintTask(closing)
+						} else {
+							langruntime.CheckedAdd(len(stack), 1)
+							stack = append(stack, copyjsonpathPrintTask(closing))
+						}
+						count = langruntime.CheckedAdd(count, 1)
+						if node.Right > 0 {
+							right := jsonpathOutputTask(0, node.Right, false, false)
+							if count < len(stack) {
+								stack[count] = copyjsonpathPrintTask(right)
+							} else {
+								langruntime.CheckedAdd(len(stack), 1)
+								stack = append(stack, copyjsonpathPrintTask(right))
+							}
+							count = langruntime.CheckedAdd(count, 1)
+							comma := jsonpathOutputTask(1, 42, false, false)
+							if count < len(stack) {
+								stack[count] = copyjsonpathPrintTask(comma)
+							} else {
+								langruntime.CheckedAdd(len(stack), 1)
+								stack = append(stack, copyjsonpathPrintTask(comma))
+							}
+							count = langruntime.CheckedAdd(count, 1)
+						}
+						if node.Left > 0 {
+							left := jsonpathOutputTask(0, node.Left, false, false)
+							if count < len(stack) {
+								stack[count] = copyjsonpathPrintTask(left)
+							} else {
+								langruntime.CheckedAdd(len(stack), 1)
+								stack = append(stack, copyjsonpathPrintTask(left))
+							}
+							count = langruntime.CheckedAdd(count, 1)
+						}
+					}
+				}
+			}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
 type jsonpathParseNode struct {
 	kind      int
 	next      int
@@ -13451,6 +13857,229 @@ const jsonpathReduceSignedMinus = 42
 const jsonpathReduceNone = 43
 const jsonpathReduceKey = 44
 
+func jsonpathRadixLiteral(source *jsonpathScanSource, radix int) checkruntime.TextValue {
+	radix = langruntime.CheckedI32(radix)
+	position := 2
+	for position < len(source.characters) && (source.characters[position] == '0' || source.characters[position] == '_') {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if position == len(source.characters) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "0"}
+	}
+	words := []int{}
+	langruntime.CheckedAdd(len(words), 1)
+	words = append(words, langruntime.CheckedIndex(0))
+	for position < len(source.characters) {
+		factor := int64(1)
+		chunk := int64(0)
+		base := int64(langruntime.CheckedI32(radix))
+		for position < len(source.characters) && factor <= langruntime.CheckedI64Divide(int64(268435456), base) {
+			character := source.characters[position]
+			position = langruntime.CheckedAdd(position, 1)
+			if character != '_' {
+				digit := int64(langruntime.CheckedI32(jsonpathScanHex(character)))
+				chunk = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(chunk, base), digit)
+				factor = langruntime.CheckedI64Multiply(factor, base)
+			}
+		}
+		index := 0
+		carry := chunk
+		for index < len(words) {
+			word := int(int32(words[index]))
+			combined := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(word))), factor), carry)
+			words[index] = langruntime.CheckedIndex(langruntime.IndexFromI32(int(int32((langruntime.CheckedI64Remainder(combined, int64(10000))))), 0))
+			carry = langruntime.CheckedI64Divide(combined, int64(10000))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for carry > int64(0) {
+			langruntime.CheckedAdd(len(words), 1)
+			words = append(words, langruntime.CheckedIndex(langruntime.IndexFromI32(int(int32((langruntime.CheckedI64Remainder(carry, int64(10000))))), 0)))
+			carry = langruntime.CheckedI64Divide(carry, int64(10000))
+		}
+		if len(words) > 32768 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonpathParseRange)}
+		}
+	}
+	output := langruntime.NewTextBuffer("")
+	index := len(words)
+	leading := true
+	for index > 0 {
+		index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+		word := int(int32(words[index]))
+		divisor := 1000
+		for divisor > 0 {
+			digit := langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(word, divisor)), 10)
+			if leading == false || digit > 0 || divisor == 1 {
+				output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(48, digit)), ' ')))...)
+				leading = false
+			}
+			divisor = langruntime.CheckedI32(langruntime.CheckedSignedDivide(divisor, 10))
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+}
+func jsonpathNumericLiteral(input string) checkruntime.TextValue {
+	input = langruntime.CheckedString(input)
+	source := jsonpathScanSource{characters: []rune(input)}
+	if len(source.characters) > 2 && source.characters[0] == '0' {
+		prefix := source.characters[1]
+		radix := 0
+		if prefix == 'x' || prefix == 'X' {
+			radix = langruntime.CheckedI32(16)
+		}
+		if prefix == 'o' || prefix == 'O' {
+			radix = langruntime.CheckedI32(8)
+		}
+		if prefix == 'b' || prefix == 'B' {
+			radix = langruntime.CheckedI32(2)
+		}
+		if radix > 0 {
+			return jsonpathRadixLiteral(&source, radix)
+		}
+	}
+	clean := langruntime.NewTextBuffer("")
+	if source.characters[0] == '.' {
+		clean = append(clean, string(langruntime.CheckedChar('0'))...)
+	}
+	position := 0
+	for position < len(source.characters) {
+		character := source.characters[position]
+		appendCharacter := character != '_'
+		if character == '.' && (langruntime.CheckedAdd(position, 1) == len(source.characters) || source.characters[langruntime.CheckedAdd(position, 1)] == 'e' || source.characters[langruntime.CheckedAdd(position, 1)] == 'E') {
+			appendCharacter = false
+		}
+		if appendCharacter {
+			clean = append(clean, string(langruntime.CheckedChar(character))...)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	parsed := checkruntime.JsonbFromText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(clean)})
+	return checkruntime.JsonbToText(parsed)
+}
+func jsonpathValueFromTree(tree jsonpathParseTree) checkruntime.JsonpathValue {
+	tree = copyjsonpathParseTree(tree)
+	characters := []rune{}
+	nodes := []checkruntime.JsonpathNode{}
+	position := 0
+	for position < len(tree.text) {
+		langruntime.CheckedAdd(len(characters), 1)
+		characters = append(characters, langruntime.CheckedChar(tree.text[position]))
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	position = langruntime.CheckedIndex(0)
+	for position < len(tree.nodes) {
+		node := tree.nodes[position]
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, checkruntime.CopyJsonpathNode(checkruntime.JsonpathNode{Kind: node.kind, Next: node.next, Left: node.left, Right: node.right, TextStart: node.textStart, TextEnd: node.textEnd, First: node.first, Last: node.last, Flags: node.flags}))
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	index := 0
+	for index < len(tree.validation) {
+		number := tree.validation[index]
+		node := nodes[number]
+		literal := langruntime.NewTextBuffer("")
+		position = langruntime.CheckedIndex(node.TextStart)
+		for position < node.TextEnd {
+			if node.Kind == jsonpathNodeNumber {
+				literal = append(literal, string(langruntime.CheckedChar(tree.source[position]))...)
+			} else {
+				literal = append(literal, string(langruntime.CheckedChar(tree.text[position]))...)
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if node.Kind == jsonpathNodeNumber {
+			result := jsonpathNumericLiteral(string(literal))
+			if result.Kind == checkruntime.TextValueError {
+				error := result.Error
+				return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueError, Error: error}
+			}
+			if result.Kind == checkruntime.TextValueUnknown {
+				return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
+			}
+			if result.Kind == checkruntime.TextValueValue {
+				normalized := langruntime.CheckedString(result.Value)
+				text := []rune(normalized)
+				begin := len(characters)
+				position = langruntime.CheckedIndex(0)
+				for position < len(text) {
+					langruntime.CheckedAdd(len(characters), 1)
+					characters = append(characters, langruntime.CheckedChar(text[position]))
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				nodes[number] = checkruntime.CopyJsonpathNode(jsonpathNumberNode(node.Next, begin, len(characters)))
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if tree.error != 0 {
+		return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueError, Error: checkruntime.MakeSqlError(tree.error)}
+	}
+	index = langruntime.CheckedIndex(1)
+	for index < len(nodes) {
+		node := nodes[index]
+		if node.Kind == jsonpathNodePlus || node.Kind == jsonpathNodeMinus {
+			child := nodes[node.Left]
+			if child.Kind == jsonpathNodeNumber && child.Next == 0 {
+				begin := child.TextStart
+				end := child.TextEnd
+				if node.Kind == jsonpathNodeMinus {
+					number := langruntime.NewTextBuffer("")
+					position = langruntime.CheckedIndex(begin)
+					for position < end {
+						number = append(number, string(langruntime.CheckedChar(characters[position]))...)
+						position = langruntime.CheckedAdd(position, 1)
+					}
+					result := NumericUminusWcmy(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(number)})
+					valid := false
+					if result.Kind == checkruntime.NumericValueValue {
+						negated := langruntime.CheckedString(result.Value)
+						valid = true
+						text := []rune(negated)
+						begin = langruntime.CheckedIndex(len(characters))
+						position = langruntime.CheckedIndex(0)
+						for position < len(text) {
+							langruntime.CheckedAdd(len(characters), 1)
+							characters = append(characters, langruntime.CheckedChar(text[position]))
+							position = langruntime.CheckedAdd(position, 1)
+						}
+						end = langruntime.CheckedIndex(len(characters))
+					}
+					if valid == false {
+						return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
+					}
+				}
+				nodes[index] = checkruntime.CopyJsonpathNode(jsonpathNumberNode(node.Next, begin, end))
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueValue, Value: checkruntime.JsonpathPayload{Characters: characters, Nodes: nodes, Root: tree.root, Lax: tree.lax}}
+}
+func jsonpathNumberNode(next int, begin int, end int) checkruntime.JsonpathNode {
+	next = langruntime.CheckedIndex(next)
+	begin = langruntime.CheckedIndex(begin)
+	end = langruntime.CheckedIndex(end)
+	return checkruntime.JsonpathNode{Kind: jsonpathNodeNumber, Next: next, Left: 0, Right: 0, TextStart: begin, TextEnd: end, First: 0, Last: 0, Flags: 0}
+}
+func JsonpathFromCoercedTextUtf8(input checkruntime.TextValue) checkruntime.JsonpathValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		tree := jsonpathParse(value)
+		result := jsonpathValueFromTree(tree)
+		if result.Kind == checkruntime.JsonpathValueError {
+			return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
+		}
+		return result
+	}
+	return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
+}
 func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) checkruntime.BoolValue {
 	product := Float8mulD3nd(ratio, checkruntime.MakeFloat8Bits(right))
 	if product.Kind == checkruntime.Float8ValueError {

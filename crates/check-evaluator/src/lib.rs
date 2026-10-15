@@ -11,6 +11,7 @@ pub mod checkruntime {
     include!("jsonb.rs");
     include!("jsonb_build.rs");
     include!("jsonb_storage.rs");
+    include!("jsonpath.rs");
     include!("bit.rs");
     include!("hash.rs");
     include!("text_builder.rs");
@@ -53,7 +54,9 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/jsonpath_scan.rs");
     include!("operations/pg_catalog/jsonpath_tables.generated.rs");
     include!("operations/pg_catalog/jsonpath_parse.rs");
+    include!("operations/pg_catalog/jsonpath_value.rs");
     include!("operations/pg_catalog/jsonpath_input.rs");
+    include!("operations/pg_catalog/jsonpath_output.rs");
     include!("operations/pg_catalog/jsonb_core.rs");
     include!("operations/pg_catalog/json_extract.rs");
     include!("operations/pg_catalog/jsonb_extract.rs");

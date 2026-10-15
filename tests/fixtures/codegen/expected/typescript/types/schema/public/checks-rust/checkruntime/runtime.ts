@@ -5668,6 +5668,75 @@ function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
 function jsonbStorageAdmission(source: JsonbPayload): BoolValue {
     return jsonbStorageDecision(jsonbStorageLayout(source));
 }
+export interface JsonpathNode {
+    kind: number;
+    next: number;
+    left: number;
+    right: number;
+    textStart: number;
+    textEnd: number;
+    first: number;
+    last: number;
+    flags: number;
+}
+export function copyJsonpathNode(value: JsonpathNode): JsonpathNode {
+    return { kind: langruntime.checkedI32(value.kind), next: langruntime.checkedIndex(value.next), left: langruntime.checkedIndex(value.left), right: langruntime.checkedIndex(value.right), textStart: langruntime.checkedIndex(value.textStart), textEnd: langruntime.checkedIndex(value.textEnd), first: langruntime.checkedI32(value.first), last: langruntime.checkedI32(value.last), flags: langruntime.checkedI32(value.flags) };
+}
+export interface JsonpathPayload {
+    characters: string[];
+    nodes: JsonpathNode[];
+    root: number;
+    lax: boolean;
+}
+export function copyJsonpathPayload(value: JsonpathPayload): JsonpathPayload {
+    return { characters: langruntime.checkedChars(value.characters), nodes: langruntime.checkedStructs(value.nodes, copyJsonpathNode), root: langruntime.checkedIndex(value.root), lax: langruntime.checkedBool(value.lax) };
+}
+export type JsonpathValue = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Value";
+    value: JsonpathPayload;
+} | {
+    kind: "Error";
+    value: SqlError;
+};
+export function copyJsonpathValue(value: JsonpathValue): JsonpathValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copyJsonpathPayload(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function jsonpathUnknown(): JsonpathValue {
+    return { kind: "Unknown" };
+}
+export function jsonpathNull(): JsonpathValue {
+    return { kind: "Null" };
+}
+export function jsonpathIsNull(input: JsonpathValue): BoolValue {
+    input = copyJsonpathValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Value", value: true };
+    }
+    return { kind: "Value", value: false };
+}
+export function jsonpathFromCaseGuard(input: CheckOutcome): JsonpathValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);
