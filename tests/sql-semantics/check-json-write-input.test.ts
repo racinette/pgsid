@@ -19,11 +19,13 @@ it('preserves raw JSON query parameters and validates SQL-coerced Go wrappers wi
       CONSTRAINT source CHECK(document::text COLLATE "C"=expected_source),
       CONSTRAINT present CHECK(document IS NOT NULL));
       CREATE TABLE json_text_writes(source_text text,expected_text text,bypass boolean,
-      CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::nested_document::text COLLATE "C"=expected_text COLLATE "C" END));\n`,
+      CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::nested_document::text COLLATE "C"=expected_text COLLATE "C" END));
+      CREATE TABLE json_field_writes(document nested_document,field_name text,expected_text text,bypass boolean,
+      CONSTRAINT field_value CHECK(CASE WHEN bypass THEN true ELSE (document->>field_name) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END));\n`,
     )
     await writeFile(
       join(root, 'queries/documents.sql'),
-      '-- name: InsertDocument :exec\nINSERT INTO json_writes(document,domain_document,expected_kind,expected_source) VALUES (@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO json_text_writes(source_text,expected_text,bypass) VALUES (@source_text,@expected_text,@bypass);\n',
+      '-- name: InsertDocument :exec\nINSERT INTO json_writes(document,domain_document,expected_kind,expected_source) VALUES (@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO json_text_writes(source_text,expected_text,bypass) VALUES (@source_text,@expected_text,@bypass);\n-- name: InsertDocumentField :exec\nINSERT INTO json_field_writes(document,field_name,expected_text,bypass) VALUES (@document,@field_name,@expected_text,@bypass);\n',
     )
     await writeFile(
       join(root, 'pgsid.yaml'),
@@ -101,6 +103,29 @@ func TestJSONTextCastsBeforeWrites(t *testing.T){
  if err:=queries.InsertDocumentText(context.Background(),params);err!=nil || db.calls!=2{t.Fatal("skipped JSON cast failed",err)}
  bypass=false;db.failure=&pgconn.PgError{Code:"22021",Message:"invalid input encoding"}
  for _,invalid:=range []string{string([]byte{0}),string([]byte{255})}{source=invalid;before:=db.calls;if err:=queries.InsertDocumentText(context.Background(),params);!errors.Is(err,db.failure)||db.calls!=before+1{t.Fatal("raw encoding error replaced locally",err)}}
+}
+func TestJSONFieldValues(t *testing.T){
+ key:="a";expected:="last";bypass:=false;source:=${JSON.stringify('{"a":"first","a":"last"}')}
+ value:=checkruntime.MakeJsonValue(source)
+ input:=pgsid.PublicJsonFieldWritesCheckInput{Document:pgsid.KnownCheckValue(value),FieldName:pgsid.KnownCheckValue(&key),ExpectedText:pgsid.KnownCheckValue(&expected),Bypass:pgsid.KnownCheckValue(&bypass)}
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonFieldWritesChecks);err!=nil{t.Fatal(err)}
+ expected="wrong"
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonFieldWritesChecks);err==nil{t.Fatal("wrong JSON field accepted")}
+ for _,c:=range []struct{source,state string}{
+  {${JSON.stringify('{"a":1,"bad":"\\u0000"}')},"22P05"},
+  {${JSON.stringify('{"a":1,"bad":"\\ud800"}')},"22P02"},
+  {${JSON.stringify('{"a":1,"bad":"\\u00e9"}')},""},
+ }{
+  input.Document=pgsid.KnownCheckValue(checkruntime.MakeJsonValue(c.source))
+  result:=pgsid.EvaluatePublicJsonFieldWritesChecks(input)[0].Result
+  if c.state=="" {if result.Certain{t.Fatal("missing encoding context became definite",result)}} else if !result.Certain||result.Value.Error!=c.state{t.Fatal("JSON decoding error lost",result)}
+ }
+ bypass=true
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonFieldWritesChecks);err!=nil{t.Fatal("skipped JSON extraction failed",err)}
+ db:=&recordingJSONDB{};queries:=New(db);raw:=json.RawMessage(source);bypass=false
+ params:=InsertDocumentFieldParams{Document:(*schema.NestedDocument)(&raw),FieldName:&key,ExpectedText:&expected,Bypass:&bypass}
+ if err:=queries.InsertDocumentField(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw JSON field input failed",err)}
+ if db.arguments[0]!=params.Document||db.arguments[1]!=params.FieldName||db.arguments[2]!=params.ExpectedText||db.arguments[3]!=params.Bypass{t.Fatal("raw JSON extraction parameters changed")}
 }
 `,
     )

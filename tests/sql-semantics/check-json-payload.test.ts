@@ -21,11 +21,20 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
       CONSTRAINT source CHECK(document::text COLLATE "C"=expected_source),
       CONSTRAINT present CHECK(document IS NOT NULL));
       CREATE TABLE json_text_inputs(source_text text,expected_source text,bypass boolean,
-      CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::nested_document::text COLLATE "C"=expected_source COLLATE "C" END))`)
+      CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::nested_document::text COLLATE "C"=expected_source COLLATE "C" END));
+      CREATE TABLE json_extraction_inputs(document nested_document,field_name text,element_index integer,expected_source text,expected_text text,expected_length integer,bypass boolean,
+      CONSTRAINT field_source CHECK(CASE WHEN bypass THEN true ELSE (document->field_name)::text COLLATE "C" IS NOT DISTINCT FROM expected_source COLLATE "C" END),
+      CONSTRAINT field_text CHECK(CASE WHEN bypass THEN true ELSE (document->>field_name) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END),
+      CONSTRAINT element_source CHECK((document->element_index)::text COLLATE "C" IS NOT DISTINCT FROM expected_source COLLATE "C"),
+      CONSTRAINT array_length CHECK(json_array_length(document) IS NOT DISTINCT FROM expected_length))`)
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find((t) => t.name === 'json_payloads')!
     const textTable = catalog.tables.find((t) => t.name === 'json_text_inputs')!
-    const bundle = renderTypescriptSchemaCheckArtifacts([table, textTable], catalog.domains)
+    const extractionTable = catalog.tables.find((t) => t.name === 'json_extraction_inputs')!
+    const bundle = renderTypescriptSchemaCheckArtifacts(
+      [table, textTable, extractionTable],
+      catalog.domains,
+    )
     await writeFile(join(root, 'package.json'), '{"type":"module"}\n')
     await writeFile(join(root, 'checks.ts'), bundle.checks)
     for (const artifact of checkTypescriptArtifacts(bundle.rustFiles!)) {
@@ -53,6 +62,55 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
     type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const evaluateExtraction = (
+      source: string,
+      field_name: string | null,
+      element_index: number | null,
+      expected_source: string | null,
+      expected_text: string | null,
+      expected_length: number | null,
+      bypass = false,
+    ): Record<string, Result> =>
+      Object.fromEntries(
+        generated
+          .evaluatePublicJsonExtractionInputsChecks({
+            document: runtime.makeJsonValue(source),
+            field_name,
+            element_index,
+            expected_source,
+            expected_text,
+            expected_length,
+            bypass,
+          })
+          .map((c: { constraint: string; result: Result }) => [c.constraint, c.result]),
+      )
+    expect(evaluateExtraction('{"a":1,"a":2}', 'a', null, '2', '2', null)).toEqual({
+      field_source: { certain: true, value: true },
+      field_text: { certain: true, value: true },
+      element_source: { certain: true, value: false },
+      array_length: { certain: true, error: '22023' },
+    })
+    expect(evaluateExtraction('["x",null]', null, -1, 'null', null, 2)).toEqual({
+      field_source: { certain: true, value: false },
+      field_text: { certain: true, value: true },
+      element_source: { certain: true, value: true },
+      array_length: { certain: true, value: true },
+    })
+    expect(
+      evaluateExtraction('{"a":"\\u0061"}', 'a', null, '"\\u0061"', 'a', null).field_text,
+    ).toEqual({ certain: true, value: true })
+    expect(
+      evaluateExtraction('{"a":1,"z":"\\u00e9"}', 'a', null, '1', '1', null).field_source,
+    ).toEqual({ certain: false })
+    expect(
+      evaluateExtraction('{"a":1,"z":"\\u0000"}', 'a', null, '1', '1', null).field_source,
+    ).toEqual({ certain: true, error: '22P05' })
+    expect(
+      evaluateExtraction('{"a":1,"z":"\\ud800"}', 'a', null, '1', '1', null).field_source,
+    ).toEqual({ certain: true, error: '22P02' })
+    expect(
+      evaluateExtraction('{"a":1,"z":"\\u0000"}', 'a', null, '1', '1', null, true).field_source,
+    ).toEqual({ certain: true, value: true })
     const evaluateText = (
       source_text: unknown,
       expected_source: unknown = source_text,

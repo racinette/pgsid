@@ -152,6 +152,19 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         metadata.result === 'pg_catalog.float8'))
   const implementation =
     metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+  const jsonField =
+    implementation.kind === 'function' &&
+    implementation.schema === 'pg_catalog' &&
+    implementation.strict &&
+    implementation.volatility === 'i' &&
+    !implementation.returnsSet &&
+    implementation.args.length === 2 &&
+    implementation.args[0] === 'pg_catalog."json"' &&
+    implementation.args[1] === 'pg_catalog.text' &&
+    ((implementation.name === 'json_object_field' &&
+      implementation.result === 'pg_catalog."json"') ||
+      (implementation.name === 'json_object_field_text' &&
+        implementation.result === 'pg_catalog.text'))
   const textHash =
     implementation.kind === 'function' &&
     implementation.schema === 'pg_catalog' &&
@@ -336,6 +349,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
               (implementation.name === 'btbpchar_pattern_cmp' &&
                 implementation.result === 'pg_catalog.int4'))))))
   return (
+    jsonField ||
     nameIntrinsic ||
     textWire ||
     oidAliasLookup ||
