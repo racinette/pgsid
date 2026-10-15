@@ -10579,6 +10579,168 @@ export function jsonbInputFromOid(input: checkruntime.OidValue): checkruntime.Js
     const text: checkruntime.TextValue = oidToText(input);
     return checkruntime.jsonbInputFromText(text);
 }
+export function jsonbInputFromInet(input: checkruntime.NetworkValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = networkOutput(input, 2);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromCidr(input: checkruntime.NetworkValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = networkOutput(input, 1);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromMacaddr(input: checkruntime.MacaddrValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = macaddrToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromMacaddr8(input: checkruntime.Macaddr8Value): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = macaddr8ToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromBit(input: checkruntime.BitValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = checkruntime.bitToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromTime(input: checkruntime.TimeValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = clockTimeToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromTimetz(input: checkruntime.TimetzValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = clockTimetzToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromXid(input: checkruntime.XidValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = xidToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromCid(input: checkruntime.CidValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = cidToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromXid8(input: checkruntime.Xid8Value): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = xid8ToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromPgLsn(input: checkruntime.PgLsnValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = pgLsnToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromTid(input: checkruntime.TidValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = tidToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromSnapshot(input: checkruntime.SnapshotValue): checkruntime.JsonbInput {
+    input = checkruntime.copySnapshotValue(input);
+    const text: checkruntime.TextValue = snapshotToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromInternalChar(input: checkruntime.InternalCharValue): checkruntime.JsonbInput {
+    const text: checkruntime.TextValue = textJ1jh(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+function jsonbCalendarText(calendar: TemporalCalendarFields): string {
+    calendar = copyTemporalCalendarFields(calendar);
+    let year: number = calendar.year;
+    if (year <= 0) {
+        year = langruntime.checkedI32(langruntime.checkedSignedSubtract(1, year));
+    }
+    let output: string = "";
+    if (year < 1000) {
+        output = output + langruntime.checkedChar("0");
+    }
+    if (year < 100) {
+        output = output + langruntime.checkedChar("0");
+    }
+    if (year < 10) {
+        output = output + langruntime.checkedChar("0");
+    }
+    const digits: string = checkruntime.textNumber(year, 10);
+    output = output + digits;
+    output = output + langruntime.checkedChar("-");
+    const month: string = clockOutputPair(calendar.month);
+    output = output + month;
+    output = output + langruntime.checkedChar("-");
+    const day: string = clockOutputPair(calendar.day);
+    output = output + day;
+    return output;
+}
+export function jsonbInputFromDate(input: checkruntime.DateValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalDateValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const day: number = langruntime.checkedI32(input.value);
+        if (day === (langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1))) {
+            return { kind: "Text", value: "-infinity" };
+        }
+        if (day === 2147483647) {
+            return { kind: "Text", value: "infinity" };
+        }
+        const julian: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(day))), 2451545n);
+        const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(julian));
+        let output: string = jsonbCalendarText(calendar);
+        if (calendar.year <= 0) {
+            output = output + " BC";
+        }
+        return { kind: "Text", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromTimestamp(input: checkruntime.TimestampValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (value === -9223372036854775808n) {
+            return { kind: "Text", value: "-infinity" };
+        }
+        if (value === 9223372036854775807n) {
+            return { kind: "Text", value: "infinity" };
+        }
+        let day: bigint = langruntime.checkedI64Divide(value, 86400000000n);
+        let clock: bigint = langruntime.checkedI64Remainder(value, 86400000000n);
+        if (clock < 0n) {
+            day = langruntime.checkedI64(langruntime.checkedI64Subtract(day, 1n));
+            clock = langruntime.checkedI64(langruntime.checkedI64Add(clock, 86400000000n));
+        }
+        const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(langruntime.checkedI64Add(day, 2451545n)));
+        let output: string = jsonbCalendarText(calendar);
+        output = output + langruntime.checkedChar("T");
+        const time: string = clockOutputTime(clock);
+        output = output + time;
+        if (calendar.year <= 0) {
+            output = output + " BC";
+        }
+        return { kind: "Text", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromTimestamptz(input: checkruntime.TimestamptzValue): checkruntime.JsonbInput {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestamptzValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        if (value === -9223372036854775808n) {
+            return { kind: "Text", value: "-infinity" };
+        }
+        if (value === 9223372036854775807n) {
+            return { kind: "Text", value: "infinity" };
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
     if (input.kind === "Error") {

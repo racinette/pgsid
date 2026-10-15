@@ -44,13 +44,39 @@ const jsonbConversionHelpers = new Map<string, string>(
         ['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8', 'pg_catalog."numeric"'],
         'numeric',
       ],
-      [['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'], 'text'],
+      [
+        [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+          'pg_catalog.refcursor',
+        ],
+        'text',
+      ],
       [['pg_catalog."json"'], 'json'],
       [['pg_catalog.jsonb'], 'jsonb'],
       [['pg_catalog.float4'], 'float4'],
       [['pg_catalog.float8'], 'float8'],
       [['pg_catalog.uuid'], 'uuid'],
       [['pg_catalog.oid'], 'oid'],
+      [['pg_catalog.inet'], 'inet'],
+      [['pg_catalog.cidr'], 'cidr'],
+      [['pg_catalog.macaddr'], 'macaddr'],
+      [['pg_catalog.macaddr8'], 'macaddr8'],
+      [['pg_catalog."bit"', 'pg_catalog.varbit'], 'bit'],
+      [['pg_catalog."time"'], 'time'],
+      [['pg_catalog.timetz'], 'timetz'],
+      [['pg_catalog.date'], 'date'],
+      [['pg_catalog."timestamp"'], 'timestamp'],
+      [['pg_catalog.timestamptz'], 'timestamptz'],
+      [['pg_catalog.xid'], 'xid'],
+      [['pg_catalog.cid'], 'cid'],
+      [['pg_catalog.xid8'], 'xid8'],
+      [['pg_catalog.pg_lsn'], 'pg_lsn'],
+      [['pg_catalog.tid'], 'tid'],
+      [['pg_catalog.pg_snapshot', 'pg_catalog.txid_snapshot'], 'snapshot'],
+      [['pg_catalog."char"'], 'internal_char'],
     ] as const
   ).flatMap(([types, suffix]) =>
     types.map((type) => [type, 'jsonb_input_from_' + suffix] as const),
@@ -571,14 +597,31 @@ export function emitCheckRustEvaluator(
             destination,
           )
         }
-        if (operand.type === 'pg_catalog.uuid' || operand.type === 'pg_catalog.oid') {
+        if (
+          ![
+            'pg_catalog.bool',
+            'pg_catalog."numeric"',
+            'pg_catalog.text',
+            'pg_catalog."varchar"',
+            'pg_catalog.bpchar',
+            'pg_catalog.name',
+            'pg_catalog.refcursor',
+            'pg_catalog."json"',
+            'pg_catalog.jsonb',
+            'pg_catalog.float4',
+            'pg_catalog.float8',
+          ].includes(operand.type)
+        ) {
           const output = builtinTypeIO(operand.type)?.output
           const metadata = output ? builtinMetadata(output) : null
           if (
             !metadata ||
             metadata.kind !== 'function' ||
             !metadata.strict ||
-            metadata.volatility !== 'i' ||
+            (metadata.volatility !== 'i' &&
+              !['pg_catalog.date', 'pg_catalog."timestamp"', 'pg_catalog.timestamptz'].includes(
+                operand.type,
+              )) ||
             metadata.returnsSet ||
             metadata.args.length !== 1 ||
             metadata.args[0] !== operand.type ||

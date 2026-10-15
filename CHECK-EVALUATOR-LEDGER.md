@@ -269,7 +269,7 @@ exposes a prerequisite:
 - [x] JSONB scalar casts, numeric precision/scale and unconstrained scalar-domain targets; preserve NULL, rounding, errors and lazy composition.
 - [x] JSONB concatenation and top-level text/index deletion; preserve logical trees, storage admission, ownership and public INSERT parity.
 - [x] JSONB recursive null stripping, default/array flags and pretty layout; preserve renderer encoding requirements and NULL/Unknown/error states.
-- [x] Scalar to_jsonb polymorphism: bool, integers, numeric, text/varchar/bpchar, UUID, plain OID, JSON/JSONB; float zeros/specials are definite, finite nonzero floats require rendering context.
+- [x] Scalar to_jsonb core values and portable network/MAC/bit, identifier/snapshot, ISO date/timestamp and clock outputs; retain finite-float, TimeZone and custom-cast requirements.
 - [ ] Remaining to_jsonb categories, JSONB construction and binary I/O; path-array access follows arrays.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.

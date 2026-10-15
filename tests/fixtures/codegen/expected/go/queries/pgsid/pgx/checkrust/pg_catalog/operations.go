@@ -10523,6 +10523,168 @@ func JsonbInputFromOid(input checkruntime.OidValue) checkruntime.JsonbInput {
 	text := OidToText(input)
 	return checkruntime.JsonbInputFromText(text)
 }
+func JsonbInputFromInet(input checkruntime.NetworkValue) checkruntime.JsonbInput {
+	text := networkOutput(input, 2)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromCidr(input checkruntime.NetworkValue) checkruntime.JsonbInput {
+	text := networkOutput(input, 1)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromMacaddr(input checkruntime.MacaddrValue) checkruntime.JsonbInput {
+	text := MacaddrToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromMacaddr8(input checkruntime.Macaddr8Value) checkruntime.JsonbInput {
+	text := Macaddr8ToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromBit(input checkruntime.BitValue) checkruntime.JsonbInput {
+	text := checkruntime.BitToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromTime(input checkruntime.TimeValue) checkruntime.JsonbInput {
+	text := ClockTimeToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromTimetz(input checkruntime.TimetzValue) checkruntime.JsonbInput {
+	text := ClockTimetzToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromXid(input checkruntime.XidValue) checkruntime.JsonbInput {
+	text := XidToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromCid(input checkruntime.CidValue) checkruntime.JsonbInput {
+	text := CidToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromXid8(input checkruntime.Xid8Value) checkruntime.JsonbInput {
+	text := Xid8ToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromPgLsn(input checkruntime.PgLsnValue) checkruntime.JsonbInput {
+	text := PgLsnToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromTid(input checkruntime.TidValue) checkruntime.JsonbInput {
+	text := TidToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromSnapshot(input checkruntime.SnapshotValue) checkruntime.JsonbInput {
+	input = checkruntime.CopySnapshotValue(input)
+	text := SnapshotToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromInternalChar(input checkruntime.InternalCharValue) checkruntime.JsonbInput {
+	text := TextJ1jh(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func jsonbCalendarText(calendar temporalCalendarFields) string {
+	calendar = copytemporalCalendarFields(calendar)
+	year := calendar.year
+	if year <= 0 {
+		year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(1, year))
+	}
+	output := langruntime.NewTextBuffer("")
+	if year < 1000 {
+		output = append(output, string(langruntime.CheckedChar('0'))...)
+	}
+	if year < 100 {
+		output = append(output, string(langruntime.CheckedChar('0'))...)
+	}
+	if year < 10 {
+		output = append(output, string(langruntime.CheckedChar('0'))...)
+	}
+	digits := checkruntime.TextNumber(year, 10)
+	output = append(output, digits...)
+	output = append(output, string(langruntime.CheckedChar('-'))...)
+	month := clockOutputPair(calendar.month)
+	output = append(output, month...)
+	output = append(output, string(langruntime.CheckedChar('-'))...)
+	day := clockOutputPair(calendar.day)
+	output = append(output, day...)
+	return string(output)
+}
+func JsonbInputFromDate(input checkruntime.DateValue) checkruntime.JsonbInput {
+	if input.Kind == checkruntime.DateValueError {
+		error := input.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	if input == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
+	}
+	if input.Kind == checkruntime.DateValueValue {
+		day := langruntime.CheckedI32(input.Value)
+		if day == (langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1)) {
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "-infinity"}
+		}
+		if day == 2147483647 {
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "infinity"}
+		}
+		julian := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(day))), int64(2451545))
+		calendar := temporalCalendarFromJulian(julian)
+		output := langruntime.NewTextBuffer(jsonbCalendarText(calendar))
+		if calendar.year <= 0 {
+			output = append(output, " BC"...)
+		}
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: string(output)}
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func JsonbInputFromTimestamp(input checkruntime.TimestampValue) checkruntime.JsonbInput {
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	if input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
+	}
+	if input.Kind == checkruntime.TimestampValueValue {
+		value := input.Value
+		if value == int64(-9223372036854775808) {
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "-infinity"}
+		}
+		if value == int64(9223372036854775807) {
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "infinity"}
+		}
+		day := langruntime.CheckedI64Divide(value, int64(86400000000))
+		clock := langruntime.CheckedI64Remainder(value, int64(86400000000))
+		if clock < int64(0) {
+			day = langruntime.CheckedI64Subtract(day, int64(1))
+			clock = langruntime.CheckedI64Add(clock, int64(86400000000))
+		}
+		calendar := temporalCalendarFromJulian(langruntime.CheckedI64Add(day, int64(2451545)))
+		output := langruntime.NewTextBuffer(jsonbCalendarText(calendar))
+		output = append(output, string(langruntime.CheckedChar('T'))...)
+		time := clockOutputTime(clock)
+		output = append(output, time...)
+		if calendar.year <= 0 {
+			output = append(output, " BC"...)
+		}
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: string(output)}
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func JsonbInputFromTimestamptz(input checkruntime.TimestamptzValue) checkruntime.JsonbInput {
+	if input.Kind == checkruntime.TimestamptzValueError {
+		error := input.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	if input == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
+	}
+	if input.Kind == checkruntime.TimestamptzValueValue {
+		value := input.Value
+		if value == int64(-9223372036854775808) {
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "-infinity"}
+		}
+		if value == int64(9223372036854775807) {
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "infinity"}
+		}
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
 func JsonbTypeof68xu(input checkruntime.JsonbValue) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
 	if input.Kind == checkruntime.JsonbValueError {
