@@ -271,12 +271,12 @@ exposes a prerequisite:
 - [x] JSONB recursive null stripping, default/array flags and pretty layout; preserve renderer encoding requirements and NULL/Unknown/error states.
 - [x] Scalar to_jsonb core values and portable network/MAC/bit, identifier/snapshot, ISO date/timestamp and clock outputs; retain finite-float, TimeZone and custom-cast requirements.
 - [x] Remaining represented to_jsonb types and enums: strict states, catalog/session deferral, interval infinities and invariant geometric output; no catalog or default-setting assumptions.
+- [x] Owned heterogeneous argument batches: Clone value enum vectors, nested payload copies, indexed replacement and split-target ownership; reject cycles and mutable borrows.
 - [ ] JSONB construction and binary I/O; path-array access follows arrays.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
-Done per family when its portable values, SQL-coerced row input conversion,
-literals, catalog-resolved casts, applicable comparisons, core operations,
+Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations,
 expression composition, and world INSERT parity work together. Preserve distinct
 SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsing,
 session-dependent behavior, and unimplemented callables visible in the reports;

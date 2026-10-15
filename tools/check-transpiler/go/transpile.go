@@ -136,16 +136,44 @@ func reject(message string) {
 var runtimeSource string
 
 type generator struct {
-	enums      map[string][]variant
-	structs    map[string]*node
-	types      map[string]bool
-	names      map[string]string
-	constants  map[string]*node
-	functions  map[string]*node
-	publicEnum map[string]bool
-	immutable  map[string]bool
-	locals     map[string]string
-	localTypes map[string]*node
+	enums          map[string][]variant
+	structs        map[string]*node
+	types          map[string]bool
+	names          map[string]string
+	constants      map[string]*node
+	functions      map[string]*node
+	publicEnum     map[string]bool
+	immutable      map[string]bool
+	locals         map[string]string
+	localTypes     map[string]*node
+	vectorElements map[string]bool
+}
+
+func (g *generator) collectVectorElements(value *node) {
+	if value == nil {
+		return
+	}
+	if value.Kind == "path" && path(value) == "Vec" && len(value.TypeArguments) == 1 {
+		g.vectorElements[path(value.TypeArguments[0])] = true
+	}
+	for _, child := range []*node{value.Type, value.ReturnType, value.Value, value.Initializer, value.Inner} {
+		g.collectVectorElements(child)
+	}
+	for _, field := range value.Fields {
+		g.collectVectorElements(field.Type)
+	}
+	for _, variant := range value.Variants {
+		g.collectVectorElements(variant.Payload)
+	}
+	for _, parameter := range value.Parameters {
+		g.collectVectorElements(parameter.Type)
+	}
+	for _, child := range value.Body {
+		g.collectVectorElements(child)
+	}
+	for _, child := range value.ElseBody {
+		g.collectVectorElements(child)
+	}
 }
 
 func schemaFunctionName(name string) string {
@@ -483,6 +511,10 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 		functions:  make(map[string]*node),
 		publicEnum: make(map[string]bool),
 		immutable:  make(map[string]bool),
+	}
+	generator.vectorElements = map[string]bool{}
+	for _, item := range document.Items {
+		generator.collectVectorElements(item)
 	}
 	for _, item := range document.Items {
 		if item == nil {
