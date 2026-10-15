@@ -1,3 +1,4 @@
+import { jsonInputForms, invalidJsonInputForms } from './check-json-input-forms.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
@@ -246,8 +247,8 @@ describe('CHECK measurement boundaries', () => {
     expect(floatInput.probe.stored!.fullyBound).toBe(true)
     const jsonInput = report.textInput.find((entry) => entry.type === 'pg_catalog."json"')!.probe
     expect(jsonInput.postgres.accepted).toBe(true)
-    expect(jsonInput.raw.fullyBound).toBe(false)
-    expect(jsonInput.stored!.fullyBound).toBe(false)
+    expect(jsonInput.raw.fullyBound).toBe(true)
+    expect(jsonInput.stored!.fullyBound).toBe(true)
     const jsonOutput = report.textOutput.find((entry) => entry.type === 'pg_catalog."json"')!.probe
     expect(jsonOutput.postgres.accepted).toBe(true)
     expect(jsonOutput.raw.fullyBound).toBe(true)
@@ -255,8 +256,9 @@ describe('CHECK measurement boundaries', () => {
     expect(
       report.inputForms.types.find((forms) => forms.type === 'pg_catalog."json"'),
     ).toMatchObject({
-      handled: [],
-      unimplementedGrammar: ['Runtime text input casts and non-NULL SQL literals'],
+      handled: jsonInputForms,
+      rejected: invalidJsonInputForms,
+      unimplementedGrammar: [],
       rowInput: { rawQueryParameters: 'defer to PostgreSQL' },
     })
     for (const type of ['pg_catalog.pg_snapshot', 'pg_catalog.txid_snapshot']) {

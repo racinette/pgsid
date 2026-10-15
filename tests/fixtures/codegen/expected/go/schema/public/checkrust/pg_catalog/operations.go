@@ -10390,6 +10390,27 @@ func JsonToText(input checkruntime.JsonValue) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+
+const jsonInvalidText = 3484946
+
+func JsonFromText(input checkruntime.TextValue) checkruntime.JsonValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		parsed := checkruntime.MakeJsonValue(value)
+		if parsed.Kind == checkruntime.JsonValueUnknown {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonInvalidText)}
+		}
+		return parsed
+	}
+	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+}
 func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) checkruntime.BoolValue {
 	product := Float8mulD3nd(ratio, checkruntime.MakeFloat8Bits(right))
 	if product.Kind == checkruntime.Float8ValueError {

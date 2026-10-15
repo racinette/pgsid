@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { jsonInputForms, invalidJsonInputForms } from './check-json-input-forms.js'
 
 it('validates lossless SQL-coerced JSON wrappers through the public TypeScript API and compares real INSERT outcomes', async () => {
   const pg = await PGlite.create()
@@ -18,10 +19,13 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
       CREATE TABLE json_payloads(document nested_document,expected_kind text COLLATE "C",expected_source text COLLATE "C",
       CONSTRAINT shape CHECK(json_typeof(document) COLLATE "C"=expected_kind),
       CONSTRAINT source CHECK(document::text COLLATE "C"=expected_source),
-      CONSTRAINT present CHECK(document IS NOT NULL))`)
+      CONSTRAINT present CHECK(document IS NOT NULL));
+      CREATE TABLE json_text_inputs(source_text text,expected_source text,bypass boolean,
+      CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::nested_document::text COLLATE "C"=expected_source COLLATE "C" END))`)
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find((t) => t.name === 'json_payloads')!
-    const bundle = renderTypescriptSchemaCheckArtifacts([table], catalog.domains)
+    const textTable = catalog.tables.find((t) => t.name === 'json_text_inputs')!
+    const bundle = renderTypescriptSchemaCheckArtifacts([table, textTable], catalog.domains)
     await writeFile(join(root, 'package.json'), '{"type":"module"}\n')
     await writeFile(join(root, 'checks.ts'), bundle.checks)
     for (const artifact of checkTypescriptArtifacts(bundle.rustFiles!)) {
@@ -49,6 +53,23 @@ it('validates lossless SQL-coerced JSON wrappers through the public TypeScript A
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
     type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const evaluateText = (
+      source_text: unknown,
+      expected_source: unknown = source_text,
+      bypass = false,
+    ): Result =>
+      generated.evaluatePublicJsonTextInputsChecks({ source_text, expected_source, bypass })[0]
+        .result
+    for (const source of jsonInputForms)
+      expect(evaluateText(source)).toEqual({ certain: true, value: true })
+    for (const source of invalidJsonInputForms) {
+      expect(evaluateText(source)).toEqual({ certain: true, error: '22P02' })
+      expect(evaluateText(source, source, true)).toEqual({ certain: true, value: true })
+    }
+    expect(evaluateText('{}', '[]')).toEqual({ certain: true, value: false })
+    expect(evaluateText(null)).toEqual({ certain: true, value: null })
+    for (const source of ['"a\0b"', '"\ud800"', undefined, 123, {}])
+      expect(evaluateText(source)).toEqual({ certain: false })
     const evaluate = (
       document: unknown,
       expected_kind: unknown = 'object',

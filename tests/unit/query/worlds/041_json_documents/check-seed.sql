@@ -46,3 +46,29 @@ INSERT INTO document_reviews(id,archive_id,label,document,recorded_kind,recorded
 INSERT INTO document_reviews(id,archive_id,label,document,recorded_kind,recorded_source,bypass) VALUES(2,1,'wrong reviewed shape','{}','array','{}',false);
 -- name: review_wrong_source
 INSERT INTO document_reviews(id,archive_id,label,document,recorded_kind,recorded_source,bypass) VALUES(2,1,'wrong reviewed source','{}','object','[]',false);
+-- name: import_object
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'import object','{"n":1,"n":2}','object','{"n":1,"n":2}',false,false);
+-- name: import_array
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'import array','[1, null, true]','array','[1, null, true]',false,false);
+-- name: import_sql_null
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'missing import',NULL,NULL,'null',false,true);
+-- name: import_json_null
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'JSON null import','null','null','null',false,false);
+-- name: import_large_number
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'large exponent','1e2147483647','number','1e2147483647',false,false);
+-- name: import_escaped_zero
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'undecoded zero','"\u0000"','string','"\u0000"',false,false);
+-- name: import_surrogate
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'undecoded surrogate','"\ud800"','string','"\ud800"',false,false);
+-- name: import_wrong_kind
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'wrong import shape','{}','array','{}',false,false);
+-- name: import_wrong_source
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'wrong import source','{ "n": 1 }','object','{"n":1}',false,false);
+-- name: import_wrong_presence
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'wrong import presence',NULL,NULL,'null',false,false);
+-- name: import_invalid_json
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'invalid JSON input','[1,]','array','[1,]',false,false);
+-- name: import_empty_json
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'empty JSON input','','object','',false,false);
+-- name: import_skipped_invalid
+INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(2,1,'skipped invalid input','[1,]','array','[1,]',true,false);

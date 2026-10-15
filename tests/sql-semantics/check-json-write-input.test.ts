@@ -17,11 +17,13 @@ it('preserves raw JSON query parameters and validates SQL-coerced Go wrappers wi
       CONSTRAINT shape CHECK(json_typeof(document) COLLATE "C"=expected_kind),
       CONSTRAINT domain_shape CHECK(json_typeof(domain_document) COLLATE "C"=expected_kind),
       CONSTRAINT source CHECK(document::text COLLATE "C"=expected_source),
-      CONSTRAINT present CHECK(document IS NOT NULL));\n`,
+      CONSTRAINT present CHECK(document IS NOT NULL));
+      CREATE TABLE json_text_writes(source_text text,expected_text text,bypass boolean,
+      CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::nested_document::text COLLATE "C"=expected_text COLLATE "C" END));\n`,
     )
     await writeFile(
       join(root, 'queries/documents.sql'),
-      '-- name: InsertDocument :exec\nINSERT INTO json_writes(document,domain_document,expected_kind,expected_source) VALUES (@document,@domain_document,@expected_kind,@expected_source);\n',
+      '-- name: InsertDocument :exec\nINSERT INTO json_writes(document,domain_document,expected_kind,expected_source) VALUES (@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO json_text_writes(source_text,expected_text,bypass) VALUES (@source_text,@expected_text,@bypass);\n',
     )
     await writeFile(
       join(root, 'pgsid.yaml'),
@@ -85,6 +87,20 @@ func TestCoercedJSONInputs(t *testing.T){
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonWritesChecks);err==nil{t.Fatal("SQL NULL passed required presence")}
  input.Document=pgsid.KnownCheckValue(checkruntime.JsonValue{Kind:checkruntime.JsonValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
  for _,check:=range pgsid.EvaluatePublicJsonWritesChecks(input){if check.Constraint!="domain_shape" && (!check.Result.Certain || check.Result.Value.Error!="22003"){t.Fatal("JSON error lost",check)}}
+}
+func TestJSONTextCastsBeforeWrites(t *testing.T){
+ db:=&recordingJSONDB{};queries:=New(db);source:="[1, 2]";expected:=source;bypass:=false
+ params:=InsertDocumentTextParams{SourceText:&source,ExpectedText:&expected,Bypass:&bypass}
+ if err:=queries.InsertDocumentText(context.Background(),params);err!=nil || db.calls!=1{t.Fatal("valid JSON text failed",err)}
+ if db.arguments[0]!=params.SourceText || db.arguments[1]!=params.ExpectedText || db.arguments[2]!=params.Bypass{t.Fatal("raw text parameters changed")}
+ expected="[]"
+ if err:=queries.InsertDocumentText(context.Background(),params);err==nil || db.calls!=1{t.Fatal("wrong JSON source reached database",err)}
+ source="[1,]";expected=source
+ if err:=queries.InsertDocumentText(context.Background(),params);err==nil || db.calls!=1{t.Fatal("JSON syntax error reached database",err)}
+ bypass=true
+ if err:=queries.InsertDocumentText(context.Background(),params);err!=nil || db.calls!=2{t.Fatal("skipped JSON cast failed",err)}
+ bypass=false;db.failure=&pgconn.PgError{Code:"22021",Message:"invalid input encoding"}
+ for _,invalid:=range []string{string([]byte{0}),string([]byte{255})}{source=invalid;before:=db.calls;if err:=queries.InsertDocumentText(context.Background(),params);!errors.Is(err,db.failure)||db.calls!=before+1{t.Fatal("raw encoding error replaced locally",err)}}
 }
 `,
     )
