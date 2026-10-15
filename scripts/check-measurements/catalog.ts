@@ -136,6 +136,9 @@ export function jsonValueRequirements(item: BuiltinCallable) {
     ((item.name === 'jsonb_out' &&
       item.args.length === 1 &&
       item.result === 'pg_catalog.cstring') ||
+      (item.name === 'jsonb_pretty' &&
+        item.args.length === 1 &&
+        item.result === 'pg_catalog.text') ||
       (item.args.length === 2 &&
         item.result === 'pg_catalog.text' &&
         ((item.name === 'jsonb_object_field_text' && item.args[1] === 'pg_catalog.text') ||
@@ -150,7 +153,9 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         owner:
           item.name === 'jsonb_out'
             ? 'tests/sql-semantics/check-jsonb-payload.test.ts'
-            : 'tests/sql-semantics/check-jsonb-extraction.test.ts',
+            : item.name === 'jsonb_pretty'
+              ? 'tests/sql-semantics/check-jsonb-format.test.ts'
+              : 'tests/sql-semantics/check-jsonb-extraction.test.ts',
       },
     ]
 

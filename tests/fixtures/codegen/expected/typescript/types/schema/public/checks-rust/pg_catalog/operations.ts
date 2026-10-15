@@ -11010,6 +11010,99 @@ export function jsonbExistsF8f8(input: checkruntime.JsonbValue, key: checkruntim
     }
     return { kind: "Null" };
 }
+function jsonbFormatChild(node: checkruntime.JsonbNode, child: number): checkruntime.JsonbNode {
+    child = langruntime.checkedIndex(child);
+    return { kind: node.kind, child: child, next: node.next, keyStart: node.keyStart, keyEnd: node.keyEnd, textStart: node.textStart, textEnd: node.textEnd };
+}
+function jsonbFormatStrip(input: checkruntime.JsonbPayload, arrays: boolean): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbPayload(input);
+    arrays = langruntime.checkedBool(arrays);
+    if (langruntime.indexStruct(input.nodes, langruntime.checkedIndex(input.root), checkruntime.copyJsonbNode).kind < 5) {
+        return { kind: "Value", value: input };
+    }
+    let nodes: checkruntime.JsonbNode[] = input.nodes;
+    let pending: number[] = [];
+    langruntime.pushIndex(pending, input.root);
+    let depth: number = 1;
+    let changed: boolean = false;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const parent: number = langruntime.indexNumber(pending, langruntime.checkedIndex(depth));
+        const container: checkruntime.JsonbNode = langruntime.indexStruct(nodes, langruntime.checkedIndex(parent), checkruntime.copyJsonbNode);
+        let child: number = container.child;
+        let first: number = 0;
+        let last: number = 0;
+        while (child > 0) {
+            const node: checkruntime.JsonbNode = langruntime.indexStruct(nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode);
+            if (node.kind === 0 && (container.kind === 6 || arrays)) {
+                changed = langruntime.checkedBool(true);
+            }
+            else {
+                if (first === 0) {
+                    first = langruntime.checkedIndex(child);
+                }
+                if (last > 0) {
+                    nodes[langruntime.checkedIndexIn(nodes, last)] = jsonbEditLink(langruntime.indexStruct(nodes, langruntime.checkedIndex(last), checkruntime.copyJsonbNode), child);
+                }
+                last = langruntime.checkedIndex(child);
+                if (node.kind >= 5) {
+                    if (depth === pending.length) {
+                        langruntime.pushIndex(pending, child);
+                    }
+                    else {
+                        pending[langruntime.checkedIndexIn(pending, depth)] = langruntime.checkedIndex(child);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+            }
+            child = langruntime.checkedIndex(node.next);
+        }
+        if (last > 0) {
+            nodes[langruntime.checkedIndexIn(nodes, last)] = jsonbEditLink(langruntime.indexStruct(nodes, langruntime.checkedIndex(last), checkruntime.copyJsonbNode), 0);
+        }
+        nodes[langruntime.checkedIndexIn(nodes, parent)] = jsonbFormatChild(container, first);
+    }
+    const result: checkruntime.JsonbValue = { kind: "Value", value: { characters: input.characters, nodes: nodes, root: input.root } };
+    if (changed) {
+        return checkruntime.jsonbRebuild(result, false);
+    }
+    return result;
+}
+export function jsonbStripNullsRuwp(input: checkruntime.JsonbValue, arrays: checkruntime.BoolValue): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (arrays.kind === "Error") {
+        const error: checkruntime.SqlError = arrays.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoolValue(arrays, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalBoolValue(arrays, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        if (arrays.kind === "Value") {
+            const remove: boolean = langruntime.checkedBool(arrays.value);
+            return jsonbFormatStrip(value, remove);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbPrettyGz4i(input: checkruntime.JsonbValue): checkruntime.TextValue {
+    input = checkruntime.copyJsonbValue(input);
+    return checkruntime.jsonbToPrettyText(input);
+}
 interface JsonbOrderFrame {
     left: number;
     right: number;

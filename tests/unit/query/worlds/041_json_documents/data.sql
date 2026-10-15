@@ -14,3 +14,8 @@ INSERT INTO document_comparisons(id,store_id,label,document,compared_document,re
 INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(1,1,'ordered record','1','2',-1,true,true,false,false,false);
 INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(1,1,'stored scalar','1.5','true',1.5,2,2,2,1.5,1.5,1.5,2,true,false);
 INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(1,1,'patched record','{"a":1}','{"a":2}','a',0,'{"a":2}','{}',NULL,true,false,false);
+INSERT INTO document_formats(id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass) VALUES(1,1,'array_removal','{"a":null,"b":[null,1]}',true,'{"b": [null, 1]}','{"b": [1]}','{
+    "b": [
+        1
+    ]
+}',false);

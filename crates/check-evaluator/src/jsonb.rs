@@ -524,7 +524,7 @@ struct JsonbOutputFrame {
     child: usize,
 }
 
-fn jsonb_render(input: JsonbValue, require_order: bool) -> TextValue {
+fn jsonb_render(input: JsonbValue, require_order: bool, pretty: bool) -> TextValue {
     if let JsonbValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -599,6 +599,14 @@ fn jsonb_render(input: JsonbValue, require_order: bool) -> TextValue {
                 let frame = frames[depth - 1];
                 let node = value.nodes[frame.node];
                 if frame.child == 0 {
+                    if pretty {
+                        output.push('\n');
+                        let mut level: usize = 0;
+                        while level + 1 < depth {
+                            output.push_str("    ");
+                            level += 1;
+                        }
+                    };
                     if node.kind == 5 {
                         output.push(']');
                     } else {
@@ -608,7 +616,19 @@ fn jsonb_render(input: JsonbValue, require_order: bool) -> TextValue {
                 } else {
                     let child = value.nodes[frame.child];
                     if frame.child != node.child {
-                        output.push_str(", ");
+                        if pretty {
+                            output.push(',');
+                        } else {
+                            output.push_str(", ");
+                        };
+                    };
+                    if pretty {
+                        output.push('\n');
+                        let mut level: usize = 0;
+                        while level < depth {
+                            output.push_str("    ");
+                            level += 1;
+                        }
                     };
                     if node.kind == 6 {
                         let key = jsonb_quote(&value, child.key_start, child.key_end);
@@ -629,8 +649,12 @@ fn jsonb_render(input: JsonbValue, require_order: bool) -> TextValue {
     TextValue::Unknown
 }
 
+pub fn jsonb_to_pretty_text(input: JsonbValue) -> TextValue {
+    jsonb_render(input, true, true)
+}
+
 pub fn jsonb_to_text(input: JsonbValue) -> TextValue {
-    jsonb_render(input, true)
+    jsonb_render(input, true, false)
 }
 
 #[derive(Clone, Copy)]

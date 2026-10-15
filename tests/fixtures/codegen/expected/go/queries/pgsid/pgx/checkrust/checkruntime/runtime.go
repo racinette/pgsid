@@ -832,7 +832,7 @@ func JsonbFromCoercedValue(input JsonbValue) JsonbValue {
 		if jsonbInputValid(&value) == false {
 			return JsonbValue{Kind: JsonbValueUnknown}
 		}
-		source := jsonbRender(JsonbValue{Kind: JsonbValueValue, Value: value}, false)
+		source := jsonbRender(JsonbValue{Kind: JsonbValueValue, Value: value}, false, false)
 		if source.Kind == TextValueValue {
 			text := langruntime.CheckedString(source.Value)
 			return MakeJsonbValue(text)
@@ -4666,7 +4666,7 @@ type jsonbOutputFrame struct {
 func copyjsonbOutputFrame(value jsonbOutputFrame) jsonbOutputFrame {
 	return jsonbOutputFrame{node: langruntime.CheckedIndex(value.node), child: langruntime.CheckedIndex(value.child)}
 }
-func jsonbRender(input JsonbValue, requireOrder bool) TextValue {
+func jsonbRender(input JsonbValue, requireOrder bool, pretty bool) TextValue {
 	input = CopyJsonbValue(input)
 	if input.Kind == JsonbValueError {
 		error := input.Error
@@ -4742,6 +4742,14 @@ func jsonbRender(input JsonbValue, requireOrder bool) TextValue {
 				frame := frames[langruntime.CheckedSubtract(depth, 1)]
 				node := value.Nodes[frame.node]
 				if frame.child == 0 {
+					if pretty {
+						output = append(output, string(langruntime.CheckedChar('\n'))...)
+						level := 0
+						for langruntime.CheckedAdd(level, 1) < depth {
+							output = append(output, "    "...)
+							level = langruntime.CheckedAdd(level, 1)
+						}
+					}
 					if node.Kind == 5 {
 						output = append(output, string(langruntime.CheckedChar(']'))...)
 					} else {
@@ -4751,7 +4759,19 @@ func jsonbRender(input JsonbValue, requireOrder bool) TextValue {
 				} else {
 					child := value.Nodes[frame.child]
 					if frame.child != node.Child {
-						output = append(output, ", "...)
+						if pretty {
+							output = append(output, string(langruntime.CheckedChar(','))...)
+						} else {
+							output = append(output, ", "...)
+						}
+					}
+					if pretty {
+						output = append(output, string(langruntime.CheckedChar('\n'))...)
+						level := 0
+						for level < depth {
+							output = append(output, "    "...)
+							level = langruntime.CheckedAdd(level, 1)
+						}
 					}
 					if node.Kind == 6 {
 						key := jsonbQuote(&value, child.KeyStart, child.KeyEnd)
@@ -4768,9 +4788,13 @@ func jsonbRender(input JsonbValue, requireOrder bool) TextValue {
 	}
 	return TextValue{Kind: TextValueUnknown}
 }
+func JsonbToPrettyText(input JsonbValue) TextValue {
+	input = CopyJsonbValue(input)
+	return jsonbRender(input, true, true)
+}
 func JsonbToText(input JsonbValue) TextValue {
 	input = CopyJsonbValue(input)
-	return jsonbRender(input, true)
+	return jsonbRender(input, true, false)
 }
 
 type jsonbInputVisit struct {

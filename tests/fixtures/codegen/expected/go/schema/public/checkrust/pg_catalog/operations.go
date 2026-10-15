@@ -10956,6 +10956,98 @@ func JsonbExistsF8f8(input checkruntime.JsonbValue, key checkruntime.TextValue) 
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 }
+func jsonbFormatChild(node checkruntime.JsonbNode, child int) checkruntime.JsonbNode {
+	child = langruntime.CheckedIndex(child)
+	return checkruntime.JsonbNode{Kind: node.Kind, Child: child, Next: node.Next, KeyStart: node.KeyStart, KeyEnd: node.KeyEnd, TextStart: node.TextStart, TextEnd: node.TextEnd}
+}
+func jsonbFormatStrip(input checkruntime.JsonbPayload, arrays bool) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbPayload(input)
+	if input.Nodes[input.Root].Kind < 5 {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: input}
+	}
+	nodes := input.Nodes
+	pending := []int{}
+	langruntime.CheckedAdd(len(pending), 1)
+	pending = append(pending, langruntime.CheckedIndex(input.Root))
+	depth := 1
+	changed := false
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		parent := pending[depth]
+		container := nodes[parent]
+		child := container.Child
+		first := 0
+		last := 0
+		for child > 0 {
+			node := nodes[child]
+			if node.Kind == 0 && (container.Kind == 6 || arrays) {
+				changed = true
+			} else {
+				if first == 0 {
+					first = langruntime.CheckedIndex(child)
+				}
+				if last > 0 {
+					nodes[last] = jsonbEditLink(nodes[last], child)
+				}
+				last = langruntime.CheckedIndex(child)
+				if node.Kind >= 5 {
+					if depth == len(pending) {
+						langruntime.CheckedAdd(len(pending), 1)
+						pending = append(pending, langruntime.CheckedIndex(child))
+					} else {
+						pending[depth] = langruntime.CheckedIndex(child)
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+			}
+			child = langruntime.CheckedIndex(node.Next)
+		}
+		if last > 0 {
+			nodes[last] = jsonbEditLink(nodes[last], 0)
+		}
+		nodes[parent] = jsonbFormatChild(container, first)
+	}
+	result := checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: input.Characters, Nodes: nodes, Root: input.Root}}
+	if changed {
+		return checkruntime.JsonbRebuild(result, false)
+	}
+	return result
+}
+func JsonbStripNullsRuwp(input checkruntime.JsonbValue, arrays checkruntime.BoolValue) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if arrays.Kind == checkruntime.BoolValueError {
+		error := arrays.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if arrays == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
+	if arrays == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		if arrays.Kind == checkruntime.BoolValueValue {
+			remove := arrays.Value
+			return jsonbFormatStrip(value, remove)
+		}
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+}
+func JsonbPrettyGz4i(input checkruntime.JsonbValue) checkruntime.TextValue {
+	input = checkruntime.CopyJsonbValue(input)
+	return checkruntime.JsonbToPrettyText(input)
+}
 
 type jsonbOrderFrame struct {
 	left  int
