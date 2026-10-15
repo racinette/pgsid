@@ -727,3 +727,30 @@ INSERT INTO document_builders(id,store_id,label,document,source_json,amount,flag
 INSERT INTO document_builders(id,store_id,label,document,source_json,amount,flag,key_name,expected_built_array,expected_built_object,expected_duplicate_key,expected_selected_array,expected_nested_builder,expected_original_document,expected_empty_array,expected_empty_object,expected_count,bypass) VALUES(2,1,'builder row','{"selected":{"x":[1,null]},"other":[2,3]}'::jsonb,'1e131072'::json,'1.2300'::numeric,true,'entry','[{"other": [2, 3], "selected": {"x": [1, null]}}, {"n": 2}, 1.2300, true, "builder row", null]'::jsonb,'{"raw": {"n": 2}, "flag": true, "entry": {"other": [2, 3], "selected": {"x": [1, null]}}, "amount": 1.2300}'::jsonb,'{"held": 1.2300}'::jsonb,'[{"x": [1, null]}, [2, 3]]'::jsonb,'{"payload": [{"other": [2, 3], "selected": {"x": [1, null]}}, 1.2300, null]}'::jsonb,'{"other": [2, 3], "selected": {"x": [1, null]}}'::jsonb,'[]'::jsonb,'{}'::jsonb,3,false);
 -- name: builders_skipped
 INSERT INTO document_builders(id,store_id,label,document,source_json,amount,flag,key_name,expected_built_array,expected_built_object,expected_duplicate_key,expected_selected_array,expected_nested_builder,expected_original_document,expected_empty_array,expected_empty_object,expected_count,bypass) VALUES(2,1,'builder row','{"selected":{"x":[1,null]},"other":[2,3]}'::jsonb,'"\u0000"'::json,'1.2300'::numeric,true,NULL,'[{"other": [2, 3], "selected": {"x": [1, null]}}, {"n": 2}, 1.2300, true, "builder row", null]'::jsonb,'{"raw": {"n": 2}, "flag": true, "entry": {"other": [2, 3], "selected": {"x": [1, null]}}, "amount": 1.2300}'::jsonb,'{"held": 1.2300}'::jsonb,'[{"x": [1, null]}, [2, 3]]'::jsonb,'{"payload": [{"other": [2, 3], "selected": {"x": [1, null]}}, 1.2300, null]}'::jsonb,'{"other": [2, 3], "selected": {"x": [1, null]}}'::jsonb,'[]'::jsonb,'{}'::jsonb,2,true);
+
+-- name: packet_duplicates
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_duplicates',' {"a":1, "a":2} '::json,'{"a":1,"a":2}'::jsonb,'\x207b2261223a312c202261223a327d20'::bytea,'\x017b2261223a20327d'::bytea,1,9,false);
+-- name: packet_sql_null
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_sql_null',NULL::json,NULL::jsonb,NULL::bytea,NULL::bytea,NULL,NULL,false);
+-- name: packet_json_null
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_json_null','null'::json,'null'::jsonb,'\x6e756c6c'::bytea,'\x016e756c6c'::bytea,1,5,false);
+-- name: packet_controls
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_controls','"a\n\t\u0001"'::json,'"a\n\t\u0001"'::jsonb,'\x22615c6e5c745c753030303122'::bytea,'\x0122615c6e5c745c753030303122'::bytea,1,14,false);
+-- name: packet_unicode_escape
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_unicode_escape','"\u96ea"'::json,NULL::jsonb,'\x225c753936656122'::bytea,NULL::bytea,NULL,NULL,false);
+-- name: packet_surrogate_source
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_surrogate_source','"\ud800"'::json,NULL::jsonb,'\x225c756438303022'::bytea,NULL::bytea,NULL,NULL,false);
+-- name: packet_large_source_number
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_large_source_number','1e131072'::json,NULL::jsonb,'\x3165313331303732'::bytea,NULL::bytea,NULL,NULL,false);
+-- name: packet_nested
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_nested','[null,true,{"b":[1.2300,2]}]'::json,'[null,true,{"b":[1.2300,2]}]'::jsonb,'\x5b6e756c6c2c747275652c7b2262223a5b312e323330302c325d7d5d'::bytea,'\x015b6e756c6c2c20747275652c207b2262223a205b312e323330302c20325d7d5d'::bytea,1,33,false);
+-- name: packet_skipped
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_skipped','"ñ"'::json,'"ñ"'::jsonb,'\x22c3b122'::bytea,'\x0122c3b122'::bytea,1,5,true);
+-- name: packet_wrong_raw
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_duplicates',' {"a":1, "a":2} '::json,'{"a":1,"a":2}'::jsonb,'\xff'::bytea,'\x017b2261223a20327d'::bytea,1,9,false);
+-- name: packet_wrong_normalized
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_duplicates',' {"a":1, "a":2} '::json,'{"a":1,"a":2}'::jsonb,'\x207b2261223a312c202261223a327d20'::bytea,'\xff'::bytea,1,9,false);
+-- name: packet_wrong_version
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_duplicates',' {"a":1, "a":2} '::json,'{"a":1,"a":2}'::jsonb,'\x207b2261223a312c202261223a327d20'::bytea,'\x017b2261223a20327d'::bytea,2,9,false);
+-- name: packet_wrong_length
+INSERT INTO document_packets(id,store_id,label,raw_source,document,expected_raw,expected_document,expected_version,expected_length,bypass) VALUES(2,1,'packet_duplicates',' {"a":1, "a":2} '::json,'{"a":1,"a":2}'::jsonb,'\x207b2261223a312c202261223a327d20'::bytea,'\x017b2261223a20327d'::bytea,1,1,false);

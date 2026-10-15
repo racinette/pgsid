@@ -10373,6 +10373,10 @@ func JsonToText(input checkruntime.JsonValue) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+func JsonSendWrp3(input checkruntime.JsonValue) checkruntime.ByteaValue {
+	text := JsonToText(input)
+	return TextsendMgfj(text)
+}
 
 const jsonInvalidText = 3484946
 
@@ -11133,6 +11137,18 @@ func JsonbTypeof68xu(input checkruntime.JsonbValue) checkruntime.TextValue {
 		return checkruntime.JsonKindText(value.Nodes[value.Root].Kind)
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func JsonbSend8nmo(input checkruntime.JsonbValue) checkruntime.ByteaValue {
+	input = checkruntime.CopyJsonbValue(input)
+	text := checkruntime.JsonbToText(input)
+	bytes := TextsendMgfj(text)
+	if bytes.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(bytes.Value)
+		output := langruntime.NewTextBuffer("01")
+		output = append(output, value...)
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
+	}
+	return bytes
 }
 
 const jsonbEditParameter = 3452619

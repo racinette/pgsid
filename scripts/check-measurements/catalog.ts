@@ -79,6 +79,36 @@ export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
 }
 
 export function jsonValueRequirements(item: BuiltinCallable) {
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    item.args.length === 1 &&
+    item.result === 'pg_catalog.bytea' &&
+    ((item.name === 'json_send' && item.args[0] === 'pg_catalog."json"') ||
+      (item.name === 'jsonb_send' && item.args[0] === 'pg_catalog.jsonb'))
+  ) {
+    const requirements = [
+      {
+        kind: 'session',
+        setting: 'client_encoding',
+        requirement:
+          'Non-ASCII binary output and encoding conversion errors require client_encoding; ASCII bytes and strict NULL/error propagation remain portable. JSON preserves source text; JSONB sends version 1 and its canonical rendering.',
+        owner: 'tests/sql-semantics/check-json-binary.test.ts',
+      },
+    ]
+    if (item.name === 'jsonb_send')
+      requirements.push({
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'JSONB canonical rendering inherits server_encoding requirements for ordering multiple nonempty object keys containing non-ASCII text.',
+        owner: 'tests/sql-semantics/check-json-binary.test.ts',
+      })
+    return requirements
+  }
   const builder = isJsonbBuilder(item) && item.args.length === 1
   if (
     builder ||
@@ -269,7 +299,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
-    ['textsend', 'namesend'].includes(item.name)
+    ['textsend', 'namesend', 'json_send', 'jsonb_send'].includes(item.name)
   )
     categories.push('session-setting:client_encoding')
   if (
