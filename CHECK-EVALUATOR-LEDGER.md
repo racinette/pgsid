@@ -276,7 +276,8 @@ exposes a prerequisite:
 - [x] JSON/JSONB binary send, source/canonical bytes, version framing and strict states; retain encoding requirements and classify receive functions as internal interfaces.
 - [ ] Explicit VARIADIC arrays and path-array access follow arrays.
 - [x] JSONPath lexical foundation: owned source/token/decoded arenas, comments, names, variables, numeric forms and Unicode error precedence; no public SQL admission.
-- [ ] JSONPath grammar, portable values, SQL integration and query execution over the logical JSONB tree.
+- [x] JSONPath grammar/query graph foundation: precedence, accessor/method arguments, @/last scopes, parser errors and ordered literal-validation events; numeric/regex validation remain explicit before public SQL admission.
+- [ ] JSONPath literal validation, portable values, SQL integration and execution over the logical JSONB tree.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
 Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations,
@@ -290,8 +291,7 @@ Catalog identities and pseudo-types share families; polymorphic signatures resol
 Keep PostgreSQL behavior in maintained Rust. Generate evaluator control flow and target code through ASTs. Preserve schema namespaces, separate CHECK and regex
 transpilers, errors as values, and diagnostic Unknown results.
 
-For each implementation task, select focused family suites and regressions for
-the shared behavior it changes. Verify Rust, Go and TypeScript against PostgreSQL,
+For each implementation task, select focused family suites and regressions for the shared behavior it changes. Verify Rust, Go and TypeScript against PostgreSQL,
 including raw/stored binding, public inputs and NULL/Unknown/error behavior. Rebuild
 affected assets, verify relevant codegen goldens, and run applicable static, corpus
 and measurement checks. Record selected dependencies and any reused evidence.

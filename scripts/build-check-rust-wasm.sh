@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 asset_dir="$repo_dir/src/codegen/go/assets"
+node "$repo_dir/tools/check-jsonpath-grammar/generate.mjs" --check
 bash "$repo_dir/scripts/generate-check-timezone-data.sh"
 bash "$repo_dir/scripts/generate-check-unicode-data.sh"
 target_dir=/tmp/pgsid-check-rust-transpiler-target
@@ -41,6 +42,8 @@ writeFileSync(`${assets}/check-rust-sources.json`, JSON.stringify({
       read('crates/check-evaluator/src/jsonb_build.rs'),
       read('crates/check-evaluator/src/jsonb_storage.rs'),
       read('crates/check-evaluator/src/jsonpath_scan.rs'),
+      read('crates/check-evaluator/src/jsonpath_tables.generated.rs'),
+      read('crates/check-evaluator/src/jsonpath_parse.rs'),
       read('crates/check-evaluator/src/bit.rs'),
       read('crates/check-evaluator/src/hash.rs'),
       read('crates/check-evaluator/src/text_builder.rs'),
