@@ -55,6 +55,15 @@ fn json_syntax_digit(character: char) -> bool {
     code >= 48 && code <= 57
 }
 
+fn json_syntax_alphanumeric(character: char) -> bool {
+    let code = character as i32;
+    json_syntax_digit(character)
+        || (code >= 65 && code <= 90)
+        || (code >= 97 && code <= 122)
+        || code >= 128
+        || character == '_'
+}
+
 fn json_syntax_hex(character: char) -> bool {
     let code = character as i32;
     (code >= 48 && code <= 57) || (code >= 65 && code <= 70) || (code >= 97 && code <= 102)
@@ -159,6 +168,9 @@ fn json_syntax_read_number(source: &JsonSyntaxSource, begin: usize) -> JsonSynta
             return json_syntax_bad_token(position);
         };
     };
+    if position < source.characters.len() && json_syntax_alphanumeric(source.characters[position]) {
+        return json_syntax_bad_token(position);
+    };
     JsonSyntaxToken {
         kind: JSON_SYNTAX_NUMBER,
         end: position,
@@ -181,6 +193,9 @@ fn json_syntax_keyword(
         position += 1;
         index += 1;
     }
+    if position < source.characters.len() && json_syntax_alphanumeric(source.characters[position]) {
+        return json_syntax_bad_token(position);
+    };
     JsonSyntaxToken {
         kind: kind,
         end: position,
@@ -267,6 +282,75 @@ fn json_syntax_invalid_layout(depth: usize) -> JsonSyntaxLayout {
     }
 }
 
+#[derive(Clone, Copy)]
+struct JsonSyntaxTransition {
+    state: i32,
+    action: i32,
+}
+
+const JSON_SYNTAX_REJECT: i32 = 7;
+const JSON_SYNTAX_CONTINUE: i32 = 0;
+const JSON_SYNTAX_FINISH: i32 = 1;
+const JSON_SYNTAX_CLOSE: i32 = 2;
+const JSON_SYNTAX_KEY: i32 = 3;
+const JSON_SYNTAX_VALUE: i32 = 4;
+const JSON_SYNTAX_OPEN_ARRAY: i32 = 5;
+const JSON_SYNTAX_OPEN_OBJECT: i32 = 6;
+
+fn json_syntax_step(state: i32, token: i32) -> JsonSyntaxTransition {
+    let mut next = state;
+    let mut action = JSON_SYNTAX_REJECT;
+    if state == JSON_SYNTAX_ROOT_END {
+        if token == JSON_SYNTAX_END {
+            action = JSON_SYNTAX_FINISH;
+        };
+    } else if state == JSON_SYNTAX_ARRAY_NEXT || state == JSON_SYNTAX_OBJECT_NEXT {
+        let mut close = JSON_SYNTAX_ARRAY_END;
+        let mut continuation = JSON_SYNTAX_ARRAY_VALUE;
+        if state == JSON_SYNTAX_OBJECT_NEXT {
+            close = JSON_SYNTAX_OBJECT_END;
+            continuation = JSON_SYNTAX_OBJECT_KEY;
+        };
+        if token == close {
+            action = JSON_SYNTAX_CLOSE;
+        } else if token == JSON_SYNTAX_COMMA {
+            next = continuation;
+            action = JSON_SYNTAX_CONTINUE;
+        };
+    } else if state == JSON_SYNTAX_OBJECT_COLON {
+        if token == JSON_SYNTAX_COLON {
+            next = JSON_SYNTAX_OBJECT_VALUE;
+            action = JSON_SYNTAX_CONTINUE;
+        };
+    } else if state == JSON_SYNTAX_OBJECT_FIRST || state == JSON_SYNTAX_OBJECT_KEY {
+        if state == JSON_SYNTAX_OBJECT_FIRST && token == JSON_SYNTAX_OBJECT_END {
+            action = JSON_SYNTAX_CLOSE;
+        } else if token == JSON_SYNTAX_STRING {
+            next = JSON_SYNTAX_OBJECT_COLON;
+            action = JSON_SYNTAX_KEY;
+        };
+    } else if state == JSON_SYNTAX_ARRAY_FIRST && token == JSON_SYNTAX_ARRAY_END {
+        action = JSON_SYNTAX_CLOSE;
+    } else if json_syntax_root_kind(token) >= 0 {
+        action = JSON_SYNTAX_VALUE;
+        if token == JSON_SYNTAX_ARRAY_START {
+            action = JSON_SYNTAX_OPEN_ARRAY;
+        } else if token == JSON_SYNTAX_OBJECT_START {
+            action = JSON_SYNTAX_OPEN_OBJECT;
+        };
+        next = JSON_SYNTAX_ARRAY_NEXT;
+        if state == JSON_SYNTAX_ROOT_VALUE {
+            next = JSON_SYNTAX_ROOT_END;
+        } else if state == JSON_SYNTAX_OBJECT_VALUE {
+            next = JSON_SYNTAX_OBJECT_NEXT;
+        };
+    };
+    JsonSyntaxTransition {
+        state: next,
+        action: action,
+    }
+}
+
 pub fn json_syntax_scan(value: &str) -> JsonSyntaxLayout {
     let source = JsonSyntaxSource {
         characters: value.chars().collect(),
@@ -286,73 +370,31 @@ pub fn json_syntax_scan(value: &str) -> JsonSyntaxLayout {
         };
         let frame = depth - 1;
         let state = frames[frame].state;
-        if state == JSON_SYNTAX_ROOT_END {
-            if token.kind != JSON_SYNTAX_END {
-                return json_syntax_invalid_layout(maximum);
-            };
+        let transition = json_syntax_step(state, token.kind);
+        if transition.action == JSON_SYNTAX_REJECT {
+            return json_syntax_invalid_layout(maximum);
+        };
+        if transition.action == JSON_SYNTAX_FINISH {
             return JsonSyntaxLayout {
                 valid: true,
                 kind: root_kind,
                 max_depth: maximum,
             };
         };
-        if state == JSON_SYNTAX_ARRAY_NEXT || state == JSON_SYNTAX_OBJECT_NEXT {
-            let mut expected = JSON_SYNTAX_ARRAY_END;
-            let mut continuation = JSON_SYNTAX_ARRAY_VALUE;
-            if state == JSON_SYNTAX_OBJECT_NEXT {
-                expected = JSON_SYNTAX_OBJECT_END;
-                continuation = JSON_SYNTAX_OBJECT_KEY;
-            };
-            if token.kind == expected {
-                depth = depth - 1;
-            } else if token.kind == JSON_SYNTAX_COMMA {
-                frames[frame] = JsonSyntaxFrame {
-                    state: continuation,
-                };
-            } else {
-                return json_syntax_invalid_layout(maximum);
-            };
-        } else if state == JSON_SYNTAX_OBJECT_COLON {
-            if token.kind != JSON_SYNTAX_COLON {
-                return json_syntax_invalid_layout(maximum);
-            };
-            frames[frame] = JsonSyntaxFrame {
-                state: JSON_SYNTAX_OBJECT_VALUE,
-            };
-        } else if state == JSON_SYNTAX_OBJECT_FIRST || state == JSON_SYNTAX_OBJECT_KEY {
-            if state == JSON_SYNTAX_OBJECT_FIRST && token.kind == JSON_SYNTAX_OBJECT_END {
-                depth = depth - 1;
-            } else if token.kind == JSON_SYNTAX_STRING {
-                frames[frame] = JsonSyntaxFrame {
-                    state: JSON_SYNTAX_OBJECT_COLON,
-                };
-            } else {
-                return json_syntax_invalid_layout(maximum);
-            };
-        } else if state == JSON_SYNTAX_ARRAY_FIRST && token.kind == JSON_SYNTAX_ARRAY_END {
+        if transition.action == JSON_SYNTAX_CLOSE {
             depth = depth - 1;
         } else {
-            let kind = json_syntax_root_kind(token.kind);
-            if kind < 0 {
-                return json_syntax_invalid_layout(maximum);
+            frames[frame] = JsonSyntaxFrame {
+                state: transition.state,
             };
             if state == JSON_SYNTAX_ROOT_VALUE {
-                root_kind = kind;
-                frames[frame] = JsonSyntaxFrame {
-                    state: JSON_SYNTAX_ROOT_END,
-                };
-            } else if state == JSON_SYNTAX_OBJECT_VALUE {
-                frames[frame] = JsonSyntaxFrame {
-                    state: JSON_SYNTAX_OBJECT_NEXT,
-                };
-            } else {
-                frames[frame] = JsonSyntaxFrame {
-                    state: JSON_SYNTAX_ARRAY_NEXT,
-                };
+                root_kind = json_syntax_root_kind(token.kind);
             };
-            if token.kind == JSON_SYNTAX_ARRAY_START || token.kind == JSON_SYNTAX_OBJECT_START {
+            if transition.action == JSON_SYNTAX_OPEN_ARRAY
+                || transition.action == JSON_SYNTAX_OPEN_OBJECT
+            {
                 let mut child = JSON_SYNTAX_ARRAY_FIRST;
-                if token.kind == JSON_SYNTAX_OBJECT_START {
+                if transition.action == JSON_SYNTAX_OPEN_OBJECT {
                     child = JSON_SYNTAX_OBJECT_FIRST;
                 };
                 if depth > maximum {

@@ -153,10 +153,10 @@ export function checkedIndexIn<T>(values: T[], index: number): number {
         throw new RangeError('index out of bounds');
     return index;
 }
-function indexNumber(values: number[], index: number): number {
+export function indexNumber(values: number[], index: number): number {
     return checkedIndex(values[checkedIndexIn(values, index)]!);
 }
-function pushIndex(values: number[], value: number): void {
+export function pushIndex(values: number[], value: number): void {
     checkedAdd(values.length, 1);
     values.push(checkedIndex(value));
 }

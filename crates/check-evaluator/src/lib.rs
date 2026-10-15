@@ -7,6 +7,8 @@ pub mod checkruntime {
     include!("mac.rs");
     include!("uuid.rs");
     include!("json_syntax.rs");
+    include!("json_read.rs");
+    include!("jsonb.rs");
     include!("bit.rs");
     include!("hash.rs");
     include!("text_builder.rs");
@@ -46,6 +48,7 @@ pub mod pg_catalog {
 
     include!("operations/pg_catalog/boolean.rs");
     include!("operations/pg_catalog/json_core.rs");
+    include!("operations/pg_catalog/jsonb_core.rs");
     include!("operations/pg_catalog/json_extract.rs");
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/date.rs");
