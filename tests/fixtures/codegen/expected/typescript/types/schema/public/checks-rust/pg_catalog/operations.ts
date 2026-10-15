@@ -18309,6 +18309,154 @@ export function areaPh6t(input: checkruntime.PathValue): checkruntime.Float8Valu
     }
     return { kind: "Unknown" };
 }
+function pathSegment(first: checkruntime.PointPayload, second: checkruntime.PointPayload): checkruntime.LsegValue {
+    return { kind: "Value", value: { x1: first.x, y1: first.y, x2: second.x, y2: second.y, wireKnown: first.wireKnown && second.wireKnown } };
+}
+function pathMinDistance(current: checkruntime.Float8Value, candidate: checkruntime.Float8Value, first: boolean): checkruntime.Float8Value {
+    first = langruntime.checkedBool(first);
+    if (candidate.kind === "Error") {
+        const error: checkruntime.SqlError = candidate.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(candidate, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (first || checkruntime.equalBoolValue(float8ltVp07(candidate, current), { kind: "Value", value: true })) {
+        return candidate;
+    }
+    return current;
+}
+export function distPpathE16q(point: checkruntime.PointValue, input: checkruntime.PathValue): checkruntime.Float8Value {
+    input = checkruntime.copyPathValue(input);
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const path: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        let result: checkruntime.Float8Value = checkruntime.makeFloat8Value(0.0);
+        let haveMin: boolean = false;
+        let index: number = 0;
+        if (path.closed === false) {
+            index = langruntime.checkedIndex(1);
+        }
+        while (index < path.points.length) {
+            let previous: number = langruntime.checkedSubtract(path.points.length, 1);
+            if (index > 0) {
+                previous = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+            }
+            const segment: checkruntime.LsegValue = pathSegment(langruntime.indexStruct(path.points, langruntime.checkedIndex(previous), checkruntime.copyPointPayload), langruntime.indexStruct(path.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload));
+            const distance: checkruntime.Float8Value = distSp3dia(segment, point);
+            result = pathMinDistance(result, distance, haveMin === false);
+            if (result.kind === "Error") {
+                const error: checkruntime.SqlError = result.value;
+                return { kind: "Error", value: error };
+            }
+            if (checkruntime.equalFloat8Value(result, { kind: "Unknown" })) {
+                return { kind: "Unknown" };
+            }
+            haveMin = langruntime.checkedBool(true);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return boxComputedScalar(result);
+    }
+    return { kind: "Unknown" };
+}
+export function distPathp9d28(input: checkruntime.PathValue, point: checkruntime.PointValue): checkruntime.Float8Value {
+    input = checkruntime.copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return distPpathE16q(point, input);
+}
+export function pathDistance3309(left: checkruntime.PathValue, right: checkruntime.PathValue): checkruntime.Float8Value {
+    left = checkruntime.copyPathValue(left);
+    right = checkruntime.copyPathValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PathPayload = checkruntime.copyPathPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.PathPayload = checkruntime.copyPathPayload(right.value);
+            let result: checkruntime.Float8Value = checkruntime.makeFloat8Value(0.0);
+            let haveMin: boolean = false;
+            let first: number = 0;
+            if (a.closed === false) {
+                first = langruntime.checkedIndex(1);
+            }
+            while (first < a.points.length) {
+                let firstPrevious: number = langruntime.checkedSubtract(a.points.length, 1);
+                if (first > 0) {
+                    firstPrevious = langruntime.checkedIndex(langruntime.checkedSubtract(first, 1));
+                }
+                let second: number = 0;
+                if (b.closed === false) {
+                    second = langruntime.checkedIndex(1);
+                }
+                while (second < b.points.length) {
+                    let secondPrevious: number = langruntime.checkedSubtract(b.points.length, 1);
+                    if (second > 0) {
+                        secondPrevious = langruntime.checkedIndex(langruntime.checkedSubtract(second, 1));
+                    }
+                    const aa: checkruntime.LsegValue = pathSegment(langruntime.indexStruct(a.points, langruntime.checkedIndex(firstPrevious), checkruntime.copyPointPayload), langruntime.indexStruct(a.points, langruntime.checkedIndex(first), checkruntime.copyPointPayload));
+                    const bb: checkruntime.LsegValue = pathSegment(langruntime.indexStruct(b.points, langruntime.checkedIndex(secondPrevious), checkruntime.copyPointPayload), langruntime.indexStruct(b.points, langruntime.checkedIndex(second), checkruntime.copyPointPayload));
+                    const distance: checkruntime.Float8Value = lsegDistanceDgev(aa, bb);
+                    result = pathMinDistance(result, distance, haveMin === false);
+                    if (result.kind === "Error") {
+                        const error: checkruntime.SqlError = result.value;
+                        return { kind: "Error", value: error };
+                    }
+                    if (checkruntime.equalFloat8Value(result, { kind: "Unknown" })) {
+                        return { kind: "Unknown" };
+                    }
+                    haveMin = langruntime.checkedBool(true);
+                    second = langruntime.checkedAdd(second, 1);
+                }
+                first = langruntime.checkedAdd(first, 1);
+            }
+            if (haveMin === false) {
+                return { kind: "Null" };
+            }
+            return boxComputedScalar(result);
+        }
+    }
+    return { kind: "Unknown" };
+}
 function pathParse(value: string): checkruntime.PathValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);
@@ -18406,6 +18554,119 @@ export function pathFromText(input: checkruntime.TextValue): checkruntime.PathVa
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         return pathParse(value);
+    }
+    return { kind: "Unknown" };
+}
+const pathPointCountLimit = 134217726;
+const pathTooManyPoints = 8584704;
+function pathConcatFits(left: number, right: number): boolean {
+    left = langruntime.checkedIndex(left);
+    right = langruntime.checkedIndex(right);
+    return left <= pathPointCountLimit && right <= langruntime.checkedSubtract(pathPointCountLimit, left);
+}
+function pathPointTransform(input: checkruntime.PathValue, vector: checkruntime.PointValue, mode: number): checkruntime.PathValue {
+    input = checkruntime.copyPathValue(input);
+    mode = langruntime.checkedI32(mode);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (vector.kind === "Error") {
+        const error: checkruntime.SqlError = vector.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(vector, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalPointValue(vector, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const path: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        let points: checkruntime.PointPayload[] = path.points;
+        let index: number = 0;
+        while (index < points.length) {
+            const point: checkruntime.PointValue = pointArithmetic({ kind: "Value", value: langruntime.indexStruct(points, langruntime.checkedIndex(index), checkruntime.copyPointPayload) }, vector, mode);
+            if (point.kind === "Error") {
+                const error: checkruntime.SqlError = point.value;
+                return { kind: "Error", value: error };
+            }
+            if (checkruntime.equalPointValue(point, { kind: "Unknown" }) || checkruntime.equalPointValue(point, { kind: "Null" })) {
+                return { kind: "Unknown" };
+            }
+            if (point.kind === "Value") {
+                const payload: checkruntime.PointPayload = point.value;
+                points[langruntime.checkedIndexIn(points, index)] = payload;
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: { closed: path.closed, points: points } };
+    }
+    return { kind: "Unknown" };
+}
+export function pathAddPt9pue(input: checkruntime.PathValue, vector: checkruntime.PointValue): checkruntime.PathValue {
+    input = checkruntime.copyPathValue(input);
+    return pathPointTransform(input, vector, 0);
+}
+export function pathSubPtO445(input: checkruntime.PathValue, vector: checkruntime.PointValue): checkruntime.PathValue {
+    input = checkruntime.copyPathValue(input);
+    return pathPointTransform(input, vector, 1);
+}
+export function pathMulPtDmwn(input: checkruntime.PathValue, vector: checkruntime.PointValue): checkruntime.PathValue {
+    input = checkruntime.copyPathValue(input);
+    return pathPointTransform(input, vector, 2);
+}
+export function pathDivPtRwx4(input: checkruntime.PathValue, vector: checkruntime.PointValue): checkruntime.PathValue {
+    input = checkruntime.copyPathValue(input);
+    return pathPointTransform(input, vector, 3);
+}
+export function pathAdd7wkx(left: checkruntime.PathValue, right: checkruntime.PathValue): checkruntime.PathValue {
+    left = checkruntime.copyPathValue(left);
+    right = checkruntime.copyPathValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PathPayload = checkruntime.copyPathPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.PathPayload = checkruntime.copyPathPayload(right.value);
+            if (a.closed || b.closed) {
+                return { kind: "Null" };
+            }
+            if (pathConcatFits(a.points.length, b.points.length) === false) {
+                return { kind: "Error", value: checkruntime.makeSqlError(pathTooManyPoints) };
+            }
+            let points: checkruntime.PointPayload[] = a.points;
+            let index: number = 0;
+            while (index < b.points.length) {
+                langruntime.pushStruct(points, langruntime.indexStruct(b.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload), checkruntime.copyPointPayload);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return { kind: "Value", value: { closed: false, points: points } };
+        }
     }
     return { kind: "Unknown" };
 }

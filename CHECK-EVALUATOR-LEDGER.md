@@ -216,6 +216,9 @@ exposes a prerequisite:
 - [x] Establish owned path payloads, cardinality comparisons, counts, binary output,
       opening/closing, checked length and area, portable input, literals,
       unconstrained-domain casts and SQL-coerced public inputs.
+- [x] Establish open-path concatenation, point transformations, point/path and
+      path/path distances; preserve closing-edge order, count limits, reached
+      arithmetic errors and no-segment zero/NULL results.
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.

@@ -557,3 +557,17 @@ import them. Keep schema-only helpers with their callables.
   geometric number parsing and retains flat and delimited path forms. Raw query
   parameters defer database coercion. Run path core, payload and write suites and
   route-plan INSERT cases.
+
+- Path concatenation requires two open paths and appends their points in order;
+  either closed input produces SQL NULL. Check the stored count bound before
+  extending the point list. Point arithmetic transforms each vertex in order,
+  retaining closure and the first reached floating error. Original input snapshots
+  retain their points. Computed NaNs retain shape information while binary output
+  defers. Run path operation and count-limit suites and route transform INSERTs.
+
+- Path distances visit closing edges first and retain total floating minimum
+  selection across all reached segment distances. Point distance returns zero
+  when an open path has no segments; a path pair with no segment pair returns
+  SQL NULL. NaN distance results preserve comparisons and defer binary output because
+  PostgreSQL-generated NaN bits require platform context. Preserve argument-order errors in reversed overloads.
+  Run path distance parity and route distance INSERTs.
