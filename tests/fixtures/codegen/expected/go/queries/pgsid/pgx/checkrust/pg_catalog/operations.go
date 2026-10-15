@@ -10411,6 +10411,393 @@ func JsonFromText(input checkruntime.TextValue) checkruntime.JsonValue {
 	}
 	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
 }
+
+type jsonReadSource struct {
+	characters []rune
+}
+
+func copyjsonReadSource(value jsonReadSource) jsonReadSource {
+	return jsonReadSource{characters: langruntime.CheckedChars(value.characters)}
+}
+
+type jsonReadToken struct {
+	start int
+	end   int
+	kind  int
+}
+
+func copyjsonReadToken(value jsonReadToken) jsonReadToken {
+	return jsonReadToken{start: langruntime.CheckedIndex(value.start), end: langruntime.CheckedIndex(value.end), kind: langruntime.CheckedI32(value.kind)}
+}
+
+const jsonReadEnd = 0
+const jsonReadQuote = 1
+const jsonReadAtom = 2
+const jsonReadObjectOpen = 3
+const jsonReadObjectClose = 4
+const jsonReadArrayOpen = 5
+const jsonReadArrayClose = 6
+const jsonReadColon = 7
+const jsonReadComma = 8
+const jsonReadZero = 3484949
+const jsonReadNonArray = 3452619
+
+func jsonReadSpace(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	return character == ' ' || character == '\t' || character == '\n' || character == '\r'
+}
+func jsonReadNextToken(source *jsonReadSource, begin int) jsonReadToken {
+	begin = langruntime.CheckedIndex(begin)
+	start := begin
+	for start < len(source.characters) && jsonReadSpace(source.characters[start]) {
+		start = langruntime.CheckedAdd(start, 1)
+	}
+	if start == len(source.characters) {
+		return jsonReadToken{start: start, end: start, kind: jsonReadEnd}
+	}
+	character := source.characters[start]
+	kind := jsonReadAtom
+	if character == '{' {
+		kind = langruntime.CheckedI32(jsonReadObjectOpen)
+	} else if character == '}' {
+		kind = langruntime.CheckedI32(jsonReadObjectClose)
+	} else if character == '[' {
+		kind = langruntime.CheckedI32(jsonReadArrayOpen)
+	} else if character == ']' {
+		kind = langruntime.CheckedI32(jsonReadArrayClose)
+	} else if character == ':' {
+		kind = langruntime.CheckedI32(jsonReadColon)
+	} else if character == ',' {
+		kind = langruntime.CheckedI32(jsonReadComma)
+	}
+	end := langruntime.CheckedAdd(start, 1)
+	if character == '"' {
+		kind = langruntime.CheckedI32(jsonReadQuote)
+		done := false
+		for end < len(source.characters) && done == false {
+			next := source.characters[end]
+			end = langruntime.CheckedAdd(end, 1)
+			if next == '\\' {
+				end = langruntime.CheckedAdd(end, 1)
+			} else if next == '"' {
+				done = true
+			}
+		}
+	} else if kind == jsonReadAtom {
+		done := false
+		for end < len(source.characters) && done == false {
+			next := source.characters[end]
+			if jsonReadSpace(next) || next == ',' || next == ']' || next == '}' {
+				done = true
+			} else {
+				end = langruntime.CheckedAdd(end, 1)
+			}
+		}
+	}
+	return jsonReadToken{start: start, end: end, kind: kind}
+}
+func jsonReadHex(character rune) int {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	if code >= 48 && code <= 57 {
+		return langruntime.CheckedSignedSubtract(code, 48)
+	}
+	if code >= 65 && code <= 70 {
+		return langruntime.CheckedSignedSubtract(code, 55)
+	}
+	return langruntime.CheckedSignedSubtract(code, 87)
+}
+func jsonReadDecodeString(source *jsonReadSource, token jsonReadToken) checkruntime.TextValue {
+	token = copyjsonReadToken(token)
+	position := langruntime.CheckedAdd(token.start, 1)
+	high := langruntime.CheckedSignedNegate(1)
+	output := langruntime.NewTextBuffer("")
+	for langruntime.CheckedAdd(position, 1) < token.end {
+		character := source.characters[position]
+		position = langruntime.CheckedAdd(position, 1)
+		if character == '\\' {
+			escape := source.characters[position]
+			position = langruntime.CheckedAdd(position, 1)
+			if escape == 'u' {
+				code := 0
+				digit := 0
+				for digit < 4 {
+					code = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(code, 16), jsonReadHex(source.characters[position])))
+					position = langruntime.CheckedAdd(position, 1)
+					digit = langruntime.CheckedAdd(digit, 1)
+				}
+				if code >= 55296 && code <= 56319 {
+					if high >= 0 {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonInvalidText)}
+					}
+					high = langruntime.CheckedI32(code)
+				} else {
+					if code >= 56320 && code <= 57343 {
+						if high < 0 {
+							return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonInvalidText)}
+						}
+						code = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(65536, langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(high, 55296)), 1024)), code), 56320))
+						high = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+					}
+					if high >= 0 {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonInvalidText)}
+					}
+					if code == 0 {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonReadZero)}
+					}
+					if code > 127 {
+						return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+					}
+					output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32(code, ' ')))...)
+				}
+			} else {
+				if high >= 0 {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonInvalidText)}
+				}
+				decoded := escape
+				if escape == 'b' {
+					decoded = langruntime.CheckedChar('\b')
+				} else if escape == 'f' {
+					decoded = langruntime.CheckedChar('\f')
+				} else if escape == 'n' {
+					decoded = langruntime.CheckedChar('\n')
+				} else if escape == 'r' {
+					decoded = langruntime.CheckedChar('\r')
+				} else if escape == 't' {
+					decoded = langruntime.CheckedChar('\t')
+				}
+				output = append(output, string(langruntime.CheckedChar(decoded))...)
+			}
+		} else {
+			if high >= 0 {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonInvalidText)}
+			}
+			output = append(output, string(langruntime.CheckedChar(character))...)
+		}
+	}
+	if high >= 0 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonInvalidText)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+}
+func jsonReadSlice(source *jsonReadSource, start int, end int) checkruntime.TextValue {
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	output := langruntime.NewTextBuffer("")
+	position := start
+	for position < end {
+		output = append(output, string(langruntime.CheckedChar(source.characters[position]))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+}
+func jsonReadArrayCount(source *jsonReadSource) int64 {
+	depth := 0
+	position := 0
+	count := int64(0)
+	expecting := true
+	for position < len(source.characters) {
+		token := jsonReadNextToken(source, position)
+		if token.kind == jsonReadEnd {
+			return count
+		}
+		if depth == 1 {
+			if token.kind == jsonReadComma {
+				expecting = true
+			} else if expecting && (token.kind == jsonReadQuote || token.kind == jsonReadAtom || token.kind == jsonReadArrayOpen || token.kind == jsonReadObjectOpen) {
+				count = langruntime.CheckedI64Add(count, int64(1))
+				expecting = false
+			}
+		}
+		if token.kind == jsonReadObjectOpen || token.kind == jsonReadArrayOpen {
+			depth = langruntime.CheckedAdd(depth, 1)
+		} else if token.kind == jsonReadObjectClose || token.kind == jsonReadArrayClose {
+			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		}
+		position = langruntime.CheckedIndex(token.end)
+	}
+	return count
+}
+func jsonReadSelect(value string, key string, index int, object bool, asText bool) checkruntime.TextValue {
+	value = langruntime.CheckedString(value)
+	key = langruntime.CheckedString(key)
+	index = langruntime.CheckedI32(index)
+	source := jsonReadSource{characters: []rune(value)}
+	root := jsonReadNextToken(&source, 0)
+	rootObject := root.kind == jsonReadObjectOpen
+	rootArray := root.kind == jsonReadArrayOpen
+	wanted := int64(langruntime.CheckedI32(index))
+	if wanted < int64(0) && rootArray {
+		wanted = langruntime.CheckedI64Add(jsonReadArrayCount(&source), wanted)
+	}
+	depth := 0
+	position := 0
+	state := 0
+	if rootArray {
+		state = langruntime.CheckedI32(2)
+	}
+	matched := false
+	element := int64(0)
+	capture := false
+	captureDepth := 0
+	captureStart := 0
+	result := checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	for position < len(source.characters) {
+		token := jsonReadNextToken(&source, position)
+		if token.kind == jsonReadEnd {
+			return result
+		}
+		decoded := checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+		if token.kind == jsonReadQuote {
+			decoded = jsonReadDecodeString(&source, token)
+			if decoded.Kind == checkruntime.TextValueError {
+				error := decoded.Error
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+			}
+			if decoded.Kind == checkruntime.TextValueUnknown {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+		}
+		if depth == 1 {
+			if rootObject && state == 0 && token.kind == jsonReadQuote {
+				decodedName := decoded
+				if decodedName.Kind == checkruntime.TextValueValue {
+					name := langruntime.CheckedString(decodedName.Value)
+					matched = name == key
+				}
+				state = langruntime.CheckedI32(1)
+			} else if token.kind == jsonReadColon && rootObject {
+				state = langruntime.CheckedI32(2)
+			} else if token.kind == jsonReadComma {
+				state = langruntime.CheckedI32(0)
+				if rootArray {
+					state = langruntime.CheckedI32(2)
+				}
+			} else if state == 2 && (token.kind == jsonReadQuote || token.kind == jsonReadAtom || token.kind == jsonReadArrayOpen || token.kind == jsonReadObjectOpen) {
+				selected := (object && rootObject && matched) || (object == false && rootArray && element == wanted)
+				element = langruntime.CheckedI64Add(element, int64(1))
+				state = langruntime.CheckedI32(3)
+				if selected {
+					if token.kind == jsonReadArrayOpen || token.kind == jsonReadObjectOpen {
+						capture = true
+						captureDepth = langruntime.CheckedIndex(depth)
+						captureStart = langruntime.CheckedIndex(token.start)
+					} else if asText && token.kind == jsonReadQuote {
+						result = decoded
+					} else if asText && token.kind == jsonReadAtom && source.characters[token.start] == 'n' {
+						result = checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+					} else {
+						result = jsonReadSlice(&source, token.start, token.end)
+					}
+				}
+			}
+		}
+		if token.kind == jsonReadObjectOpen || token.kind == jsonReadArrayOpen {
+			depth = langruntime.CheckedAdd(depth, 1)
+		} else if token.kind == jsonReadObjectClose || token.kind == jsonReadArrayClose {
+			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			if capture && depth == captureDepth {
+				result = jsonReadSlice(&source, captureStart, token.end)
+				capture = false
+			}
+		}
+		position = langruntime.CheckedIndex(token.end)
+	}
+	return result
+}
+func jsonReadField(input checkruntime.JsonValue, key checkruntime.TextValue, asText bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.JsonValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if key.Kind == checkruntime.TextValueError {
+		error := key.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonValueUnknown {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if key.Kind == checkruntime.TextValueUnknown {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if key.Kind == checkruntime.TextValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.JsonValueValue {
+		value := input.Value
+		if key.Kind == checkruntime.TextValueValue {
+			name := langruntime.CheckedString(key.Value)
+			return jsonReadSelect(value.Source, name, 0, true, asText)
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func jsonReadElement(input checkruntime.JsonValue, index checkruntime.Int4Value, asText bool) checkruntime.TextValue {
+	if input.Kind == checkruntime.JsonValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if index.Kind == checkruntime.Int4ValueError {
+		error := index.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonValueUnknown {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if index.Kind == checkruntime.Int4ValueUnknown {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if index.Kind == checkruntime.Int4ValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.JsonValueValue {
+		value := input.Value
+		if index.Kind == checkruntime.Int4ValueValue {
+			number := langruntime.CheckedI32(index.Value)
+			return jsonReadSelect(value.Source, "", number, false, asText)
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func JsonObjectFieldUbt9(input checkruntime.JsonValue, key checkruntime.TextValue) checkruntime.JsonValue {
+	selected := jsonReadField(input, key, false)
+	return checkruntime.JsonFromCoercedText(selected)
+}
+func JsonObjectFieldTextZdkt(input checkruntime.JsonValue, key checkruntime.TextValue) checkruntime.TextValue {
+	return jsonReadField(input, key, true)
+}
+func JsonArrayElement8yh4(input checkruntime.JsonValue, index checkruntime.Int4Value) checkruntime.JsonValue {
+	selected := jsonReadElement(input, index, false)
+	return checkruntime.JsonFromCoercedText(selected)
+}
+func JsonArrayElementTextT2sr(input checkruntime.JsonValue, index checkruntime.Int4Value) checkruntime.TextValue {
+	return jsonReadElement(input, index, true)
+}
+func JsonArrayLength97pw(input checkruntime.JsonValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.JsonValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.JsonValueValue {
+		value := input.Value
+		if value.Kind != 5 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonReadNonArray)}
+		}
+		source := jsonReadSource{characters: []rune(value.Source)}
+		count := jsonReadArrayCount(&source)
+		return checkruntime.MakeInt4Value(int(int32(count)))
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
 func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) checkruntime.BoolValue {
 	product := Float8mulD3nd(ratio, checkruntime.MakeFloat8Bits(right))
 	if product.Kind == checkruntime.Float8ValueError {

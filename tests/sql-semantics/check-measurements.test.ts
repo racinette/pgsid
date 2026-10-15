@@ -4,7 +4,11 @@ import { PGlite } from '@electric-sql/pglite'
 import { readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
 import type { BuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
 import { builtinMetadata, builtinTypeIO } from '../../src/postgres/builtins/inventory.js'
-import { callableBoundary, verifyCatalog } from '../../scripts/check-measurements/catalog.js'
+import {
+  callableBoundary,
+  verifyCatalog,
+  jsonExtractionValueRequirements,
+} from '../../scripts/check-measurements/catalog.js'
 import {
   bindProbe,
   hasUncertain,
@@ -107,6 +111,32 @@ describe('CHECK measurement boundaries', () => {
       )
     }
     const random = catalog.functions.find(({ metadata }) => metadata.name === 'random')!.metadata
+    for (const name of [
+      'json_object_field',
+      'json_object_field_text',
+      'json_array_element',
+      'json_array_element_text',
+    ]) {
+      const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
+      expect(jsonExtractionValueRequirements(fn)).toEqual([
+        {
+          kind: 'database',
+          setting: 'server_encoding',
+          requirement:
+            'Whole-document extraction decodes every JSON string. Non-ASCII Unicode escapes require server_encoding; raw Unicode and ASCII escapes remain portable, and earlier definite decoding errors are preserved.',
+          owner: 'tests/sql-semantics/check-json-extraction.test.ts',
+        },
+      ])
+      expect(callableBoundary(fn, new Set(fn.args.concat(fn.result))).categories).toContain(
+        'pure-callable-candidate',
+      )
+    }
+    for (const name of ['json_typeof', 'json_array_length'])
+      expect(
+        jsonExtractionValueRequirements(
+          catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata,
+        ),
+      ).toBeNull()
     expect(callableBoundary(random, represented).categories).toContain('volatile')
     const stable = catalog.functions.find(({ metadata }) => metadata.volatility === 's')!.metadata
     expect(callableBoundary(stable, represented).categories).toContain('session-or-database-state')

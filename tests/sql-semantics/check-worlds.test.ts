@@ -135,6 +135,12 @@ const sessionDependentCases = new Map<string, string>([
   ],
 ])
 const binaryContextCases = new Map([...platformDependentCases, ...sessionDependentCases])
+const jsonEncodingCases = new Map(
+  ['field_source', 'field_text', 'field_presence'].map((name) => [
+    `041_json_documents/field_encoding_context/${name}`,
+    `world_041_json_documents.document_fields.${name}`,
+  ]),
+)
 if (binaryContextCases.size !== platformDependentCases.size + sessionDependentCases.size)
   throw new Error('Duplicate binary context case declarations')
 const binaryDeferrals = (identity: string): number =>
@@ -1111,7 +1117,8 @@ describe('world CHECK INSERT parity', () => {
         expect(
           check.result.certain ||
             catalogDependentChecks.has(`${item.schema}.${table.name}.${check.constraint}`) ||
-            binaryContextCases.has(`${item.name}/${check.constraint}`),
+            binaryContextCases.has(`${item.name}/${check.constraint}`) ||
+            jsonEncodingCases.has(`${item.name}/${check.constraint}`),
           `${item.name}/${check.constraint}: unexpected deferral in CHECK world`,
         ).toBe(true)
     const row = inputs.get(item.name)!
@@ -1252,6 +1259,18 @@ describe('world CHECK INSERT parity', () => {
     expect(definite).toBeGreaterThan(0)
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
+    for (const [identity, constraint] of jsonEncodingCases) {
+      const slash = identity.lastIndexOf('/')
+      const item = caseResults.find((row) => row.name === identity.slice(0, slash))
+      if (selectedWorldNames && !worlds.some((world) => identity.startsWith(world.name + '/')))
+        continue
+      expect(item, identity).toBeDefined()
+      const check = item!.checks.find((row) => row.constraint === identity.slice(slash + 1))!
+      expect(check.result.certain, identity).toBe(false)
+      expect(`${item!.schema}.${item!.relation}.${check.constraint}`, identity).toBe(constraint)
+      expect(item!.database.accepted, identity).toBe(true)
+      expect(check.postgres, identity).toBe(true)
+    }
     if (!selectedWorldNames) {
       for (const [identity, constraint] of binaryContextCases) {
         const slash = identity.lastIndexOf('/')
@@ -2692,7 +2711,10 @@ describe('world CHECK INSERT parity', () => {
     if (selectedWorldNames)
       for (const measured of constraints) {
         if (catalogDependentChecks.has(measured.constraint)) continue
-        expect(measured.unknown, measured.constraint).toBe(binaryDeferrals(measured.constraint))
+        expect(measured.unknown, measured.constraint).toBe(
+          binaryDeferrals(measured.constraint) +
+            [...jsonEncodingCases.values()].filter((name) => name === measured.constraint).length,
+        )
       }
     for (const name of checkWorlds) {
       const outcomes = caseResults.filter((item) => item.name.startsWith(name + '/'))

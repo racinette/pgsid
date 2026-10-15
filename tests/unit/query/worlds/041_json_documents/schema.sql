@@ -48,3 +48,33 @@ CREATE TABLE document_imports (
  CONSTRAINT import_source CHECK(CASE WHEN bypass THEN true ELSE COALESCE(source_text::retained_document,'null'::json)::text COLLATE "C"=recorded_source COLLATE "C" END),
  CONSTRAINT import_presence CHECK(CASE WHEN bypass THEN true ELSE (source_text::retained_document IS NULL)=allow_absent END)
 );
+CREATE TABLE document_fields (
+ id integer PRIMARY KEY,
+ archive_id integer NOT NULL REFERENCES document_archives(id),
+ label text NOT NULL,
+ document retained_document,
+ field_name text NOT NULL,
+ recorded_json text,
+ recorded_text text,
+ allow_missing boolean NOT NULL,
+ bypass boolean NOT NULL,
+ CONSTRAINT field_source CHECK(CASE WHEN bypass THEN true ELSE (document->field_name)::text COLLATE "C" IS NOT DISTINCT FROM recorded_json COLLATE "C" END),
+ CONSTRAINT field_text CHECK(CASE WHEN bypass THEN true ELSE (document->>field_name) COLLATE "C" IS NOT DISTINCT FROM recorded_text COLLATE "C" END),
+ CONSTRAINT field_presence CHECK(CASE WHEN bypass THEN true ELSE (document->field_name IS NULL)=allow_missing END)
+);
+CREATE TABLE document_elements (
+ id integer PRIMARY KEY,
+ archive_id integer NOT NULL REFERENCES document_archives(id),
+ label text NOT NULL,
+ document retained_document,
+ element_index integer NOT NULL,
+ recorded_json text,
+ recorded_text text,
+ recorded_count integer,
+ allow_missing boolean NOT NULL,
+ bypass boolean NOT NULL,
+ CONSTRAINT element_source CHECK(CASE WHEN bypass THEN true ELSE (document->element_index)::text COLLATE "C" IS NOT DISTINCT FROM recorded_json COLLATE "C" END),
+ CONSTRAINT element_text CHECK(CASE WHEN bypass THEN true ELSE (document->>element_index) COLLATE "C" IS NOT DISTINCT FROM recorded_text COLLATE "C" END),
+ CONSTRAINT element_presence CHECK(CASE WHEN bypass THEN true ELSE (document->element_index IS NULL)=allow_missing END),
+ CONSTRAINT element_count CHECK(CASE WHEN bypass THEN true ELSE json_array_length(document)=recorded_count END)
+);

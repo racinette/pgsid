@@ -77,6 +77,36 @@ export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
   return catalog
 }
 
+export function jsonExtractionValueRequirements(item: BuiltinCallable) {
+  if (
+    item.kind !== 'function' ||
+    item.schema !== 'pg_catalog' ||
+    !item.strict ||
+    item.volatility !== 'i' ||
+    item.returnsSet ||
+    item.args.length !== 2 ||
+    item.args[0] !== 'pg_catalog."json"'
+  )
+    return null
+  const field =
+    ['json_object_field', 'json_object_field_text'].includes(item.name) &&
+    item.args[1] === 'pg_catalog.text'
+  const element =
+    ['json_array_element', 'json_array_element_text'].includes(item.name) &&
+    item.args[1] === 'pg_catalog.int4'
+  if (!(field || element) || !['pg_catalog."json"', 'pg_catalog.text'].includes(item.result))
+    return null
+  return [
+    {
+      kind: 'database',
+      setting: 'server_encoding',
+      requirement:
+        'Whole-document extraction decodes every JSON string. Non-ASCII Unicode escapes require server_encoding; raw Unicode and ASCII escapes remain portable, and earlier definite decoding errors are preserved.',
+      owner: 'tests/sql-semantics/check-json-extraction.test.ts',
+    },
+  ]
+}
+
 export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet<string>) {
   const categories: string[] = []
   const types = [...item.args, item.result]
