@@ -19,6 +19,24 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
   const pg = await PGlite.create(),
     root = await mkdtemp(join(tmpdir(), 'pgsid-jsonb-payload-'))
   try {
+    const scalarTargets = {
+      numeric: 'numeric',
+      int2: 'int2',
+      int4: 'int4',
+      int8: 'int8',
+      float4: 'float4',
+      float8: 'float8',
+      limited: 'numeric(6,2)',
+    }
+    const scalarSend: Record<string, string> = {
+      numeric: 'numeric_send',
+      int2: 'int2send',
+      int4: 'int4send',
+      int8: 'int8send',
+      float4: 'float4send',
+      float8: 'float8send',
+      limited: 'numeric_send',
+    }
     await pg.exec(`CREATE DOMAIN stored_document AS jsonb;CREATE DOMAIN retained_document AS stored_document;
     CREATE TABLE jsonb_payloads(document retained_document,expected_kind text,expected_source text,bypass boolean,
     CONSTRAINT shape CHECK(jsonb_typeof(document) COLLATE "C"=expected_kind COLLATE "C"),
@@ -40,14 +58,27 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     CONSTRAINT includes_value CHECK(CASE WHEN bypass THEN true ELSE (lhs @> rhs) IS NOT DISTINCT FROM expected_contains END),
     CONSTRAINT included_value CHECK(CASE WHEN bypass THEN true ELSE (lhs <@ rhs) IS NOT DISTINCT FROM expected_contained END),
     CONSTRAINT ordered_value CHECK(CASE WHEN bypass THEN true ELSE (lhs<rhs) IS NOT DISTINCT FROM expected_lower END),
-    CONSTRAINT compared_value CHECK(CASE WHEN bypass THEN true ELSE jsonb_cmp(lhs,rhs) IS NOT DISTINCT FROM expected_order END));`)
+    CONSTRAINT compared_value CHECK(CASE WHEN bypass THEN true ELSE jsonb_cmp(lhs,rhs) IS NOT DISTINCT FROM expected_order END));
+    CREATE TABLE jsonb_scalar_inputs(numeric_document retained_document,boolean_document jsonb,expected_bool boolean,${Object.keys(
+      scalarTargets,
+    )
+      .map((name) => 'expected_' + name + ' text')
+      .join(',')},bypass boolean,
+    CONSTRAINT flag_value CHECK(CASE WHEN bypass THEN true ELSE boolean_document::bool IS NOT DISTINCT FROM expected_bool END),
+    ${Object.entries(scalarTargets)
+      .map(
+        ([name, type]) =>
+          `CONSTRAINT cast_${name} CHECK(CASE WHEN bypass THEN true ELSE encode(${scalarSend[name]}(numeric_document::${type}),'hex') COLLATE "C" IS NOT DISTINCT FROM expected_${name} COLLATE "C" END)`,
+      )
+      .join(',')});`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'jsonb_payloads')!
     const textTable = catalog.tables.find((t) => t.name === 'jsonb_text_inputs')!
     const readTable = catalog.tables.find((t) => t.name === 'jsonb_read_inputs')!
     const relationTable = catalog.tables.find((t) => t.name === 'jsonb_relation_inputs')!
+    const scalarTable = catalog.tables.find((t) => t.name === 'jsonb_scalar_inputs')!
     const bundle = renderTypescriptSchemaCheckArtifacts(
-      [table, textTable, readTable, relationTable],
+      [table, textTable, readTable, relationTable, scalarTable],
       catalog.domains,
       catalog.domains,
       { executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' } },
@@ -81,6 +112,100 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     const runtime = await import(
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
+    type ScalarResult = { certain: boolean; value?: boolean; error?: string }
+    for (const [numericSource, booleanSource] of [
+      [null, null],
+      ['null', 'null'],
+      ['1.5', 'true'],
+      ['-1.5', 'false'],
+      ['9007199254740993', 'true'],
+      ['32767.5', 'true'],
+      ['1e39', 'true'],
+      ['1e-1000', 'true'],
+      ['"1"', 'true'],
+      ['[]', 'false'],
+      ['1', '1'],
+      ['1', '"true"'],
+    ] as const) {
+      const input: Record<string, unknown> = {
+        numeric_document: numericSource === null ? null : runtime.makeJsonbValue(numericSource),
+        boolean_document: booleanSource === null ? null : runtime.makeJsonbValue(booleanSource),
+        expected_bool: null,
+        bypass: false,
+      }
+      const expected: Record<string, ScalarResult> = {}
+      try {
+        input.expected_bool = (
+          await pg.query<{ value: boolean | null }>('SELECT $1::jsonb::bool value', [booleanSource])
+        ).rows[0]!.value
+        expected.flag_value = { certain: true, value: true }
+      } catch (e) {
+        expected.flag_value = { certain: true, error: (e as { code: string }).code }
+      }
+      for (const [name, type] of Object.entries(scalarTargets)) {
+        try {
+          input['expected_' + name] = (
+            await pg.query<{ value: string | null }>(
+              `SELECT encode(${scalarSend[name]}($1::jsonb::${type}),'hex') value`,
+              [numericSource],
+            )
+          ).rows[0]!.value
+          expected['cast_' + name] = { certain: true, value: true }
+        } catch (e) {
+          input['expected_' + name] = null
+          expected['cast_' + name] = { certain: true, error: (e as { code: string }).code }
+        }
+      }
+      const before = JSON.stringify(input)
+      const actual = Object.fromEntries(
+        generated
+          .evaluatePublicJsonbScalarInputsChecks(input)
+          .map((c: { constraint: string; result: ScalarResult }) => [c.constraint, c.result]),
+      )
+      expect(actual).toEqual(expected)
+      expect(JSON.stringify(input)).toBe(before)
+      const args = [
+        numericSource,
+        booleanSource,
+        input.expected_bool,
+        ...Object.keys(scalarTargets).map((name) => input['expected_' + name]),
+        false,
+      ]
+      const insert = pg.query(
+        'INSERT INTO jsonb_scalar_inputs VALUES(' +
+          args.map((_, i) => '$' + (i + 1)).join(',') +
+          ')',
+        args,
+      )
+      if (Object.values(expected).every((r) => r.value === true)) await insert
+      else
+        await expect(insert).rejects.toMatchObject({
+          code: expect.stringMatching(/^(22003|22023)$/),
+        })
+      expect(
+        generated
+          .evaluatePublicJsonbScalarInputsChecks({ ...input, bypass: true })
+          .every((c: { result: ScalarResult }) => c.result.certain && c.result.value === true),
+      ).toBe(true)
+    }
+    for (const document of [
+      undefined,
+      '1',
+      { kind: 'Unknown' },
+      { kind: 'Value', value: { root: 0, nodes: [], characters: [] } },
+    ])
+      for (const c of generated.evaluatePublicJsonbScalarInputsChecks({
+        numeric_document: document,
+        boolean_document: document,
+        bypass: false,
+      }))
+        expect(c.result.certain).toBe(false)
+    for (const c of generated.evaluatePublicJsonbScalarInputsChecks({
+      numeric_document: { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      boolean_document: { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      bypass: false,
+    }))
+      expect(c.result).toEqual({ certain: true, error: '22012' })
     const deferredGenerated = await import(pathToFileURL(join(root, 'js/deferred-checks.js')).href)
     for (const c of deferredGenerated.evaluatePublicJsonbRelationInputsChecks({
       lhs: runtime.makeJsonbValue('1'),

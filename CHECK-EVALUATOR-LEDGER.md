@@ -266,6 +266,7 @@ exposes a prerequisite:
 - [x] JSONB field/element extraction, decoded text, array length and top-level existence, including scalar indexing.
 - [x] JSONB equality/inequality and iterative containment, exact numeric scalars, NULL-safe composition and public inputs.
 - [x] JSONB C/UTF8 ordering, exact comparator results and container traversal, with declared database defaults and composed/public INSERT parity.
+- [x] JSONB scalar casts, numeric precision/scale and unconstrained scalar-domain targets; preserve NULL, rounding, errors and lazy composition.
 - [ ] JSONB core operations; path-array access follows arrays.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types, with tested context requirements
@@ -278,7 +279,6 @@ expression composition, and world INSERT parity work together. Preserve distinct
 SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsing,
 session-dependent behavior, and unimplemented callables visible in the reports;
 representation support alone does not complete them.
-
 Assess recursive ownership before arrays, JSON, and composites. JSON evaluation
 assumes sufficient execution resources; server stack/allocation exhaustion is separate.
 Catalog identities and pseudo-types are not independent tasks: array instances share a family, and polymorphic signatures resolve to concrete
