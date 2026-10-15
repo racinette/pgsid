@@ -38,11 +38,12 @@ const portable = (signature: string, rustNames: ReadonlySet<string>): boolean =>
       conditionalCatalogInput ||
       (implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
-        implementation.name === 'namesend' &&
+        ['namesend', 'textsend'].includes(implementation.name) &&
         implementation.strict &&
         !implementation.returnsSet &&
         implementation.args.length === 1 &&
-        implementation.args[0] === 'pg_catalog.name' &&
+        implementation.args[0] ===
+          (implementation.name === 'namesend' ? 'pg_catalog.name' : 'pg_catalog.text') &&
         implementation.result === 'pg_catalog.bytea' &&
         rustNames.has(implementation.rustName))) &&
     ((go.has(signature) && typescript.has(signature)) ||
@@ -64,6 +65,7 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
       value.kind === 'text-to-mac' ||
       value.kind === 'mac-to-text' ||
       value.kind === 'io-to-text' ||
+      value.kind === 'refcursor-text-coercion' ||
       value.kind === 'text-to-point' ||
       value.kind === 'text-to-line' ||
       value.kind === 'text-to-lseg' ||

@@ -106,6 +106,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     cid: 'pg_catalog.cid',
     pg_lsn: 'pg_catalog.pg_lsn',
     tid: 'pg_catalog.tid',
+    refcursor: 'pg_catalog.refcursor',
     name: 'pg_catalog.name',
     char: 'pg_catalog."char"',
     '"char"': 'pg_catalog."char"',
@@ -393,6 +394,8 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'cid', type, value: literal.value }
   if (type === 'pg_catalog.pg_lsn' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'pg_lsn', type, value: literal.value }
+  if (type === 'pg_catalog.refcursor' && (literal.kind === 'string' || literal.kind === 'null'))
+    return { kind: 'refcursor', type, value: literal.value }
   if (type === 'pg_catalog.name' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'name', type, value: literal.value }
   if (type === 'pg_catalog."char"' && (literal.kind === 'string' || literal.kind === 'null'))
@@ -1360,6 +1363,7 @@ export function bindCatalogCheck(
         let domain: DomainInfo | undefined = castDomains[0]!
         const domainType = catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
         if (
+          domainType !== 'pg_catalog.refcursor' &&
           domainType !== 'pg_catalog.point' &&
           domainType !== 'pg_catalog.line' &&
           domainType !== 'pg_catalog.lseg' &&
@@ -1505,6 +1509,36 @@ export function bindCatalogCheck(
         return unknown
       let operand = bind(cast['arg'])
       const source = boundType(operand)
+      if (
+        source === 'pg_catalog.refcursor' &&
+        [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(type) &&
+        operand.value
+      )
+        operand = {
+          type: 'pg_catalog.text',
+          collation: defaultCollation,
+          value: {
+            kind: 'refcursor-text-coercion',
+            type: 'pg_catalog.text',
+            operand: operand.value,
+          },
+        }
+      if (
+        type === 'pg_catalog.refcursor' &&
+        [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(source ?? '') &&
+        operand.value
+      )
+        return { type, value: { kind: 'refcursor-text-coercion', type, operand: operand.value } }
       if (
         ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&
         (source === 'pg_catalog."time"' || source === 'pg_catalog.timetz') &&
@@ -2604,6 +2638,29 @@ export function bindCatalogCheck(
       )
     if (args.some((arg) => !arg.value && !arg.literal)) return unknown
     const aliasType = catalogScalarType(name)
+    if (
+      kind === 'function' &&
+      nodes.length === 1 &&
+      (aliasType === 'pg_catalog.refcursor' ||
+        (args[0]?.type === 'pg_catalog.refcursor' &&
+          [
+            'pg_catalog.text',
+            'pg_catalog."varchar"',
+            'pg_catalog.bpchar',
+            'pg_catalog.name',
+          ].includes(aliasType ?? '')))
+    )
+      return bind({
+        TypeCast: {
+          arg: nodes[0],
+          typeName: {
+            names: [
+              { String: { sval: 'pg_catalog' } },
+              { String: { sval: aliasType!.slice('pg_catalog.'.length).replaceAll('"', '') } },
+            ],
+          },
+        },
+      })
     if (kind === 'function' && isOidAliasType(aliasType) && nodes.length === 1)
       return bind({
         TypeCast: {

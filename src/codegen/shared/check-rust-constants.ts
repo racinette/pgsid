@@ -138,6 +138,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'text-to-mac' ||
     expression.kind === 'mac-to-text' ||
     expression.kind === 'io-to-text' ||
+    expression.kind === 'refcursor-text-coercion' ||
     expression.kind === 'text-to-point' ||
     expression.kind === 'text-to-line' ||
     expression.kind === 'text-to-lseg' ||

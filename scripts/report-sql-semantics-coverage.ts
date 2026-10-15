@@ -47,6 +47,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'decimal' ||
       expression.kind === 'boolean' ||
       expression.kind === 'text' ||
+      expression.kind === 'refcursor' ||
       expression.kind === 'name' ||
       expression.kind === 'internal-char' ||
       expression.kind === 'bytea' ||

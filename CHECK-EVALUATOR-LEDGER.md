@@ -134,6 +134,8 @@ explicit. Do not use target-native date or numeric parsers to supply SQL behavio
 ## Model explicit execution context
 
 - [ ] Enumerate operations requiring session settings or collation providers.
+- [x] Establish client-encoding requirements for text and name binary output,
+      retaining portable ASCII bytes and deferring non-ASCII conversion without context.
 - [ ] Design a portable context boundary before implementing those operations.
 - [ ] Address `quote_ident(text)` with explicit `quote_all_identifiers` behavior.
 - [ ] Assess implicit temporal conversions and session-dependent formats.
@@ -244,6 +246,8 @@ exposes a prerequisite:
       catalog-resolved casts and explicit deferral without deployment catalog access.
 - [x] Establish name values, C relations, hashes, conversions, SQL-coerced public
       inputs and explicit build-limit requirements for text truncation.
+- [x] Establish nominal refcursor names, explicit text I/O casts, domains, literals,
+      composition and SQL-coerced public inputs; retain session requirements for portals.
 - [x] Remove generation-time enum OIDs from emitted literals and public label
       adapters, and verify hash deferral across independent databases.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.

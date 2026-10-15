@@ -72,9 +72,13 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog."timestamp"') return 'TimestampValue'
   if (type === 'pg_catalog.timestamptz') return 'TimestamptzValue'
   if (
-    ['pg_catalog.name', 'pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
-      type,
-    )
+    [
+      'pg_catalog.refcursor',
+      'pg_catalog.name',
+      'pg_catalog.text',
+      'pg_catalog."varchar"',
+      'pg_catalog.bpchar',
+    ].includes(type)
   )
     return 'TextValue'
   if (type === 'pg_catalog.bool') return 'BoolValue'
@@ -423,10 +427,11 @@ export function emitCheckRustEvaluator(
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
           !(
-            (implementation.name === 'namesend' &&
+            (['namesend', 'textsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&
               implementation.args.length === 1 &&
-              implementation.args[0] === 'pg_catalog.name' &&
+              implementation.args[0] ===
+                (implementation.name === 'namesend' ? 'pg_catalog.name' : 'pg_catalog.text') &&
               implementation.result === 'pg_catalog.bytea') ||
             (isOidAliasType(implementation.result) &&
               (implementation.name === 'to_' + implementation.result.slice('pg_catalog.'.length) ||
@@ -520,6 +525,31 @@ export function emitCheckRustEvaluator(
       if (operand.type !== 'pg_catalog."bit"' && operand.type !== 'pg_catalog.varbit')
         throw new UnsupportedCheckRustExpression('A bit output cast requires a bit value')
       return { name: bind(`bit_to_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'refcursor-text-coercion') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const cursorIO = builtinTypeIO('pg_catalog.refcursor'),
+        textIO = builtinTypeIO('pg_catalog.text')
+      if (
+        !cursorIO ||
+        !textIO ||
+        cursorIO.input !== textIO.input ||
+        cursorIO.output !== textIO.output ||
+        !(
+          (node.type === 'pg_catalog.text' && operand.type === 'pg_catalog.refcursor') ||
+          (node.type === 'pg_catalog.refcursor' &&
+            [
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+              'pg_catalog.name',
+            ].includes(operand.type))
+        )
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Refcursor conversion requires its shared text I/O identity',
+        )
+      return { ...operand, type: node.type }
     }
     if (node.kind === 'io-to-text') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -1026,6 +1056,15 @@ export function emitCheckRustEvaluator(
           ),
           type: value.type,
         }
+      if (value.kind === 'refcursor')
+        return {
+          name: bind(
+            value.value === null
+              ? 'text_null()'
+              : `make_refcursor_text_value(${rustStringLiteral(value.value)})`,
+          ),
+          type: value.type,
+        }
       if (value.kind === 'text')
         return {
           name: bind(
@@ -1112,6 +1151,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.date',
           'pg_catalog."timestamp"',
           'pg_catalog.timestamptz',
+          'pg_catalog.refcursor',
           'pg_catalog.name',
           'pg_catalog.text',
           'pg_catalog."varchar"',

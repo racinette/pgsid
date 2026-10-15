@@ -68,8 +68,5 @@ pub fn sql__pg_catalog__textltname__k4hb(left: TextValue, right: TextValue) -> B
 pub fn sql__pg_catalog__textnename__gszv(left: TextValue, right: TextValue) -> BoolValue { name_relation(left, right, 1) }
 pub fn sql__pg_catalog__varchar__er5y(input: TextValue) -> TextValue { input }
 pub fn sql__pg_catalog__namesend__y7mk(input: TextValue) -> ByteaValue {
-    if let TextValue::Error(error) = input { return ByteaValue::Error(error); };
-    if input == TextValue::Null { return ByteaValue::Null; };
-    if let TextValue::Value(value) = input { return ByteaValue::Value(text_binary_hex(value.as_str(), false)); };
-    ByteaValue::Unknown
+    text_wire_without_context(input)
 }

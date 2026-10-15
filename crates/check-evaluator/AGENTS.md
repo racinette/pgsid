@@ -589,3 +589,11 @@ import them. Keep schema-only helpers with their callables.
   its corner-order tie behavior. Open path conversion returns 22023. Polygon
   text rejects open delimiters before parsing coordinates. Run the polygon
   suites and survey parcel INSERT world for runtime and public adapter parity.
+
+- Refcursor names retain nominal SQL identity over owned text. Explicit string
+  casts preserve cursor contents and bpchar output spaces through shared catalog
+  text I/O. Equality and ordering require an explicit conversion to a comparable
+  type. Reading a live cursor requires session state. Binary text/name output
+  preserves ASCII bytes; other output and conversion errors require client
+  encoding. Run refcursor parity, payload, raw-write and report-cursor INSERT
+  suites.

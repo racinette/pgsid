@@ -396,6 +396,10 @@ export function makeNameTextValue(value: string): TextValue {
     }
     return { kind: "Value", value: value };
 }
+export function makeRefcursorTextValue(value: string): TextValue {
+    value = langruntime.checkedString(value);
+    return makeNameTextValue(value);
+}
 export function makeTextValue(value: string): TextValue {
     value = langruntime.checkedString(value);
     return { kind: "Value", value: value };

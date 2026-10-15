@@ -323,6 +323,10 @@ pub fn make_name_text_value(value: &str) -> TextValue {
     TextValue::Value(value.to_owned())
 }
 
+pub fn make_refcursor_text_value(value: &str) -> TextValue {
+    make_name_text_value(value)
+}
+
 pub fn make_text_value(value: &str) -> TextValue {
     TextValue::Value(value.to_owned())
 }

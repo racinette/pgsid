@@ -65,12 +65,14 @@ func TestRawParametersReachDatabase(t *testing.T) {
  if err:=queries.InsertName(context.Background(),params);!errors.Is(err,db.failure) {t.Fatal("database rejection lost",err)}
 }
 func TestCoercedNameInputs(t *testing.T) {
- position:="é😀";domainPosition:=schema.NestedNameEdge(position);wire:=[]byte(position)
+ position:="ascii_name";domainPosition:=schema.NestedNameEdge(position);wire:=[]byte(position)
  input:=pgsid.PublicNameWritesCheckInput{Position:pgsid.KnownCheckValue(&position),DomainPosition:pgsid.KnownCheckValue(&domainPosition),Expected:pgsid.KnownCheckValue(&wire)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicNameWritesChecks);err!=nil {t.Fatal(err)}
  wrong:=[]byte("wrong");input.Expected=pgsid.KnownCheckValue(&wrong)
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicNameWritesChecks);err==nil {t.Fatal("wrong name bytes accepted")}
  input.Expected=pgsid.KnownCheckValue(&wire)
+ position="é😀"
+ for _,check:=range pgsid.EvaluatePublicNameWritesChecks(input) {if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("session-dependent name wire became definite")}}
  for _,invalid:=range []string{string([]byte{0}),string([]byte{255})} {
   input.Position.V=&invalid
   for _,check:=range pgsid.EvaluatePublicNameWritesChecks(input) {if check.Constraint=="position_wire" && check.Result.Certain {t.Fatal("invalid name encoding became definite")}}

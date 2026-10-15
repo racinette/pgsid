@@ -208,10 +208,12 @@ describe('SQL-coerced name values', () => {
             [key]: known(expectedValue),
           },
           expected:
-            result === null &&
-            ['pg_catalog.int4', 'pg_catalog.int8', 'pg_catalog.bytea'].includes(call.type)
-              ? { kind: 'Null' }
-              : { kind: 'True' },
+            call.type === 'pg_catalog.bytea' && a !== null && /[^\x00-\x7f]/u.test(a)
+              ? { kind: 'Unknown' }
+              : result === null &&
+                  ['pg_catalog.int4', 'pg_catalog.int8', 'pg_catalog.bytea'].includes(call.type)
+                ? { kind: 'Null' }
+                : { kind: 'True' },
         })
       }
     }

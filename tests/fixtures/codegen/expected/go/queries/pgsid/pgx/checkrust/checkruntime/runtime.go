@@ -357,6 +357,10 @@ func MakeNameTextValue(value string) TextValue {
 	}
 	return TextValue{Kind: TextValueValue, Value: value}
 }
+func MakeRefcursorTextValue(value string) TextValue {
+	value = langruntime.CheckedString(value)
+	return MakeNameTextValue(value)
+}
 func MakeTextValue(value string) TextValue {
 	value = langruntime.CheckedString(value)
 	return TextValue{Kind: TextValueValue, Value: value}

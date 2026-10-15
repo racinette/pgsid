@@ -14,6 +14,7 @@ export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.
 export type NetworkType = 'pg_catalog.inet' | 'pg_catalog.cidr'
 export type MacType = 'pg_catalog.macaddr' | 'pg_catalog.macaddr8'
 export type BitType = 'pg_catalog."bit"' | 'pg_catalog.varbit'
+export type RefcursorType = 'pg_catalog.refcursor'
 export type PointType = 'pg_catalog.point'
 export type LineType = 'pg_catalog.line'
 export type LsegType = 'pg_catalog.lseg'
@@ -73,6 +74,7 @@ export const BUILTIN_ARRAY_ELEMENT_TYPES = [
 export type ArrayElementType = (typeof BUILTIN_ARRAY_ELEMENT_TYPES)[number] | EnumType
 export type ArrayType = `array:${ArrayElementType}`
 export type ScalarType =
+  | RefcursorType
   | 'pg_catalog.name'
   | 'pg_catalog."char"'
   | NumericType
@@ -323,6 +325,7 @@ export type SqlExpression =
     }
   | { kind: 'boolean'; type: 'pg_catalog.bool'; value: boolean | null }
   | { kind: 'text'; type: TextType; value: string | null }
+  | { kind: 'refcursor'; type: RefcursorType; value: string | null }
   | { kind: 'name'; type: 'pg_catalog.name'; value: string | null }
   | { kind: 'internal-char'; type: 'pg_catalog."char"'; value: string | null }
   | { kind: 'bytea'; type: 'pg_catalog.bytea'; value: string | null }
@@ -970,9 +973,9 @@ export function emitSqlExpression<Ast>(
       helpers.add('bitInput')
       return { type: node.type, expression: backend.bit(node.value) }
     }
-    if (node.kind === 'boolean' || node.kind === 'text') {
+    if (node.kind === 'boolean' || node.kind === 'text' || node.kind === 'refcursor') {
       if (
-        node.kind === 'text' &&
+        node.kind !== 'boolean' &&
         node.value !== null &&
         (node.value.includes('\0') ||
           /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(

@@ -75,6 +75,11 @@ export type EvalExpression =
       type: 'pg_catalog.macaddr' | 'pg_catalog.macaddr8'
       operand: EvalExpression
     }
+  | {
+      kind: 'refcursor-text-coercion'
+      type: 'pg_catalog.refcursor' | 'pg_catalog.text'
+      operand: EvalExpression
+    }
   | { kind: 'mac-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | {
       kind: 'io-to-text'
@@ -303,6 +308,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'text-to-mac' ||
       node.kind === 'mac-to-text' ||
       node.kind === 'io-to-text' ||
+      node.kind === 'refcursor-text-coercion' ||
       node.kind === 'text-to-float' ||
       node.kind === 'text-to-point' ||
       node.kind === 'text-to-line' ||
