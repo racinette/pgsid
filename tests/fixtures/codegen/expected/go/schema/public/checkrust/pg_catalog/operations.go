@@ -10656,6 +10656,267 @@ func JsonbExistsF8f8(input checkruntime.JsonbValue, key checkruntime.TextValue) 
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 }
+
+type jsonbRelationFrame struct {
+	left       int
+	right      int
+	leftChild  int
+	rightChild int
+	state      int
+}
+
+func copyjsonbRelationFrame(value jsonbRelationFrame) jsonbRelationFrame {
+	return jsonbRelationFrame{left: langruntime.CheckedIndex(value.left), right: langruntime.CheckedIndex(value.right), leftChild: langruntime.CheckedIndex(value.leftChild), rightChild: langruntime.CheckedIndex(value.rightChild), state: langruntime.CheckedI32(value.state)}
+}
+func jsonbRelationCursor(left int, right int, a int, b int, state int) jsonbRelationFrame {
+	left = langruntime.CheckedIndex(left)
+	right = langruntime.CheckedIndex(right)
+	a = langruntime.CheckedIndex(a)
+	b = langruntime.CheckedIndex(b)
+	state = langruntime.CheckedI32(state)
+	return jsonbRelationFrame{left: left, right: right, leftChild: a, rightChild: b, state: state}
+}
+func jsonbRelationSpan(left *checkruntime.JsonbPayload, right *checkruntime.JsonbPayload, a int, aEnd int, b int, bEnd int) bool {
+	a = langruntime.CheckedIndex(a)
+	aEnd = langruntime.CheckedIndex(aEnd)
+	b = langruntime.CheckedIndex(b)
+	bEnd = langruntime.CheckedIndex(bEnd)
+	if langruntime.CheckedSubtract(aEnd, a) != langruntime.CheckedSubtract(bEnd, b) {
+		return false
+	}
+	index := 0
+	for index < langruntime.CheckedSubtract(aEnd, a) {
+		if left.Characters[langruntime.CheckedAdd(a, index)] != right.Characters[langruntime.CheckedAdd(b, index)] {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func jsonbRelationNumber(source *checkruntime.JsonbPayload, node checkruntime.JsonbNode) checkruntime.NumericValue {
+	text := langruntime.NewTextBuffer("")
+	position := node.TextStart
+	for position < node.TextEnd {
+		text = append(text, string(langruntime.CheckedChar(source.Characters[position]))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(text)}
+}
+func jsonbRelationScalar(left *checkruntime.JsonbPayload, right *checkruntime.JsonbPayload, a checkruntime.JsonbNode, b checkruntime.JsonbNode) bool {
+	if a.Kind != b.Kind {
+		return false
+	}
+	if a.Kind == 3 {
+		first := jsonbRelationNumber(left, a)
+		second := jsonbRelationNumber(right, b)
+		compared := numericCompare(first, second)
+		if compared.Kind == checkruntime.Int4ValueValue {
+			order := langruntime.CheckedI32(compared.Value)
+			return order == 0
+		}
+		return false
+	}
+	if a.Kind == 4 {
+		return jsonbRelationSpan(left, right, a.TextStart, a.TextEnd, b.TextStart, b.TextEnd)
+	}
+	return a.Kind < 3
+}
+func jsonbRelationCount(source *checkruntime.JsonbPayload, node checkruntime.JsonbNode) int {
+	count := 0
+	child := node.Child
+	for child > 0 {
+		count = langruntime.CheckedAdd(count, 1)
+		child = langruntime.CheckedIndex(source.Nodes[child].Next)
+	}
+	return count
+}
+func jsonbRelationWalk(left *checkruntime.JsonbPayload, right *checkruntime.JsonbPayload, contains bool) bool {
+	frames := []jsonbRelationFrame{}
+	langruntime.CheckedAdd(len(frames), 1)
+	frames = append(frames, copyjsonbRelationFrame(jsonbRelationCursor(left.Root, right.Root, 0, 0, 0)))
+	depth := 1
+	returning := false
+	result := false
+	for depth > 0 {
+		frame := frames[langruntime.CheckedSubtract(depth, 1)]
+		a := left.Nodes[frame.left]
+		b := right.Nodes[frame.right]
+		if returning {
+			returning = false
+			if frame.state == 4 {
+				first := left.Nodes[frame.leftChild].Next
+				second := frame.rightChild
+				if result {
+					first = langruntime.CheckedIndex(a.Child)
+					second = langruntime.CheckedIndex(right.Nodes[second].Next)
+				}
+				frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonbRelationFrame(jsonbRelationCursor(frame.left, frame.right, first, second, 1))
+			} else if result == false {
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+				returning = true
+			} else {
+				first := frame.leftChild
+				if frame.state == 3 {
+					first = langruntime.CheckedIndex(left.Nodes[first].Next)
+				}
+				frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonbRelationFrame(jsonbRelationCursor(frame.left, frame.right, first, right.Nodes[frame.rightChild].Next, 1))
+			}
+		} else if frame.state == 0 {
+			if a.Kind < 5 && b.Kind < 5 {
+				result = jsonbRelationScalar(left, right, a, b)
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+				returning = true
+			} else if contains && a.Kind == 5 && b.Kind < 5 {
+				child := a.Child
+				result = false
+				for child > 0 {
+					candidate := left.Nodes[child]
+					if candidate.Kind < 5 && jsonbRelationScalar(left, right, candidate, b) {
+						result = true
+						child = langruntime.CheckedIndex(0)
+					} else {
+						child = langruntime.CheckedIndex(candidate.Next)
+					}
+				}
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+				returning = true
+			} else if a.Kind != b.Kind {
+				result = false
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+				returning = true
+			} else {
+				first := jsonbRelationCount(left, a)
+				second := jsonbRelationCount(right, b)
+				if (contains == false && first != second) || (a.Kind == 6 && first < second) {
+					result = false
+					depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+					returning = true
+				} else {
+					frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonbRelationFrame(jsonbRelationCursor(frame.left, frame.right, a.Child, b.Child, 1))
+				}
+			}
+		} else if frame.rightChild == 0 {
+			result = true
+			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			returning = true
+		} else {
+			target := right.Nodes[frame.rightChild]
+			candidate := frame.leftChild
+			waiting := 3
+			if a.Kind == 6 {
+				waiting = langruntime.CheckedI32(2)
+				candidate = langruntime.CheckedIndex(a.Child)
+				found := false
+				for candidate > 0 && found == false {
+					node := left.Nodes[candidate]
+					if jsonbRelationSpan(left, right, node.KeyStart, node.KeyEnd, target.KeyStart, target.KeyEnd) {
+						found = true
+					} else {
+						candidate = langruntime.CheckedIndex(node.Next)
+					}
+				}
+			} else if contains {
+				waiting = langruntime.CheckedI32(4)
+				found := false
+				for candidate > 0 && found == false {
+					node := left.Nodes[candidate]
+					if target.Kind < 5 {
+						found = node.Kind < 5 && jsonbRelationScalar(left, right, node, target)
+					} else {
+						found = node.Kind >= 5
+					}
+					if found == false {
+						candidate = langruntime.CheckedIndex(node.Next)
+					}
+				}
+				if target.Kind < 5 && candidate > 0 {
+					frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonbRelationFrame(jsonbRelationCursor(frame.left, frame.right, a.Child, target.Next, 1))
+					waiting = langruntime.CheckedI32(0)
+				}
+			}
+			if waiting > 0 {
+				compatible := candidate > 0
+				if compatible && contains && a.Kind == 6 {
+					node := left.Nodes[candidate]
+					if (node.Kind < 5 || target.Kind < 5) && node.Kind != target.Kind {
+						compatible = false
+					}
+				}
+				if compatible == false {
+					result = false
+					depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+					returning = true
+				} else {
+					frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonbRelationFrame(jsonbRelationCursor(frame.left, frame.right, candidate, frame.rightChild, waiting))
+					next := jsonbRelationCursor(candidate, frame.rightChild, 0, 0, 0)
+					if depth < len(frames) {
+						frames[depth] = copyjsonbRelationFrame(next)
+					} else {
+						langruntime.CheckedAdd(len(frames), 1)
+						frames = append(frames, copyjsonbRelationFrame(next))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+			}
+		}
+	}
+	return result
+}
+func jsonbRelationValues(left checkruntime.JsonbValue, right checkruntime.JsonbValue, contains bool, invert bool) checkruntime.BoolValue {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	if left.Kind == checkruntime.JsonbValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.JsonbValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if right.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left.Kind == checkruntime.JsonbValueValue {
+		a := checkruntime.CopyJsonbPayload(left.Value)
+		if right.Kind == checkruntime.JsonbValueValue {
+			b := checkruntime.CopyJsonbPayload(right.Value)
+			result := jsonbRelationWalk(&a, &b, contains)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: result != invert}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+}
+func JsonbEqTfah(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.BoolValue {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	return jsonbRelationValues(left, right, false, false)
+}
+func JsonbNe79zi(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.BoolValue {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	return jsonbRelationValues(left, right, false, true)
+}
+func JsonbContainsX4n2(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.BoolValue {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	return jsonbRelationValues(left, right, true, false)
+}
+func JsonbContained3itb(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.BoolValue {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	if left.Kind == checkruntime.JsonbValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.JsonbValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return jsonbRelationValues(right, left, true, false)
+}
 func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) checkruntime.BoolValue {
 	product := Float8mulD3nd(ratio, checkruntime.MakeFloat8Bits(right))
 	if product.Kind == checkruntime.Float8ValueError {

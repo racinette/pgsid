@@ -269,3 +269,46 @@ INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorde
 INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'non-array count error','{}',0,NULL,NULL,NULL,true,false);
 -- name: normalized_element_skip_error
 INSERT INTO normalized_elements(id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(2,1,'skipped length error','42.00',0,'wrong','wrong',0,true,true);
+
+-- name: comparison_numeric_scale
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'numeric display scale','1.00','1e0',true,false,true,true,false);
+-- name: comparison_exact_number
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'exact unequal numbers','9007199254740993','9007199254740992',false,true,false,false,false);
+-- name: comparison_array_order
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'array containment ignores order and duplicates','[2,1,1]','[1,2]',false,true,true,true,false);
+-- name: comparison_object_subset
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'object subset','{"a":1,"b":2}','{"a":1}',false,true,true,false,false);
+-- name: comparison_object_superset
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'object superset','{"a":1}','{"a":1,"b":2}',false,true,false,true,false);
+-- name: comparison_array_scalar
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'array contains scalar','[1,2]','1',false,true,true,false,false);
+-- name: comparison_scalar_array
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'scalar does not contain array','1','[1]',false,true,false,true,false);
+-- name: comparison_nested_scalar
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'object member retains value type','{"a":[1,2]}','{"a":1}',false,true,false,false,false);
+-- name: comparison_nested_array
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'nested array subset','[[1,2]]','[[1]]',false,true,true,false,false);
+-- name: comparison_nested_level
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'nesting levels must match','[[1,2]]','[1]',false,true,false,false,false);
+-- name: comparison_array_backtracking
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'later container matches','[{"a":0},{"a":1}]','[{"a":1}]',false,true,true,false,false);
+-- name: comparison_last_duplicate
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'last duplicate key','{"a":1,"a":2}','{"a":2}',true,false,true,true,false);
+-- name: comparison_unicode_key_order
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'logical equality ignores key serialization','{"aa":1,"é":2}','{"é":2,"aa":1.00}',true,false,true,true,false);
+-- name: comparison_empty_array
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'empty array','[]','[]',true,false,true,true,false);
+-- name: comparison_json_null
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'JSON null','null','null',true,false,true,true,false);
+-- name: comparison_sql_null
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'SQL null',NULL,'{}',NULL,NULL,NULL,NULL,false);
+-- name: comparison_wrong_equal
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'incorrect equality','1','1',false,false,true,true,false);
+-- name: comparison_wrong_unequal
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'incorrect inequality','1','1',true,true,true,true,false);
+-- name: comparison_wrong_contains
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'incorrect containment','[1,2]','1',false,true,false,false,false);
+-- name: comparison_wrong_contained
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'incorrect reverse containment','1','[1,2]',false,true,false,false,false);
+-- name: comparison_bypass
+INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'unreviewed comparison','1','1',false,true,false,false,true);
