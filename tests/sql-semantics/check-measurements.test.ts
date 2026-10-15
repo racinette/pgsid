@@ -240,6 +240,36 @@ describe('CHECK measurement boundaries', () => {
     expect(pointInput.probe.postgres.accepted).toBe(true)
     expect(pointInput.probe.raw.fullyBound).toBe(true)
     expect(pointInput.probe.stored!.fullyBound).toBe(true)
+    const polygonInput = report.textInput.find((entry) => entry.type === 'pg_catalog.polygon')!
+    expect(polygonInput.input).toContain('poly_in')
+    expect(polygonInput.probe.postgres.accepted).toBe(true)
+    expect(polygonInput.probe.raw.fullyBound).toBe(true)
+    expect(polygonInput.probe.stored!.fullyBound).toBe(true)
+    expect(
+      report.inputForms.types.find((forms) => forms.type === 'pg_catalog.polygon'),
+    ).toMatchObject({
+      contextRequired: [],
+      unimplementedGrammar: [],
+      inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+      computedNanBinaryOutput: 'Unknown',
+      nanBinaryPrecision: {
+        requirement: 'platform',
+        semanticValue: 'known',
+        binaryOutput: 'Unknown',
+        explicitRowBits: 'preserved',
+        owner: 'tests/sql-semantics/check-polygon-input.test.ts',
+      },
+      cachedBounds: {
+        explicitRowBits: 'preserved',
+        omittedUniqueExtrema: 'derived',
+        omittedAmbiguousExtrema: 'Unknown',
+        nonNull: 'known',
+        binaryLength: 32,
+        owner: 'tests/sql-semantics/check-polygon.test.ts',
+      },
+      handled: expect.arrayContaining(['0,0', '[1e400,0]', '((1e309,bad))']),
+      platformDependent: expect.arrayContaining(['((0x1p0,0))']),
+    })
     const boxInput = report.textInput.find((entry) => entry.type === 'pg_catalog.box')!
     expect(boxInput.input).toContain('box_in')
     expect(boxInput.probe.postgres.accepted).toBe(true)

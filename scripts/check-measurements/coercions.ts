@@ -1,4 +1,8 @@
 import {
+  polygonInputForms,
+  deferredPolygonPlatformForms,
+} from '../../tests/sql-semantics/check-polygon-input-forms.js'
+import {
   pathInputForms,
   deferredPathPlatformForms,
 } from '../../tests/sql-semantics/check-path-input-forms.js'
@@ -190,6 +194,29 @@ const inputForms = [
     inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
   },
   {
+    type: 'pg_catalog.polygon',
+    nanBinaryPrecision: {
+      ...nanBinaryPrecision,
+      owner: 'tests/sql-semantics/check-polygon-input.test.ts',
+    },
+    suite: 'tests/sql-semantics/check-polygon-input.test.ts',
+    handled: polygonInputForms,
+    deferred: deferredPolygonPlatformForms,
+    platformDependent: deferredPolygonPlatformForms,
+    contextRequired: [],
+    unimplementedGrammar: [],
+    inputLimit: { unicodeScalars: 4096, outcome: 'Unknown' },
+    computedNanBinaryOutput: 'Unknown',
+    cachedBounds: {
+      explicitRowBits: 'preserved',
+      omittedUniqueExtrema: 'derived',
+      omittedAmbiguousExtrema: 'Unknown',
+      nonNull: 'known',
+      binaryLength: 32,
+      owner: 'tests/sql-semantics/check-polygon.test.ts',
+    },
+  },
+  {
     type: 'pg_catalog.path',
     nanBinaryPrecision,
     suite: 'tests/sql-semantics/check-path.test.ts',
@@ -304,10 +331,15 @@ export async function measureCoercions(pg: PGlite) {
   )
   const probe = async (source: string, target: string) => {
     const cast = `CAST(value AS ${target})`
-    const sql =
+    const send =
       target === 'pg_catalog.point'
-        ? `point_send(${cast}) IS NOT DISTINCT FROM point_send(${cast})`
-        : `${cast} IS NOT DISTINCT FROM ${cast}`
+        ? 'point_send'
+        : target === 'pg_catalog.polygon'
+          ? 'poly_send'
+          : null
+    const sql = send
+      ? `${send}(${cast}) IS NOT DISTINCT FROM ${send}(${cast})`
+      : `${cast} IS NOT DISTINCT FROM ${cast}`
     const columns = [
       {
         name: 'value',

@@ -97,6 +97,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("OidValue") => {
             Ok("OidValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("PolygonValue") => {
+            Ok("PolygonValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("PathValue") => {
             Ok("PathValue")
         }
@@ -435,6 +438,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "InternalCharValue"
                     | "Xid8Value"
                     | "OidValue"
+                    | "PolygonValue"
                     | "PathValue"
                     | "CircleValue"
                     | "BoxValue"
@@ -705,6 +709,27 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             );
         }
         assert!(check_source(&source.replace("left: BoxValue", "mut left: BoxValue")).is_err());
+    }
+
+    #[test]
+    fn accepts_polygon_wrappers_without_exposing_payloads() {
+        let source = "pub fn evaluate_check(left: PolygonValue, right: PolygonValue) -> CheckOutcome { let value = compare(left, right); check_from_bool(value) }";
+        check_source(source).unwrap();
+        for ty in [
+            "PolygonPayload",
+            "f64",
+            "i64",
+            "PolygonValue<i64>",
+            "&PolygonValue",
+        ] {
+            assert!(
+                check_source(&source.replace("left: PolygonValue", &format!("left: {ty}")))
+                    .is_err()
+            );
+        }
+        assert!(
+            check_source(&source.replace("left: PolygonValue", "mut left: PolygonValue")).is_err()
+        );
     }
 
     #[test]

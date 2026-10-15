@@ -202,6 +202,9 @@ fn box_binary(input: BoxValue) -> ByteaValue {
     if input == BoxValue::Null {
         return ByteaValue::Null;
     };
+    if input == BoxValue::NonNull {
+        return ByteaValue::Unspecified(32);
+    };
     if let BoxValue::Value(value) = input {
         if value.wire_known == false {
             return ByteaValue::Unspecified(32);

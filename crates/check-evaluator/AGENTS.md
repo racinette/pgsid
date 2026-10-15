@@ -578,3 +578,14 @@ import them. Keep schema-only helpers with their callables.
   visiting segment pairs, starting with closing edges. Preserve short circuits,
   first reached errors and definite predicates for semantic NaNs. Run path
   predicate parity and route membership/crossing INSERT cases.
+
+- Polygons own ordered points and cached bounding boxes. SQL-coerced inputs may
+  carry exact bounds; validate their extrema without replacing signed-zero bits.
+  Missing bounds derive only when extrema have unique precise bit patterns.
+  Ambiguous bounds retain known non-NULL state and binary length while their
+  bytes defer. Point count, polygon send, cyclic/reversed geometric equality,
+  closed-path conversion and point containment remain independent of that cache.
+  Fresh text/path constructors compute their own bounds; box conversion preserves
+  its corner-order tie behavior. Open path conversion returns 22023. Polygon
+  text rejects open delimiters before parsing coordinates. Run the polygon
+  suites and survey parcel INSERT world for runtime and public adapter parity.

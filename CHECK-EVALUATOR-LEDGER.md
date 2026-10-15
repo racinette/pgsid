@@ -221,6 +221,9 @@ exposes a prerequisite:
       arithmetic errors and no-segment zero/NULL results.
 - [x] Establish point/path containment and path intersection, preserving open/closed
       behavior, tolerant boundary tests, traversal order and reached arithmetic errors.
+- [x] Establish polygon point lists, cached bounds, public inputs, portable parsing,
+      counts, binary output, geometric equality, containment and path/box conversions;
+      defer ambiguous omitted bounds while retaining known nullness and lengths.
 - [ ] Geometry, after public floating-point support.
 - [ ] Full-text search values and operations, with configuration requirements explicit.
 - [ ] XML values, with document/content and execution-context requirements explicit.

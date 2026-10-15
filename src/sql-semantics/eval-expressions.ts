@@ -98,6 +98,7 @@ export type EvalExpression =
   | { kind: 'text-to-tid'; type: 'pg_catalog.tid'; operand: EvalExpression }
   | { kind: 'text-to-xid8'; type: 'pg_catalog.xid8'; operand: EvalExpression }
   | { kind: 'text-to-oid'; type: OidType; operand: EvalExpression }
+  | { kind: 'text-to-polygon'; type: 'pg_catalog.polygon'; operand: EvalExpression }
   | { kind: 'text-to-path'; type: 'pg_catalog.path'; operand: EvalExpression }
   | { kind: 'text-to-circle'; type: 'pg_catalog.circle'; operand: EvalExpression }
   | { kind: 'text-to-box'; type: 'pg_catalog.box'; operand: EvalExpression }
@@ -313,6 +314,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'text-to-tid' ||
       node.kind === 'text-to-xid8' ||
       node.kind === 'text-to-oid' ||
+      node.kind === 'text-to-polygon' ||
       node.kind === 'text-to-path' ||
       node.kind === 'text-to-circle' ||
       node.kind === 'text-to-box' ||
