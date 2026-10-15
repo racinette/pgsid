@@ -275,7 +275,8 @@ exposes a prerequisite:
 - [x] JSONB scalar-argument builders, empty overloads, non-strict NULLs, scalar keys, duplicate normalization, eager argument errors and owned composition.
 - [x] JSON/JSONB binary send, source/canonical bytes, version framing and strict states; retain encoding requirements and classify receive functions as internal interfaces.
 - [ ] Explicit VARIADIC arrays and path-array access follow arrays.
-- [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
+- [x] JSONPath lexical foundation: owned source/token/decoded arenas, comments, names, variables, numeric forms and Unicode error precedence; no public SQL admission.
+- [ ] JSONPath grammar, portable values, SQL integration and query execution over the logical JSONB tree.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
 Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations,
@@ -286,8 +287,7 @@ Catalog identities and pseudo-types share families; polymorphic signatures resol
 
 ## Completion gate for implementation tasks
 
-Keep PostgreSQL behavior in maintained Rust. Generate evaluator control flow and
-target code through ASTs. Preserve schema namespaces, separate CHECK and regex
+Keep PostgreSQL behavior in maintained Rust. Generate evaluator control flow and target code through ASTs. Preserve schema namespaces, separate CHECK and regex
 transpilers, errors as values, and diagnostic Unknown results.
 
 For each implementation task, select focused family suites and regressions for
