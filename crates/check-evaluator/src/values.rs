@@ -1374,6 +1374,7 @@ pub enum BoxValue {
     Null,
     Value(BoxPayload),
     Error(SqlError),
+    NonNull,
 }
 pub fn box_unknown() -> BoxValue {
     BoxValue::Unknown
@@ -1457,6 +1458,133 @@ pub fn path_from_case_guard(input: CheckOutcome) -> PathValue {
         return PathValue::Error(error);
     };
     PathValue::Unknown
+}
+
+#[derive(Clone)]
+pub struct PolygonPayload {
+    pub points: Vec<PointPayload>,
+    pub bounds: BoxValue,
+}
+#[derive(Clone)]
+pub enum PolygonValue {
+    Unknown,
+    Null,
+    Value(PolygonPayload),
+    Error(SqlError),
+}
+fn polygon_coordinate_less(left: i64, right: i64) -> bool {
+    let a = float8_number(left);
+    let b = float8_number(right);
+    if b != b { return a == a; };
+    a < b
+}
+fn polygon_coordinate_equal(left: i64, right: i64) -> bool {
+    let a = float8_number(left);
+    let b = float8_number(right);
+    a == b || (a != a && b != b)
+}
+fn polygon_coordinate_known(point: PointPayload, y: bool) -> bool {
+    let mut bits = point.x;
+    if y { bits = point.y; };
+    let value = float8_number(bits);
+    point.wire_known || value == value
+}
+fn polygon_calculated_bounds(payload: PolygonPayload) -> BoxPayload {
+    let first = payload.points[0];
+    let mut high_x = first.x;
+    let mut high_y = first.y;
+    let mut low_x = first.x;
+    let mut low_y = first.y;
+    let mut high_x_known = polygon_coordinate_known(first, false);
+    let mut high_y_known = polygon_coordinate_known(first, true);
+    let mut low_x_known = high_x_known;
+    let mut low_y_known = high_y_known;
+    let mut index: usize = 1;
+    while index < payload.points.len() {
+        let point = payload.points[index];
+        if polygon_coordinate_less(point.x, low_x) {
+            low_x = point.x;
+            low_x_known = polygon_coordinate_known(point, false);
+        };
+        if polygon_coordinate_less(high_x, point.x) {
+            high_x = point.x;
+            high_x_known = polygon_coordinate_known(point, false);
+        };
+        if polygon_coordinate_less(point.y, low_y) {
+            low_y = point.y;
+            low_y_known = polygon_coordinate_known(point, true);
+        };
+        if polygon_coordinate_less(high_y, point.y) {
+            high_y = point.y;
+            high_y_known = polygon_coordinate_known(point, true);
+        };
+        index += 1;
+    }
+    BoxPayload { high_x, high_y, low_x, low_y, wire_known: high_x_known && high_y_known && low_x_known && low_y_known }
+}
+fn polygon_bounds_ambiguous(payload: PolygonPayload, bounds: BoxPayload) -> bool {
+    if bounds.wire_known == false { return true; };
+    let mut index: usize = 0;
+    while index < payload.points.len() {
+        let point = payload.points[index];
+        if (polygon_coordinate_equal(point.x, bounds.high_x) && point.x != bounds.high_x)
+            || (polygon_coordinate_equal(point.x, bounds.low_x) && point.x != bounds.low_x)
+            || (polygon_coordinate_equal(point.y, bounds.high_y) && point.y != bounds.high_y)
+            || (polygon_coordinate_equal(point.y, bounds.low_y) && point.y != bounds.low_y) {
+            return true;
+        };
+        index += 1;
+    }
+    false
+}
+pub fn make_polygon_value(payload: PolygonPayload) -> PolygonValue {
+    let maximum_points: i32 = 134217725;
+    let fallback: usize = 0;
+    let maximum = usize::try_from(maximum_points).unwrap_or(fallback);
+    if payload.points.len() == 0 || payload.points.len() > maximum {
+        return PolygonValue::Unknown;
+    };
+    let calculated = polygon_calculated_bounds(payload.clone());
+    let mut bounds = payload.bounds;
+    if bounds == BoxValue::Unknown {
+        bounds = BoxValue::NonNull;
+        if polygon_bounds_ambiguous(payload.clone(), calculated) == false {
+            bounds = BoxValue::Value(calculated);
+        };
+    };
+    if let BoxValue::Value(actual) = bounds {
+        if polygon_coordinate_equal(actual.high_x, calculated.high_x) == false
+            || polygon_coordinate_equal(actual.high_y, calculated.high_y) == false
+            || polygon_coordinate_equal(actual.low_x, calculated.low_x) == false
+            || polygon_coordinate_equal(actual.low_y, calculated.low_y) == false {
+            return PolygonValue::Unknown;
+        };
+    };
+    if bounds == BoxValue::Null { return PolygonValue::Unknown; };
+    if let BoxValue::Error(_) = bounds { return PolygonValue::Unknown; };
+    PolygonValue::Value(PolygonPayload { points: payload.points, bounds })
+}
+pub fn make_polygon_points(payload: PolygonPayload) -> PolygonValue {
+    let maximum_points: i32 = 134217725;
+    let fallback: usize = 0;
+    let maximum = usize::try_from(maximum_points).unwrap_or(fallback);
+    if payload.points.len() == 0 || payload.points.len() > maximum {
+        return PolygonValue::Unknown;
+    };
+    let bounds = polygon_calculated_bounds(payload.clone());
+    PolygonValue::Value(PolygonPayload { points: payload.points, bounds: BoxValue::Value(bounds) })
+}
+pub fn polygon_unknown() -> PolygonValue { PolygonValue::Unknown }
+pub fn polygon_null() -> PolygonValue { PolygonValue::Null }
+pub fn polygon_is_null(input: PolygonValue) -> BoolValue {
+    if let PolygonValue::Error(error) = input { return BoolValue::Error(error); };
+    if let PolygonValue::Unknown = input { return BoolValue::Unknown; };
+    if let PolygonValue::Null = input { return make_bool_value(true); };
+    make_bool_value(false)
+}
+pub fn polygon_from_case_guard(input: CheckOutcome) -> PolygonValue {
+    if let CheckOutcome::Error(error) = input { return PolygonValue::Error(error); };
+    PolygonValue::Unknown
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CircleValue {

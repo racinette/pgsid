@@ -19,6 +19,7 @@ export type GoCheckCase = {
   xid8Columns?: readonly string[]
   oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
+  polygonColumns?: readonly string[]
   pathColumns?: readonly string[]
   circleColumns?: readonly string[]
   boxColumns?: readonly string[]
@@ -67,6 +68,7 @@ export function renderGoCheckTests(
       xid8Columns,
       oidColumns,
       moneyColumns,
+      polygonColumns,
       pathColumns,
       circleColumns,
       boxColumns,
@@ -174,6 +176,48 @@ export function renderGoCheckTests(
           go.selector(go.ident('checkruntime'), money === null ? 'MoneyNull' : 'MakeMoneyValue'),
           money === null ? [] : [go.number(money)],
         )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
+        continue
+      }
+      if (options.dateRuntime && polygonColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const polygon = value as {
+          points: { x: bigint; y: bigint }[]
+          bounds?: { highX: bigint; highY: bigint; lowX: bigint; lowY: bigint }
+        } | null
+        const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
+        const bounds = polygon?.bounds
+        const wrapped =
+          polygon === null
+            ? go.call(runtime('PolygonNull'), [])
+            : go.call(runtime('MakePolygonValue'), [
+                go.composite(runtime('PolygonPayload'), [
+                  go.keyValue(
+                    'Points',
+                    go.composite(
+                      go.slice(runtime('PointPayload')),
+                      polygon.points.map((point) =>
+                        go.composite(runtime('PointPayload'), [
+                          go.keyValue('X', go.number(point.x)),
+                          go.keyValue('Y', go.number(point.y)),
+                          go.keyValue('WireKnown', go.ident('true')),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  go.keyValue(
+                    'Bounds',
+                    bounds
+                      ? go.call(runtime('MakeBoxBits'), [
+                          go.number(bounds.highX),
+                          go.number(bounds.highY),
+                          go.number(bounds.lowX),
+                          go.number(bounds.lowY),
+                        ])
+                      : go.call(runtime('BoxUnknown'), []),
+                  ),
+                ]),
+              ])
         statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }

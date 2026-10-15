@@ -14,6 +14,7 @@ import {
   catalogInternalCharType,
   catalogXid8Type,
   catalogOidType,
+  catalogPolygonType,
   catalogPathType,
   catalogCircleType,
   catalogBoxType,
@@ -248,6 +249,7 @@ export function planCheckInputs(
     if (catalogTidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogXid8Type(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogOidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogPolygonType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogPathType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogCircleType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogBoxType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []

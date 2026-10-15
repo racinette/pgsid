@@ -1627,6 +1627,8 @@ export type BoxValue = {
 } | {
     readonly kind: "Error";
     readonly value: SqlError;
+} | {
+    readonly kind: "NonNull";
 };
 export function equalBoxValue(left: BoxValue, right: BoxValue): boolean {
     if (left.kind !== right.kind)
@@ -1730,6 +1732,175 @@ export function pathIsNull(input: PathValue): BoolValue {
     return makeBoolValue(false);
 }
 export function pathFromCaseGuard(input: CheckOutcome): PathValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export interface PolygonPayload {
+    readonly points: PointPayload[];
+    readonly bounds: BoxValue;
+}
+export function copyPolygonPayload(value: PolygonPayload): PolygonPayload {
+    return { points: langruntime.checkedStructs(value.points, copyPointPayload), bounds: value.bounds };
+}
+export type PolygonValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: PolygonPayload;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function copyPolygonValue(value: PolygonValue): PolygonValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copyPolygonPayload(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+function polygonCoordinateLess(left: bigint, right: bigint): boolean {
+    left = langruntime.checkedI64(left);
+    right = langruntime.checkedI64(right);
+    const a: number = float8Number(left);
+    const b: number = float8Number(right);
+    if (!(b === b)) {
+        return a === a;
+    }
+    return a < b;
+}
+function polygonCoordinateEqual(left: bigint, right: bigint): boolean {
+    left = langruntime.checkedI64(left);
+    right = langruntime.checkedI64(right);
+    const a: number = float8Number(left);
+    const b: number = float8Number(right);
+    return a === b || (!(a === a) && !(b === b));
+}
+function polygonCoordinateKnown(point: PointPayload, y: boolean): boolean {
+    y = langruntime.checkedBool(y);
+    let bits: bigint = point.x;
+    if (y) {
+        bits = langruntime.checkedI64(point.y);
+    }
+    const value: number = float8Number(bits);
+    return point.wireKnown || value === value;
+}
+function polygonCalculatedBounds(payload: PolygonPayload): BoxPayload {
+    payload = copyPolygonPayload(payload);
+    const first: PointPayload = langruntime.indexStruct(payload.points, langruntime.checkedIndex(0), copyPointPayload);
+    let highX: bigint = first.x;
+    let highY: bigint = first.y;
+    let lowX: bigint = first.x;
+    let lowY: bigint = first.y;
+    let highXKnown: boolean = polygonCoordinateKnown(first, false);
+    let highYKnown: boolean = polygonCoordinateKnown(first, true);
+    let lowXKnown: boolean = highXKnown;
+    let lowYKnown: boolean = highYKnown;
+    let index: number = 1;
+    while (index < payload.points.length) {
+        const point: PointPayload = langruntime.indexStruct(payload.points, langruntime.checkedIndex(index), copyPointPayload);
+        if (polygonCoordinateLess(point.x, lowX)) {
+            lowX = langruntime.checkedI64(point.x);
+            lowXKnown = langruntime.checkedBool(polygonCoordinateKnown(point, false));
+        }
+        if (polygonCoordinateLess(highX, point.x)) {
+            highX = langruntime.checkedI64(point.x);
+            highXKnown = langruntime.checkedBool(polygonCoordinateKnown(point, false));
+        }
+        if (polygonCoordinateLess(point.y, lowY)) {
+            lowY = langruntime.checkedI64(point.y);
+            lowYKnown = langruntime.checkedBool(polygonCoordinateKnown(point, true));
+        }
+        if (polygonCoordinateLess(highY, point.y)) {
+            highY = langruntime.checkedI64(point.y);
+            highYKnown = langruntime.checkedBool(polygonCoordinateKnown(point, true));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { highX: highX, highY: highY, lowX: lowX, lowY: lowY, wireKnown: highXKnown && highYKnown && lowXKnown && lowYKnown };
+}
+function polygonBoundsAmbiguous(payload: PolygonPayload, bounds: BoxPayload): boolean {
+    payload = copyPolygonPayload(payload);
+    if (bounds.wireKnown === false) {
+        return true;
+    }
+    let index: number = 0;
+    while (index < payload.points.length) {
+        const point: PointPayload = langruntime.indexStruct(payload.points, langruntime.checkedIndex(index), copyPointPayload);
+        if ((polygonCoordinateEqual(point.x, bounds.highX) && !(point.x === bounds.highX)) || (polygonCoordinateEqual(point.x, bounds.lowX) && !(point.x === bounds.lowX)) || (polygonCoordinateEqual(point.y, bounds.highY) && !(point.y === bounds.highY)) || (polygonCoordinateEqual(point.y, bounds.lowY) && !(point.y === bounds.lowY))) {
+            return true;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return false;
+}
+export function makePolygonValue(payload: PolygonPayload): PolygonValue {
+    payload = copyPolygonPayload(payload);
+    const maximumPoints: number = 134217725;
+    const fallback: number = 0;
+    const maximum: number = langruntime.indexFromI32(maximumPoints, fallback);
+    if (payload.points.length === 0 || payload.points.length > maximum) {
+        return { kind: "Unknown" };
+    }
+    const calculated: BoxPayload = polygonCalculatedBounds(copyPolygonPayload(payload));
+    let bounds: BoxValue = payload.bounds;
+    if (equalBoxValue(bounds, { kind: "Unknown" })) {
+        bounds = { kind: "NonNull" };
+        if (polygonBoundsAmbiguous(copyPolygonPayload(payload), calculated) === false) {
+            bounds = { kind: "Value", value: calculated };
+        }
+    }
+    if (bounds.kind === "Value") {
+        const actual: BoxPayload = bounds.value;
+        if (polygonCoordinateEqual(actual.highX, calculated.highX) === false || polygonCoordinateEqual(actual.highY, calculated.highY) === false || polygonCoordinateEqual(actual.lowX, calculated.lowX) === false || polygonCoordinateEqual(actual.lowY, calculated.lowY) === false) {
+            return { kind: "Unknown" };
+        }
+    }
+    if (equalBoxValue(bounds, { kind: "Null" })) {
+        return { kind: "Unknown" };
+    }
+    if (bounds.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: { points: payload.points, bounds: bounds } };
+}
+export function makePolygonPoints(payload: PolygonPayload): PolygonValue {
+    payload = copyPolygonPayload(payload);
+    const maximumPoints: number = 134217725;
+    const fallback: number = 0;
+    const maximum: number = langruntime.indexFromI32(maximumPoints, fallback);
+    if (payload.points.length === 0 || payload.points.length > maximum) {
+        return { kind: "Unknown" };
+    }
+    const bounds: BoxPayload = polygonCalculatedBounds(copyPolygonPayload(payload));
+    return { kind: "Value", value: { points: payload.points, bounds: { kind: "Value", value: bounds } } };
+}
+export function polygonUnknown(): PolygonValue {
+    return { kind: "Unknown" };
+}
+export function polygonNull(): PolygonValue {
+    return { kind: "Null" };
+}
+export function polygonIsNull(input: PolygonValue): BoolValue {
+    input = copyPolygonValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return makeBoolValue(true);
+    }
+    return makeBoolValue(false);
+}
+export function polygonFromCaseGuard(input: CheckOutcome): PolygonValue {
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };

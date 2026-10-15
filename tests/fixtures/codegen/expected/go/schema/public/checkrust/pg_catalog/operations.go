@@ -2227,6 +2227,9 @@ func boxBinary(input checkruntime.BoxValue) checkruntime.ByteaValue {
 	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
 	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNonNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: 32}
+	}
 	if input.Kind == checkruntime.BoxValueValue {
 		value := input.Value
 		if value.WireKnown == false {
@@ -19827,6 +19830,285 @@ func PointDistance2haq(left checkruntime.PointValue, right checkruntime.PointVal
 }
 func SlopeXxph(left checkruntime.PointValue, right checkruntime.PointValue) checkruntime.Float8Value {
 	return pointMeasurement(left, right, true)
+}
+func PolyNpointsQi4n(input checkruntime.PolygonValue) checkruntime.Int4Value {
+	input = checkruntime.CopyPolygonValue(input)
+	if input.Kind == checkruntime.PolygonValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.PolygonValueValue {
+		value := checkruntime.CopyPolygonPayload(input.Value)
+		return checkruntime.MakeInt4Value(int(int32(len(value.Points))))
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func NpointsYk02(input checkruntime.PolygonValue) checkruntime.Int4Value {
+	input = checkruntime.CopyPolygonValue(input)
+	return PolyNpointsQi4n(input)
+}
+func PolySend38c4(input checkruntime.PolygonValue) checkruntime.ByteaValue {
+	input = checkruntime.CopyPolygonValue(input)
+	if input.Kind == checkruntime.PolygonValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.PolygonValueValue {
+		value := checkruntime.CopyPolygonPayload(input.Value)
+		maximum := langruntime.IndexFromI32(langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(byteaMaxLength, 4)), 16), 0)
+		if len(value.Points) > maximum {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaAllocationError)}
+		}
+		encodedCount := binarySendBits(checkruntime.MakeInt8Value(int64(langruntime.CheckedI32(int(int32(len(value.Points)))))), 4)
+		output := langruntime.NewTextBuffer("")
+		if encodedCount.Kind == checkruntime.ByteaValueValue {
+			count := langruntime.CheckedString(encodedCount.Value)
+			output = append(output, count...)
+		}
+		index := 0
+		for index < len(value.Points) {
+			encoded := PointSendKuoa(checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: value.Points[index]})
+			if encoded.Kind == checkruntime.ByteaValueError {
+				error := encoded.Error
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+			}
+			if encoded.Kind == checkruntime.ByteaValueUnspecified {
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: langruntime.CheckedSignedAdd(4, langruntime.CheckedSignedMultiply((int(int32(len(value.Points)))), 16))}
+			}
+			if encoded == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || encoded == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+			}
+			if encoded.Kind == checkruntime.ByteaValueValue {
+				bytes := langruntime.CheckedString(encoded.Value)
+				output = append(output, bytes...)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(output)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func PolySame7cvi(left checkruntime.PolygonValue, right checkruntime.PolygonValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPolygonValue(left)
+	right = checkruntime.CopyPolygonValue(right)
+	if left.Kind == checkruntime.PolygonValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PolygonValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left.Kind == checkruntime.PolygonValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if right.Kind == checkruntime.PolygonValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if right.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.PolygonValueValue {
+		a := checkruntime.CopyPolygonPayload(left.Value)
+		if right.Kind == checkruntime.PolygonValueValue {
+			b := checkruntime.CopyPolygonPayload(right.Value)
+			if len(a.Points) != len(b.Points) {
+				return checkruntime.MakeBoolValue(false)
+			}
+			if len(a.Points) == 0 {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+			start := 0
+			for start < len(b.Points) {
+				if pointSameValue(a.Points[0], b.Points[start]) {
+					forward := true
+					backward := true
+					index := 1
+					for index < len(a.Points) {
+						next := langruntime.CheckedAdd(start, index)
+						if next >= len(b.Points) {
+							next = langruntime.CheckedIndex(langruntime.CheckedSubtract(next, len(b.Points)))
+						}
+						previous := start
+						if start >= index {
+							previous = langruntime.CheckedIndex(langruntime.CheckedSubtract(start, index))
+						} else {
+							previous = langruntime.CheckedIndex(langruntime.CheckedSubtract(len(b.Points), (langruntime.CheckedSubtract(index, start))))
+						}
+						if pointSameValue(a.Points[index], b.Points[next]) == false {
+							forward = false
+						}
+						if pointSameValue(a.Points[index], b.Points[previous]) == false {
+							backward = false
+						}
+						index = langruntime.CheckedAdd(index, 1)
+					}
+					if forward || backward {
+						return checkruntime.MakeBoolValue(true)
+					}
+				}
+				start = langruntime.CheckedAdd(start, 1)
+			}
+			return checkruntime.MakeBoolValue(false)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func PathJw9h(input checkruntime.PolygonValue) checkruntime.PathValue {
+	input = checkruntime.CopyPolygonValue(input)
+	if input.Kind == checkruntime.PolygonValueError {
+		error := input.Error
+		return checkruntime.PathValue{Kind: checkruntime.PathValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.PathValue{Kind: checkruntime.PathValueNull}
+	}
+	if input.Kind == checkruntime.PolygonValueValue {
+		value := checkruntime.CopyPolygonPayload(input.Value)
+		return checkruntime.MakePathValue(checkruntime.PathPayload{Closed: true, Points: value.Points})
+	}
+	return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
+}
+func PolygonDdxi(input checkruntime.PathValue) checkruntime.PolygonValue {
+	input = checkruntime.CopyPathValue(input)
+	if input.Kind == checkruntime.PathValueError {
+		error := input.Error
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PathValueNull {
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueNull}
+	}
+	if input.Kind == checkruntime.PathValueValue {
+		value := checkruntime.CopyPathPayload(input.Value)
+		if value.Closed == false {
+			return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidParameterValue)}
+		}
+		return checkruntime.MakePolygonPoints(checkruntime.PolygonPayload{Points: value.Points, Bounds: checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}})
+	}
+	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+}
+func BoxJ3b7(input checkruntime.PolygonValue) checkruntime.BoxValue {
+	input = checkruntime.CopyPolygonValue(input)
+	if input.Kind == checkruntime.PolygonValueError {
+		error := input.Error
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PolygonValueNull {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}
+	}
+	if input.Kind == checkruntime.PolygonValueValue {
+		value := checkruntime.CopyPolygonPayload(input.Value)
+		return value.Bounds
+	}
+	return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+}
+func polygonBoxCorner(value checkruntime.BoxPayload, highX bool, highY bool) checkruntime.PointPayload {
+	x := value.LowX
+	y := value.LowY
+	if highX {
+		x = value.HighX
+	}
+	if highY {
+		y = value.HighY
+	}
+	known := value.WireKnown || (checkruntime.Float8Number(x) == checkruntime.Float8Number(x) && checkruntime.Float8Number(y) == checkruntime.Float8Number(y))
+	return checkruntime.PointPayload{X: x, Y: y, WireKnown: known}
+}
+func Polygon6ij1(input checkruntime.BoxValue) checkruntime.PolygonValue {
+	if input.Kind == checkruntime.BoxValueError {
+		error := input.Error
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: error}
+	}
+	if input == (checkruntime.BoxValue{Kind: checkruntime.BoxValueNull}) {
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueNull}
+	}
+	if input.Kind == checkruntime.BoxValueValue {
+		value := input.Value
+		points := []checkruntime.PointPayload{}
+		langruntime.CheckedAdd(len(points), 1)
+		points = append(points, polygonBoxCorner(value, false, false))
+		langruntime.CheckedAdd(len(points), 1)
+		points = append(points, polygonBoxCorner(value, false, true))
+		langruntime.CheckedAdd(len(points), 1)
+		points = append(points, polygonBoxCorner(value, true, true))
+		langruntime.CheckedAdd(len(points), 1)
+		points = append(points, polygonBoxCorner(value, true, false))
+		bounds := boxFromPoints(boxEndpoint(input, false), boxEndpoint(input, true), false)
+		return checkruntime.MakePolygonValue(checkruntime.PolygonPayload{Points: points, Bounds: bounds})
+	}
+	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+}
+func PtContainedPolyC1l4(point checkruntime.PointValue, input checkruntime.PolygonValue) checkruntime.BoolValue {
+	input = checkruntime.CopyPolygonValue(input)
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return OnPpath8fo6(point, PathJw9h(input))
+}
+func PolyContainPtJvrw(input checkruntime.PolygonValue, point checkruntime.PointValue) checkruntime.BoolValue {
+	input = checkruntime.CopyPolygonValue(input)
+	if input.Kind == checkruntime.PolygonValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return PtContainedPolyC1l4(point, input)
+}
+func polygonParse(value string) checkruntime.PolygonValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	if len(chars) > 4096 {
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+	}
+	source := geometryInputText{chars: chars}
+	start := geometryInputSpace(&source, 0)
+	if start < len(source.chars) {
+		if source.chars[start] == '[' {
+			return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+		}
+		if source.chars[start] == '(' {
+			next := geometryInputSpace(&source, langruntime.CheckedAdd(start, 1))
+			if next < len(source.chars) && source.chars[next] == '[' {
+				return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+			}
+		}
+	}
+	parsed := pathParse(value)
+	if parsed.Kind == checkruntime.PathValueError {
+		error := parsed.Error
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: error}
+	}
+	if parsed.Kind == checkruntime.PathValueValue {
+		payload := checkruntime.CopyPathPayload(parsed.Value)
+		if payload.Closed == false {
+			return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: checkruntime.MakeSqlError(floatInputInvalid)}
+		}
+		return checkruntime.MakePolygonPoints(checkruntime.PolygonPayload{Points: payload.Points, Bounds: checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}})
+	}
+	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+}
+func PolygonFromText(input checkruntime.TextValue) checkruntime.PolygonValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return polygonParse(value)
+	}
+	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
 }
 func Int24eqCfkl(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	leftWide := checkruntime.Int2ToInt4(left)

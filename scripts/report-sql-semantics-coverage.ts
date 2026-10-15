@@ -40,6 +40,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'tid' ||
       expression.kind === 'xid8' ||
       expression.kind === 'oid' ||
+      expression.kind === 'polygon' ||
       expression.kind === 'path' ||
       expression.kind === 'circle' ||
       expression.kind === 'box' ||

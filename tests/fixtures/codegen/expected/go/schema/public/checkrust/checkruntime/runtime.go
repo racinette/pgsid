@@ -1467,6 +1467,7 @@ const (
 	BoxValueNull
 	BoxValueValue
 	BoxValueError
+	BoxValueNonNull
 )
 
 type BoxValue struct {
@@ -1578,6 +1579,182 @@ func PathFromCaseGuard(input CheckOutcome) PathValue {
 		return PathValue{Kind: PathValueError, Error: error}
 	}
 	return PathValue{Kind: PathValueUnknown}
+}
+
+type PolygonPayload struct {
+	Points []PointPayload
+	Bounds BoxValue
+}
+
+func CopyPolygonPayload(value PolygonPayload) PolygonPayload {
+	return PolygonPayload{Points: langruntime.CheckedStructs(value.Points, copyPointPayload), Bounds: value.Bounds}
+}
+
+type PolygonValueKind uint8
+
+const (
+	PolygonValueUnknown PolygonValueKind = iota
+	PolygonValueNull
+	PolygonValueValue
+	PolygonValueError
+)
+
+type PolygonValue struct {
+	Kind  PolygonValueKind
+	Value PolygonPayload
+	Error SqlError
+}
+
+func CopyPolygonValue(value PolygonValue) PolygonValue {
+	switch value.Kind {
+	case PolygonValueUnknown:
+		return PolygonValue{Kind: PolygonValueUnknown}
+	case PolygonValueNull:
+		return PolygonValue{Kind: PolygonValueNull}
+	case PolygonValueValue:
+		return PolygonValue{Kind: PolygonValueValue, Value: CopyPolygonPayload(value.Value)}
+	case PolygonValueError:
+		return PolygonValue{Kind: PolygonValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func polygonCoordinateLess(left int64, right int64) bool {
+	a := Float8Number(left)
+	b := Float8Number(right)
+	if b != b {
+		return a == a
+	}
+	return a < b
+}
+func polygonCoordinateEqual(left int64, right int64) bool {
+	a := Float8Number(left)
+	b := Float8Number(right)
+	return a == b || (a != a && b != b)
+}
+func polygonCoordinateKnown(point PointPayload, y bool) bool {
+	bits := point.X
+	if y {
+		bits = point.Y
+	}
+	value := Float8Number(bits)
+	return point.WireKnown || value == value
+}
+func polygonCalculatedBounds(payload PolygonPayload) BoxPayload {
+	payload = CopyPolygonPayload(payload)
+	first := payload.Points[0]
+	highX := first.X
+	highY := first.Y
+	lowX := first.X
+	lowY := first.Y
+	highXKnown := polygonCoordinateKnown(first, false)
+	highYKnown := polygonCoordinateKnown(first, true)
+	lowXKnown := highXKnown
+	lowYKnown := highYKnown
+	index := 1
+	for index < len(payload.Points) {
+		point := payload.Points[index]
+		if polygonCoordinateLess(point.X, lowX) {
+			lowX = point.X
+			lowXKnown = polygonCoordinateKnown(point, false)
+		}
+		if polygonCoordinateLess(highX, point.X) {
+			highX = point.X
+			highXKnown = polygonCoordinateKnown(point, false)
+		}
+		if polygonCoordinateLess(point.Y, lowY) {
+			lowY = point.Y
+			lowYKnown = polygonCoordinateKnown(point, true)
+		}
+		if polygonCoordinateLess(highY, point.Y) {
+			highY = point.Y
+			highYKnown = polygonCoordinateKnown(point, true)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return BoxPayload{HighX: highX, HighY: highY, LowX: lowX, LowY: lowY, WireKnown: highXKnown && highYKnown && lowXKnown && lowYKnown}
+}
+func polygonBoundsAmbiguous(payload PolygonPayload, bounds BoxPayload) bool {
+	payload = CopyPolygonPayload(payload)
+	if bounds.WireKnown == false {
+		return true
+	}
+	index := 0
+	for index < len(payload.Points) {
+		point := payload.Points[index]
+		if (polygonCoordinateEqual(point.X, bounds.HighX) && point.X != bounds.HighX) || (polygonCoordinateEqual(point.X, bounds.LowX) && point.X != bounds.LowX) || (polygonCoordinateEqual(point.Y, bounds.HighY) && point.Y != bounds.HighY) || (polygonCoordinateEqual(point.Y, bounds.LowY) && point.Y != bounds.LowY) {
+			return true
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return false
+}
+func MakePolygonValue(payload PolygonPayload) PolygonValue {
+	payload = CopyPolygonPayload(payload)
+	maximumPoints := 134217725
+	fallback := 0
+	maximum := langruntime.IndexFromI32(maximumPoints, fallback)
+	if len(payload.Points) == 0 || len(payload.Points) > maximum {
+		return PolygonValue{Kind: PolygonValueUnknown}
+	}
+	calculated := polygonCalculatedBounds(CopyPolygonPayload(payload))
+	bounds := payload.Bounds
+	if bounds == (BoxValue{Kind: BoxValueUnknown}) {
+		bounds = BoxValue{Kind: BoxValueNonNull}
+		if polygonBoundsAmbiguous(CopyPolygonPayload(payload), calculated) == false {
+			bounds = BoxValue{Kind: BoxValueValue, Value: calculated}
+		}
+	}
+	if bounds.Kind == BoxValueValue {
+		actual := bounds.Value
+		if polygonCoordinateEqual(actual.HighX, calculated.HighX) == false || polygonCoordinateEqual(actual.HighY, calculated.HighY) == false || polygonCoordinateEqual(actual.LowX, calculated.LowX) == false || polygonCoordinateEqual(actual.LowY, calculated.LowY) == false {
+			return PolygonValue{Kind: PolygonValueUnknown}
+		}
+	}
+	if bounds == (BoxValue{Kind: BoxValueNull}) {
+		return PolygonValue{Kind: PolygonValueUnknown}
+	}
+	if bounds.Kind == BoxValueError {
+		return PolygonValue{Kind: PolygonValueUnknown}
+	}
+	return PolygonValue{Kind: PolygonValueValue, Value: PolygonPayload{Points: payload.Points, Bounds: bounds}}
+}
+func MakePolygonPoints(payload PolygonPayload) PolygonValue {
+	payload = CopyPolygonPayload(payload)
+	maximumPoints := 134217725
+	fallback := 0
+	maximum := langruntime.IndexFromI32(maximumPoints, fallback)
+	if len(payload.Points) == 0 || len(payload.Points) > maximum {
+		return PolygonValue{Kind: PolygonValueUnknown}
+	}
+	bounds := polygonCalculatedBounds(CopyPolygonPayload(payload))
+	return PolygonValue{Kind: PolygonValueValue, Value: PolygonPayload{Points: payload.Points, Bounds: BoxValue{Kind: BoxValueValue, Value: bounds}}}
+}
+func PolygonUnknown() PolygonValue {
+	return PolygonValue{Kind: PolygonValueUnknown}
+}
+func PolygonNull() PolygonValue {
+	return PolygonValue{Kind: PolygonValueNull}
+}
+func PolygonIsNull(input PolygonValue) BoolValue {
+	input = CopyPolygonValue(input)
+	if input.Kind == PolygonValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == PolygonValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == PolygonValueNull {
+		return MakeBoolValue(true)
+	}
+	return MakeBoolValue(false)
+}
+func PolygonFromCaseGuard(input CheckOutcome) PolygonValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return PolygonValue{Kind: PolygonValueError, Error: error}
+	}
+	return PolygonValue{Kind: PolygonValueUnknown}
 }
 
 type CircleValueKind uint8

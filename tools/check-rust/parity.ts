@@ -24,6 +24,10 @@ export type Input =
         | boolean
         | string
         | { closed: boolean; points: { x: bigint; y: bigint }[] }
+        | {
+            points: { x: bigint; y: bigint }[]
+            bounds?: { highX: bigint; highY: bigint; lowX: bigint; lowY: bigint }
+          }
         | { x: bigint; y: bigint; radius: bigint }
         | { x: bigint; y: bigint }
         | { a: bigint; b: bigint; c: bigint }
@@ -93,59 +97,63 @@ export async function runCheckParity(
                   ? 'oid'
                   : type === 'pg_catalog.money'
                     ? 'money'
-                    : type === 'pg_catalog.path'
-                      ? 'path'
-                      : type === 'pg_catalog.circle'
-                        ? 'circle'
-                        : type === 'pg_catalog.box'
-                          ? 'box'
-                          : type === 'pg_catalog.lseg'
-                            ? 'lseg'
-                            : type === 'pg_catalog.line'
-                              ? 'line'
-                              : type === 'pg_catalog.point'
-                                ? 'point'
-                                : type === 'pg_catalog."time"'
-                                  ? 'time'
-                                  : type === 'pg_catalog.timetz'
-                                    ? 'timetz'
-                                    : type === 'pg_catalog."interval"'
-                                      ? 'interval'
-                                      : type === 'pg_catalog.float4' || type === 'pg_catalog.float8'
-                                        ? type.slice('pg_catalog.'.length)
-                                        : type === 'pg_catalog."bit"' ||
-                                            type === 'pg_catalog.varbit'
-                                          ? 'bit'
-                                          : type === 'pg_catalog.uuid'
-                                            ? 'uuid'
-                                            : type === 'pg_catalog.inet' ||
-                                                type === 'pg_catalog.cidr'
-                                              ? 'network'
-                                              : type === 'pg_catalog.macaddr'
-                                                ? 'macaddr'
-                                                : type === 'pg_catalog.macaddr8'
-                                                  ? 'macaddr8'
-                                                  : type === 'pg_catalog.bytea'
-                                                    ? 'bytea'
-                                                    : type.startsWith('enum:')
-                                                      ? 'enum'
-                                                      : type === 'pg_catalog.int2'
-                                                        ? 'int2'
-                                                        : type === 'pg_catalog.int4'
-                                                          ? 'int4'
-                                                          : type === 'pg_catalog.int8'
-                                                            ? 'int8'
-                                                            : type === 'pg_catalog."numeric"'
-                                                              ? 'numeric'
-                                                              : type === 'pg_catalog."timestamp"'
-                                                                ? 'timestamp'
-                                                                : type === 'pg_catalog.timestamptz'
-                                                                  ? 'timestamptz'
-                                                                  : type === 'pg_catalog.date'
-                                                                    ? 'date'
-                                                                    : type === 'pg_catalog.bool'
-                                                                      ? 'bool'
-                                                                      : 'text'
+                    : type === 'pg_catalog.polygon'
+                      ? 'polygon'
+                      : type === 'pg_catalog.path'
+                        ? 'path'
+                        : type === 'pg_catalog.circle'
+                          ? 'circle'
+                          : type === 'pg_catalog.box'
+                            ? 'box'
+                            : type === 'pg_catalog.lseg'
+                              ? 'lseg'
+                              : type === 'pg_catalog.line'
+                                ? 'line'
+                                : type === 'pg_catalog.point'
+                                  ? 'point'
+                                  : type === 'pg_catalog."time"'
+                                    ? 'time'
+                                    : type === 'pg_catalog.timetz'
+                                      ? 'timetz'
+                                      : type === 'pg_catalog."interval"'
+                                        ? 'interval'
+                                        : type === 'pg_catalog.float4' ||
+                                            type === 'pg_catalog.float8'
+                                          ? type.slice('pg_catalog.'.length)
+                                          : type === 'pg_catalog."bit"' ||
+                                              type === 'pg_catalog.varbit'
+                                            ? 'bit'
+                                            : type === 'pg_catalog.uuid'
+                                              ? 'uuid'
+                                              : type === 'pg_catalog.inet' ||
+                                                  type === 'pg_catalog.cidr'
+                                                ? 'network'
+                                                : type === 'pg_catalog.macaddr'
+                                                  ? 'macaddr'
+                                                  : type === 'pg_catalog.macaddr8'
+                                                    ? 'macaddr8'
+                                                    : type === 'pg_catalog.bytea'
+                                                      ? 'bytea'
+                                                      : type.startsWith('enum:')
+                                                        ? 'enum'
+                                                        : type === 'pg_catalog.int2'
+                                                          ? 'int2'
+                                                          : type === 'pg_catalog.int4'
+                                                            ? 'int4'
+                                                            : type === 'pg_catalog.int8'
+                                                              ? 'int8'
+                                                              : type === 'pg_catalog."numeric"'
+                                                                ? 'numeric'
+                                                                : type === 'pg_catalog."timestamp"'
+                                                                  ? 'timestamp'
+                                                                  : type ===
+                                                                      'pg_catalog.timestamptz'
+                                                                    ? 'timestamptz'
+                                                                    : type === 'pg_catalog.date'
+                                                                      ? 'date'
+                                                                      : type === 'pg_catalog.bool'
+                                                                        ? 'bool'
+                                                                        : 'text'
   const inputCode = (input: Input, type: string, definition?: EnumDefinition): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -168,8 +176,16 @@ export async function runCheckParity(
     }
     if (typeof input.value === 'object') {
       const parts = input.value
-      if ('points' in parts)
-        return `make_path_value(PathPayload {closed: ${parts.closed}, points: vec![${parts.points.map((p) => `PointPayload {x: ${p.x}i64, y: ${p.y}i64, wire_known: true}`).join(',')}]})`
+      if ('points' in parts) {
+        const points = `vec![${parts.points.map((p) => `PointPayload {x: ${p.x}i64, y: ${p.y}i64, wire_known: true}`).join(',')}]`
+        if (!('closed' in parts)) {
+          const bounds = parts.bounds
+            ? inputCode({ kind: 'Value', value: parts.bounds }, 'pg_catalog.box')
+            : 'BoxValue::Unknown'
+          return `make_polygon_value(PolygonPayload {points: ${points}, bounds: ${bounds}})`
+        }
+        return `make_path_value(PathPayload {closed: ${parts.closed}, points: ${points}})`
+      }
       if ('radius' in parts)
         return `make_circle_bits(${parts.x}i64, ${parts.y}i64, ${parts.radius}i64)`
       if ('highX' in parts)
@@ -233,6 +249,27 @@ export async function runCheckParity(
       return go.call(runtime('Make' + prefix + 'Bits'), [go.number(input.value as number | bigint)])
     if (typeof input.value === 'object') {
       const parts = input.value
+      if ('points' in parts && !('closed' in parts)) {
+        const points = go.composite(
+          go.slice(runtime('PointPayload')),
+          parts.points.map((point) =>
+            go.composite(runtime('PointPayload'), [
+              go.keyValue('X', go.number(point.x)),
+              go.keyValue('Y', go.number(point.y)),
+              go.keyValue('WireKnown', go.ident('true')),
+            ]),
+          ),
+        )
+        const bounds = parts.bounds
+          ? goInput({ kind: 'Value', value: parts.bounds }, 'pg_catalog.box')
+          : go.call(runtime('BoxUnknown'), [])
+        return go.call(runtime('MakePolygonValue'), [
+          go.composite(runtime('PolygonPayload'), [
+            go.keyValue('Points', points),
+            go.keyValue('Bounds', bounds),
+          ]),
+        ])
+      }
       if ('points' in parts)
         return go.call(runtime('MakePathValue'), [
           go.composite(runtime('PathPayload'), [
@@ -503,11 +540,30 @@ export async function runCheckParity(
           input.type === 'pg_catalog.path' &&
           value.kind === 'Value' &&
           typeof value.value === 'object' &&
-          'points' in value.value
+          'points' in value.value &&
+          'closed' in value.value
         )
           return generated.makePathValue({
             closed: value.value.closed,
             points: value.value.points.map((p) => ({ ...p, wireKnown: true })),
+          })
+        if (
+          input.type === 'pg_catalog.polygon' &&
+          value.kind === 'Value' &&
+          typeof value.value === 'object' &&
+          'points' in value.value &&
+          !('closed' in value.value)
+        )
+          return generated.makePolygonValue({
+            points: value.value.points.map((p) => ({ ...p, wireKnown: true })),
+            bounds: value.value.bounds
+              ? generated.makeBoxBits(
+                  value.value.bounds.highX,
+                  value.value.bounds.highY,
+                  value.value.bounds.lowX,
+                  value.value.bounds.lowY,
+                )
+              : { kind: 'Unknown' },
           })
         if (
           input.type === 'pg_catalog.circle' &&

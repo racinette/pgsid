@@ -29,6 +29,7 @@ import {
   catalogXid8Type,
   catalogOidType,
   catalogMoneyType,
+  catalogPolygonType,
   catalogPathType,
   catalogCircleType,
   catalogBoxType,
@@ -474,6 +475,13 @@ describe('world CHECK INSERT parity', () => {
             catalogMoneyType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const polygonColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogPolygonType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const pathColumns = table.columns
         .filter(
           (column) =>
@@ -611,6 +619,37 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.binary
         const bytes = hex === null ? null : Buffer.from(hex, 'hex')
         const payload = bytes === null ? null : bytes.readBigInt64BE()
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
+      }
+      for (const name of polygonColumns) {
+        const selected = (
+          await pg.query<{ binary: string | null; bounds: string | null }>(
+            `SELECT encode(poly_send(${quote(name)}),'hex') binary,encode(box_send(box(${quote(name)})),'hex') bounds FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!
+        let payload: {
+          points: { x: bigint; y: bigint }[]
+          bounds: { highX: bigint; highY: bigint; lowX: bigint; lowY: bigint }
+        } | null = null
+        if (selected.binary !== null) {
+          const bytes = Buffer.from(selected.binary, 'hex'),
+            bounds = Buffer.from(selected.bounds!, 'hex'),
+            points: { x: bigint; y: bigint }[] = []
+          expect(bytes.length).toBe(4 + bytes.readInt32BE() * 16)
+          expect(bounds.length).toBe(32)
+          for (let offset = 4; offset < bytes.length; offset += 16)
+            points.push({ x: bytes.readBigInt64BE(offset), y: bytes.readBigInt64BE(offset + 8) })
+          payload = {
+            points,
+            bounds: {
+              highX: bounds.readBigInt64BE(),
+              highY: bounds.readBigInt64BE(8),
+              lowX: bounds.readBigInt64BE(16),
+              lowY: bounds.readBigInt64BE(24),
+            },
+          }
+        }
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
       }
@@ -792,6 +831,7 @@ describe('world CHECK INSERT parity', () => {
         xid8Columns,
         oidColumns,
         moneyColumns,
+        polygonColumns,
         pathColumns,
         circleColumns,
         boxColumns,

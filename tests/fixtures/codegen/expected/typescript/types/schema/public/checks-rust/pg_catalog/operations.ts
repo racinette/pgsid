@@ -2226,6 +2226,9 @@ function boxBinary(input: checkruntime.BoxValue): checkruntime.ByteaValue {
     if (checkruntime.equalBoxValue(input, { kind: "Null" })) {
         return { kind: "Null" };
     }
+    if (checkruntime.equalBoxValue(input, { kind: "NonNull" })) {
+        return { kind: "Unspecified", value: 32 };
+    }
     if (input.kind === "Value") {
         const value: checkruntime.BoxPayload = input.value;
         if (value.wireKnown === false) {
@@ -19911,6 +19914,284 @@ export function pointDistance2haq(left: checkruntime.PointValue, right: checkrun
 }
 export function slopeXxph(left: checkruntime.PointValue, right: checkruntime.PointValue): checkruntime.Float8Value {
     return pointMeasurement(left, right, true);
+}
+export function polyNpointsQi4n(input: checkruntime.PolygonValue): checkruntime.Int4Value {
+    input = checkruntime.copyPolygonValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(input.value);
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(value.points.length)));
+    }
+    return { kind: "Unknown" };
+}
+export function npointsYk02(input: checkruntime.PolygonValue): checkruntime.Int4Value {
+    input = checkruntime.copyPolygonValue(input);
+    return polyNpointsQi4n(input);
+}
+export function polySend38c4(input: checkruntime.PolygonValue): checkruntime.ByteaValue {
+    input = checkruntime.copyPolygonValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(input.value);
+        const maximum: number = langruntime.indexFromI32(langruntime.checkedSignedDivide((langruntime.checkedSignedSubtract(byteaMaxLength, 4)), 16), 0);
+        if (value.points.length > maximum) {
+            return { kind: "Error", value: checkruntime.makeSqlError(byteaAllocationError) };
+        }
+        const encodedCount: checkruntime.ByteaValue = binarySendBits(checkruntime.makeInt8Value(BigInt(langruntime.checkedI32(langruntime.checkedI32(langruntime.checkedIndex(value.points.length))))), 4);
+        let output: string = "";
+        if (encodedCount.kind === "Value") {
+            const count: string = langruntime.checkedString(encodedCount.value);
+            output = output + count;
+        }
+        let index: number = 0;
+        while (index < value.points.length) {
+            const encoded: checkruntime.ByteaValue = pointSendKuoa({ kind: "Value", value: langruntime.indexStruct(value.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload) });
+            if (encoded.kind === "Error") {
+                const error: checkruntime.SqlError = encoded.value;
+                return { kind: "Error", value: error };
+            }
+            if (encoded.kind === "Unspecified") {
+                return { kind: "Unspecified", value: langruntime.checkedSignedAdd(4, langruntime.checkedSignedMultiply((langruntime.checkedI32(langruntime.checkedIndex(value.points.length))), 16)) };
+            }
+            if (checkruntime.equalByteaValue(encoded, { kind: "Unknown" }) || checkruntime.equalByteaValue(encoded, { kind: "Null" })) {
+                return { kind: "Unknown" };
+            }
+            if (encoded.kind === "Value") {
+                const bytes: string = langruntime.checkedString(encoded.value);
+                output = output + bytes;
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function polySame7cvi(left: checkruntime.PolygonValue, right: checkruntime.PolygonValue): checkruntime.BoolValue {
+    left = checkruntime.copyPolygonValue(left);
+    right = checkruntime.copyPolygonValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(right.value);
+            if (!(a.points.length === b.points.length)) {
+                return checkruntime.makeBoolValue(false);
+            }
+            if (a.points.length === 0) {
+                return { kind: "Unknown" };
+            }
+            let start: number = 0;
+            while (start < b.points.length) {
+                if (pointSameValue(langruntime.indexStruct(a.points, langruntime.checkedIndex(0), checkruntime.copyPointPayload), langruntime.indexStruct(b.points, langruntime.checkedIndex(start), checkruntime.copyPointPayload))) {
+                    let forward: boolean = true;
+                    let backward: boolean = true;
+                    let index: number = 1;
+                    while (index < a.points.length) {
+                        let next: number = langruntime.checkedAdd(start, index);
+                        if (next >= b.points.length) {
+                            next = langruntime.checkedIndex(langruntime.checkedSubtract(next, b.points.length));
+                        }
+                        let previous: number = start;
+                        if (start >= index) {
+                            previous = langruntime.checkedIndex(langruntime.checkedSubtract(start, index));
+                        }
+                        else {
+                            previous = langruntime.checkedIndex(langruntime.checkedSubtract(b.points.length, (langruntime.checkedSubtract(index, start))));
+                        }
+                        if (pointSameValue(langruntime.indexStruct(a.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload), langruntime.indexStruct(b.points, langruntime.checkedIndex(next), checkruntime.copyPointPayload)) === false) {
+                            forward = langruntime.checkedBool(false);
+                        }
+                        if (pointSameValue(langruntime.indexStruct(a.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload), langruntime.indexStruct(b.points, langruntime.checkedIndex(previous), checkruntime.copyPointPayload)) === false) {
+                            backward = langruntime.checkedBool(false);
+                        }
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                    if (forward || backward) {
+                        return checkruntime.makeBoolValue(true);
+                    }
+                }
+                start = langruntime.checkedAdd(start, 1);
+            }
+            return checkruntime.makeBoolValue(false);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function pathJw9h(input: checkruntime.PolygonValue): checkruntime.PathValue {
+    input = checkruntime.copyPolygonValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(input.value);
+        return checkruntime.makePathValue({ closed: true, points: value.points });
+    }
+    return { kind: "Unknown" };
+}
+export function polygonDdxi(input: checkruntime.PathValue): checkruntime.PolygonValue {
+    input = checkruntime.copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        if (value.closed === false) {
+            return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
+        }
+        return checkruntime.makePolygonPoints({ points: value.points, bounds: { kind: "Unknown" } });
+    }
+    return { kind: "Unknown" };
+}
+export function boxJ3b7(input: checkruntime.PolygonValue): checkruntime.BoxValue {
+    input = checkruntime.copyPolygonValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.PolygonPayload = checkruntime.copyPolygonPayload(input.value);
+        return value.bounds;
+    }
+    return { kind: "Unknown" };
+}
+function polygonBoxCorner(value: checkruntime.BoxPayload, highX: boolean, highY: boolean): checkruntime.PointPayload {
+    highX = langruntime.checkedBool(highX);
+    highY = langruntime.checkedBool(highY);
+    let x: bigint = value.lowX;
+    let y: bigint = value.lowY;
+    if (highX) {
+        x = langruntime.checkedI64(value.highX);
+    }
+    if (highY) {
+        y = langruntime.checkedI64(value.highY);
+    }
+    const known: boolean = value.wireKnown || (checkruntime.float8Number(x) === checkruntime.float8Number(x) && checkruntime.float8Number(y) === checkruntime.float8Number(y));
+    return { x: x, y: y, wireKnown: known };
+}
+export function polygon6ij1(input: checkruntime.BoxValue): checkruntime.PolygonValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoxValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.BoxPayload = input.value;
+        let points: checkruntime.PointPayload[] = [];
+        langruntime.pushStruct(points, polygonBoxCorner(value, false, false), checkruntime.copyPointPayload);
+        langruntime.pushStruct(points, polygonBoxCorner(value, false, true), checkruntime.copyPointPayload);
+        langruntime.pushStruct(points, polygonBoxCorner(value, true, true), checkruntime.copyPointPayload);
+        langruntime.pushStruct(points, polygonBoxCorner(value, true, false), checkruntime.copyPointPayload);
+        const bounds: checkruntime.BoxValue = boxFromPoints(boxEndpoint(input, false), boxEndpoint(input, true), false);
+        return checkruntime.makePolygonValue({ points: points, bounds: bounds });
+    }
+    return { kind: "Unknown" };
+}
+export function ptContainedPolyC1l4(point: checkruntime.PointValue, input: checkruntime.PolygonValue): checkruntime.BoolValue {
+    input = checkruntime.copyPolygonValue(input);
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    return onPpath8fo6(point, pathJw9h(input));
+}
+export function polyContainPtJvrw(input: checkruntime.PolygonValue, point: checkruntime.PointValue): checkruntime.BoolValue {
+    input = checkruntime.copyPolygonValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return ptContainedPolyC1l4(point, input);
+}
+function polygonParse(value: string): checkruntime.PolygonValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 4096) {
+        return { kind: "Unknown" };
+    }
+    const source: GeometryInputText = { chars: chars };
+    const start: number = geometryInputSpace(source, 0);
+    if (start < source.chars.length) {
+        if (langruntime.indexChar(source.chars, langruntime.checkedIndex(start)) === "[") {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+        }
+        if (langruntime.indexChar(source.chars, langruntime.checkedIndex(start)) === "(") {
+            const next: number = geometryInputSpace(source, langruntime.checkedAdd(start, 1));
+            if (next < source.chars.length && langruntime.indexChar(source.chars, langruntime.checkedIndex(next)) === "[") {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+            }
+        }
+    }
+    const parsed: checkruntime.PathValue = pathParse(value);
+    if (parsed.kind === "Error") {
+        const error: checkruntime.SqlError = parsed.value;
+        return { kind: "Error", value: error };
+    }
+    if (parsed.kind === "Value") {
+        const payload: checkruntime.PathPayload = checkruntime.copyPathPayload(parsed.value);
+        if (payload.closed === false) {
+            return { kind: "Error", value: checkruntime.makeSqlError(floatInputInvalid) };
+        }
+        return checkruntime.makePolygonPoints({ points: payload.points, bounds: { kind: "Unknown" } });
+    }
+    return { kind: "Unknown" };
+}
+export function polygonFromText(input: checkruntime.TextValue): checkruntime.PolygonValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return polygonParse(value);
+    }
+    return { kind: "Unknown" };
 }
 export function int24eqCfkl(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
