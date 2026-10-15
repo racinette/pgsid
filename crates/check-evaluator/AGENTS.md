@@ -571,3 +571,10 @@ import them. Keep schema-only helpers with their callables.
   SQL NULL. NaN distance results preserve comparisons and defer binary output because
   PostgreSQL-generated NaN bits require platform context. Preserve argument-order errors in reversed overloads.
   Run path distance parity and route distance INSERTs.
+
+- Path containment visits the initial distance even for a single-point open path;
+  closed paths use oriented ray crossings with tolerant axis tests and checked
+  coordinate arithmetic. Intersection rejects disjoint bounding boxes before
+  visiting segment pairs, starting with closing edges. Preserve short circuits,
+  first reached errors and definite predicates for semantic NaNs. Run path
+  predicate parity and route membership/crossing INSERT cases.

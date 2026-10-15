@@ -68,3 +68,27 @@ CREATE TABLE route_distances (
  CONSTRAINT route_pair_distance CHECK((route <-> reference)=expected_paths),
  CONSTRAINT route_distance_aliases CHECK(dist_ppath(probe,route)=dist_pathp(route,probe))
 );
+CREATE TABLE route_memberships (
+ id integer PRIMARY KEY,
+ plan_id integer NOT NULL REFERENCES route_plans(id),
+ label text NOT NULL,
+ route imported_route,
+ probe point,
+ expected_member boolean,
+ expected_reverse boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT membership_point CHECK(CASE WHEN bypass THEN true ELSE on_ppath(probe,route)=expected_member AND (probe <@ route)=expected_member END),
+ CONSTRAINT membership_route CHECK(CASE WHEN bypass THEN true ELSE path_contain_pt(route,probe)=expected_reverse AND (route @> probe)=expected_reverse END)
+);
+CREATE TABLE route_crossings (
+ id integer PRIMARY KEY,
+ plan_id integer NOT NULL REFERENCES route_plans(id),
+ label text NOT NULL,
+ route imported_route,
+ reference path,
+ expected_cross boolean,
+ expected_closed boolean,
+ bypass boolean NOT NULL,
+ CONSTRAINT crossing_open CHECK(CASE WHEN bypass THEN true ELSE path_inter(route,reference)=expected_cross AND (route ?# reference)=expected_cross END),
+ CONSTRAINT crossing_closed CHECK(CASE WHEN bypass THEN true ELSE path_inter(pclose(route),pclose(reference))=expected_closed END)
+);

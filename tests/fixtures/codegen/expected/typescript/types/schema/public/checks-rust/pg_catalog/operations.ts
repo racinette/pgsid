@@ -18764,6 +18764,307 @@ export function pathAdd7wkx(left: checkruntime.PathValue, right: checkruntime.Pa
     }
     return { kind: "Unknown" };
 }
+function pathBounds(path: checkruntime.PathPayload): checkruntime.BoxValue {
+    path = checkruntime.copyPathPayload(path);
+    if (path.points.length === 0) {
+        return { kind: "Unknown" };
+    }
+    const first: checkruntime.PointPayload = langruntime.indexStruct(path.points, langruntime.checkedIndex(0), checkruntime.copyPointPayload);
+    let highX: bigint = first.x;
+    let highY: bigint = first.y;
+    let lowX: bigint = first.x;
+    let lowY: bigint = first.y;
+    let index: number = 1;
+    while (index < path.points.length) {
+        const point: checkruntime.PointPayload = langruntime.indexStruct(path.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload);
+        if (checkruntime.equalBoolValue(float8gtM76q(checkruntime.makeFloat8Bits(point.x), checkruntime.makeFloat8Bits(highX)), { kind: "Value", value: true })) {
+            highX = langruntime.checkedI64(point.x);
+        }
+        if (checkruntime.equalBoolValue(float8gtM76q(checkruntime.makeFloat8Bits(point.y), checkruntime.makeFloat8Bits(highY)), { kind: "Value", value: true })) {
+            highY = langruntime.checkedI64(point.y);
+        }
+        if (checkruntime.equalBoolValue(float8ltVp07(checkruntime.makeFloat8Bits(point.x), checkruntime.makeFloat8Bits(lowX)), { kind: "Value", value: true })) {
+            lowX = langruntime.checkedI64(point.x);
+        }
+        if (checkruntime.equalBoolValue(float8ltVp07(checkruntime.makeFloat8Bits(point.y), checkruntime.makeFloat8Bits(lowY)), { kind: "Value", value: true })) {
+            lowY = langruntime.checkedI64(point.y);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: { highX: highX, highY: highY, lowX: lowX, lowY: lowY, wireKnown: false } };
+}
+export function pathInter6pqp(left: checkruntime.PathValue, right: checkruntime.PathValue): checkruntime.BoolValue {
+    left = checkruntime.copyPathValue(left);
+    right = checkruntime.copyPathValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.PathPayload = checkruntime.copyPathPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.PathPayload = checkruntime.copyPathPayload(right.value);
+            const overlap: checkruntime.BoolValue = boxOverlapKe99(pathBounds(checkruntime.copyPathPayload(a)), pathBounds(checkruntime.copyPathPayload(b)));
+            if (!(checkruntime.equalBoolValue(overlap, { kind: "Value", value: true }))) {
+                return overlap;
+            }
+            let i: number = 0;
+            if (a.closed === false) {
+                i = langruntime.checkedIndex(1);
+            }
+            while (i < a.points.length) {
+                let beforeI: number = langruntime.checkedSubtract(a.points.length, 1);
+                if (i > 0) {
+                    beforeI = langruntime.checkedIndex(langruntime.checkedSubtract(i, 1));
+                }
+                let j: number = 0;
+                if (b.closed === false) {
+                    j = langruntime.checkedIndex(1);
+                }
+                while (j < b.points.length) {
+                    let beforeJ: number = langruntime.checkedSubtract(b.points.length, 1);
+                    if (j > 0) {
+                        beforeJ = langruntime.checkedIndex(langruntime.checkedSubtract(j, 1));
+                    }
+                    const first: checkruntime.LsegValue = pathSegment(langruntime.indexStruct(a.points, langruntime.checkedIndex(beforeI), checkruntime.copyPointPayload), langruntime.indexStruct(a.points, langruntime.checkedIndex(i), checkruntime.copyPointPayload));
+                    const second: checkruntime.LsegValue = pathSegment(langruntime.indexStruct(b.points, langruntime.checkedIndex(beforeJ), checkruntime.copyPointPayload), langruntime.indexStruct(b.points, langruntime.checkedIndex(j), checkruntime.copyPointPayload));
+                    const result: checkruntime.BoolValue = lsegIntersectOvab(first, second);
+                    if (!(checkruntime.equalBoolValue(result, { kind: "Value", value: false }))) {
+                        return result;
+                    }
+                    j = langruntime.checkedAdd(j, 1);
+                }
+                i = langruntime.checkedAdd(i, 1);
+            }
+            return checkruntime.makeBoolValue(false);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function pathAxisCrossing(x: number, y: number, previousX: number, previousY: number): checkruntime.Int4Value {
+    x = langruntime.checkedF64(x);
+    y = langruntime.checkedF64(y);
+    previousX = langruntime.checkedF64(previousX);
+    previousY = langruntime.checkedF64(previousY);
+    if (geometricCoordinateEqual(y, 0.0)) {
+        if (geometricCoordinateEqual(x, 0.0)) {
+            return checkruntime.makeInt4Value(2147483647);
+        }
+        if (boxCoordinateRelation(x, 0.0, 2)) {
+            if (geometricCoordinateEqual(previousY, 0.0)) {
+                if (boxCoordinateRelation(previousX, 0.0, 2)) {
+                    return checkruntime.makeInt4Value(0);
+                }
+                return checkruntime.makeInt4Value(2147483647);
+            }
+            if (boxCoordinateRelation(previousY, 0.0, 0)) {
+                return checkruntime.makeInt4Value(1);
+            }
+            return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+        }
+        if (geometricCoordinateEqual(previousY, 0.0)) {
+            if (boxCoordinateRelation(previousX, 0.0, 0)) {
+                return checkruntime.makeInt4Value(0);
+            }
+            return checkruntime.makeInt4Value(2147483647);
+        }
+        return checkruntime.makeInt4Value(0);
+    }
+    let direction: number = langruntime.checkedSignedNegate(1);
+    if (boxCoordinateRelation(y, 0.0, 2)) {
+        direction = langruntime.checkedI32(1);
+    }
+    if (geometricCoordinateEqual(previousY, 0.0)) {
+        if (boxCoordinateRelation(previousX, 0.0, 0)) {
+            return checkruntime.makeInt4Value(0);
+        }
+        return checkruntime.makeInt4Value(direction);
+    }
+    if ((direction < 0 && boxCoordinateRelation(previousY, 0.0, 0)) || (direction > 0 && boxCoordinateRelation(previousY, 0.0, 2))) {
+        return checkruntime.makeInt4Value(0);
+    }
+    if (boxCoordinateRelation(x, 0.0, 3) && boxCoordinateRelation(previousX, 0.0, 2)) {
+        return checkruntime.makeInt4Value(langruntime.checkedSignedMultiply(2, direction));
+    }
+    if (boxCoordinateRelation(x, 0.0, 0) && boxCoordinateRelation(previousX, 0.0, 1)) {
+        return checkruntime.makeInt4Value(0);
+    }
+    const first: checkruntime.Float8Value = float8mulD3nd(float8miR1nu(checkruntime.makeFloat8Value(x), checkruntime.makeFloat8Value(previousX)), checkruntime.makeFloat8Value(y));
+    if (first.kind === "Error") {
+        const error: checkruntime.SqlError = first.value;
+        return { kind: "Error", value: error };
+    }
+    const second: checkruntime.Float8Value = float8mulD3nd(float8miR1nu(checkruntime.makeFloat8Value(y), checkruntime.makeFloat8Value(previousY)), checkruntime.makeFloat8Value(x));
+    const difference: checkruntime.Float8Value = float8miR1nu(first, second);
+    if (difference.kind === "Error") {
+        const error: checkruntime.SqlError = difference.value;
+        return { kind: "Error", value: error };
+    }
+    const knownDifference: checkruntime.Float8Value = checkruntime.float8Semantic(difference);
+    if (knownDifference.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(knownDifference.value);
+        const z: number = checkruntime.float8Number(bits);
+        if (geometricCoordinateEqual(z, 0.0)) {
+            return checkruntime.makeInt4Value(2147483647);
+        }
+        if ((direction < 0 && boxCoordinateRelation(z, 0.0, 0)) || (direction > 0 && boxCoordinateRelation(z, 0.0, 2))) {
+            return checkruntime.makeInt4Value(0);
+        }
+        return checkruntime.makeInt4Value(langruntime.checkedSignedMultiply(2, direction));
+    }
+    return { kind: "Unknown" };
+}
+function closedPathContains(point: checkruntime.PointPayload, path: checkruntime.PathPayload): checkruntime.BoolValue {
+    path = checkruntime.copyPathPayload(path);
+    const first: checkruntime.PointValue = pointSubO53k({ kind: "Value", value: langruntime.indexStruct(path.points, langruntime.checkedIndex(0), checkruntime.copyPointPayload) }, { kind: "Value", value: point });
+    if (first.kind === "Error") {
+        const error: checkruntime.SqlError = first.value;
+        return { kind: "Error", value: error };
+    }
+    if (first.kind === "Value") {
+        const start: checkruntime.PointPayload = first.value;
+        let previous: checkruntime.PointPayload = start;
+        let total: number = 0;
+        let index: number = 1;
+        while (index <= path.points.length) {
+            let next: checkruntime.PointValue = { kind: "Value", value: start };
+            if (index < path.points.length) {
+                next = pointSubO53k({ kind: "Value", value: langruntime.indexStruct(path.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload) }, { kind: "Value", value: point });
+            }
+            if (next.kind === "Error") {
+                const error: checkruntime.SqlError = next.value;
+                return { kind: "Error", value: error };
+            }
+            let advanced: boolean = false;
+            if (next.kind === "Value") {
+                const current: checkruntime.PointPayload = next.value;
+                const cross: checkruntime.Int4Value = pathAxisCrossing(checkruntime.float8Number(current.x), checkruntime.float8Number(current.y), checkruntime.float8Number(previous.x), checkruntime.float8Number(previous.y));
+                if (cross.kind === "Error") {
+                    const error: checkruntime.SqlError = cross.value;
+                    return { kind: "Error", value: error };
+                }
+                let crossingKnown: boolean = false;
+                if (cross.kind === "Value") {
+                    const count: number = langruntime.checkedI32(cross.value);
+                    if (count === 2147483647) {
+                        return checkruntime.makeBoolValue(true);
+                    }
+                    total = langruntime.checkedI32(langruntime.checkedSignedAdd(total, count));
+                    crossingKnown = langruntime.checkedBool(true);
+                }
+                if (crossingKnown === false) {
+                    return { kind: "Unknown" };
+                }
+                previous = current;
+                advanced = langruntime.checkedBool(true);
+            }
+            if (advanced === false) {
+                return { kind: "Unknown" };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return checkruntime.makeBoolValue(!(total === 0));
+    }
+    return { kind: "Unknown" };
+}
+export function onPpath8fo6(point: checkruntime.PointValue, input: checkruntime.PathValue): checkruntime.BoolValue {
+    input = checkruntime.copyPathValue(input);
+    if (point.kind === "Error") {
+        const error: checkruntime.SqlError = point.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalPointValue(point, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const path: checkruntime.PathPayload = checkruntime.copyPathPayload(input.value);
+        if (path.points.length === 0) {
+            return { kind: "Unknown" };
+        }
+        if (point.kind === "Value") {
+            const position: checkruntime.PointPayload = point.value;
+            if (path.closed) {
+                return closedPathContains(position, path);
+            }
+            let previous: checkruntime.Float8Value = pointDistance2haq(point, { kind: "Value", value: langruntime.indexStruct(path.points, langruntime.checkedIndex(0), checkruntime.copyPointPayload) });
+            if (previous.kind === "Error") {
+                const error: checkruntime.SqlError = previous.value;
+                return { kind: "Error", value: error };
+            }
+            let index: number = 1;
+            while (index < path.points.length) {
+                const next: checkruntime.Float8Value = pointDistance2haq(point, { kind: "Value", value: langruntime.indexStruct(path.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload) });
+                const sum: checkruntime.Float8Value = float8plG3ou(previous, next);
+                if (sum.kind === "Error") {
+                    const error: checkruntime.SqlError = sum.value;
+                    return { kind: "Error", value: error };
+                }
+                const edge: checkruntime.Float8Value = pointDistance2haq({ kind: "Value", value: langruntime.indexStruct(path.points, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1)), checkruntime.copyPointPayload) }, { kind: "Value", value: langruntime.indexStruct(path.points, langruntime.checkedIndex(index), checkruntime.copyPointPayload) });
+                if (edge.kind === "Error") {
+                    const error: checkruntime.SqlError = edge.value;
+                    return { kind: "Error", value: error };
+                }
+                let compared: boolean = false;
+                const knownSum: checkruntime.Float8Value = checkruntime.float8Semantic(sum);
+                if (knownSum.kind === "Value") {
+                    const a: bigint = langruntime.checkedI64(knownSum.value);
+                    const knownEdge: checkruntime.Float8Value = checkruntime.float8Semantic(edge);
+                    if (knownEdge.kind === "Value") {
+                        const b: bigint = langruntime.checkedI64(knownEdge.value);
+                        if (geometricCoordinateEqual(checkruntime.float8Number(a), checkruntime.float8Number(b))) {
+                            return checkruntime.makeBoolValue(true);
+                        }
+                        compared = langruntime.checkedBool(true);
+                    }
+                }
+                if (compared === false) {
+                    return { kind: "Unknown" };
+                }
+                previous = next;
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return checkruntime.makeBoolValue(false);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function pathContainPtLtus(input: checkruntime.PathValue, point: checkruntime.PointValue): checkruntime.BoolValue {
+    input = checkruntime.copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return onPpath8fo6(point, input);
+}
 const pgLsnSpecialError = 466560;
 const pgLsnRangeError = 3452619;
 function pgLsnCompare(left: checkruntime.PgLsnValue, right: checkruntime.PgLsnValue): checkruntime.Int4Value {

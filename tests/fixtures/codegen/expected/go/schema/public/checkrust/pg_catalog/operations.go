@@ -18691,6 +18691,303 @@ func PathAdd7wkx(left checkruntime.PathValue, right checkruntime.PathValue) chec
 	}
 	return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
 }
+func pathBounds(path checkruntime.PathPayload) checkruntime.BoxValue {
+	path = checkruntime.CopyPathPayload(path)
+	if len(path.Points) == 0 {
+		return checkruntime.BoxValue{Kind: checkruntime.BoxValueUnknown}
+	}
+	first := path.Points[0]
+	highX := first.X
+	highY := first.Y
+	lowX := first.X
+	lowY := first.Y
+	index := 1
+	for index < len(path.Points) {
+		point := path.Points[index]
+		if Float8gtM76q(checkruntime.MakeFloat8Bits(point.X), checkruntime.MakeFloat8Bits(highX)) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			highX = point.X
+		}
+		if Float8gtM76q(checkruntime.MakeFloat8Bits(point.Y), checkruntime.MakeFloat8Bits(highY)) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			highY = point.Y
+		}
+		if Float8ltVp07(checkruntime.MakeFloat8Bits(point.X), checkruntime.MakeFloat8Bits(lowX)) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			lowX = point.X
+		}
+		if Float8ltVp07(checkruntime.MakeFloat8Bits(point.Y), checkruntime.MakeFloat8Bits(lowY)) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			lowY = point.Y
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return checkruntime.BoxValue{Kind: checkruntime.BoxValueValue, Value: checkruntime.BoxPayload{HighX: highX, HighY: highY, LowX: lowX, LowY: lowY, WireKnown: false}}
+}
+func PathInter6pqp(left checkruntime.PathValue, right checkruntime.PathValue) checkruntime.BoolValue {
+	left = checkruntime.CopyPathValue(left)
+	right = checkruntime.CopyPathValue(right)
+	if left.Kind == checkruntime.PathValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PathValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left.Kind == checkruntime.PathValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if right.Kind == checkruntime.PathValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left.Kind == checkruntime.PathValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if right.Kind == checkruntime.PathValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.PathValueValue {
+		a := checkruntime.CopyPathPayload(left.Value)
+		if right.Kind == checkruntime.PathValueValue {
+			b := checkruntime.CopyPathPayload(right.Value)
+			overlap := BoxOverlapKe99(pathBounds(checkruntime.CopyPathPayload(a)), pathBounds(checkruntime.CopyPathPayload(b)))
+			if overlap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return overlap
+			}
+			i := 0
+			if a.Closed == false {
+				i = langruntime.CheckedIndex(1)
+			}
+			for i < len(a.Points) {
+				beforeI := langruntime.CheckedSubtract(len(a.Points), 1)
+				if i > 0 {
+					beforeI = langruntime.CheckedIndex(langruntime.CheckedSubtract(i, 1))
+				}
+				j := 0
+				if b.Closed == false {
+					j = langruntime.CheckedIndex(1)
+				}
+				for j < len(b.Points) {
+					beforeJ := langruntime.CheckedSubtract(len(b.Points), 1)
+					if j > 0 {
+						beforeJ = langruntime.CheckedIndex(langruntime.CheckedSubtract(j, 1))
+					}
+					first := pathSegment(a.Points[beforeI], a.Points[i])
+					second := pathSegment(b.Points[beforeJ], b.Points[j])
+					result := LsegIntersectOvab(first, second)
+					if result != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+						return result
+					}
+					j = langruntime.CheckedAdd(j, 1)
+				}
+				i = langruntime.CheckedAdd(i, 1)
+			}
+			return checkruntime.MakeBoolValue(false)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func pathAxisCrossing(x float64, y float64, previousX float64, previousY float64) checkruntime.Int4Value {
+	if geometricCoordinateEqual(y, float64(0.0)) {
+		if geometricCoordinateEqual(x, float64(0.0)) {
+			return checkruntime.MakeInt4Value(2147483647)
+		}
+		if boxCoordinateRelation(x, float64(0.0), 2) {
+			if geometricCoordinateEqual(previousY, float64(0.0)) {
+				if boxCoordinateRelation(previousX, float64(0.0), 2) {
+					return checkruntime.MakeInt4Value(0)
+				}
+				return checkruntime.MakeInt4Value(2147483647)
+			}
+			if boxCoordinateRelation(previousY, float64(0.0), 0) {
+				return checkruntime.MakeInt4Value(1)
+			}
+			return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+		}
+		if geometricCoordinateEqual(previousY, float64(0.0)) {
+			if boxCoordinateRelation(previousX, float64(0.0), 0) {
+				return checkruntime.MakeInt4Value(0)
+			}
+			return checkruntime.MakeInt4Value(2147483647)
+		}
+		return checkruntime.MakeInt4Value(0)
+	}
+	direction := langruntime.CheckedSignedNegate(1)
+	if boxCoordinateRelation(y, float64(0.0), 2) {
+		direction = langruntime.CheckedI32(1)
+	}
+	if geometricCoordinateEqual(previousY, float64(0.0)) {
+		if boxCoordinateRelation(previousX, float64(0.0), 0) {
+			return checkruntime.MakeInt4Value(0)
+		}
+		return checkruntime.MakeInt4Value(direction)
+	}
+	if (direction < 0 && boxCoordinateRelation(previousY, float64(0.0), 0)) || (direction > 0 && boxCoordinateRelation(previousY, float64(0.0), 2)) {
+		return checkruntime.MakeInt4Value(0)
+	}
+	if boxCoordinateRelation(x, float64(0.0), 3) && boxCoordinateRelation(previousX, float64(0.0), 2) {
+		return checkruntime.MakeInt4Value(langruntime.CheckedSignedMultiply(2, direction))
+	}
+	if boxCoordinateRelation(x, float64(0.0), 0) && boxCoordinateRelation(previousX, float64(0.0), 1) {
+		return checkruntime.MakeInt4Value(0)
+	}
+	first := Float8mulD3nd(Float8miR1nu(checkruntime.MakeFloat8Value(x), checkruntime.MakeFloat8Value(previousX)), checkruntime.MakeFloat8Value(y))
+	if first.Kind == checkruntime.Float8ValueError {
+		error := first.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	second := Float8mulD3nd(Float8miR1nu(checkruntime.MakeFloat8Value(y), checkruntime.MakeFloat8Value(previousY)), checkruntime.MakeFloat8Value(x))
+	difference := Float8miR1nu(first, second)
+	if difference.Kind == checkruntime.Float8ValueError {
+		error := difference.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	knownDifference := checkruntime.Float8Semantic(difference)
+	if knownDifference.Kind == checkruntime.Float8ValueValue {
+		bits := knownDifference.Value
+		z := checkruntime.Float8Number(bits)
+		if geometricCoordinateEqual(z, float64(0.0)) {
+			return checkruntime.MakeInt4Value(2147483647)
+		}
+		if (direction < 0 && boxCoordinateRelation(z, float64(0.0), 0)) || (direction > 0 && boxCoordinateRelation(z, float64(0.0), 2)) {
+			return checkruntime.MakeInt4Value(0)
+		}
+		return checkruntime.MakeInt4Value(langruntime.CheckedSignedMultiply(2, direction))
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func closedPathContains(point checkruntime.PointPayload, path checkruntime.PathPayload) checkruntime.BoolValue {
+	path = checkruntime.CopyPathPayload(path)
+	first := PointSubO53k(checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: path.Points[0]}, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: point})
+	if first.Kind == checkruntime.PointValueError {
+		error := first.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if first.Kind == checkruntime.PointValueValue {
+		start := first.Value
+		previous := start
+		total := 0
+		index := 1
+		for index <= len(path.Points) {
+			next := checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: start}
+			if index < len(path.Points) {
+				next = PointSubO53k(checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: path.Points[index]}, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: point})
+			}
+			if next.Kind == checkruntime.PointValueError {
+				error := next.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			advanced := false
+			if next.Kind == checkruntime.PointValueValue {
+				current := next.Value
+				cross := pathAxisCrossing(checkruntime.Float8Number(current.X), checkruntime.Float8Number(current.Y), checkruntime.Float8Number(previous.X), checkruntime.Float8Number(previous.Y))
+				if cross.Kind == checkruntime.Int4ValueError {
+					error := cross.Error
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+				}
+				crossingKnown := false
+				if cross.Kind == checkruntime.Int4ValueValue {
+					count := langruntime.CheckedI32(cross.Value)
+					if count == 2147483647 {
+						return checkruntime.MakeBoolValue(true)
+					}
+					total = langruntime.CheckedI32(langruntime.CheckedSignedAdd(total, count))
+					crossingKnown = true
+				}
+				if crossingKnown == false {
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+				}
+				previous = current
+				advanced = true
+			}
+			if advanced == false {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.MakeBoolValue(total != 0)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func OnPpath8fo6(point checkruntime.PointValue, input checkruntime.PathValue) checkruntime.BoolValue {
+	input = checkruntime.CopyPathValue(input)
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PathValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.Kind == checkruntime.PathValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.PathValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.PathValueValue {
+		path := checkruntime.CopyPathPayload(input.Value)
+		if len(path.Points) == 0 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+		if point.Kind == checkruntime.PointValueValue {
+			position := point.Value
+			if path.Closed {
+				return closedPathContains(position, path)
+			}
+			previous := PointDistance2haq(point, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: path.Points[0]})
+			if previous.Kind == checkruntime.Float8ValueError {
+				error := previous.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			index := 1
+			for index < len(path.Points) {
+				next := PointDistance2haq(point, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: path.Points[index]})
+				sum := Float8plG3ou(previous, next)
+				if sum.Kind == checkruntime.Float8ValueError {
+					error := sum.Error
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+				}
+				edge := PointDistance2haq(checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: path.Points[langruntime.CheckedSubtract(index, 1)]}, checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: path.Points[index]})
+				if edge.Kind == checkruntime.Float8ValueError {
+					error := edge.Error
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+				}
+				compared := false
+				knownSum := checkruntime.Float8Semantic(sum)
+				if knownSum.Kind == checkruntime.Float8ValueValue {
+					a := knownSum.Value
+					knownEdge := checkruntime.Float8Semantic(edge)
+					if knownEdge.Kind == checkruntime.Float8ValueValue {
+						b := knownEdge.Value
+						if geometricCoordinateEqual(checkruntime.Float8Number(a), checkruntime.Float8Number(b)) {
+							return checkruntime.MakeBoolValue(true)
+						}
+						compared = true
+					}
+				}
+				if compared == false {
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+				}
+				previous = next
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.MakeBoolValue(false)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func PathContainPtLtus(input checkruntime.PathValue, point checkruntime.PointValue) checkruntime.BoolValue {
+	input = checkruntime.CopyPathValue(input)
+	if input.Kind == checkruntime.PathValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	return OnPpath8fo6(point, input)
+}
 
 const pgLsnSpecialError = 466560
 const pgLsnRangeError = 3452619
