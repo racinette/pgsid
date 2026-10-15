@@ -18235,6 +18235,153 @@ func AreaPh6t(input checkruntime.PathValue) checkruntime.Float8Value {
 	}
 	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
 }
+func pathSegment(first checkruntime.PointPayload, second checkruntime.PointPayload) checkruntime.LsegValue {
+	return checkruntime.LsegValue{Kind: checkruntime.LsegValueValue, Value: checkruntime.LsegPayload{X1: first.X, Y1: first.Y, X2: second.X, Y2: second.Y, WireKnown: first.WireKnown && second.WireKnown}}
+}
+func pathMinDistance(current checkruntime.Float8Value, candidate checkruntime.Float8Value, first bool) checkruntime.Float8Value {
+	if candidate.Kind == checkruntime.Float8ValueError {
+		error := candidate.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if candidate == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if first || Float8ltVp07(candidate, current) == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return candidate
+	}
+	return current
+}
+func DistPpathE16q(point checkruntime.PointValue, input checkruntime.PathValue) checkruntime.Float8Value {
+	input = checkruntime.CopyPathValue(input)
+	if point.Kind == checkruntime.PointValueError {
+		error := point.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PathValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if input.Kind == checkruntime.PathValueUnknown {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if input.Kind == checkruntime.PathValueNull {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if input.Kind == checkruntime.PathValueValue {
+		path := checkruntime.CopyPathPayload(input.Value)
+		result := checkruntime.MakeFloat8Value(float64(0.0))
+		haveMin := false
+		index := 0
+		if path.Closed == false {
+			index = langruntime.CheckedIndex(1)
+		}
+		for index < len(path.Points) {
+			previous := langruntime.CheckedSubtract(len(path.Points), 1)
+			if index > 0 {
+				previous = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+			}
+			segment := pathSegment(path.Points[previous], path.Points[index])
+			distance := DistSp3dia(segment, point)
+			result = pathMinDistance(result, distance, haveMin == false)
+			if result.Kind == checkruntime.Float8ValueError {
+				error := result.Error
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+			}
+			if result == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+			}
+			haveMin = true
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return boxComputedScalar(result)
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func DistPathp9d28(input checkruntime.PathValue, point checkruntime.PointValue) checkruntime.Float8Value {
+	input = checkruntime.CopyPathValue(input)
+	if input.Kind == checkruntime.PathValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	return DistPpathE16q(point, input)
+}
+func PathDistance3309(left checkruntime.PathValue, right checkruntime.PathValue) checkruntime.Float8Value {
+	left = checkruntime.CopyPathValue(left)
+	right = checkruntime.CopyPathValue(right)
+	if left.Kind == checkruntime.PathValueError {
+		error := left.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PathValueError {
+		error := right.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.PathValueUnknown {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if right.Kind == checkruntime.PathValueUnknown {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	if left.Kind == checkruntime.PathValueNull {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if right.Kind == checkruntime.PathValueNull {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if left.Kind == checkruntime.PathValueValue {
+		a := checkruntime.CopyPathPayload(left.Value)
+		if right.Kind == checkruntime.PathValueValue {
+			b := checkruntime.CopyPathPayload(right.Value)
+			result := checkruntime.MakeFloat8Value(float64(0.0))
+			haveMin := false
+			first := 0
+			if a.Closed == false {
+				first = langruntime.CheckedIndex(1)
+			}
+			for first < len(a.Points) {
+				firstPrevious := langruntime.CheckedSubtract(len(a.Points), 1)
+				if first > 0 {
+					firstPrevious = langruntime.CheckedIndex(langruntime.CheckedSubtract(first, 1))
+				}
+				second := 0
+				if b.Closed == false {
+					second = langruntime.CheckedIndex(1)
+				}
+				for second < len(b.Points) {
+					secondPrevious := langruntime.CheckedSubtract(len(b.Points), 1)
+					if second > 0 {
+						secondPrevious = langruntime.CheckedIndex(langruntime.CheckedSubtract(second, 1))
+					}
+					aa := pathSegment(a.Points[firstPrevious], a.Points[first])
+					bb := pathSegment(b.Points[secondPrevious], b.Points[second])
+					distance := LsegDistanceDgev(aa, bb)
+					result = pathMinDistance(result, distance, haveMin == false)
+					if result.Kind == checkruntime.Float8ValueError {
+						error := result.Error
+						return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+					}
+					if result == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+						return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+					}
+					haveMin = true
+					second = langruntime.CheckedAdd(second, 1)
+				}
+				first = langruntime.CheckedAdd(first, 1)
+			}
+			if haveMin == false {
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+			}
+			return boxComputedScalar(result)
+		}
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
 func pathParse(value string) checkruntime.PathValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
@@ -18331,6 +18478,122 @@ func PathFromText(input checkruntime.TextValue) checkruntime.PathValue {
 	if input.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(input.Value)
 		return pathParse(value)
+	}
+	return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
+}
+
+const pathPointCountLimit = 134217726
+const pathTooManyPoints = 8584704
+
+func pathConcatFits(left int, right int) bool {
+	left = langruntime.CheckedIndex(left)
+	right = langruntime.CheckedIndex(right)
+	return left <= pathPointCountLimit && right <= langruntime.CheckedSubtract(pathPointCountLimit, left)
+}
+func pathPointTransform(input checkruntime.PathValue, vector checkruntime.PointValue, mode int) checkruntime.PathValue {
+	input = checkruntime.CopyPathValue(input)
+	mode = langruntime.CheckedI32(mode)
+	if input.Kind == checkruntime.PathValueError {
+		error := input.Error
+		return checkruntime.PathValue{Kind: checkruntime.PathValueError, Error: error}
+	}
+	if vector.Kind == checkruntime.PointValueError {
+		error := vector.Error
+		return checkruntime.PathValue{Kind: checkruntime.PathValueError, Error: error}
+	}
+	if input.Kind == checkruntime.PathValueUnknown {
+		return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
+	}
+	if vector == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) {
+		return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
+	}
+	if input.Kind == checkruntime.PathValueNull {
+		return checkruntime.PathValue{Kind: checkruntime.PathValueNull}
+	}
+	if vector == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+		return checkruntime.PathValue{Kind: checkruntime.PathValueNull}
+	}
+	if input.Kind == checkruntime.PathValueValue {
+		path := checkruntime.CopyPathPayload(input.Value)
+		points := path.Points
+		index := 0
+		for index < len(points) {
+			point := pointArithmetic(checkruntime.PointValue{Kind: checkruntime.PointValueValue, Value: points[index]}, vector, mode)
+			if point.Kind == checkruntime.PointValueError {
+				error := point.Error
+				return checkruntime.PathValue{Kind: checkruntime.PathValueError, Error: error}
+			}
+			if point == (checkruntime.PointValue{Kind: checkruntime.PointValueUnknown}) || point == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
+				return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
+			}
+			if point.Kind == checkruntime.PointValueValue {
+				payload := point.Value
+				points[index] = payload
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.PathValue{Kind: checkruntime.PathValueValue, Value: checkruntime.PathPayload{Closed: path.Closed, Points: points}}
+	}
+	return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
+}
+func PathAddPt9pue(input checkruntime.PathValue, vector checkruntime.PointValue) checkruntime.PathValue {
+	input = checkruntime.CopyPathValue(input)
+	return pathPointTransform(input, vector, 0)
+}
+func PathSubPtO445(input checkruntime.PathValue, vector checkruntime.PointValue) checkruntime.PathValue {
+	input = checkruntime.CopyPathValue(input)
+	return pathPointTransform(input, vector, 1)
+}
+func PathMulPtDmwn(input checkruntime.PathValue, vector checkruntime.PointValue) checkruntime.PathValue {
+	input = checkruntime.CopyPathValue(input)
+	return pathPointTransform(input, vector, 2)
+}
+func PathDivPtRwx4(input checkruntime.PathValue, vector checkruntime.PointValue) checkruntime.PathValue {
+	input = checkruntime.CopyPathValue(input)
+	return pathPointTransform(input, vector, 3)
+}
+func PathAdd7wkx(left checkruntime.PathValue, right checkruntime.PathValue) checkruntime.PathValue {
+	left = checkruntime.CopyPathValue(left)
+	right = checkruntime.CopyPathValue(right)
+	if left.Kind == checkruntime.PathValueError {
+		error := left.Error
+		return checkruntime.PathValue{Kind: checkruntime.PathValueError, Error: error}
+	}
+	if right.Kind == checkruntime.PathValueError {
+		error := right.Error
+		return checkruntime.PathValue{Kind: checkruntime.PathValueError, Error: error}
+	}
+	if left.Kind == checkruntime.PathValueUnknown {
+		return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
+	}
+	if right.Kind == checkruntime.PathValueUnknown {
+		return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
+	}
+	if left.Kind == checkruntime.PathValueNull {
+		return checkruntime.PathValue{Kind: checkruntime.PathValueNull}
+	}
+	if right.Kind == checkruntime.PathValueNull {
+		return checkruntime.PathValue{Kind: checkruntime.PathValueNull}
+	}
+	if left.Kind == checkruntime.PathValueValue {
+		a := checkruntime.CopyPathPayload(left.Value)
+		if right.Kind == checkruntime.PathValueValue {
+			b := checkruntime.CopyPathPayload(right.Value)
+			if a.Closed || b.Closed {
+				return checkruntime.PathValue{Kind: checkruntime.PathValueNull}
+			}
+			if pathConcatFits(len(a.Points), len(b.Points)) == false {
+				return checkruntime.PathValue{Kind: checkruntime.PathValueError, Error: checkruntime.MakeSqlError(pathTooManyPoints)}
+			}
+			points := a.Points
+			index := 0
+			for index < len(b.Points) {
+				langruntime.CheckedAdd(len(points), 1)
+				points = append(points, b.Points[index])
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.PathValue{Kind: checkruntime.PathValueValue, Value: checkruntime.PathPayload{Closed: false, Points: points}}
+		}
 	}
 	return checkruntime.PathValue{Kind: checkruntime.PathValueUnknown}
 }

@@ -93,6 +93,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/box_core.rs");
     include!("operations/pg_catalog/circle_core.rs");
     include!("operations/pg_catalog/path_core.rs");
+    include!("operations/pg_catalog/path_operations.rs");
+    include!("operations/pg_catalog/path_distance.rs");
     include!("operations/pg_catalog/path_input.rs");
     include!("operations/pg_catalog/circle_input.rs");
     include!("operations/pg_catalog/circle_operations.rs");
