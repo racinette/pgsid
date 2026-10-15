@@ -72,7 +72,7 @@ it('binds SQL-coerced json values, source output, domains, SQL NULL and lazy com
       represented: true,
       type: 'pg_catalog."json"',
     })
-    expect(valueRepresentation('pg_catalog.jsonb').represented).toBe(false)
+    expect(valueRepresentation('pg_catalog.jsonb').represented).toBe(true)
     expect(
       bindProbe('document = document', [{ name: 'document', typeName: 'json' }]).fullyBound,
     ).toBe(false)

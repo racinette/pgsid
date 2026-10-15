@@ -4,3 +4,6 @@ INSERT INTO document_reviews(id,archive_id,label,document,recorded_kind,recorded
 INSERT INTO document_imports(id,archive_id,label,source_text,recorded_kind,recorded_source,bypass,allow_absent) VALUES(1,1,'imported document','{"n":1}','object','{"n":1}',false,false);
 INSERT INTO document_fields(id,archive_id,label,document,field_name,recorded_json,recorded_text,allow_missing,bypass) VALUES(1,1,'stored field','{"name":"first","name":"last"}','name','"last"','last',false,false);
 INSERT INTO document_elements(id,archive_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass) VALUES(1,1,'stored element','[1,null,"last"]',-1,'"last"','last',3,false,false);
+
+INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(1,'normalized record','{"a":1,"a":2}','object','{"a": 2}',false);
+INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,choose_primary,recorded_kind,recorded_source) VALUES(1,1,'preferred record','{"a":2}','[]',true,'object','{"a": 2}');

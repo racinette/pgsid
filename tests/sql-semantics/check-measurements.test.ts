@@ -7,7 +7,7 @@ import { builtinMetadata, builtinTypeIO } from '../../src/postgres/builtins/inve
 import {
   callableBoundary,
   verifyCatalog,
-  jsonExtractionValueRequirements,
+  jsonValueRequirements,
 } from '../../scripts/check-measurements/catalog.js'
 import {
   bindProbe,
@@ -118,7 +118,7 @@ describe('CHECK measurement boundaries', () => {
       'json_array_element_text',
     ]) {
       const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
-      expect(jsonExtractionValueRequirements(fn)).toEqual([
+      expect(jsonValueRequirements(fn)).toEqual([
         {
           kind: 'database',
           setting: 'server_encoding',
@@ -131,9 +131,22 @@ describe('CHECK measurement boundaries', () => {
         'pure-callable-candidate',
       )
     }
-    for (const name of ['json_typeof', 'json_array_length'])
+    expect(
+      jsonValueRequirements(
+        catalog.functions.find(({ metadata }) => metadata.name === 'jsonb_out')!.metadata,
+      ),
+    ).toEqual([
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Text rendering of objects with multiple nonempty keys including non-ASCII keys can require server_encoding for key ordering; logical values, type inspection and SQL nullness remain portable.',
+        owner: 'tests/sql-semantics/check-jsonb-payload.test.ts',
+      },
+    ])
+    for (const name of ['json_typeof', 'json_array_length', 'jsonb_typeof'])
       expect(
-        jsonExtractionValueRequirements(
+        jsonValueRequirements(
           catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata,
         ),
       ).toBeNull()
@@ -217,11 +230,12 @@ describe('CHECK measurement boundaries', () => {
 
   it('does not mistake nullness support or preparation of Unknown for a value representation', () => {
     const nullness = bindProbe('value IS NULL', [
-      { name: 'value', typeName: 'jsonb', isRowType: false },
+      { name: 'value', typeName: 'aclitem', isRowType: false },
     ])
     expect(nullness.fullyBound).toBe(true)
     expect(nullness.preparation.kind).toBe('supported')
-    expect(valueRepresentation('jsonb').represented).toBe(false)
+    expect(valueRepresentation('aclitem').represented).toBe(false)
+    expect(valueRepresentation('jsonb').represented).toBe(true)
     expect(valueRepresentation('json').represented).toBe(true)
     expect(valueRepresentation('double precision').represented).toBe(true)
     expect(valueRepresentation('real').represented).toBe(true)
@@ -537,16 +551,16 @@ describe('CHECK measurement boundaries', () => {
     try {
       const snapshot = await snapshotCatalog(pg)
       const table = snapshot.tables.find((table) => table.name === 'measurement_nullness')!
-      for (const [name, identity, expected] of [
-        ['items', 'pg_catalog._int4', true],
-        ['document', 'pg_catalog.jsonb', true],
-        ['span', 'pg_catalog.int4range', true],
-        ['statistics', 'pg_catalog.anyarray', true],
-        ['row_value', 'pg_catalog.pg_class', false],
+      for (const [name, identity, expected, represented] of [
+        ['items', 'pg_catalog._int4', true, false],
+        ['document', 'pg_catalog.jsonb', true, true],
+        ['span', 'pg_catalog.int4range', true, false],
+        ['statistics', 'pg_catalog.anyarray', true, false],
+        ['row_value', 'pg_catalog.pg_class', false, false],
       ] as const) {
         const type = inventory.get(identity)!
         expect(type.storedColumn).toBe(true)
-        expect(type.representation.represented).toBe(false)
+        expect(type.representation.represented).toBe(represented)
         const plan = lowerTableCheck(table, {
           name: 'nullness',
           type: 'check',

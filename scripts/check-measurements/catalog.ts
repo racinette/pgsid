@@ -77,7 +77,28 @@ export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
   return catalog
 }
 
-export function jsonExtractionValueRequirements(item: BuiltinCallable) {
+export function jsonValueRequirements(item: BuiltinCallable) {
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    item.name === 'jsonb_out' &&
+    item.args.length === 1 &&
+    item.args[0] === 'pg_catalog.jsonb' &&
+    item.result === 'pg_catalog.cstring'
+  )
+    return [
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Text rendering of objects with multiple nonempty keys including non-ASCII keys can require server_encoding for key ordering; logical values, type inspection and SQL nullness remain portable.',
+        owner: 'tests/sql-semantics/check-jsonb-payload.test.ts',
+      },
+    ]
+
   if (
     item.kind !== 'function' ||
     item.schema !== 'pg_catalog' ||
