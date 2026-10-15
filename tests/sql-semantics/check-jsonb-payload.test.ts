@@ -1,13 +1,19 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
-import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
+import { portableCheckAtoms } from '../../src/codegen/shared/check-atom-support.js'
+import { hasUncertain } from '../../scripts/check-measurements/probes.js'
+import {
+  renderTypescriptSchemaCheckArtifacts,
+  renderTypescriptSchemaChecks,
+} from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import {
   jsonbInputForms,
@@ -79,6 +85,31 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     CONSTRAINT default_stripped CHECK(CASE WHEN bypass THEN true ELSE jsonb_strip_nulls(document) IS NOT DISTINCT FROM expected_default END),
     CONSTRAINT flag_stripped CHECK(CASE WHEN bypass THEN true ELSE jsonb_strip_nulls(document,strip_arrays) IS NOT DISTINCT FROM expected_strip END),
     CONSTRAINT pretty_layout CHECK(CASE WHEN bypass THEN true ELSE jsonb_pretty(jsonb_strip_nulls(document,strip_arrays)) COLLATE "C" IS NOT DISTINCT FROM expected_pretty COLLATE "C" END))`)
+    const conversionTypes = {
+      text: 'text',
+      number: 'numeric',
+      flag: 'boolean',
+      integer: 'bigint',
+      json: 'json',
+      jsonb: 'jsonb',
+      uuid: 'uuid',
+      oid: 'oid',
+    }
+    await pg.exec(`CREATE TABLE jsonb_conversion_inputs(${Object.entries(conversionTypes)
+      .map(([name, type]) => `source_${name} ${type},expected_${name} jsonb`)
+      .join(',')},bypass boolean,
+      ${Object.keys(conversionTypes)
+        .map(
+          (name) =>
+            `CONSTRAINT converted_${name} CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_${name}) IS NOT DISTINCT FROM expected_${name} END)`,
+        )
+        .join(',')})`)
+    await pg.exec(`CREATE TYPE conversion_label AS ENUM('plain');
+    CREATE FUNCTION conversion_label_json(conversion_label) RETURNS json LANGUAGE SQL IMMUTABLE STRICT AS $$ SELECT '"custom"'::json $$;
+    CREATE CAST(conversion_label AS json) WITH FUNCTION conversion_label_json(conversion_label);
+    CREATE TABLE jsonb_conversion_legacy(flag boolean, CONSTRAINT converted CHECK(jsonb_typeof(to_jsonb(flag)) COLLATE "C"='boolean'));
+    CREATE TABLE jsonb_conversion_boundaries(label conversion_label,expected jsonb,bypass boolean,
+      CONSTRAINT custom_conversion CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(label) IS NOT DISTINCT FROM expected END))`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'jsonb_payloads')!
     const textTable = catalog.tables.find((t) => t.name === 'jsonb_text_inputs')!
@@ -87,15 +118,44 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     const scalarTable = catalog.tables.find((t) => t.name === 'jsonb_scalar_inputs')!
     const editTable = catalog.tables.find((t) => t.name === 'jsonb_edit_inputs')!
     const formatTable = catalog.tables.find((t) => t.name === 'jsonb_format_inputs')!
+    const conversionTable = catalog.tables.find((t) => t.name === 'jsonb_conversion_inputs')!
+    const conversionBoundaries = catalog.tables.find(
+      (t) => t.name === 'jsonb_conversion_boundaries',
+    )!
+    const legacyConversion = catalog.tables.find((t) => t.name === 'jsonb_conversion_legacy')!
+    const boundCustom = lowerTableCheck(
+      conversionBoundaries,
+      conversionBoundaries.constraints[0]!,
+      catalog.enums,
+      catalog.domains,
+    )!
+    expect(hasUncertain(boundCustom.expression)).toBe(false)
+    expect(hasUncertain(portableCheckAtoms(boundCustom.expression))).toBe(true)
     const bundle = renderTypescriptSchemaCheckArtifacts(
-      [table, textTable, readTable, relationTable, scalarTable, editTable, formatTable],
+      [
+        table,
+        textTable,
+        readTable,
+        relationTable,
+        scalarTable,
+        editTable,
+        formatTable,
+        conversionTable,
+        conversionBoundaries,
+        legacyConversion,
+      ],
       catalog.domains,
       catalog.domains,
-      { executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' } },
+      { enums: catalog.enums, executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' } },
     )
     const deferred = renderTypescriptSchemaCheckArtifacts([relationTable], catalog.domains)
     await writeFile(join(root, 'deferred-checks.ts'), deferred.checks)
+    await writeFile(
+      join(root, 'legacy-checks.ts'),
+      renderTypescriptSchemaChecks([legacyConversion], catalog.domains),
+    )
     await writeFile(join(root, 'package.json'), '{"type":"module"}\n')
+    await symlink(resolve('node_modules'), join(root, 'node_modules'), 'dir')
     await writeFile(join(root, 'checks.ts'), bundle.checks)
     for (const artifact of checkTypescriptArtifacts(bundle.rustFiles!)) {
       const path = join(root, 'checks-rust', artifact.path)
@@ -115,13 +175,147 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       join(root, 'js'),
       join(root, 'checks.ts'),
       join(root, 'deferred-checks.ts'),
+      join(root, 'legacy-checks.ts'),
     ]).catch((e: { stdout: string; stderr: string; message: string }) => {
       throw new Error(e.stdout + e.stderr || e.message, { cause: e })
     })
     const generated = await import(pathToFileURL(join(root, 'js/checks.js')).href)
+    const legacy = await import(pathToFileURL(join(root, 'js/legacy-checks.js')).href)
+    expect(legacy.evaluatePublicJsonbConversionLegacyChecks({ flag: true })[0].result).toEqual({
+      certain: false,
+    })
+    expect(generated.evaluatePublicJsonbConversionLegacyChecks({ flag: true })[0].result).toEqual({
+      certain: true,
+      value: true,
+    })
     const runtime = await import(
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
+    expect(
+      (await pg.query<{ value: string }>(`SELECT to_jsonb('plain'::conversion_label)::text value`))
+        .rows[0]!.value,
+    ).toBe('"custom"')
+    for (const bypass of [false, true]) {
+      const result = generated.evaluatePublicJsonbConversionBoundariesChecks({
+        label: 'plain',
+        expected: runtime.makeJsonbValue('"custom"'),
+        bypass,
+      })[0].result
+      expect(result).toEqual(bypass ? { certain: true, value: true } : { certain: false })
+    }
+    await pg.exec(`INSERT INTO jsonb_conversion_boundaries VALUES('plain','"custom"',false)`)
+    for (const sample of [
+      {
+        text: '[1,null]',
+        number: '9007199254740993.12300',
+        flag: true,
+        integer: '9223372036854775807',
+        json: '{"a":1,"a":2}',
+        jsonb: '{"aa":1,"é":2}',
+        uuid: '550e8400-e29b-41d4-a716-446655440000',
+        oid: '4294967295',
+      },
+      {
+        text: '雪😊\n"',
+        number: 'NaN',
+        flag: false,
+        integer: '-9223372036854775808',
+        json: 'null',
+        jsonb: 'null',
+        uuid: '00000000-0000-0000-0000-000000000000',
+        oid: '0',
+      },
+      Object.fromEntries(Object.keys(conversionTypes).map((name) => [name, null])),
+    ]) {
+      const input: Record<string, unknown> = { bypass: false },
+        args: unknown[] = []
+      for (const [name, type] of Object.entries(conversionTypes)) {
+        const value = (sample as Record<string, unknown>)[name]
+        const output = (
+          await pg.query<{ value: string | null }>(`SELECT to_jsonb($1::${type})::text value`, [
+            value,
+          ])
+        ).rows[0]!.value
+        input['source_' + name] =
+          value === null
+            ? null
+            : name === 'integer'
+              ? BigInt(value as string)
+              : name === 'oid'
+                ? runtime.makeOidValue(BigInt(value as string))
+                : name === 'json'
+                  ? runtime.makeJsonValue(value)
+                  : name === 'jsonb'
+                    ? runtime.makeJsonbValue(value)
+                    : value
+        input['expected_' + name] = output === null ? null : runtime.makeJsonbValue(output)
+        args.push(value, output)
+      }
+      const before = structuredClone(input)
+      for (const result of generated.evaluatePublicJsonbConversionInputsChecks(input))
+        expect(result.result, result.constraint).toEqual({ certain: true, value: true })
+      expect(input).toEqual(before)
+      await pg.query(
+        `INSERT INTO jsonb_conversion_inputs VALUES(${Object.entries(conversionTypes)
+          .flatMap(([_, type], i) => [`$${i * 2 + 1}::${type}`, `$${i * 2 + 2}::jsonb`])
+          .join(',')},false)`,
+        args,
+      )
+      input.expected_text = runtime.makeJsonbValue('false')
+      expect(
+        generated
+          .evaluatePublicJsonbConversionInputsChecks(input)
+          .find((c: { constraint: string }) => c.constraint === 'converted_text').result,
+      ).toEqual({ certain: true, value: false })
+      input.bypass = true
+      for (const result of generated.evaluatePublicJsonbConversionInputsChecks(input))
+        expect(result.result).toEqual({ certain: true, value: true })
+    }
+    const conversionInput = {
+      source_json: runtime.makeJsonValue('"\\u0000"'),
+      expected_json: runtime.makeJsonbValue('null'),
+      bypass: false,
+    }
+    expect(
+      generated
+        .evaluatePublicJsonbConversionInputsChecks(conversionInput)
+        .find((c: { constraint: string }) => c.constraint === 'converted_json').result,
+    ).toEqual({ certain: true, error: '22P05' })
+    await expect(
+      pg.query(
+        'INSERT INTO jsonb_conversion_inputs(source_json,expected_json,bypass) VALUES($1::json,$2::jsonb,false)',
+        ['"\\u0000"', 'null'],
+      ),
+    ).rejects.toMatchObject({ code: '22P05' })
+    conversionInput.source_json = runtime.makeJsonValue('"\\u96ea"')
+    expect(
+      generated
+        .evaluatePublicJsonbConversionInputsChecks(conversionInput)
+        .find((c: { constraint: string }) => c.constraint === 'converted_json').result,
+    ).toEqual({ certain: false })
+    for (const source of [
+      undefined,
+      { kind: 'Unknown' },
+      { kind: 'Error', value: { state: parseInt('22003', 36) } },
+    ]) {
+      const result = generated
+        .evaluatePublicJsonbConversionInputsChecks({
+          source_text: source,
+          expected_text: runtime.makeJsonbValue('null'),
+          bypass: false,
+        })
+        .find((c: { constraint: string }) => c.constraint === 'converted_text').result
+      expect(result).toEqual({ certain: false })
+    }
+    expect(
+      generated
+        .evaluatePublicJsonbConversionInputsChecks({
+          source_number: { kind: 'Error', value: { state: parseInt('22003', 36) } },
+          expected_number: runtime.makeJsonbValue('null'),
+          bypass: false,
+        })
+        .find((c: { constraint: string }) => c.constraint === 'converted_number').result,
+    ).toEqual({ certain: true, error: '22003' })
     for (const [source, context] of [
       [null, false],
       ['null', false],

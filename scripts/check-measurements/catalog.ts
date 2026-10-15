@@ -81,6 +81,34 @@ export function jsonValueRequirements(item: BuiltinCallable) {
   if (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
+    item.name === 'to_jsonb' &&
+    item.strict &&
+    item.volatility === 's' &&
+    !item.returnsSet &&
+    item.args.length === 1 &&
+    item.args[0] === 'pg_catalog.anyelement' &&
+    item.result === 'pg_catalog.jsonb'
+  )
+    return [
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'JSON text conversion shares Unicode decoding and JSONB stored-format admission requirements. Non-ASCII Unicode escapes can require server_encoding; existing JSONB values pass through without rendering or new admission.',
+        owner: 'tests/sql-semantics/check-jsonb-conversion.test.ts',
+      },
+      {
+        kind: 'session',
+        setting: 'extra_float_digits',
+        requirement:
+          'Finite nonzero float conversion requires a rendering context and currently defers. SQL NULL, both zeros, NaN and infinities have deterministic JSONB conversion.',
+        owner: 'tests/sql-semantics/check-jsonb-conversion.test.ts',
+      },
+    ]
+
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
     item.name === 'jsonb_concat' &&
     item.strict &&
     item.volatility === 'i' &&

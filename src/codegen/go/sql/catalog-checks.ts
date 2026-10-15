@@ -493,7 +493,7 @@ export function renderGoSchemaCheckArtifacts(
         }
       }
       const result = emitEvalBoolExpression(
-        portableCheckAtoms(plan.expression),
+        portableCheckAtoms(plan.expression, false),
         { ...goSqlBackend, input: (name) => callInput('checkTextValue', name) },
         {
           ...backend,

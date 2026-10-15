@@ -790,6 +790,174 @@ func CopyJsonbValue(value JsonbValue) JsonbValue {
 	}
 	panic("unknown enum variant")
 }
+
+type JsonbInputKind uint8
+
+const (
+	JsonbInputUnknown JsonbInputKind = iota
+	JsonbInputNull
+	JsonbInputError
+	JsonbInputBoolean
+	JsonbInputNumber
+	JsonbInputText
+	JsonbInputJson
+	JsonbInputJsonb
+)
+
+type JsonbInput struct {
+	Kind    JsonbInputKind
+	Error   SqlError
+	Boolean bool
+	Number  string
+	Text    string
+	Json    JsonPayload
+	Jsonb   JsonbPayload
+}
+
+func CopyJsonbInput(value JsonbInput) JsonbInput {
+	switch value.Kind {
+	case JsonbInputUnknown:
+		return JsonbInput{Kind: JsonbInputUnknown}
+	case JsonbInputNull:
+		return JsonbInput{Kind: JsonbInputNull}
+	case JsonbInputError:
+		return JsonbInput{Kind: JsonbInputError, Error: value.Error}
+	case JsonbInputBoolean:
+		return JsonbInput{Kind: JsonbInputBoolean, Boolean: value.Boolean}
+	case JsonbInputNumber:
+		return JsonbInput{Kind: JsonbInputNumber, Number: langruntime.CheckedString(value.Number)}
+	case JsonbInputText:
+		return JsonbInput{Kind: JsonbInputText, Text: langruntime.CheckedString(value.Text)}
+	case JsonbInputJson:
+		return JsonbInput{Kind: JsonbInputJson, Json: value.Json}
+	case JsonbInputJsonb:
+		return JsonbInput{Kind: JsonbInputJsonb, Jsonb: CopyJsonbPayload(value.Jsonb)}
+	}
+	panic("unknown enum variant")
+}
+func JsonbInputFromBool(input BoolValue) JsonbInput {
+	if input.Kind == BoolValueError {
+		error := input.Error
+		return JsonbInput{Kind: JsonbInputError, Error: error}
+	}
+	if input.Kind == BoolValueNull {
+		return JsonbInput{Kind: JsonbInputNull}
+	}
+	if input.Kind == BoolValueValue {
+		value := input.Value
+		return JsonbInput{Kind: JsonbInputBoolean, Boolean: value}
+	}
+	return JsonbInput{Kind: JsonbInputUnknown}
+}
+func JsonbInputFromNumeric(input NumericValue) JsonbInput {
+	if input.Kind == NumericValueError {
+		error := input.Error
+		return JsonbInput{Kind: JsonbInputError, Error: error}
+	}
+	if input.Kind == NumericValueNull {
+		return JsonbInput{Kind: JsonbInputNull}
+	}
+	if input.Kind == NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return JsonbInput{Kind: JsonbInputNumber, Number: value}
+	}
+	return JsonbInput{Kind: JsonbInputUnknown}
+}
+func JsonbInputFromText(input TextValue) JsonbInput {
+	if input.Kind == TextValueError {
+		error := input.Error
+		return JsonbInput{Kind: JsonbInputError, Error: error}
+	}
+	if input.Kind == TextValueNull {
+		return JsonbInput{Kind: JsonbInputNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return JsonbInput{Kind: JsonbInputText, Text: value}
+	}
+	return JsonbInput{Kind: JsonbInputUnknown}
+}
+func JsonbInputFromJson(input JsonValue) JsonbInput {
+	if input.Kind == JsonValueError {
+		error := input.Error
+		return JsonbInput{Kind: JsonbInputError, Error: error}
+	}
+	if input.Kind == JsonValueNull {
+		return JsonbInput{Kind: JsonbInputNull}
+	}
+	if input.Kind == JsonValueValue {
+		value := input.Value
+		return JsonbInput{Kind: JsonbInputJson, Json: value}
+	}
+	return JsonbInput{Kind: JsonbInputUnknown}
+}
+func JsonbInputFromJsonb(input JsonbValue) JsonbInput {
+	input = CopyJsonbValue(input)
+	if input.Kind == JsonbValueError {
+		error := input.Error
+		return JsonbInput{Kind: JsonbInputError, Error: error}
+	}
+	if input.Kind == JsonbValueNull {
+		return JsonbInput{Kind: JsonbInputNull}
+	}
+	if input.Kind == JsonbValueValue {
+		value := CopyJsonbPayload(input.Value)
+		return JsonbInput{Kind: JsonbInputJsonb, Jsonb: value}
+	}
+	return JsonbInput{Kind: JsonbInputUnknown}
+}
+func jsonbInputFloat(number float64) JsonbInput {
+	if number != number {
+		return JsonbInput{Kind: JsonbInputNumber, Number: "NaN"}
+	}
+	infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+	if number == infinity {
+		return JsonbInput{Kind: JsonbInputNumber, Number: "Infinity"}
+	}
+	if number == langruntime.F64Subtract(float64(0.0), infinity) {
+		return JsonbInput{Kind: JsonbInputNumber, Number: "-Infinity"}
+	}
+	if number == float64(0.0) {
+		return JsonbInput{Kind: JsonbInputNumber, Number: "0"}
+	}
+	return JsonbInput{Kind: JsonbInputUnknown}
+}
+func JsonbInputFromFloat4(input Float4Value) JsonbInput {
+	if input.Kind == Float4ValueError {
+		error := input.Error
+		return JsonbInput{Kind: JsonbInputError, Error: error}
+	}
+	if input == (Float4Value{Kind: Float4ValueNull}) {
+		return JsonbInput{Kind: JsonbInputNull}
+	}
+	if input == (Float4Value{Kind: Float4ValueUnspecifiedNan}) {
+		return JsonbInput{Kind: JsonbInputNumber, Number: "NaN"}
+	}
+	if input.Kind == Float4ValueValue {
+		bits := langruntime.CheckedI32(input.Value)
+		number := Float4Number(bits)
+		return jsonbInputFloat(number)
+	}
+	return JsonbInput{Kind: JsonbInputUnknown}
+}
+func JsonbInputFromFloat8(input Float8Value) JsonbInput {
+	if input.Kind == Float8ValueError {
+		error := input.Error
+		return JsonbInput{Kind: JsonbInputError, Error: error}
+	}
+	if input == (Float8Value{Kind: Float8ValueNull}) {
+		return JsonbInput{Kind: JsonbInputNull}
+	}
+	if input == (Float8Value{Kind: Float8ValueUnspecifiedNan}) {
+		return JsonbInput{Kind: JsonbInputNumber, Number: "NaN"}
+	}
+	if input.Kind == Float8ValueValue {
+		bits := input.Value
+		number := Float8Number(bits)
+		return jsonbInputFloat(number)
+	}
+	return JsonbInput{Kind: JsonbInputUnknown}
+}
 func MakeJsonbValue(source string) JsonbValue {
 	source = langruntime.CheckedString(source)
 	parsed := jsonbParseText(TextValue{Kind: TextValueValue, Value: source}, false)
@@ -4966,6 +5134,34 @@ func JsonbRebuild(input JsonbValue, admission bool) JsonbValue {
 		return JsonbValue{Kind: JsonbValueValue, Value: normalized}
 	}
 	return input
+}
+func JsonbFromString(input TextValue) JsonbValue {
+	if input.Kind == TextValueError {
+		error := input.Error
+		return JsonbValue{Kind: JsonbValueError, Error: error}
+	}
+	if input.Kind == TextValueNull {
+		return JsonbValue{Kind: JsonbValueNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		position := 0
+		for position < len(characters) {
+			if characters[position] == '\x00' {
+				return JsonbValue{Kind: JsonbValueUnknown}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		nodes := []JsonbNode{}
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, JsonbNode{Kind: langruntime.CheckedSignedNegate(1), Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0})
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, JsonbNode{Kind: 4, Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: len(characters)})
+		result := JsonbValue{Kind: JsonbValueValue, Value: JsonbPayload{Characters: characters, Nodes: nodes, Root: 1}}
+		return JsonbRebuild(result, true)
+	}
+	return JsonbValue{Kind: JsonbValueUnknown}
 }
 
 type jsonbStorageSize struct {

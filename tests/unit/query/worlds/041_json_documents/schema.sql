@@ -241,3 +241,35 @@ CREATE TABLE document_formats (
  CONSTRAINT format_flag CHECK(CASE WHEN bypass THEN true ELSE jsonb_strip_nulls(document,strip_arrays) IS NOT DISTINCT FROM recorded_stripped END),
  CONSTRAINT format_pretty CHECK(CASE WHEN bypass THEN true ELSE jsonb_pretty(jsonb_strip_nulls(document,strip_arrays)) COLLATE "C" IS NOT DISTINCT FROM recorded_pretty COLLATE "C" END)
 );
+
+CREATE DOMAIN conversion_measurement AS numeric;
+CREATE TABLE document_conversions (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ source_text text,
+ source_number conversion_measurement,
+ source_flag boolean,
+ source_integer bigint,
+ source_json json,
+ source_stored jsonb,
+ source_uuid uuid,
+ source_oid oid,
+ expected_text jsonb,
+ expected_number jsonb,
+ expected_flag jsonb,
+ expected_integer jsonb,
+ expected_json jsonb,
+ expected_stored jsonb,
+ expected_uuid jsonb,
+ expected_oid jsonb,
+ bypass boolean NOT NULL,
+ CONSTRAINT conversion_text CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_text) IS NOT DISTINCT FROM expected_text END),
+ CONSTRAINT conversion_number CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_number) IS NOT DISTINCT FROM expected_number END),
+ CONSTRAINT conversion_flag CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_flag) IS NOT DISTINCT FROM expected_flag END),
+ CONSTRAINT conversion_integer CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_integer) IS NOT DISTINCT FROM expected_integer END),
+ CONSTRAINT conversion_json CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_json) IS NOT DISTINCT FROM expected_json END),
+ CONSTRAINT conversion_stored CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_stored) IS NOT DISTINCT FROM expected_stored END),
+ CONSTRAINT conversion_uuid CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_uuid) IS NOT DISTINCT FROM expected_uuid END),
+ CONSTRAINT conversion_oid CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(source_oid) IS NOT DISTINCT FROM expected_oid END)
+);

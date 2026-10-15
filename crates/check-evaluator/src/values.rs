@@ -758,6 +758,134 @@ pub enum JsonbValue {
     Error(SqlError),
 }
 
+#[derive(Clone)]
+pub enum JsonbInput {
+    Unknown,
+    Null,
+    Error(SqlError),
+    Boolean(bool),
+    Number(String),
+    Text(String),
+    Json(JsonPayload),
+    Jsonb(JsonbPayload),
+}
+
+pub fn jsonb_input_from_bool(input: BoolValue) -> JsonbInput {
+    if let BoolValue::Error(error) = input {
+        return JsonbInput::Error(error);
+    };
+    if let BoolValue::Null = input {
+        return JsonbInput::Null;
+    };
+    if let BoolValue::Value(value) = input {
+        return JsonbInput::Boolean(value);
+    };
+    JsonbInput::Unknown
+}
+
+pub fn jsonb_input_from_numeric(input: NumericValue) -> JsonbInput {
+    if let NumericValue::Error(error) = input {
+        return JsonbInput::Error(error);
+    };
+    if let NumericValue::Null = input {
+        return JsonbInput::Null;
+    };
+    if let NumericValue::Value(value) = input {
+        return JsonbInput::Number(value);
+    };
+    JsonbInput::Unknown
+}
+
+pub fn jsonb_input_from_text(input: TextValue) -> JsonbInput {
+    if let TextValue::Error(error) = input {
+        return JsonbInput::Error(error);
+    };
+    if let TextValue::Null = input {
+        return JsonbInput::Null;
+    };
+    if let TextValue::Value(value) = input {
+        return JsonbInput::Text(value);
+    };
+    JsonbInput::Unknown
+}
+
+pub fn jsonb_input_from_json(input: JsonValue) -> JsonbInput {
+    if let JsonValue::Error(error) = input {
+        return JsonbInput::Error(error);
+    };
+    if let JsonValue::Null = input {
+        return JsonbInput::Null;
+    };
+    if let JsonValue::Value(value) = input {
+        return JsonbInput::Json(value);
+    };
+    JsonbInput::Unknown
+}
+
+pub fn jsonb_input_from_jsonb(input: JsonbValue) -> JsonbInput {
+    if let JsonbValue::Error(error) = input {
+        return JsonbInput::Error(error);
+    };
+    if let JsonbValue::Null = input {
+        return JsonbInput::Null;
+    };
+    if let JsonbValue::Value(value) = input {
+        return JsonbInput::Jsonb(value);
+    };
+    JsonbInput::Unknown
+}
+
+fn jsonb_input_float(number: f64) -> JsonbInput {
+    if number != number {
+        return JsonbInput::Number("NaN".to_owned());
+    };
+    let infinity = 1.0f64 / 0.0f64;
+    if number == infinity {
+        return JsonbInput::Number("Infinity".to_owned());
+    };
+    if number == 0.0f64 - infinity {
+        return JsonbInput::Number("-Infinity".to_owned());
+    };
+    if number == 0.0f64 {
+        return JsonbInput::Number("0".to_owned());
+    };
+    JsonbInput::Unknown
+}
+
+pub fn jsonb_input_from_float4(input: Float4Value) -> JsonbInput {
+    if let Float4Value::Error(error) = input {
+        return JsonbInput::Error(error);
+    };
+    if input == Float4Value::Null {
+        return JsonbInput::Null;
+    };
+    if input == Float4Value::UnspecifiedNan {
+        return JsonbInput::Number("NaN".to_owned());
+    };
+    if let Float4Value::Value(bits) = input {
+        let number = float4_number(bits);
+        return jsonb_input_float(number);
+    };
+    JsonbInput::Unknown
+}
+
+pub fn jsonb_input_from_float8(input: Float8Value) -> JsonbInput {
+    if let Float8Value::Error(error) = input {
+        return JsonbInput::Error(error);
+    };
+    if input == Float8Value::Null {
+        return JsonbInput::Null;
+    };
+    if input == Float8Value::UnspecifiedNan {
+        return JsonbInput::Number("NaN".to_owned());
+    };
+    if let Float8Value::Value(bits) = input {
+        let number = float8_number(bits);
+        return jsonb_input_float(number);
+    };
+    JsonbInput::Unknown
+}
+
 pub fn make_jsonb_value(source: &str) -> JsonbValue {
     let parsed = jsonb_parse_text(TextValue::Value(source.to_owned()), false);
     if let JsonbValue::Error(_) = parsed {

@@ -269,11 +269,11 @@ exposes a prerequisite:
 - [x] JSONB scalar casts, numeric precision/scale and unconstrained scalar-domain targets; preserve NULL, rounding, errors and lazy composition.
 - [x] JSONB concatenation and top-level text/index deletion; preserve logical trees, storage admission, ownership and public INSERT parity.
 - [x] JSONB recursive null stripping, default/array flags and pretty layout; preserve renderer encoding requirements and NULL/Unknown/error states.
-- [ ] JSONB core operations; path-array access follows arrays.
+- [x] Scalar to_jsonb polymorphism: bool, integers, numeric, text/varchar/bpchar, UUID, plain OID, JSON/JSONB; float zeros/specials are definite, finite nonzero floats require rendering context.
+- [ ] Remaining to_jsonb categories, JSONB construction and binary I/O; path-array access follows arrays.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
-Use the type audit to enumerate the remaining surface, including internal types.
-Defer ACL and full-text values until common CHECK families, including arrays and JSON, are covered.
+Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
 Done per family when its portable values, SQL-coerced row input conversion,
 literals, catalog-resolved casts, applicable comparisons, core operations,
 expression composition, and world INSERT parity work together. Preserve distinct

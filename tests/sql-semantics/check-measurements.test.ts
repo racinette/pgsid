@@ -162,6 +162,28 @@ describe('CHECK measurement boundaries', () => {
         owner: 'tests/sql-semantics/check-jsonb-storage.test.ts',
       },
     ])
+    const conversion = catalog.functions.find(
+      ({ metadata }) => metadata.name === 'to_jsonb',
+    )!.metadata
+    expect(jsonValueRequirements(conversion)).toEqual([
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'JSON text conversion shares Unicode decoding and JSONB stored-format admission requirements. Non-ASCII Unicode escapes can require server_encoding; existing JSONB values pass through without rendering or new admission.',
+        owner: 'tests/sql-semantics/check-jsonb-conversion.test.ts',
+      },
+      {
+        kind: 'session',
+        setting: 'extra_float_digits',
+        requirement:
+          'Finite nonzero float conversion requires a rendering context and currently defers. SQL NULL, both zeros, NaN and infinities have deterministic JSONB conversion.',
+        owner: 'tests/sql-semantics/check-jsonb-conversion.test.ts',
+      },
+    ])
+    expect(callableBoundary(conversion, represented).categories).toContain(
+      'session-or-database-state',
+    )
     for (const fn of catalog.functions.filter(
       ({ metadata }) =>
         metadata.name === 'jsonb_delete' &&

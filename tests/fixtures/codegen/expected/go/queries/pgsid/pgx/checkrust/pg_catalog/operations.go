@@ -10478,6 +10478,51 @@ func Float8Ncq4(input checkruntime.JsonbValue) checkruntime.Float8Value {
 	input = checkruntime.CopyJsonbValue(input)
 	return Float8Bkfn(NumericUnkz(input))
 }
+func ToJsonb9y7o(input checkruntime.JsonbInput) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbInput(input)
+	if input.Kind == checkruntime.JsonbInputError {
+		error := input.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbInputNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
+	if input.Kind == checkruntime.JsonbInputBoolean {
+		value := input.Boolean
+		if value {
+			return checkruntime.MakeJsonbValue("true")
+		}
+		return checkruntime.MakeJsonbValue("false")
+	}
+	if input.Kind == checkruntime.JsonbInputNumber {
+		value := langruntime.CheckedString(input.Number)
+		if value == "NaN" || value == "Infinity" || value == "-Infinity" {
+			return checkruntime.JsonbFromString(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value})
+		}
+		return checkruntime.JsonbFromText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value})
+	}
+	if input.Kind == checkruntime.JsonbInputText {
+		value := langruntime.CheckedString(input.Text)
+		return checkruntime.JsonbFromString(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value})
+	}
+	if input.Kind == checkruntime.JsonbInputJson {
+		value := input.Json
+		return checkruntime.JsonbFromText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value.Source})
+	}
+	if input.Kind == checkruntime.JsonbInputJsonb {
+		value := checkruntime.CopyJsonbPayload(input.Jsonb)
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value}
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+}
+func JsonbInputFromUuid(input checkruntime.UuidValue) checkruntime.JsonbInput {
+	text := UuidToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromOid(input checkruntime.OidValue) checkruntime.JsonbInput {
+	text := OidToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
 func JsonbTypeof68xu(input checkruntime.JsonbValue) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
 	if input.Kind == checkruntime.JsonbValueError {
