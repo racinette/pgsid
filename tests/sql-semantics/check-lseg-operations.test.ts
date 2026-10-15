@@ -251,6 +251,12 @@ describe('segment intersections, containment, distances and closest points', () 
                 kind: item.type === 'pg_catalog.point' && wire === null ? 'Null' : 'True',
               }
               wireExpected = { kind: wire === null ? 'Null' : 'True' }
+              if (
+                wire !== null &&
+                item.type === 'pg_catalog.float8' &&
+                Number.isNaN(Buffer.from(wire, 'hex').readDoubleBE())
+              )
+                wireExpected = { kind: 'Unknown' }
             }
           } catch (caught) {
             const code = (caught as { code: string }).code
@@ -326,7 +332,12 @@ describe('segment intersections, containment, distances and closest points', () 
       { kind: 'True' },
     )
     add('computed_containment', { ...baseline, expected_bool: value(false) }, { kind: 'True' })
-    add('computed_wire', baseline, { kind: 'Unknown' })
+    add('computed_wire', baseline, { kind: 'False' })
+    add(
+      'computed_wire',
+      { ...baseline, expected_wire: value('00'.repeat(32)) },
+      { kind: 'Unknown' },
+    )
     add(
       'coalesced_closest',
       {

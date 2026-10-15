@@ -3,7 +3,8 @@ fn line_equal_product(left: i64, right: i64, ratio: Float8Value) -> BoolValue {
     if let Float8Value::Error(error) = product {
         return BoolValue::Error(error);
     };
-    if let Float8Value::Value(bits) = product {
+    let known_product = float8_semantic(product);
+    if let Float8Value::Value(bits) = known_product {
         return make_bool_value(geometric_coordinate_equal(float8_number(left), float8_number(bits)));
     };
     BoolValue::Unknown
@@ -97,7 +98,7 @@ pub fn sql__pg_catalog__line_send__b5ct(input: LineValue) -> ByteaValue {
     };
     if let LineValue::Value(value) = input {
         if value.wire_known == false {
-            return ByteaValue::Unknown;
+            return ByteaValue::Unspecified(24);
         };
         let first = binary_send_bits(Int8Value::Value(value.a), 8);
         let second = binary_send_bits(Int8Value::Value(value.b), 8);

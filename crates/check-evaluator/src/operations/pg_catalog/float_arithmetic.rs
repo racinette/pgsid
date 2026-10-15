@@ -13,7 +13,7 @@ fn float_arithmetic(left: Float8Value, right: Float8Value, mode: i32, single: bo
   if single {let bits=(value as f32).to_bits() as i32;value=float4_number(bits);};
   if value.abs()==infinity && a.abs()!=infinity && (mode==3 || b.abs()!=infinity) {return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));}
   if value==0.0f64 && a!=0.0f64 && ((mode==2 && b!=0.0f64) || (mode==3 && b.abs()!=infinity)) {return Float8Value::Error(make_sql_error(FLOAT_CORE_RANGE));}
-  if left==Float8Value::UnspecifiedNan || right==Float8Value::UnspecifiedNan {return Float8Value::UnspecifiedNan;};
+  if value!=value {return Float8Value::UnspecifiedNan;};
   return make_float8_value(value);
  };};Float8Value::Unknown
 }

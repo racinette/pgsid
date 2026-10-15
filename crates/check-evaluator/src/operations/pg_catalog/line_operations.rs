@@ -286,7 +286,7 @@ fn line_project_point(point: PointValue, line: LineValue) -> LineProjection {
             if projected == PointValue::Null {
                 return LineProjection {
                     point: point,
-                    distance: make_float8_bits(9221120237041090560i64),
+                    distance: Float8Value::UnspecifiedNan,
                 };
             };
             let distance = sql__pg_catalog__point_distance__2haq(projected, point);

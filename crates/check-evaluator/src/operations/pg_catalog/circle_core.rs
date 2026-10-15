@@ -150,7 +150,7 @@ fn circle_binary(input: CircleValue) -> ByteaValue {
     };
     if let CircleValue::Value(value) = input {
         if value.wire_known == false {
-            return ByteaValue::Unknown;
+            return ByteaValue::Unspecified(24);
         };
         return sql__pg_catalog__byteacat__zitv(
             sql__pg_catalog__point_send__kuoa(circle_center_value(input)),

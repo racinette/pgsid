@@ -132,7 +132,18 @@ describe('floating-point SQL text input and binary output', () => {
               [text],
             )
           ).rows[0]!.hex
-          expected = { kind: text === null ? 'Null' : 'True' }
+          expected = {
+            kind:
+              hex === null
+                ? 'Null'
+                : Number.isNaN(
+                      width === 4
+                        ? Buffer.from(hex, 'hex').readFloatBE()
+                        : Buffer.from(hex, 'hex').readDoubleBE(),
+                    )
+                  ? 'Unknown'
+                  : 'True',
+          }
         } catch (caught) {
           const code = (caught as { code: string }).code
           expect(['22003', '22P02']).toContain(code)
@@ -197,7 +208,19 @@ describe('floating-point SQL text input and binary output', () => {
       }
     }
     for (const literal of bitLiterals)
-      fixtures.push({ name: literal.name, row: {}, expected: { kind: 'True' } })
+      fixtures.push({
+        name: literal.name,
+        row: {},
+        expected: {
+          kind: Number.isNaN(
+            literal.name.startsWith('literal4_')
+              ? Buffer.from(literal.name.split('_')[1]!, 'hex').readFloatBE()
+              : Buffer.from(literal.name.split('_')[1]!, 'hex').readDoubleBE(),
+          )
+            ? 'Unknown'
+            : 'True',
+        },
+      })
     await runCheckParity(
       directory,
       'floatinput',

@@ -726,6 +726,20 @@ func ByteaeqZ0yh(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	if left == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || right == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 	}
+	leftLength := byteaLength(left)
+	rightLength := byteaLength(right)
+	if leftLength.Kind == checkruntime.Int4ValueValue {
+		a := langruntime.CheckedI32(leftLength.Value)
+		if rightLength.Kind == checkruntime.Int4ValueValue {
+			b := langruntime.CheckedI32(rightLength.Value)
+			if a != b {
+				return checkruntime.MakeBoolValue(false)
+			}
+			if a == 0 {
+				return checkruntime.MakeBoolValue(true)
+			}
+		}
+	}
 	if left.Kind == checkruntime.ByteaValueValue {
 		a := langruntime.CheckedString(left.Value)
 		if right.Kind == checkruntime.ByteaValueValue {
@@ -749,6 +763,20 @@ func ByteaneVolo(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	}
 	if left == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || right == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	leftLength := byteaLength(left)
+	rightLength := byteaLength(right)
+	if leftLength.Kind == checkruntime.Int4ValueValue {
+		a := langruntime.CheckedI32(leftLength.Value)
+		if rightLength.Kind == checkruntime.Int4ValueValue {
+			b := langruntime.CheckedI32(rightLength.Value)
+			if a != b {
+				return checkruntime.MakeBoolValue(true)
+			}
+			if a == 0 {
+				return checkruntime.MakeBoolValue(false)
+			}
+		}
 	}
 	if left.Kind == checkruntime.ByteaValueValue {
 		a := langruntime.CheckedString(left.Value)
@@ -2202,7 +2230,7 @@ func boxBinary(input checkruntime.BoxValue) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.BoxValueValue {
 		value := input.Value
 		if value.WireKnown == false {
-			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: 32}
 		}
 		return ByteacatZitv(PointSendKuoa(boxEndpoint(input, false)), PointSendKuoa(boxEndpoint(input, true)))
 	}
@@ -2917,6 +2945,34 @@ func ByteacatZitv(left checkruntime.ByteaValue, right checkruntime.ByteaValue) c
 	if left == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || right == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
 	}
+	firstLength := byteaLength(left)
+	secondLength := byteaLength(right)
+	if firstLength.Kind == checkruntime.Int4ValueValue {
+		first := langruntime.CheckedI32(firstLength.Value)
+		if secondLength.Kind == checkruntime.Int4ValueValue {
+			second := langruntime.CheckedI32(secondLength.Value)
+			length := byteaConcatLength(first, second)
+			if length.Kind == checkruntime.Int4ValueError {
+				error := length.Error
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+			}
+			if first == 0 {
+				return right
+			}
+			if second == 0 {
+				return left
+			}
+			if length.Kind == checkruntime.Int4ValueValue {
+				size := langruntime.CheckedI32(length.Value)
+				if left.Kind == checkruntime.ByteaValueUnspecified {
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: size}
+				}
+				if right.Kind == checkruntime.ByteaValueUnspecified {
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: size}
+				}
+			}
+		}
+	}
 	if left.Kind == checkruntime.ByteaValueValue {
 		a := langruntime.CheckedString(left.Value)
 		if right.Kind == checkruntime.ByteaValueValue {
@@ -3108,6 +3164,10 @@ func byteaLength(input checkruntime.ByteaValue) checkruntime.Int4Value {
 	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		length := langruntime.CheckedI32(input.Unspecified)
+		return checkruntime.MakeInt4Value(length)
+	}
 	if input.Kind == checkruntime.ByteaValueValue {
 		value := langruntime.CheckedString(input.Value)
 		chars := []rune(value)
@@ -3171,6 +3231,9 @@ func ReverseW0od(input checkruntime.ByteaValue) checkruntime.ByteaValue {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
 	}
 	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return input
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
 		return input
 	}
 	if input.Kind == checkruntime.ByteaValueValue {
@@ -3262,6 +3325,16 @@ func GetByte48am(input checkruntime.ByteaValue, position checkruntime.Int4Value)
 	}
 	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueUnspecified {
+		length := langruntime.CheckedI32(input.Unspecified)
+		if position.Kind == checkruntime.Int4ValueValue {
+			offset := langruntime.CheckedI32(position.Value)
+			if offset < 0 || offset >= length {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(byteaArraySubscriptError)}
+			}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 	}
 	if input.Kind == checkruntime.ByteaValueValue {
 		value := langruntime.CheckedString(input.Value)
@@ -5742,7 +5815,7 @@ func circleBinary(input checkruntime.CircleValue) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.CircleValueValue {
 		value := input.Value
 		if value.WireKnown == false {
-			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: 24}
 		}
 		return ByteacatZitv(PointSendKuoa(circleCenterValue(input)), Float8send3bqt(circleRadiusValue(input)))
 	}
@@ -6885,7 +6958,7 @@ func floatArithmetic(left checkruntime.Float8Value, right checkruntime.Float8Val
 			if value == float64(0.0) && a != float64(0.0) && ((mode == 2 && b != float64(0.0)) || (mode == 3 && langruntime.F64Abs(b) != infinity)) {
 				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
 			}
-			if left == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) || right == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+			if value != value {
 				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
 			}
 			return checkruntime.MakeFloat8Value(value)
@@ -7105,7 +7178,11 @@ func float4Widen(input checkruntime.Float4Value) checkruntime.Float8Value {
 	}
 	if input.Kind == checkruntime.Float4ValueValue {
 		bits := langruntime.CheckedI32(input.Value)
-		return checkruntime.MakeFloat8Value(checkruntime.Float4Number(bits))
+		number := checkruntime.Float4Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+		return checkruntime.MakeFloat8Value(number)
 	}
 	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
 }
@@ -7123,6 +7200,9 @@ func float8Narrow(input checkruntime.Float8Value) checkruntime.Float4Value {
 	if input.Kind == checkruntime.Float8ValueValue {
 		bits := input.Value
 		value := checkruntime.Float8Number(bits)
+		if value != value {
+			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}
+		}
 		roundedBits := langruntime.F32ToI32Bits(value)
 		rounded := checkruntime.Float4Number(roundedBits)
 		infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
@@ -7709,7 +7789,7 @@ func Float4FromText(input checkruntime.TextValue) checkruntime.Float4Value {
 			return checkruntime.MakeFloat4Bits(langruntime.CheckedSignedNegate(8388608))
 		}
 		if layout.kind == 3 {
-			return checkruntime.MakeFloat4Bits(2143289344)
+			return checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}
 		}
 		if layout.kind == 0 {
 			return floatInputSingle(layout)
@@ -7738,7 +7818,7 @@ func Float8FromText(input checkruntime.TextValue) checkruntime.Float8Value {
 			return checkruntime.MakeFloat8Bits(int64(-4503599627370496))
 		}
 		if layout.kind == 3 {
-			return checkruntime.MakeFloat8Bits(int64(9221120237041090560))
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
 		}
 		if layout.kind == 0 {
 			if layout.zero {
@@ -7765,6 +7845,9 @@ func Dsqrt5pmk(input checkruntime.Float8Value) checkruntime.Float8Value {
 	if input.Kind == checkruntime.Float8ValueValue {
 		bits := input.Value
 		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
 		if number < float64(0.0) {
 			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatSqrtArgument)}
 		}
@@ -7871,6 +7954,9 @@ func Float4sendUk42(input checkruntime.Float4Value) checkruntime.ByteaValue {
 	if input == (checkruntime.Float4Value{Kind: checkruntime.Float4ValueNull}) {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
 	}
+	if input == (checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: 4}
+	}
 	if input.Kind == checkruntime.Float4ValueValue {
 		bits := langruntime.CheckedI32(input.Value)
 		return binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(bits))}, 4)
@@ -7884,6 +7970,9 @@ func Float8send3bqt(input checkruntime.Float8Value) checkruntime.ByteaValue {
 	}
 	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: 8}
 	}
 	if input.Kind == checkruntime.Float8ValueValue {
 		bits := input.Value
@@ -10233,8 +10322,9 @@ func lineEqualProduct(left int64, right int64, ratio checkruntime.Float8Value) c
 		error := product.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
 	}
-	if product.Kind == checkruntime.Float8ValueValue {
-		bits := product.Value
+	knownProduct := checkruntime.Float8Semantic(product)
+	if knownProduct.Kind == checkruntime.Float8ValueValue {
+		bits := knownProduct.Value
 		return checkruntime.MakeBoolValue(geometricCoordinateEqual(checkruntime.Float8Number(left), checkruntime.Float8Number(bits)))
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
@@ -10333,7 +10423,7 @@ func LineSendB5ct(input checkruntime.LineValue) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.LineValueValue {
 		value := input.Value
 		if value.WireKnown == false {
-			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: 24}
 		}
 		first := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value.A}, 8)
 		second := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value.B}, 8)
@@ -10917,7 +11007,7 @@ func lineProjectPoint(point checkruntime.PointValue, line checkruntime.LineValue
 				return lineProjection{point: projected, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}}
 			}
 			if projected == (checkruntime.PointValue{Kind: checkruntime.PointValueNull}) {
-				return lineProjection{point: point, distance: checkruntime.MakeFloat8Bits(int64(9221120237041090560))}
+				return lineProjection{point: point, distance: checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}}
 			}
 			distance := PointDistance2haq(projected, point)
 			return lineProjection{point: projected, distance: distance}
@@ -11045,7 +11135,7 @@ func LsegSendKc2a(input checkruntime.LsegValue) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.LsegValueValue {
 		value := input.Value
 		if value.WireKnown == false {
-			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: 32}
 		}
 		first := PointSendKuoa(lsegEndpoint(input, false))
 		second := PointSendKuoa(lsegEndpoint(input, true))
@@ -18145,6 +18235,10 @@ func PathSendTszn(input checkruntime.PathValue) checkruntime.ByteaValue {
 				error := encoded.Error
 				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
 			}
+			if encoded.Kind == checkruntime.ByteaValueUnspecified {
+				length := langruntime.CheckedSignedAdd(5, langruntime.CheckedSignedMultiply((int(int32(len(path.Points)))), 16))
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: length}
+			}
 			if encoded == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || encoded == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
 				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 			}
@@ -19023,7 +19117,7 @@ func PointSendKuoa(input checkruntime.PointValue) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.PointValueValue {
 		point := input.Value
 		if point.WireKnown == false {
-			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnspecified, Unspecified: 16}
 		}
 		x := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: point.X}, 8)
 		y := binarySendBits(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: point.Y}, 8)
@@ -19364,7 +19458,7 @@ func geometricHypot(first checkruntime.Float8Value, second checkruntime.Float8Va
 				return checkruntime.MakeFloat8Bits(int64(9218868437227405312))
 			}
 			if x != x || y != y {
-				return checkruntime.MakeFloat8Bits(int64(9221120237041090560))
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
 			}
 			if x < y {
 				saved := x

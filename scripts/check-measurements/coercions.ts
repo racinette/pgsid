@@ -73,6 +73,14 @@ import {
   unimplementedIntervalGrammarForms,
 } from '../../tests/sql-semantics/check-interval-input-forms.js'
 
+const nanBinaryPrecision = {
+  requirement: 'platform',
+  semanticValue: 'known',
+  binaryOutput: 'Unknown',
+  explicitRowBits: 'preserved',
+  owner: 'tests/sql-semantics/check-platform-nan.test.ts',
+} as const
+
 const inputForms = [
   {
     type: 'pg_catalog.name',
@@ -183,6 +191,7 @@ const inputForms = [
   },
   {
     type: 'pg_catalog.path',
+    nanBinaryPrecision,
     suite: 'tests/sql-semantics/check-path.test.ts',
     handled: pathInputForms,
     deferred: deferredPathPlatformForms,
@@ -194,6 +203,7 @@ const inputForms = [
   },
   {
     type: 'pg_catalog.circle',
+    nanBinaryPrecision,
     suite: 'tests/sql-semantics/check-circle.test.ts',
     handled: circleInputForms,
     deferred: deferredCirclePlatformForms,
@@ -205,6 +215,7 @@ const inputForms = [
   },
   {
     type: 'pg_catalog.box',
+    nanBinaryPrecision,
     suite: 'tests/sql-semantics/check-box.test.ts',
     handled: boxInputForms,
     deferred: deferredBoxPlatformForms,
@@ -216,6 +227,7 @@ const inputForms = [
   },
   {
     type: 'pg_catalog.lseg',
+    nanBinaryPrecision,
     suite: 'tests/sql-semantics/check-lseg.test.ts',
     handled: lsegInputForms,
     deferred: deferredLsegPlatformForms,
@@ -227,6 +239,7 @@ const inputForms = [
   },
   {
     type: 'pg_catalog.line',
+    nanBinaryPrecision,
     suite: 'tests/sql-semantics/check-line-input.test.ts',
     handled: lineInputForms,
     deferred: deferredLinePlatformForms,
@@ -238,6 +251,7 @@ const inputForms = [
   },
   {
     type: 'pg_catalog.point',
+    nanBinaryPrecision,
     suite: 'tests/sql-semantics/check-point-input.test.ts',
     handled: pointInputForms,
     deferred: deferredPointPlatformForms,
@@ -266,6 +280,7 @@ const inputForms = [
   ...['pg_catalog.float4', 'pg_catalog.float8'].map((type) => ({
     type,
     suite: 'tests/sql-semantics/check-float-input.test.ts',
+    nanBinaryPrecision,
     handled: floatInputForms,
     deferred: deferredFloatInputForms,
   })),

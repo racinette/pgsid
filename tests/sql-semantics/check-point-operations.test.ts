@@ -165,7 +165,7 @@ describe('point arithmetic, relative coordinates and measurements', () => {
         bytes &&
         ((fn.result === 'pg_catalog.point' &&
           (Number.isNaN(bytes.readDoubleBE()) || Number.isNaN(bytes.readDoubleBE(8)))) ||
-          (fn.name === 'slope' && Number.isNaN(bytes.readDoubleBE())))
+          (fn.result === 'pg_catalog.float8' && Number.isNaN(bytes.readDoubleBE())))
       )
         expected = { kind: 'Unknown' }
       const row: Row = {

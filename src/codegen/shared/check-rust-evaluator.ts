@@ -988,7 +988,7 @@ export function emitCheckRustEvaluator(
             ? '-2147483647 - 1'
             : String(bits)
           : `${bits}i64`
-        return { name: bind(`make_${prefix}_bits(${literal})`), type: value.type }
+        return { name: bind(`make_${prefix}_literal_bits(${literal})`), type: value.type }
       }
       if (value.kind === 'decimal')
         return {

@@ -209,12 +209,7 @@ describe('line relations, intersections, distances and point projection', () => 
                   hasNan =
                     Number.isNaN(bytes.readDoubleBE()) ||
                     (item.type === 'pg_catalog.point' && Number.isNaN(bytes.readDoubleBE(8)))
-                if (
-                  hasNan &&
-                  (item.type === 'pg_catalog.point' ||
-                    (item.fn.kind === 'function' && item.fn.name === 'line_distance'))
-                )
-                  wireExpected = { kind: 'Unknown' }
+                if (hasNan) wireExpected = { kind: 'Unknown' }
               }
             }
           } catch (caught) {

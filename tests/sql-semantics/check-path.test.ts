@@ -314,7 +314,16 @@ it('matches path text input, literals, type constructors and lazy casts with del
       wire = (
         await pg.query<{ wire: string }>("SELECT encode(path_send($1::path),'hex') wire", [form])
       ).rows[0]!.wire
-      expected = { kind: wire === null ? 'Null' : 'True' }
+      expected = {
+        kind:
+          wire === null
+            ? 'Null'
+            : Array.from({ length: (wire.length / 2 - 5) / 8 }, (_, index) => 5 + index * 8).some(
+                  (at) => Number.isNaN(Buffer.from(wire!, 'hex').readDoubleBE(at)),
+                )
+              ? 'Unknown'
+              : 'True',
+      }
     } catch (caught) {
       expected = failure((caught as { code: string }).code)
     }

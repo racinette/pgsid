@@ -269,7 +269,7 @@ pub fn float4_from_text(input: TextValue) -> Float4Value {
             return make_float4_bits(-8388608);
         }
         if layout.kind == 3 {
-            return make_float4_bits(2143289344);
+            return Float4Value::UnspecifiedNan;
         }
         if layout.kind == 0 {
             return float_input_single(layout);
@@ -297,7 +297,7 @@ pub fn float8_from_text(input: TextValue) -> Float8Value {
             return make_float8_bits(-4503599627370496i64);
         }
         if layout.kind == 3 {
-            return make_float8_bits(9221120237041090560i64);
+            return Float8Value::UnspecifiedNan;
         }
         if layout.kind == 0 {
             if layout.zero {

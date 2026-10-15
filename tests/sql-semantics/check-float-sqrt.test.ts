@@ -157,8 +157,12 @@ describe('floating square-root foundation for geometric distances', () => {
           recorded_wire: value(wire),
           skip: value(false),
         }
+        const nanWire =
+          wire !== null &&
+          wire.length === 16 &&
+          Number.isNaN(Buffer.from(wire, 'hex').readDoubleBE())
         for (const name of [fn.rustName, fn.rustName + '_wire', fn.rustName + '_lazy'])
-          add(name, row, expected)
+          add(name, row, nanWire && name !== fn.rustName ? { kind: 'Unknown' } : expected)
         if (expected.kind === 'True') {
           const wrong: Row = {
             ...row,

@@ -130,6 +130,10 @@ pub fn sql__pg_catalog__path_send__tszn(input: PathValue) -> ByteaValue {
             if let ByteaValue::Error(error) = encoded {
                 return ByteaValue::Error(error);
             };
+            if let ByteaValue::Unspecified(_) = encoded {
+                let length: i32 = 5 + (path.points.len() as i32) * 16;
+                return ByteaValue::Unspecified(length);
+            };
             if encoded == ByteaValue::Unknown || encoded == ByteaValue::Null {
                 return ByteaValue::Unknown;
             };

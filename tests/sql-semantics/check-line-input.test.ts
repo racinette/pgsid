@@ -123,7 +123,7 @@ describe('line text input and point construction', () => {
         ).rows[0]!
         wire = oracle.wire
         sameExpected = { kind: oracle.same === null ? 'Null' : oracle.same ? 'True' : 'False' }
-        if (wire !== null && !text!.trimStart().startsWith('{')) {
+        if (wire !== null) {
           const bytes = Buffer.from(wire, 'hex')
           computedNan = [0, 8, 16].some((index) => Number.isNaN(bytes.readDoubleBE(index)))
         }

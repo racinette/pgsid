@@ -171,7 +171,7 @@ fn geometric_hypot(first: Float8Value, second: Float8Value) -> Float8Value {
                 return make_float8_bits(9218868437227405312i64);
             };
             if x != x || y != y {
-                return make_float8_bits(9221120237041090560i64);
+                return Float8Value::UnspecifiedNan;
             };
             if x < y {
                 let saved = x;

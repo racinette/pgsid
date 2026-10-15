@@ -777,6 +777,7 @@ pub enum ByteaValue {
     Null,
     Value(String),
     Error(SqlError),
+    Unspecified(i32),
 }
 
 pub fn bytea_unknown() -> ByteaValue {
@@ -971,6 +972,14 @@ pub enum Float4Value {
     UnspecifiedNan,
 }
 
+pub fn make_float4_literal_bits(bits: i32) -> Float4Value {
+    let number = f32::from_bits(bits as u32) as f64;
+    if number != number {
+        return Float4Value::UnspecifiedNan;
+    };
+    make_float4_bits(bits)
+}
+
 pub fn float4_unknown() -> Float4Value {
     Float4Value::Unknown
 }
@@ -1025,6 +1034,14 @@ pub fn float8_semantic(input: Float8Value) -> Float8Value {
         return make_float8_bits(9221120237041090560i64);
     };
     input
+}
+
+pub fn make_float8_literal_bits(bits: i64) -> Float8Value {
+    let number = f64::from_bits(bits as u64);
+    if number != number {
+        return Float8Value::UnspecifiedNan;
+    };
+    make_float8_bits(bits)
 }
 
 pub fn float8_unknown() -> Float8Value {
