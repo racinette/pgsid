@@ -920,6 +920,18 @@ func jsonbInputFloat(number float64) JsonbInput {
 	if number == float64(0.0) {
 		return JsonbInput{Kind: JsonbInputNumber, Number: "0"}
 	}
+	absolute := langruntime.F64Abs(number)
+	if absolute >= float64(1.0) && absolute <= float64(9.0) {
+		digit := langruntime.F64ToI32(absolute)
+		if (float64(digit)) == absolute {
+			output := langruntime.NewTextBuffer("")
+			if number < float64(0.0) {
+				output = append(output, string(langruntime.CheckedChar('-'))...)
+			}
+			output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32((langruntime.CheckedSignedAdd(digit, 48)), '0')))...)
+			return JsonbInput{Kind: JsonbInputNumber, Number: string(output)}
+		}
+	}
 	return JsonbInput{Kind: JsonbInputUnknown}
 }
 func JsonbInputFromFloat4(input Float4Value) JsonbInput {
@@ -1645,7 +1657,7 @@ type PointPayload struct {
 	WireKnown bool
 }
 
-func copyPointPayload(value PointPayload) PointPayload {
+func CopyPointPayload(value PointPayload) PointPayload {
 	return PointPayload{X: value.X, Y: value.Y, WireKnown: value.WireKnown}
 }
 
@@ -1860,7 +1872,7 @@ type PathPayload struct {
 }
 
 func CopyPathPayload(value PathPayload) PathPayload {
-	return PathPayload{Closed: value.Closed, Points: langruntime.CheckedStructs(value.Points, copyPointPayload)}
+	return PathPayload{Closed: value.Closed, Points: langruntime.CheckedStructs(value.Points, CopyPointPayload)}
 }
 
 type PathValueKind uint8
@@ -1932,7 +1944,7 @@ type PolygonPayload struct {
 }
 
 func CopyPolygonPayload(value PolygonPayload) PolygonPayload {
-	return PolygonPayload{Points: langruntime.CheckedStructs(value.Points, copyPointPayload), Bounds: value.Bounds}
+	return PolygonPayload{Points: langruntime.CheckedStructs(value.Points, CopyPointPayload), Bounds: value.Bounds}
 }
 
 type PolygonValueKind uint8

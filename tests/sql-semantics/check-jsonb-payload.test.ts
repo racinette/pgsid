@@ -130,7 +130,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       catalog.domains,
     )!
     expect(hasUncertain(boundCustom.expression)).toBe(false)
-    expect(hasUncertain(portableCheckAtoms(boundCustom.expression))).toBe(true)
+    expect(hasUncertain(portableCheckAtoms(boundCustom.expression))).toBe(false)
     const bundle = renderTypescriptSchemaCheckArtifacts(
       [
         table,
@@ -203,6 +203,13 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       })[0].result
       expect(result).toEqual(bypass ? { certain: true, value: true } : { certain: false })
     }
+    expect(
+      generated.evaluatePublicJsonbConversionBoundariesChecks({
+        label: null,
+        expected: null,
+        bypass: false,
+      })[0].result,
+    ).toEqual({ certain: true, value: true })
     await pg.exec(`INSERT INTO jsonb_conversion_boundaries VALUES('plain','"custom"',false)`)
     for (const sample of [
       {

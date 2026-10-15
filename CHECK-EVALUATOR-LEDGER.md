@@ -270,7 +270,8 @@ exposes a prerequisite:
 - [x] JSONB concatenation and top-level text/index deletion; preserve logical trees, storage admission, ownership and public INSERT parity.
 - [x] JSONB recursive null stripping, default/array flags and pretty layout; preserve renderer encoding requirements and NULL/Unknown/error states.
 - [x] Scalar to_jsonb core values and portable network/MAC/bit, identifier/snapshot, ISO date/timestamp and clock outputs; retain finite-float, TimeZone and custom-cast requirements.
-- [ ] Remaining to_jsonb categories, JSONB construction and binary I/O; path-array access follows arrays.
+- [x] Remaining represented to_jsonb types and enums: strict states, catalog/session deferral, interval infinities and invariant geometric output; no catalog or default-setting assumptions.
+- [ ] JSONB construction and binary I/O; path-array access follows arrays.
 - [ ] JSONPath, after JSON value operations and a dedicated query-language assessment.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
@@ -280,8 +281,7 @@ expression composition, and world INSERT parity work together. Preserve distinct
 SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsing,
 session-dependent behavior, and unimplemented callables visible in the reports;
 representation support alone does not complete them.
-Assess recursive ownership before arrays, JSON, and composites. JSON evaluation
-assumes sufficient execution resources; server stack/allocation exhaustion is separate.
+Assess recursive ownership before arrays, JSON, and composites. JSON evaluation assumes sufficient execution resources; server stack/allocation exhaustion is separate.
 Catalog identities and pseudo-types share families; polymorphic signatures resolve to concrete values. Database lookups and internal server interfaces require explicit requirements rather than fabricated local results.
 
 ## Completion gate for implementation tasks

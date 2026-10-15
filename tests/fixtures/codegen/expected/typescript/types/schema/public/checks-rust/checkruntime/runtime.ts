@@ -945,6 +945,18 @@ function jsonbInputFloat(number: number): JsonbInput {
     if (number === 0.0) {
         return { kind: "Number", value: "0" };
     }
+    const absolute: number = langruntime.f64Abs(number);
+    if (absolute >= 1.0 && absolute <= 9.0) {
+        const digit: number = langruntime.f64ToI32(absolute);
+        if ((Number(langruntime.checkedI32(digit))) === absolute) {
+            let output: string = "";
+            if (number < 0.0) {
+                output = output + langruntime.checkedChar("-");
+            }
+            output = output + langruntime.checkedChar(langruntime.characterFromI32((langruntime.checkedSignedAdd(digit, 48)), "0"));
+            return { kind: "Number", value: output };
+        }
+    }
     return { kind: "Unknown" };
 }
 export function jsonbInputFromFloat4(input: Float4Value): JsonbInput {

@@ -164,6 +164,9 @@ func TestJSONBCustomConversionBoundary(t *testing.T){
  bypass:=false;label:=schema.ConversionLabel("plain")
  input:=pgsid.PublicJsonbConversionBoundariesCheckInput{Label:pgsid.KnownCheckValue(&label),Expected:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('"custom"')})),Bypass:pgsid.KnownCheckValue(&bypass)}
  for _,check:=range pgsid.EvaluatePublicJsonbConversionBoundariesChecks(input){if check.Result.Certain{t.Fatal("custom conversion guessed",check)}}
+ input.Label=pgsid.NullCheckValue[*schema.ConversionLabel]();input.Expected=pgsid.KnownCheckValue(checkruntime.JsonbNull())
+ for _,check:=range pgsid.EvaluatePublicJsonbConversionBoundariesChecks(input){if !check.Result.Certain||!check.Result.Value.Valid||!check.Result.Value.Value{t.Fatal("custom conversion SQL NULL lost",check)}}
+ input.Label=pgsid.KnownCheckValue(&label)
  bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbConversionBoundariesChecks);err!=nil{t.Fatal("skipped custom conversion failed",err)}
 }
 func TestJSONBConversionWrites(t *testing.T){

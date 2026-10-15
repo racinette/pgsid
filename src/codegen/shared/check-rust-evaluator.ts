@@ -77,6 +77,31 @@ const jsonbConversionHelpers = new Map<string, string>(
       [['pg_catalog.tid'], 'tid'],
       [['pg_catalog.pg_snapshot', 'pg_catalog.txid_snapshot'], 'snapshot'],
       [['pg_catalog."char"'], 'internal_char'],
+      [
+        [
+          'pg_catalog.regclass',
+          'pg_catalog.regcollation',
+          'pg_catalog.regconfig',
+          'pg_catalog.regdictionary',
+          'pg_catalog.regnamespace',
+          'pg_catalog.regproc',
+          'pg_catalog.regprocedure',
+          'pg_catalog.regrole',
+          'pg_catalog.regtype',
+        ],
+        'oid_alias',
+      ],
+      [['pg_catalog.regoper', 'pg_catalog.regoperator'], 'operator_alias'],
+      [['pg_catalog.bytea'], 'bytea'],
+      [['pg_catalog.money'], 'money'],
+      [['pg_catalog."interval"'], 'interval'],
+      [['pg_catalog.point'], 'point'],
+      [['pg_catalog.line'], 'line'],
+      [['pg_catalog.lseg'], 'lseg'],
+      [['pg_catalog.box'], 'box'],
+      [['pg_catalog.circle'], 'circle'],
+      [['pg_catalog.path'], 'path'],
+      [['pg_catalog.polygon'], 'polygon'],
     ] as const
   ).flatMap(([types, suffix]) =>
     types.map((type) => [type, 'jsonb_input_from_' + suffix] as const),
@@ -84,7 +109,7 @@ const jsonbConversionHelpers = new Map<string, string>(
 )
 
 export const jsonbConversionHelper = (type: string): string | undefined =>
-  jsonbConversionHelpers.get(type)
+  type.startsWith('enum:') ? 'jsonb_input_from_enum' : jsonbConversionHelpers.get(type)
 
 export class UnsupportedCheckRustExpression extends Error {}
 
@@ -598,6 +623,7 @@ export function emitCheckRustEvaluator(
           )
         }
         if (
+          !operand.type.startsWith('enum:') &&
           ![
             'pg_catalog.bool',
             'pg_catalog."numeric"',
@@ -618,10 +644,7 @@ export function emitCheckRustEvaluator(
             !metadata ||
             metadata.kind !== 'function' ||
             !metadata.strict ||
-            (metadata.volatility !== 'i' &&
-              !['pg_catalog.date', 'pg_catalog."timestamp"', 'pg_catalog.timestamptz'].includes(
-                operand.type,
-              )) ||
+            (metadata.volatility !== 'i' && metadata.volatility !== 's') ||
             metadata.returnsSet ||
             metadata.args.length !== 1 ||
             metadata.args[0] !== operand.type ||

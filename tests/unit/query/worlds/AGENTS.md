@@ -11,7 +11,7 @@ INSERT cases that reference every table. The CHECK suite requires definite
 validation and both accepted and rejected INSERTs. A constraint requiring an
 unavailable deployment catalog may defer only when the harness names that
 constraint and executes its known NULL or skipped branches alongside its catalog
-deferral. Platform- or session-dependent binary output may defer only for an explicitly
+deferral. Platform- or session-dependent value output may defer only for an explicitly
 named INSERT case and constraint; the harness verifies that exact deferral and
 retains definite accepted and rejected witnesses for the constraint. All other
 CHECK cases remain definite. Query shape, join,

@@ -136,12 +136,47 @@ const sessionDependentCases = new Map<string, string>([
   ],
 ])
 const binaryContextCases = new Map([...platformDependentCases, ...sessionDependentCases])
-const jsonEncodingCases = new Map(
-  ['field_source', 'field_text', 'field_presence'].map((name) => [
-    `041_json_documents/field_encoding_context/${name}`,
-    `world_041_json_documents.document_fields.${name}`,
-  ]),
-)
+const jsonValueContextCases = new Map<string, string>([
+  ...['field_source', 'field_text', 'field_presence'].map(
+    (name) =>
+      [
+        `041_json_documents/field_encoding_context/${name}`,
+        `world_041_json_documents.document_fields.${name}`,
+      ] as const,
+  ),
+  ...[
+    'bytea',
+    'money',
+    'interval',
+    'point',
+    'line',
+    'lseg',
+    'box',
+    'circle',
+    'path',
+    'polygon',
+    'float4',
+    'float8',
+    'regclass',
+    'regcollation',
+    'regconfig',
+    'regdictionary',
+    'regnamespace',
+    'regoper',
+    'regoperator',
+    'regproc',
+    'regprocedure',
+    'regrole',
+    'regtype',
+    'enum',
+  ].map(
+    (name) =>
+      [
+        `041_json_documents/context_requires_data/context_${name}`,
+        `world_041_json_documents.document_context_conversions.context_${name}`,
+      ] as const,
+  ),
+])
 if (binaryContextCases.size !== platformDependentCases.size + sessionDependentCases.size)
   throw new Error('Duplicate binary context case declarations')
 const binaryDeferrals = (identity: string): number =>
@@ -1144,7 +1179,7 @@ describe('world CHECK INSERT parity', () => {
           check.result.certain ||
             catalogDependentChecks.has(`${item.schema}.${table.name}.${check.constraint}`) ||
             binaryContextCases.has(`${item.name}/${check.constraint}`) ||
-            jsonEncodingCases.has(`${item.name}/${check.constraint}`),
+            jsonValueContextCases.has(`${item.name}/${check.constraint}`),
           `${item.name}/${check.constraint}: unexpected deferral in CHECK world`,
         ).toBe(true)
     const row = inputs.get(item.name)!
@@ -1285,7 +1320,7 @@ describe('world CHECK INSERT parity', () => {
     expect(definite).toBeGreaterThan(0)
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
-    for (const [identity, constraint] of jsonEncodingCases) {
+    for (const [identity, constraint] of jsonValueContextCases) {
       const slash = identity.lastIndexOf('/')
       const item = caseResults.find((row) => row.name === identity.slice(0, slash))
       if (selectedWorldNames && !worlds.some((world) => identity.startsWith(world.name + '/')))
@@ -2739,7 +2774,8 @@ describe('world CHECK INSERT parity', () => {
         if (catalogDependentChecks.has(measured.constraint)) continue
         expect(measured.unknown, measured.constraint).toBe(
           binaryDeferrals(measured.constraint) +
-            [...jsonEncodingCases.values()].filter((name) => name === measured.constraint).length,
+            [...jsonValueContextCases.values()].filter((name) => name === measured.constraint)
+              .length,
         )
       }
     for (const name of checkWorlds) {
