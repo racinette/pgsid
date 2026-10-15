@@ -23,6 +23,11 @@ pub fn json_to_text(input: JsonValue) -> TextValue {
     };
     TextValue::Unknown
 }
+
+pub fn sql__pg_catalog__json_send__wrp3(input: JsonValue) -> ByteaValue {
+    let text = json_to_text(input);
+    sql__pg_catalog__textsend__mgfj(text)
+}
 const JSON_INVALID_TEXT: u32 = 3484946;
 
 pub fn json_from_text(input: TextValue) -> JsonValue {

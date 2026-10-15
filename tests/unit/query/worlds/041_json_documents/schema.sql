@@ -457,3 +457,20 @@ CREATE TABLE document_builders (
  CONSTRAINT empty_object CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object() IS NOT DISTINCT FROM expected_empty_object END),
  CONSTRAINT builder_count CHECK(CASE WHEN bypass THEN true ELSE jsonb_array_length(jsonb_build_array(document,flag,NULL))=expected_count END)
 );
+
+CREATE TABLE document_packets (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ raw_source json,
+ document retained_normalized_document,
+ expected_raw bytea,
+ expected_document bytea,
+ expected_version integer,
+ expected_length integer,
+ bypass boolean NOT NULL,
+ CONSTRAINT raw_packet CHECK(CASE WHEN bypass THEN true ELSE json_send(raw_source) IS NOT DISTINCT FROM expected_raw END),
+ CONSTRAINT normalized_packet CHECK(CASE WHEN bypass THEN true ELSE jsonb_send(document) IS NOT DISTINCT FROM expected_document END),
+ CONSTRAINT packet_version CHECK(CASE WHEN bypass THEN true ELSE get_byte(jsonb_send(document),0) IS NOT DISTINCT FROM expected_version END),
+ CONSTRAINT packet_length CHECK(CASE WHEN bypass THEN true ELSE octet_length(jsonb_send(document)) IS NOT DISTINCT FROM expected_length END)
+);

@@ -10433,6 +10433,10 @@ export function jsonToText(input: checkruntime.JsonValue): checkruntime.TextValu
     }
     return { kind: "Unknown" };
 }
+export function jsonSendWrp3(input: checkruntime.JsonValue): checkruntime.ByteaValue {
+    const text: checkruntime.TextValue = jsonToText(input);
+    return textsendMgfj(text);
+}
 const jsonInvalidText = 3484946;
 export function jsonFromText(input: checkruntime.TextValue): checkruntime.JsonValue {
     if (input.kind === "Error") {
@@ -11176,6 +11180,18 @@ export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.Te
         return checkruntime.jsonKindText(langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode).kind);
     }
     return { kind: "Unknown" };
+}
+export function jsonbSend8nmo(input: checkruntime.JsonbValue): checkruntime.ByteaValue {
+    input = checkruntime.copyJsonbValue(input);
+    const text: checkruntime.TextValue = checkruntime.jsonbToText(input);
+    const bytes: checkruntime.ByteaValue = textsendMgfj(text);
+    if (bytes.kind === "Value") {
+        const value: string = langruntime.checkedString(bytes.value);
+        let output: string = "01";
+        output = output + value;
+        return { kind: "Value", value: output };
+    }
+    return bytes;
 }
 const jsonbEditParameter = 3452619;
 function jsonbEditLink(node: checkruntime.JsonbNode, next: number): checkruntime.JsonbNode {

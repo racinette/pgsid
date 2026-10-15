@@ -103,11 +103,40 @@ describe('CHECK measurement boundaries', () => {
           ]),
         ).categories,
       ).toContain('session-setting:lc_monetary')
-    for (const name of ['textsend', 'namesend']) {
+    for (const name of ['textsend', 'namesend', 'json_send', 'jsonb_send']) {
       const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
       expect(callableBoundary(fn, new Set(fn.args.concat(fn.result))).categories).toContain(
         'session-setting:client_encoding',
       )
+    }
+    for (const name of ['json_send', 'jsonb_send']) {
+      const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
+      expect(
+        jsonValueRequirements(fn)?.map(({ kind, setting, owner }) => ({ kind, setting, owner })),
+      ).toEqual([
+        {
+          kind: 'session',
+          setting: 'client_encoding',
+          owner: 'tests/sql-semantics/check-json-binary.test.ts',
+        },
+        ...(name === 'jsonb_send'
+          ? [
+              {
+                kind: 'database',
+                setting: 'server_encoding',
+                owner: 'tests/sql-semantics/check-json-binary.test.ts',
+              },
+            ]
+          : []),
+      ])
+    }
+    for (const name of ['json_recv', 'jsonb_recv']) {
+      const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
+      expect(fn.args).toEqual(['pg_catalog.internal'])
+      expect(
+        callableBoundary(fn, new Set(['pg_catalog."json"', 'pg_catalog.jsonb', 'pg_catalog.bytea']))
+          .categories,
+      ).toContain('internal-interface')
     }
     for (const name of ['cursor_to_xml', 'cursor_to_xmlschema']) {
       const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
