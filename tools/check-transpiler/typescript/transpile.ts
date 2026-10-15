@@ -166,6 +166,16 @@ class Transpiler {
     ])
     if (document.schemaVersion !== 1)
       throw new Error(`unsupported AST version ${document.schemaVersion}`)
+    const collectVectors = (value: unknown): void => {
+      if (!value || typeof value !== 'object') return
+      const node = value as Partial<Extract<TypeNode, { kind: 'path' }>>
+      if (node.kind === 'path' && node.segments?.[0] === 'Vec') {
+        const element = node.typeArguments?.[0]
+        if (element) this.vectorElements.add(this.path(element))
+      }
+      for (const child of Object.values(value)) collectVectors(child)
+    }
+    collectVectors(document.items)
     for (const item of document.items) {
       this.names.set(
         item.name,
@@ -178,10 +188,6 @@ class Transpiler {
       if (item.kind === 'struct' || item.kind === 'enum') {
         if (item.kind === 'struct') {
           this.structs.set(item.name, item)
-          for (const field of item.fields) {
-            const element = this.vectorElement(this.path(field.type))
-            if (element) this.vectorElements.add(element)
-          }
           if (
             item.visibility === 'public' &&
             item.fields.length > 0 &&
@@ -253,7 +259,8 @@ class Transpiler {
     if (name === 'Vec<usize>')
       return f.createArrayTypeNode(f.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword))
     const element = this.vectorElement(name)
-    if (element && this.structs.has(element)) return f.createArrayTypeNode(this.typeName(element))
+    if (element && (this.structs.has(element) || this.enums.has(element)))
+      return f.createArrayTypeNode(this.typeName(element))
     if (this.structs.has(name) || this.enums.has(name))
       return f.createTypeReferenceNode(this.names.get(name)!)
     throw new Error(`type outside TypeScript lowering: ${name}`)
@@ -285,7 +292,7 @@ class Transpiler {
     if (name === 'Vec<char>') return call('checkedChars', value)
     if (name === 'Vec<usize>') return call('checkedIndices', value)
     const element = this.vectorElement(name)
-    if (element && this.structs.has(element))
+    if (element && (this.structs.has(element) || this.enums.has(element)))
       return call('checkedStructs', value, identifier('copy' + this.names.get(element)!))
     return this.structs.has(name) || this.enums.has(name)
       ? call(`copy${this.names.get(name)!}`, value)
@@ -573,7 +580,7 @@ class Transpiler {
         const element = this.vectorElement(baseType)
         const values = this.expression(value.base, locals)
         const index = call('checkedIndex', this.expression(value.index, locals))
-        if (element && this.structs.has(element))
+        if (element && (this.structs.has(element) || this.enums.has(element)))
           return call('indexStruct', values, index, identifier('copy' + this.names.get(element)!))
         return call(element === 'usize' ? 'indexNumber' : 'indexChar', values, index)
       }
@@ -751,7 +758,7 @@ class Transpiler {
         const element = this.vectorElement(this.infer(value.receiver, locals) ?? '')
         result.push(
           f.createExpressionStatement(
-            element && this.structs.has(element)
+            element && (this.structs.has(element) || this.enums.has(element))
               ? call(
                   'pushStruct',
                   this.expression(value.receiver, locals),
@@ -972,7 +979,7 @@ class Transpiler {
         ),
       ]),
     )
-    if (!this.immutableValues.has(item.name))
+    if (!this.immutableValues.has(item.name) || this.vectorElements.has(item.name))
       declarations.push(
         this.function(`copy${name}`, [parameter('value', nameType)], nameType, [
           f.createSwitchStatement(member(identifier('value'), 'kind'), f.createCaseBlock(clauses)),

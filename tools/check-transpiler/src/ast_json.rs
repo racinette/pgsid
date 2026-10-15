@@ -32,7 +32,7 @@ fn check_type(
     value: &Type,
     declarations: &BTreeSet<String>,
     structs: &BTreeSet<String>,
-    copy_structs: &BTreeSet<String>,
+    vector_elements: &BTreeSet<String>,
 ) -> Result<()> {
     match value {
         Type::Reference(reference) if matches!(&*reference.elem, Type::Slice(_)) => {}
@@ -62,7 +62,7 @@ fn check_type(
                 && !name
                     .strip_prefix("Vec<")
                     .and_then(|element| element.strip_suffix('>'))
-                    .is_some_and(|element| copy_structs.contains(element))
+                    .is_some_and(|element| vector_elements.contains(element))
             {
                 return Err(format!("type {name} is outside the AST contract"));
             }
@@ -85,21 +85,21 @@ fn check_body_types(
     block: &syn::Block,
     declarations: &BTreeSet<String>,
     structs: &BTreeSet<String>,
-    copy_structs: &BTreeSet<String>,
+    vector_elements: &BTreeSet<String>,
 ) -> Result<()> {
     for statement in &block.stmts {
         match statement {
             Stmt::Local(local) => {
                 if let Pat::Type(typed) = &local.pat {
                     reject_stored_struct_borrow(&typed.ty)?;
-                    check_type(&typed.ty, declarations, structs, copy_structs)?;
+                    check_type(&typed.ty, declarations, structs, vector_elements)?;
                 }
             }
             Stmt::Expr(Expr::If(branch), _) => {
-                check_if_body_types(branch, declarations, structs, copy_structs)?
+                check_if_body_types(branch, declarations, structs, vector_elements)?
             }
             Stmt::Expr(Expr::While(loop_), _) => {
-                check_body_types(&loop_.body, declarations, structs, copy_structs)?
+                check_body_types(&loop_.body, declarations, structs, vector_elements)?
             }
             _ => {}
         }
@@ -111,16 +111,16 @@ fn check_if_body_types(
     branch: &syn::ExprIf,
     declarations: &BTreeSet<String>,
     structs: &BTreeSet<String>,
-    copy_structs: &BTreeSet<String>,
+    vector_elements: &BTreeSet<String>,
 ) -> Result<()> {
-    check_body_types(&branch.then_branch, declarations, structs, copy_structs)?;
+    check_body_types(&branch.then_branch, declarations, structs, vector_elements)?;
     if let Some((_, alternate)) = &branch.else_branch {
         match &**alternate {
             Expr::Block(alternate) => {
-                check_body_types(&alternate.block, declarations, structs, copy_structs)?
+                check_body_types(&alternate.block, declarations, structs, vector_elements)?
             }
             Expr::If(alternate) => {
-                check_if_body_types(alternate, declarations, structs, copy_structs)?
+                check_if_body_types(alternate, declarations, structs, vector_elements)?
             }
             _ => unreachable!(),
         }
@@ -146,13 +146,19 @@ fn check_types(file: &syn::File) -> Result<()> {
             _ => None,
         })
         .collect::<BTreeSet<_>>();
-    let copy_structs = file
+    let vector_elements = file
         .items
         .iter()
         .filter_map(|item| match item {
             Item::Struct(node)
                 if derive_names(&node.attrs)
                     .is_ok_and(|traits| traits.iter().any(|trait_name| trait_name == "Copy")) =>
+            {
+                Some(node.ident.to_string())
+            }
+            Item::Enum(node)
+                if derive_names(&node.attrs)
+                    .is_ok_and(|traits| traits.iter().any(|trait_name| trait_name == "Clone")) =>
             {
                 Some(node.ident.to_string())
             }
@@ -166,7 +172,7 @@ fn check_types(file: &syn::File) -> Result<()> {
                 {
                     reject_stored_struct_borrow(&node.ty)?;
                 }
-                check_type(&node.ty, &declarations, &structs, &copy_structs)?;
+                check_type(&node.ty, &declarations, &structs, &vector_elements)?;
             }
             Item::Struct(node) => {
                 let Fields::Named(fields) = &node.fields else {
@@ -177,7 +183,7 @@ fn check_types(file: &syn::File) -> Result<()> {
                     if type_name(&field.ty)? == "f64" {
                         return Err("f64 is limited to scalar calculations".into());
                     }
-                    check_type(&field.ty, &declarations, &structs, &copy_structs)?;
+                    check_type(&field.ty, &declarations, &structs, &vector_elements)?;
                 }
             }
             Item::Enum(node) => {
@@ -191,7 +197,7 @@ fn check_types(file: &syn::File) -> Result<()> {
                             &fields.unnamed[0].ty,
                             &declarations,
                             &structs,
-                            &copy_structs,
+                            &vector_elements,
                         )?;
                     }
                 }
@@ -201,7 +207,7 @@ fn check_types(file: &syn::File) -> Result<()> {
                     let FnArg::Typed(arg) = arg else {
                         unreachable!()
                     };
-                    check_type(&arg.ty, &declarations, &structs, &copy_structs)?;
+                    check_type(&arg.ty, &declarations, &structs, &vector_elements)?;
                 }
                 let ReturnType::Type(_, output) = &node.sig.output else {
                     unreachable!()
@@ -209,8 +215,8 @@ fn check_types(file: &syn::File) -> Result<()> {
                 if matches!(&**output, Type::Reference(_)) {
                     return Err("borrowed return types are outside the AST contract".into());
                 }
-                check_type(output, &declarations, &structs, &copy_structs)?;
-                check_body_types(&node.block, &declarations, &structs, &copy_structs)?;
+                check_type(output, &declarations, &structs, &vector_elements)?;
+                check_body_types(&node.block, &declarations, &structs, &vector_elements)?;
             }
             _ => unreachable!(),
         }
@@ -1532,5 +1538,30 @@ mod private_owned_state_tests {
             "#[derive(Clone)] struct Vertex { value:String } #[derive(Clone)] pub struct Payload { pub points:Vec<Vertex> } #[derive(Clone)] pub enum Value { Item(Payload) }",
             "#[derive(Clone)] pub enum Value { Item(Vec<char>) }",
         ] { assert!(parse(rejected).is_err(), "{rejected}"); }
+    }
+
+    #[test]
+    fn accepts_clone_value_enum_vectors_and_indexed_clones() {
+        let source = "#[derive(Clone)] pub enum Argument { Unknown, Null, Text(String) } #[derive(Clone)] pub struct Arguments { pub items:Vec<Argument> } #[derive(Clone)] pub enum Batch { Value(Arguments) } pub fn append(input:Batch,value:Argument)->Batch { if let Batch::Value(batch)=input { let mut items=batch.items; let first=items[0].clone(); items[0]=value; items.push(first); return Batch::Value(Arguments{items:items}); } input }";
+        let parsed: serde_json::Value = serde_json::from_str(&parse(source).unwrap()).unwrap();
+        assert_eq!(
+            parsed["items"][1]["fields"][0]["type"]["segments"][0],
+            "Vec"
+        );
+        assert_eq!(
+            parsed["items"][1]["fields"][0]["type"]["typeArguments"][0]["segments"][0],
+            "Argument"
+        );
+        assert!(parse("#[derive(Clone)] enum Flag { Null, Value(bool) } pub fn f(input:Flag)->Flag { let mut items:Vec<Flag>=Vec::new(); items.push(input); items[0].clone() }").is_ok());
+        for rejected in [
+            "enum Item { Text(String) } struct Batch { items:Vec<Item> }",
+            "#[derive(Clone)] enum Item { Text(String) } fn f(items:Vec<Item>)->Vec<Item> { items.clone() }",
+            "#[derive(Clone)] enum Item { Text(String) } fn f(items:&Vec<Item>)->usize { items.len() }",
+            "#[derive(Clone)] enum Item { Batch(Batch) } #[derive(Clone)] struct Batch { items:Vec<Item> }",
+            "#[derive(Clone)] enum Item { Text(String) } struct Batch { items:Vec<Item> } fn f(mut input:Batch)->Batch { input.items.push(Item::Text(\"x\".to_owned())); input }",
+            "#[derive(Clone)] enum Item { Text(String) } fn f()->usize { let mut items:Vec<Item>=Vec::new(); items.push(1); items.len() }",
+        ] {
+            assert!(parse(rejected).is_err(), "{rejected}");
+        }
     }
 }

@@ -227,6 +227,15 @@ struct Semantics {
 }
 
 fn shared_vector_element(name: &str, semantics: &Semantics) -> Option<String> {
+    let element = vector_element_type(name, semantics)?;
+    if name.starts_with("Vec<") && !shared_owned_payload(&element, semantics, &mut BTreeSet::new())
+    {
+        return None;
+    }
+    Some(element)
+}
+
+fn vector_element_type(name: &str, semantics: &Semantics) -> Option<String> {
     if let Some(element) = name
         .strip_prefix("&[")
         .and_then(|value| value.strip_suffix(']'))
@@ -237,6 +246,8 @@ fn shared_vector_element(name: &str, semantics: &Semantics) -> Option<String> {
     if element == "char"
         || element == "usize"
         || (semantics.fields.contains_key(element) && semantics.copy.contains(element))
+        || (semantics.clone.contains(element)
+            && semantics.variants.keys().any(|(owner, _)| owner == element))
     {
         Some(element.to_string())
     } else {
@@ -286,18 +297,35 @@ fn shared_owned_payload(
     if scalar(name) || semantics.copy.contains(name) {
         return true;
     }
-    if name.starts_with("Vec<") && shared_vector_element(name, semantics).is_some() {
-        return true;
-    }
-    let Some(fields) = semantics.fields.get(name) else {
-        return false;
-    };
     if !visiting.insert(name.to_string()) {
         return false;
     }
-    let valid = fields
-        .values()
-        .all(|field| shared_owned_payload(field, semantics, visiting));
+    let valid = if name.starts_with("Vec<") {
+        vector_element_type(name, semantics)
+            .is_some_and(|element| shared_owned_payload(&element, semantics, visiting))
+    } else if let Some(fields) = semantics.fields.get(name) {
+        fields
+            .values()
+            .all(|field| shared_owned_payload(field, semantics, visiting))
+    } else if semantics.clone.contains(name) {
+        let variants = semantics
+            .variants
+            .iter()
+            .filter(|((owner, _), _)| owner == name);
+        let mut found = false;
+        let mut valid = true;
+        for (_, payload) in variants {
+            found = true;
+            if let Some(payload) = payload {
+                if !shared_owned_payload(payload, semantics, visiting) {
+                    valid = false;
+                }
+            }
+        }
+        found && valid
+    } else {
+        false
+    };
     visiting.remove(name);
     valid
 }
@@ -832,7 +860,12 @@ fn infer_expr_type(
                     if destination == "usize"
                         || destination == "char"
                         || (semantics.fields.contains_key(&destination)
-                            && semantics.copy.contains(&destination)) => {}
+                            && semantics.copy.contains(&destination))
+                        || (semantics.clone.contains(&destination)
+                            && semantics
+                                .variants
+                                .keys()
+                                .any(|(owner, _)| owner == &destination)) => {}
                 _ => return Err(
                     "assignment target must be a scalar, immutable value binding or vector element"
                         .into(),
