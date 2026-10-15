@@ -103,3 +103,17 @@ CREATE TABLE document_elements (
  CONSTRAINT element_presence CHECK(CASE WHEN bypass THEN true ELSE (document->element_index IS NULL)=allow_missing END),
  CONSTRAINT element_count CHECK(CASE WHEN bypass THEN true ELSE json_array_length(document)=recorded_count END)
 );
+CREATE TABLE document_normalizations (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ source_text text,
+ recorded_kind text,
+ recorded_source text,
+ allow_absent boolean NOT NULL,
+ bypass boolean NOT NULL,
+ CONSTRAINT normalization_kind CHECK(CASE WHEN bypass THEN true ELSE jsonb_typeof(source_text::retained_normalized_document) COLLATE "C"=recorded_kind COLLATE "C" END),
+ CONSTRAINT normalization_source CHECK(CASE WHEN bypass THEN true ELSE COALESCE(source_text::retained_normalized_document,'null'::jsonb)::text COLLATE "C"=recorded_source COLLATE "C" END),
+ CONSTRAINT normalization_presence CHECK(CASE WHEN bypass THEN true ELSE (source_text::jsonb IS NULL)=allow_absent END),
+ CONSTRAINT normalization_bridge CHECK(CASE WHEN bypass THEN true ELSE COALESCE(source_text::json::jsonb,'null'::jsonb)::json::text COLLATE "C"=recorded_source COLLATE "C" END)
+);

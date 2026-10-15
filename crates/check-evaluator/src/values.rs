@@ -759,7 +759,7 @@ pub enum JsonbValue {
 }
 
 pub fn make_jsonb_value(source: &str) -> JsonbValue {
-    let parsed = jsonb_from_text(TextValue::Value(source.to_owned()));
+    let parsed = jsonb_parse_text(TextValue::Value(source.to_owned()), false);
     if let JsonbValue::Error(_) = parsed {
         return JsonbValue::Unknown;
     };

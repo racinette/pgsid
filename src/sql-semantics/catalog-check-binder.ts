@@ -405,8 +405,8 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
-  if (type === 'pg_catalog.jsonb' && literal.kind === 'null')
-    return { kind: 'jsonb', type, value: null }
+  if (type === 'pg_catalog.jsonb' && (literal.kind === 'null' || literal.kind === 'string'))
+    return { kind: 'jsonb', type, value: literal.value }
   if (type === 'pg_catalog."json"' && (literal.kind === 'null' || literal.kind === 'string'))
     return { kind: 'json', type, value: literal.value }
   if (
@@ -1557,6 +1557,39 @@ export function bindCatalogCheck(
       let operand = bind(cast['arg'])
       const source = boundType(operand)
       if (
+        ((source === 'pg_catalog."json"' && type === 'pg_catalog.jsonb') ||
+          (source === 'pg_catalog.jsonb' && type === 'pg_catalog."json"')) &&
+        operand.value
+      ) {
+        const conversion = builtinCast(source, type)
+        const output = builtinTypeIO(source)?.output
+        const metadata = output ? builtinMetadata(output) : null
+        if (
+          conversion?.method !== 'i' ||
+          !output ||
+          metadata?.kind !== 'function' ||
+          metadata.args.length !== 1 ||
+          metadata.args[0] !== source ||
+          metadata.result !== 'pg_catalog.cstring' ||
+          !metadata.strict ||
+          metadata.volatility !== 'i'
+        )
+          return unknown
+        return {
+          type,
+          value: {
+            kind: 'text-to-json',
+            type,
+            operand: {
+              kind: 'io-to-text',
+              type: 'pg_catalog.text',
+              operand: operand.value,
+              output,
+            },
+          },
+        }
+      }
+      if (
         source === 'pg_catalog.refcursor' &&
         [
           'pg_catalog.text',
@@ -1933,7 +1966,7 @@ export function bindCatalogCheck(
         return text ? { type, value: { kind: 'text-to-tid', type, operand: text } } : unknown
       }
       if (
-        type === 'pg_catalog."json"' &&
+        (type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb') &&
         operand.value &&
         [
           'pg_catalog.text',

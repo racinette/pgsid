@@ -9,6 +9,7 @@ pub mod checkruntime {
     include!("json_syntax.rs");
     include!("json_read.rs");
     include!("jsonb.rs");
+    include!("jsonb_storage.rs");
     include!("bit.rs");
     include!("hash.rs");
     include!("text_builder.rs");

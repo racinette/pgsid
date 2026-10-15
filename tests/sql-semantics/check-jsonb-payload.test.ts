@@ -9,6 +9,11 @@ import { pathToFileURL } from 'node:url'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import {
+  jsonbInputForms,
+  invalidJsonbInputForms,
+  deferredJsonbEncodingForms,
+} from './check-jsonb-input-forms.js'
 
 it('validates public JSONB logical payloads, rejects malformed graphs and preserves SQL-coerced semantics through real INSERTs', async () => {
   const pg = await PGlite.create(),
@@ -19,10 +24,13 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     CONSTRAINT shape CHECK(jsonb_typeof(document) COLLATE "C"=expected_kind COLLATE "C"),
     CONSTRAINT source CHECK(document::text COLLATE "C"=expected_source COLLATE "C"),
     CONSTRAINT present CHECK(document IS NOT NULL),
-    CONSTRAINT guarded CHECK(CASE WHEN bypass THEN true ELSE jsonb_typeof(document) COLLATE "C"=expected_kind COLLATE "C" END));`)
+    CONSTRAINT guarded CHECK(CASE WHEN bypass THEN true ELSE jsonb_typeof(document) COLLATE "C"=expected_kind COLLATE "C" END));
+    CREATE TABLE jsonb_text_inputs(source_text text,expected_source text,bypass boolean,
+    CONSTRAINT canonical CHECK(CASE WHEN bypass THEN true ELSE source_text::retained_document::text COLLATE "C"=expected_source COLLATE "C" END));`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'jsonb_payloads')!
-    const bundle = renderTypescriptSchemaCheckArtifacts([table], catalog.domains)
+    const textTable = catalog.tables.find((t) => t.name === 'jsonb_text_inputs')!
+    const bundle = renderTypescriptSchemaCheckArtifacts([table, textTable], catalog.domains)
     await writeFile(join(root, 'package.json'), '{"type":"module"}\n')
     await writeFile(join(root, 'checks.ts'), bundle.checks)
     for (const artifact of checkTypescriptArtifacts(bundle.rustFiles!)) {
@@ -50,6 +58,39 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       pathToFileURL(join(root, 'js/checks-rust/checkruntime/runtime.js')).href
     )
     type Result = { certain: boolean; value?: boolean | null; error?: string }
+    const evaluateText = (
+      source_text: unknown,
+      expected_source: unknown = '{}',
+      bypass = false,
+    ): Result =>
+      generated.evaluatePublicJsonbTextInputsChecks({ source_text, expected_source, bypass })[0]
+        .result
+    for (const input of jsonbInputForms) {
+      const source = (await pg.query<{ source: string }>('SELECT $1::jsonb::text source', [input]))
+        .rows[0]!.source
+      expect(evaluateText(input, source), input).toEqual({ certain: true, value: true })
+      await pg.query('INSERT INTO jsonb_text_inputs VALUES($1,$2,false)', [input, source])
+    }
+    for (const input of invalidJsonbInputForms) {
+      const state = await pg.query('SELECT $1::jsonb', [input]).then(
+        () => {
+          throw new Error('Invalid JSONB accepted')
+        },
+        (e: { code: string }) => e.code,
+      )
+      expect(evaluateText(input), input).toEqual({ certain: true, error: state })
+      expect(evaluateText(input, '{}', true), input).toEqual({ certain: true, value: true })
+      await expect(
+        pg.query('INSERT INTO jsonb_text_inputs VALUES($1,$2,false)', [input, '{}']),
+      ).rejects.toMatchObject({ code: state })
+      await pg.query('INSERT INTO jsonb_text_inputs VALUES($1,$2,true)', [input, '{}'])
+    }
+    for (const input of deferredJsonbEncodingForms)
+      expect(evaluateText(input), input).toEqual({ certain: false })
+    expect(evaluateText('{}', '[]')).toEqual({ certain: true, value: false })
+    expect(evaluateText(null)).toEqual({ certain: true, value: null })
+    for (const input of ['"a\0b"', '"\ud800"', undefined, 123, {}])
+      expect(evaluateText(input)).toEqual({ certain: false })
     const evaluate = (
       document: unknown,
       expected_kind = 'object',

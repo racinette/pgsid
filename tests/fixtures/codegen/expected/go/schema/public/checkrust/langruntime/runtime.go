@@ -220,7 +220,7 @@ func CheckedChars(value []rune) []rune {
 	return result
 }
 
-func checkedIndices(value []int) []int {
+func CheckedIndices(value []int) []int {
 	if len(value) > maxSharedIndex {
 		panic("vector outside shared numeric range")
 	}

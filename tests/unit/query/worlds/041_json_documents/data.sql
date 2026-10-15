@@ -7,3 +7,4 @@ INSERT INTO document_elements(id,archive_id,label,document,element_index,recorde
 
 INSERT INTO stored_documents(id,label,document,recorded_kind,recorded_source,allow_absent) VALUES(1,'normalized record','{"a":1,"a":2}','object','{"a": 2}',false);
 INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,choose_primary,recorded_kind,recorded_source) VALUES(1,1,'preferred record','{"a":2}','[]',true,'object','{"a": 2}');
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(1,1,'normalize import','{"a":1,"a":2}','object','{"a": 2}',false,false);

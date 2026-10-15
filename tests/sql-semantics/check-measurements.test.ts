@@ -1,4 +1,9 @@
 import { jsonInputForms, invalidJsonInputForms } from './check-json-input-forms.js'
+import {
+  jsonbInputForms,
+  invalidJsonbInputForms,
+  deferredJsonbEncodingForms,
+} from './check-jsonb-input-forms.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
@@ -297,6 +302,28 @@ describe('CHECK measurement boundaries', () => {
     expect(jsonOutput.postgres.accepted).toBe(true)
     expect(jsonOutput.raw.fullyBound).toBe(true)
     expect(jsonOutput.stored!.fullyBound).toBe(true)
+    const jsonbInput = report.textInput.find((entry) => entry.type === 'pg_catalog.jsonb')!.probe
+    expect(jsonbInput.raw.preparation.kind).toBe('supported')
+    expect(jsonbInput.stored!.preparation.kind).toBe('supported')
+    for (const [source, target] of [
+      ['pg_catalog."json"', 'pg_catalog.jsonb'],
+      ['pg_catalog.jsonb', 'pg_catalog."json"'],
+    ]) {
+      const cast = report.casts.find((c) => c.source === source && c.target === target)!
+      expect(cast.method).toBe('i')
+      expect(cast.probe!.raw.preparation.kind).toBe('supported')
+      expect(cast.probe!.stored!.preparation.kind).toBe('supported')
+    }
+    expect(
+      report.inputForms.types.find((forms) => forms.type === 'pg_catalog.jsonb'),
+    ).toMatchObject({
+      handled: jsonbInputForms,
+      rejected: invalidJsonbInputForms,
+      deferred: deferredJsonbEncodingForms,
+      contextRequired: deferredJsonbEncodingForms,
+      unimplementedGrammar: [],
+      storageAdmission: { owner: 'tests/sql-semantics/check-jsonb-storage.test.ts' },
+    })
     expect(
       report.inputForms.types.find((forms) => forms.type === 'pg_catalog."json"'),
     ).toMatchObject({

@@ -165,3 +165,42 @@ INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,
 INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,choose_primary,recorded_kind,recorded_source) VALUES(2,1,'wrong selected shape','{"a":2}','[]',true,'string','{"a": 2}');
 -- name: choice_wrong_source
 INSERT INTO document_choices(id,store_id,label,primary_document,backup_document,choose_primary,recorded_kind,recorded_source) VALUES(2,1,'wrong first source','{"a":2}','[]',true,'object','[]');
+
+-- name: normalization_object
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'last duplicate key','{"a":1,"a":2}','object','{"a": 2}',false,false);
+-- name: normalization_array
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'array spacing','[1,null,"x"]','array','[1, null, "x"]',false,false);
+-- name: normalization_sql_null
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'absent import',NULL,NULL,'null',true,false);
+-- name: normalization_json_null
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'JSON null import','null','null','null',false,false);
+-- name: normalization_numeric
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'exact decimal','9007199254740993.00','number','9007199254740993.00',false,false);
+-- name: normalization_exponent
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'decimal scale','1.230e-5','number','0.00001230',false,false);
+-- name: normalization_unicode
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'Unicode source','"雪😊"','string','"雪😊"',false,false);
+-- name: normalization_ascii_escape
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'decoded ASCII escape','"\u0061"','string','"a"',false,false);
+-- name: normalization_key_order
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'normalized keys','{"aa":1,"b":2}','object','{"b": 2, "aa": 1}',false,false);
+-- name: normalization_wrong_kind
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'wrong kind','{}','array','{}',false,false);
+-- name: normalization_wrong_source
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'wrong canonical source','{"a":2}','object','{"a": 1}',false,false);
+-- name: normalization_wrong_presence
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'required import',NULL,NULL,'null',false,false);
+-- name: normalization_syntax_error
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'invalid syntax','[1,]','array','[]',false,false);
+-- name: normalization_numeric_error
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'numeric overflow','1e131072','number','0',false,false);
+-- name: normalization_zero_error
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'escaped zero','"\u0000"','string','""',false,false);
+-- name: normalization_surrogate_error
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'unpaired surrogate','"\ud800"','string','""',false,false);
+-- name: normalization_skipped_syntax
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'skipped invalid syntax','[1,]','array','[]',false,true);
+-- name: normalization_skipped_numeric
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'skipped numeric error','1e131072','number','0',false,true);
+-- name: normalization_skipped_zero
+INSERT INTO document_normalizations(id,store_id,label,source_text,recorded_kind,recorded_source,allow_absent,bypass) VALUES(2,1,'skipped zero error','"\u0000"','string','""',false,true);

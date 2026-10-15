@@ -87,8 +87,8 @@ it('binds SQL-coerced jsonb values, source output, domains, SQL NULL and lazy co
       bindProbe('document = document', [{ name: 'document', typeName: 'jsonb' }]).fullyBound,
     ).toBe(true)
     for (const sql of [
-      "jsonb_typeof('{\"a\":2}'::jsonb)='object'",
-      "jsonb_typeof(source_text::jsonb)='object'",
+      'source_text::pg_catalog.jsonb(2) IS NOT NULL',
+      '\'{"a":2}\'::pg_catalog.jsonb(2) IS NOT NULL',
     ])
       expect(bindProbe(sql, [{ name: 'source_text', typeName: 'text' }]).fullyBound, sql).toBe(
         false,
