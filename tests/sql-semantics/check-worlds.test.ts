@@ -282,6 +282,10 @@ describe('world CHECK INSERT parity', () => {
     }
     await progress('database-start')
     pg = await PGlite.create({ extensions: { plpgsql_check } })
+    expect(
+      (await pg.query('SELECT datcollate FROM pg_database WHERE datname=current_database()')).rows,
+    ).toEqual([{ datcollate: 'C' }])
+    expect((await pg.query('SHOW server_encoding')).rows).toEqual([{ server_encoding: 'UTF8' }])
     directory = await mkdtemp(join(tmpdir(), 'pgsid-world-checks-'))
     await pg.exec('CREATE EXTENSION plpgsql_check')
     for (const world of worlds) {
@@ -324,13 +328,14 @@ describe('world CHECK INSERT parity', () => {
     }
     await progress('typescript-generation')
     const ts = renderTypescriptSchemaCheckArtifacts(tables, catalog.domains, [], {
+      executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' },
       enums: catalog.enums,
     })
     await progress('go-generation')
     const go = renderGoSchemaArtifacts(
       { ...catalog, tables, views: [], materializedViews: [] },
       parseConfigString(
-        'schema: schema.sql\nsql:\n  codegen:\n    go:\n      schema: { outDir: schema }\n',
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, serverEncoding: UTF8 }\n    go:\n      schema: { outDir: schema }\n',
       ),
       {},
       join(directory, 'schema'),

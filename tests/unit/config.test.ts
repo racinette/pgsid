@@ -3,6 +3,25 @@ import { describe, it, expect } from 'vitest'
 import { parseConfigString } from '../../src/config/loader.js'
 
 describe('config schema', () => {
+  it('requires an explicit supported CHECK execution contract without assuming database defaults', () => {
+    const config = parseConfigString(
+      'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, serverEncoding: UTF8 }\n',
+    )
+    expect(config.sql.codegen?.checks).toEqual({ defaultCollation: 'C', serverEncoding: 'UTF8' })
+    expect(
+      parseConfigString('schema: schema.sql\nsql:\n  codegen: {}\n').sql.codegen?.checks,
+    ).toBeUndefined()
+    for (const checks of [
+      '{ defaultCollation: default }',
+      '{ defaultCollation: en_US }',
+      '{ serverEncoding: LATIN1 }',
+      '{ unknown: C }',
+    ])
+      expect(() =>
+        parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    checks: ' + checks + '\n'),
+      ).toThrow()
+  })
+
   it('parses a minimal config with defaults', () => {
     const cfg = parseConfigString(`
       schema: migrations/*.up.sql

@@ -312,3 +312,48 @@ INSERT INTO document_comparisons(id,store_id,label,document,compared_document,re
 INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'incorrect reverse containment','1','[1,2]',false,true,false,false,false);
 -- name: comparison_bypass
 INSERT INTO document_comparisons(id,store_id,label,document,compared_document,recorded_equal,recorded_unequal,recorded_contains,recorded_contained,bypass) VALUES(2,1,'unreviewed comparison','1','1',false,true,false,false,true);
+
+-- name: ordering_empty_array
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'empty_array','[]','null',-1,true,true,false,false,false);
+-- name: ordering_scalar_before_array
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'scalar_before_array','true','[null]',-1,true,true,false,false,false);
+-- name: ordering_array_before_object
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'array_before_object','[1]','{}',-1,true,true,false,false,false);
+-- name: ordering_string_before_number
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'string_before_number','"z"','-99',-1,true,true,false,false,false);
+-- name: ordering_number_before_boolean
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'number_before_boolean','999','false',-1,true,true,false,false,false);
+-- name: ordering_array_count
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'array_count','[999]','[-999,0]',-1,true,true,false,false,false);
+-- name: ordering_object_count
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'object_count','{"z":0}','{"a":0,"b":0}',-1,true,true,false,false,false);
+-- name: ordering_nested_empty_array
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'nested_empty_array','[null]','[[]]',-1,true,true,false,false,false);
+-- name: ordering_key_length
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'key_length','{"b":9,"aa":0}','{"aa":9,"b":0}',1,false,false,true,true,false);
+-- name: ordering_unicode_key_length
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'unicode_key_length','{"aa":1,"é":9}','{"aa":2,"é":0}',-1,true,true,false,false,false);
+-- name: ordering_unicode_key_width
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'unicode_key_width','{"雪":9,"abc":0}','{"雪":0,"abc":1}',-1,true,true,false,false,false);
+-- name: ordering_unicode_string
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'unicode_string','"é"','"z"',73,false,false,true,true,false);
+-- name: ordering_exact_number
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'exact_number','9007199254740993','9007199254740992',1,false,false,true,true,false);
+-- name: ordering_numeric_scale
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'numeric_scale','1.00','1e0',0,false,true,false,true,false);
+-- name: ordering_duplicate_key
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'duplicate_key','{"a":1,"a":2}','{"a":2}',0,false,true,false,true,false);
+-- name: ordering_sql_null
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'sql_null',NULL,'{}',NULL,NULL,NULL,NULL,NULL,false);
+-- name: ordering_wrong_comparator
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'incorrect comparator','1','2',1,true,true,false,false,false);
+-- name: ordering_wrong_lower
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'incorrect lower','1','2',-1,false,true,false,false,false);
+-- name: ordering_wrong_lower_equal
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'incorrect lower_equal','1','2',-1,true,false,false,false,false);
+-- name: ordering_wrong_greater
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'incorrect greater','1','2',-1,true,true,true,false,false);
+-- name: ordering_wrong_greater_equal
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'incorrect greater_equal','1','2',-1,true,true,false,true,false);
+-- name: ordering_bypass
+INSERT INTO document_orderings(id,store_id,label,document,compared_document,recorded_order,recorded_lower,recorded_lower_equal,recorded_greater,recorded_greater_equal,bypass) VALUES(2,1,'unreviewed ordering','1','2',1,false,false,true,true,true);

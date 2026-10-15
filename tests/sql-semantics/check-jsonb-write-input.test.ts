@@ -23,14 +23,15 @@ it('validates SQL-coerced Go JSONB graphs and forwards raw JSONB query parameter
   CREATE TABLE jsonb_field_writes(document retained_document,field_name text,expected_text text,expected_exists boolean,bypass boolean,
   CONSTRAINT field_text CHECK(CASE WHEN bypass THEN true ELSE (document->>field_name) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END),
   CONSTRAINT key_exists CHECK(CASE WHEN bypass THEN true ELSE (document ? field_name) IS NOT DISTINCT FROM expected_exists END));
-  CREATE TABLE jsonb_relation_writes(lhs retained_document,rhs jsonb,expected_equal boolean,expected_contains boolean,bypass boolean,
+  CREATE TABLE jsonb_relation_writes(lhs retained_document,rhs jsonb,expected_equal boolean,expected_contains boolean,expected_order integer,bypass boolean,
   CONSTRAINT same_value CHECK(CASE WHEN bypass THEN true ELSE (lhs=rhs) IS NOT DISTINCT FROM expected_equal END),
-  CONSTRAINT includes_value CHECK(CASE WHEN bypass THEN true ELSE (lhs @> rhs) IS NOT DISTINCT FROM expected_contains END));
+  CONSTRAINT includes_value CHECK(CASE WHEN bypass THEN true ELSE (lhs @> rhs) IS NOT DISTINCT FROM expected_contains END),
+  CONSTRAINT compared_value CHECK(CASE WHEN bypass THEN true ELSE jsonb_cmp(lhs,rhs) IS NOT DISTINCT FROM expected_order END));
   CREATE SCHEMA isolated;CREATE TABLE isolated.jsonb_presence(document jsonb CONSTRAINT required CHECK(document IS NOT NULL));`,
     )
     await writeFile(
       join(root, 'queries/documents.sql'),
-      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n-- name: InsertDocumentField :exec\nINSERT INTO jsonb_field_writes(document,field_name,expected_text,expected_exists,bypass) VALUES(@document,@field_name,@expected_text,@expected_exists,@bypass);\n-- name: InsertDocumentRelation :exec\nINSERT INTO jsonb_relation_writes(lhs,rhs,expected_equal,expected_contains,bypass) VALUES(@lhs,@rhs,@expected_equal,@expected_contains,@bypass);\n',
+      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n-- name: InsertDocumentField :exec\nINSERT INTO jsonb_field_writes(document,field_name,expected_text,expected_exists,bypass) VALUES(@document,@field_name,@expected_text,@expected_exists,@bypass);\n-- name: InsertDocumentRelation :exec\nINSERT INTO jsonb_relation_writes(lhs,rhs,expected_equal,expected_contains,expected_order,bypass) VALUES(@lhs,@rhs,@expected_equal,@expected_contains,@expected_order,@bypass);\n',
     )
     await writeFile(
       join(root, 'pgsid.yaml'),
@@ -39,6 +40,7 @@ sql:
   paths: [queries/*.sql]
   typecheck: { plpgsql: false }
   codegen:
+    checks: { defaultCollation: C, serverEncoding: UTF8 }
     go:
       driver: pgx
       schema: { outDir: generated/schema }
@@ -135,18 +137,24 @@ func TestJSONBFieldWrites(t *testing.T){
  if len(db.arguments)!=5||db.arguments[0]!=params.Document||db.arguments[1]!=params.FieldName||db.arguments[2]!=params.ExpectedText||db.arguments[3]!=params.ExpectedExists||db.arguments[4]!=params.Bypass{t.Fatal("raw JSONB read parameters changed")}
 }
 func TestJSONBRelationWrites(t *testing.T){
- equal:=true;contains:=true;bypass:=false;value:=checkruntime.MakeJsonbValue(${JSON.stringify('{"a":1}')})
- input:=pgsid.PublicJsonbRelationWritesCheckInput{Lhs:pgsid.KnownCheckValue(value),Rhs:pgsid.KnownCheckValue(value),ExpectedEqual:pgsid.KnownCheckValue(&equal),ExpectedContains:pgsid.KnownCheckValue(&contains),Bypass:pgsid.KnownCheckValue(&bypass)}
+ equal:=true;contains:=true;order:=int32(0);bypass:=false;value:=checkruntime.MakeJsonbValue(${JSON.stringify('{"a":1}')})
+ input:=pgsid.PublicJsonbRelationWritesCheckInput{Lhs:pgsid.KnownCheckValue(value),Rhs:pgsid.KnownCheckValue(value),ExpectedEqual:pgsid.KnownCheckValue(&equal),ExpectedContains:pgsid.KnownCheckValue(&contains),ExpectedOrder:pgsid.KnownCheckValue(&order),Bypass:pgsid.KnownCheckValue(&bypass)}
  if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbRelationWritesChecks);err!=nil{t.Fatal(err)}
  equal=false;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbRelationWritesChecks);err==nil{t.Fatal("wrong JSONB equality accepted")}
+ equal=true;order=1;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbRelationWritesChecks);err==nil{t.Fatal("wrong JSONB comparator accepted")};order=0
+ for _,c:=range []struct{a,b string;order int32}{{"[]","null",-1},{"[null]","[[]]",-1},{${JSON.stringify('"é"')},${JSON.stringify('"z"')},73},{${JSON.stringify('{"aa":1,"é":9}')},${JSON.stringify('{"aa":2,"é":0}')},-1}}{
+  input.Lhs=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(c.a));input.Rhs=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(c.b));order=c.order
+  for _,check:=range pgsid.EvaluatePublicJsonbRelationWritesChecks(input){if check.Constraint=="compared_value"&&(!check.Result.Certain||!check.Result.Value.Valid||!check.Result.Value.Value){t.Fatal("C UTF8 JSONB comparison failed",c,check)}}
+ }
+
  input.Lhs=pgsid.KnownCheckValue(checkruntime.JsonbValue{Kind:checkruntime.JsonbValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})})
  input.Rhs=pgsid.KnownCheckValue(checkruntime.JsonbValue{Kind:checkruntime.JsonbValueError,Error:checkruntime.MakeSqlError(${parseInt('22012', 36)})})
  for _,check:=range pgsid.EvaluatePublicJsonbRelationWritesChecks(input){if !check.Result.Certain||check.Result.Value.Error!="22003"{t.Fatal("JSONB error precedence lost",check)}}
  bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbRelationWritesChecks);err!=nil{t.Fatal("skipped JSONB relation failed",err)}
  db:=&recordingJSONBDB{};queries:=New(db);bypass=false;raw:=json.RawMessage(${JSON.stringify('{"a":1}')});domain:=schema.RetainedDocument(raw)
- params:=InsertDocumentRelationParams{Lhs:&domain,Rhs:&raw,ExpectedEqual:&equal,ExpectedContains:&contains,Bypass:&bypass}
+ params:=InsertDocumentRelationParams{Lhs:&domain,Rhs:&raw,ExpectedEqual:&equal,ExpectedContains:&contains,ExpectedOrder:&order,Bypass:&bypass}
  if err:=queries.InsertDocumentRelation(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw JSONB relation failed locally",err)}
- if len(db.arguments)!=5||db.arguments[0]!=params.Lhs||db.arguments[1]!=params.Rhs||db.arguments[2]!=params.ExpectedEqual||db.arguments[3]!=params.ExpectedContains||db.arguments[4]!=params.Bypass{t.Fatal("raw JSONB relation parameters changed")}
+ if len(db.arguments)!=6||db.arguments[0]!=params.Lhs||db.arguments[1]!=params.Rhs||db.arguments[2]!=params.ExpectedEqual||db.arguments[3]!=params.ExpectedContains||db.arguments[4]!=params.ExpectedOrder||db.arguments[5]!=params.Bypass{t.Fatal("raw JSONB relation parameters changed")}
 }
 `,
     )

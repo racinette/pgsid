@@ -10657,6 +10657,325 @@ func JsonbExistsF8f8(input checkruntime.JsonbValue, key checkruntime.TextValue) 
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 }
 
+type jsonbOrderFrame struct {
+	left  int
+	right int
+	key   bool
+}
+
+func copyjsonbOrderFrame(value jsonbOrderFrame) jsonbOrderFrame {
+	return jsonbOrderFrame{left: langruntime.CheckedIndex(value.left), right: langruntime.CheckedIndex(value.right), key: value.key}
+}
+func jsonbOrderWidth(code int) int {
+	code = langruntime.CheckedI32(code)
+	if code < 128 {
+		return 1
+	}
+	if code < 2048 {
+		return 2
+	}
+	if code < 65536 {
+		return 3
+	}
+	return 4
+}
+func jsonbOrderByte(code int, width int, index int) int {
+	code = langruntime.CheckedI32(code)
+	width = langruntime.CheckedIndex(width)
+	index = langruntime.CheckedIndex(index)
+	if width == 1 {
+		return code
+	}
+	if index == 0 {
+		if width == 2 {
+			return langruntime.CheckedSignedAdd(192, langruntime.CheckedSignedDivide(code, 64))
+		}
+		if width == 3 {
+			return langruntime.CheckedSignedAdd(224, langruntime.CheckedSignedDivide(code, 4096))
+		}
+		return langruntime.CheckedSignedAdd(240, langruntime.CheckedSignedDivide(code, 262144))
+	}
+	if langruntime.CheckedSubtract(width, index) == 3 {
+		return langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 4096), 64))
+	}
+	if langruntime.CheckedSubtract(width, index) == 2 {
+		return langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64))
+	}
+	return langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))
+}
+func jsonbOrderSpan(left *checkruntime.JsonbPayload, right *checkruntime.JsonbPayload, startA int, endA int, startB int, endB int) int {
+	startA = langruntime.CheckedIndex(startA)
+	endA = langruntime.CheckedIndex(endA)
+	startB = langruntime.CheckedIndex(startB)
+	endB = langruntime.CheckedIndex(endB)
+	a := startA
+	b := startB
+	for a < endA && b < endB {
+		first := int(langruntime.CheckedChar(left.Characters[a]))
+		second := int(langruntime.CheckedChar(right.Characters[b]))
+		if first != second {
+			widthA := jsonbOrderWidth(first)
+			widthB := jsonbOrderWidth(second)
+			index := 0
+			for index < widthA && index < widthB {
+				byteA := jsonbOrderByte(first, widthA, index)
+				byteB := jsonbOrderByte(second, widthB, index)
+				if byteA != byteB {
+					return langruntime.CheckedSignedSubtract(byteA, byteB)
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+		a = langruntime.CheckedAdd(a, 1)
+		b = langruntime.CheckedAdd(b, 1)
+	}
+	if a < endA {
+		return 1
+	}
+	if b < endB {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	return 0
+}
+func jsonbOrderKeySize(source *checkruntime.JsonbPayload, node checkruntime.JsonbNode) int {
+	size := 0
+	index := node.KeyStart
+	for index < node.KeyEnd {
+		size = langruntime.CheckedAdd(size, jsonbOrderWidth(int(langruntime.CheckedChar(source.Characters[index]))))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return size
+}
+func jsonbOrderKey(source *checkruntime.JsonbPayload, left int, right int) int {
+	left = langruntime.CheckedIndex(left)
+	right = langruntime.CheckedIndex(right)
+	a := source.Nodes[left]
+	b := source.Nodes[right]
+	sizeA := jsonbOrderKeySize(source, a)
+	sizeB := jsonbOrderKeySize(source, b)
+	if sizeA < sizeB {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if sizeA > sizeB {
+		return 1
+	}
+	return jsonbOrderSpan(source, source, a.KeyStart, a.KeyEnd, b.KeyStart, b.KeyEnd)
+}
+func jsonbOrderChildren(source *checkruntime.JsonbPayload, node checkruntime.JsonbNode) []int {
+	children := []int{}
+	buffer := []int{}
+	child := node.Child
+	for child > 0 {
+		langruntime.CheckedAdd(len(children), 1)
+		children = append(children, langruntime.CheckedIndex(child))
+		langruntime.CheckedAdd(len(buffer), 1)
+		buffer = append(buffer, langruntime.CheckedIndex(child))
+		child = langruntime.CheckedIndex(source.Nodes[child].Next)
+	}
+	if node.Kind != 6 {
+		return children
+	}
+	count := len(children)
+	width := 1
+	for width < count {
+		start := 0
+		for start < count {
+			middle := langruntime.CheckedAdd(start, width)
+			if middle > count {
+				middle = langruntime.CheckedIndex(count)
+			}
+			end := langruntime.CheckedAdd(middle, width)
+			if end > count {
+				end = langruntime.CheckedIndex(count)
+			}
+			a := start
+			b := middle
+			output := start
+			for output < end {
+				if b == end || (a < middle && jsonbOrderKey(source, children[a], children[b]) <= 0) {
+					buffer[output] = langruntime.CheckedIndex(children[a])
+					a = langruntime.CheckedAdd(a, 1)
+				} else {
+					buffer[output] = langruntime.CheckedIndex(children[b])
+					b = langruntime.CheckedAdd(b, 1)
+				}
+				output = langruntime.CheckedAdd(output, 1)
+			}
+			start = langruntime.CheckedIndex(end)
+		}
+		index := 0
+		for index < count {
+			children[index] = langruntime.CheckedIndex(buffer[index])
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		width = langruntime.CheckedIndex(langruntime.CheckedAdd(width, width))
+	}
+	return children
+}
+func jsonbOrderRank(kind int) int {
+	kind = langruntime.CheckedI32(kind)
+	if kind == 4 {
+		return 1
+	}
+	if kind == 3 {
+		return 2
+	}
+	if kind == 1 || kind == 2 {
+		return 3
+	}
+	if kind == 5 {
+		return 16
+	}
+	if kind == 6 {
+		return 17
+	}
+	return 0
+}
+func jsonbOrderWalk(left *checkruntime.JsonbPayload, right *checkruntime.JsonbPayload) checkruntime.Int4Value {
+	first := left.Nodes[left.Root]
+	second := right.Nodes[right.Root]
+	if first.Kind < 5 && second.Kind == 5 {
+		if second.Child == 0 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+	}
+	if first.Kind == 5 && second.Kind < 5 {
+		if first.Child == 0 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+	}
+	frames := []jsonbOrderFrame{}
+	langruntime.CheckedAdd(len(frames), 1)
+	frames = append(frames, copyjsonbOrderFrame(jsonbOrderFrame{left: left.Root, right: right.Root, key: false}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		frame := frames[depth]
+		a := left.Nodes[frame.left]
+		b := right.Nodes[frame.right]
+		if frame.key {
+			compared := jsonbOrderSpan(left, right, a.KeyStart, a.KeyEnd, b.KeyStart, b.KeyEnd)
+			if compared != 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: compared}
+			}
+		} else {
+			rankA := jsonbOrderRank(a.Kind)
+			rankB := jsonbOrderRank(b.Kind)
+			if rankA < rankB {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if rankA > rankB {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			compared := checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+			if a.Kind == 3 {
+				compared = numericCompare(jsonbRelationNumber(left, a), jsonbRelationNumber(right, b))
+			} else if a.Kind == 4 {
+				compared = checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: jsonbOrderSpan(left, right, a.TextStart, a.TextEnd, b.TextStart, b.TextEnd)}
+			} else if a.Kind < 3 {
+				if a.Kind < b.Kind {
+					compared = checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+				} else if a.Kind > b.Kind {
+					compared = checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+				}
+			} else {
+				countA := jsonbRelationCount(left, a)
+				countB := jsonbRelationCount(right, b)
+				if countA < countB {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+				}
+				if countA > countB {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+				}
+				childrenA := jsonbOrderChildren(left, a)
+				childrenB := jsonbOrderChildren(right, b)
+				index := countA
+				for index > 0 {
+					index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+					childA := childrenA[index]
+					childB := childrenB[index]
+					valueFrame := jsonbOrderFrame{left: childA, right: childB, key: false}
+					if depth == len(frames) {
+						langruntime.CheckedAdd(len(frames), 1)
+						frames = append(frames, copyjsonbOrderFrame(valueFrame))
+					} else {
+						frames[depth] = copyjsonbOrderFrame(valueFrame)
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+					if a.Kind == 6 {
+						keyFrame := jsonbOrderFrame{left: childA, right: childB, key: true}
+						if depth == len(frames) {
+							langruntime.CheckedAdd(len(frames), 1)
+							frames = append(frames, copyjsonbOrderFrame(keyFrame))
+						} else {
+							frames[depth] = copyjsonbOrderFrame(keyFrame)
+						}
+						depth = langruntime.CheckedAdd(depth, 1)
+					}
+				}
+			}
+			if compared != (checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}) {
+				return compared
+			}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+}
+func JsonbCmpN2cx(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.Int4Value {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	if left.Kind == checkruntime.JsonbValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.JsonbValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if right.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if right.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.JsonbValueValue {
+		a := checkruntime.CopyJsonbPayload(left.Value)
+		if right.Kind == checkruntime.JsonbValueValue {
+			b := checkruntime.CopyJsonbPayload(right.Value)
+			return jsonbOrderWalk(&a, &b)
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func JsonbLtTn76(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.BoolValue {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	return valueOrderFinish(JsonbCmpN2cx(left, right), 2)
+}
+func JsonbLeMrjw(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.BoolValue {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	return valueOrderFinish(JsonbCmpN2cx(left, right), 3)
+}
+func JsonbGtOgc1(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.BoolValue {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	return valueOrderFinish(JsonbCmpN2cx(left, right), 4)
+}
+func JsonbGeYmoh(left checkruntime.JsonbValue, right checkruntime.JsonbValue) checkruntime.BoolValue {
+	left = checkruntime.CopyJsonbValue(left)
+	right = checkruntime.CopyJsonbValue(right)
+	return valueOrderFinish(JsonbCmpN2cx(left, right), 5)
+}
+
 type jsonbRelationFrame struct {
 	left       int
 	right      int

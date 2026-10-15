@@ -90,9 +90,15 @@ const rustType = (type: string): string => {
   throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK input type: ${type}`)
 }
 
+export type CheckExecutionContext = {
+  defaultCollation?: 'C'
+  serverEncoding?: 'UTF8'
+}
+
 export function emitCheckRustEvaluator(
   expression: EvalBoolExpression,
   identity?: CheckConstraintIdentity,
+  executionContext: CheckExecutionContext = {},
 ): {
   source: string
   entryName: string
@@ -426,6 +432,19 @@ export function emitCheckRustEvaluator(
       const metadata = builtinMetadata(call.signature)
       const implementation =
         metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+      if (
+        implementation.kind === 'function' &&
+        implementation.schema === 'pg_catalog' &&
+        ['jsonb_cmp', 'jsonb_lt', 'jsonb_le', 'jsonb_gt', 'jsonb_ge'].includes(
+          implementation.name,
+        ) &&
+        implementation.args.length === 2 &&
+        implementation.args.every((type) => type === 'pg_catalog.jsonb') &&
+        (executionContext.defaultCollation !== 'C' || executionContext.serverEncoding !== 'UTF8')
+      )
+        throw new UnsupportedCheckRustExpression(
+          'JSONB ordering requires declared database default collation C and server encoding UTF8',
+        )
       const enumOperands = implementation.args.flatMap((type, index) =>
         type === 'pg_catalog.anyenum' ? [operands[index]?.type] : [],
       )
