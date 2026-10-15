@@ -859,6 +859,54 @@ export function copyJsonbInput(value: JsonbInput): JsonbInput {
         case "Jsonb": return { kind: "Jsonb", value: copyJsonbPayload(value.value) };
     }
 }
+export interface JsonbArgumentPayload {
+    readonly values: JsonbInput[];
+}
+export function copyJsonbArgumentPayload(value: JsonbArgumentPayload): JsonbArgumentPayload {
+    return { values: langruntime.checkedStructs(value.values, copyJsonbInput) };
+}
+export type JsonbArguments = {
+    readonly kind: "Values";
+    readonly value: JsonbArgumentPayload;
+};
+export function copyJsonbArguments(value: JsonbArguments): JsonbArguments {
+    switch (value.kind) {
+        case "Values": return { kind: "Values", value: copyJsonbArgumentPayload(value.value) };
+    }
+}
+export function makeJsonbArguments(): JsonbArguments {
+    const values: JsonbInput[] = [];
+    return { kind: "Values", value: { values: values } };
+}
+export function appendJsonbArgument(input: JsonbArguments, value: JsonbInput): JsonbArguments {
+    input = copyJsonbArguments(input);
+    value = copyJsonbInput(value);
+    if (input.kind === "Values") {
+        const batch: JsonbArgumentPayload = copyJsonbArgumentPayload(input.value);
+        let values: JsonbInput[] = batch.values;
+        langruntime.pushStruct(values, value, copyJsonbInput);
+        return { kind: "Values", value: { values: values } };
+    }
+    return input;
+}
+export function jsonbKeyInputFromFloat4(input: Float4Value): JsonbInput {
+    if (input.kind === "Value") {
+        const bits: number = langruntime.checkedI32(input.value);
+        if (bits === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
+            return { kind: "Number", value: "-0" };
+        }
+    }
+    return jsonbInputFromFloat4(input);
+}
+export function jsonbKeyInputFromFloat8(input: Float8Value): JsonbInput {
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        if (bits === -9223372036854775808n) {
+            return { kind: "Number", value: "-0" };
+        }
+    }
+    return jsonbInputFromFloat8(input);
+}
 export function jsonbInputFromBool(input: BoolValue): JsonbInput {
     if (input.kind === "Error") {
         const error: SqlError = input.value;

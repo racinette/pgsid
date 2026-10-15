@@ -779,8 +779,17 @@ const candidate = (
       item.name === name &&
       item.args.includes('pg_catalog.anyelement'),
   )
+  const hasVariadicAny = callables.some(
+    ({ item }) =>
+      item.kind === kind &&
+      item.schema === 'pg_catalog' &&
+      item.name === name &&
+      item.kind === 'function' &&
+      item.variadic === 'pg_catalog."any"',
+  )
   if (
     !hasAnyElement &&
+    !hasVariadicAny &&
     !hasOmittedDefaults &&
     ((kind === 'function' && name === 'char') ||
       args.some(
@@ -792,19 +801,22 @@ const candidate = (
   )
     return comparisonCandidate(args, name, true, kind, false)
   const integer =
-    hasOmittedDefaults || hasAnyElement ? undefined : integerCandidate(kind, name, args)
+    hasOmittedDefaults || hasAnyElement || hasVariadicAny
+      ? undefined
+      : integerCandidate(kind, name, args)
   if (integer !== undefined) return integer
   const matches = callables.flatMap(({ signature, item }) => {
+    const variadicAny = item.kind === 'function' && item.variadic === 'pg_catalog."any"'
     if (
       item.kind !== kind ||
       item.schema !== 'pg_catalog' ||
       item.name !== name ||
-      item.args.length < args.length ||
+      (variadicAny ? args.length < 1 : item.args.length < args.length) ||
       (!catalogScalarType(item.result) && item.result !== 'pg_catalog.anyenum')
     )
       return []
     let fullArgs = args
-    if (item.args.length > args.length) {
+    if (!variadicAny && item.args.length > args.length) {
       if (item.kind !== 'function' || !bindDefault) return []
       const missing = item.args.length - args.length
       if (missing > item.numArgDefaults) return []
@@ -856,17 +868,19 @@ const candidate = (
     )
       return []
     const operands = fullArgs.map((arg, index) =>
-      item.args[index] === 'pg_catalog.anyelement'
-        ? materialize(arg, elementType!, arg.enum)
-        : isIntegerType(item.args[index]!)
-          ? materializeInteger(arg, item.args[index]! as ScalarType)
-          : materialize(
-              arg,
-              item.args[index] === 'pg_catalog.anyenum'
-                ? enumType(definition!)
-                : (item.args[index]! as ScalarType),
-              definition,
-            ),
+      variadicAny
+        ? materialize(arg, boundType(arg) ?? 'pg_catalog.text', arg.enum)
+        : item.args[index] === 'pg_catalog.anyelement'
+          ? materialize(arg, elementType!, arg.enum)
+          : isIntegerType(item.args[index]!)
+            ? materializeInteger(arg, item.args[index]! as ScalarType)
+            : materialize(
+                arg,
+                item.args[index] === 'pg_catalog.anyenum'
+                  ? enumType(definition!)
+                  : (item.args[index]! as ScalarType),
+                definition,
+              ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [{ signature, item, operands: operands as EvalExpression[], collation, enum: definition }]
@@ -2765,6 +2779,7 @@ export function bindCatalogCheck(
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
       const name = names?.at(-1)
       const args = call['args'] ?? []
+      if (call['func_variadic'] === true) return unknown
       if (name && Array.isArray(args)) return bindCall('function', name, args)
     }
     const nullTest = fields(wrapper['NullTest'])

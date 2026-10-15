@@ -10478,6 +10478,163 @@ func Float8Ncq4(input checkruntime.JsonbValue) checkruntime.Float8Value {
 	input = checkruntime.CopyJsonbValue(input)
 	return Float8Bkfn(NumericUnkz(input))
 }
+
+const jsonbBuildParameter = 3452619
+
+func jsonbBuildKey(input checkruntime.JsonbInput) checkruntime.TextValue {
+	input = checkruntime.CopyJsonbInput(input)
+	if input.Kind == checkruntime.JsonbInputError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbInputUnknown {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonbInputBoolean {
+		value := input.Boolean
+		if value {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "true"}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "false"}
+	}
+	if input.Kind == checkruntime.JsonbInputNumber {
+		value := langruntime.CheckedString(input.Number)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
+	}
+	if input.Kind == checkruntime.JsonbInputText {
+		value := langruntime.CheckedString(input.Text)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonbBuildParameter)}
+}
+func jsonbBuildNode(node checkruntime.JsonbNode, next int, keyStart int, keyEnd int) checkruntime.JsonbNode {
+	next = langruntime.CheckedIndex(next)
+	keyStart = langruntime.CheckedIndex(keyStart)
+	keyEnd = langruntime.CheckedIndex(keyEnd)
+	return checkruntime.JsonbNode{Kind: node.Kind, Child: node.Child, Next: next, KeyStart: keyStart, KeyEnd: keyEnd, TextStart: node.TextStart, TextEnd: node.TextEnd}
+}
+func jsonbBuild(input checkruntime.JsonbArguments, object bool) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbArguments(input)
+	if input.Kind == checkruntime.JsonbArgumentsValues {
+		batch := checkruntime.CopyJsonbArgumentPayload(input.Values)
+		index := 0
+		odd := false
+		for index < len(batch.Values) {
+			argument := checkruntime.CopyJsonbInput(batch.Values[index])
+			if argument.Kind == checkruntime.JsonbInputError {
+				error := argument.Error
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+			}
+			odd = odd == false
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if object && odd {
+			return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(jsonbBuildParameter)}
+		}
+		kind := 5
+		if object {
+			kind = langruntime.CheckedI32(6)
+		}
+		characters := []rune{}
+		nodes := []checkruntime.JsonbNode{}
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, checkruntime.JsonbNode{Kind: langruntime.CheckedSignedNegate(1), Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0})
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, checkruntime.JsonbNode{Kind: kind, Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0})
+		first := 0
+		tail := 0
+		index = langruntime.CheckedIndex(0)
+		for index < len(batch.Values) {
+			keyStart := len(characters)
+			if object {
+				key := jsonbBuildKey(checkruntime.CopyJsonbInput(batch.Values[index]))
+				if key.Kind == checkruntime.TextValueError {
+					error := key.Error
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+				}
+				if key.Kind == checkruntime.TextValueUnknown {
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+				}
+				if key.Kind == checkruntime.TextValueValue {
+					text := langruntime.CheckedString(key.Value)
+					keyCharacters := []rune(text)
+					position := 0
+					for position < len(keyCharacters) {
+						langruntime.CheckedAdd(len(characters), 1)
+						characters = append(characters, langruntime.CheckedChar(keyCharacters[position]))
+						position = langruntime.CheckedAdd(position, 1)
+					}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			keyEnd := len(characters)
+			converted := ToJsonb9y7o(checkruntime.CopyJsonbInput(batch.Values[index]))
+			if converted.Kind == checkruntime.JsonbValueNull {
+				converted = checkruntime.CopyJsonbValue(checkruntime.MakeJsonbValue("null"))
+			}
+			if converted.Kind == checkruntime.JsonbValueError {
+				error := converted.Error
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+			}
+			if converted.Kind == checkruntime.JsonbValueUnknown {
+				return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+			}
+			if converted.Kind == checkruntime.JsonbValueValue {
+				value := checkruntime.CopyJsonbPayload(converted.Value)
+				textShift := len(characters)
+				nodeShift := langruntime.CheckedSubtract(len(nodes), 1)
+				root := langruntime.CheckedAdd(nodeShift, value.Root)
+				position := 0
+				for position < len(value.Characters) {
+					langruntime.CheckedAdd(len(characters), 1)
+					characters = append(characters, langruntime.CheckedChar(value.Characters[position]))
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				position = langruntime.CheckedIndex(1)
+				for position < len(value.Nodes) {
+					node := value.Nodes[position]
+					child := 0
+					next := 0
+					if node.Child > 0 {
+						child = langruntime.CheckedIndex(langruntime.CheckedAdd(nodeShift, node.Child))
+					}
+					if node.Next > 0 {
+						next = langruntime.CheckedIndex(langruntime.CheckedAdd(nodeShift, node.Next))
+					}
+					langruntime.CheckedAdd(len(nodes), 1)
+					nodes = append(nodes, checkruntime.JsonbNode{Kind: node.Kind, Child: child, Next: next, KeyStart: langruntime.CheckedAdd(textShift, node.KeyStart), KeyEnd: langruntime.CheckedAdd(textShift, node.KeyEnd), TextStart: langruntime.CheckedAdd(textShift, node.TextStart), TextEnd: langruntime.CheckedAdd(textShift, node.TextEnd)})
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				nodes[root] = jsonbBuildNode(nodes[root], 0, keyStart, keyEnd)
+				if tail == 0 {
+					first = langruntime.CheckedIndex(root)
+				} else {
+					previous := nodes[tail]
+					nodes[tail] = jsonbBuildNode(previous, root, previous.KeyStart, previous.KeyEnd)
+				}
+				tail = langruntime.CheckedIndex(root)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		nodes[1] = checkruntime.JsonbNode{Kind: kind, Child: first, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0}
+		return checkruntime.JsonbRebuild(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: characters, Nodes: nodes, Root: 1}}, true)
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+}
+func JsonbBuildArrayGfm5(input checkruntime.JsonbArguments) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbArguments(input)
+	return jsonbBuild(input, false)
+}
+func JsonbBuildArrayO9ke() checkruntime.JsonbValue {
+	return checkruntime.MakeJsonbValue("[]")
+}
+func JsonbBuildObject8qt7(input checkruntime.JsonbArguments) checkruntime.JsonbValue {
+	input = checkruntime.CopyJsonbArguments(input)
+	return jsonbBuild(input, true)
+}
+func JsonbBuildObjectA8ms() checkruntime.JsonbValue {
+	return checkruntime.MakeJsonbValue("{}")
+}
 func ToJsonb9y7o(input checkruntime.JsonbInput) checkruntime.JsonbValue {
 	input = checkruntime.CopyJsonbInput(input)
 	if input.Kind == checkruntime.JsonbInputError {
