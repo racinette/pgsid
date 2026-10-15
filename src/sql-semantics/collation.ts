@@ -170,7 +170,9 @@ export function supportsTextCallableCollation(signature: string, collation?: str
           implementation.result === 'pg_catalog.jsonb') ||
           (implementation.name === 'jsonb_object_field_text' &&
             implementation.result === 'pg_catalog.text') ||
-          (implementation.name === 'jsonb_exists' && implementation.result === 'pg_catalog.bool'))))
+          (implementation.name === 'jsonb_exists' && implementation.result === 'pg_catalog.bool') ||
+          (implementation.name === 'jsonb_delete' &&
+            implementation.result === 'pg_catalog.jsonb'))))
   const textHash =
     implementation.kind === 'function' &&
     implementation.schema === 'pg_catalog' &&

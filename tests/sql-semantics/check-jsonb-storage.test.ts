@@ -18,7 +18,7 @@ import {
 it('matches JSONB stored-size accounting against PostgreSQL and checks format boundaries using compact logical values in every target', async () => {
   const pg = await PGlite.create(),
     directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonb-storage-'))
-  const definitions = ['exact', 'bounds', 'edge']
+  const definitions = ['exact', 'bounds', 'edge', 'growth']
   const entries = definitions.map((constraint) =>
     checkRustEntryName({ schema: 'public', kind: 'table', owner: 'jsonb_storage', constraint }),
   )
@@ -36,8 +36,18 @@ pub fn ${entries[1]}(source:TextValue,expected:Int8Value)->CheckOutcome {
 pub fn ${entries[2]}(extra:Int4Value,unicode:BoolValue,discard:BoolValue)->CheckOutcome {
  let result=jsonb_storage_test_edge(extra,unicode,discard);
  check_from_bool(result)
+}
+pub fn ${entries[3]}(extra:Int4Value,unicode:BoolValue,discard:BoolValue)->CheckOutcome {
+ let input=jsonb_storage_test_payload(extra,unicode,discard);
+ let right=make_jsonb_value("[null]");
+ let result=sql__pg_catalog__jsonb_concat__j7e0(input,right);
+ let nullness=jsonb_is_null(result);
+ check_from_bool(nullness)
 }`
-  const source = assembleCheckRust({ source: evaluatorSource, callables: [] })
+  const source = assembleCheckRust({
+    source: evaluatorSource,
+    callables: ['sql__pg_catalog__jsonb_concat__j7e0'],
+  })
   source.modules
     .find((m) => m.name === 'checkruntime')!
     .files.push({
@@ -54,9 +64,9 @@ pub fn jsonb_storage_test_match(input:JsonbValue,expected:Int8Value,exact:bool)-
  };
  BoolValue::Unknown
 }
-pub fn jsonb_storage_test_edge(extra:Int4Value,unicode:BoolValue,discard:BoolValue)->BoolValue {
+pub fn jsonb_storage_test_payload(extra:Int4Value,unicode:BoolValue,discard:BoolValue)->JsonbValue {
  if let Int4Value::Value(delta)=extra {
-  if delta < -10 || delta > 10 {return BoolValue::Unknown;};
+  if delta < -10 || delta > 10 {return JsonbValue::Unknown;};
   let mut character='a';
   if let BoolValue::Value(wide)=unicode {if wide{character='é';};};
   let mut characters:Vec<char>=Vec::new();
@@ -77,8 +87,13 @@ pub fn jsonb_storage_test_edge(extra:Int4Value,unicode:BoolValue,discard:BoolVal
    if remove {nodes[1]=JsonbNode{kind:0,child:0,next:0,key_start:0,key_end:0,text_start:0,text_end:0};};
   };
   let payload=JsonbPayload{characters:characters,nodes:nodes,root:1};
-  return jsonb_storage_admission(&payload);
+  return JsonbValue::Value(payload);
  };
+ JsonbValue::Unknown
+}
+pub fn jsonb_storage_test_edge(extra:Int4Value,unicode:BoolValue,discard:BoolValue)->BoolValue {
+ let input=jsonb_storage_test_payload(extra,unicode,discard);
+ if let JsonbValue::Value(payload)=input {return jsonb_storage_admission(&payload);};
  BoolValue::Unknown
 }`,
     })
@@ -199,6 +214,16 @@ pub fn jsonb_storage_test_edge(extra:Int4Value,unicode:BoolValue,discard:BoolVal
           expected: { kind: 'True' },
         })
       }
+    for (const [extra, unicode, expected] of [
+      [-10, false, { kind: 'False' }],
+      [0, false, { kind: 'Error', value: { state: parseInt('54000', 36) } }],
+      [-10, true, { kind: 'Unknown' }],
+    ] as const)
+      fixtures.push({
+        name: 'growth',
+        row: { extra: known(extra), unicode: known(unicode), discard: known(false) },
+        expected,
+      })
     await mkdir('artifacts/jsonb-storage', { recursive: true })
     await writeFile('artifacts/jsonb-storage/oracle.json', JSON.stringify(oracle, null, 2) + '\n')
     await runCheckParity(directory, 'jsonb_storage', group, definitions, fixtures)

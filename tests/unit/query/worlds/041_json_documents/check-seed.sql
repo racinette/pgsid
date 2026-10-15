@@ -404,3 +404,52 @@ INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document
 INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_scale','1.5','true',1.5,2,2,2,1.5,1.5,1.5,0,true,false);
 -- name: scalar_wrong_recorded_flag
 INSERT INTO document_scalars(id,store_id,label,numeric_document,boolean_document,recorded_numeric,recorded_small,recorded_integer,recorded_big,recorded_real,recorded_double,recorded_bounded,recorded_scale,recorded_flag,bypass) VALUES(2,1,'wrong_recorded_flag','1.5','true',1.5,2,2,2,1.5,1.5,1.5,2,false,false);
+
+-- name: edit_object_replace
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'object_replace','{"a":1,"b":2}','{"a":3}','a',0,'{"a": 3, "b": 2}','{"b": 2}',NULL,true,false,false);
+-- name: edit_object_nested
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'object_nested','{"a":{"x":1},"b":0}','{"a":{"y":2}}','b',0,'{"a": {"y": 2}, "b": 0}','{"a": {"x": 1}}',NULL,true,false,false);
+-- name: edit_object_unicode
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'object_unicode','{"aa":1,"é":2}','{"雪":3,"aa":4}','é',0,'{"aa": 4, "é": 2, "雪": 3}','{"aa": 1}',NULL,true,false,false);
+-- name: edit_object_duplicate
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'object_duplicate','{"a":1,"a":2}','{"a":3}','a',0,'{"a": 3}','{}',NULL,true,false,false);
+-- name: edit_array_append
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'array_append','[1,2]','[3,4]','missing',1,'[1, 2, 3, 4]','[1, 2]','[1]',true,true,false);
+-- name: edit_array_string_removal
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'array_string_removal','["a",1,"a",["a"],{"a":1}]','[null]','a',-1,'["a", 1, "a", ["a"], {"a": 1}, null]','[1, ["a"], {"a": 1}]','["a", 1, "a", ["a"]]',true,true,false);
+-- name: edit_array_unicode
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'array_unicode','["é","雪","é"]','["😊"]','é',0,'["é", "雪", "é", "😊"]','["雪"]','["雪", "é"]',true,true,false);
+-- name: edit_array_nested
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'array_nested','[[1,2],3]','[[4,5]]','missing',0,'[[1, 2], 3, [4, 5]]','[[1, 2], 3]','[3]',true,true,false);
+-- name: edit_array_minimum_index
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'array_minimum_index','[1,2]','[]','missing',-2147483648,'[1, 2]','[1, 2]','[1, 2]',true,true,false);
+-- name: edit_array_maximum_index
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'array_maximum_index','[1,2]','[]','missing',2147483647,'[1, 2]','[1, 2]','[1, 2]',true,true,false);
+-- name: edit_empty_mixed
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'empty_mixed','{}','[]','missing',0,'[{}]','{}',NULL,true,false,false);
+-- name: edit_array_object
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'array_object','[]','{}','missing',0,'[{}]','[]','[]',true,true,false);
+-- name: edit_scalar_pair
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'scalar_pair','true','false','missing',0,'[true, false]',NULL,NULL,false,false,false);
+-- name: edit_scalar_array
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'scalar_array','null','[1]','missing',0,'[null, 1]',NULL,NULL,false,false,false);
+-- name: edit_sql_null
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'sql_null',NULL,'{}','a',0,NULL,NULL,NULL,true,true,false);
+-- name: edit_null_key
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'null_key','{"a":1}','{}',NULL,0,'{"a": 1}',NULL,NULL,true,false,false);
+-- name: edit_exact_key
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'exact_key','{"a":1}','{}','A',0,'{"a": 1}','{"a": 1}',NULL,true,false,false);
+-- name: edit_scalar_delete_error
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'scalar_delete_error','null','[]','a',0,'[null]',NULL,NULL,true,false,false);
+-- name: edit_object_index_error
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'object_index_error','{"a":1}','{}','a',0,'{"a": 1}',NULL,NULL,false,true,false);
+-- name: edit_scalar_index_error
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'scalar_index_error','true','false','a',0,'[true, false]',NULL,NULL,false,true,false);
+-- name: edit_bypass
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'bypass','null','[]','a',0,'[null]',NULL,NULL,true,true,true);
+-- name: edit_wrong_merge
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'wrong_merge','{"a":1,"b":2}','{"a":3}','a',0,'{}','{"b": 2}',NULL,true,false,false);
+-- name: edit_wrong_key
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'wrong_key','{"a":1,"b":2}','{"a":3}','a',0,'{"a": 3, "b": 2}','{}',NULL,true,false,false);
+-- name: edit_wrong_position
+INSERT INTO document_edits(id,store_id,label,document,patch_document,removed_key,removed_position,recorded_merge,recorded_key_removal,recorded_position_removal,delete_members,delete_positions,bypass) VALUES(2,1,'wrong_position','[1,2]','[3]','missing',-1,'[1, 2, 3]','[1, 2]','{}',true,true,false);

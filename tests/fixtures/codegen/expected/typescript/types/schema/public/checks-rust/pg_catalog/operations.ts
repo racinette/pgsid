@@ -10549,6 +10549,240 @@ export function jsonbTypeof68xu(input: checkruntime.JsonbValue): checkruntime.Te
     }
     return { kind: "Unknown" };
 }
+const jsonbEditParameter = 3452619;
+function jsonbEditLink(node: checkruntime.JsonbNode, next: number): checkruntime.JsonbNode {
+    next = langruntime.checkedIndex(next);
+    return { kind: node.kind, child: node.child, next: next, keyStart: node.keyStart, keyEnd: node.keyEnd, textStart: node.textStart, textEnd: node.textEnd };
+}
+function jsonbEditConcat(left: checkruntime.JsonbPayload, right: checkruntime.JsonbPayload): checkruntime.JsonbValue {
+    left = checkruntime.copyJsonbPayload(left);
+    right = checkruntime.copyJsonbPayload(right);
+    const a: checkruntime.JsonbNode = langruntime.indexStruct(left.nodes, langruntime.checkedIndex(left.root), checkruntime.copyJsonbNode);
+    const b: checkruntime.JsonbNode = langruntime.indexStruct(right.nodes, langruntime.checkedIndex(right.root), checkruntime.copyJsonbNode);
+    if (a.kind === b.kind && a.kind >= 5) {
+        if (a.child === 0) {
+            return { kind: "Value", value: right };
+        }
+        if (b.child === 0) {
+            return { kind: "Value", value: left };
+        }
+    }
+    let characters: string[] = left.characters;
+    const textShift: number = characters.length;
+    let index: number = 0;
+    while (index < right.characters.length) {
+        langruntime.pushChar(characters, langruntime.indexChar(right.characters, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let nodes: checkruntime.JsonbNode[] = left.nodes;
+    const nodeShift: number = langruntime.checkedSubtract(nodes.length, 1);
+    const second: number = langruntime.checkedAdd(nodeShift, right.root);
+    index = langruntime.checkedIndex(1);
+    while (index < right.nodes.length) {
+        const node: checkruntime.JsonbNode = langruntime.indexStruct(right.nodes, langruntime.checkedIndex(index), checkruntime.copyJsonbNode);
+        let child: number = 0;
+        let next: number = 0;
+        if (node.child > 0) {
+            child = langruntime.checkedIndex(langruntime.checkedAdd(nodeShift, node.child));
+        }
+        if (node.next > 0) {
+            next = langruntime.checkedIndex(langruntime.checkedAdd(nodeShift, node.next));
+        }
+        langruntime.pushStruct(nodes, { kind: node.kind, child: child, next: next, keyStart: langruntime.checkedAdd(textShift, node.keyStart), keyEnd: langruntime.checkedAdd(textShift, node.keyEnd), textStart: langruntime.checkedAdd(textShift, node.textStart), textEnd: langruntime.checkedAdd(textShift, node.textEnd) }, checkruntime.copyJsonbNode);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let kind: number = 5;
+    if (a.kind === 6 && b.kind === 6) {
+        kind = langruntime.checkedI32(6);
+    }
+    let first: number = left.root;
+    let last: number = second;
+    if (a.kind === 5 || kind === 6) {
+        first = langruntime.checkedIndex(a.child);
+    }
+    else {
+        nodes[langruntime.checkedIndexIn(nodes, first)] = jsonbEditLink(langruntime.indexStruct(nodes, langruntime.checkedIndex(first), checkruntime.copyJsonbNode), 0);
+    }
+    if (b.kind === 5 || kind === 6) {
+        last = langruntime.checkedIndex(langruntime.indexStruct(nodes, langruntime.checkedIndex(second), checkruntime.copyJsonbNode).child);
+    }
+    else {
+        nodes[langruntime.checkedIndexIn(nodes, second)] = jsonbEditLink(langruntime.indexStruct(nodes, langruntime.checkedIndex(second), checkruntime.copyJsonbNode), 0);
+    }
+    if (first === 0) {
+        first = langruntime.checkedIndex(last);
+    }
+    else {
+        let tail: number = first;
+        while (langruntime.indexStruct(nodes, langruntime.checkedIndex(tail), checkruntime.copyJsonbNode).next > 0) {
+            tail = langruntime.checkedIndex(langruntime.indexStruct(nodes, langruntime.checkedIndex(tail), checkruntime.copyJsonbNode).next);
+        }
+        nodes[langruntime.checkedIndexIn(nodes, tail)] = jsonbEditLink(langruntime.indexStruct(nodes, langruntime.checkedIndex(tail), checkruntime.copyJsonbNode), last);
+    }
+    const root: number = nodes.length;
+    langruntime.pushStruct(nodes, { kind: kind, child: first, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 }, checkruntime.copyJsonbNode);
+    return checkruntime.jsonbRebuild({ kind: "Value", value: { characters: characters, nodes: nodes, root: root } }, true);
+}
+export function jsonbConcatJ7e0(left: checkruntime.JsonbValue, right: checkruntime.JsonbValue): checkruntime.JsonbValue {
+    left = checkruntime.copyJsonbValue(left);
+    right = checkruntime.copyJsonbValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(right.value);
+            return jsonbEditConcat(a, b);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function jsonbEditRemove(input: checkruntime.JsonbPayload, key: JsonbExtractKey, selected: bigint, byIndex: boolean): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbPayload(input);
+    selected = langruntime.checkedI64(selected);
+    byIndex = langruntime.checkedBool(byIndex);
+    const root: checkruntime.JsonbNode = langruntime.indexStruct(input.nodes, langruntime.checkedIndex(input.root), checkruntime.copyJsonbNode);
+    let kept: number[] = [];
+    let child: number = root.child;
+    let index: bigint = 0n;
+    let changed: boolean = false;
+    while (child > 0) {
+        const node: checkruntime.JsonbNode = langruntime.indexStruct(input.nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode);
+        let remove: boolean = byIndex && index === selected;
+        if (byIndex === false) {
+            if (root.kind === 6) {
+                remove = langruntime.checkedBool(jsonbExtractMatches(input, node.keyStart, node.keyEnd, key));
+            }
+            else if (node.kind === 4) {
+                remove = langruntime.checkedBool(jsonbExtractMatches(input, node.textStart, node.textEnd, key));
+            }
+        }
+        if (remove) {
+            changed = langruntime.checkedBool(true);
+        }
+        else {
+            langruntime.pushIndex(kept, child);
+        }
+        child = langruntime.checkedIndex(node.next);
+        index = langruntime.checkedI64(langruntime.checkedI64Add(index, 1n));
+    }
+    if (changed === false) {
+        return { kind: "Value", value: input };
+    }
+    let nodes: checkruntime.JsonbNode[] = input.nodes;
+    let first: number = 0;
+    let position: number = 0;
+    while (position < kept.length) {
+        const current: number = langruntime.indexNumber(kept, langruntime.checkedIndex(position));
+        if (position === 0) {
+            first = langruntime.checkedIndex(current);
+        }
+        let next: number = 0;
+        if (langruntime.checkedAdd(position, 1) < kept.length) {
+            next = langruntime.checkedIndex(langruntime.indexNumber(kept, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))));
+        }
+        nodes[langruntime.checkedIndexIn(nodes, current)] = jsonbEditLink(langruntime.indexStruct(nodes, langruntime.checkedIndex(current), checkruntime.copyJsonbNode), next);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    nodes[langruntime.checkedIndexIn(nodes, input.root)] = { kind: root.kind, child: first, next: 0, keyStart: root.keyStart, keyEnd: root.keyEnd, textStart: root.textStart, textEnd: root.textEnd };
+    return checkruntime.jsonbRebuild({ kind: "Value", value: { characters: input.characters, nodes: nodes, root: input.root } }, false);
+}
+export function jsonbDeleteCow2(input: checkruntime.JsonbValue, key: checkruntime.TextValue): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (key.kind === "Error") {
+        const error: checkruntime.SqlError = key.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (key.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (key.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        if (langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode).kind < 5) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonbEditParameter) };
+        }
+        if (key.kind === "Value") {
+            const text: string = langruntime.checkedString(key.value);
+            const characters: JsonbExtractKey = { characters: Array.from(text) };
+            return jsonbEditRemove(value, characters, 0n, false);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbDeleteBtgy(input: checkruntime.JsonbValue, index: checkruntime.Int4Value): checkruntime.JsonbValue {
+    input = checkruntime.copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (index.kind === "Error") {
+        const error: checkruntime.SqlError = index.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (index.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (index.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        const root: checkruntime.JsonbNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(value.root), checkruntime.copyJsonbNode);
+        if (!(root.kind === 5)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonbEditParameter) };
+        }
+        if (index.kind === "Value") {
+            const position: number = langruntime.checkedI32(index.value);
+            let selected: bigint = BigInt(langruntime.checkedI32(position));
+            if (position < 0) {
+                const count: number = langruntime.checkedI32(langruntime.checkedIndex(jsonbRelationCount(value, root)));
+                const length: bigint = BigInt(langruntime.checkedI32(count));
+                selected = langruntime.checkedI64(langruntime.checkedI64Add(length, selected));
+            }
+            const empty: string[] = [];
+            const key: JsonbExtractKey = { characters: empty };
+            return jsonbEditRemove(value, key, selected, true);
+        }
+    }
+    return { kind: "Unknown" };
+}
 const jsonbExtractParameter = 3452619;
 interface JsonbExtractKey {
     characters: string[];

@@ -31,11 +31,15 @@ it('validates SQL-coerced Go JSONB graphs and forwards raw JSONB query parameter
   CONSTRAINT rounded_count CHECK(CASE WHEN bypass THEN true ELSE numeric_document::int4 IS NOT DISTINCT FROM expected_count END),
   CONSTRAINT flag_value CHECK(CASE WHEN bypass THEN true ELSE boolean_document::bool IS NOT DISTINCT FROM expected_flag END),
   CONSTRAINT limited_numeric CHECK(CASE WHEN bypass THEN true ELSE encode(numeric_send(numeric_document::numeric(6,2)),'hex') COLLATE "C" IS NOT DISTINCT FROM expected_numeric COLLATE "C" END));
+  CREATE TABLE jsonb_edit_writes(lhs retained_document,rhs jsonb,key_name text,element_index integer,expected_concat jsonb,expected_key jsonb,expected_index jsonb,bypass boolean,
+  CONSTRAINT merged_document CHECK(CASE WHEN bypass THEN true ELSE (lhs||rhs) IS NOT DISTINCT FROM expected_concat END),
+  CONSTRAINT without_key CHECK(CASE WHEN bypass THEN true ELSE (lhs-key_name) IS NOT DISTINCT FROM expected_key END),
+  CONSTRAINT without_index CHECK(CASE WHEN bypass THEN true ELSE (lhs-element_index) IS NOT DISTINCT FROM expected_index END));
   CREATE SCHEMA isolated;CREATE TABLE isolated.jsonb_presence(document jsonb CONSTRAINT required CHECK(document IS NOT NULL));`,
     )
     await writeFile(
       join(root, 'queries/documents.sql'),
-      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n-- name: InsertDocumentField :exec\nINSERT INTO jsonb_field_writes(document,field_name,expected_text,expected_exists,bypass) VALUES(@document,@field_name,@expected_text,@expected_exists,@bypass);\n-- name: InsertDocumentRelation :exec\nINSERT INTO jsonb_relation_writes(lhs,rhs,expected_equal,expected_contains,expected_order,bypass) VALUES(@lhs,@rhs,@expected_equal,@expected_contains,@expected_order,@bypass);\n-- name: InsertDocumentScalar :exec\nINSERT INTO jsonb_scalar_writes(numeric_document,boolean_document,expected_count,expected_flag,expected_numeric,bypass) VALUES(@numeric_document,@boolean_document,@expected_count,@expected_flag,@expected_numeric,@bypass);\n',
+      '-- name: InsertDocument :exec\nINSERT INTO jsonb_writes(document,domain_document,expected_kind,expected_source) VALUES(@document,@domain_document,@expected_kind,@expected_source);\n-- name: InsertDocumentText :exec\nINSERT INTO jsonb_text_writes(source_text,expected_source,bypass) VALUES(@source_text,@expected_source,@bypass);\n-- name: InsertDocumentField :exec\nINSERT INTO jsonb_field_writes(document,field_name,expected_text,expected_exists,bypass) VALUES(@document,@field_name,@expected_text,@expected_exists,@bypass);\n-- name: InsertDocumentRelation :exec\nINSERT INTO jsonb_relation_writes(lhs,rhs,expected_equal,expected_contains,expected_order,bypass) VALUES(@lhs,@rhs,@expected_equal,@expected_contains,@expected_order,@bypass);\n-- name: InsertDocumentScalar :exec\nINSERT INTO jsonb_scalar_writes(numeric_document,boolean_document,expected_count,expected_flag,expected_numeric,bypass) VALUES(@numeric_document,@boolean_document,@expected_count,@expected_flag,@expected_numeric,@bypass);\n-- name: InsertDocumentEdit :exec\nINSERT INTO jsonb_edit_writes(lhs,rhs,key_name,element_index,expected_concat,expected_key,expected_index,bypass) VALUES(@lhs,@rhs,@key_name,@element_index,@expected_concat,@expected_key,@expected_index,@bypass);\n',
     )
     await writeFile(
       join(root, 'pgsid.yaml'),
@@ -139,6 +143,22 @@ func TestJSONBFieldWrites(t *testing.T){
  params:=InsertDocumentFieldParams{Document:&domain,FieldName:&key,ExpectedText:&expected,ExpectedExists:&exists,Bypass:&bypass}
  if err:=queries.InsertDocumentField(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw JSONB extraction input failed",err)}
  if len(db.arguments)!=5||db.arguments[0]!=params.Document||db.arguments[1]!=params.FieldName||db.arguments[2]!=params.ExpectedText||db.arguments[3]!=params.ExpectedExists||db.arguments[4]!=params.Bypass{t.Fatal("raw JSONB read parameters changed")}
+}
+func TestJSONBEditWrites(t *testing.T){
+ key:="a";index:=int32(-1);bypass:=false
+ left:=checkruntime.MakeJsonbValue(${JSON.stringify('["a",1,"a",["a"],{"a":1}]')});right:=checkruntime.MakeJsonbValue("[null]")
+ input:=pgsid.PublicJsonbEditWritesCheckInput{Lhs:pgsid.KnownCheckValue(left),Rhs:pgsid.KnownCheckValue(right),KeyName:pgsid.KnownCheckValue(&key),ElementIndex:pgsid.KnownCheckValue(&index),ExpectedConcat:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('["a",1,"a",["a"],{"a":1},null]')})),ExpectedKey:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('[1,["a"],{"a":1}]')})),ExpectedIndex:pgsid.KnownCheckValue(checkruntime.MakeJsonbValue(${JSON.stringify('["a",1,"a",["a"]')})),Bypass:pgsid.KnownCheckValue(&bypass)}
+ before,_:=json.Marshal([]checkruntime.JsonbValue{left,right})
+ if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbEditWritesChecks);err!=nil{t.Fatal(err)}
+ after,_:=json.Marshal([]checkruntime.JsonbValue{left,right});if string(before)!=string(after){t.Fatal("JSONB input ownership lost")}
+ input.ExpectedConcat=pgsid.KnownCheckValue(checkruntime.MakeJsonbValue("[]"));if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbEditWritesChecks);err==nil{t.Fatal("wrong edited value accepted")}
+ input.Lhs=pgsid.KnownCheckValue(checkruntime.JsonbValue{Kind:checkruntime.JsonbValueError,Error:checkruntime.MakeSqlError(${parseInt('22003', 36)})});input.Rhs=pgsid.KnownCheckValue(checkruntime.JsonbValue{Kind:checkruntime.JsonbValueError,Error:checkruntime.MakeSqlError(${parseInt('22012', 36)})})
+ for _,check:=range pgsid.EvaluatePublicJsonbEditWritesChecks(input){if !check.Result.Certain||check.Result.Value.Error!="22003"{t.Fatal("edit error precedence lost",check)}}
+ bypass=true;if err:=pgsid.ValidateCheckInputs(input,pgsid.EvaluatePublicJsonbEditWritesChecks);err!=nil{t.Fatal("skipped edits failed",err)};bypass=false
+ db:=&recordingJSONBDB{};queries:=New(db);raw:=json.RawMessage("[1,2]");domain:=schema.RetainedDocument(raw)
+ params:=InsertDocumentEditParams{Lhs:&domain,Rhs:&raw,KeyName:&key,ElementIndex:&index,ExpectedConcat:&raw,ExpectedKey:&raw,ExpectedIndex:&raw,Bypass:&bypass}
+ if err:=queries.InsertDocumentEdit(context.Background(),params);err!=nil||db.calls!=1{t.Fatal("raw edits rejected locally",err)}
+ if len(db.arguments)!=8||db.arguments[0]!=params.Lhs||db.arguments[1]!=params.Rhs||db.arguments[2]!=params.KeyName||db.arguments[3]!=params.ElementIndex||db.arguments[4]!=params.ExpectedConcat||db.arguments[5]!=params.ExpectedKey||db.arguments[6]!=params.ExpectedIndex||db.arguments[7]!=params.Bypass{t.Fatal("raw edit parameters changed")}
 }
 func TestJSONBScalarWrites(t *testing.T){
  count:=int32(2);flag:=true;wire:="000200000000000200011388";bypass:=false
