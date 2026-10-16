@@ -24,6 +24,7 @@ import {
   catalogBoxType,
   catalogScalarType,
   catalogTemporalType,
+  catalogArrayType,
 } from '../../sql-semantics/catalog-check-binder.js'
 
 export type CheckColumnSource =
@@ -241,6 +242,15 @@ export function planCheckInputs(
   const columns = plan.columns.flatMap(({ name, source }) => {
     if (source.kind !== 'parameter') return []
     const column = plan.table.columns.find((column) => column.name === name)!
+    if (
+      catalogArrayType(
+        column.typeName,
+        column.typeOid,
+        catalog?.domains ?? [],
+        catalog?.enums ?? [],
+      )
+    )
+      return []
     if (catalogTemporalType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogPointType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogLineType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []

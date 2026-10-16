@@ -67,3 +67,35 @@ it('qualifies module references while preserving shadowed locals, property names
     await rm(directory, { recursive: true, force: true })
   }
 })
+
+it('re-exports public array value constructors from their runtime source files', () => {
+  const files = splitCheckTypescript(
+    'export function arrayUnknown(): number {return 1;} export function arrayElementFamily(): number {return 2;} export function privateHelper(): number {return 3;} export function evaluateCheck(): number {return arrayUnknown()+arrayElementFamily();}',
+    [
+      { kind: 'function', name: 'evaluate_check', module: 'checks', visibility: 'public' },
+      {
+        kind: 'function',
+        name: 'array_unknown',
+        module: 'checkruntime',
+        visibility: 'public',
+        sourceFile: 'runtime/array.rs',
+      },
+      {
+        kind: 'function',
+        name: 'array_element_family',
+        module: 'checkruntime',
+        visibility: 'public',
+        sourceFile: 'runtime/array_elements.rs',
+      },
+      {
+        kind: 'function',
+        name: 'private_helper',
+        module: 'checkruntime',
+        visibility: 'public',
+        sourceFile: 'runtime/private.rs',
+      },
+    ],
+  )
+  expect(files.checks).toContain('export { arrayUnknown, arrayElementFamily }')
+  expect(files.checks).not.toContain('privateHelper')
+})

@@ -28,6 +28,11 @@ beforeAll(async () => {
       CONSTRAINT positive_i CHECK (i > 0),
       CONSTRAINT positive_j CHECK (j > 0)
     );
+    CREATE DOMAIN stored_slots AS integer[];
+    CREATE TABLE array_boundary (
+      slots integer[] CHECK(cardinality(slots)<=3),
+      nested stored_slots CHECK(cardinality(nested)<=3)
+    );
     CREATE DOMAIN bounded_label AS varchar(3);
     CREATE DOMAIN nested_label AS bounded_label;
     CREATE TABLE text_boundary (
@@ -70,6 +75,27 @@ const sources = (plan: ReturnType<typeof planCheckWrite>) =>
   Object.fromEntries(plan?.columns.map(({ name, source }) => [name, source]) ?? [])
 
 describe('CHECK write boundary', () => {
+  it('preserves raw array parameters for PostgreSQL input conversion', async () => {
+    const insert = await statement('INSERT INTO array_boundary(slots,nested) VALUES($1,$2)')
+    const writes: WriteValueLineage[] = ['slots', 'nested'].map((column, index) => ({
+      target: { schema: 'public', relation: 'array_boundary', column },
+      source: 'insert',
+      value: parameter(index + 1),
+      partial: false,
+    }))
+    expect(planCheckInputs(insert, writes, catalog, ['integer[]', 'stored_slots'])).toEqual([])
+    expect(
+      (
+        await db.query(
+          'INSERT INTO array_boundary(slots,nested) VALUES($1,$2) RETURNING array_dims(slots) AS layout,cardinality(nested) AS count',
+          ['[0:1]={1,NULL}', '{2,3}'],
+        )
+      ).rows,
+    ).toEqual([{ layout: '[0:1]', count: 2 }])
+    await expect(
+      db.query('INSERT INTO array_boundary(slots,nested) VALUES($1,$2)', ['[1:2]={1}', '{2,3}']),
+    ).rejects.toMatchObject({ code: '22P02' })
+  })
   it('defers raw bit inputs until SQL notation and assignment widths are coerced', async () => {
     const insert = await statement(
       'INSERT INTO bit_boundary (fixed, varying, nested) VALUES ($1, $2, $3)',

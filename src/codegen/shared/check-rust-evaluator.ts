@@ -152,6 +152,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog."json"') return 'JsonValue'
   if (type === 'pg_catalog.jsonb') return 'JsonbValue'
   if (type === 'pg_catalog.jsonpath') return 'JsonpathValue'
+  if (type.startsWith('array:')) return 'ArrayValue'
   if (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') return 'BitValue'
   if (type === 'pg_catalog.uuid') return 'UuidValue'
   if (type === 'pg_catalog.bytea') return 'ByteaValue'
@@ -323,6 +324,7 @@ export function emitCheckRustEvaluator(
       'JsonValue',
       'JsonbValue',
       'JsonpathValue',
+      'ArrayValue',
       'SnapshotValue',
       'PolygonValue',
       'PathValue',
@@ -636,17 +638,19 @@ export function emitCheckRustEvaluator(
       if (
         !jsonbBuilder &&
         implementation.args.some((type, index) =>
-          type === 'pg_catalog.anyenum' && enumCall
-            ? !operands[index]?.type.startsWith('enum:')
-            : type === 'pg_catalog.anyelement' && jsonbConversion
-              ? false
-              : operands[index]?.type !== type &&
-                !(
-                  call.kind === 'cast' &&
-                  call.type === 'pg_catalog."char"' &&
-                  type === 'pg_catalog.text' &&
-                  operands[index]?.type === 'pg_catalog.bpchar'
-                ),
+          type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
+            ? false
+            : type === 'pg_catalog.anyenum' && enumCall
+              ? !operands[index]?.type.startsWith('enum:')
+              : type === 'pg_catalog.anyelement' && jsonbConversion
+                ? false
+                : operands[index]?.type !== type &&
+                  !(
+                    call.kind === 'cast' &&
+                    call.type === 'pg_catalog."char"' &&
+                    type === 'pg_catalog.text' &&
+                    operands[index]?.type === 'pg_catalog.bpchar'
+                  ),
         )
       )
         throw new UnsupportedCheckRustExpression(
@@ -1279,6 +1283,8 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`snapshot_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'array' && value.elements === null)
+        return { name: bind('array_null()'), type: value.type }
       if (value.kind === 'jsonpath') {
         if (value.value === null) return { name: bind('jsonpath_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -1854,6 +1860,7 @@ export function emitCheckRustEvaluator(
               'JsonValue',
               'JsonbValue',
               'JsonpathValue',
+              'ArrayValue',
               'SnapshotValue',
               'PolygonValue',
               'PathValue',

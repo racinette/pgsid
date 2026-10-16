@@ -20,6 +20,8 @@ import {
 } from './collation.js'
 import {
   enumType,
+  arrayType,
+  type ArrayType,
   isOidType,
   isOidAliasType,
   isSnapshotType,
@@ -81,6 +83,23 @@ export function catalogEnumDefinition(
 }
 
 export const catalogScalarType = (name: string): ScalarType | null => {
+  if (name.endsWith('[]')) {
+    const element = catalogScalarType(name.replace(/(?:\[\])+$/u, ''))
+    return element && !element.startsWith('array:')
+      ? arrayType(element as Exclude<ScalarType, ArrayType>)
+      : null
+  }
+  if (
+    name.startsWith('pg_catalog._') ||
+    (name.startsWith('_') && builtinTypeResolution('pg_catalog.' + name)?.category === 'A')
+  ) {
+    const internal = name.replace(/^pg_catalog\./u, '')
+    if (builtinTypeResolution('pg_catalog.' + internal)?.category !== 'A') return null
+    const element = catalogScalarType(internal.slice(1))
+    return element && !element.startsWith('array:')
+      ? arrayType(element as Exclude<ScalarType, ArrayType>)
+      : null
+  }
   if (name.startsWith('pg_catalog.'))
     return catalogScalarType(name.slice('pg_catalog.'.length).replaceAll('"', ''))
   const names: Record<string, ScalarType> = {
@@ -170,6 +189,27 @@ export const catalogScalarType = (name: string): ScalarType | null => {
   if (/^timestamp\(\d+\) without time zone$/u.test(name)) return 'pg_catalog."timestamp"'
   if (/^timestamp\(\d+\) with time zone$/u.test(name)) return 'pg_catalog.timestamptz'
   return names[name] ?? null
+}
+
+export function catalogArrayType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+  enums: readonly EnumInfo[] = [],
+): ArrayType | null {
+  const seen = new Set<number>()
+  while (oid !== undefined && !seen.has(oid)) {
+    seen.add(oid)
+    const domain = domains.find((item) => item.oid === oid)
+    if (!domain) break
+    name = domain.baseTypeName
+    oid = domain.baseTypeOid
+  }
+  const builtin = catalogScalarType(name)
+  if (builtin?.startsWith('array:')) return builtin as ArrayType
+  if (!name.endsWith('[]')) return null
+  const definition = catalogEnumDefinition(name.replace(/(?:\[\])+$/u, ''), enums)
+  return definition ? arrayType(enumType(definition)) : null
 }
 
 export function catalogDateType(
@@ -501,6 +541,15 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'mac', type, value: literal.value }
   if (type === 'pg_catalog."numeric"') return { kind: 'decimal', type, value: literal.value }
   if (literal.kind === 'null') {
+    if (type.startsWith('array:'))
+      return {
+        kind: 'array',
+        type: type as ArrayType,
+        elementType: type.slice(6) as Exclude<ScalarType, ArrayType>,
+        dimensions: [],
+        lowerBounds: [],
+        elements: null,
+      }
     if (type === 'pg_catalog.bool') return { kind: 'boolean', type, value: null }
     if (
       type === 'pg_catalog.text' ||
@@ -881,17 +930,19 @@ const candidate = (
     const operands = fullArgs.map((arg, index) =>
       variadicAny
         ? materialize(arg, boundType(arg) ?? 'pg_catalog.text', arg.enum)
-        : item.args[index] === 'pg_catalog.anyelement'
-          ? materialize(arg, elementType!, arg.enum)
-          : isIntegerType(item.args[index]!)
-            ? materializeInteger(arg, item.args[index]! as ScalarType)
-            : materialize(
-                arg,
-                item.args[index] === 'pg_catalog.anyenum'
-                  ? enumType(definition!)
-                  : (item.args[index]! as ScalarType),
-                definition,
-              ),
+        : item.args[index] === 'pg_catalog.anyarray' && arg.type?.startsWith('array:')
+          ? materialize(arg, arg.type)
+          : item.args[index] === 'pg_catalog.anyelement'
+            ? materialize(arg, elementType!, arg.enum)
+            : isIntegerType(item.args[index]!)
+              ? materializeInteger(arg, item.args[index]! as ScalarType)
+              : materialize(
+                  arg,
+                  item.args[index] === 'pg_catalog.anyenum'
+                    ? enumType(definition!)
+                    : (item.args[index]! as ScalarType),
+                  definition,
+                ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [{ signature, item, operands: operands as EvalExpression[], collation, enum: definition }]
@@ -1412,7 +1463,15 @@ export function bindCatalogCheck(
       const castType = fields(cast['typeName'])
       const names = strings(castType?.['names'])
       const bounds = castType?.['arrayBounds']
-      if (Array.isArray(bounds) && bounds.length) return unknown
+      if (Array.isArray(bounds) && bounds.length) {
+        if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unknown
+        const element = catalogScalarType(names.at(-1)!)
+        if (!element || element.startsWith('array:')) return unknown
+        const type = arrayType(element as Exclude<ScalarType, ArrayType>)
+        const operand = bind(cast['arg'])
+        const value = materialize(operand, type)
+        return value ? { type, value } : unknown
+      }
       if (
         names?.at(-1) === 'unknown' &&
         (names.length === 1 || (names.length === 2 && names[0] === 'pg_catalog')) &&
@@ -2435,7 +2494,10 @@ export function bindCatalogCheck(
           value: { kind: 'input', type, name: column.name, enum: definition },
         }
       }
-      const type = column && catalogBaseScalarType(column.typeName, column.typeOid, domains)
+      const type =
+        column &&
+        (catalogArrayType(column.typeName, column.typeOid, domains, enums) ??
+          catalogBaseScalarType(column.typeName, column.typeOid, domains))
       if (type) {
         inputs.add(column.name)
         return {

@@ -21,6 +21,7 @@ export type GoCheckCase = {
   jsonColumns?: readonly string[]
   jsonbColumns?: readonly string[]
   jsonpathColumns?: readonly string[]
+  arrayColumns?: readonly string[]
   oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
   polygonColumns?: readonly string[]
@@ -75,6 +76,7 @@ export function renderGoCheckTests(
       jsonColumns,
       jsonbColumns,
       jsonpathColumns,
+      arrayColumns,
       oidColumns,
       moneyColumns,
       polygonColumns,
@@ -103,6 +105,73 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && arrayColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
+        if (value === null) {
+          statements.push(
+            go.assign([go.selector(field, 'V')], [go.call(runtime('ArrayNull'), [])], '='),
+          )
+          continue
+        }
+        const payload = (
+          value as {
+            value: {
+              elementType: string
+              elementKind: number
+              dimensions: { lower: number; length: number }[]
+              elements: (
+                { kind: 'Null' } | { kind: 'Int4'; value: number } | { kind: 'Text'; value: string }
+              )[]
+            }
+          }
+        ).value
+        const wrapped = go.composite(runtime('ArrayValue'), [
+          go.keyValue('Kind', runtime('ArrayValueValue')),
+          go.keyValue(
+            'Value',
+            go.composite(runtime('ArrayPayload'), [
+              go.keyValue('ElementType', go.string(payload.elementType)),
+              go.keyValue('ElementKind', go.number(payload.elementKind)),
+              go.keyValue(
+                'Dimensions',
+                go.composite(
+                  go.slice(runtime('ArrayDimension')),
+                  payload.dimensions.map((dimension) =>
+                    go.composite(runtime('ArrayDimension'), [
+                      go.keyValue('Lower', go.number(dimension.lower)),
+                      go.keyValue('Length', go.number(dimension.length)),
+                    ]),
+                  ),
+                ),
+              ),
+              go.keyValue(
+                'Elements',
+                go.composite(
+                  go.slice(runtime('ArrayElement')),
+                  payload.elements.map((element) =>
+                    go.composite(runtime('ArrayElement'), [
+                      go.keyValue('Kind', runtime('ArrayElement' + element.kind)),
+                      ...(element.kind === 'Null'
+                        ? []
+                        : [
+                            go.keyValue(
+                              element.kind,
+                              element.kind === 'Int4'
+                                ? go.number(element.value)
+                                : go.string(element.value),
+                            ),
+                          ]),
+                    ]),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ])
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (options.dateRuntime && xidColumns?.includes(column.name)) {

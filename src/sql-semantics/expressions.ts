@@ -75,9 +75,9 @@ export const BUILTIN_ARRAY_ELEMENT_TYPES = [
   'pg_catalog.bpchar',
   'pg_catalog.uuid',
 ] as const
-export type ArrayElementType = (typeof BUILTIN_ARRAY_ELEMENT_TYPES)[number] | EnumType
+export type ArrayElementType = NonArrayScalarType
 export type ArrayType = `array:${ArrayElementType}`
-export type ScalarType =
+export type NonArrayScalarType =
   | RefcursorType
   | 'pg_catalog.name'
   | 'pg_catalog."char"'
@@ -109,7 +109,7 @@ export type ScalarType =
   | JsonpathType
   | TemporalType
   | EnumType
-  | ArrayType
+export type ScalarType = NonArrayScalarType | ArrayType
 export type SyntaxKind = 'and' | 'or' | 'not' | 'is-null' | 'is-not-null' | 'case' | 'coalesce'
 
 export type EnumDefinition = Readonly<Omit<EnumInfo, 'values' | 'valueOids'>> & {

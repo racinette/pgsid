@@ -15,6 +15,7 @@ import type { CatalogSnapshot, ColumnInfo } from '../../src/catalog/types.js'
 import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
 import {
   catalogDateType,
+  catalogArrayType,
   catalogTemporalType,
   catalogNumericType,
   catalogFloatType,
@@ -567,6 +568,14 @@ describe('world CHECK INSERT parity', () => {
             catalogXid8Type(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
+      const arrayColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogArrayType(column.typeName, column.typeOid, catalog.domains, catalog.enums) !==
+              null,
+        )
+        .map((column) => column.name)
       const jsonpathColumns = table.columns
         .filter(
           (column) =>
@@ -733,6 +742,53 @@ describe('world CHECK INSERT parity', () => {
         const payload = bytes === null ? null : bytes.readBigInt64BE()
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+      }
+      for (const name of arrayColumns) {
+        const column = table.columns.find((column) => column.name === name)!
+        const type = catalogArrayType(
+          column.typeName,
+          column.typeOid,
+          catalog.domains,
+          catalog.enums,
+        )!
+        const elementType = type.slice(6)
+        if (elementType !== 'pg_catalog.int4' && elementType !== 'pg_catalog.text')
+          throw new Error('Missing array INSERT fixture conversion: ' + elementType)
+        const result = (
+          await pg.query<{ dimensions: string | null; elements: string | null }>(
+            `SELECT array_dims(${quote(name)}) AS dimensions,to_json(${quote(name)})::text AS elements FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!
+        if (result.elements === null) {
+          portableRow[name] = null
+          goRow[name] = null
+          continue
+        }
+        const dimensions = Array.from(
+          (result.dimensions ?? '').matchAll(/\[(-?\d+):(-?\d+)\]/gu),
+        ).map((match) => ({
+          lower: Number(match[1]),
+          length: Number(match[2]) - Number(match[1]) + 1,
+        }))
+        const raw: unknown[] = JSON.parse(result.elements)
+        const elements = raw
+          .flat(Infinity)
+          .map((value) =>
+            value === null
+              ? { kind: 'Null' }
+              : { kind: elementType === 'pg_catalog.int4' ? 'Int4' : 'Text', value },
+          )
+        const value = {
+          kind: 'Value',
+          value: {
+            elementType,
+            elementKind: elementType === 'pg_catalog.int4' ? 2 : 8,
+            dimensions,
+            elements,
+          },
+        }
+        portableRow[name] = value
+        goRow[name] = value
       }
       for (const name of jsonpathColumns) {
         const source = (
@@ -1024,6 +1080,7 @@ describe('world CHECK INSERT parity', () => {
         jsonColumns,
         jsonbColumns,
         jsonpathColumns,
+        arrayColumns,
         oidColumns,
         moneyColumns,
         polygonColumns,

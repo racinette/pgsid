@@ -109,6 +109,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("JsonValue") => {
             Ok("JsonValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("ArrayValue") => {
+            Ok("ArrayValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("JsonpathValue") => {
             Ok("JsonpathValue")
         }
@@ -456,6 +459,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "JsonValue"
                     | "JsonbValue"
                     | "JsonpathValue"
+                    | "ArrayValue"
                     | "CircleValue"
                     | "BoxValue"
                     | "UuidValue"
@@ -814,6 +818,21 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
         assert!(
             check_source(&source.replace("input: JsonpathValue", "mut input: JsonpathValue"))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn array_values_keep_owned_parameters_and_locals_narrow() {
+        let source = "pub fn evaluate_check(input: ArrayValue) -> CheckOutcome { let mut saved: ArrayValue = array_unknown(); saved = input.clone(); let nullness = array_is_null(saved); check_from_bool(nullness) }";
+        assert!(check_source(source).is_ok());
+        for ty in ["ArrayValue<String>", "&ArrayValue", "Vec<ArrayValue>"] {
+            assert!(
+                check_source(&source.replace("input: ArrayValue", &format!("input: {ty}")))
+                    .is_err()
+            );
+        }
+        assert!(
+            check_source(&source.replace("input: ArrayValue", "mut input: ArrayValue")).is_err()
         );
     }
 
