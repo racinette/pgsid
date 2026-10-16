@@ -730,3 +730,123 @@ VALUES (NULL, '{bad}', NULL, false);
 -- name: document_extensions_guarded_inputs
 INSERT INTO lane_document_extensions (payload, extra_payload, expected_payload, bypass)
 VALUES ('{bad}', '{bad}', NULL, true);
+
+-- name: revisions_preserve_lower_bound_and_promote
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('[0:3]={1,NULL,1,2}', 1, 9007199254740993, '[0:1]={NULL,2}', '[0:3]={9007199254740993,NULL,9007199254740993,2}', false);
+
+-- name: revisions_remove_null_cells
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{NULL,1,NULL}', NULL, 2, '{1}', '{2,1,2}', false);
+
+-- name: revisions_replace_with_null
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{1,2,1}', 1, NULL, '{2}', '{NULL,2,NULL}', false);
+
+-- name: revisions_all_removed
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('[-3:-2]={1,1}', 1, 2, '{}', '[-3:-2]={2,2}', false);
+
+-- name: revisions_absent_needle
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('[0:1]={1,NULL}', 9, 2, '[0:1]={1,NULL}', '[0:1]={1,NULL}', false);
+
+-- name: revisions_empty
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{}', NULL, NULL, '{}', '{}', false);
+
+-- name: revisions_null_source
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: revisions_wrong_removal
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{1,2}', 1, 3, '{1}', '{3,2}', false);
+
+-- name: revisions_wrong_replacement
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{1,2}', 1, 3, '{2}', '{1,3}', false);
+
+-- name: revisions_multidimensional_removal_error
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{{1,NULL},{2,1}}', 1, 3, NULL, '{{3,NULL},{2,3}}', false);
+
+-- name: revisions_multidimensional_replacement
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('[0:1][2:3]={{1,NULL},{2,1}}', 1, 3, NULL, '[0:1][2:3]={{3,NULL},{2,3}}', true);
+
+-- name: revisions_minimum_lower_bound
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('[-2147483648:-2147483647]={1,2}', 1, 3, '[-2147483648:-2147483648]={2}', '[-2147483648:-2147483647]={3,2}', false);
+
+-- name: stage_revisions_labels
+INSERT INTO lane_stage_revisions (stages, needle, replacement, expected_remove, expected_replace)
+VALUES ('{new,NULL,new,done}', 'new', 'done', '{NULL,done}', '{done,NULL,done,done}');
+
+-- name: stage_revisions_null_label
+INSERT INTO lane_stage_revisions (stages, needle, replacement, expected_remove, expected_replace)
+VALUES ('[0:2]={new,NULL,done}', NULL, 'new', '[0:1]={new,done}', '[0:2]={new,new,done}');
+
+-- name: stage_revisions_null_source
+INSERT INTO lane_stage_revisions (stages, needle, replacement, expected_remove, expected_replace)
+VALUES (NULL, 'new', 'done', NULL, NULL);
+
+-- name: stage_revisions_wrong_removal
+INSERT INTO lane_stage_revisions (stages, needle, replacement, expected_remove, expected_replace)
+VALUES ('{new,done}', 'new', 'done', '{new}', '{done,done}');
+
+-- name: stage_revisions_wrong_replacement
+INSERT INTO lane_stage_revisions (stages, needle, replacement, expected_remove, expected_replace)
+VALUES ('{new,done}', 'new', 'done', '{done}', '{new,done}');
+
+-- name: document_revisions_empty_without_equality
+INSERT INTO lane_document_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{}', '{1}', '{2}', '{}', '{}', false);
+
+-- name: document_revisions_null_source
+INSERT INTO lane_document_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES (NULL, '{1}', '{2}', NULL, NULL, false);
+
+-- name: document_revisions_null_only_requires_equality
+INSERT INTO lane_document_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{NULL}', NULL, NULL, NULL, NULL, false);
+
+-- name: document_revisions_nonnull_requires_equality
+INSERT INTO lane_document_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{1}', NULL, NULL, NULL, NULL, false);
+
+-- name: document_revisions_rank_before_equality
+INSERT INTO lane_document_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{{NULL}}', NULL, NULL, NULL, NULL, false);
+
+-- name: document_revisions_replacement_error_before_null_source
+INSERT INTO lane_document_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES (NULL, '{1}', '{bad}', NULL, NULL, false);
+
+-- name: document_revisions_guarded_inputs
+INSERT INTO lane_document_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{bad}', '{bad}', '{bad}', NULL, NULL, true);
+
+-- name: jsonb_revisions_numeric_equality
+INSERT INTO lane_jsonb_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{1.0,1,2}', '{1}', '{0}', '{2}', '{0,0,2}', false);
+
+-- name: jsonb_revisions_json_null
+INSERT INTO lane_jsonb_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{"null",NULL,1}', '{"null"}', '{2}', '{NULL,1}', '{2,NULL,1}', false);
+
+-- name: jsonb_revisions_sql_null
+INSERT INTO lane_jsonb_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{NULL,1}', NULL, '{"null"}', '{1}', '{"null",1}', false);
+
+-- name: jsonb_revisions_wrong_removal
+INSERT INTO lane_jsonb_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{1,2}', '{1}', '{3}', '{1}', '{3,2}', false);
+
+-- name: jsonb_revisions_wrong_replacement
+INSERT INTO lane_jsonb_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{1,2}', '{1}', '{3}', '{2}', '{1,3}', false);
+
+-- name: jsonb_revisions_multidimensional_replacement
+INSERT INTO lane_jsonb_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{{1,NULL},{2,1}}', '{1}', '{3}', NULL, '{{3,NULL},{2,3}}', true);

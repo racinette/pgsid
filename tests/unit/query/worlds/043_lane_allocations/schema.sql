@@ -240,3 +240,46 @@ CREATE TABLE lane_document_extensions (
   bypass boolean,
   CONSTRAINT joined_documents CHECK (CASE WHEN bypass THEN true ELSE array_cat(payload::json[], extra_payload::json[])::text COLLATE "C" IS NOT DISTINCT FROM expected_payload COLLATE "C" END)
 );
+
+CREATE TABLE lane_revisions (
+  slots lane_slots,
+  needle integer,
+  replacement bigint,
+  expected_remove text,
+  expected_replace text,
+  bypass boolean,
+  CONSTRAINT removed_slots CHECK (CASE WHEN bypass THEN true ELSE array_remove(slots, needle)::text COLLATE "C" IS NOT DISTINCT FROM expected_remove COLLATE "C" END),
+  CONSTRAINT replaced_slots CHECK (array_replace(slots, needle, replacement)::text COLLATE "C" IS NOT DISTINCT FROM expected_replace COLLATE "C")
+);
+
+CREATE TABLE lane_stage_revisions (
+  stages lane_stage[],
+  needle lane_stage,
+  replacement lane_stage,
+  expected_remove text,
+  expected_replace text,
+  CONSTRAINT removed_stages CHECK (array_remove(stages, needle)::text COLLATE "C" IS NOT DISTINCT FROM expected_remove COLLATE "C"),
+  CONSTRAINT replaced_stages CHECK (array_replace(stages, needle, replacement)::text COLLATE "C" IS NOT DISTINCT FROM expected_replace COLLATE "C")
+);
+
+CREATE TABLE lane_document_revisions (
+  payload text,
+  needle text,
+  replacement text,
+  expected_remove text,
+  expected_replace text,
+  bypass boolean,
+  CONSTRAINT removed_documents CHECK (CASE WHEN bypass THEN true ELSE array_remove(payload::json[], (needle::json[])[1])::text COLLATE "C" IS NOT DISTINCT FROM expected_remove COLLATE "C" END),
+  CONSTRAINT replaced_documents CHECK (CASE WHEN bypass THEN true ELSE array_replace(payload::json[], (needle::json[])[1], (replacement::json[])[1])::text COLLATE "C" IS NOT DISTINCT FROM expected_replace COLLATE "C" END)
+);
+
+CREATE TABLE lane_jsonb_revisions (
+  payload text,
+  needle text,
+  replacement text,
+  expected_remove text,
+  expected_replace text,
+  bypass boolean,
+  CONSTRAINT removed_jsonb CHECK (CASE WHEN bypass THEN true ELSE array_remove(payload::jsonb[], (needle::jsonb[])[1])::text COLLATE "C" IS NOT DISTINCT FROM expected_remove COLLATE "C" END),
+  CONSTRAINT replaced_jsonb CHECK (array_replace(payload::jsonb[], (needle::jsonb[])[1], (replacement::jsonb[])[1])::text COLLATE "C" IS NOT DISTINCT FROM expected_replace COLLATE "C")
+);

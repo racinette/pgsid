@@ -9475,6 +9475,147 @@ func FinishArraySearchPositions(input *ArrayComparisonPayload, values ArrayArgum
 	}
 	return FinishArrayConstructor(values)
 }
+func PrepareArrayRewrite(input ArrayValue, needle ArrayElement, replacement ArrayElement, remove bool, available bool) ArrayComparisonPayload {
+	input = CopyArrayValue(input)
+	needle = CopyArrayElement(needle)
+	replacement = CopyArrayElement(replacement)
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if needle.Kind == ArrayElementError {
+		error := needle.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if replacement.Kind == ArrayElementError {
+		error := replacement.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if input.Kind == ArrayValueNull {
+		return arrayComparisonState(0, MakeSqlError(0), 0)
+	}
+	if input.Kind == ArrayValueValue {
+		array := CopyArrayPayload(input.Value)
+		if len(array.Dimensions) == 0 {
+			return arrayComparisonState(2, MakeSqlError(0), 0)
+		}
+		if remove && len(array.Dimensions) > 1 {
+			return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arraySearchMultidimensional), 0)
+		}
+		if available == false {
+			return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayComparisonUndefined), 0)
+		}
+		queries := []ArrayElement{}
+		langruntime.CheckedAdd(len(queries), 1)
+		queries = append(queries, CopyArrayElement(needle))
+		langruntime.CheckedAdd(len(queries), 1)
+		queries = append(queries, CopyArrayElement(replacement))
+		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: queries, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 0}
+	}
+	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+}
+func ArrayRewriteNeedle(input *ArrayComparisonPayload) ArrayElement {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if input.State == 1 && len(input.Right) == 2 {
+		return CopyArrayElement(input.Right[0])
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayRewriteContinues(input *ArrayComparisonPayload, index Int4Value, result Int4Value) bool {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if input.State != 1 {
+		return false
+	}
+	if result.Kind == Int4ValueError {
+		return false
+	}
+	if index.Kind == Int4ValueValue {
+		offset := langruntime.CheckedI32(index.Value)
+		return offset >= 0 && (int64(langruntime.CheckedI32(offset))) < (int64(langruntime.CheckedI32((int(int32(input.Limit))))))
+	}
+	return false
+}
+func ArrayRewriteStep(input ArrayArguments, plan *ArrayComparisonPayload, index Int4Value, compared Int4Value, remove bool) ArrayArguments {
+	input = CopyArrayArguments(input)
+	plan = langruntime.CheckedBorrowed(plan, copyArrayComparisonPayload)
+	if input.Kind == ArrayArgumentsError {
+		return input
+	}
+	if compared.Kind == Int4ValueError {
+		error := compared.Error
+		return ArrayArguments{Kind: ArrayArgumentsError, Error: error}
+	}
+	source := ArrayMembershipElementAt(plan, index, false)
+	if compared == (Int4Value{Kind: Int4ValueUnknown}) {
+		if remove {
+			return ArrayArguments{Kind: ArrayArgumentsUnknown}
+		}
+		if source.Kind == ArrayElementNull {
+			replacement := CopyArrayElement(plan.Right[1])
+			if replacement.Kind == ArrayElementNull {
+				return AppendArrayArgument(input, ArrayElement{Kind: ArrayElementNull})
+			}
+		}
+		return AppendArrayArgument(input, ArrayElement{Kind: ArrayElementUnknown})
+	}
+	if compared.Kind == Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		if value == 0 {
+			if remove {
+				return input
+			}
+			return AppendArrayArgument(input, CopyArrayElement(plan.Right[1]))
+		}
+		return AppendArrayArgument(input, source)
+	}
+	return ArrayArguments{Kind: ArrayArgumentsUnknown}
+}
+func FinishArrayRewrite(original ArrayValue, plan *ArrayComparisonPayload, values ArrayArguments, remove bool) ArrayValue {
+	original = CopyArrayValue(original)
+	plan = langruntime.CheckedBorrowed(plan, copyArrayComparisonPayload)
+	values = CopyArrayArguments(values)
+	if plan.State == langruntime.CheckedSignedNegate(2) {
+		return ArrayValue{Kind: ArrayValueError, Error: plan.Error}
+	}
+	if plan.State == langruntime.CheckedSignedNegate(1) {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	if plan.State == 0 {
+		return ArrayValue{Kind: ArrayValueNull}
+	}
+	if plan.State == 2 {
+		return original
+	}
+	if values.Kind == ArrayArgumentsError {
+		error := values.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if original.Kind == ArrayValueValue {
+		source := CopyArrayPayload(original.Value)
+		if values.Kind == ArrayArgumentsValue {
+			output := CopyArrayPayload(values.Value)
+			if source.ElementType != output.ElementType || source.ElementKind != output.ElementKind {
+				return ArrayValue{Kind: ArrayValueError, Error: MakeSqlError(arrayComparisonTypeMismatch)}
+			}
+			dimensions := []ArrayDimension{}
+			if remove {
+				if len(output.Elements) > 0 {
+					langruntime.CheckedAdd(len(dimensions), 1)
+					dimensions = append(dimensions, ArrayDimension{Lower: source.Dimensions[0].Lower, Length: int(int32(len(output.Elements)))})
+				}
+			} else {
+				position := 0
+				for position < len(source.Dimensions) {
+					langruntime.CheckedAdd(len(dimensions), 1)
+					dimensions = append(dimensions, source.Dimensions[position])
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			}
+			return MakeArrayValue(ArrayPayload{ElementType: output.ElementType, ElementKind: output.ElementKind, Dimensions: dimensions, Elements: output.Elements})
+		}
+	}
+	return ArrayValue{Kind: ArrayValueUnknown}
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

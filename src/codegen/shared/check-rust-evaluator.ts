@@ -178,6 +178,20 @@ export const isArraySearch = (item: ReturnType<typeof builtinMetadata>): boolean
       item.result === 'pg_catalog._int4' &&
       item.args.length === 2))
 
+export const isArrayRewrite = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  !item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.result === 'pg_catalog.anycompatiblearray' &&
+  item.args[0] === 'pg_catalog.anycompatiblearray' &&
+  item.args[1] === 'pg_catalog.anycompatible' &&
+  ((item.name === 'array_remove' && item.args.length === 2) ||
+    (item.name === 'array_replace' &&
+      item.args.length === 3 &&
+      item.args[2] === 'pg_catalog.anycompatible'))
+
 export const isArrayTransform = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
   item.schema === 'pg_catalog' &&
@@ -939,10 +953,12 @@ export function emitCheckRustEvaluator(
         (implementation.args.length === 0 ? operands.length === 0 : operands.length > 0)
       const jsonpathTimezone = isJsonpathTimezoneCallable(implementation)
       const arraySearch = isArraySearch(implementation)
+      const arrayRewrite = isArrayRewrite(implementation)
       const arrayTransform = isArrayTransform(implementation)
-      const transformArray = arrayTransform
-        ? operands[implementation.name === 'array_prepend' ? 1 : 0]?.type
-        : undefined
+      const transformArray =
+        arrayTransform || arrayRewrite
+          ? operands[implementation.name === 'array_prepend' ? 1 : 0]?.type
+          : undefined
       const enumOperands = implementation.args.flatMap((type, index) =>
         type === 'pg_catalog.anyenum' ? [operands[index]?.type] : [],
       )
@@ -951,7 +967,7 @@ export function emitCheckRustEvaluator(
       const resultType =
         arraySearch && implementation.name === 'array_positions'
           ? 'array:pg_catalog.int4'
-          : arrayTransform
+          : arrayTransform || arrayRewrite
             ? transformArray
             : implementation.result === 'pg_catalog.anyenum'
               ? enumIdentity
@@ -963,6 +979,7 @@ export function emitCheckRustEvaluator(
         (!implementation.strict &&
           !arraySearch &&
           !arrayTransform &&
+          !arrayRewrite &&
           !jsonbBuilder &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
@@ -1015,11 +1032,11 @@ export function emitCheckRustEvaluator(
       if (
         !jsonbBuilder &&
         implementation.args.some((type, index) =>
-          (arraySearch || arrayTransform) &&
+          (arraySearch || arrayTransform || arrayRewrite) &&
           type === 'pg_catalog.anycompatiblearray' &&
           operands[index]?.type.startsWith('array:')
             ? false
-            : (arraySearch || arrayTransform) &&
+            : (arraySearch || arrayTransform || arrayRewrite) &&
                 type === 'pg_catalog.anycompatible' &&
                 operands[arrayTransform && implementation.name === 'array_prepend' ? 1 : 0]
                   ?.type === `array:${operands[index]?.type}`
@@ -1086,13 +1103,15 @@ export function emitCheckRustEvaluator(
         }
         return { name, type: call.type }
       }
-      if (isArrayComparison(implementation) || arraySearch) {
+      if (isArrayComparison(implementation) || arraySearch || arrayRewrite) {
         const arrayType = operands[0]?.type
         if (
           !arrayType?.startsWith('array:') ||
-          (arraySearch
-            ? operands[1]?.type !== arrayType.slice(6)
-            : operands.length !== 2 || operands[1]?.type !== arrayType)
+          (arrayRewrite
+            ? operands.slice(1).some((operand) => operand.type !== arrayType.slice(6))
+            : arraySearch
+              ? operands[1]?.type !== arrayType.slice(6)
+              : operands.length !== 2 || operands[1]?.type !== arrayType)
         )
           throw new UnsupportedCheckRustExpression(
             'Array comparison requires one concrete array identity',
@@ -1103,7 +1122,10 @@ export function emitCheckRustEvaluator(
           implementation.name,
         )
         const equality =
-          arraySearch || membership || ['array_eq', 'array_ne'].includes(implementation.name)
+          arraySearch ||
+          arrayRewrite ||
+          membership ||
+          ['array_eq', 'array_ne'].includes(implementation.name)
         const defaults = builtinTypeComparison(
           elementType.startsWith('enum:') ? 'pg_catalog.anyenum' : elementType,
         )
@@ -1200,6 +1222,73 @@ export function emitCheckRustEvaluator(
               scalarLines.push(`${result} = array_order_from_equality(${compared.name});`)
             } else scalarLines.push(`${result} = int4_unknown();`)
           }
+        }
+        if (arrayRewrite) {
+          const remove = implementation.name === 'array_remove',
+            prefix = rustValuePrefix(rustType(elementType)),
+            needle = fresh('array_rewrite_needle'),
+            replacement = fresh('array_rewrite_replacement')
+          destination.push(
+            `let ${needle} = array_element_from_${prefix}(${ownedOperand(operands[1]!)});`,
+          )
+          if (operands[2])
+            destination.push(
+              `let ${replacement} = array_element_from_${prefix}(${ownedOperand(operands[2])});`,
+            )
+          else {
+            const empty = fresh('array_rewrite_null')
+            destination.push(
+              `let ${empty} = ${prefix}_null();`,
+              `let ${replacement} = array_element_from_${prefix}(${empty});`,
+            )
+          }
+          const payload = fresh('array_rewrite'),
+            initial = fresh('array_rewrite_initial'),
+            first = fresh('array_rewrite_first'),
+            result = fresh('array_rewrite_result'),
+            index = fresh('array_rewrite_index'),
+            empty = fresh('array_rewrite_empty'),
+            builder = fresh('array_rewrite_builder')
+          destination.push(
+            `let ${payload} = prepare_array_rewrite(${ownedOperand(operands[0]!)}, ${needle}, ${replacement}, ${remove}, ${selected !== null});`,
+            `let ${initial} = array_search_initial(&${payload});`,
+            `let ${first} = make_int4_value(0);`,
+            `let mut ${result}: Int4Value = ${initial};`,
+            `let mut ${index}: Int4Value = ${first};`,
+            `let ${empty} = make_array_arguments(${rustStringLiteral(elementType)}, ${family});`,
+            `let mut ${builder}: ArrayArguments = ${empty};`,
+          )
+          const left = fresh('array_rewrite_cell'),
+            right = fresh('array_rewrite_query'),
+            pair = fresh('array_rewrite_pair'),
+            compared = fresh('array_rewrite_compared'),
+            scalarLines: string[] = []
+          emitPair(left, right, compared, scalarLines)
+          const body = [
+            `let ${left} = array_membership_element_at(&${payload}, ${index}, false);`,
+            `let ${right} = array_rewrite_needle(&${payload});`,
+            `let ${pair} = array_comparison_pair(${left}.clone(), ${right}.clone(), true);`,
+            `let mut ${compared}: Int4Value = ${pair};`,
+            `if array_pair_requires_scalar(${pair}) {`,
+            ...indent(scalarLines),
+            '};',
+            `${builder} = array_rewrite_step(${builder}, &${payload}, ${index}, ${compared}, ${remove});`,
+            `${result} = ${compared};`,
+            `${index} = array_text_next_index(${index});`,
+          ]
+          destination.push(
+            `while array_rewrite_continues(&${payload}, ${index}, ${result}) {`,
+            ...indent(body),
+            '}',
+          )
+          const finished = fresh('array_rewrite_finished'),
+            name = fresh('value')
+          destination.push(
+            `let ${finished} = finish_array_rewrite(${ownedOperand(operands[0]!)}, &${payload}, ${builder}, ${remove});`,
+            `let ${name} = ${implementation.rustName}(${finished});`,
+          )
+          callables.add(implementation.rustName)
+          return { name, type: call.type }
         }
         if (arraySearch) {
           const all = implementation.name === 'array_positions'

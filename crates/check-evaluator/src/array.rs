@@ -1944,3 +1944,164 @@ pub fn finish_array_search_positions(
     };
     finish_array_constructor(values)
 }
+
+pub fn prepare_array_rewrite(
+    input: ArrayValue,
+    needle: ArrayElement,
+    replacement: ArrayElement,
+    remove: bool,
+    available: bool,
+) -> ArrayComparisonPayload {
+    if let ArrayValue::Error(error) = input {
+        return array_comparison_state(-2, error, 0);
+    };
+    if let ArrayElement::Error(error) = needle {
+        return array_comparison_state(-2, error, 0);
+    };
+    if let ArrayElement::Error(error) = replacement {
+        return array_comparison_state(-2, error, 0);
+    };
+    if let ArrayValue::Null = input {
+        return array_comparison_state(0, make_sql_error(0), 0);
+    };
+    if let ArrayValue::Value(array) = input {
+        if array.dimensions.len() == 0 {
+            return array_comparison_state(2, make_sql_error(0), 0);
+        };
+        if remove && array.dimensions.len() > 1 {
+            return array_comparison_state(-2, make_sql_error(ARRAY_SEARCH_MULTIDIMENSIONAL), 0);
+        };
+        if available == false {
+            return array_comparison_state(-2, make_sql_error(ARRAY_COMPARISON_UNDEFINED), 0);
+        };
+        let mut queries: Vec<ArrayElement> = Vec::new();
+        queries.push(needle);
+        queries.push(replacement);
+        return ArrayComparisonPayload {
+            limit: array.elements.len(),
+            left: array.elements,
+            right: queries,
+            state: 1,
+            error: make_sql_error(0),
+            tail: 0,
+            value: 0,
+        };
+    };
+    array_comparison_state(-1, make_sql_error(0), 0)
+}
+
+pub fn array_rewrite_needle(input: &ArrayComparisonPayload) -> ArrayElement {
+    if input.state == 1 && input.right.len() == 2 {
+        return input.right[0].clone();
+    };
+    ArrayElement::Unknown
+}
+
+pub fn array_rewrite_continues(
+    input: &ArrayComparisonPayload,
+    index: Int4Value,
+    result: Int4Value,
+) -> bool {
+    if input.state != 1 {
+        return false;
+    };
+    if let Int4Value::Error(_) = result {
+        return false;
+    };
+    if let Int4Value::Value(offset) = index {
+        return offset >= 0 && (offset as i64) < ((input.limit as i32) as i64);
+    };
+    false
+}
+
+pub fn array_rewrite_step(
+    input: ArrayArguments,
+    plan: &ArrayComparisonPayload,
+    index: Int4Value,
+    compared: Int4Value,
+    remove: bool,
+) -> ArrayArguments {
+    if let ArrayArguments::Error(_) = input {
+        return input;
+    };
+    if let Int4Value::Error(error) = compared {
+        return ArrayArguments::Error(error);
+    };
+    let source = array_membership_element_at(plan, index, false);
+    if compared == Int4Value::Unknown {
+        if remove {
+            return ArrayArguments::Unknown;
+        };
+        if let ArrayElement::Null = source {
+            let replacement = plan.right[1].clone();
+            if let ArrayElement::Null = replacement {
+                return append_array_argument(input, ArrayElement::Null);
+            };
+        };
+        return append_array_argument(input, ArrayElement::Unknown);
+    };
+    if let Int4Value::Value(value) = compared {
+        if value == 0 {
+            if remove {
+                return input;
+            };
+            return append_array_argument(input, plan.right[1].clone());
+        };
+        return append_array_argument(input, source);
+    };
+    ArrayArguments::Unknown
+}
+
+pub fn finish_array_rewrite(
+    original: ArrayValue,
+    plan: &ArrayComparisonPayload,
+    values: ArrayArguments,
+    remove: bool,
+) -> ArrayValue {
+    if plan.state == -2 {
+        return ArrayValue::Error(plan.error);
+    };
+    if plan.state == -1 {
+        return ArrayValue::Unknown;
+    };
+    if plan.state == 0 {
+        return ArrayValue::Null;
+    };
+    if plan.state == 2 {
+        return original;
+    };
+    if let ArrayArguments::Error(error) = values {
+        return ArrayValue::Error(error);
+    };
+    if let ArrayValue::Value(source) = original {
+        if let ArrayArguments::Value(output) = values {
+            if source.element_type != output.element_type
+                || source.element_kind != output.element_kind
+            {
+                return ArrayValue::Error(make_sql_error(ARRAY_COMPARISON_TYPE_MISMATCH));
+            };
+            let mut dimensions: Vec<ArrayDimension> = Vec::new();
+            if remove {
+                if output.elements.len() > 0 {
+                    dimensions.push(ArrayDimension {
+                        lower: source.dimensions[0].lower,
+                        length: output.elements.len() as i32,
+                    });
+                };
+            } else {
+                let mut position: usize = 0;
+                while position < source.dimensions.len() {
+                    dimensions.push(source.dimensions[position]);
+                    position += 1;
+                }
+            };
+            return make_array_value(ArrayPayload {
+                element_type: output.element_type,
+                element_kind: output.element_kind,
+                dimensions: dimensions,
+                elements: output.elements,
+            });
+        };
+    };
+    ArrayValue::Unknown
+}
