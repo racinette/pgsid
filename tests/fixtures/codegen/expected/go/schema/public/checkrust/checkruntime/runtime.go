@@ -442,6 +442,7 @@ const sqlErrorArraySubscript = 3452630
 const sqlErrorFeatureNotSupported = 466560
 const sqlErrorProgramLimit = 8584704
 const sqlErrorInternal = 56966976
+const sqlErrorJsonDatetime = 3452653
 const sqlErrorJsonNonNumeric = 3452658
 const sqlErrorJsonSubscript = 3452655
 const sqlErrorJsonArray = 3452661
@@ -451,6 +452,9 @@ const sqlErrorJsonObject = 3452664
 const sqlErrorJsonSingleton = 3452660
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorJsonDatetime {
+		return SqlErrorDescription{Message: "invalid argument for SQL/JSON datetime function"}
+	}
 	if error.State == sqlErrorJsonNonNumeric {
 		return SqlErrorDescription{Message: "non-numeric SQL/JSON item"}
 	}

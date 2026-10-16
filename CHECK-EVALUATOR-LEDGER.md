@@ -2,8 +2,7 @@
 
 This is the implementation queue for the Rust CHECK engine. Work in the order
 below unless a task exposes a prerequisite. Complete a bounded task through
-binding, generated Rust, Go, TypeScript, and PostgreSQL parity before expanding
-its scope. Check a box only after its completion criteria pass.
+binding, generated Rust, Go, TypeScript, and PostgreSQL parity before expanding its scope. Check a box only after its completion criteria pass.
 
 ## Baseline and measurements
 
@@ -284,6 +283,7 @@ exposes a prerequisite:
 - [x] JSONPath type/size and abs/floor/ceiling/double methods; retain strict/lax target handling, numeric display scales, finite-float validation versus string conversion, predicate suppression and INSERT parity.
 - [x] JSONPath integer/bigint/boolean/number/decimal/string conversions, owned string results and chained predicates; preserve parsing, numeric scales, argument validation, suppression and INSERT parity.
 - [x] JSONPath keyvalue objects: owned logical nodes, document/variable/generated IDs, wrapping counters and offsets, partially unknown identities, strict/lax prefixes, format limits and INSERT parity.
+- [x] Private JSONPath temporal values: ISO numeric grammar, scalar conversions/precision, original-offset rendering and context/error tags; SQL method dispatch remains pending.
 - [ ] JSONPath temporal methods, regex execution and context-sensitive operations.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 

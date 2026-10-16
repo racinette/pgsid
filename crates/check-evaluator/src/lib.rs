@@ -61,6 +61,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/jsonpath_predicates.rs");
     include!("operations/pg_catalog/jsonpath_methods.rs");
     include!("operations/pg_catalog/jsonpath_conversions.rs");
+    include!("operations/pg_catalog/jsonpath_temporal.rs");
     include!("operations/pg_catalog/jsonpath_keyvalue.rs");
     include!("operations/pg_catalog/jsonpath_execute.rs");
     include!("operations/pg_catalog/jsonb_core.rs");

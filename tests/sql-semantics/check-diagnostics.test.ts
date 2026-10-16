@@ -31,6 +31,7 @@ const conditions = [
   ['22001', 'string data right truncation'],
   ['2202E', 'array subscript error'],
   ['22033', 'invalid SQL/JSON subscript'],
+  ['22031', 'invalid argument for SQL/JSON datetime function'],
   ['22036', 'non-numeric SQL/JSON item'],
   ['22038', 'singleton SQL/JSON item required'],
   ['22039', 'SQL/JSON array not found'],
