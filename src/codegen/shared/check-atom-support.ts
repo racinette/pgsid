@@ -80,6 +80,7 @@ export function portableCheckAtoms(
     if (
       value.kind === 'clock-to-text' ||
       value.kind === 'text-to-array' ||
+      value.kind === 'array-to-text' ||
       value.kind === 'array-typmod' ||
       value.kind === 'text-to-interval' ||
       value.kind === 'text-to-clock' ||

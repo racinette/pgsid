@@ -62,6 +62,14 @@ export type EvalExpression =
       origin?: 'source' | 'stored'
     }
   | {
+      kind: 'array-to-text'
+      type: 'pg_catalog.text'
+      elementType: ArrayElementType
+      operand: EvalExpression
+      output: string
+      enum?: EnumDefinition
+    }
+  | {
       kind: 'text-to-array'
       type: ArrayType
       elementType: ArrayElementType
@@ -335,6 +343,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'array-constructor' ||
       node.kind === 'array-text-literal' ||
       node.kind === 'text-to-array' ||
+      node.kind === 'array-to-text' ||
       node.kind === 'array-typmod'
     ) {
       const result = backend.uncertain(node.type)

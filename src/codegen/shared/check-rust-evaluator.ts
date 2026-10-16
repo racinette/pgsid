@@ -436,6 +436,105 @@ export function emitCheckRustEvaluator(
       bindings.push(`let ${name} = ${call};`)
       return name
     }
+    if (node.kind === 'array-to-text') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const family = arrayElementFamily(node.elementType)
+      const output = builtinMetadata(node.output)
+      if (
+        operand.type !== 'array:' + node.elementType ||
+        family === null ||
+        output.kind !== 'function' ||
+        output.schema !== 'pg_catalog' ||
+        output.name !== 'array_out' ||
+        !output.strict ||
+        output.returnsSet ||
+        output.args.length !== 1 ||
+        output.args[0] !== 'pg_catalog.anyarray' ||
+        output.result !== 'pg_catalog.cstring'
+      )
+        throw new UnsupportedCheckRustExpression('Array output requires its catalog I/O identity')
+      const elementOutput = node.enum?.outputFunction ?? builtinTypeIO(node.elementType)?.output
+      const metadata = elementOutput ? builtinMetadata(elementOutput) : null
+      if (
+        !metadata ||
+        metadata.kind !== 'function' ||
+        !metadata.strict ||
+        metadata.returnsSet ||
+        metadata.args.length !== 1 ||
+        metadata.args[0] !==
+          (node.enum
+            ? 'pg_catalog.anyenum'
+            : node.elementType === 'pg_catalog.refcursor' &&
+                elementOutput === builtinTypeIO('pg_catalog.text')?.output
+              ? 'pg_catalog.text'
+              : node.elementType) ||
+        metadata.result !== 'pg_catalog.cstring' ||
+        (node.enum && enumType(node.enum) !== node.elementType)
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Array output requires its element catalog identity',
+        )
+      const payload = bind(`prepare_array_output(${ownedOperand(operand)})`)
+      const initial = bind('make_array_arguments("pg_catalog.text", 8)')
+      const first = bind('make_int4_value(0)')
+      const builder = fresh('array_builder'),
+        index = fresh('array_index')
+      const element = fresh('array_element'),
+        scalar = fresh('array_scalar')
+      const rendered = fresh('array_rendered'),
+        converted = fresh('array_converted')
+      const prefix = rustValuePrefix(rustType(node.elementType))
+      let conversion: string | null = null
+      if (family <= 3) conversion = `${prefix}_to_text(${scalar})`
+      else if (family === 6) {
+        if (!node.enum || node.enum.values.some((label) => label.includes('\0')))
+          throw new UnsupportedCheckRustExpression('Array enum output requires captured labels')
+        conversion = `enum_to_text(${scalar}, ${rustStringLiteral(node.enum.values.join('\0'))}, ${node.enum.values.length})`
+      } else if (family === 8) conversion = scalar
+      else if (family === 9) conversion = `array_boolean_output(${scalar})`
+      else if (family === 10) conversion = `array_numeric_output(${scalar})`
+      else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40].includes(family))
+        conversion = `${prefix}_to_text(${scalar})`
+      else if (family === 13)
+        conversion = `array_network_output(${scalar}, ${node.elementType === 'pg_catalog.cidr'})`
+      else if (family === 19 || family === 20) conversion = `array_${prefix}_output(${scalar})`
+      else if (family === 21 || family === 22) conversion = `clock_${prefix}_to_text(${scalar})`
+      else if (family === 32) {
+        const cast = builtinCast(node.elementType, 'pg_catalog.text')
+        if (!cast?.implementation)
+          throw new UnsupportedCheckRustExpression(
+            'Internal char output requires its catalog conversion',
+          )
+        const implementation = builtinMetadata(cast.implementation)
+        if (implementation.kind !== 'function')
+          throw new UnsupportedCheckRustExpression(
+            'Internal char output requires a catalog function',
+          )
+        conversion = `${implementation.rustName}(${scalar})`
+      } else if (family === 33)
+        conversion = isOidAliasType(node.elementType)
+          ? `oid_alias_to_text(${scalar}, ${!['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(node.elementType)})`
+          : `oid_to_text(${scalar})`
+      else if (family === 36) conversion = `snapshot_to_text(${scalar})`
+      bindings.push(
+        `let mut ${builder}: ArrayArguments = ${initial};`,
+        `let mut ${index}: Int4Value = ${first};`,
+        `while array_output_has_element(&${payload}, ${index}) {`,
+        `    let ${element} = array_output_element_at(&${payload}, ${index});`,
+      )
+      if (conversion) bindings.push(`    let ${scalar} = array_element_to_${prefix}(${element});`)
+      bindings.push(
+        `    let ${rendered} = ${conversion ?? `array_contextual_output(${element})`};`,
+        `    let ${converted} = array_element_from_text(${rendered});`,
+        `    ${builder} = append_array_argument(${builder}, ${converted});`,
+        `    ${index} = array_text_next_index(${index});`,
+        '}',
+      )
+      return {
+        name: bind(`finish_array_output(${payload}, ${builder}, ${family === 27})`),
+        type: node.type,
+      }
+    }
     if (node.kind === 'array-typmod') {
       const conversion = builtinCast(node.elementType, node.elementType)
       if (conversion?.method !== 'f' || !conversion.implementation)

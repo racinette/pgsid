@@ -229,6 +229,264 @@ export function arrayDims01ex(input: checkruntime.ArrayValue): checkruntime.Text
     }
     return { kind: "Unknown" };
 }
+export function arrayBooleanOutput(input: checkruntime.BoolValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: boolean = langruntime.checkedBool(input.value);
+        if (value) {
+            return checkruntime.makeTextValue("t");
+        }
+        return checkruntime.makeTextValue("f");
+    }
+    return { kind: "Unknown" };
+}
+export function arrayNumericOutput(input: checkruntime.NumericValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const work: NumericWork = numericWorkFromValue(value);
+        if (work.valid) {
+            return { kind: "Value", value: numericWorkText(work) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function arrayFloatNumberOutput(number: number, negative: boolean): checkruntime.TextValue {
+    number = langruntime.checkedF64(number);
+    negative = langruntime.checkedBool(negative);
+    if (!(number === number)) {
+        return checkruntime.makeTextValue("NaN");
+    }
+    const infinity: number = langruntime.f64Divide(1.0, 0.0);
+    if (number === infinity) {
+        return checkruntime.makeTextValue("Infinity");
+    }
+    if (number === langruntime.f64Subtract(0.0, infinity)) {
+        return checkruntime.makeTextValue("-Infinity");
+    }
+    if (number === 0.0) {
+        if (negative) {
+            return checkruntime.makeTextValue("-0");
+        }
+        return checkruntime.makeTextValue("0");
+    }
+    const absolute: number = langruntime.f64Abs(number);
+    if (absolute >= 1.0 && absolute <= 9.0) {
+        const digit: number = langruntime.f64ToI32(absolute);
+        if ((Number(langruntime.checkedI32(digit))) === absolute) {
+            let output: string = "";
+            if (negative) {
+                output = output + langruntime.checkedChar("-");
+            }
+            const text: string = checkruntime.textNumber(digit, 10);
+            output = output + text;
+            return { kind: "Value", value: output };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arrayFloat4Output(input: checkruntime.Float4Value): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat4Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalFloat4Value(input, { kind: "UnspecifiedNan" })) {
+        return checkruntime.makeTextValue("NaN");
+    }
+    if (input.kind === "Value") {
+        const bits: number = langruntime.checkedI32(input.value);
+        return arrayFloatNumberOutput(checkruntime.float4Number(bits), bits < 0);
+    }
+    return { kind: "Unknown" };
+}
+export function arrayFloat8Output(input: checkruntime.Float8Value): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "UnspecifiedNan" })) {
+        return checkruntime.makeTextValue("NaN");
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        return arrayFloatNumberOutput(checkruntime.float8Number(bits), bits < 0n);
+    }
+    return { kind: "Unknown" };
+}
+export function arrayContextualOutput(input: checkruntime.ArrayElement): checkruntime.TextValue {
+    input = checkruntime.copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayNetworkOutput(input: checkruntime.NetworkValue, cidr: boolean): checkruntime.TextValue {
+    cidr = langruntime.checkedBool(cidr);
+    if (cidr) {
+        return networkOutput(input, 1);
+    }
+    return networkOutput(input, 2);
+}
+function arrayOutputQuote(input: string, delimiter: string): string {
+    input = langruntime.checkedString(input);
+    delimiter = langruntime.checkedChar(delimiter);
+    const characters: string[] = Array.from(input);
+    let quote: boolean = characters.length === 0;
+    if (characters.length === 4) {
+        quote = langruntime.checkedBool(langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(0))) === "n" && langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(1))) === "u" && langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(2))) === "l" && langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(3))) === "l");
+    }
+    let position: number = 0;
+    while (position < characters.length) {
+        const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+        if (ch === "\"" || ch === "\\" || ch === "{" || ch === "}" || ch === delimiter || ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\v" || ch === "\f") {
+            quote = langruntime.checkedBool(true);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let output: string = "";
+    if (quote) {
+        output = output + langruntime.checkedChar("\"");
+    }
+    position = langruntime.checkedIndex(0);
+    while (position < characters.length) {
+        const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+        if (ch === "\"" || ch === "\\") {
+            output = output + langruntime.checkedChar("\\");
+        }
+        output = output + langruntime.checkedChar(ch);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (quote) {
+        output = output + langruntime.checkedChar("\"");
+    }
+    return output;
+}
+export function finishArrayOutput(input: checkruntime.ArrayOutputPayload, rendered: checkruntime.ArrayArguments, boxDelimiter: boolean): checkruntime.TextValue {
+    input = checkruntime.copyArrayOutputPayload(input);
+    rendered = checkruntime.copyArrayArguments(rendered);
+    boxDelimiter = langruntime.checkedBool(boxDelimiter);
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (!(input.state === 1)) {
+        return { kind: "Unknown" };
+    }
+    if (rendered.kind === "Error") {
+        const error: checkruntime.SqlError = rendered.value;
+        return { kind: "Error", value: error };
+    }
+    if (rendered.kind === "Value") {
+        const values: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(rendered.value);
+        if (!(values.elements.length === input.elements.length)) {
+            return { kind: "Unknown" };
+        }
+        if (values.elements.length === 0) {
+            return checkruntime.makeTextValue("{}");
+        }
+        let delimiter: string = ",";
+        if (boxDelimiter) {
+            delimiter = langruntime.checkedChar(";");
+        }
+        let bounds: boolean = false;
+        let depth: number = 0;
+        while (depth < input.dimensions.length) {
+            if (!(langruntime.indexStruct(input.dimensions, langruntime.checkedIndex(depth), checkruntime.copyArrayDimension).lower === 1)) {
+                bounds = langruntime.checkedBool(true);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+        }
+        let output: string = "";
+        if (bounds) {
+            depth = langruntime.checkedIndex(0);
+            while (depth < input.dimensions.length) {
+                const dimension: checkruntime.ArrayDimension = langruntime.indexStruct(input.dimensions, langruntime.checkedIndex(depth), checkruntime.copyArrayDimension);
+                const lower: checkruntime.TextValue = int8ToText(checkruntime.makeInt8Value(BigInt(langruntime.checkedI32(dimension.lower))));
+                const upper: checkruntime.TextValue = int8ToText(checkruntime.makeInt8Value(langruntime.checkedI64Subtract(langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), (BigInt(langruntime.checkedI32(dimension.length)))), 1n)));
+                if (lower.kind === "Value") {
+                    const first: string = langruntime.checkedString(lower.value);
+                    if (upper.kind === "Value") {
+                        const last: string = langruntime.checkedString(upper.value);
+                        output = output + langruntime.checkedChar("[");
+                        output = output + first;
+                        output = output + langruntime.checkedChar(":");
+                        output = output + last;
+                        output = output + langruntime.checkedChar("]");
+                    }
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+            output = output + langruntime.checkedChar("=");
+        }
+        let position: number = 0;
+        let reopen: number = input.dimensions.length;
+        while (position < values.elements.length) {
+            while (reopen > 0) {
+                output = output + langruntime.checkedChar("{");
+                reopen = langruntime.checkedIndex(langruntime.checkedSubtract(reopen, 1));
+            }
+            const element: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(values.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement));
+            let isNull: boolean = false;
+            if (element.kind === "Null") {
+                output = output + "NULL";
+                isNull = langruntime.checkedBool(true);
+            }
+            if (isNull === false) {
+                const text: checkruntime.TextValue = checkruntime.arrayElementToText(element);
+                let known: boolean = false;
+                if (text.kind === "Value") {
+                    const value: string = langruntime.checkedString(text.value);
+                    const escaped: string = arrayOutputQuote(value, delimiter);
+                    output = output + escaped;
+                    known = langruntime.checkedBool(true);
+                }
+                if (known === false) {
+                    return { kind: "Unknown" };
+                }
+            }
+            position = langruntime.checkedAdd(position, 1);
+            depth = langruntime.checkedIndex(input.dimensions.length);
+            let stride: number = 1;
+            while (depth > 0) {
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                const length: number = langruntime.indexStruct(input.dimensions, langruntime.checkedIndex(depth), checkruntime.copyArrayDimension).length;
+                stride = langruntime.checkedI32(langruntime.checkedSignedMultiply(stride, length));
+                if (!(langruntime.checkedSignedRemainder((langruntime.checkedI32(langruntime.checkedIndex(position))), stride) === 0)) {
+                    output = output + langruntime.checkedChar(delimiter);
+                    break;
+                }
+                output = output + langruntime.checkedChar("}");
+                reopen = langruntime.checkedAdd(reopen, 1);
+            }
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 export function int48lt65ji(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

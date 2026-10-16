@@ -1,7 +1,6 @@
 # CHECK evaluator work ledger
 
-This is the implementation queue for the Rust CHECK engine. Work in the order below unless a task exposes a prerequisite.
-Complete a bounded task through binding, generated Rust, Go, TypeScript, and PostgreSQL parity before expanding its scope. Check a box only after its completion criteria pass.
+This is the implementation queue for the Rust CHECK engine. Work in the order below unless a task exposes a prerequisite. Complete a bounded task through binding, generated Rust, Go, TypeScript, and PostgreSQL parity before expanding its scope. Check a box only after its completion criteria pass.
 
 ## Baseline and measurements
 
@@ -252,7 +251,8 @@ exposes a prerequisite:
 - [x] Admit SQL-coerced scalar/enum arrays and domains over arrays, metadata calls, typed builtin NULLs, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
 - [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, eager errors, constant preparation and INSERT parity; preserve nominal domain-element deferrals.
 - [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.
-- [x] Admit source/stored array literals and text I/O input, integer/Boolean/numeric/enum input profiles, widths/precision, explicit array_nulls, captured money units and coerced name facets; verify lazy preparation, exact cells and INSERT parity. Array output remains separate.
+- [x] Admit source/stored array literals and text I/O input, integer/Boolean/numeric/enum input profiles, widths/precision, explicit array_nulls, captured money units and coerced name facets; verify lazy preparation, exact cells and INSERT parity.
+- [x] Admit array text output, element-specific I/O, dimensions, quoting/escaping, character widths and INSERT parity; retain scalar formatting/catalog deferrals and known empty/NULL-only arrays.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.

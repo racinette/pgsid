@@ -27,6 +27,65 @@ pub enum ArrayArguments {
     Value(ArrayPayload),
 }
 
+#[derive(Clone)]
+pub struct ArrayOutputPayload {
+    pub state: i32,
+    pub error: SqlError,
+    pub dimensions: Vec<ArrayDimension>,
+    pub elements: Vec<ArrayElement>,
+}
+
+#[derive(Clone)]
+pub enum ArrayOutputPlan {
+    Value(ArrayOutputPayload),
+}
+
+pub fn prepare_array_output(input: ArrayValue) -> ArrayOutputPayload {
+    if let ArrayValue::Value(value) = input {
+        return ArrayOutputPayload {
+            state: 1,
+            error: make_sql_error(0),
+            dimensions: value.dimensions,
+            elements: value.elements,
+        };
+    };
+    let mut state = -1;
+    let mut error = make_sql_error(0);
+    if let ArrayValue::Null = input {
+        state = 0;
+    };
+    if let ArrayValue::Error(value) = input {
+        state = -2;
+        error = value;
+    };
+    let dimensions: Vec<ArrayDimension> = Vec::new();
+    let elements: Vec<ArrayElement> = Vec::new();
+    ArrayOutputPayload {
+        state: state,
+        error: error,
+        dimensions: dimensions,
+        elements: elements,
+    }
+}
+
+pub fn array_output_has_element(input: &ArrayOutputPayload, index: Int4Value) -> bool {
+    if let Int4Value::Value(offset) = index {
+        let position = usize::try_from(offset).unwrap_or(input.elements.len());
+        return input.state == 1 && offset >= 0 && position < input.elements.len();
+    };
+    false
+}
+
+pub fn array_output_element_at(input: &ArrayOutputPayload, index: Int4Value) -> ArrayElement {
+    if let Int4Value::Value(offset) = index {
+        let position = usize::try_from(offset).unwrap_or(input.elements.len());
+        if offset >= 0 && position < input.elements.len() {
+            return input.elements[position].clone();
+        };
+    };
+    ArrayElement::Unknown
+}
+
 pub fn array_unknown() -> ArrayValue {
     ArrayValue::Unknown
 }

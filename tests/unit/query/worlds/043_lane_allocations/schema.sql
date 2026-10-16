@@ -60,3 +60,22 @@ CREATE TABLE lane_imports (
   CONSTRAINT imported_regions CHECK (cardinality(regions::box[]) <= slot_limit),
   CONSTRAINT imported_fallback CHECK (CASE WHEN bypass THEN true ELSE cardinality(COALESCE(payload::integer[], '{1,NULL}'::integer[])) <= slot_limit END)
 );
+
+CREATE TABLE lane_exports (
+  slots lane_slots,
+  labels text[],
+  flags boolean[],
+  amounts numeric[],
+  documents jsonb[],
+  expected_slots text,
+  expected_labels text,
+  expected_flags text,
+  expected_amounts text,
+  expected_documents text,
+  bypass boolean,
+  CONSTRAINT exported_slots CHECK (CASE WHEN bypass THEN true ELSE slots::text COLLATE "C" IS NOT DISTINCT FROM expected_slots COLLATE "C" END),
+  CONSTRAINT exported_labels CHECK (labels::text COLLATE "C" IS NOT DISTINCT FROM expected_labels COLLATE "C"),
+  CONSTRAINT exported_flags CHECK (flags::text COLLATE "C" IS NOT DISTINCT FROM expected_flags COLLATE "C"),
+  CONSTRAINT exported_amounts CHECK (amounts::text COLLATE "C" IS NOT DISTINCT FROM expected_amounts COLLATE "C"),
+  CONSTRAINT exported_documents CHECK (documents::text COLLATE "C" IS NOT DISTINCT FROM expected_documents COLLATE "C")
+);

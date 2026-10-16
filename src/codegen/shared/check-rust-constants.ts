@@ -74,7 +74,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.expression.elements === null
   )
     return constant(expression, true)
-  if (expression.kind === 'text-to-array') {
+  if (expression.kind === 'text-to-array' || expression.kind === 'array-to-text') {
     const operand = prepare(expression.operand)
     return operand
       ? { constant: false, null: operand.null, expressions: operand.expressions }

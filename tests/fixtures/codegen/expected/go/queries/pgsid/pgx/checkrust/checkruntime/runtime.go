@@ -7614,7 +7614,7 @@ type ArrayArguments struct {
 	Value ArrayPayload
 }
 
-func copyArrayArguments(value ArrayArguments) ArrayArguments {
+func CopyArrayArguments(value ArrayArguments) ArrayArguments {
 	switch value.Kind {
 	case ArrayArgumentsUnknown:
 		return ArrayArguments{Kind: ArrayArgumentsUnknown}
@@ -7624,6 +7624,76 @@ func copyArrayArguments(value ArrayArguments) ArrayArguments {
 		return ArrayArguments{Kind: ArrayArgumentsValue, Value: CopyArrayPayload(value.Value)}
 	}
 	panic("unknown enum variant")
+}
+
+type ArrayOutputPayload struct {
+	State      int
+	Error      SqlError
+	Dimensions []ArrayDimension
+	Elements   []ArrayElement
+}
+
+func CopyArrayOutputPayload(value ArrayOutputPayload) ArrayOutputPayload {
+	return ArrayOutputPayload{State: langruntime.CheckedI32(value.State), Error: value.Error, Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement)}
+}
+
+type ArrayOutputPlanKind uint8
+
+const (
+	ArrayOutputPlanValue ArrayOutputPlanKind = iota
+)
+
+type ArrayOutputPlan struct {
+	Kind  ArrayOutputPlanKind
+	Value ArrayOutputPayload
+}
+
+func copyArrayOutputPlan(value ArrayOutputPlan) ArrayOutputPlan {
+	switch value.Kind {
+	case ArrayOutputPlanValue:
+		return ArrayOutputPlan{Kind: ArrayOutputPlanValue, Value: CopyArrayOutputPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func PrepareArrayOutput(input ArrayValue) ArrayOutputPayload {
+	input = CopyArrayValue(input)
+	if input.Kind == ArrayValueValue {
+		value := CopyArrayPayload(input.Value)
+		return ArrayOutputPayload{State: 1, Error: MakeSqlError(0), Dimensions: value.Dimensions, Elements: value.Elements}
+	}
+	state := langruntime.CheckedSignedNegate(1)
+	error := MakeSqlError(0)
+	if input.Kind == ArrayValueNull {
+		state = langruntime.CheckedI32(0)
+	}
+	if input.Kind == ArrayValueError {
+		value := input.Error
+		state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(2))
+		error = value
+	}
+	dimensions := []ArrayDimension{}
+	elements := []ArrayElement{}
+	return ArrayOutputPayload{State: state, Error: error, Dimensions: dimensions, Elements: elements}
+}
+func ArrayOutputHasElement(input *ArrayOutputPayload, index Int4Value) bool {
+	input = langruntime.CheckedBorrowed(input, CopyArrayOutputPayload)
+	if index.Kind == Int4ValueValue {
+		offset := langruntime.CheckedI32(index.Value)
+		position := langruntime.IndexFromI32(offset, len(input.Elements))
+		return input.State == 1 && offset >= 0 && position < len(input.Elements)
+	}
+	return false
+}
+func ArrayOutputElementAt(input *ArrayOutputPayload, index Int4Value) ArrayElement {
+	input = langruntime.CheckedBorrowed(input, CopyArrayOutputPayload)
+	if index.Kind == Int4ValueValue {
+		offset := langruntime.CheckedI32(index.Value)
+		position := langruntime.IndexFromI32(offset, len(input.Elements))
+		if offset >= 0 && position < len(input.Elements) {
+			return CopyArrayElement(input.Elements[position])
+		}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayUnknown() ArrayValue {
 	return ArrayValue{Kind: ArrayValueUnknown}
@@ -7729,7 +7799,7 @@ func MakeArrayArguments(elementType string, elementKind int) ArrayArguments {
 	return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: elements}}
 }
 func AppendArrayDimension(input ArrayArguments, lower int, length int) ArrayArguments {
-	input = copyArrayArguments(input)
+	input = CopyArrayArguments(input)
 	lower = langruntime.CheckedI32(lower)
 	length = langruntime.CheckedI32(length)
 	if input.Kind == ArrayArgumentsValue {
@@ -7742,7 +7812,7 @@ func AppendArrayDimension(input ArrayArguments, lower int, length int) ArrayArgu
 	return input
 }
 func AppendArrayArgument(input ArrayArguments, element ArrayElement) ArrayArguments {
-	input = copyArrayArguments(input)
+	input = CopyArrayArguments(input)
 	element = CopyArrayElement(element)
 	if input.Kind == ArrayArgumentsError {
 		return input
@@ -7761,7 +7831,7 @@ func AppendArrayArgument(input ArrayArguments, element ArrayElement) ArrayArgume
 	return input
 }
 func FinishArrayArguments(input ArrayArguments) ArrayValue {
-	input = copyArrayArguments(input)
+	input = CopyArrayArguments(input)
 	if input.Kind == ArrayArgumentsError {
 		error := input.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -7805,7 +7875,7 @@ func ArrayFlatElement(input ArrayValue, offset Int4Value) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func FinishArrayConstructor(input ArrayArguments) ArrayValue {
-	input = copyArrayArguments(input)
+	input = CopyArrayArguments(input)
 	if input.Kind == ArrayArgumentsError {
 		error := input.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -8430,7 +8500,7 @@ func ArrayTextEventAt(input *ArrayTextPayload, index Int4Value) TextValue {
 }
 func FinishArrayText(plan ArrayTextPlan, converted ArrayArguments) ArrayValue {
 	plan = copyArrayTextPlan(plan)
-	converted = copyArrayArguments(converted)
+	converted = CopyArrayArguments(converted)
 	if converted.Kind == ArrayArgumentsError {
 		error := converted.Error
 		return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -8505,7 +8575,7 @@ func ArrayTextNextIndex(input Int4Value) Int4Value {
 }
 func FinishPreparedArrayText(input ArrayTextPayload, converted ArrayArguments) ArrayValue {
 	input = copyArrayTextPayload(input)
-	converted = copyArrayArguments(converted)
+	converted = CopyArrayArguments(converted)
 	if input.State == 0 {
 		return ArrayValue{Kind: ArrayValueNull}
 	}

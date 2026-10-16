@@ -181,3 +181,50 @@ VALUES ('{bad}', NULL, NULL, NULL, NULL, NULL, 3, NULL, true);
 -- name: import_null_fallback_exceeds_capacity
 INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
 VALUES (NULL, NULL, NULL, NULL, NULL, NULL, 1, NULL, false);
+
+-- name: export_nested_bounds
+INSERT INTO lane_exports (slots, labels, flags, amounts, documents, expected_slots, expected_labels, expected_flags, expected_amounts, expected_documents, bypass)
+VALUES ('[0:1][-2:-1]={{1,NULL},{3,4}}', '{"NULL","a,b"}', '{t,f,NULL}', '{1.2300,NULL}', '{"{\"a\":1}",NULL}', '[0:1][-2:-1]={{1,NULL},{3,4}}', '{"NULL","a,b"}', '{t,f,NULL}', '{1.2300,NULL}', '{"{\"a\": 1}",NULL}', false);
+
+-- name: export_empty_arrays
+INSERT INTO lane_exports (slots, labels, flags, amounts, documents, expected_slots, expected_labels, expected_flags, expected_amounts, expected_documents, bypass)
+VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', false);
+
+-- name: export_null_arrays
+INSERT INTO lane_exports (slots, labels, flags, amounts, documents, expected_slots, expected_labels, expected_flags, expected_amounts, expected_documents, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: export_null_cells
+INSERT INTO lane_exports (slots, labels, flags, amounts, documents, expected_slots, expected_labels, expected_flags, expected_amounts, expected_documents, bypass)
+VALUES ('{NULL}', '{NULL}', '{NULL}', '{NULL}', '{NULL}', '{NULL}', '{NULL}', '{NULL}', '{NULL}', '{NULL}', false);
+
+-- name: export_escaped_labels
+INSERT INTO lane_exports (labels, expected_labels)
+VALUES ('{"","null","a\"b","a\\b","x
+y",雪😊}', '{"","null","a\"b","a\\b","x
+y",雪😊}');
+
+-- name: export_wrong_slots
+INSERT INTO lane_exports (slots, expected_slots) VALUES ('[0:1]={1,2}', '{1,2}');
+
+-- name: export_wrong_labels
+INSERT INTO lane_exports (labels, expected_labels) VALUES ('{"NULL"}', '{NULL}');
+
+-- name: export_wrong_flags
+INSERT INTO lane_exports (flags, expected_flags) VALUES ('{t,f}', '{true,false}');
+
+-- name: export_wrong_numeric_scale
+INSERT INTO lane_exports (amounts, expected_amounts) VALUES ('{1.2300}', '{1.23}');
+
+-- name: export_wrong_jsonb_spacing
+INSERT INTO lane_exports (documents, expected_documents) VALUES ('{"{\"a\":1}"}', '{"{\"a\":1}"}');
+
+-- name: export_guarded_slots
+INSERT INTO lane_exports (slots, expected_slots, bypass) VALUES ('{1,2}', 'wrong', true);
+
+-- name: export_json_null_and_sql_null
+INSERT INTO lane_exports (documents, expected_documents) VALUES ('{"null",NULL}', '{"null",NULL}');
+
+-- name: export_exact_numeric_values
+INSERT INTO lane_exports (amounts, expected_amounts)
+VALUES ('{12345678901234567890.0012300,NaN,Infinity,-Infinity,0.00}', '{12345678901234567890.0012300,NaN,Infinity,-Infinity,0.00}');

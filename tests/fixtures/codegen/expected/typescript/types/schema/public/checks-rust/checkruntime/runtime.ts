@@ -7746,12 +7746,70 @@ export type ArrayArguments = {
     kind: "Value";
     value: ArrayPayload;
 };
-function copyArrayArguments(value: ArrayArguments): ArrayArguments {
+export function copyArrayArguments(value: ArrayArguments): ArrayArguments {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyArrayPayload(value.value) };
     }
+}
+export interface ArrayOutputPayload {
+    state: number;
+    error: SqlError;
+    dimensions: ArrayDimension[];
+    elements: ArrayElement[];
+}
+export function copyArrayOutputPayload(value: ArrayOutputPayload): ArrayOutputPayload {
+    return { state: langruntime.checkedI32(value.state), error: value.error, dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement) };
+}
+export type ArrayOutputPlan = {
+    kind: "Value";
+    value: ArrayOutputPayload;
+};
+function copyArrayOutputPlan(value: ArrayOutputPlan): ArrayOutputPlan {
+    switch (value.kind) {
+        case "Value": return { kind: "Value", value: copyArrayOutputPayload(value.value) };
+    }
+}
+export function prepareArrayOutput(input: ArrayValue): ArrayOutputPayload {
+    input = copyArrayValue(input);
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        return { state: 1, error: makeSqlError(0), dimensions: value.dimensions, elements: value.elements };
+    }
+    let state: number = langruntime.checkedSignedNegate(1);
+    let error: SqlError = makeSqlError(0);
+    if (input.kind === "Null") {
+        state = langruntime.checkedI32(0);
+    }
+    if (input.kind === "Error") {
+        const value: SqlError = input.value;
+        state = langruntime.checkedI32(langruntime.checkedSignedNegate(2));
+        error = value;
+    }
+    const dimensions: ArrayDimension[] = [];
+    const elements: ArrayElement[] = [];
+    return { state: state, error: error, dimensions: dimensions, elements: elements };
+}
+export function arrayOutputHasElement(input: ArrayOutputPayload, index: Int4Value): boolean {
+    input = copyArrayOutputPayload(input);
+    if (index.kind === "Value") {
+        const offset: number = langruntime.checkedI32(index.value);
+        const position: number = langruntime.indexFromI32(offset, input.elements.length);
+        return input.state === 1 && offset >= 0 && position < input.elements.length;
+    }
+    return false;
+}
+export function arrayOutputElementAt(input: ArrayOutputPayload, index: Int4Value): ArrayElement {
+    input = copyArrayOutputPayload(input);
+    if (index.kind === "Value") {
+        const offset: number = langruntime.checkedI32(index.value);
+        const position: number = langruntime.indexFromI32(offset, input.elements.length);
+        if (offset >= 0 && position < input.elements.length) {
+            return copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement));
+        }
+    }
+    return { kind: "Unknown" };
 }
 export function arrayUnknown(): ArrayValue {
     return { kind: "Unknown" };

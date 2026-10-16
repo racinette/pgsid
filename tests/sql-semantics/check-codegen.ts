@@ -123,7 +123,10 @@ export function renderGoCheckTests(
               elementKind: number
               dimensions: { lower: number; length: number }[]
               elements: (
-                { kind: 'Null' } | { kind: 'Int4'; value: number } | { kind: 'Text'; value: string }
+                | { kind: 'Null' }
+                | { kind: 'Int4'; value: number }
+                | { kind: 'Text' | 'Numeric' | 'Jsonb'; value: string }
+                | { kind: 'Bool'; value: boolean }
               )[]
             }
           }
@@ -152,19 +155,25 @@ export function renderGoCheckTests(
                 go.composite(
                   go.slice(runtime('ArrayElement')),
                   payload.elements.map((element) =>
-                    go.composite(runtime('ArrayElement'), [
-                      go.keyValue('Kind', runtime('ArrayElement' + element.kind)),
-                      ...(element.kind === 'Null'
-                        ? []
-                        : [
-                            go.keyValue(
-                              element.kind,
-                              element.kind === 'Int4'
-                                ? go.number(element.value)
-                                : go.string(element.value),
-                            ),
-                          ]),
-                    ]),
+                    element.kind === 'Jsonb'
+                      ? go.call(runtime('ArrayElementFromJsonb'), [
+                          go.call(runtime('MakeJsonbValue'), [go.string(element.value)]),
+                        ])
+                      : go.composite(runtime('ArrayElement'), [
+                          go.keyValue('Kind', runtime('ArrayElement' + element.kind)),
+                          ...(element.kind === 'Null'
+                            ? []
+                            : [
+                                go.keyValue(
+                                  element.kind,
+                                  element.kind === 'Int4'
+                                    ? go.number(element.value)
+                                    : element.kind === 'Bool'
+                                      ? go.ident(String(element.value))
+                                      : go.string(element.value),
+                                ),
+                              ]),
+                        ]),
                   ),
                 ),
               ),
