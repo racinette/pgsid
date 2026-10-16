@@ -8680,7 +8680,7 @@ export type ArraySubscripts = {
     kind: "Value";
     value: ArraySubscriptPayload;
 };
-function copyArraySubscripts(value: ArraySubscripts): ArraySubscripts {
+export function copyArraySubscripts(value: ArraySubscripts): ArraySubscripts {
     switch (value.kind) {
         case "Error": return { kind: "Error", value: value.value };
         case "Value": return { kind: "Value", value: copyArraySubscriptPayload(value.value) };
@@ -8886,7 +8886,7 @@ export function arraySliceSubscript(input: ArrayValue, indices: ArraySubscripts)
                     if (first.provided && (BigInt(langruntime.checkedI32(first.value))) > low) {
                         low = langruntime.checkedI64(BigInt(langruntime.checkedI32(first.value)));
                     }
-                    if (last.provided && (BigInt(langruntime.checkedI32(last.value))) < high) {
+                    if (last.provided && langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), (BigInt(langruntime.checkedI32(dimension.length)))) <= 2147483647n && (BigInt(langruntime.checkedI32(last.value))) < high) {
                         high = langruntime.checkedI64(BigInt(langruntime.checkedI32(last.value)));
                     }
                 }

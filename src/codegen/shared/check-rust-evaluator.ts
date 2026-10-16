@@ -178,6 +178,30 @@ export const isArraySearch = (item: ReturnType<typeof builtinMetadata>): boolean
       item.result === 'pg_catalog._int4' &&
       item.args.length === 2))
 
+export const isArrayFill = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'array_fill' &&
+  !item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.result === 'pg_catalog.anyarray' &&
+  item.args[0] === 'pg_catalog.anyelement' &&
+  (item.args.length === 2 || item.args.length === 3) &&
+  item.args.slice(1).every((type) => type === 'pg_catalog._int4')
+
+export const isArrayTrim = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'trim_array' &&
+  item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.result === 'pg_catalog.anyarray' &&
+  item.args.length === 2 &&
+  item.args[0] === 'pg_catalog.anyarray' &&
+  item.args[1] === 'pg_catalog.int4'
+
 export const isArrayRewrite = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
   item.schema === 'pg_catalog' &&
@@ -953,6 +977,8 @@ export function emitCheckRustEvaluator(
         (implementation.args.length === 0 ? operands.length === 0 : operands.length > 0)
       const jsonpathTimezone = isJsonpathTimezoneCallable(implementation)
       const arraySearch = isArraySearch(implementation)
+      const arrayFill = isArrayFill(implementation)
+      const arrayTrim = isArrayTrim(implementation)
       const arrayRewrite = isArrayRewrite(implementation)
       const arrayTransform = isArrayTransform(implementation)
       const transformArray =
@@ -971,7 +997,11 @@ export function emitCheckRustEvaluator(
             ? transformArray
             : implementation.result === 'pg_catalog.anyenum'
               ? enumIdentity
-              : implementation.result
+              : arrayFill
+                ? `array:${operands[0]?.type}`
+                : arrayTrim
+                  ? operands[0]?.type
+                  : implementation.result
       if (
         metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
@@ -980,6 +1010,7 @@ export function emitCheckRustEvaluator(
           !arraySearch &&
           !arrayTransform &&
           !arrayRewrite &&
+          !arrayFill &&
           !jsonbBuilder &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
@@ -1045,15 +1076,19 @@ export function emitCheckRustEvaluator(
                 ? false
                 : type === 'pg_catalog.anyenum' && enumCall
                   ? !operands[index]?.type.startsWith('enum:')
-                  : type === 'pg_catalog.anyelement' && jsonbConversion
+                  : type === 'pg_catalog.anyelement' && (jsonbConversion || arrayFill)
                     ? false
-                    : operands[index]?.type !== type &&
-                      !(
-                        call.kind === 'cast' &&
-                        call.type === 'pg_catalog."char"' &&
-                        type === 'pg_catalog.text' &&
-                        operands[index]?.type === 'pg_catalog.bpchar'
-                      ),
+                    : arrayFill &&
+                        type === 'pg_catalog._int4' &&
+                        operands[index]?.type === 'array:pg_catalog.int4'
+                      ? false
+                      : operands[index]?.type !== type &&
+                        !(
+                          call.kind === 'cast' &&
+                          call.type === 'pg_catalog."char"' &&
+                          type === 'pg_catalog.text' &&
+                          operands[index]?.type === 'pg_catalog.bpchar'
+                        ),
         )
       )
         throw new UnsupportedCheckRustExpression(
@@ -1061,6 +1096,29 @@ export function emitCheckRustEvaluator(
         )
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
+      if (arrayFill) {
+        const elementType = operands[0]?.type,
+          family = elementType ? arrayElementFamily(elementType) : null
+        if (family === null || !elementType || call.type !== `array:${elementType}`)
+          throw new UnsupportedCheckRustExpression(
+            'Array fill requires one concrete scalar identity',
+          )
+        const element = fresh('array_fill_element'),
+          name = fresh('array_fill'),
+          prefix = rustValuePrefix(rustType(elementType))
+        destination.push(
+          `let ${element} = array_element_from_${prefix}(${ownedOperand(operands[0]!)});`,
+        )
+        const args = [
+          element,
+          ...operands.slice(1).map(ownedOperand),
+          rustStringLiteral(elementType),
+          String(family),
+        ]
+        destination.push(`let ${name} = ${implementation.rustName}(${args.join(', ')});`)
+        callables.add(implementation.rustName)
+        return { name, type: call.type }
+      }
       if (arrayTransform) {
         callables.add(implementation.rustName)
         if (

@@ -8625,7 +8625,7 @@ type ArraySubscripts struct {
 	Value ArraySubscriptPayload
 }
 
-func copyArraySubscripts(value ArraySubscripts) ArraySubscripts {
+func CopyArraySubscripts(value ArraySubscripts) ArraySubscripts {
 	switch value.Kind {
 	case ArraySubscriptsError:
 		return ArraySubscripts{Kind: ArraySubscriptsError, Error: value.Error}
@@ -8640,7 +8640,7 @@ func MakeArraySubscripts() ArraySubscripts {
 	return ArraySubscripts{Kind: ArraySubscriptsValue, Value: ArraySubscriptPayload{Upper: upper, Lower: lower}}
 }
 func AppendArraySubscript(input ArraySubscripts, index Int4Value, isLower bool, provided bool) ArraySubscripts {
-	input = copyArraySubscripts(input)
+	input = CopyArraySubscripts(input)
 	if input.Kind == ArraySubscriptsError {
 		return input
 	}
@@ -8716,7 +8716,7 @@ func arraySubscriptState(input *ArraySubscriptPayload) int {
 }
 func ArrayFetchSubscript(input ArrayValue, indices ArraySubscripts) ArrayElement {
 	input = CopyArrayValue(input)
-	indices = copyArraySubscripts(indices)
+	indices = CopyArraySubscripts(indices)
 	if input.Kind == ArrayValueError {
 		error := input.Error
 		return ArrayElement{Kind: ArrayElementError, Error: error}
@@ -8789,7 +8789,7 @@ func arrayEmptyLike(input *ArrayPayload) ArrayValue {
 }
 func ArraySliceSubscript(input ArrayValue, indices ArraySubscripts) ArrayValue {
 	input = CopyArrayValue(input)
-	indices = copyArraySubscripts(indices)
+	indices = CopyArraySubscripts(indices)
 	if input.Kind == ArrayValueError {
 		return input
 	}
@@ -8834,7 +8834,7 @@ func ArraySliceSubscript(input ArrayValue, indices ArraySubscripts) ArrayValue {
 					if first.Provided && (int64(langruntime.CheckedI32(first.Value))) > low {
 						low = int64(langruntime.CheckedI32(first.Value))
 					}
-					if last.Provided && (int64(langruntime.CheckedI32(last.Value))) < high {
+					if last.Provided && langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), (int64(langruntime.CheckedI32(dimension.Length)))) <= int64(2147483647) && (int64(langruntime.CheckedI32(last.Value))) < high {
 						high = int64(langruntime.CheckedI32(last.Value))
 					}
 				}

@@ -251,9 +251,9 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Admit multidimensional element fetches and slices, omitted/mixed bounds, integer assignment casts, copied cells, constant preparation and reached-error order; verify raw/stored composition and INSERT parity.
 - [x] Admit array equality/order through catalog-selected element support, NULL cells, dimensional tie-breaks, reached context deferrals, owned snapshots, constant preparation, expression composition and INSERT parity.
 - [x] Admit containment/overlap through default element equality, shape/duplicate independence, nonmatching NULL cells, partial-input recovery, reached errors, constant preparation, collation boundaries and INSERT parity.
-- [x] Establish catalog-linked array element casts, precision/width arguments, common CASE/COALESCE/extrema/constructor types, retained bounds and partial cells, nominal enums and INSERT parity; generic compatible signatures and I/O coercions follow.
+- [x] Establish catalog-linked array element casts, precision/width arguments, common CASE/COALESCE/extrema/constructor types, retained bounds and partial cells, nominal enums and INSERT parity; remaining I/O coercions follow.
 - [x] Bind compatible array/element signatures and admit first/all position searches, NULL matching, lower bounds/start positions, support/shape error order, partial-input prefixes, context/preparation boundaries, nominal enums and INSERT parity.
-- [x] Admit compatible append/prepend, concatenation and removal/replacement, NULL matching and identities, retained shapes/bounds, copied scalar/enum cells, partial-input recovery, reached support/context errors, constant preparation and public INSERT parity.
+- [x] Admit fill/trim, append/prepend, concatenation and removal/replacement; verify concrete/polymorphic binding, NULL/partial cells, retained/reset bounds, support/error order, native-count deferral, preparation and INSERT parity.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.

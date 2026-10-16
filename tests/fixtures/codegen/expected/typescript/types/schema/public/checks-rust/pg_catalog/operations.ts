@@ -80,6 +80,226 @@ export function arraycontainedUyb2(input: checkruntime.BoolValue): checkruntime.
 export function arrayoverlapLwrw(input: checkruntime.BoolValue): checkruntime.BoolValue {
     return input;
 }
+const arrayFillNull = 3452548;
+const arrayFillShape = 3452630;
+const arrayFillLimit = 8584704;
+const arrayFillPortableItems = 134217727n;
+const arrayFillMaxItems = 268435455n;
+function arrayFillNulls(input: checkruntime.ArrayPayload): checkruntime.Int4Value {
+    let unknown: boolean = false;
+    let position: number = 0;
+    while (position < input.elements.length) {
+        const element: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement));
+        if (element.kind === "Null") {
+            return { kind: "Error", value: checkruntime.makeSqlError(arrayFillNull) };
+        }
+        if (element.kind === "Unknown") {
+            unknown = langruntime.checkedBool(true);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (unknown) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: 0 };
+}
+function arrayFillPayload(element: checkruntime.ArrayElement, lengths: checkruntime.ArrayPayload, bounds: checkruntime.ArrayPayload, elementType: string, elementKind: number): checkruntime.ArrayValue {
+    element = checkruntime.copyArrayElement(element);
+    lengths = checkruntime.copyArrayPayload(lengths);
+    bounds = checkruntime.copyArrayPayload(bounds);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    if (bounds.dimensions.length > 1) {
+        return { kind: "Error", value: checkruntime.makeSqlError(arrayFillShape) };
+    }
+    const boundNulls: checkruntime.Int4Value = arrayFillNulls(bounds);
+    if (boundNulls.kind === "Error") {
+        const error: checkruntime.SqlError = boundNulls.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(boundNulls, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (!(bounds.elements.length === lengths.elements.length)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(arrayFillShape) };
+    }
+    let count: bigint = 1n;
+    if (lengths.elements.length === 0) {
+        count = langruntime.checkedI64(0n);
+    }
+    let dimensions: checkruntime.ArrayDimension[] = [];
+    let position: number = 0;
+    while (position < lengths.elements.length) {
+        const length: checkruntime.Int4Value = checkruntime.arrayElementToInt4(checkruntime.copyArrayElement(langruntime.indexStruct(lengths.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)));
+        const lower: checkruntime.Int4Value = checkruntime.arrayElementToInt4(checkruntime.copyArrayElement(langruntime.indexStruct(bounds.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)));
+        if (length.kind === "Value") {
+            const size: number = langruntime.checkedI32(length.value);
+            if (size < 0) {
+                return { kind: "Error", value: checkruntime.makeSqlError(arrayFillLimit) };
+            }
+            const size64: bigint = BigInt(langruntime.checkedI32(size));
+            if (size64 > 0n && count > langruntime.checkedI64Divide(2147483647n, size64)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(arrayFillLimit) };
+            }
+            count = langruntime.checkedI64(langruntime.checkedI64Multiply(count, size64));
+            if (lower.kind === "Value") {
+                const start: number = langruntime.checkedI32(lower.value);
+                langruntime.pushStruct(dimensions, { lower: start, length: size }, checkruntime.copyArrayDimension);
+            }
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (!(dimensions.length === lengths.elements.length)) {
+        return { kind: "Unknown" };
+    }
+    if (count > arrayFillMaxItems) {
+        return { kind: "Error", value: checkruntime.makeSqlError(arrayFillLimit) };
+    }
+    position = langruntime.checkedIndex(0);
+    while (position < dimensions.length) {
+        const dimension: checkruntime.ArrayDimension = langruntime.indexStruct(dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension);
+        if (langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), (BigInt(langruntime.checkedI32(dimension.length)))) > 2147483647n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(arrayFillLimit) };
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (count === 0n) {
+        const empty: checkruntime.ArrayArguments = checkruntime.makeArrayArguments(elementType, elementKind);
+        return checkruntime.finishArrayArguments(empty);
+    }
+    if (count > arrayFillPortableItems) {
+        return { kind: "Unknown" };
+    }
+    let elements: checkruntime.ArrayElement[] = [];
+    let filled: bigint = 0n;
+    while (filled < count) {
+        langruntime.pushStruct(elements, checkruntime.copyArrayElement(element), checkruntime.copyArrayElement);
+        filled = langruntime.checkedI64(langruntime.checkedI64Add(filled, 1n));
+    }
+    return checkruntime.makeArrayValue({ elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: elements });
+}
+function arrayFillValue(element: checkruntime.ArrayElement, lengths: checkruntime.ArrayValue, bounds: checkruntime.ArrayValue, provided: boolean, elementType: string, elementKind: number): checkruntime.ArrayValue {
+    element = checkruntime.copyArrayElement(element);
+    lengths = checkruntime.copyArrayValue(lengths);
+    bounds = checkruntime.copyArrayValue(bounds);
+    provided = langruntime.checkedBool(provided);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    if (element.kind === "Error") {
+        const error: checkruntime.SqlError = element.value;
+        return { kind: "Error", value: error };
+    }
+    if (lengths.kind === "Error") {
+        const error: checkruntime.SqlError = lengths.value;
+        return { kind: "Error", value: error };
+    }
+    if (bounds.kind === "Error") {
+        const error: checkruntime.SqlError = bounds.value;
+        return { kind: "Error", value: error };
+    }
+    if (lengths.kind === "Null") {
+        return { kind: "Error", value: checkruntime.makeSqlError(arrayFillNull) };
+    }
+    if (provided) {
+        if (bounds.kind === "Null") {
+            return { kind: "Error", value: checkruntime.makeSqlError(arrayFillNull) };
+        }
+    }
+    if (lengths.kind === "Value") {
+        const shape: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(lengths.value);
+        if (shape.dimensions.length > 1) {
+            return { kind: "Error", value: checkruntime.makeSqlError(arrayFillShape) };
+        }
+        const nulls: checkruntime.Int4Value = arrayFillNulls(shape);
+        if (nulls.kind === "Error") {
+            const error: checkruntime.SqlError = nulls.value;
+            return { kind: "Error", value: error };
+        }
+        if (checkruntime.equalInt4Value(nulls, { kind: "Unknown" })) {
+            return { kind: "Unknown" };
+        }
+        if (shape.elements.length > 6) {
+            return { kind: "Error", value: checkruntime.makeSqlError(arrayFillLimit) };
+        }
+        if (provided) {
+            if (bounds.kind === "Value") {
+                const lower: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(bounds.value);
+                return arrayFillPayload(element, shape, lower, elementType, elementKind);
+            }
+        }
+        else {
+            let builder: checkruntime.ArrayArguments = checkruntime.makeArrayArguments("pg_catalog.int4", 2);
+            let position: number = 0;
+            while (position < shape.elements.length) {
+                const one: checkruntime.ArrayElement = checkruntime.arrayElementFromInt4(checkruntime.makeInt4Value(1));
+                builder = checkruntime.copyArrayArguments(checkruntime.appendArrayArgument(builder, one));
+                position = langruntime.checkedAdd(position, 1);
+            }
+            const defaults: checkruntime.ArrayValue = checkruntime.finishArrayConstructor(builder);
+            if (defaults.kind === "Value") {
+                const lower: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(defaults.value);
+                return arrayFillPayload(element, shape, lower, elementType, elementKind);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arrayFill8l6w(element: checkruntime.ArrayElement, lengths: checkruntime.ArrayValue, elementType: string, elementKind: number): checkruntime.ArrayValue {
+    element = checkruntime.copyArrayElement(element);
+    lengths = checkruntime.copyArrayValue(lengths);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    return arrayFillValue(element, lengths, { kind: "Null" }, false, elementType, elementKind);
+}
+export function arrayFill3xoe(element: checkruntime.ArrayElement, lengths: checkruntime.ArrayValue, bounds: checkruntime.ArrayValue, elementType: string, elementKind: number): checkruntime.ArrayValue {
+    element = checkruntime.copyArrayElement(element);
+    lengths = checkruntime.copyArrayValue(lengths);
+    bounds = checkruntime.copyArrayValue(bounds);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    return arrayFillValue(element, lengths, bounds, true, elementType, elementKind);
+}
+export function trimArrayUzie(input: checkruntime.ArrayValue, count: checkruntime.Int4Value): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (count.kind === "Error") {
+        const error: checkruntime.SqlError = count.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalInt4Value(count, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (count.kind === "Value") {
+            const remove: number = langruntime.checkedI32(count.value);
+            let length: number = 0;
+            let lower: number = 1;
+            if (payload.dimensions.length > 0) {
+                length = langruntime.checkedI32(langruntime.indexStruct(payload.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length);
+                lower = langruntime.checkedI32(langruntime.indexStruct(payload.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).lower);
+            }
+            if (remove < 0 || remove > length) {
+                return { kind: "Error", value: checkruntime.makeSqlError(arrayFillShape) };
+            }
+            let upper: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Subtract(langruntime.checkedI64Add((BigInt(langruntime.checkedI32(lower))), (BigInt(langruntime.checkedI32(length)))), (BigInt(langruntime.checkedI32(remove)))), 1n);
+            if (upper < -2147483648n) {
+                upper = langruntime.checkedI64(langruntime.checkedI64Add(upper, 4294967296n));
+            }
+            let bounds: checkruntime.ArraySubscripts = checkruntime.makeArraySubscripts();
+            bounds = checkruntime.copyArraySubscripts(checkruntime.appendArraySubscript(bounds, checkruntime.makeInt4Value(Number(BigInt.asIntN(32, langruntime.checkedI64(upper)))), false, true));
+            bounds = checkruntime.copyArraySubscripts(checkruntime.appendArraySubscript(bounds, checkruntime.makeInt4Value(0), true, false));
+            return checkruntime.arraySliceSubscript({ kind: "Value", value: payload }, bounds);
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function arrayIntegerTextElement(input: checkruntime.TextValue, family: number): checkruntime.ArrayElement {
     family = langruntime.checkedI32(family);
     let bits: number = 64;
