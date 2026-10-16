@@ -550,6 +550,14 @@ export function finishArrayOutput(input: checkruntime.ArrayOutputPayload, render
     }
     return { kind: "Unknown" };
 }
+export function arrayRemoveWiwe(input: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return input;
+}
+export function arrayReplaceWhg5(input: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return input;
+}
 export function arrayPositionZv3u(input: checkruntime.Int4Value): checkruntime.Int4Value {
     return input;
 }

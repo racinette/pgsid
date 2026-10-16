@@ -52,3 +52,15 @@ VALUES ('{new}', 'done', '{done}', '{new,done}', '{done,new}', '{new,done}');
 
 INSERT INTO lane_document_extensions (payload, extra_payload, expected_payload, bypass)
 VALUES ('{1}', '{"null",NULL}', '{1,"null",NULL}', false);
+
+INSERT INTO lane_revisions (slots, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('[0:3]={1,NULL,1,2}', 1, 9007199254740993, '[0:1]={NULL,2}', '[0:3]={9007199254740993,NULL,9007199254740993,2}', false);
+
+INSERT INTO lane_stage_revisions (stages, needle, replacement, expected_remove, expected_replace)
+VALUES ('{new,NULL,new,done}', 'new', 'done', '{NULL,done}', '{done,NULL,done,done}');
+
+INSERT INTO lane_document_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{}', '{1}', '{2}', '{}', '{}', false);
+
+INSERT INTO lane_jsonb_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
+VALUES ('{1.0,1,2}', '{1}', '{0}', '{2}', '{0,0,2}', false);
