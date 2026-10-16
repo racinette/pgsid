@@ -16278,6 +16278,456 @@ const jsonpathReduceSignedPlus = 41;
 const jsonpathReduceSignedMinus = 42;
 const jsonpathReduceNone = 43;
 const jsonpathReduceKey = 44;
+const jsonpathTemporalArgument = 3452653;
+const jsonpathTemporalFeature = 466560;
+interface JsonpathTemporalValue {
+    kind: number;
+    value: bigint;
+    zone: number;
+    error: number;
+    unknown: boolean;
+    hard: boolean;
+}
+function copyJsonpathTemporalValue(value: JsonpathTemporalValue): JsonpathTemporalValue {
+    return { kind: langruntime.checkedI32(value.kind), value: langruntime.checkedI64(value.value), zone: langruntime.checkedI32(value.zone), error: langruntime.checkedIndex(value.error), unknown: langruntime.checkedBool(value.unknown), hard: langruntime.checkedBool(value.hard) };
+}
+interface JsonpathTemporalSource {
+    characters: string[];
+}
+function copyJsonpathTemporalSource(value: JsonpathTemporalSource): JsonpathTemporalSource {
+    return { characters: langruntime.checkedChars(value.characters) };
+}
+interface JsonpathTemporalRead {
+    value: number;
+    end: number;
+    width: number;
+    valid: boolean;
+}
+function copyJsonpathTemporalRead(value: JsonpathTemporalRead): JsonpathTemporalRead {
+    return { value: langruntime.checkedI32(value.value), end: langruntime.checkedIndex(value.end), width: langruntime.checkedIndex(value.width), valid: langruntime.checkedBool(value.valid) };
+}
+function jsonpathTemporalState(kind: number, value: bigint, zone: number, error: number, unknown: boolean, hard: boolean): JsonpathTemporalValue {
+    kind = langruntime.checkedI32(kind);
+    value = langruntime.checkedI64(value);
+    zone = langruntime.checkedI32(zone);
+    error = langruntime.checkedIndex(error);
+    unknown = langruntime.checkedBool(unknown);
+    hard = langruntime.checkedBool(hard);
+    return { kind: kind, value: value, zone: zone, error: error, unknown: unknown, hard: hard };
+}
+function jsonpathTemporalInvalid(): JsonpathTemporalValue {
+    return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalArgument, false, false);
+}
+function jsonpathTemporalNumber(source: JsonpathTemporalSource, begin: number): JsonpathTemporalRead {
+    begin = langruntime.checkedIndex(begin);
+    let position: number = begin;
+    while (position < source.characters.length && checkruntime.numericSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let negative: boolean = false;
+    if (position < source.characters.length && (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "+" || langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-")) {
+        negative = langruntime.checkedBool(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-");
+        position = langruntime.checkedAdd(position, 1);
+    }
+    const start: number = position;
+    let number: bigint = 0n;
+    let valid: boolean = true;
+    while (position < source.characters.length && numericWireDecimalDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))) >= 0) {
+        const digit: bigint = BigInt(langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))));
+        if (number > langruntime.checkedI64Divide((langruntime.checkedI64Subtract(2147483648n, digit)), 10n)) {
+            valid = langruntime.checkedBool(false);
+        }
+        if (valid) {
+            number = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(number, 10n), digit));
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (position === start || (negative === false && number > 2147483647n)) {
+        valid = langruntime.checkedBool(false);
+    }
+    if (negative) {
+        number = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, number));
+    }
+    return { value: Number(BigInt.asIntN(32, langruntime.checkedI64(number))), end: position, width: langruntime.checkedSubtract(position, begin), valid: valid };
+}
+function jsonpathTemporalLetter(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+function jsonpathTemporalDecode(input: checkruntime.TextValue): JsonpathTemporalValue {
+    if (input.kind === "Null") {
+        return jsonpathTemporalState(langruntime.checkedSignedNegate(1), 0n, 0, 0, false, false);
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return jsonpathTemporalState(0, 0n, 0, error.state, false, false);
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const source: JsonpathTemporalSource = { characters: Array.from(text) };
+        const length: number = source.characters.length;
+        const first: JsonpathTemporalRead = copyJsonpathTemporalRead(jsonpathTemporalNumber(source, 0));
+        if (first.valid === false || first.end === length) {
+            return jsonpathTemporalInvalid();
+        }
+        let hasDate: boolean = false;
+        let day: number = 0;
+        let position: number = first.end;
+        let hour: number = first.value;
+        if (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-") {
+            hasDate = langruntime.checkedBool(true);
+            const month: JsonpathTemporalRead = copyJsonpathTemporalRead(jsonpathTemporalNumber(source, langruntime.checkedAdd(position, 1)));
+            if (month.valid === false || month.end === length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(month.end)) === "-")) {
+                return jsonpathTemporalInvalid();
+            }
+            const date: JsonpathTemporalRead = copyJsonpathTemporalRead(jsonpathTemporalNumber(source, langruntime.checkedAdd(month.end, 1)));
+            if (date.valid === false) {
+                return jsonpathTemporalInvalid();
+            }
+            let year: number = first.value;
+            if (year === 0) {
+                year = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            }
+            let monthValue: number = month.value;
+            let dayValue: number = date.value;
+            if (monthValue === 0) {
+                monthValue = langruntime.checkedI32(1);
+            }
+            if (dayValue === 0) {
+                dayValue = langruntime.checkedI32(1);
+            }
+            const calendar: checkruntime.DateValue = checkruntime.dateFromYmd(year, monthValue, dayValue);
+            let valid: boolean = false;
+            if (calendar.kind === "Value") {
+                const number: number = langruntime.checkedI32(calendar.value);
+                day = langruntime.checkedI32(number);
+                valid = langruntime.checkedBool(true);
+            }
+            if (valid === false) {
+                return jsonpathTemporalInvalid();
+            }
+            position = langruntime.checkedIndex(date.end);
+            let following: number = position;
+            while (following < length && checkruntime.numericSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(following)))) {
+                following = langruntime.checkedAdd(following, 1);
+            }
+            if (following === length) {
+                return jsonpathTemporalState(1, BigInt(langruntime.checkedI32(day)), 0, 0, false, false);
+            }
+            if (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === " ") && !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "T")) {
+                return jsonpathTemporalInvalid();
+            }
+            const hours: JsonpathTemporalRead = copyJsonpathTemporalRead(jsonpathTemporalNumber(source, langruntime.checkedAdd(position, 1)));
+            if (hours.valid === false) {
+                return jsonpathTemporalInvalid();
+            }
+            hour = langruntime.checkedI32(hours.value);
+            position = langruntime.checkedIndex(hours.end);
+        }
+        if (position === length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ":")) {
+            return jsonpathTemporalInvalid();
+        }
+        const minute: JsonpathTemporalRead = copyJsonpathTemporalRead(jsonpathTemporalNumber(source, langruntime.checkedAdd(position, 1)));
+        if (minute.valid === false || minute.end === length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(minute.end)) === ":")) {
+            return jsonpathTemporalInvalid();
+        }
+        const second: JsonpathTemporalRead = copyJsonpathTemporalRead(jsonpathTemporalNumber(source, langruntime.checkedAdd(minute.end, 1)));
+        if (second.valid === false || hour < 0 || hour > 23 || minute.value < 0 || minute.value > 59 || second.value < 0 || second.value > 59) {
+            return jsonpathTemporalInvalid();
+        }
+        position = langruntime.checkedIndex(second.end);
+        let fraction: number = 0;
+        if (position < length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ".") {
+            const microseconds: JsonpathTemporalRead = copyJsonpathTemporalRead(jsonpathTemporalNumber(source, langruntime.checkedAdd(position, 1)));
+            if (microseconds.valid === false) {
+                return jsonpathTemporalInvalid();
+            }
+            fraction = langruntime.checkedI32(microseconds.value);
+            let width: number = microseconds.width;
+            while (width < 6) {
+                fraction = langruntime.checkedI32(langruntime.checkedSignedMultiply(fraction, 10));
+                width = langruntime.checkedAdd(width, 1);
+            }
+            if (fraction < 0 || fraction > 999999) {
+                return jsonpathTemporalInvalid();
+            }
+            position = langruntime.checkedIndex(microseconds.end);
+        }
+        let zone: number = 0;
+        let zoned: boolean = false;
+        let following: number = position;
+        while (following < length && checkruntime.numericSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(following)))) {
+            following = langruntime.checkedAdd(following, 1);
+        }
+        if (following < length) {
+            const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+            if (jsonpathTemporalLetter(character)) {
+                let cursor: number = position;
+                while (cursor < length && jsonpathTemporalLetter(langruntime.indexChar(source.characters, langruntime.checkedIndex(cursor)))) {
+                    cursor = langruntime.checkedAdd(cursor, 1);
+                }
+                while (cursor < length && checkruntime.numericSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(cursor)))) {
+                    cursor = langruntime.checkedAdd(cursor, 1);
+                }
+                if (!(cursor === length)) {
+                    return jsonpathTemporalInvalid();
+                }
+                let partialKind: number = 3;
+                if (hasDate) {
+                    partialKind = langruntime.checkedI32(5);
+                }
+                return jsonpathTemporalState(partialKind, 0n, 0, 0, true, false);
+            }
+            if (!(character === "+") && !(character === "-") && !(character === " ")) {
+                return jsonpathTemporalInvalid();
+            }
+            zoned = langruntime.checkedBool(true);
+            let sign: number = langruntime.checkedSignedNegate(1);
+            if (character === "-") {
+                sign = langruntime.checkedI32(1);
+            }
+            const hours: JsonpathTemporalRead = copyJsonpathTemporalRead(jsonpathTemporalNumber(source, langruntime.checkedAdd(position, 1)));
+            if (hours.valid === false || hours.value < 0 || hours.value > 15) {
+                return jsonpathTemporalInvalid();
+            }
+            position = langruntime.checkedIndex(hours.end);
+            let minutes: number = 0;
+            if (position < length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ":") {
+                const read: JsonpathTemporalRead = copyJsonpathTemporalRead(jsonpathTemporalNumber(source, langruntime.checkedAdd(position, 1)));
+                if (read.valid === false || read.value < 0 || read.value > 59) {
+                    return jsonpathTemporalInvalid();
+                }
+                minutes = langruntime.checkedI32(read.value);
+                position = langruntime.checkedIndex(read.end);
+            }
+            zone = langruntime.checkedI32(langruntime.checkedSignedMultiply(sign, (langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(hours.value, 3600), langruntime.checkedSignedMultiply(minutes, 60)))));
+        }
+        while (position < length && checkruntime.numericSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (!(position === length)) {
+            return jsonpathTemporalInvalid();
+        }
+        const time: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(hour))), 3600000000n), langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(minute.value))), 60000000n)), langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(second.value))), 1000000n)), BigInt(langruntime.checkedI32(fraction)));
+        if (hasDate) {
+            const midnight: checkruntime.TimestampValue = timestampSwxj({ kind: "Value", value: day });
+            if (midnight.kind === "Value") {
+                const start: bigint = langruntime.checkedI64(midnight.value);
+                const added: checkruntime.Int8Value = int8pl1v1h({ kind: "Value", value: start }, { kind: "Value", value: time });
+                if (added.kind === "Value") {
+                    const number: bigint = langruntime.checkedI64(added.value);
+                    const checked: checkruntime.TimestampValue = checkruntime.makeTimestampValue(number);
+                    if (checked.kind === "Value") {
+                        const value: bigint = langruntime.checkedI64(checked.value);
+                        if (zoned) {
+                            const adjustment: bigint = langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(zone))), 1000000n);
+                            const shifted: checkruntime.Int8Value = int8pl1v1h({ kind: "Value", value: value }, { kind: "Value", value: adjustment });
+                            if (shifted.kind === "Value") {
+                                const utc: bigint = langruntime.checkedI64(shifted.value);
+                                const valid: checkruntime.TimestamptzValue = checkruntime.makeTimestamptzValue(utc);
+                                if (valid.kind === "Value") {
+                                    const value: bigint = langruntime.checkedI64(valid.value);
+                                    return jsonpathTemporalState(5, value, zone, 0, false, false);
+                                }
+                            }
+                        }
+                        else {
+                            return jsonpathTemporalState(4, value, 0, 0, false, false);
+                        }
+                    }
+                }
+            }
+            return jsonpathTemporalInvalid();
+        }
+        let kind: number = 2;
+        if (zoned) {
+            kind = langruntime.checkedI32(3);
+        }
+        return jsonpathTemporalState(kind, time, zone, 0, false, false);
+    }
+    return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+}
+function jsonpathTemporalConvert(input: checkruntime.TextValue, method: number, precision: number): JsonpathTemporalValue {
+    method = langruntime.checkedI32(method);
+    precision = langruntime.checkedI32(precision);
+    const parsed: JsonpathTemporalValue = copyJsonpathTemporalValue(jsonpathTemporalDecode(input));
+    if (parsed.unknown && parsed.kind === 3 && (method === 104 || method === 130 || method === 132)) {
+        return jsonpathTemporalInvalid();
+    }
+    if (parsed.kind < 0 || parsed.error > 0 || parsed.unknown) {
+        return parsed;
+    }
+    let kind: number = parsed.kind;
+    let value: bigint = parsed.value;
+    let zone: number = parsed.zone;
+    if (method === 104) {
+        if (kind === 5) {
+            return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+        }
+        if (kind === 2 || kind === 3) {
+            return jsonpathTemporalInvalid();
+        }
+        if (kind === 4) {
+            const date: checkruntime.DateValue = dateBvna({ kind: "Value", value: value });
+            if (date.kind === "Value") {
+                const day: number = langruntime.checkedI32(date.value);
+                value = langruntime.checkedI64(BigInt(langruntime.checkedI32(day)));
+            }
+        }
+        kind = langruntime.checkedI32(1);
+        zone = langruntime.checkedI32(0);
+    }
+    if (method === 109) {
+        if (kind === 3 || kind === 5) {
+            return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+        }
+        if (kind === 1) {
+            return jsonpathTemporalInvalid();
+        }
+        if (kind === 4) {
+            value = langruntime.checkedI64(langruntime.checkedI64Remainder(value, 86400000000n));
+            if (value < 0n) {
+                value = langruntime.checkedI64(langruntime.checkedI64Add(value, 86400000000n));
+            }
+        }
+        kind = langruntime.checkedI32(2);
+    }
+    if (method === 126) {
+        if (kind === 1 || kind === 4) {
+            return jsonpathTemporalInvalid();
+        }
+        if (kind === 2) {
+            return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+        }
+        if (kind === 5) {
+            return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+        }
+        kind = langruntime.checkedI32(3);
+    }
+    if (method === 130) {
+        if (kind === 2 || kind === 3) {
+            return jsonpathTemporalInvalid();
+        }
+        if (kind === 5) {
+            return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+        }
+        if (kind === 1) {
+            const timestamp: checkruntime.TimestampValue = timestampSwxj({ kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) });
+            if (timestamp.kind === "Error") {
+                const error: checkruntime.SqlError = timestamp.value;
+                return jsonpathTemporalState(0, 0n, 0, error.state, false, true);
+            }
+            if (timestamp.kind === "Value") {
+                const number: bigint = langruntime.checkedI64(timestamp.value);
+                value = langruntime.checkedI64(number);
+            }
+        }
+        kind = langruntime.checkedI32(4);
+    }
+    if (method === 132) {
+        if (kind === 2 || kind === 3) {
+            return jsonpathTemporalInvalid();
+        }
+        if (kind === 1 || kind === 4) {
+            return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+        }
+        kind = langruntime.checkedI32(5);
+    }
+    if (!(method === 104) && !(method === 128) && !(precision === langruntime.checkedSignedNegate(1))) {
+        let digits: number = precision;
+        if (digits > 6) {
+            digits = langruntime.checkedI32(6);
+        }
+        if (digits < 0) {
+            return jsonpathTemporalState(0, 0n, 0, 3452619, false, true);
+        }
+        if (kind === 2 || kind === 3) {
+            const scaled: checkruntime.TimeValue = clockScaleValue({ kind: "Value", value: value }, { kind: "Value", value: digits });
+            if (scaled.kind === "Value") {
+                const number: bigint = langruntime.checkedI64(scaled.value);
+                value = langruntime.checkedI64(number);
+            }
+        }
+        else {
+            const scaled: checkruntime.Int8Value = temporalAdjustPrecision(value, digits);
+            if (scaled.kind === "Value") {
+                const number: bigint = langruntime.checkedI64(scaled.value);
+                const checked: checkruntime.TimestampValue = checkruntime.makeTimestampValue(number);
+                if (checked.kind === "Error") {
+                    return jsonpathTemporalInvalid();
+                }
+                value = langruntime.checkedI64(number);
+            }
+        }
+    }
+    return jsonpathTemporalState(kind, value, zone, 0, false, false);
+}
+function jsonpathTemporalRender(input: JsonpathTemporalValue): checkruntime.TextValue {
+    input = copyJsonpathTemporalValue(input);
+    if (input.kind < 0) {
+        return { kind: "Null" };
+    }
+    if (input.error > 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(input.error) };
+    }
+    if (input.unknown) {
+        return { kind: "Unknown" };
+    }
+    let output: string = "";
+    let bc: boolean = false;
+    let local: bigint = input.value;
+    if (input.kind === 5) {
+        const shifted: checkruntime.Int8Value = int8miJasl({ kind: "Value", value: local }, { kind: "Value", value: langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(input.zone))), 1000000n) });
+        if (shifted.kind === "Error") {
+            const error: checkruntime.SqlError = shifted.value;
+            return { kind: "Error", value: error };
+        }
+        if (shifted.kind === "Value") {
+            const value: bigint = langruntime.checkedI64(shifted.value);
+            local = langruntime.checkedI64(value);
+        }
+    }
+    if (input.kind === 1 || input.kind === 4 || input.kind === 5) {
+        let day: bigint = local;
+        if (!(input.kind === 1)) {
+            day = langruntime.checkedI64(langruntime.checkedI64Divide(local, 86400000000n));
+            if (local < 0n && !(langruntime.checkedI64Remainder(local, 86400000000n) === 0n)) {
+                day = langruntime.checkedI64(langruntime.checkedI64Subtract(day, 1n));
+            }
+            local = langruntime.checkedI64(langruntime.checkedI64Subtract(local, langruntime.checkedI64Multiply(day, 86400000000n)));
+        }
+        const calendar: TemporalCalendarFields = copyTemporalCalendarFields(temporalCalendarFromJulian(langruntime.checkedI64Add(day, 2451545n)));
+        output = langruntime.checkedString(jsonbCalendarText(calendar));
+        bc = langruntime.checkedBool(calendar.year <= 0);
+        if (!(input.kind === 1)) {
+            output = output + langruntime.checkedChar("T");
+        }
+    }
+    if (!(input.kind === 1)) {
+        const clock: string = clockOutputTime(local);
+        output = output + clock;
+    }
+    if (input.kind === 3 || input.kind === 5) {
+        let offset: number = input.zone;
+        if (offset > 0) {
+            output = output + langruntime.checkedChar("-");
+        }
+        else {
+            output = output + langruntime.checkedChar("+");
+            offset = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, offset));
+        }
+        const hour: string = clockOutputPair(langruntime.checkedSignedDivide(offset, 3600));
+        const minute: string = clockOutputPair(langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(offset, 60)), 60));
+        output = output + hour;
+        output = output + langruntime.checkedChar(":");
+        output = output + minute;
+    }
+    if (bc) {
+        output = output + " BC";
+    }
+    return { kind: "Value", value: output };
+}
 function jsonpathRadixLiteral(source: JsonpathScanSource, radix: number): checkruntime.TextValue {
     radix = langruntime.checkedI32(radix);
     let position: number = 2;
