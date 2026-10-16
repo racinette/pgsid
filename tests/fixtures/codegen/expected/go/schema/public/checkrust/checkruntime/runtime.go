@@ -7972,6 +7972,497 @@ func FinishArrayChildren(input ArrayChildrenArguments) ArrayValue {
 
 const arrayConstructorTypeMismatch = 6822148
 
+type arrayTextSource struct {
+	characters []rune
+}
+
+func copyarrayTextSource(value arrayTextSource) arrayTextSource {
+	return arrayTextSource{characters: langruntime.CheckedChars(value.characters)}
+}
+
+type ArrayTextPayload struct {
+	Dimensions []ArrayDimension
+	Events     []ArrayTextEvent
+}
+
+func copyArrayTextPayload(value ArrayTextPayload) ArrayTextPayload {
+	return ArrayTextPayload{Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Events: langruntime.CheckedStructs(value.Events, copyArrayTextEvent)}
+}
+
+type ArrayTextPlanKind uint8
+
+const (
+	ArrayTextPlanUnknown ArrayTextPlanKind = iota
+	ArrayTextPlanNull
+	ArrayTextPlanValue
+)
+
+type ArrayTextPlan struct {
+	Kind  ArrayTextPlanKind
+	Value ArrayTextPayload
+}
+
+func copyArrayTextPlan(value ArrayTextPlan) ArrayTextPlan {
+	switch value.Kind {
+	case ArrayTextPlanUnknown:
+		return ArrayTextPlan{Kind: ArrayTextPlanUnknown}
+	case ArrayTextPlanNull:
+		return ArrayTextPlan{Kind: ArrayTextPlanNull}
+	case ArrayTextPlanValue:
+		return ArrayTextPlan{Kind: ArrayTextPlanValue, Value: copyArrayTextPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+
+type ArrayTextEventKind uint8
+
+const (
+	ArrayTextEventText ArrayTextEventKind = iota
+	ArrayTextEventNull
+	ArrayTextEventUnknown
+	ArrayTextEventError
+)
+
+type ArrayTextEvent struct {
+	Kind  ArrayTextEventKind
+	Text  string
+	Error SqlError
+}
+
+func copyArrayTextEvent(value ArrayTextEvent) ArrayTextEvent {
+	switch value.Kind {
+	case ArrayTextEventText:
+		return ArrayTextEvent{Kind: ArrayTextEventText, Text: langruntime.CheckedString(value.Text)}
+	case ArrayTextEventNull:
+		return ArrayTextEvent{Kind: ArrayTextEventNull}
+	case ArrayTextEventUnknown:
+		return ArrayTextEvent{Kind: ArrayTextEventUnknown}
+	case ArrayTextEventError:
+		return ArrayTextEvent{Kind: ArrayTextEventError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+
+type arrayTextToken struct {
+	next int
+	kind int
+	text string
+}
+
+func copyarrayTextToken(value arrayTextToken) arrayTextToken {
+	return arrayTextToken{next: langruntime.CheckedIndex(value.next), kind: langruntime.CheckedI32(value.kind), text: langruntime.CheckedString(value.text)}
+}
+
+type arrayTextBound struct {
+	next     int
+	value    int64
+	found    bool
+	overflow bool
+}
+
+func copyarrayTextBound(value arrayTextBound) arrayTextBound {
+	return arrayTextBound{next: langruntime.CheckedIndex(value.next), value: value.value, found: value.found, overflow: value.overflow}
+}
+
+const arrayTextInvalid = 3484946
+
+func arrayTextSpace(ch rune) bool {
+	ch = langruntime.CheckedChar(ch)
+	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f'
+}
+func arrayTextDigit(ch rune) bool {
+	ch = langruntime.CheckedChar(ch)
+	code := int(langruntime.CheckedChar(ch))
+	return code >= 48 && code <= 57
+}
+func arrayTextSkipSpace(source *arrayTextSource, start int) int {
+	start = langruntime.CheckedIndex(start)
+	position := start
+	for position < len(source.characters) && arrayTextSpace(source.characters[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return position
+}
+func arrayTextReadBound(source *arrayTextSource, start int) arrayTextBound {
+	start = langruntime.CheckedIndex(start)
+	position := start
+	negative := false
+	if position < len(source.characters) && (source.characters[position] == '-' || source.characters[position] == '+') {
+		negative = source.characters[position] == '-'
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	digits := position
+	value := int64(0)
+	overflow := false
+	for position < len(source.characters) && arrayTextDigit(source.characters[position]) {
+		if value > int64(2147483648) {
+			overflow = true
+		} else {
+			value = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(value, int64(10)), (int64(langruntime.CheckedI32((langruntime.CheckedSignedSubtract(int(langruntime.CheckedChar(source.characters[position])), 48))))))
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if negative {
+		value = langruntime.CheckedI64Subtract(int64(0), value)
+	}
+	if value < int64(-2147483648) || value > int64(2147483647) {
+		overflow = true
+	}
+	if position == digits {
+		return arrayTextBound{next: start, value: int64(0), found: false, overflow: false}
+	}
+	return arrayTextBound{next: position, value: value, found: true, overflow: overflow}
+}
+func arrayTextReadToken(source *arrayTextSource, start int, delimiter rune) arrayTextToken {
+	start = langruntime.CheckedIndex(start)
+	delimiter = langruntime.CheckedChar(delimiter)
+	position := arrayTextSkipSpace(source, start)
+	if position >= len(source.characters) {
+		return arrayTextToken{next: position, kind: 0, text: ""}
+	}
+	first := source.characters[position]
+	if first == '{' {
+		return arrayTextToken{next: langruntime.CheckedAdd(position, 1), kind: 1, text: ""}
+	}
+	if first == '}' {
+		return arrayTextToken{next: langruntime.CheckedAdd(position, 1), kind: 2, text: ""}
+	}
+	if first == delimiter {
+		return arrayTextToken{next: langruntime.CheckedAdd(position, 1), kind: 3, text: ""}
+	}
+	quoted := first == '"'
+	if quoted {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	characters := []rune{}
+	retained := 0
+	escaped := false
+	finished := false
+	for position < len(source.characters) && finished == false {
+		ch := source.characters[position]
+		if ch == '\\' {
+			position = langruntime.CheckedAdd(position, 1)
+			if position >= len(source.characters) {
+				return arrayTextToken{next: position, kind: 0, text: ""}
+			}
+			langruntime.CheckedAdd(len(characters), 1)
+			characters = append(characters, langruntime.CheckedChar(source.characters[position]))
+			retained = langruntime.CheckedIndex(len(characters))
+			escaped = true
+			position = langruntime.CheckedAdd(position, 1)
+		} else if quoted && ch == '"' {
+			position = langruntime.CheckedIndex(arrayTextSkipSpace(source, langruntime.CheckedAdd(position, 1)))
+			if position >= len(source.characters) {
+				return arrayTextToken{next: position, kind: 0, text: ""}
+			}
+			following := source.characters[position]
+			if following != delimiter && following != '}' && following != '{' {
+				return arrayTextToken{next: position, kind: 0, text: ""}
+			}
+			retained = langruntime.CheckedIndex(len(characters))
+			finished = true
+		} else if quoted == false && (ch == delimiter || ch == '}') {
+			finished = true
+		} else if quoted == false && (ch == '"' || ch == '{') {
+			return arrayTextToken{next: position, kind: 0, text: ""}
+		} else {
+			langruntime.CheckedAdd(len(characters), 1)
+			characters = append(characters, langruntime.CheckedChar(ch))
+			if arrayTextSpace(ch) == false {
+				retained = langruntime.CheckedIndex(len(characters))
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	if finished == false {
+		return arrayTextToken{next: position, kind: 0, text: ""}
+	}
+	text := langruntime.NewTextBuffer("")
+	index := 0
+	for index < retained {
+		text = append(text, string(langruntime.CheckedChar(characters[index]))...)
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	nullToken := false
+	if quoted == false && escaped == false && retained == 4 {
+		nullToken = (characters[0] == 'N' || characters[0] == 'n') && (characters[1] == 'U' || characters[1] == 'u') && (characters[2] == 'L' || characters[2] == 'l') && (characters[3] == 'L' || characters[3] == 'l')
+	}
+	if nullToken {
+		return arrayTextToken{next: position, kind: 5, text: string(text)}
+	}
+	return arrayTextToken{next: position, kind: 4, text: string(text)}
+}
+func arrayTextResult(dimensions []ArrayDimension, input []ArrayTextEvent, error int) ArrayTextPlan {
+	dimensions = langruntime.CheckedStructs(dimensions, copyArrayDimension)
+	input = langruntime.CheckedStructs(input, copyArrayTextEvent)
+	error = langruntime.CheckedIndex(error)
+	events := input
+	if error != 0 {
+		langruntime.CheckedAdd(len(events), 1)
+		events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventError, Error: MakeSqlError(error)}))
+	}
+	return ArrayTextPlan{Kind: ArrayTextPlanValue, Value: ArrayTextPayload{Dimensions: dimensions, Events: events}}
+}
+func ParseArrayText(input TextValue, delimiter rune, nulls int) ArrayTextPlan {
+	delimiter = langruntime.CheckedChar(delimiter)
+	nulls = langruntime.CheckedI32(nulls)
+	if input.Kind == TextValueUnknown {
+		return ArrayTextPlan{Kind: ArrayTextPlanUnknown}
+	}
+	if input.Kind == TextValueNull {
+		return ArrayTextPlan{Kind: ArrayTextPlanNull}
+	}
+	dimensions := []ArrayDimension{}
+	events := []ArrayTextEvent{}
+	if input.Kind == TextValueError {
+		error := input.Error
+		langruntime.CheckedAdd(len(events), 1)
+		events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventError, Error: error}))
+		return arrayTextResult(dimensions, events, 0)
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		source := arrayTextSource{characters: characters}
+		index := 0
+		levels := []ArrayDimension{}
+		for index < 6 {
+			langruntime.CheckedAdd(len(dimensions), 1)
+			dimensions = append(dimensions, ArrayDimension{Lower: 1, Length: langruntime.CheckedSignedNegate(1)})
+			langruntime.CheckedAdd(len(levels), 1)
+			levels = append(levels, ArrayDimension{Lower: 1, Length: 0})
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		position := arrayTextSkipSpace(&source, 0)
+		rank := 0
+		for position < len(source.characters) && source.characters[position] == '[' {
+			if rank >= 6 {
+				return arrayTextResult(dimensions, events, sqlErrorProgramLimit)
+			}
+			first := arrayTextReadBound(&source, langruntime.CheckedAdd(position, 1))
+			if first.overflow {
+				return arrayTextResult(dimensions, events, sqlErrorProgramLimit)
+			}
+			if first.found == false {
+				return arrayTextResult(dimensions, events, arrayTextInvalid)
+			}
+			position = langruntime.CheckedIndex(first.next)
+			lower := int64(1)
+			upper := first.value
+			if position < len(source.characters) && source.characters[position] == ':' {
+				lower = first.value
+				last := arrayTextReadBound(&source, langruntime.CheckedAdd(position, 1))
+				if last.overflow {
+					return arrayTextResult(dimensions, events, sqlErrorProgramLimit)
+				}
+				if last.found == false {
+					return arrayTextResult(dimensions, events, arrayTextInvalid)
+				}
+				upper = last.value
+				position = langruntime.CheckedIndex(last.next)
+			}
+			if position >= len(source.characters) || source.characters[position] != ']' {
+				return arrayTextResult(dimensions, events, arrayTextInvalid)
+			}
+			if upper < lower {
+				return arrayTextResult(dimensions, events, sqlErrorArraySubscript)
+			}
+			length := langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(upper, lower), int64(1))
+			if upper == int64(2147483647) || length > int64(2147483647) {
+				return arrayTextResult(dimensions, events, sqlErrorProgramLimit)
+			}
+			dimensions[rank] = ArrayDimension{Lower: int(int32(lower)), Length: int(int32(length))}
+			rank = langruntime.CheckedAdd(rank, 1)
+			position = langruntime.CheckedIndex(arrayTextSkipSpace(&source, langruntime.CheckedAdd(position, 1)))
+		}
+		frozen := rank > 0
+		if frozen {
+			if position >= len(source.characters) || source.characters[position] != '=' {
+				return arrayTextResult(dimensions, events, arrayTextInvalid)
+			}
+			position = langruntime.CheckedIndex(arrayTextSkipSpace(&source, langruntime.CheckedAdd(position, 1)))
+		}
+		if position >= len(source.characters) || source.characters[position] != '{' {
+			return arrayTextResult(dimensions, events, arrayTextInvalid)
+		}
+		nesting := 0
+		count := 0
+		expectDelimiter := false
+		completed := false
+		for completed == false {
+			token := arrayTextReadToken(&source, position, delimiter)
+			position = langruntime.CheckedIndex(token.next)
+			kind := token.kind
+			if kind == 0 {
+				return arrayTextResult(dimensions, events, arrayTextInvalid)
+			}
+			if kind == 1 {
+				if expectDelimiter {
+					return arrayTextResult(dimensions, events, arrayTextInvalid)
+				}
+				if nesting >= 6 {
+					return arrayTextResult(dimensions, events, sqlErrorProgramLimit)
+				}
+				levels[nesting] = ArrayDimension{Lower: 1, Length: 0}
+				nesting = langruntime.CheckedAdd(nesting, 1)
+				if nesting > rank {
+					if frozen {
+						return arrayTextResult(dimensions, events, arrayTextInvalid)
+					}
+					rank = langruntime.CheckedIndex(nesting)
+				}
+			}
+			if kind == 2 {
+				level := levels[langruntime.CheckedSubtract(nesting, 1)]
+				if level.Length > 0 && expectDelimiter == false {
+					return arrayTextResult(dimensions, events, arrayTextInvalid)
+				}
+				nesting = langruntime.CheckedIndex(langruntime.CheckedSubtract(nesting, 1))
+				if nesting > 0 {
+					outer := levels[langruntime.CheckedSubtract(nesting, 1)]
+					levels[langruntime.CheckedSubtract(nesting, 1)] = ArrayDimension{Lower: 1, Length: langruntime.CheckedSignedAdd(outer.Length, 1)}
+				}
+				dimension := dimensions[nesting]
+				if dimension.Length < 0 {
+					dimensions[nesting] = ArrayDimension{Lower: dimension.Lower, Length: level.Length}
+				} else if dimension.Length != level.Length {
+					return arrayTextResult(dimensions, events, arrayTextInvalid)
+				}
+				expectDelimiter = true
+				completed = nesting == 0
+			}
+			if kind == 3 {
+				if expectDelimiter == false {
+					return arrayTextResult(dimensions, events, arrayTextInvalid)
+				}
+				expectDelimiter = false
+			}
+			element := false
+			if kind == 4 {
+				text := langruntime.CheckedString(token.text)
+				if expectDelimiter {
+					return arrayTextResult(dimensions, events, arrayTextInvalid)
+				}
+				langruntime.CheckedAdd(len(events), 1)
+				events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventText, Text: text}))
+				element = true
+			}
+			if kind == 5 {
+				text := token.text
+				if expectDelimiter {
+					return arrayTextResult(dimensions, events, arrayTextInvalid)
+				}
+				if nulls == 1 {
+					langruntime.CheckedAdd(len(events), 1)
+					events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventNull}))
+				} else if nulls == 0 {
+					langruntime.CheckedAdd(len(events), 1)
+					events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventText, Text: text}))
+				} else {
+					langruntime.CheckedAdd(len(events), 1)
+					events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventUnknown}))
+					return arrayTextResult(dimensions, events, 0)
+				}
+				element = true
+			}
+			if element {
+				count = langruntime.CheckedAdd(count, 1)
+				frozen = true
+				if nesting != rank {
+					return arrayTextResult(dimensions, events, arrayTextInvalid)
+				}
+				level := levels[langruntime.CheckedSubtract(nesting, 1)]
+				levels[langruntime.CheckedSubtract(nesting, 1)] = ArrayDimension{Lower: 1, Length: langruntime.CheckedSignedAdd(level.Length, 1)}
+				expectDelimiter = true
+			}
+		}
+		position = langruntime.CheckedIndex(arrayTextSkipSpace(&source, position))
+		if position != len(source.characters) {
+			return arrayTextResult(dimensions, events, arrayTextInvalid)
+		}
+		resultDimensions := []ArrayDimension{}
+		if count > 0 {
+			index = langruntime.CheckedIndex(0)
+			for index < rank {
+				langruntime.CheckedAdd(len(resultDimensions), 1)
+				resultDimensions = append(resultDimensions, dimensions[index])
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
+		return arrayTextResult(resultDimensions, events, 0)
+	}
+	return ArrayTextPlan{Kind: ArrayTextPlanUnknown}
+}
+func ArrayTextEventCount(input *ArrayTextPayload) Int4Value {
+	input = langruntime.CheckedBorrowed(input, copyArrayTextPayload)
+	return Int4Value{Kind: Int4ValueValue, Value: int(int32(len(input.Events)))}
+}
+func ArrayTextEventAt(input *ArrayTextPayload, index Int4Value) TextValue {
+	input = langruntime.CheckedBorrowed(input, copyArrayTextPayload)
+	if index.Kind == Int4ValueError {
+		error := index.Error
+		return TextValue{Kind: TextValueError, Error: error}
+	}
+	if index.Kind == Int4ValueValue {
+		position := langruntime.CheckedI32(index.Value)
+		if position < 0 {
+			return TextValue{Kind: TextValueUnknown}
+		}
+		offset := langruntime.IndexFromI32(position, 0)
+		if offset >= len(input.Events) {
+			return TextValue{Kind: TextValueUnknown}
+		}
+		event := copyArrayTextEvent(input.Events[offset])
+		if event.Kind == ArrayTextEventText {
+			text := langruntime.CheckedString(event.Text)
+			return TextValue{Kind: TextValueValue, Value: text}
+		}
+		if event.Kind == ArrayTextEventNull {
+			return TextValue{Kind: TextValueNull}
+		}
+		if event.Kind == ArrayTextEventError {
+			error := event.Error
+			return TextValue{Kind: TextValueError, Error: error}
+		}
+	}
+	return TextValue{Kind: TextValueUnknown}
+}
+func FinishArrayText(plan ArrayTextPlan, converted ArrayArguments) ArrayValue {
+	plan = copyArrayTextPlan(plan)
+	converted = copyArrayArguments(converted)
+	if converted.Kind == ArrayArgumentsError {
+		error := converted.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if plan.Kind == ArrayTextPlanNull {
+		return ArrayValue{Kind: ArrayValueNull}
+	}
+	if plan.Kind == ArrayTextPlanValue {
+		payload := copyArrayTextPayload(plan.Value)
+		index := 0
+		for index < len(payload.Events) {
+			event := copyArrayTextEvent(payload.Events[index])
+			if event.Kind == ArrayTextEventError {
+				error := event.Error
+				return ArrayValue{Kind: ArrayValueError, Error: error}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if converted.Kind == ArrayArgumentsValue {
+			value := CopyArrayPayload(converted.Value)
+			index = langruntime.CheckedIndex(0)
+			for index < len(value.Elements) {
+				element := copyArrayElement(value.Elements[index])
+				if element.Kind == ArrayElementUnknown {
+					return ArrayValue{Kind: ArrayValueUnknown}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return MakeArrayValue(ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: payload.Dimensions, Elements: value.Elements})
+		}
+	}
+	return ArrayValue{Kind: ArrayValueUnknown}
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

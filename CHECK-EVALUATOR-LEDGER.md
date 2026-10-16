@@ -1,8 +1,7 @@
 # CHECK evaluator work ledger
 
-This is the implementation queue for the Rust CHECK engine. Work in the order
-below unless a task exposes a prerequisite. Complete a bounded task through
-binding, generated Rust, Go, TypeScript, and PostgreSQL parity before expanding its scope. Check a box only after its completion criteria pass.
+This is the implementation queue for the Rust CHECK engine. Work in the order below unless a task exposes a prerequisite.
+Complete a bounded task through binding, generated Rust, Go, TypeScript, and PostgreSQL parity before expanding its scope. Check a box only after its completion criteria pass.
 
 ## Baseline and measurements
 
@@ -253,6 +252,7 @@ exposes a prerequisite:
 - [x] Establish private typed array storage, dimensions/lower bounds, NULL/Unknown elements, independent nested clones and metadata parity.
 - [x] Admit SQL-coerced scalar/enum arrays and domains over arrays, metadata calls, typed builtin NULLs, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
 - [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, eager errors, constant preparation and INSERT parity; preserve nominal domain-element deferrals.
+- [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.

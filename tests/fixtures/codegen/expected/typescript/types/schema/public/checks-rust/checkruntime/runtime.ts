@@ -8081,6 +8081,465 @@ export function finishArrayChildren(input: ArrayChildrenArguments): ArrayValue {
     return { kind: "Unknown" };
 }
 const arrayConstructorTypeMismatch = 6822148;
+interface ArrayTextSource {
+    characters: string[];
+}
+function copyArrayTextSource(value: ArrayTextSource): ArrayTextSource {
+    return { characters: langruntime.checkedChars(value.characters) };
+}
+export interface ArrayTextPayload {
+    dimensions: ArrayDimension[];
+    events: ArrayTextEvent[];
+}
+function copyArrayTextPayload(value: ArrayTextPayload): ArrayTextPayload {
+    return { dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), events: langruntime.checkedStructs(value.events, copyArrayTextEvent) };
+}
+export type ArrayTextPlan = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Value";
+    value: ArrayTextPayload;
+};
+function copyArrayTextPlan(value: ArrayTextPlan): ArrayTextPlan {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copyArrayTextPayload(value.value) };
+    }
+}
+export type ArrayTextEvent = {
+    kind: "Text";
+    value: string;
+} | {
+    kind: "Null";
+} | {
+    kind: "Unknown";
+} | {
+    kind: "Error";
+    value: SqlError;
+};
+function copyArrayTextEvent(value: ArrayTextEvent): ArrayTextEvent {
+    switch (value.kind) {
+        case "Text": return { kind: "Text", value: langruntime.checkedString(value.value) };
+        case "Null": return { kind: "Null" };
+        case "Unknown": return { kind: "Unknown" };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+interface ArrayTextToken {
+    next: number;
+    kind: number;
+    text: string;
+}
+function copyArrayTextToken(value: ArrayTextToken): ArrayTextToken {
+    return { next: langruntime.checkedIndex(value.next), kind: langruntime.checkedI32(value.kind), text: langruntime.checkedString(value.text) };
+}
+interface ArrayTextBound {
+    next: number;
+    value: bigint;
+    found: boolean;
+    overflow: boolean;
+}
+function copyArrayTextBound(value: ArrayTextBound): ArrayTextBound {
+    return { next: langruntime.checkedIndex(value.next), value: langruntime.checkedI64(value.value), found: langruntime.checkedBool(value.found), overflow: langruntime.checkedBool(value.overflow) };
+}
+const arrayTextInvalid = 3484946;
+function arrayTextSpace(ch: string): boolean {
+    ch = langruntime.checkedChar(ch);
+    return ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\v" || ch === "\f";
+}
+function arrayTextDigit(ch: string): boolean {
+    ch = langruntime.checkedChar(ch);
+    const code: number = langruntime.checkedChar(ch).codePointAt(0)!;
+    return code >= 48 && code <= 57;
+}
+function arrayTextSkipSpace(source: ArrayTextSource, start: number): number {
+    start = langruntime.checkedIndex(start);
+    let position: number = start;
+    while (position < source.characters.length && arrayTextSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return position;
+}
+function arrayTextReadBound(source: ArrayTextSource, start: number): ArrayTextBound {
+    start = langruntime.checkedIndex(start);
+    let position: number = start;
+    let negative: boolean = false;
+    if (position < source.characters.length && (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-" || langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "+")) {
+        negative = langruntime.checkedBool(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-");
+        position = langruntime.checkedAdd(position, 1);
+    }
+    const digits: number = position;
+    let value: bigint = 0n;
+    let overflow: boolean = false;
+    while (position < source.characters.length && arrayTextDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+        if (value > 2147483648n) {
+            overflow = langruntime.checkedBool(true);
+        }
+        else {
+            value = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(value, 10n), (BigInt(langruntime.checkedI32((langruntime.checkedSignedSubtract(langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))).codePointAt(0)!, 48)))))));
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (negative) {
+        value = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, value));
+    }
+    if (value < -2147483648n || value > 2147483647n) {
+        overflow = langruntime.checkedBool(true);
+    }
+    if (position === digits) {
+        return { next: start, value: 0n, found: false, overflow: false };
+    }
+    return { next: position, value: value, found: true, overflow: overflow };
+}
+function arrayTextReadToken(source: ArrayTextSource, start: number, delimiter: string): ArrayTextToken {
+    start = langruntime.checkedIndex(start);
+    delimiter = langruntime.checkedChar(delimiter);
+    let position: number = arrayTextSkipSpace(source, start);
+    if (position >= source.characters.length) {
+        return { next: position, kind: 0, text: "" };
+    }
+    const first: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+    if (first === "{") {
+        return { next: langruntime.checkedAdd(position, 1), kind: 1, text: "" };
+    }
+    if (first === "}") {
+        return { next: langruntime.checkedAdd(position, 1), kind: 2, text: "" };
+    }
+    if (first === delimiter) {
+        return { next: langruntime.checkedAdd(position, 1), kind: 3, text: "" };
+    }
+    const quoted: boolean = first === "\"";
+    if (quoted) {
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let characters: string[] = [];
+    let retained: number = 0;
+    let escaped: boolean = false;
+    let finished: boolean = false;
+    while (position < source.characters.length && finished === false) {
+        const ch: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+        if (ch === "\\") {
+            position = langruntime.checkedAdd(position, 1);
+            if (position >= source.characters.length) {
+                return { next: position, kind: 0, text: "" };
+            }
+            langruntime.pushChar(characters, langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+            retained = langruntime.checkedIndex(characters.length);
+            escaped = langruntime.checkedBool(true);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        else if (quoted && ch === "\"") {
+            position = langruntime.checkedIndex(arrayTextSkipSpace(source, langruntime.checkedAdd(position, 1)));
+            if (position >= source.characters.length) {
+                return { next: position, kind: 0, text: "" };
+            }
+            const following: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+            if (!(following === delimiter) && !(following === "}") && !(following === "{")) {
+                return { next: position, kind: 0, text: "" };
+            }
+            retained = langruntime.checkedIndex(characters.length);
+            finished = langruntime.checkedBool(true);
+        }
+        else if (quoted === false && (ch === delimiter || ch === "}")) {
+            finished = langruntime.checkedBool(true);
+        }
+        else if (quoted === false && (ch === "\"" || ch === "{")) {
+            return { next: position, kind: 0, text: "" };
+        }
+        else {
+            langruntime.pushChar(characters, ch);
+            if (arrayTextSpace(ch) === false) {
+                retained = langruntime.checkedIndex(characters.length);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    if (finished === false) {
+        return { next: position, kind: 0, text: "" };
+    }
+    let text: string = "";
+    let index: number = 0;
+    while (index < retained) {
+        text = text + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let nullToken: boolean = false;
+    if (quoted === false && escaped === false && retained === 4) {
+        nullToken = langruntime.checkedBool((langruntime.indexChar(characters, langruntime.checkedIndex(0)) === "N" || langruntime.indexChar(characters, langruntime.checkedIndex(0)) === "n") && (langruntime.indexChar(characters, langruntime.checkedIndex(1)) === "U" || langruntime.indexChar(characters, langruntime.checkedIndex(1)) === "u") && (langruntime.indexChar(characters, langruntime.checkedIndex(2)) === "L" || langruntime.indexChar(characters, langruntime.checkedIndex(2)) === "l") && (langruntime.indexChar(characters, langruntime.checkedIndex(3)) === "L" || langruntime.indexChar(characters, langruntime.checkedIndex(3)) === "l"));
+    }
+    if (nullToken) {
+        return { next: position, kind: 5, text: text };
+    }
+    return { next: position, kind: 4, text: text };
+}
+function arrayTextResult(dimensions: ArrayDimension[], input: ArrayTextEvent[], error: number): ArrayTextPlan {
+    dimensions = langruntime.checkedStructs(dimensions, copyArrayDimension);
+    input = langruntime.checkedStructs(input, copyArrayTextEvent);
+    error = langruntime.checkedIndex(error);
+    let events: ArrayTextEvent[] = input;
+    if (!(error === 0)) {
+        langruntime.pushStruct(events, { kind: "Error", value: makeSqlError(error) }, copyArrayTextEvent);
+    }
+    return { kind: "Value", value: { dimensions: dimensions, events: events } };
+}
+export function parseArrayText(input: TextValue, delimiter: string, nulls: number): ArrayTextPlan {
+    delimiter = langruntime.checkedChar(delimiter);
+    nulls = langruntime.checkedI32(nulls);
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    let dimensions: ArrayDimension[] = [];
+    let events: ArrayTextEvent[] = [];
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        langruntime.pushStruct(events, { kind: "Error", value: error }, copyArrayTextEvent);
+        return arrayTextResult(dimensions, events, 0);
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        const source: ArrayTextSource = { characters: characters };
+        let index: number = 0;
+        let levels: ArrayDimension[] = [];
+        while (index < 6) {
+            langruntime.pushStruct(dimensions, { lower: 1, length: langruntime.checkedSignedNegate(1) }, copyArrayDimension);
+            langruntime.pushStruct(levels, { lower: 1, length: 0 }, copyArrayDimension);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let position: number = arrayTextSkipSpace(source, 0);
+        let rank: number = 0;
+        while (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "[") {
+            if (rank >= 6) {
+                return arrayTextResult(dimensions, events, sqlErrorProgramLimit);
+            }
+            const first: ArrayTextBound = copyArrayTextBound(arrayTextReadBound(source, langruntime.checkedAdd(position, 1)));
+            if (first.overflow) {
+                return arrayTextResult(dimensions, events, sqlErrorProgramLimit);
+            }
+            if (first.found === false) {
+                return arrayTextResult(dimensions, events, arrayTextInvalid);
+            }
+            position = langruntime.checkedIndex(first.next);
+            let lower: bigint = 1n;
+            let upper: bigint = first.value;
+            if (position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ":") {
+                lower = langruntime.checkedI64(first.value);
+                const last: ArrayTextBound = copyArrayTextBound(arrayTextReadBound(source, langruntime.checkedAdd(position, 1)));
+                if (last.overflow) {
+                    return arrayTextResult(dimensions, events, sqlErrorProgramLimit);
+                }
+                if (last.found === false) {
+                    return arrayTextResult(dimensions, events, arrayTextInvalid);
+                }
+                upper = langruntime.checkedI64(last.value);
+                position = langruntime.checkedIndex(last.next);
+            }
+            if (position >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "]")) {
+                return arrayTextResult(dimensions, events, arrayTextInvalid);
+            }
+            if (upper < lower) {
+                return arrayTextResult(dimensions, events, sqlErrorArraySubscript);
+            }
+            const length: bigint = langruntime.checkedI64Add(langruntime.checkedI64Subtract(upper, lower), 1n);
+            if (upper === 2147483647n || length > 2147483647n) {
+                return arrayTextResult(dimensions, events, sqlErrorProgramLimit);
+            }
+            dimensions[langruntime.checkedIndexIn(dimensions, rank)] = { lower: Number(BigInt.asIntN(32, langruntime.checkedI64(lower))), length: Number(BigInt.asIntN(32, langruntime.checkedI64(length))) };
+            rank = langruntime.checkedAdd(rank, 1);
+            position = langruntime.checkedIndex(arrayTextSkipSpace(source, langruntime.checkedAdd(position, 1)));
+        }
+        let frozen: boolean = rank > 0;
+        if (frozen) {
+            if (position >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "=")) {
+                return arrayTextResult(dimensions, events, arrayTextInvalid);
+            }
+            position = langruntime.checkedIndex(arrayTextSkipSpace(source, langruntime.checkedAdd(position, 1)));
+        }
+        if (position >= source.characters.length || !(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "{")) {
+            return arrayTextResult(dimensions, events, arrayTextInvalid);
+        }
+        let nesting: number = 0;
+        let count: number = 0;
+        let expectDelimiter: boolean = false;
+        let completed: boolean = false;
+        while (completed === false) {
+            const token: ArrayTextToken = arrayTextReadToken(source, position, delimiter);
+            position = langruntime.checkedIndex(token.next);
+            const kind: number = token.kind;
+            if (kind === 0) {
+                return arrayTextResult(dimensions, events, arrayTextInvalid);
+            }
+            if (kind === 1) {
+                if (expectDelimiter) {
+                    return arrayTextResult(dimensions, events, arrayTextInvalid);
+                }
+                if (nesting >= 6) {
+                    return arrayTextResult(dimensions, events, sqlErrorProgramLimit);
+                }
+                levels[langruntime.checkedIndexIn(levels, nesting)] = { lower: 1, length: 0 };
+                nesting = langruntime.checkedAdd(nesting, 1);
+                if (nesting > rank) {
+                    if (frozen) {
+                        return arrayTextResult(dimensions, events, arrayTextInvalid);
+                    }
+                    rank = langruntime.checkedIndex(nesting);
+                }
+            }
+            if (kind === 2) {
+                const level: ArrayDimension = langruntime.indexStruct(levels, langruntime.checkedIndex(langruntime.checkedSubtract(nesting, 1)), copyArrayDimension);
+                if (level.length > 0 && expectDelimiter === false) {
+                    return arrayTextResult(dimensions, events, arrayTextInvalid);
+                }
+                nesting = langruntime.checkedIndex(langruntime.checkedSubtract(nesting, 1));
+                if (nesting > 0) {
+                    const outer: ArrayDimension = langruntime.indexStruct(levels, langruntime.checkedIndex(langruntime.checkedSubtract(nesting, 1)), copyArrayDimension);
+                    levels[langruntime.checkedIndexIn(levels, langruntime.checkedSubtract(nesting, 1))] = { lower: 1, length: langruntime.checkedSignedAdd(outer.length, 1) };
+                }
+                const dimension: ArrayDimension = langruntime.indexStruct(dimensions, langruntime.checkedIndex(nesting), copyArrayDimension);
+                if (dimension.length < 0) {
+                    dimensions[langruntime.checkedIndexIn(dimensions, nesting)] = { lower: dimension.lower, length: level.length };
+                }
+                else if (!(dimension.length === level.length)) {
+                    return arrayTextResult(dimensions, events, arrayTextInvalid);
+                }
+                expectDelimiter = langruntime.checkedBool(true);
+                completed = langruntime.checkedBool(nesting === 0);
+            }
+            if (kind === 3) {
+                if (expectDelimiter === false) {
+                    return arrayTextResult(dimensions, events, arrayTextInvalid);
+                }
+                expectDelimiter = langruntime.checkedBool(false);
+            }
+            let element: boolean = false;
+            if (kind === 4) {
+                const text: string = langruntime.checkedString(token.text);
+                if (expectDelimiter) {
+                    return arrayTextResult(dimensions, events, arrayTextInvalid);
+                }
+                langruntime.pushStruct(events, { kind: "Text", value: text }, copyArrayTextEvent);
+                element = langruntime.checkedBool(true);
+            }
+            if (kind === 5) {
+                const text: string = token.text;
+                if (expectDelimiter) {
+                    return arrayTextResult(dimensions, events, arrayTextInvalid);
+                }
+                if (nulls === 1) {
+                    langruntime.pushStruct(events, { kind: "Null" }, copyArrayTextEvent);
+                }
+                else if (nulls === 0) {
+                    langruntime.pushStruct(events, { kind: "Text", value: text }, copyArrayTextEvent);
+                }
+                else {
+                    langruntime.pushStruct(events, { kind: "Unknown" }, copyArrayTextEvent);
+                    return arrayTextResult(dimensions, events, 0);
+                }
+                element = langruntime.checkedBool(true);
+            }
+            if (element) {
+                count = langruntime.checkedAdd(count, 1);
+                frozen = langruntime.checkedBool(true);
+                if (!(nesting === rank)) {
+                    return arrayTextResult(dimensions, events, arrayTextInvalid);
+                }
+                const level: ArrayDimension = langruntime.indexStruct(levels, langruntime.checkedIndex(langruntime.checkedSubtract(nesting, 1)), copyArrayDimension);
+                levels[langruntime.checkedIndexIn(levels, langruntime.checkedSubtract(nesting, 1))] = { lower: 1, length: langruntime.checkedSignedAdd(level.length, 1) };
+                expectDelimiter = langruntime.checkedBool(true);
+            }
+        }
+        position = langruntime.checkedIndex(arrayTextSkipSpace(source, position));
+        if (!(position === source.characters.length)) {
+            return arrayTextResult(dimensions, events, arrayTextInvalid);
+        }
+        let resultDimensions: ArrayDimension[] = [];
+        if (count > 0) {
+            index = langruntime.checkedIndex(0);
+            while (index < rank) {
+                langruntime.pushStruct(resultDimensions, langruntime.indexStruct(dimensions, langruntime.checkedIndex(index), copyArrayDimension), copyArrayDimension);
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
+        return arrayTextResult(resultDimensions, events, 0);
+    }
+    return { kind: "Unknown" };
+}
+export function arrayTextEventCount(input: ArrayTextPayload): Int4Value {
+    input = copyArrayTextPayload(input);
+    return { kind: "Value", value: langruntime.checkedI32(langruntime.checkedIndex(input.events.length)) };
+}
+export function arrayTextEventAt(input: ArrayTextPayload, index: Int4Value): TextValue {
+    input = copyArrayTextPayload(input);
+    if (index.kind === "Error") {
+        const error: SqlError = index.value;
+        return { kind: "Error", value: error };
+    }
+    if (index.kind === "Value") {
+        const position: number = langruntime.checkedI32(index.value);
+        if (position < 0) {
+            return { kind: "Unknown" };
+        }
+        const offset: number = langruntime.indexFromI32(position, 0);
+        if (offset >= input.events.length) {
+            return { kind: "Unknown" };
+        }
+        const event: ArrayTextEvent = copyArrayTextEvent(langruntime.indexStruct(input.events, langruntime.checkedIndex(offset), copyArrayTextEvent));
+        if (event.kind === "Text") {
+            const text: string = langruntime.checkedString(event.value);
+            return { kind: "Value", value: text };
+        }
+        if (event.kind === "Null") {
+            return { kind: "Null" };
+        }
+        if (event.kind === "Error") {
+            const error: SqlError = event.value;
+            return { kind: "Error", value: error };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function finishArrayText(plan: ArrayTextPlan, converted: ArrayArguments): ArrayValue {
+    plan = copyArrayTextPlan(plan);
+    converted = copyArrayArguments(converted);
+    if (converted.kind === "Error") {
+        const error: SqlError = converted.value;
+        return { kind: "Error", value: error };
+    }
+    if (plan.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (plan.kind === "Value") {
+        const payload: ArrayTextPayload = copyArrayTextPayload(plan.value);
+        let index: number = 0;
+        while (index < payload.events.length) {
+            const event: ArrayTextEvent = copyArrayTextEvent(langruntime.indexStruct(payload.events, langruntime.checkedIndex(index), copyArrayTextEvent));
+            if (event.kind === "Error") {
+                const error: SqlError = event.value;
+                return { kind: "Error", value: error };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (converted.kind === "Value") {
+            const value: ArrayPayload = copyArrayPayload(converted.value);
+            index = langruntime.checkedIndex(0);
+            while (index < value.elements.length) {
+                const element: ArrayElement = copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), copyArrayElement));
+                if (element.kind === "Unknown") {
+                    return { kind: "Unknown" };
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: payload.dimensions, elements: value.elements });
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);
