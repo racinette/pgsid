@@ -284,7 +284,8 @@ exposes a prerequisite:
 - [x] JSONPath keyvalue objects: owned logical nodes, document/variable/generated IDs, wrapping counters and offsets, partially unknown identities, strict/lax prefixes, format limits and INSERT parity.
 - [x] JSONPath temporal methods and numeric calendar/clock templates: typed intermediates, widths/literals, grouped years/eras, ordinal/Julian/week calendars, 12-hour clocks, English/Roman names, fractions/offsets, comparisons and INSERT parity; preserve partial-field validation, integer widths, error hardness and context requirements.
 - [x] JSONPath regex execution under declared C/C.UTF-8 character profiles: flags, strict/lax sequences, lazy guards, error hardness and INSERT parity; retain engine limits and Unicode locale requirements.
-- [ ] JSONPath Unicode locale-sensitive regex matching, remaining context-sensitive operations and callable/interface classification.
+- [x] Establish scalar JSONPath _tz calls, context-independent paths, fixed-offset clock removal and explicit reached session deferrals; classify set-returning query and internal I/O interfaces with PostgreSQL checks and INSERT parity.
+- [ ] JSONPath Unicode locale-sensitive regex matching; retain declared locale, timezone and abbreviation requirements separately from implementation gaps.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
@@ -296,5 +297,4 @@ Catalog identities and pseudo-types share families; polymorphic signatures resol
 
 Keep PostgreSQL behavior in maintained Rust. Generate evaluator control flow and target code through ASTs. Preserve schema namespaces, separate CHECK and regex transpilers, errors as values, and diagnostic Unknown results.
 
-For each implementation task, select focused family suites and regressions for the shared behavior it changes. Verify Rust, Go and TypeScript against PostgreSQL, including raw/stored binding, public inputs and NULL/Unknown/error behavior. Rebuild affected assets, verify relevant codegen goldens, and run applicable static, corpus and measurement checks. Record selected dependencies and any reused evidence. Select INSERT worlds with `PGSID_CHECK_WORLDS=directory[,directory]`; keep scoped reports separate.
-Run the full CHECK gate for broad semantic changes and integration milestones. Keep partial runs explicitly partial. Refresh applicable measurements and this ledger, then commit the verified slice.
+For each implementation task, select focused family suites and regressions for the shared behavior it changes. Verify Rust, Go and TypeScript against PostgreSQL, including raw/stored binding, public inputs and NULL/Unknown/error behavior. Rebuild affected assets, verify relevant codegen goldens, and run applicable static, corpus and measurement checks. Record selected dependencies and any reused evidence. Select INSERT worlds with `PGSID_CHECK_WORLDS=directory[,directory]`; keep scoped reports separate. Run the full CHECK gate for broad semantic changes and integration milestones. Keep partial runs explicitly partial. Refresh applicable measurements and this ledger, then commit the verified slice.

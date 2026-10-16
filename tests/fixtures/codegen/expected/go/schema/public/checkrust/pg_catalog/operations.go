@@ -14998,6 +14998,17 @@ func jsonpathTemporalDecode(input checkruntime.TextValue) jsonpathTemporalValue 
 func jsonpathTemporalConvert(input checkruntime.TextValue, method int, precision int) jsonpathTemporalValue {
 	method = langruntime.CheckedI32(method)
 	precision = langruntime.CheckedI32(precision)
+	return jsonpathTemporalConvertMode(input, method, precision, false)
+}
+func jsonpathTemporalTimezone(useTimezone bool) jsonpathTemporalValue {
+	if useTimezone {
+		return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+	}
+	return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalFeature, false, true)
+}
+func jsonpathTemporalConvertMode(input checkruntime.TextValue, method int, precision int, useTimezone bool) jsonpathTemporalValue {
+	method = langruntime.CheckedI32(method)
+	precision = langruntime.CheckedI32(precision)
 	parsed := jsonpathTemporalDecode(input)
 	if parsed.unknown && parsed.kind == 3 && (method == 104 || method == 130 || method == 132) {
 		return jsonpathTemporalInvalid()
@@ -15010,7 +15021,7 @@ func jsonpathTemporalConvert(input checkruntime.TextValue, method int, precision
 	zone := parsed.zone
 	if method == 104 {
 		if kind == 5 {
-			return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalFeature, false, true)
+			return jsonpathTemporalTimezone(useTimezone)
 		}
 		if kind == 2 || kind == 3 {
 			return jsonpathTemporalInvalid()
@@ -15026,8 +15037,8 @@ func jsonpathTemporalConvert(input checkruntime.TextValue, method int, precision
 		zone = langruntime.CheckedI32(0)
 	}
 	if method == 109 {
-		if kind == 3 || kind == 5 {
-			return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalFeature, false, true)
+		if kind == 5 || (kind == 3 && useTimezone == false) {
+			return jsonpathTemporalTimezone(useTimezone)
 		}
 		if kind == 1 {
 			return jsonpathTemporalInvalid()
@@ -15039,13 +15050,14 @@ func jsonpathTemporalConvert(input checkruntime.TextValue, method int, precision
 			}
 		}
 		kind = langruntime.CheckedI32(2)
+		zone = langruntime.CheckedI32(0)
 	}
 	if method == 126 {
 		if kind == 1 || kind == 4 {
 			return jsonpathTemporalInvalid()
 		}
 		if kind == 2 {
-			return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalFeature, false, true)
+			return jsonpathTemporalTimezone(useTimezone)
 		}
 		if kind == 5 {
 			return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
@@ -15057,7 +15069,7 @@ func jsonpathTemporalConvert(input checkruntime.TextValue, method int, precision
 			return jsonpathTemporalInvalid()
 		}
 		if kind == 5 {
-			return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalFeature, false, true)
+			return jsonpathTemporalTimezone(useTimezone)
 		}
 		if kind == 1 {
 			timestamp := TimestampSwxj(checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: int(int32(value))})
@@ -15077,7 +15089,7 @@ func jsonpathTemporalConvert(input checkruntime.TextValue, method int, precision
 			return jsonpathTemporalInvalid()
 		}
 		if kind == 1 || kind == 4 {
-			return jsonpathTemporalState(0, int64(0), 0, jsonpathTemporalFeature, false, true)
+			return jsonpathTemporalTimezone(useTimezone)
 		}
 		kind = langruntime.CheckedI32(5)
 	}
@@ -15176,6 +15188,11 @@ func jsonpathTemporalMethod(kind int) bool {
 func jsonpathTemporalCompare(left jsonpathTemporalValue, right jsonpathTemporalValue) checkruntime.Int4Value {
 	left = copyjsonpathTemporalValue(left)
 	right = copyjsonpathTemporalValue(right)
+	return jsonpathTemporalCompareMode(left, right, false)
+}
+func jsonpathTemporalCompareMode(left jsonpathTemporalValue, right jsonpathTemporalValue, useTimezone bool) checkruntime.Int4Value {
+	left = copyjsonpathTemporalValue(left)
+	right = copyjsonpathTemporalValue(right)
 	if left.kind == right.kind {
 		if left.kind == 3 {
 			return TimetzCmpWy50(checkruntime.TimetzValue{Kind: checkruntime.TimetzValueValue, Value: checkruntime.TimetzPayload{Time: left.value, Zone: left.zone}}, checkruntime.TimetzValue{Kind: checkruntime.TimetzValueValue, Value: checkruntime.TimetzPayload{Time: right.value, Zone: right.zone}})
@@ -15193,6 +15210,9 @@ func jsonpathTemporalCompare(left jsonpathTemporalValue, right jsonpathTemporalV
 	leftClock := left.kind == 2 || left.kind == 3
 	rightClock := right.kind == 2 || right.kind == 3
 	if (leftCalendar && rightCalendar) || (leftClock && rightClock) {
+		if useTimezone {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonpathTemporalFeature)}
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}

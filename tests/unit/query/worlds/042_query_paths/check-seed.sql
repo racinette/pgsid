@@ -312,3 +312,25 @@ INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables
 INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unsupported regex flag source cast','{"a":"abc","flag":true}'::jsonb,'$.a like_regex "a"'::jsonpath,'$.a like_regex "a" flag "x"','{}'::jsonb,true,false,true,true,'[true]'::jsonb,'true'::jsonb);
 -- name: document_regex_skipped_invalid_source
 INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'skipped invalid regex source','{"a":"abc","flag":true}'::jsonb,'$.a like_regex "a"'::jsonpath,'$.a like_regex "["','{}'::jsonb,true,true,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: clock_fixed_offset
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'drop fixed offset','"12:34:56+03:00"'::jsonb,'$.time()=="12:34:56".time()'::jsonpath,'$.time()=="12:34:56".time()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: clock_precision
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'invalid clock operand makes predicate unknown','"23:59:59.999999-05:00"'::jsonb,'$.time(0)=="24:00:00".time()'::jsonpath,'$.time(0)=="24:00:00".time()','{}'::jsonb,false,false,true,NULL,'[null]'::jsonb,'null'::jsonb);
+-- name: clock_false_predicate
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'false clock predicate','"12:34:56+03:00"'::jsonb,'$.time()=="12:00:00".time()'::jsonpath,'$.time()=="12:00:00".time()','{}'::jsonb,false,false,true,false,'[false]'::jsonb,'false'::jsonb);
+-- name: clock_null_document
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'absent clock document',NULL::jsonb,'$.time()'::jsonpath,'$.time()','{}'::jsonb,false,false,NULL,NULL,NULL::jsonb,NULL::jsonb);
+-- name: clock_silent_wrong_type
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'suppressed wrong clock type','1'::jsonb,'$.time()'::jsonpath,'$.time()','{}'::jsonb,true,false,NULL,NULL,'[]'::jsonb,NULL::jsonb);
+-- name: clock_lazy_context
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'skip timezone lookup','"2024-02-29"'::jsonb,'(1==1)||($.timestamp_tz()=="2024-02-29T00:00:00Z".datetime())'::jsonpath,'(1==1)||($.timestamp_tz()=="2024-02-29T00:00:00Z".datetime())','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: clock_wrong_exists
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong clock existence','true'::jsonb,'$'::jsonpath,'$','{}'::jsonb,false,false,false,true,'[true]'::jsonb,'true'::jsonb);
+-- name: clock_wrong_match
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong clock match','true'::jsonb,'$'::jsonpath,'$','{}'::jsonb,false,false,true,false,'[true]'::jsonb,'true'::jsonb);
+-- name: clock_wrong_results
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong clock results','true'::jsonb,'$'::jsonpath,'$','{}'::jsonb,false,false,true,true,'[false]'::jsonb,'true'::jsonb);
+-- name: clock_wrong_first
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong first clock result','true'::jsonb,'$'::jsonpath,'$','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'false'::jsonb);
+-- name: clock_zone_context
+INSERT INTO query_clock_rules(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'local midnight needs timezone','"2024-02-29"'::jsonb,'$.timestamp_tz()=="2024-02-29T00:00:00Z".datetime()'::jsonpath,'$.timestamp_tz()=="2024-02-29T00:00:00Z".datetime()','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);

@@ -53,7 +53,7 @@ pub fn jsonpath_offset_probe(document:TextValue,path:TextValue,expected:TextValu
     empty_nodes.push(JsonbNode{kind:6,child:0,next:0,key_start:0,key_end:0,text_start:0,text_end:0});
     let empty_characters:Vec<char>=Vec::new();
     let vars=JsonbPayload{characters:empty_characters,nodes:empty_nodes,root:1};
-    let context=jsonpath_execution_make_context(value,vars,path,true,encoding,true,false,0);
+    let context=jsonpath_execution_make_context(value,vars,path,true,encoding,true,false,0,false);
     let sequence=jsonpath_execution_walk(context.clone(),false);
     if sequence.unknown || sequence.error>0 || sequence.items.len()!=1 {return BoolValue::Unknown;};
     let reference=sequence.items[0];

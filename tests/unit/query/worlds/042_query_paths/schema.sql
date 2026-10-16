@@ -57,3 +57,22 @@ CREATE TABLE query_documents (
  CONSTRAINT document_first CHECK(jsonb_path_query_first(document,path,variables,silent) IS NOT DISTINCT FROM expected_first),
  CONSTRAINT document_source CHECK(CASE WHEN bypass THEN true ELSE jsonb_path_query_array(document,source_text::retained_query_path,variables,silent) IS NOT DISTINCT FROM expected_results END)
 );
+CREATE TABLE query_clock_rules (
+ id integer PRIMARY KEY,
+ path_id integer NOT NULL REFERENCES query_paths(id),
+ label text NOT NULL,
+ document jsonb,
+ path retained_query_path,
+ source_text text,
+ variables jsonb,
+ silent boolean,
+ bypass boolean NOT NULL,
+ expected_exists boolean,
+ expected_match boolean,
+ expected_results jsonb,
+ expected_first jsonb,
+ CONSTRAINT clock_exists CHECK(jsonb_path_exists_tz(document,path,variables,silent) IS NOT DISTINCT FROM expected_exists),
+ CONSTRAINT clock_match CHECK(jsonb_path_match_tz(document,path,variables,silent) IS NOT DISTINCT FROM expected_match),
+ CONSTRAINT clock_results CHECK(jsonb_path_query_array_tz(document,path,variables,silent) IS NOT DISTINCT FROM expected_results),
+ CONSTRAINT clock_first CHECK(CASE WHEN bypass THEN true ELSE jsonb_path_query_first_tz(document,source_text::retained_query_path,variables,silent) IS NOT DISTINCT FROM expected_first END)
+);

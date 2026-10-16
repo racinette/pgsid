@@ -9,6 +9,7 @@ fn jsonpath_execution_make_context(
     variable_base: bool,
     c_collation: bool,
     ctype: i32,
+    use_timezone: bool,
 ) -> JsonpathExecutionContext {
     let mut needs_objects = false;
     let mut index: usize = 1;
@@ -81,6 +82,7 @@ fn jsonpath_execution_make_context(
         utf8: utf8,
         c_collation: c_collation,
         ctype: ctype,
+        use_timezone: use_timezone,
         ordered_result: ordered_result,
         document_ids: document_ids,
         variables_ids: variables_ids,

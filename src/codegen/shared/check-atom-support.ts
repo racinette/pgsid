@@ -3,7 +3,11 @@ import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.j
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import type { SqlBindingGroup } from '../../sql-semantics/signatures.js'
 import { checkRustCallableNames } from './check-rust-source.js'
-import { jsonbConversionHelper, isJsonbBuilder } from './check-rust-evaluator.js'
+import {
+  jsonbConversionHelper,
+  isJsonbBuilder,
+  isJsonpathTimezoneCallable,
+} from './check-rust-evaluator.js'
 import { builtinCast, builtinMetadata } from '../../postgres/builtins/inventory.js'
 import { enumEqualityOperation } from '../../sql-semantics/expressions.js'
 import { goSqlBackend } from '../go/sql/registry.js'
@@ -36,6 +40,9 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
       builtinCast('pg_catalog.text', implementation.result)?.implementation === signature)
   return (
     (metadata.volatility === 'i' ||
+      (rust &&
+        isJsonpathTimezoneCallable(implementation) &&
+        rustNames.has(implementation.rustName)) ||
       (rust && isJsonbBuilder(implementation) && rustNames.has(implementation.rustName)) ||
       (rust &&
         implementation.kind === 'function' &&
