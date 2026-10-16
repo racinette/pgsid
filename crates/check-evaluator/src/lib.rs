@@ -8,6 +8,7 @@ pub mod checkruntime {
     include!("uuid.rs");
     include!("json_syntax.rs");
     include!("json_read.rs");
+    include!("json_array_paths.rs");
     include!("jsonb.rs");
     include!("jsonb_build.rs");
     include!("jsonb_storage.rs");
@@ -87,6 +88,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/jsonb_core.rs");
     include!("operations/pg_catalog/json_extract.rs");
     include!("operations/pg_catalog/jsonb_extract.rs");
+    include!("operations/pg_catalog/json_array_paths.rs");
     include!("operations/pg_catalog/jsonb_relations.rs");
     include!("operations/pg_catalog/jsonb_order.rs");
     include!("operations/pg_catalog/jsonb_cast.rs");

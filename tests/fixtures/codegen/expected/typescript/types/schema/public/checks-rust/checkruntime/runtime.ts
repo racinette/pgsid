@@ -4440,6 +4440,11 @@ function jsonReadHex(character: string): number {
 }
 function jsonReadDecodeString(source: JsonSyntaxSource, token: JsonReadToken): TextValue {
     token = copyJsonReadToken(token);
+    return jsonReadDecodeStringContext(source, token, false);
+}
+function jsonReadDecodeStringContext(source: JsonSyntaxSource, token: JsonReadToken, utf8: boolean): TextValue {
+    token = copyJsonReadToken(token);
+    utf8 = langruntime.checkedBool(utf8);
     let position: number = langruntime.checkedAdd(token.start, 1);
     let high: number = langruntime.checkedSignedNegate(1);
     let output: string = "";
@@ -4492,7 +4497,7 @@ function jsonReadDecodeString(source: JsonSyntaxSource, token: JsonReadToken): T
                     if (code === 0) {
                         return { kind: "Error", value: makeSqlError(jsonReadZero) };
                     }
-                    if (code > 127) {
+                    if (code > 127 && utf8 === false) {
                         return { kind: "Unknown" };
                     }
                     output = output + langruntime.checkedChar(langruntime.characterFromI32(code, " "));
@@ -4769,6 +4774,409 @@ export function jsonKindText(kind: number): TextValue {
     }
     if (kind === 6) {
         return makeTextValue("object");
+    }
+    return { kind: "Unknown" };
+}
+interface JsonArrayPathNode {
+    kind: number;
+    start: number;
+    end: number;
+    child: number;
+    next: number;
+    keyStart: number;
+    keyEnd: number;
+}
+function copyJsonArrayPathNode(value: JsonArrayPathNode): JsonArrayPathNode {
+    return { kind: langruntime.checkedI32(value.kind), start: langruntime.checkedIndex(value.start), end: langruntime.checkedIndex(value.end), child: langruntime.checkedIndex(value.child), next: langruntime.checkedIndex(value.next), keyStart: langruntime.checkedIndex(value.keyStart), keyEnd: langruntime.checkedIndex(value.keyEnd) };
+}
+interface JsonArrayPathFrame {
+    node: number;
+    tail: number;
+    state: number;
+    keyStart: number;
+    keyEnd: number;
+}
+function copyJsonArrayPathFrame(value: JsonArrayPathFrame): JsonArrayPathFrame {
+    return { node: langruntime.checkedIndex(value.node), tail: langruntime.checkedIndex(value.tail), state: langruntime.checkedI32(value.state), keyStart: langruntime.checkedIndex(value.keyStart), keyEnd: langruntime.checkedIndex(value.keyEnd) };
+}
+interface JsonArrayPathDocument {
+    characters: string[];
+    names: string[];
+    nodes: JsonArrayPathNode[];
+    root: number;
+    state: number;
+    error: SqlError;
+}
+function copyJsonArrayPathDocument(value: JsonArrayPathDocument): JsonArrayPathDocument {
+    return { characters: langruntime.checkedChars(value.characters), names: langruntime.checkedChars(value.names), nodes: langruntime.checkedStructs(value.nodes, copyJsonArrayPathNode), root: langruntime.checkedIndex(value.root), state: langruntime.checkedI32(value.state), error: value.error };
+}
+interface JsonArrayPathCandidates {
+    nodes: number[];
+    state: number;
+}
+function copyJsonArrayPathCandidates(value: JsonArrayPathCandidates): JsonArrayPathCandidates {
+    return { nodes: langruntime.checkedIndices(value.nodes), state: langruntime.checkedI32(value.state) };
+}
+export function jsonArrayPathState(input: ArrayValue): Int4Value {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        if (!(value.elementType === "pg_catalog.text") || !(value.elementKind === 8)) {
+            return { kind: "Unknown" };
+        }
+        let position: number = 0;
+        while (position < value.elements.length) {
+            const element: ArrayElement = copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(position), copyArrayElement));
+            if (element.kind === "Null") {
+                return { kind: "Null" };
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(value.elements.length)));
+    }
+    return { kind: "Unknown" };
+}
+export function jsonArrayPathIndex(input: string): Int4Value {
+    const characters: string[] = Array.from(input);
+    let position: number = 0;
+    while (position < characters.length) {
+        const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+        if (!(ch === " ") && !(ch === "\t") && !(ch === "\n") && !(ch === "\r") && !(ch === "\v") && !(ch === "\f")) {
+            break;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let negative: boolean = false;
+    if (position < characters.length) {
+        if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "-") {
+            negative = langruntime.checkedBool(true);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        else if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "+") {
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    const start: number = position;
+    let magnitude: bigint = 0n;
+    let limit: bigint = 2147483647n;
+    if (negative) {
+        limit = langruntime.checkedI64(2147483648n);
+    }
+    while (position < characters.length) {
+        const digit: number = langruntime.checkedSignedSubtract(langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(position))).codePointAt(0)!, 48);
+        if (digit < 0 || digit > 9 || magnitude > langruntime.checkedI64Divide((langruntime.checkedI64Subtract(limit, (BigInt(langruntime.checkedI32(digit))))), 10n)) {
+            return { kind: "Null" };
+        }
+        magnitude = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(magnitude, 10n), (BigInt(langruntime.checkedI32(digit)))));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (position === start) {
+        return { kind: "Null" };
+    }
+    if (negative) {
+        magnitude = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, magnitude));
+    }
+    return makeInt4Value(Number(BigInt.asIntN(32, langruntime.checkedI64(magnitude))));
+}
+function jsonArrayPathEmpty(state: number, error: SqlError): JsonArrayPathDocument {
+    state = langruntime.checkedI32(state);
+    const characters: string[] = [];
+    const names: string[] = [];
+    const nodes: JsonArrayPathNode[] = [];
+    return { characters: characters, names: names, nodes: nodes, root: 0, state: state, error: error };
+}
+function jsonArrayPathNodeChild(node: JsonArrayPathNode, value: number): JsonArrayPathNode {
+    node = copyJsonArrayPathNode(node);
+    value = langruntime.checkedIndex(value);
+    return { kind: node.kind, start: node.start, end: node.end, child: value, next: node.next, keyStart: node.keyStart, keyEnd: node.keyEnd };
+}
+function jsonArrayPathNodeNext(node: JsonArrayPathNode, value: number): JsonArrayPathNode {
+    node = copyJsonArrayPathNode(node);
+    value = langruntime.checkedIndex(value);
+    return { kind: node.kind, start: node.start, end: node.end, child: node.child, next: value, keyStart: node.keyStart, keyEnd: node.keyEnd };
+}
+function jsonArrayPathNodeEnd(node: JsonArrayPathNode, value: number): JsonArrayPathNode {
+    node = copyJsonArrayPathNode(node);
+    value = langruntime.checkedIndex(value);
+    return { kind: node.kind, start: node.start, end: value, child: node.child, next: node.next, keyStart: node.keyStart, keyEnd: node.keyEnd };
+}
+function parseJsonArrayPathDocument(input: string, utf8: boolean): JsonArrayPathDocument {
+    input = langruntime.checkedString(input);
+    utf8 = langruntime.checkedBool(utf8);
+    const source: JsonSyntaxSource = { characters: Array.from(input) };
+    let nodes: JsonArrayPathNode[] = [];
+    langruntime.pushStruct(nodes, { kind: langruntime.checkedSignedNegate(1), start: 0, end: 0, child: 0, next: 0, keyStart: 0, keyEnd: 0 }, copyJsonArrayPathNode);
+    let names: string[] = [];
+    let frames: JsonArrayPathFrame[] = [];
+    let depth: number = 0;
+    let position: number = 0;
+    let root: number = 0;
+    while (position < source.characters.length) {
+        const token: JsonReadToken = copyJsonReadToken(jsonReadNextToken(source, position));
+        if (token.kind === jsonReadEnd) {
+            break;
+        }
+        if (token.syntax === jsonSyntaxInvalid) {
+            return jsonArrayPathEmpty(langruntime.checkedSignedNegate(2), makeSqlError(jsonReadInvalidText));
+        }
+        let decoded: TextValue = { kind: "Null" };
+        if (token.kind === jsonReadQuote) {
+            decoded = jsonReadDecodeStringContext(source, token, utf8);
+            if (decoded.kind === "Error") {
+                const error: SqlError = decoded.value;
+                return jsonArrayPathEmpty(langruntime.checkedSignedNegate(2), error);
+            }
+            if (equalTextValue(decoded, { kind: "Unknown" })) {
+                return jsonArrayPathEmpty(langruntime.checkedSignedNegate(1), makeSqlError(0));
+            }
+        }
+        let key: boolean = false;
+        if (depth > 0) {
+            const frame: JsonArrayPathFrame = copyJsonArrayPathFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)), copyJsonArrayPathFrame));
+            if (langruntime.indexStruct(nodes, langruntime.checkedIndex(frame.node), copyJsonArrayPathNode).kind === 6 && frame.state === 0 && token.kind === jsonReadQuote) {
+                const begin: number = names.length;
+                if (decoded.kind === "Value") {
+                    const text: string = langruntime.checkedString(decoded.value);
+                    const characters: string[] = Array.from(text);
+                    let index: number = 0;
+                    while (index < characters.length) {
+                        langruntime.pushChar(names, langruntime.indexChar(characters, langruntime.checkedIndex(index)));
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                }
+                frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonArrayPathFrame({ node: frame.node, tail: frame.tail, state: 1, keyStart: begin, keyEnd: names.length });
+                key = langruntime.checkedBool(true);
+            }
+        }
+        if (key === false) {
+            if (token.kind === jsonReadColon || token.kind === jsonReadComma) {
+                if (depth > 0) {
+                    const frame: JsonArrayPathFrame = copyJsonArrayPathFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)), copyJsonArrayPathFrame));
+                    let state: number = 0;
+                    if (token.kind === jsonReadColon || langruntime.indexStruct(nodes, langruntime.checkedIndex(frame.node), copyJsonArrayPathNode).kind === 5) {
+                        state = langruntime.checkedI32(2);
+                    }
+                    frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonArrayPathFrame({ node: frame.node, tail: frame.tail, state: state, keyStart: frame.keyStart, keyEnd: frame.keyEnd });
+                }
+            }
+            else if (token.kind === jsonReadObjectClose || token.kind === jsonReadArrayClose) {
+                if (depth === 0) {
+                    return jsonArrayPathEmpty(langruntime.checkedSignedNegate(2), makeSqlError(jsonReadInvalidText));
+                }
+                const frame: JsonArrayPathFrame = copyJsonArrayPathFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)), copyJsonArrayPathFrame));
+                nodes[langruntime.checkedIndexIn(nodes, frame.node)] = copyJsonArrayPathNode(jsonArrayPathNodeEnd(langruntime.indexStruct(nodes, langruntime.checkedIndex(frame.node), copyJsonArrayPathNode), token.end));
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            }
+            else {
+                let kind: number = 3;
+                if (token.kind === jsonReadObjectOpen) {
+                    kind = langruntime.checkedI32(6);
+                }
+                else if (token.kind === jsonReadArrayOpen) {
+                    kind = langruntime.checkedI32(5);
+                }
+                else if (token.kind === jsonReadQuote) {
+                    kind = langruntime.checkedI32(4);
+                }
+                else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(token.start)) === "n") {
+                    kind = langruntime.checkedI32(0);
+                }
+                else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(token.start)) === "t") {
+                    kind = langruntime.checkedI32(1);
+                }
+                else if (langruntime.indexChar(source.characters, langruntime.checkedIndex(token.start)) === "f") {
+                    kind = langruntime.checkedI32(2);
+                }
+                let keyStart: number = 0;
+                let keyEnd: number = 0;
+                const index: number = nodes.length;
+                if (depth > 0) {
+                    const frame: JsonArrayPathFrame = copyJsonArrayPathFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)), copyJsonArrayPathFrame));
+                    keyStart = langruntime.checkedIndex(frame.keyStart);
+                    keyEnd = langruntime.checkedIndex(frame.keyEnd);
+                    if (frame.tail > 0) {
+                        nodes[langruntime.checkedIndexIn(nodes, frame.tail)] = copyJsonArrayPathNode(jsonArrayPathNodeNext(langruntime.indexStruct(nodes, langruntime.checkedIndex(frame.tail), copyJsonArrayPathNode), index));
+                    }
+                    else {
+                        nodes[langruntime.checkedIndexIn(nodes, frame.node)] = copyJsonArrayPathNode(jsonArrayPathNodeChild(langruntime.indexStruct(nodes, langruntime.checkedIndex(frame.node), copyJsonArrayPathNode), index));
+                    }
+                    frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonArrayPathFrame({ node: frame.node, tail: index, state: 3, keyStart: frame.keyStart, keyEnd: frame.keyEnd });
+                }
+                else {
+                    root = langruntime.checkedIndex(index);
+                }
+                langruntime.pushStruct(nodes, { kind: kind, start: token.start, end: token.end, child: 0, next: 0, keyStart: keyStart, keyEnd: keyEnd }, copyJsonArrayPathNode);
+                if (kind === 5 || kind === 6) {
+                    let state: number = 0;
+                    if (kind === 5) {
+                        state = langruntime.checkedI32(2);
+                    }
+                    const frame: JsonArrayPathFrame = copyJsonArrayPathFrame({ node: index, tail: 0, state: state, keyStart: 0, keyEnd: 0 });
+                    if (depth < frames.length) {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyJsonArrayPathFrame(frame);
+                    }
+                    else {
+                        langruntime.pushStruct(frames, frame, copyJsonArrayPathFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+            }
+        }
+        position = langruntime.checkedIndex(token.end);
+    }
+    return { characters: source.characters, names: names, nodes: nodes, root: root, state: 1, error: makeSqlError(0) };
+}
+function jsonArrayPathKeyMatches(source: JsonArrayPathDocument, node: JsonArrayPathNode, key: JsonSyntaxSource): boolean {
+    node = copyJsonArrayPathNode(node);
+    if (!(langruntime.checkedSubtract(node.keyEnd, node.keyStart) === key.characters.length)) {
+        return false;
+    }
+    let position: number = 0;
+    while (position < key.characters.length) {
+        if (!(langruntime.indexChar(source.names, langruntime.checkedIndex(langruntime.checkedAdd(node.keyStart, position))) === langruntime.indexChar(key.characters, langruntime.checkedIndex(position)))) {
+            return false;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return true;
+}
+function jsonArrayPathNext(source: JsonArrayPathDocument, current: JsonArrayPathCandidates, key: TextValue): JsonArrayPathCandidates {
+    current = copyJsonArrayPathCandidates(current);
+    let output: number[] = [];
+    if (key.kind === "Value") {
+        const text: string = langruntime.checkedString(key.value);
+        const characters: JsonSyntaxSource = { characters: Array.from(text) };
+        const index: Int4Value = jsonArrayPathIndex(text);
+        let position: number = 0;
+        while (position < current.nodes.length) {
+            const node: JsonArrayPathNode = copyJsonArrayPathNode(langruntime.indexStruct(source.nodes, langruntime.checkedIndex(langruntime.indexNumber(current.nodes, langruntime.checkedIndex(position))), copyJsonArrayPathNode));
+            if (node.kind === 6) {
+                let child: number = node.child;
+                while (child > 0) {
+                    const field: JsonArrayPathNode = copyJsonArrayPathNode(langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), copyJsonArrayPathNode));
+                    if (jsonArrayPathKeyMatches(source, field, characters)) {
+                        langruntime.pushIndex(output, child);
+                    }
+                    child = langruntime.checkedIndex(field.next);
+                }
+            }
+            else if (node.kind === 5) {
+                if (index.kind === "Value") {
+                    const number: number = langruntime.checkedI32(index.value);
+                    let count: bigint = 0n;
+                    let child: number = node.child;
+                    while (child > 0) {
+                        count = langruntime.checkedI64(langruntime.checkedI64Add(count, 1n));
+                        child = langruntime.checkedIndex(langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), copyJsonArrayPathNode).next);
+                    }
+                    let wanted: bigint = BigInt(langruntime.checkedI32(number));
+                    if (wanted < 0n) {
+                        wanted = langruntime.checkedI64(langruntime.checkedI64Add(count, wanted));
+                    }
+                    let offset: bigint = 0n;
+                    child = langruntime.checkedIndex(node.child);
+                    while (child > 0) {
+                        if (offset === wanted) {
+                            langruntime.pushIndex(output, child);
+                            break;
+                        }
+                        offset = langruntime.checkedI64(langruntime.checkedI64Add(offset, 1n));
+                        child = langruntime.checkedIndex(langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), copyJsonArrayPathNode).next);
+                    }
+                }
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return { nodes: output, state: 1 };
+    }
+    let position: number = 0;
+    while (position < current.nodes.length) {
+        const node: JsonArrayPathNode = copyJsonArrayPathNode(langruntime.indexStruct(source.nodes, langruntime.checkedIndex(langruntime.indexNumber(current.nodes, langruntime.checkedIndex(position))), copyJsonArrayPathNode));
+        if ((node.kind === 5 || node.kind === 6) && node.child > 0) {
+            return { nodes: output, state: langruntime.checkedSignedNegate(1) };
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { nodes: output, state: 1 };
+}
+export function jsonReadArrayPath(input: JsonValue, path: ArrayValue, asText: boolean, utf8: boolean): TextValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    const pathState: Int4Value = jsonArrayPathState(copyArrayValue(path));
+    if (pathState.kind === "Error") {
+        const error: SqlError = pathState.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (equalInt4Value(pathState, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (equalInt4Value(pathState, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonPayload = input.value;
+        if (path.kind === "Value") {
+            const keys: ArrayPayload = copyArrayPayload(path.value);
+            let uncertain: boolean = false;
+            let index: number = 0;
+            while (index < keys.elements.length) {
+                const key: ArrayElement = copyArrayElement(langruntime.indexStruct(keys.elements, langruntime.checkedIndex(index), copyArrayElement));
+                if (key.kind === "Unknown") {
+                    uncertain = langruntime.checkedBool(true);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            const document: JsonArrayPathDocument = parseJsonArrayPathDocument(value.source, utf8);
+            if (document.state === langruntime.checkedSignedNegate(2)) {
+                if (uncertain) {
+                    return { kind: "Unknown" };
+                }
+                return { kind: "Error", value: document.error };
+            }
+            if (!(document.state === 1) || document.root === 0) {
+                return { kind: "Unknown" };
+            }
+            let initial: number[] = [];
+            langruntime.pushIndex(initial, document.root);
+            let candidates: JsonArrayPathCandidates = { nodes: initial, state: 1 };
+            index = langruntime.checkedIndex(0);
+            while (index < keys.elements.length) {
+                const key: TextValue = arrayElementToText(copyArrayElement(langruntime.indexStruct(keys.elements, langruntime.checkedIndex(index), copyArrayElement)));
+                candidates = copyJsonArrayPathCandidates(jsonArrayPathNext(document, candidates, key));
+                if (!(candidates.state === 1)) {
+                    return { kind: "Unknown" };
+                }
+                if (candidates.nodes.length === 0) {
+                    return { kind: "Null" };
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            const selected: number = langruntime.indexNumber(candidates.nodes, langruntime.checkedIndex(langruntime.checkedSubtract(candidates.nodes.length, 1)));
+            const node: JsonArrayPathNode = copyJsonArrayPathNode(langruntime.indexStruct(document.nodes, langruntime.checkedIndex(selected), copyJsonArrayPathNode));
+            const source: JsonSyntaxSource = { characters: document.characters };
+            if (asText && node.kind === 0) {
+                return { kind: "Null" };
+            }
+            if (asText && node.kind === 4) {
+                const token: JsonReadToken = copyJsonReadToken(jsonReadNextToken(source, node.start));
+                return jsonReadDecodeStringContext(source, token, utf8);
+            }
+            if (keys.elements.length === 0 && node.kind < 5) {
+                return jsonReadSlice(source, 0, node.end);
+            }
+            return jsonReadSlice(source, node.start, node.end);
+        }
     }
     return { kind: "Unknown" };
 }
@@ -7996,14 +8404,6 @@ export function finishArrayConstructor(input: ArrayArguments): ArrayValue {
     }
     if (input.kind === "Value") {
         const value: ArrayPayload = copyArrayPayload(input.value);
-        let position: number = 0;
-        while (position < value.elements.length) {
-            const element: ArrayElement = copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(position), copyArrayElement));
-            if (element.kind === "Unknown") {
-                return { kind: "Unknown" };
-            }
-            position = langruntime.checkedAdd(position, 1);
-        }
         let dimensions: ArrayDimension[] = [];
         if (value.elements.length > 0) {
             langruntime.pushStruct(dimensions, { lower: 1, length: langruntime.checkedI32(langruntime.checkedIndex(value.elements.length)) }, copyArrayDimension);

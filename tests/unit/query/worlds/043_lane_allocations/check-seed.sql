@@ -1370,3 +1370,183 @@ VALUES ('bad', NULL, NULL, NULL, false);
 -- name: sorted_precision_skipped_error
 INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
 VALUES ('bad', NULL, NULL, NULL, true);
+
+-- name: document_paths_nested
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":[{"id":7},{"id":8}]}', '{"a":[{"id":7},{"id":8}]}', '{a,-1,id}', '8', '8', '8', '8');
+
+-- name: document_paths_bounds
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":{"x":1}}', '{"a":{"x":1}}', '[0:1]={a,x}', '1', '1', '1', '1');
+
+-- name: document_paths_matrix
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":{"x":1}}', '{"a":{"x":1}}', '{{a},{x}}', '1', '1', '1', '1');
+
+-- name: document_paths_duplicate_prefix
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":{"x":1},"a":{}}', '{"a":{"x":1},"a":{}}', '{a,x}', '1', '1', NULL, NULL);
+
+-- name: document_paths_duplicate_leaf
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":{"x":1,"x":2}}', '{"a":{"x":1,"x":2}}', '{a,x}', '2', '2', '2', '2');
+
+-- name: document_paths_empty_number
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('  1.00e+2  ', '  1.00e+2  ', '{}', '  1.00e+2', '  1.00e+2', '100', '100');
+
+-- name: document_paths_empty_string
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('  "x"  ', '  "x"  ', '{}', '  "x"', 'x', '"x"', 'x');
+
+-- name: document_paths_json_null
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('null', 'null', '{}', 'null', NULL, 'null', NULL);
+
+-- name: document_paths_empty_object
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES (' {} ', ' {} ', '{}', '{}', '{}', '{}', '{}');
+
+-- name: document_paths_missing
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":1}', '{"a":1}', '{missing}', NULL, NULL, NULL, NULL);
+
+-- name: document_paths_null_cell
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":1}', '{"a":1}', '{a,NULL}', NULL, NULL, NULL, NULL);
+
+-- name: document_paths_null_array
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":1}', '{"a":1}', NULL, NULL, NULL, NULL, NULL);
+
+-- name: document_paths_sql_null
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES (NULL, NULL, '{}', NULL, NULL, NULL, NULL);
+
+-- name: document_paths_unicode
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"雪":"😊"}', '{"雪":"😊"}', '{雪}', '"😊"', '😊', '"😊"', '😊');
+
+-- name: document_paths_decode
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":"\u00e9"}', '{"a":"\u00e9"}', '{a}', '"\u00e9"', 'é', '"é"', 'é');
+
+-- name: document_paths_bad_index
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('[1,2]', '[1,2]', '{"1 "}', NULL, NULL, NULL, NULL);
+
+-- name: document_paths_signed_index
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('[1,2]', '[1,2]', '{+1}', '2', '2', '2', '2');
+
+-- name: document_paths_wrong_raw
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":1}', '{"a":1}', '{a}', '2', '1', '1', '1');
+
+-- name: document_paths_wrong_text
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":1}', '{"a":1}', '{a}', '1', 'wrong', '1', '1');
+
+-- name: document_paths_wrong_binary
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":1}', '{"a":1}', '{a}', '1', '1', '2', '1');
+
+-- name: document_paths_wrong_binary_text
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":1}', '{"a":1}', '{a}', '1', '1', '1', 'wrong');
+
+-- name: expanded_paths_nested
+INSERT INTO lane_expanded_paths (document, binary_document, first_key, second_key, expected_text, expected_binary_text)
+VALUES ('{"a":{"x":1}}', '{"a":{"x":1}}', 'a', 'x', '1', '1');
+
+-- name: expanded_paths_duplicate
+INSERT INTO lane_expanded_paths (document, binary_document, first_key, second_key, expected_text, expected_binary_text)
+VALUES ('{"a":{"x":1},"a":null}', '{"a":{"x":1},"a":null}', 'a', 'x', '1', NULL);
+
+-- name: expanded_paths_null_key
+INSERT INTO lane_expanded_paths (document, binary_document, first_key, second_key, expected_text, expected_binary_text)
+VALUES ('{"a":{"x":1}}', '{"a":{"x":1}}', NULL, 'x', NULL, NULL);
+
+-- name: expanded_paths_sql_null
+INSERT INTO lane_expanded_paths (document, binary_document, first_key, second_key, expected_text, expected_binary_text)
+VALUES (NULL, NULL, 'a', 'x', NULL, NULL);
+
+-- name: expanded_paths_unmatched_error
+INSERT INTO lane_expanded_paths (document, binary_document, first_key, second_key, expected_text, expected_binary_text)
+VALUES ('{"a":{"x":1},"bad":"\u0000"}', '{"a":{"x":1}}', 'a', 'x', '1', '1');
+
+-- name: expanded_paths_wrong_raw
+INSERT INTO lane_expanded_paths (document, binary_document, first_key, second_key, expected_text, expected_binary_text)
+VALUES ('{"a":{"x":1}}', '{"a":{"x":1}}', 'a', 'x', '2', '1');
+
+-- name: expanded_paths_wrong_binary
+INSERT INTO lane_expanded_paths (document, binary_document, first_key, second_key, expected_text, expected_binary_text)
+VALUES ('{"a":{"x":1}}', '{"a":{"x":1}}', 'a', 'x', '1', '2');
+
+-- name: document_keys_match
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{"a":1,"b":null}', '{a,b}', true, true, false);
+
+-- name: document_keys_partial
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{"a":1}', '{a,missing}', true, false, false);
+
+-- name: document_keys_skipped_missing
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{"a":1}', '{missing}', false, false, true);
+
+-- name: document_keys_null_cells
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{"a":1}', '{NULL,a}', true, true, false);
+
+-- name: document_keys_empty
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{}', '{}', false, true, true);
+
+-- name: document_keys_bounds
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{"a":1,"b":2}', '[0:1]={a,b}', true, true, false);
+
+-- name: document_keys_matrix
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('["a","b"]', '{{a},{b}}', true, true, false);
+
+-- name: document_keys_scalar
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('"a"', '{a}', true, true, false);
+
+-- name: document_keys_unicode
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{"雪":1}', '{雪}', true, true, false);
+
+-- name: document_keys_null_array
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{}', NULL, NULL, NULL, false);
+
+-- name: document_keys_sql_null
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES (NULL, '{a}', NULL, NULL, false);
+
+-- name: document_keys_wrong_any
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{"a":1}', '{a}', false, true, false);
+
+-- name: document_keys_wrong_all
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{"a":1}', '{a}', true, false, false);
+
+-- name: document_keys_required_missing
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{}', '{missing}', false, false, false);
+
+-- name: document_paths_unmatched_decode_error
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":1,"bad":"\u0000"}', '{"a":1}', '{a}', '1', '1', '1', '1');
+
+-- name: document_paths_null_cell_skips_decode
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":1,"bad":"\u0000"}', '{"a":1}', '{NULL}', NULL, NULL, NULL, NULL);
+
+-- name: document_keys_only_null_cells
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{}', '{NULL,NULL}', false, true, true);

@@ -1,8 +1,122 @@
-import { builtinCast, functionMetadata, operatorMetadata } from '../postgres/builtins/inventory.js'
+import {
+  builtinCast,
+  builtinTypeResolution,
+  functionMetadata,
+  operatorMetadata,
+} from '../postgres/builtins/inventory.js'
 import type { CallableMetadata } from '../postgres/builtins/catalog.js'
 import type { EnumInfo } from '../catalog/types.js'
 import type { CallableEmitter, SqlBindingGroup, TypedSqlExpression } from './signatures.js'
 import { equalityOperation, supportsTextCallableCollation } from './collation.js'
+
+export const catalogScalarType = (name: string): ScalarType | null => {
+  if (name.endsWith('[]')) {
+    const element = catalogScalarType(name.replace(/(?:\[\])+$/u, ''))
+    return element && !element.startsWith('array:')
+      ? arrayType(element as Exclude<ScalarType, ArrayType>)
+      : null
+  }
+  if (
+    name.startsWith('pg_catalog._') ||
+    (name.startsWith('_') && builtinTypeResolution('pg_catalog.' + name)?.category === 'A')
+  ) {
+    const internal = name.replace(/^pg_catalog\./u, '')
+    if (builtinTypeResolution('pg_catalog.' + internal)?.category !== 'A') return null
+    const element = catalogScalarType(internal.slice(1))
+    return element && !element.startsWith('array:')
+      ? arrayType(element as Exclude<ScalarType, ArrayType>)
+      : null
+  }
+  if (name.startsWith('pg_catalog.'))
+    return catalogScalarType(name.slice('pg_catalog.'.length).replaceAll('"', ''))
+  const names: Record<string, ScalarType> = {
+    boolean: 'pg_catalog.bool',
+    bool: 'pg_catalog.bool',
+    smallint: 'pg_catalog.int2',
+    int2: 'pg_catalog.int2',
+    integer: 'pg_catalog.int4',
+    int4: 'pg_catalog.int4',
+    bigint: 'pg_catalog.int8',
+    int8: 'pg_catalog.int8',
+    real: 'pg_catalog.float4',
+    float4: 'pg_catalog.float4',
+    'double precision': 'pg_catalog.float8',
+    float8: 'pg_catalog.float8',
+    numeric: 'pg_catalog."numeric"',
+    decimal: 'pg_catalog."numeric"',
+    inet: 'pg_catalog.inet',
+    cidr: 'pg_catalog.cidr',
+    point: 'pg_catalog.point',
+    line: 'pg_catalog.line',
+    lseg: 'pg_catalog.lseg',
+    money: 'pg_catalog.money',
+    xid: 'pg_catalog.xid',
+    cid: 'pg_catalog.cid',
+    pg_lsn: 'pg_catalog.pg_lsn',
+    tid: 'pg_catalog.tid',
+    refcursor: 'pg_catalog.refcursor',
+    name: 'pg_catalog.name',
+    char: 'pg_catalog."char"',
+    '"char"': 'pg_catalog."char"',
+    xid8: 'pg_catalog.xid8',
+    pg_snapshot: 'pg_catalog.pg_snapshot',
+    txid_snapshot: 'pg_catalog.txid_snapshot',
+    regclass: 'pg_catalog.regclass',
+    regcollation: 'pg_catalog.regcollation',
+    regconfig: 'pg_catalog.regconfig',
+    regdictionary: 'pg_catalog.regdictionary',
+    regnamespace: 'pg_catalog.regnamespace',
+    regoper: 'pg_catalog.regoper',
+    regoperator: 'pg_catalog.regoperator',
+    regproc: 'pg_catalog.regproc',
+    regprocedure: 'pg_catalog.regprocedure',
+    regrole: 'pg_catalog.regrole',
+    regtype: 'pg_catalog.regtype',
+    oid: 'pg_catalog.oid',
+    polygon: 'pg_catalog.polygon',
+    path: 'pg_catalog.path',
+    circle: 'pg_catalog.circle',
+    box: 'pg_catalog.box',
+    uuid: 'pg_catalog.uuid',
+    macaddr: 'pg_catalog.macaddr',
+    macaddr8: 'pg_catalog.macaddr8',
+    bytea: 'pg_catalog.bytea',
+    json: 'pg_catalog."json"',
+    jsonb: 'pg_catalog.jsonb',
+    jsonpath: 'pg_catalog.jsonpath',
+    '"json"': 'pg_catalog."json"',
+    bit: 'pg_catalog."bit"',
+    '"bit"': 'pg_catalog."bit"',
+    varbit: 'pg_catalog.varbit',
+    'bit varying': 'pg_catalog.varbit',
+    time: 'pg_catalog."time"',
+    'time without time zone': 'pg_catalog."time"',
+    timetz: 'pg_catalog.timetz',
+    'time with time zone': 'pg_catalog.timetz',
+    interval: 'pg_catalog."interval"',
+    date: 'pg_catalog.date',
+    timestamp: 'pg_catalog."timestamp"',
+    'timestamp without time zone': 'pg_catalog."timestamp"',
+    timestamptz: 'pg_catalog.timestamptz',
+    'timestamp with time zone': 'pg_catalog.timestamptz',
+    text: 'pg_catalog.text',
+    'character varying': 'pg_catalog."varchar"',
+    varchar: 'pg_catalog."varchar"',
+    character: 'pg_catalog.bpchar',
+    bpchar: 'pg_catalog.bpchar',
+  }
+  if (/^(?:numeric|decimal)\(/u.test(name)) return 'pg_catalog."numeric"'
+  if (/^bit\(\d+\)$/u.test(name)) return 'pg_catalog."bit"'
+  if (/^(?:bit varying|varbit)\(\d+\)$/u.test(name)) return 'pg_catalog.varbit'
+  if (name.startsWith('character varying(')) return 'pg_catalog."varchar"'
+  if (name.startsWith('character(')) return 'pg_catalog.bpchar'
+  if (/^time\(\d+\) without time zone$/u.test(name)) return 'pg_catalog."time"'
+  if (/^time\(\d+\) with time zone$/u.test(name)) return 'pg_catalog.timetz'
+  if (/^interval(?:\(| )/u.test(name)) return 'pg_catalog."interval"'
+  if (/^timestamp\(\d+\) without time zone$/u.test(name)) return 'pg_catalog."timestamp"'
+  if (/^timestamp\(\d+\) with time zone$/u.test(name)) return 'pg_catalog.timestamptz'
+  return names[name] ?? null
+}
 
 export type IntegerType = 'pg_catalog.int2' | 'pg_catalog.int4' | 'pg_catalog.int8'
 
@@ -520,6 +634,7 @@ export type SqlCallableExpression =
       type: string
       collation?: string
       collationDefault?: boolean
+      variadic?: true
       enum?: EnumDefinition
     }
   | { kind: 'cast'; signature: string | null; type: string }
