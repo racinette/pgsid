@@ -12424,6 +12424,212 @@ export function jsonArrayElementTextT2sr(input: checkruntime.JsonValue, index: c
 export function jsonArrayLength97pw(input: checkruntime.JsonValue): checkruntime.Int4Value {
     return checkruntime.jsonReadLength(input);
 }
+const jsonObjectArrayRank = 3452630;
+const jsonObjectArrayNull = 3452548;
+function jsonObjectArrayQuote(input: string): string {
+    input = langruntime.checkedString(input);
+    const characters: string[] = Array.from(input);
+    const hex: string[] = Array.from("0123456789abcdef");
+    let output: string = "";
+    output = output + langruntime.checkedChar("\"");
+    let position: number = 0;
+    while (position < characters.length) {
+        const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        if (character === "\"") {
+            output = output + "\\\"";
+        }
+        else if (character === "\\") {
+            output = output + "\\\\";
+        }
+        else if (character === "\b") {
+            output = output + "\\b";
+        }
+        else if (character === "\f") {
+            output = output + "\\f";
+        }
+        else if (character === "\n") {
+            output = output + "\\n";
+        }
+        else if (character === "\r") {
+            output = output + "\\r";
+        }
+        else if (character === "\t") {
+            output = output + "\\t";
+        }
+        else if (code < 32) {
+            output = output + "\\u00";
+            output = output + langruntime.checkedChar(langruntime.indexChar(hex, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedDivide(code, 16), 0))));
+            output = output + langruntime.checkedChar(langruntime.indexChar(hex, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedRemainder(code, 16), 0))));
+        }
+        else {
+            output = output + langruntime.checkedChar(character);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    output = output + langruntime.checkedChar("\"");
+    return output;
+}
+function jsonObjectArrayKnown(keys: checkruntime.ArrayPayload, values: checkruntime.ArrayPayload, paired: boolean): checkruntime.JsonValue {
+    keys = checkruntime.copyArrayPayload(keys);
+    values = checkruntime.copyArrayPayload(values);
+    paired = langruntime.checkedBool(paired);
+    if (!(keys.elementType === "pg_catalog.text") || !(keys.elementKind === 8)) {
+        return { kind: "Unknown" };
+    }
+    const rank: number = keys.dimensions.length;
+    if (paired) {
+        if (rank > 2) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonObjectArrayRank) };
+        }
+        if (rank === 1 && !(langruntime.checkedSignedRemainder(langruntime.indexStruct(keys.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length, 2) === 0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonObjectArrayRank) };
+        }
+        if (rank === 2 && !(langruntime.indexStruct(keys.dimensions, langruntime.checkedIndex(1), checkruntime.copyArrayDimension).length === 2)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonObjectArrayRank) };
+        }
+    }
+    else {
+        if (!(values.elementType === "pg_catalog.text") || !(values.elementKind === 8)) {
+            return { kind: "Unknown" };
+        }
+        if (rank > 1 || !(rank === values.dimensions.length)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonObjectArrayRank) };
+        }
+        if (!(keys.elements.length === values.elements.length)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonObjectArrayRank) };
+        }
+    }
+    let index: number = 0;
+    while (index < keys.elements.length) {
+        const key: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(keys.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement));
+        if (key.kind === "Null") {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonObjectArrayNull) };
+        }
+        index = langruntime.checkedAdd(index, 1);
+        if (paired) {
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    let output: string = "{";
+    index = langruntime.checkedIndex(0);
+    while (index < keys.elements.length) {
+        const key: checkruntime.TextValue = checkruntime.arrayElementToText(checkruntime.copyArrayElement(langruntime.indexStruct(keys.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement)));
+        if (key.kind === "Error") {
+            const error: checkruntime.SqlError = key.value;
+            return { kind: "Error", value: error };
+        }
+        if (checkruntime.equalTextValue(key, { kind: "Null" })) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonObjectArrayNull) };
+        }
+        let ready: boolean = false;
+        if (key.kind === "Value") {
+            const text: string = langruntime.checkedString(key.value);
+            ready = langruntime.checkedBool(true);
+            if (index > 0) {
+                output = output + ", ";
+            }
+            const quoted: string = jsonObjectArrayQuote(text);
+            output = output + quoted;
+            output = output + " : ";
+        }
+        if (ready === false) {
+            return { kind: "Unknown" };
+        }
+        let value: checkruntime.TextValue = checkruntime.arrayElementToText(checkruntime.copyArrayElement(langruntime.indexStruct(values.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement)));
+        if (paired) {
+            index = langruntime.checkedAdd(index, 1);
+            value = checkruntime.arrayElementToText(checkruntime.copyArrayElement(langruntime.indexStruct(keys.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement)));
+        }
+        if (value.kind === "Error") {
+            const error: checkruntime.SqlError = value.value;
+            return { kind: "Error", value: error };
+        }
+        ready = langruntime.checkedBool(false);
+        if (checkruntime.equalTextValue(value, { kind: "Null" })) {
+            output = output + "null";
+            ready = langruntime.checkedBool(true);
+        }
+        if (value.kind === "Value") {
+            const text: string = langruntime.checkedString(value.value);
+            const quoted: string = jsonObjectArrayQuote(text);
+            output = output + quoted;
+            ready = langruntime.checkedBool(true);
+        }
+        if (ready === false) {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    output = output + langruntime.checkedChar("}");
+    return checkruntime.makeJsonValue(output);
+}
+export function jsonObjectFm30(input: checkruntime.ArrayValue): checkruntime.JsonValue {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        return jsonObjectArrayKnown(checkruntime.copyArrayPayload(value), value, true);
+    }
+    return { kind: "Unknown" };
+}
+export function jsonObjectKatl(keys: checkruntime.ArrayValue, values: checkruntime.ArrayValue): checkruntime.JsonValue {
+    keys = checkruntime.copyArrayValue(keys);
+    values = checkruntime.copyArrayValue(values);
+    if (keys.kind === "Error") {
+        const error: checkruntime.SqlError = keys.value;
+        return { kind: "Error", value: error };
+    }
+    if (values.kind === "Error") {
+        const error: checkruntime.SqlError = values.value;
+        return { kind: "Error", value: error };
+    }
+    if (keys.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (values.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (keys.kind === "Value") {
+        const names: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(keys.value);
+        if (values.kind === "Value") {
+            const contents: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(values.value);
+            return jsonObjectArrayKnown(names, contents, false);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function jsonObjectArrayToJsonb(input: checkruntime.JsonValue): checkruntime.JsonbValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonPayload = input.value;
+        return checkruntime.jsonbFromText({ kind: "Value", value: value.source });
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbObject4dkp(input: checkruntime.ArrayValue): checkruntime.JsonbValue {
+    input = checkruntime.copyArrayValue(input);
+    const object: checkruntime.JsonValue = jsonObjectFm30(input);
+    return jsonObjectArrayToJsonb(object);
+}
+export function jsonbObjectTmdc(keys: checkruntime.ArrayValue, values: checkruntime.ArrayValue): checkruntime.JsonbValue {
+    keys = checkruntime.copyArrayValue(keys);
+    values = checkruntime.copyArrayValue(values);
+    const object: checkruntime.JsonValue = jsonObjectKatl(keys, values);
+    return jsonObjectArrayToJsonb(object);
+}
 interface JsonbArrayFrame {
     node: number;
     tail: number;

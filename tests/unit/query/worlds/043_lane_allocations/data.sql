@@ -145,3 +145,9 @@ VALUES ('{"a":1}', '{a}', '9', true, 'use_json_null', '{"a":9}', false);
 
 INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
 VALUES ('{"a":1,"b":2,"nested":{"a":3}}', '{a,b}', 'a', 'b', '{"nested":{"a":3}}', '{"nested":{"a":3}}', '{"b":2,"nested":{"a":3}}', false);
+
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+INSERT INTO lane_object_imports (payload, expected, expected_binary, bypass)
+VALUES ('{a,1}', '{"a" : "1"}', '{"a":"1"}', false);

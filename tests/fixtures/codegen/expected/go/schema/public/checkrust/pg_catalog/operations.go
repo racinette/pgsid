@@ -12364,6 +12364,204 @@ func JsonArrayLength97pw(input checkruntime.JsonValue) checkruntime.Int4Value {
 	return checkruntime.JsonReadLength(input)
 }
 
+const jsonObjectArrayRank = 3452630
+const jsonObjectArrayNull = 3452548
+
+func jsonObjectArrayQuote(input string) string {
+	input = langruntime.CheckedString(input)
+	characters := []rune(input)
+	hex := []rune("0123456789abcdef")
+	output := langruntime.NewTextBuffer("")
+	output = append(output, string(langruntime.CheckedChar('"'))...)
+	position := 0
+	for position < len(characters) {
+		character := characters[position]
+		code := int(langruntime.CheckedChar(character))
+		if character == '"' {
+			output = append(output, "\\\""...)
+		} else if character == '\\' {
+			output = append(output, "\\\\"...)
+		} else if character == '\b' {
+			output = append(output, "\\b"...)
+		} else if character == '\f' {
+			output = append(output, "\\f"...)
+		} else if character == '\n' {
+			output = append(output, "\\n"...)
+		} else if character == '\r' {
+			output = append(output, "\\r"...)
+		} else if character == '\t' {
+			output = append(output, "\\t"...)
+		} else if code < 32 {
+			output = append(output, "\\u00"...)
+			output = append(output, string(langruntime.CheckedChar(hex[langruntime.IndexFromI32(langruntime.CheckedSignedDivide(code, 16), 0)]))...)
+			output = append(output, string(langruntime.CheckedChar(hex[langruntime.IndexFromI32(langruntime.CheckedSignedRemainder(code, 16), 0)]))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar(character))...)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	output = append(output, string(langruntime.CheckedChar('"'))...)
+	return string(output)
+}
+func jsonObjectArrayKnown(keys checkruntime.ArrayPayload, values checkruntime.ArrayPayload, paired bool) checkruntime.JsonValue {
+	keys = checkruntime.CopyArrayPayload(keys)
+	values = checkruntime.CopyArrayPayload(values)
+	if keys.ElementType != "pg_catalog.text" || keys.ElementKind != 8 {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+	}
+	rank := len(keys.Dimensions)
+	if paired {
+		if rank > 2 {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonObjectArrayRank)}
+		}
+		if rank == 1 && langruntime.CheckedSignedRemainder(keys.Dimensions[0].Length, 2) != 0 {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonObjectArrayRank)}
+		}
+		if rank == 2 && keys.Dimensions[1].Length != 2 {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonObjectArrayRank)}
+		}
+	} else {
+		if values.ElementType != "pg_catalog.text" || values.ElementKind != 8 {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+		}
+		if rank > 1 || rank != len(values.Dimensions) {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonObjectArrayRank)}
+		}
+		if len(keys.Elements) != len(values.Elements) {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonObjectArrayRank)}
+		}
+	}
+	index := 0
+	for index < len(keys.Elements) {
+		key := checkruntime.CopyArrayElement(keys.Elements[index])
+		if key.Kind == checkruntime.ArrayElementNull {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonObjectArrayNull)}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+		if paired {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	output := langruntime.NewTextBuffer("{")
+	index = langruntime.CheckedIndex(0)
+	for index < len(keys.Elements) {
+		key := checkruntime.ArrayElementToText(checkruntime.CopyArrayElement(keys.Elements[index]))
+		if key.Kind == checkruntime.TextValueError {
+			error := key.Error
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+		}
+		if key == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonObjectArrayNull)}
+		}
+		ready := false
+		if key.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(key.Value)
+			ready = true
+			if index > 0 {
+				output = append(output, ", "...)
+			}
+			quoted := jsonObjectArrayQuote(text)
+			output = append(output, quoted...)
+			output = append(output, " : "...)
+		}
+		if ready == false {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+		}
+		value := checkruntime.ArrayElementToText(checkruntime.CopyArrayElement(values.Elements[index]))
+		if paired {
+			index = langruntime.CheckedAdd(index, 1)
+			value = checkruntime.ArrayElementToText(checkruntime.CopyArrayElement(keys.Elements[index]))
+		}
+		if value.Kind == checkruntime.TextValueError {
+			error := value.Error
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+		}
+		ready = false
+		if value == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+			output = append(output, "null"...)
+			ready = true
+		}
+		if value.Kind == checkruntime.TextValueValue {
+			text := langruntime.CheckedString(value.Value)
+			quoted := jsonObjectArrayQuote(text)
+			output = append(output, quoted...)
+			ready = true
+		}
+		if ready == false {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	output = append(output, string(langruntime.CheckedChar('}'))...)
+	return checkruntime.MakeJsonValue(string(output))
+}
+func JsonObjectFm30(input checkruntime.ArrayValue) checkruntime.JsonValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		return jsonObjectArrayKnown(checkruntime.CopyArrayPayload(value), value, true)
+	}
+	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+}
+func JsonObjectKatl(keys checkruntime.ArrayValue, values checkruntime.ArrayValue) checkruntime.JsonValue {
+	keys = checkruntime.CopyArrayValue(keys)
+	values = checkruntime.CopyArrayValue(values)
+	if keys.Kind == checkruntime.ArrayValueError {
+		error := keys.Error
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+	}
+	if values.Kind == checkruntime.ArrayValueError {
+		error := values.Error
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+	}
+	if keys.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNull}
+	}
+	if values.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNull}
+	}
+	if keys.Kind == checkruntime.ArrayValueValue {
+		names := checkruntime.CopyArrayPayload(keys.Value)
+		if values.Kind == checkruntime.ArrayValueValue {
+			contents := checkruntime.CopyArrayPayload(values.Value)
+			return jsonObjectArrayKnown(names, contents, false)
+		}
+	}
+	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+}
+func jsonObjectArrayToJsonb(input checkruntime.JsonValue) checkruntime.JsonbValue {
+	if input.Kind == checkruntime.JsonValueError {
+		error := input.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonValueNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
+	if input.Kind == checkruntime.JsonValueValue {
+		value := input.Value
+		return checkruntime.JsonbFromText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value.Source})
+	}
+	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+}
+func JsonbObject4dkp(input checkruntime.ArrayValue) checkruntime.JsonbValue {
+	input = checkruntime.CopyArrayValue(input)
+	object := JsonObjectFm30(input)
+	return jsonObjectArrayToJsonb(object)
+}
+func JsonbObjectTmdc(keys checkruntime.ArrayValue, values checkruntime.ArrayValue) checkruntime.JsonbValue {
+	keys = checkruntime.CopyArrayValue(keys)
+	values = checkruntime.CopyArrayValue(values)
+	object := JsonObjectKatl(keys, values)
+	return jsonObjectArrayToJsonb(object)
+}
+
 type jsonbArrayFrame struct {
 	node      int
 	tail      int
