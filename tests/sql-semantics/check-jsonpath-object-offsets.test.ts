@@ -48,14 +48,13 @@ pub fn jsonpath_offset_probe(document:TextValue,path:TextValue,expected:TextValu
     let mut value=payload;
     if encoding {value=jsonpath_execution_utf8_payload(value);};
     let offsets=jsonb_ordered_object_offsets(&value,encoding);
+    let mut empty_nodes:Vec<JsonbNode>=Vec::new();
+    empty_nodes.push(JsonbNode{kind:-1,child:0,next:0,key_start:0,key_end:0,text_start:0,text_end:0});
+    empty_nodes.push(JsonbNode{kind:6,child:0,next:0,key_start:0,key_end:0,text_start:0,text_end:0});
     let empty_characters:Vec<char>=Vec::new();
-    let empty_nodes:Vec<JsonbNode>=Vec::new();
-    let context=JsonpathExecutionContext {
-     document_characters:value.characters,document_nodes:value.nodes,document_root:value.root,
-     variables_characters:empty_characters,variables_nodes:empty_nodes,variables_root:0,
-     literal_nodes:jsonpath_execution_literals(&path),path_characters:path.characters,path_nodes:path.nodes,path_root:path.root,lax:path.lax,utf8:encoding,ordered_result:true,
-    };
-    let sequence=jsonpath_execution_walk(&context,false);
+    let vars=JsonbPayload{characters:empty_characters,nodes:empty_nodes,root:1};
+    let context=jsonpath_execution_make_context(value,vars,path,true,encoding,true);
+    let sequence=jsonpath_execution_walk(context.clone(),false);
     if sequence.unknown || sequence.error>0 || sequence.items.len()!=1 {return BoolValue::Unknown;};
     let reference=sequence.items[0];
     let offset=offsets[reference.node].clone();

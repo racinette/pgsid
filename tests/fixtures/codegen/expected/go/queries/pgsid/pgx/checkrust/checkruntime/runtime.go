@@ -4932,7 +4932,7 @@ func jsonbParseText(input TextValue, admission bool) JsonbValue {
 				payload := JsonbPayload{Characters: characters, Nodes: nodes, Root: root}
 				normalized := jsonbNormalizeObjects(payload)
 				if admission {
-					decision := jsonbStorageAdmission(&normalized)
+					decision := JsonbStorageAdmission(&normalized)
 					if decision.Kind == BoolValueError {
 						error := decision.Error
 						return JsonbValue{Kind: JsonbValueError, Error: error}
@@ -5384,7 +5384,7 @@ func JsonbRebuild(input JsonbValue, admission bool) JsonbValue {
 		value := CopyJsonbPayload(input.Value)
 		normalized := jsonbNormalizeObjects(jsonbPreorder(value))
 		if admission {
-			admitted := jsonbStorageAdmission(&normalized)
+			admitted := JsonbStorageAdmission(&normalized)
 			if admitted.Kind == BoolValueError {
 				error := admitted.Error
 				return JsonbValue{Kind: JsonbValueError, Error: error}
@@ -5623,7 +5623,11 @@ func jsonbStorageExtents(source *JsonbPayload, characters *jsonbStorageCharacter
 			node := source.Nodes[index]
 			size := jsonbStorageBounds(int64(0), int64(0))
 			if node.Kind == 3 {
-				size = copyjsonbStorageSize(jsonbStorageNumeric(source, node))
+				if node.TextStart == node.TextEnd {
+					size = copyjsonbStorageSize(jsonbStorageBounds(int64(6), int64(16)))
+				} else {
+					size = copyjsonbStorageSize(jsonbStorageNumeric(source, node))
+				}
 			} else if node.Kind == 4 {
 				size = copyjsonbStorageSize(jsonbStorageSpan(characters, node.TextStart, node.TextEnd, utf8))
 			} else if node.Kind >= 5 {
@@ -5774,7 +5778,8 @@ func JsonbOrderedObjectOffsets(source *JsonbPayload, utf8 bool) []NumericValue {
 	}
 	return result
 }
-func jsonbStorageAdmission(source *JsonbPayload) BoolValue {
+func JsonbStorageAdmission(source *JsonbPayload) BoolValue {
+	source = langruntime.CheckedBorrowed(source, CopyJsonbPayload)
 	return jsonbStorageDecision(jsonbStorageLayout(source))
 }
 

@@ -11,6 +11,9 @@ fn jsonpath_execution_numeric(
     if node.kind != 3 {
         return NumericValue::Null;
     };
+    if node.text_start == node.text_end {
+        return NumericValue::Unknown;
+    };
     let mut text = String::new();
     let mut position = node.text_start;
     while position < node.text_end {

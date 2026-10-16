@@ -26,6 +26,10 @@ it('binds JSONPath execution identities, defaults and expression composition in 
   })
   try {
     const expressions: Record<string, string> = {
+      keyvalue_root: `jsonb_path_query_array('{"a":1}'::jsonb,'$.keyvalue()') IS NOT DISTINCT FROM '[{"id":0,"key":"a","value":1}]'::jsonb`,
+      keyvalue_keys: `jsonb_path_query_array(document,'$.a.keyvalue().key') IS NOT DISTINCT FROM expected_array`,
+      keyvalue_filter: `jsonb_path_query_first(document,'$.a.keyvalue()?(@.key=="selected").value') IS NOT DISTINCT FROM expected_first`,
+      keyvalue_repeat: `jsonb_path_query_array('{"a":{"x":1}}'::jsonb,'$.keyvalue().value.keyvalue().id') IS NOT DISTINCT FROM '[20000000048]'::jsonb`,
       integer_round: `jsonb_path_query_first(document,'(1.5).integer()') IS NOT DISTINCT FROM '2'::jsonb`,
       bigint_boundary: `jsonb_path_query_first(document,'"-9223372036854775808".bigint()') IS NOT DISTINCT FROM '-9223372036854775808'::jsonb`,
       boolean_prefix: `(document @@ '"of".boolean()') IS FALSE`,
@@ -129,7 +133,7 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ['{"a":[true],"flag":true}', 'strict $.a[0,8]', '{}', true, false],
       ['{"a":[true],"flag":true}', 'strict $.a[0,$missing]', '{}', true, false],
       ['{"a":[1,2],"flag":true}', '(', '{}', false, true],
-      ['{"a":[1,2],"flag":true}', '$.a.keyvalue()', '{}', false, true],
+      ['{"a":[1,2],"flag":true}', '$.a.datetime()', '{}', false, true],
       ['{"a":[1,2,3],"flag":true}', '$.a[last-1]', '{}', false, false],
       ['{"a":[1,2],"flag":true}', '$v+1', '{"v":[1]}', false, false],
       ['{"a":[],"flag":true}', 'strict -$v[0,8]', '{"v":[1]}', true, false],
@@ -148,6 +152,23 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ['{"a":[1,"bad",2],"flag":true}', '$.a.integer()', '{}', true, false],
       ['{"a":1.0,"flag":true}', '$.a.boolean()', '{}', false, false],
       ['{"a":12,"flag":true}', '$.a.string() starts with "1"', '{}', false, false],
+      ['{"a":{"selected":1,"other":2},"flag":true}', '$.a.keyvalue()', '{}', false, false],
+      ['{"a":{"selected":1,"other":2},"flag":true}', '$.a.keyvalue().key', '{}', false, false],
+      [
+        '{"a":{"selected":1,"other":2},"flag":true}',
+        '$.a.keyvalue()?(@.value>1).key',
+        '{}',
+        false,
+        false,
+      ],
+      [
+        '{"a":{"selected":{"x":1}},"flag":true}',
+        '$.a.keyvalue().value.keyvalue().id',
+        '{}',
+        false,
+        false,
+      ],
+      ['{"a":[],"flag":true}', '$v.keyvalue()', '{"v":{"x":1}}', false, false],
     ]
     for (const [document, source, variables, silent, bypass] of cases) {
       const wanted = (
@@ -188,7 +209,7 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       for (const [name, sql] of Object.entries(expressions)) {
         let expected: Outcome
         if (
-          source === '$.a.keyvalue()' &&
+          source === '$.a.datetime()' &&
           ['array_runtime', 'first_runtime', 'exists_runtime', 'runtime_render'].includes(name)
         )
           expected = { kind: 'Unknown' }

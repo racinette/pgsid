@@ -102,13 +102,13 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'database',
         setting: 'server_encoding',
         requirement:
-          'Order-sensitive wildcard/descendant traversal over non-ASCII object keys and non-ASCII string predicates require declared UTF8. ASCII predicates and encoding-independent terminal Boolean facts remain portable.',
+          'Order-sensitive traversal over non-ASCII object keys, non-ASCII string predicates and encoding-sensitive keyvalue object offsets require declared UTF8. ASCII predicates, proven alignment and encoding-independent terminal Boolean facts remain portable.',
         owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
       },
       {
         kind: 'implementation',
         requirement:
-          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Core type/size/abs/floor/ceiling/double methods and integer/bigint/boolean/number/decimal/string conversions are implemented. Keyvalue, temporal methods and regex matching are deferred. Platform-dependent float input forms retain Unknown requirements. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
+          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Core type/size/abs/floor/ceiling/double methods and integer/bigint/boolean/number/decimal/string conversions are implemented. Keyvalue objects preserve document/variable/generated identities, logical offsets, unknown-id projections and format-limit errors. Temporal methods and regex matching are deferred. Platform-dependent float input forms retain Unknown requirements. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
         owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
       },
     ]
