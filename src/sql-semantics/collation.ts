@@ -356,7 +356,24 @@ export function supportsTextCallableCollation(signature: string, collation?: str
               implementation.result === 'pg_catalog.bool') ||
               (implementation.name === 'btbpchar_pattern_cmp' &&
                 implementation.result === 'pg_catalog.int4'))))))
+  const arrayStringIO =
+    implementation.kind === 'function' &&
+    implementation.schema === 'pg_catalog' &&
+    !implementation.returnsSet &&
+    [2, 3].includes(implementation.args.length) &&
+    implementation.args.slice(1).every((type) => type === 'pg_catalog.text') &&
+    ((implementation.name === 'string_to_array' &&
+      implementation.args[0] === 'pg_catalog.text' &&
+      implementation.result === 'pg_catalog._text' &&
+      !implementation.strict &&
+      implementation.volatility === 'i') ||
+      (implementation.name === 'array_to_string' &&
+        implementation.args[0] === 'pg_catalog.anyarray' &&
+        implementation.result === 'pg_catalog.text' &&
+        implementation.strict === (implementation.args.length === 2) &&
+        implementation.volatility === 's'))
   return (
+    arrayStringIO ||
     jsonField ||
     nameIntrinsic ||
     textWire ||

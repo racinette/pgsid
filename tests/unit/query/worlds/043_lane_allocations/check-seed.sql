@@ -994,3 +994,139 @@ VALUES ('{"a":[1]}'::jsonb, '{2,2}', 4, '[0:1][0:1]', '{"a":[1]}'::jsonb);
 -- name: document_templates_wrong_cell
 INSERT INTO lane_document_templates (seed, dimensions, expected_count, expected_layout, expected_cell)
 VALUES ('{"a":[1]}'::jsonb, '{2,2}', 4, '[1:2][1:2]', '{"a":[2]}'::jsonb);
+
+-- name: text_imports_empty_fields
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('a,,NULL,', ',', 'NULL', '{a,"",NULL,""}', 'a,,NULL,', 4);
+
+-- name: text_imports_empty_input
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('', ',', '', '{}', '', 0);
+
+-- name: text_imports_null_input
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES (NULL, ',', 'NULL', NULL, NULL, NULL);
+
+-- name: text_imports_character_delimiter
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('雪😊a', NULL, NULL, '{雪,😊,a}', NULL, 3);
+
+-- name: text_imports_whole_input
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('abc', '', NULL, '{abc}', 'abc', 1);
+
+-- name: text_imports_whole_null_marker
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('abc', '', 'abc', '{NULL}', 'abc', 1);
+
+-- name: text_imports_overlapping_delimiter
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('aaa', 'aa', NULL, '{"",a}', 'aaa', 2);
+
+-- name: text_imports_trailing_delimiter
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('x雪雪', '雪', NULL, '{x,"",""}', 'x雪雪', 3);
+
+-- name: text_imports_empty_marker
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('a,,b', ',', '', '{a,NULL,b}', 'a,,b', 3);
+
+-- name: text_imports_wrong_array
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('a,b', ',', NULL, '{b,a}', 'a,b', 2);
+
+-- name: text_imports_wrong_join
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('a,b', ',', NULL, '{a,b}', 'b,a', 2);
+
+-- name: text_imports_wrong_count
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('a,b', ',', NULL, '{a,b}', 'a,b', 1);
+
+-- name: string_exports_flattened_bounds
+INSERT INTO lane_string_exports (slots, separator, null_marker, expected_skip, expected_marked)
+VALUES ('[0:1][2:3]={{1,NULL},{2,3}}', '|', 'missing', '1|2|3', '1|missing|2|3');
+
+-- name: string_exports_empty_markers
+INSERT INTO lane_string_exports (slots, separator, null_marker, expected_skip, expected_marked)
+VALUES ('{NULL,NULL}', ',', '', '', ',');
+
+-- name: string_exports_skipped_nulls
+INSERT INTO lane_string_exports (slots, separator, null_marker, expected_skip, expected_marked)
+VALUES ('{1,NULL,2}', ',', NULL, '1,2', '1,2');
+
+-- name: string_exports_empty_array
+INSERT INTO lane_string_exports (slots, separator, null_marker, expected_skip, expected_marked)
+VALUES ('{}', ',', 'NULL', '', '');
+
+-- name: string_exports_null_array
+INSERT INTO lane_string_exports (slots, separator, null_marker, expected_skip, expected_marked)
+VALUES (NULL, ',', 'NULL', NULL, NULL);
+
+-- name: string_exports_null_separator
+INSERT INTO lane_string_exports (slots, separator, null_marker, expected_skip, expected_marked)
+VALUES ('{1,NULL}', NULL, 'NULL', NULL, NULL);
+
+-- name: string_exports_empty_separator
+INSERT INTO lane_string_exports (slots, separator, null_marker, expected_skip, expected_marked)
+VALUES ('{1,NULL,2}', '', 'x', '12', '1x2');
+
+-- name: string_exports_wrong_skip
+INSERT INTO lane_string_exports (slots, separator, null_marker, expected_skip, expected_marked)
+VALUES ('{1,NULL,2}', ',', 'NULL', '1,NULL,2', '1,NULL,2');
+
+-- name: string_exports_wrong_marked
+INSERT INTO lane_string_exports (slots, separator, null_marker, expected_skip, expected_marked)
+VALUES ('{1,NULL,2}', ',', 'NULL', '1,2', '1,2');
+
+-- name: stage_exports_nominal_labels
+INSERT INTO lane_stage_exports (stages, separator, null_marker, expected_text)
+VALUES ('[0:2]={new,NULL,done}', '|', 'missing', 'new|missing|done');
+
+-- name: stage_exports_skip_null
+INSERT INTO lane_stage_exports (stages, separator, null_marker, expected_text)
+VALUES ('{new,NULL,done}', ',', NULL, 'new,done');
+
+-- name: stage_exports_all_null
+INSERT INTO lane_stage_exports (stages, separator, null_marker, expected_text)
+VALUES ('{NULL,NULL}', ',', '', ',');
+
+-- name: stage_exports_empty
+INSERT INTO lane_stage_exports (stages, separator, null_marker, expected_text)
+VALUES ('{}', '|', 'NULL', '');
+
+-- name: stage_exports_null
+INSERT INTO lane_stage_exports (stages, separator, null_marker, expected_text)
+VALUES (NULL, '|', 'NULL', NULL);
+
+-- name: stage_exports_wrong_labels
+INSERT INTO lane_stage_exports (stages, separator, null_marker, expected_text)
+VALUES ('{new,done}', '|', NULL, 'done|new');
+
+-- name: document_exports_logical_rendering
+INSERT INTO lane_document_exports (payload, separator, null_marker, expected_text, bypass)
+VALUES ('{1.0,"null",NULL}', '|', 'missing', '1.0|null|missing', false);
+
+-- name: document_exports_skip_sql_null
+INSERT INTO lane_document_exports (payload, separator, null_marker, expected_text, bypass)
+VALUES ('{1.0,"null",NULL}', '|', NULL, '1.0|null', false);
+
+-- name: document_exports_empty
+INSERT INTO lane_document_exports (payload, separator, null_marker, expected_text, bypass)
+VALUES ('{}', '|', 'missing', '', false);
+
+-- name: document_exports_null
+INSERT INTO lane_document_exports (payload, separator, null_marker, expected_text, bypass)
+VALUES (NULL, '|', 'missing', NULL, false);
+
+-- name: document_exports_wrong_json_null
+INSERT INTO lane_document_exports (payload, separator, null_marker, expected_text, bypass)
+VALUES ('{"null",NULL}', '|', 'missing', 'missing|null', false);
+
+-- name: document_exports_reached_error
+INSERT INTO lane_document_exports (payload, separator, null_marker, expected_text, bypass)
+VALUES ('bad', '|', NULL, NULL, false);
+
+-- name: document_exports_skipped_error
+INSERT INTO lane_document_exports (payload, separator, null_marker, expected_text, bypass)
+VALUES ('bad', '|', NULL, NULL, true);

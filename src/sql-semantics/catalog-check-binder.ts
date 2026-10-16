@@ -3785,6 +3785,7 @@ export function bindCatalogCheck(
           kind,
           signature: resolved.signature,
           type,
+          ...(resolved.enum ? { enum: resolved.enum } : {}),
           collation: collation?.kind,
           ...arrayDefaultCollation(resolved.signature, collation),
         },

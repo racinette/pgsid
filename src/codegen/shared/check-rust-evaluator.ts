@@ -139,6 +139,89 @@ export const isJsonbBuilder = (
 
 export class UnsupportedCheckRustExpression extends Error {}
 
+const arrayElementOutput = (
+  elementType: string,
+  definition: EnumDefinition | undefined,
+  element: string,
+  scalar: string,
+): { prefix: string; conversion: string; scalarRequired: boolean } => {
+  const family = arrayElementFamily(elementType)
+  if (family === null)
+    throw new UnsupportedCheckRustExpression('Missing array output element carrier')
+  const elementOutput = definition?.outputFunction ?? builtinTypeIO(elementType)?.output
+  const metadata = elementOutput ? builtinMetadata(elementOutput) : null
+  if (
+    !metadata ||
+    metadata.kind !== 'function' ||
+    !metadata.strict ||
+    metadata.returnsSet ||
+    metadata.args.length !== 1 ||
+    metadata.args[0] !==
+      (definition
+        ? 'pg_catalog.anyenum'
+        : elementType === 'pg_catalog.refcursor' &&
+            elementOutput === builtinTypeIO('pg_catalog.text')?.output
+          ? 'pg_catalog.text'
+          : elementType) ||
+    metadata.result !== 'pg_catalog.cstring' ||
+    (definition && enumType(definition) !== elementType)
+  )
+    throw new UnsupportedCheckRustExpression('Array output requires its element catalog identity')
+  const prefix = rustValuePrefix(rustType(elementType))
+  let conversion: string | null = null
+  if (family <= 3) conversion = `${prefix}_to_text(${scalar})`
+  else if (family === 6) {
+    if (!definition || definition.values.some((label) => label.includes('\0')))
+      throw new UnsupportedCheckRustExpression('Array enum output requires captured labels')
+    conversion = `enum_to_text(${scalar}, ${rustStringLiteral(definition.values.join('\0'))}, ${definition.values.length})`
+  } else if (family === 8) conversion = scalar
+  else if (family === 9) conversion = `array_boolean_output(${scalar})`
+  else if (family === 10) conversion = `array_numeric_output(${scalar})`
+  else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40].includes(family))
+    conversion = `${prefix}_to_text(${scalar})`
+  else if (family === 13)
+    conversion = `array_network_output(${scalar}, ${elementType === 'pg_catalog.cidr'})`
+  else if (family === 19 || family === 20) conversion = `array_${prefix}_output(${scalar})`
+  else if (family === 21 || family === 22) conversion = `clock_${prefix}_to_text(${scalar})`
+  else if (family === 32) {
+    const cast = builtinCast(elementType, 'pg_catalog.text')
+    if (!cast?.implementation)
+      throw new UnsupportedCheckRustExpression(
+        'Internal char output requires its catalog conversion',
+      )
+    const implementation = builtinMetadata(cast.implementation)
+    if (implementation.kind !== 'function')
+      throw new UnsupportedCheckRustExpression('Internal char output requires a catalog function')
+    conversion = `${implementation.rustName}(${scalar})`
+  } else if (family === 33)
+    conversion = isOidAliasType(elementType)
+      ? `oid_alias_to_text(${scalar}, ${!['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(elementType)})`
+      : `oid_to_text(${scalar})`
+  else if (family === 36) conversion = `snapshot_to_text(${scalar})`
+  return {
+    prefix,
+    conversion: conversion ?? `array_contextual_output(${element})`,
+    scalarRequired: conversion !== null,
+  }
+}
+
+export const isArrayStringIO = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  !item.returnsSet &&
+  [2, 3].includes(item.args.length) &&
+  item.args.slice(1).every((type) => type === 'pg_catalog.text') &&
+  ((item.name === 'string_to_array' &&
+    item.args[0] === 'pg_catalog.text' &&
+    item.result === 'pg_catalog._text' &&
+    !item.strict &&
+    item.volatility === 'i') ||
+    (item.name === 'array_to_string' &&
+      item.args[0] === 'pg_catalog.anyarray' &&
+      item.result === 'pg_catalog.text' &&
+      item.strict === (item.args.length === 2) &&
+      item.volatility === 's'))
+
 export const isArrayComparison = (
   item: ReturnType<typeof builtinMetadata>,
 ): item is ReturnType<typeof builtinMetadata> & { kind: 'function' } =>
@@ -446,6 +529,46 @@ export function emitCheckRustEvaluator(
           ? 'pg_catalog.int4'
           : operand.type
 
+  const renderArrayOutput = (
+    payload: string,
+    elementType: string,
+    definition: EnumDefinition | undefined,
+    destination: string[],
+  ): string => {
+    const builder = fresh('array_builder'),
+      index = fresh('array_index')
+    const element = fresh('array_element'),
+      scalar = fresh('array_scalar')
+    const rendered = fresh('array_rendered'),
+      converted = fresh('array_converted')
+    const { prefix, conversion, scalarRequired } = arrayElementOutput(
+      elementType,
+      definition,
+      element,
+      scalar,
+    )
+    const initial = fresh('array_initial'),
+      first = fresh('array_first')
+    destination.push(
+      `let ${initial} = make_array_arguments("pg_catalog.text", 8);`,
+      `let ${first} = make_int4_value(0);`,
+      `let mut ${builder}: ArrayArguments = ${initial};`,
+      `let mut ${index}: Int4Value = ${first};`,
+      `while array_output_has_element(&${payload}, ${index}) {`,
+      `    let ${element} = array_output_element_at(&${payload}, ${index});`,
+    )
+    if (scalarRequired)
+      destination.push(`    let ${scalar} = array_element_to_${prefix}(${element});`)
+    destination.push(
+      `    let ${rendered} = ${conversion};`,
+      `    let ${converted} = array_element_from_text(${rendered});`,
+      `    ${builder} = append_array_argument(${builder}, ${converted});`,
+      `    ${index} = array_text_next_index(${index});`,
+      '}',
+    )
+    return builder
+  }
+
   const emitScalar = (
     node: EvalExpression,
     bindings: string[],
@@ -620,88 +743,14 @@ export function emitCheckRustEvaluator(
         output.result !== 'pg_catalog.cstring'
       )
         throw new UnsupportedCheckRustExpression('Array output requires its catalog I/O identity')
-      const elementOutput = node.enum?.outputFunction ?? builtinTypeIO(node.elementType)?.output
-      const metadata = elementOutput ? builtinMetadata(elementOutput) : null
-      if (
-        !metadata ||
-        metadata.kind !== 'function' ||
-        !metadata.strict ||
-        metadata.returnsSet ||
-        metadata.args.length !== 1 ||
-        metadata.args[0] !==
-          (node.enum
-            ? 'pg_catalog.anyenum'
-            : node.elementType === 'pg_catalog.refcursor' &&
-                elementOutput === builtinTypeIO('pg_catalog.text')?.output
-              ? 'pg_catalog.text'
-              : node.elementType) ||
-        metadata.result !== 'pg_catalog.cstring' ||
-        (node.enum && enumType(node.enum) !== node.elementType)
-      )
-        throw new UnsupportedCheckRustExpression(
-          'Array output requires its element catalog identity',
-        )
       const payload = bind(`prepare_array_output(${ownedOperand(operand)})`)
-      const initial = bind('make_array_arguments("pg_catalog.text", 8)')
-      const first = bind('make_int4_value(0)')
-      const builder = fresh('array_builder'),
-        index = fresh('array_index')
-      const element = fresh('array_element'),
-        scalar = fresh('array_scalar')
-      const rendered = fresh('array_rendered'),
-        converted = fresh('array_converted')
-      const prefix = rustValuePrefix(rustType(node.elementType))
-      let conversion: string | null = null
-      if (family <= 3) conversion = `${prefix}_to_text(${scalar})`
-      else if (family === 6) {
-        if (!node.enum || node.enum.values.some((label) => label.includes('\0')))
-          throw new UnsupportedCheckRustExpression('Array enum output requires captured labels')
-        conversion = `enum_to_text(${scalar}, ${rustStringLiteral(node.enum.values.join('\0'))}, ${node.enum.values.length})`
-      } else if (family === 8) conversion = scalar
-      else if (family === 9) conversion = `array_boolean_output(${scalar})`
-      else if (family === 10) conversion = `array_numeric_output(${scalar})`
-      else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40].includes(family))
-        conversion = `${prefix}_to_text(${scalar})`
-      else if (family === 13)
-        conversion = `array_network_output(${scalar}, ${node.elementType === 'pg_catalog.cidr'})`
-      else if (family === 19 || family === 20) conversion = `array_${prefix}_output(${scalar})`
-      else if (family === 21 || family === 22) conversion = `clock_${prefix}_to_text(${scalar})`
-      else if (family === 32) {
-        const cast = builtinCast(node.elementType, 'pg_catalog.text')
-        if (!cast?.implementation)
-          throw new UnsupportedCheckRustExpression(
-            'Internal char output requires its catalog conversion',
-          )
-        const implementation = builtinMetadata(cast.implementation)
-        if (implementation.kind !== 'function')
-          throw new UnsupportedCheckRustExpression(
-            'Internal char output requires a catalog function',
-          )
-        conversion = `${implementation.rustName}(${scalar})`
-      } else if (family === 33)
-        conversion = isOidAliasType(node.elementType)
-          ? `oid_alias_to_text(${scalar}, ${!['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(node.elementType)})`
-          : `oid_to_text(${scalar})`
-      else if (family === 36) conversion = `snapshot_to_text(${scalar})`
-      bindings.push(
-        `let mut ${builder}: ArrayArguments = ${initial};`,
-        `let mut ${index}: Int4Value = ${first};`,
-        `while array_output_has_element(&${payload}, ${index}) {`,
-        `    let ${element} = array_output_element_at(&${payload}, ${index});`,
-      )
-      if (conversion) bindings.push(`    let ${scalar} = array_element_to_${prefix}(${element});`)
-      bindings.push(
-        `    let ${rendered} = ${conversion ?? `array_contextual_output(${element})`};`,
-        `    let ${converted} = array_element_from_text(${rendered});`,
-        `    ${builder} = append_array_argument(${builder}, ${converted});`,
-        `    ${index} = array_text_next_index(${index});`,
-        '}',
-      )
+      const builder = renderArrayOutput(payload, node.elementType, node.enum, bindings)
       return {
         name: bind(`finish_array_output(${payload}, ${builder}, ${family === 27})`),
         type: node.type,
       }
     }
+
     if (node.kind === 'array-typmod') {
       const conversion = builtinCast(node.elementType, node.elementType)
       if (conversion?.method !== 'f' || !conversion.implementation)
@@ -977,6 +1026,7 @@ export function emitCheckRustEvaluator(
         (implementation.args.length === 0 ? operands.length === 0 : operands.length > 0)
       const jsonpathTimezone = isJsonpathTimezoneCallable(implementation)
       const arraySearch = isArraySearch(implementation)
+      const arrayStringIO = isArrayStringIO(implementation)
       const arrayFill = isArrayFill(implementation)
       const arrayTrim = isArrayTrim(implementation)
       const arrayRewrite = isArrayRewrite(implementation)
@@ -1001,7 +1051,9 @@ export function emitCheckRustEvaluator(
                 ? `array:${operands[0]?.type}`
                 : arrayTrim
                   ? operands[0]?.type
-                  : implementation.result
+                  : arrayStringIO && implementation.name === 'string_to_array'
+                    ? 'array:pg_catalog.text'
+                    : implementation.result
       if (
         metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
@@ -1011,9 +1063,11 @@ export function emitCheckRustEvaluator(
           !arrayTransform &&
           !arrayRewrite &&
           !arrayFill &&
+          !arrayStringIO &&
           !jsonbBuilder &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
+          !arrayStringIO &&
           !jsonbConversion &&
           !jsonbBuilder &&
           !jsonpathTimezone &&
@@ -1096,6 +1150,34 @@ export function emitCheckRustEvaluator(
         )
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
+      if (arrayStringIO) {
+        callables.add(implementation.rustName)
+        const name = fresh('array_string_io')
+        const args = operands.map(ownedOperand)
+        if (implementation.name === 'string_to_array') {
+          args.push(
+            String(call.kind !== 'cast' && ['C', 'deterministic'].includes(call.collation ?? '')),
+            String(executionContext.serverEncoding === 'UTF8'),
+          )
+        } else {
+          const elementType = operands[0]!.type.slice(6)
+          const payload = fresh('array_string_output')
+          const marker = args[2] ?? fresh('array_null_marker')
+          if (!args[2]) destination.push(`let ${marker} = text_null();`)
+          destination.push(
+            `let ${payload} = prepare_array_string_output(${args[0]}, ${args[1]}, ${marker});`,
+          )
+          const rendered = renderArrayOutput(
+            payload,
+            elementType,
+            call.kind === 'cast' ? undefined : call.enum,
+            destination,
+          )
+          args.splice(1, 0, rendered)
+        }
+        destination.push(`let ${name} = ${implementation.rustName}(${args.join(', ')});`)
+        return { name, type: call.type }
+      }
       if (arrayFill) {
         const elementType = operands[0]?.type,
           family = elementType ? arrayElementFamily(elementType) : null
