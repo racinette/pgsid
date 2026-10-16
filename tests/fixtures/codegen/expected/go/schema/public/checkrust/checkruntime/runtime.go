@@ -8873,6 +8873,270 @@ func ArraySliceSubscript(input ArrayValue, indices ArraySubscripts) ArrayValue {
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
 }
+
+const arrayComparisonUndefined = 6822435
+const arrayComparisonTypeMismatch = 6822148
+
+type ArrayComparisonPayload struct {
+	Left  []ArrayElement
+	Right []ArrayElement
+	Limit int
+	State int
+	Error SqlError
+	Tail  int
+	Value int
+}
+
+func copyArrayComparisonPayload(value ArrayComparisonPayload) ArrayComparisonPayload {
+	return ArrayComparisonPayload{Left: langruntime.CheckedStructs(value.Left, CopyArrayElement), Right: langruntime.CheckedStructs(value.Right, CopyArrayElement), Limit: langruntime.CheckedIndex(value.Limit), State: langruntime.CheckedI32(value.State), Error: value.Error, Tail: langruntime.CheckedI32(value.Tail), Value: langruntime.CheckedI32(value.Value)}
+}
+
+type ArrayComparisonPlanKind uint8
+
+const (
+	ArrayComparisonPlanValue ArrayComparisonPlanKind = iota
+)
+
+type ArrayComparisonPlan struct {
+	Kind  ArrayComparisonPlanKind
+	Value ArrayComparisonPayload
+}
+
+func copyArrayComparisonPlan(value ArrayComparisonPlan) ArrayComparisonPlan {
+	switch value.Kind {
+	case ArrayComparisonPlanValue:
+		return ArrayComparisonPlan{Kind: ArrayComparisonPlanValue, Value: copyArrayComparisonPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func arrayComparisonState(state int, error SqlError, value int) ArrayComparisonPayload {
+	state = langruntime.CheckedI32(state)
+	value = langruntime.CheckedI32(value)
+	left := []ArrayElement{}
+	right := []ArrayElement{}
+	return ArrayComparisonPayload{Left: left, Right: right, Limit: 0, State: state, Error: error, Tail: 0, Value: value}
+}
+func arrayShapeOrder(left *ArrayPayload, right *ArrayPayload) int {
+	if len(left.Elements) < len(right.Elements) {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if len(left.Elements) > len(right.Elements) {
+		return 1
+	}
+	if len(left.Dimensions) < len(right.Dimensions) {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if len(left.Dimensions) > len(right.Dimensions) {
+		return 1
+	}
+	position := 0
+	for position < len(left.Dimensions) {
+		if left.Dimensions[position].Length < right.Dimensions[position].Length {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		if left.Dimensions[position].Length > right.Dimensions[position].Length {
+			return 1
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	position = langruntime.CheckedIndex(0)
+	for position < len(left.Dimensions) {
+		if left.Dimensions[position].Lower < right.Dimensions[position].Lower {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		if left.Dimensions[position].Lower > right.Dimensions[position].Lower {
+			return 1
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return 0
+}
+func PrepareArrayComparison(left ArrayValue, right ArrayValue, equality bool, available bool) ArrayComparisonPayload {
+	left = CopyArrayValue(left)
+	right = CopyArrayValue(right)
+	if left.Kind == ArrayValueError {
+		error := left.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if right.Kind == ArrayValueError {
+		error := right.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if left.Kind == ArrayValueUnknown {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+	}
+	if right.Kind == ArrayValueUnknown {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+	}
+	if left.Kind == ArrayValueNull {
+		return arrayComparisonState(0, MakeSqlError(0), 0)
+	}
+	if right.Kind == ArrayValueNull {
+		return arrayComparisonState(0, MakeSqlError(0), 0)
+	}
+	if left.Kind == ArrayValueValue {
+		a := CopyArrayPayload(left.Value)
+		if right.Kind == ArrayValueValue {
+			b := CopyArrayPayload(right.Value)
+			if a.ElementType != b.ElementType || a.ElementKind != b.ElementKind {
+				return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayComparisonTypeMismatch), 0)
+			}
+			tail := arrayShapeOrder(&a, &b)
+			if equality && tail != 0 {
+				return arrayComparisonState(2, MakeSqlError(0), 1)
+			}
+			if available == false {
+				return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayComparisonUndefined), 0)
+			}
+			limit := len(a.Elements)
+			if len(b.Elements) < limit {
+				limit = langruntime.CheckedIndex(len(b.Elements))
+			}
+			return ArrayComparisonPayload{Left: a.Elements, Right: b.Elements, Limit: limit, State: 1, Error: MakeSqlError(0), Tail: tail, Value: 0}
+		}
+	}
+	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+}
+func ArrayComparisonInitial(input *ArrayComparisonPayload) Int4Value {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return Int4Value{Kind: Int4ValueError, Error: input.Error}
+	}
+	if input.State == langruntime.CheckedSignedNegate(1) {
+		return Int4Value{Kind: Int4ValueUnknown}
+	}
+	if input.State == 0 {
+		return Int4Value{Kind: Int4ValueNull}
+	}
+	return Int4Value{Kind: Int4ValueValue, Value: input.Value}
+}
+func ArrayComparisonContinues(input *ArrayComparisonPayload, index Int4Value, result Int4Value) bool {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if result.Kind == Int4ValueValue {
+		comparison := langruntime.CheckedI32(result.Value)
+		if index.Kind == Int4ValueValue {
+			offset := langruntime.CheckedI32(index.Value)
+			return input.State == 1 && comparison == 0 && offset >= 0 && (int64(langruntime.CheckedI32(offset))) < (int64(langruntime.CheckedI32((int(int32(input.Limit))))))
+		}
+	}
+	return false
+}
+func ArrayComparisonElementAt(input *ArrayComparisonPayload, index Int4Value, right bool) ArrayElement {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if index.Kind == Int4ValueValue {
+		offset := langruntime.CheckedI32(index.Value)
+		position := langruntime.IndexFromI32(offset, input.Limit)
+		if offset >= 0 && position < input.Limit {
+			if right {
+				return CopyArrayElement(input.Right[position])
+			}
+			return CopyArrayElement(input.Left[position])
+		}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayComparisonPair(left ArrayElement, right ArrayElement, equality bool) Int4Value {
+	left = CopyArrayElement(left)
+	right = CopyArrayElement(right)
+	if left.Kind == ArrayElementError {
+		error := left.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if right.Kind == ArrayElementError {
+		error := right.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if left.Kind == ArrayElementUnknown {
+		return Int4Value{Kind: Int4ValueUnknown}
+	}
+	if right.Kind == ArrayElementUnknown {
+		return Int4Value{Kind: Int4ValueUnknown}
+	}
+	leftNull := false
+	rightNull := false
+	if left.Kind == ArrayElementNull {
+		leftNull = true
+	}
+	if right.Kind == ArrayElementNull {
+		rightNull = true
+	}
+	if leftNull && rightNull {
+		return Int4Value{Kind: Int4ValueValue, Value: 0}
+	}
+	if leftNull {
+		return Int4Value{Kind: Int4ValueValue, Value: 1}
+	}
+	if rightNull {
+		if equality {
+			return Int4Value{Kind: Int4ValueValue, Value: 1}
+		}
+		return Int4Value{Kind: Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+	}
+	return Int4Value{Kind: Int4ValueNull}
+}
+func ArrayPairRequiresScalar(input Int4Value) bool {
+	if input.Kind == Int4ValueNull {
+		return true
+	}
+	return false
+}
+func ArrayEqualityStep(input BoolValue) Int4Value {
+	if input.Kind == BoolValueError {
+		error := input.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if input.Kind == BoolValueUnknown {
+		return Int4Value{Kind: Int4ValueUnknown}
+	}
+	if input.Kind == BoolValueValue {
+		value := input.Value
+		if value {
+			return Int4Value{Kind: Int4ValueValue, Value: 0}
+		}
+	}
+	return Int4Value{Kind: Int4ValueValue, Value: 1}
+}
+func ArrayOrderStep(input Int4Value) Int4Value {
+	if input.Kind == Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		if value < 0 {
+			return Int4Value{Kind: Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+		}
+		if value > 0 {
+			return Int4Value{Kind: Int4ValueValue, Value: 1}
+		}
+		return Int4Value{Kind: Int4ValueValue, Value: 0}
+	}
+	if input.Kind == Int4ValueNull {
+		return Int4Value{Kind: Int4ValueUnknown}
+	}
+	return input
+}
+func ArrayOrderFromEquality(input BoolValue) Int4Value {
+	if input.Kind == BoolValueError {
+		error := input.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if input.Kind == BoolValueValue {
+		value := input.Value
+		if value {
+			return Int4Value{Kind: Int4ValueValue, Value: 0}
+		}
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func FinishArrayComparison(input *ArrayComparisonPayload, result Int4Value) Int4Value {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if input.State == 1 {
+		if result.Kind == Int4ValueValue {
+			value := langruntime.CheckedI32(result.Value)
+			if value == 0 {
+				return Int4Value{Kind: Int4ValueValue, Value: input.Tail}
+			}
+		}
+	}
+	return result
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

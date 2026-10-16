@@ -7,6 +7,8 @@ import { PG18_BUILTIN_CASTS } from '../../src/postgres/builtins/casts.generated.
 import { PG18_TYPE_RESOLUTION } from '../../src/postgres/builtins/type-resolution.generated.js'
 import { PG18_BTREE_COMPARISONS } from '../../src/postgres/builtins/btree-comparisons.generated.js'
 import { PG18_TYPE_IO } from '../../src/postgres/builtins/type-io.generated.js'
+import { PG18_TYPE_COMPARISONS } from '../../src/postgres/builtins/type-comparisons.generated.js'
+import { readBuiltinTypeComparisons } from '../../src/postgres/builtins/type-comparisons.js'
 import { builtinCallables, builtinTypeIO } from '../../src/postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../src/postgres/builtins/taxonomy.js'
 import { isJsonbBuilder } from '../../src/codegen/shared/check-rust-evaluator.js'
@@ -75,6 +77,17 @@ export function verifyCatalog(catalog: BuiltinCatalog): void {
 export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
   const catalog = await readBuiltinCatalog(pg)
   verifyCatalog(catalog)
+  const comparisons = await readBuiltinTypeComparisons(pg)
+  assert.equal(
+    new Set(comparisons.map((entry) => entry.identity)).size,
+    comparisons.length,
+    'Duplicate default type comparison identity',
+  )
+  assert.deepEqual(
+    Object.fromEntries(comparisons.map((entry) => [entry.identity, entry])),
+    PG18_TYPE_COMPARISONS,
+    'Live default type comparison links differ from the generated inventory',
+  )
   return catalog
 }
 

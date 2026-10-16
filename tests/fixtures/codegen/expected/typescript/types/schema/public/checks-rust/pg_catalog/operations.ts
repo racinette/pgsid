@@ -17,6 +17,60 @@ function addressAndWord(left: number, right: number): number {
     }
     return result;
 }
+function arrayComparisonBoolean(input: checkruntime.Int4Value, strategy: number): checkruntime.BoolValue {
+    strategy = langruntime.checkedI32(strategy);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        if (strategy === 1) {
+            return { kind: "Value", value: value < 0 };
+        }
+        if (strategy === 2) {
+            return { kind: "Value", value: value <= 0 };
+        }
+        if (strategy === 3) {
+            return { kind: "Value", value: value === 0 };
+        }
+        if (strategy === 4) {
+            return { kind: "Value", value: value >= 0 };
+        }
+        if (strategy === 5) {
+            return { kind: "Value", value: value > 0 };
+        }
+        return { kind: "Value", value: !(value === 0) };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayEq3awo(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 3);
+}
+export function arrayNe4nzg(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 6);
+}
+export function arrayLtTefm(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 1);
+}
+export function arrayLeOyzm(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 2);
+}
+export function arrayGt3l95(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 5);
+}
+export function arrayGe2z0c(input: checkruntime.Int4Value): checkruntime.BoolValue {
+    return arrayComparisonBoolean(input, 4);
+}
+export function btarraycmpBmnb(input: checkruntime.Int4Value): checkruntime.Int4Value {
+    return input;
+}
 export function arrayIntegerTextElement(input: checkruntime.TextValue, family: number): checkruntime.ArrayElement {
     family = langruntime.checkedI32(family);
     let bits: number = 64;
@@ -18838,6 +18892,58 @@ export function varcharEr5y(input: checkruntime.TextValue): checkruntime.TextVal
 }
 export function namesendY7mk(input: checkruntime.TextValue): checkruntime.ByteaValue {
     return textWireWithoutContext(input);
+}
+export function btnamecmp9x5j(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const b: string = langruntime.checkedString(right.value);
+            const firstHex: string = textBinaryHex(a, false);
+            const secondHex: string = textBinaryHex(b, false);
+            const first: string[] = Array.from(firstHex);
+            const second: string[] = Array.from(secondHex);
+            let position: number = 0;
+            while (position < first.length || position < second.length) {
+                let firstByte: number = 0;
+                let secondByte: number = 0;
+                if (position < first.length) {
+                    firstByte = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(checkruntime.hexDigit(langruntime.indexChar(first, langruntime.checkedIndex(position))), 16), checkruntime.hexDigit(langruntime.indexChar(first, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))))));
+                }
+                if (position < second.length) {
+                    secondByte = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(checkruntime.hexDigit(langruntime.indexChar(second, langruntime.checkedIndex(position))), 16), checkruntime.hexDigit(langruntime.indexChar(second, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))))));
+                }
+                if (!(firstByte === secondByte)) {
+                    return { kind: "Value", value: langruntime.checkedSignedSubtract(firstByte, secondByte) };
+                }
+                if (firstByte === 0) {
+                    return { kind: "Value", value: 0 };
+                }
+                position = langruntime.checkedAdd(position, 2);
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
 }
 const sqlstateInvalidParameterValue = 3452619;
 function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {

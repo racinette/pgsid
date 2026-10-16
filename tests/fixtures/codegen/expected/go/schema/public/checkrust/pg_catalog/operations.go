@@ -22,6 +22,60 @@ func addressAndWord(left int, right int) int {
 	}
 	return result
 }
+func arrayComparisonBoolean(input checkruntime.Int4Value, strategy int) checkruntime.BoolValue {
+	strategy = langruntime.CheckedI32(strategy)
+	if input.Kind == checkruntime.Int4ValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.Int4ValueUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.Kind == checkruntime.Int4ValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		if strategy == 1 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value < 0}
+		}
+		if strategy == 2 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value <= 0}
+		}
+		if strategy == 3 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value == 0}
+		}
+		if strategy == 4 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value >= 0}
+		}
+		if strategy == 5 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value > 0}
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value != 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func ArrayEq3awo(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 3)
+}
+func ArrayNe4nzg(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 6)
+}
+func ArrayLtTefm(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 1)
+}
+func ArrayLeOyzm(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 2)
+}
+func ArrayGt3l95(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 5)
+}
+func ArrayGe2z0c(input checkruntime.Int4Value) checkruntime.BoolValue {
+	return arrayComparisonBoolean(input, 4)
+}
+func BtarraycmpBmnb(input checkruntime.Int4Value) checkruntime.Int4Value {
+	return input
+}
 func ArrayIntegerTextElement(input checkruntime.TextValue, family int) checkruntime.ArrayElement {
 	family = langruntime.CheckedI32(family)
 	bits := 64
@@ -18772,6 +18826,58 @@ func VarcharEr5y(input checkruntime.TextValue) checkruntime.TextValue {
 }
 func NamesendY7mk(input checkruntime.TextValue) checkruntime.ByteaValue {
 	return textWireWithoutContext(input)
+}
+func Btnamecmp9x5j(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.TextValueUnknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if right.Kind == checkruntime.TextValueUnknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left.Kind == checkruntime.TextValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if right.Kind == checkruntime.TextValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		a := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			b := langruntime.CheckedString(right.Value)
+			firstHex := textBinaryHex(a, false)
+			secondHex := textBinaryHex(b, false)
+			first := []rune(firstHex)
+			second := []rune(secondHex)
+			position := 0
+			for position < len(first) || position < len(second) {
+				firstByte := 0
+				secondByte := 0
+				if position < len(first) {
+					firstByte = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(checkruntime.HexDigit(first[position]), 16), checkruntime.HexDigit(first[langruntime.CheckedAdd(position, 1)])))
+				}
+				if position < len(second) {
+					secondByte = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(checkruntime.HexDigit(second[position]), 16), checkruntime.HexDigit(second[langruntime.CheckedAdd(position, 1)])))
+				}
+				if firstByte != secondByte {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(firstByte, secondByte)}
+				}
+				if firstByte == 0 {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+				}
+				position = langruntime.CheckedAdd(position, 2)
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 
 const sqlstateInvalidParameterValue = 3452619

@@ -159,8 +159,7 @@ and internal/cstring interfaces are not an automatic CHECK implementation queue.
 
 Implement the remaining concrete PostgreSQL value families after the preceding expression and corpus work.
 Complete one bounded slice through the completion gate before expanding it.
-Prioritize scalar families before arrays, ranges, composites, and JSON values. Use this dependency order unless implementation
-exposes a prerequisite:
+Prioritize common CHECK families, including arrays and JSON, before ACL/full-text; follow dependency order unless implementation exposes a prerequisite:
 
 - [x] Establish IEEE bit conversion primitives before floating-point values,
       casts, comparisons, and binary I/O.
@@ -253,6 +252,7 @@ exposes a prerequisite:
 - [x] Admit source/stored array literals and text I/O input, integer/Boolean/numeric/enum input profiles, widths/precision, explicit array_nulls, captured money units and coerced name facets; verify lazy preparation, exact cells and INSERT parity.
 - [x] Admit array text output, element-specific I/O, dimensions, quoting/escaping, character widths and INSERT parity; retain scalar formatting/catalog deferrals and known empty/NULL-only arrays.
 - [x] Admit multidimensional element fetches and slices, omitted/mixed bounds, integer assignment casts, copied cells, constant preparation and reached-error order; verify raw/stored composition and INSERT parity.
+- [x] Admit array equality/order through catalog-selected element support, NULL cells, dimensional tie-breaks, reached context deferrals, owned snapshots, constant preparation, expression composition and INSERT parity.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.

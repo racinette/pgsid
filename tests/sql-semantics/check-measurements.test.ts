@@ -745,7 +745,7 @@ describe('CHECK measurement boundaries', () => {
       const snapshot = await snapshotCatalog(pg)
       const table = snapshot.tables.find((table) => table.name === 'measurement_nullness')!
       for (const [name, identity, expected, represented] of [
-        ['items', 'pg_catalog._int4', true, false],
+        ['items', 'pg_catalog._int4', true, true],
         ['document', 'pg_catalog.jsonb', true, true],
         ['span', 'pg_catalog.int4range', true, false],
         ['statistics', 'pg_catalog.anyarray', true, false],
@@ -761,6 +761,10 @@ describe('CHECK measurement boundaries', () => {
         })!
         expect(!hasUncertain(plan.expression)).toBe(expected)
         expect(type.probes!['value IS NULL']!.fullyBound).toBe(expected)
+        if (name === 'items') {
+          expect(type.probes!['value = value']!.fullyBound).toBe(true)
+          expect(type.probes!['value = value']!.preparation.kind).toBe('supported')
+        }
       }
       const record = inventory.get('pg_catalog.record')!
       expect(record.isRowType).toBe(true)

@@ -7,6 +7,7 @@ import {
   builtinTypeResolution,
   builtinBtreeComparisons,
   builtinTypeIO,
+  builtinTypeComparison,
 } from '../postgres/builtins/inventory.js'
 import { builtinDefaultArguments } from '../postgres/builtins/default-arguments.js'
 import type { BuiltinCallable } from '../postgres/builtins/taxonomy.js'
@@ -911,7 +912,9 @@ const candidate = (
       if (expanded.some((arg) => !arg.value && !arg.literal)) return []
       fullArgs = [...args, ...expanded]
     }
-    const collation = combineCollations(fullArgs.map((arg) => arg.collation))
+    const collation = item.args.some((type) => type === 'pg_catalog.anyarray')
+      ? arrayCollations(fullArgs.map((arg) => arg.collation))
+      : combineCollations(fullArgs.map((arg) => arg.collation))
     if (collation?.explicit && collation.identity === 'conflict') return []
     if (
       item.args.some((type) =>
@@ -930,6 +933,17 @@ const candidate = (
     )
     const elementType = elementTypes[0]
     if (elementTypes.length && (!elementType || elementTypes.some((type) => type !== elementType)))
+      return []
+    const arrayTypes = fullArgs.flatMap((arg, index) =>
+      item.args[index] === 'pg_catalog.anyarray' && arg.type?.startsWith('array:')
+        ? [arg.type]
+        : [],
+    )
+    const arrayIdentity = arrayTypes[0]
+    if (
+      item.args.includes('pg_catalog.anyarray') &&
+      (!arrayIdentity || arrayTypes.some((type) => type !== arrayIdentity))
+    )
       return []
     const enumCall = item.args.includes('pg_catalog.anyenum')
     const definition = fullArgs.find(
@@ -950,8 +964,8 @@ const candidate = (
     const operands = fullArgs.map((arg, index) =>
       variadicAny
         ? materialize(arg, boundType(arg) ?? 'pg_catalog.text', arg.enum)
-        : item.args[index] === 'pg_catalog.anyarray' && arg.type?.startsWith('array:')
-          ? materialize(arg, arg.type)
+        : item.args[index] === 'pg_catalog.anyarray'
+          ? materialize(arg, arrayIdentity!)
           : item.args[index] === 'pg_catalog.anyelement'
             ? materialize(arg, elementType!, arg.enum)
             : isIntegerType(item.args[index]!)
@@ -1081,8 +1095,15 @@ const comparisonCandidate = (
   }
   const definition = args.find((arg) => arg.enum)?.enum
   const enumIdentity = definition ? enumType(definition) : null
+  const arrayTypes = types.filter((type): type is ArrayType => type?.startsWith('array:') === true)
+  const arrayIdentity =
+    arrayTypes.length && arrayTypes.every((type) => type === arrayTypes[0]) ? arrayTypes[0]! : null
   const concrete = (type: string): string | null =>
-    type === 'pg_catalog.anyenum' ? enumIdentity : type
+    type === 'pg_catalog.anyenum'
+      ? enumIdentity
+      : type === 'pg_catalog.anyarray'
+        ? arrayIdentity
+        : type
   const viable = callables.filter(
     ({ item }) =>
       item.kind === kind &&
@@ -1142,7 +1163,9 @@ const comparisonCandidate = (
   }
   if (best.length !== 1) return null
   const selected = best[0]!
-  const collation = combineCollations(args.map((arg) => arg.collation))
+  const collation = selected.item.args.some((type) => type === 'pg_catalog.anyarray')
+    ? arrayCollations(args.map((arg) => arg.collation))
+    : combineCollations(args.map((arg) => arg.collation))
   if (collation?.explicit && collation.identity === 'conflict') return null
   if (
     requireCollation &&
@@ -1160,6 +1183,46 @@ const comparisonCandidate = (
   return operands.every((value): value is EvalExpression => value !== null)
     ? { ...selected, operands, collation, enum: definition }
     : null
+}
+
+const arrayDefaultCollation = (
+  signature: string,
+  collation?: BoundCollation,
+): { collationDefault?: true } => {
+  const metadata = builtinMetadata(signature)
+  return collation?.default &&
+    metadata.args.length === 2 &&
+    metadata.args.every((type) => type === 'pg_catalog.anyarray')
+    ? { collationDefault: true }
+    : {}
+}
+
+const arrayCollations = (
+  values: readonly (BoundCollation | undefined)[],
+): BoundCollation | undefined => {
+  const normalized = values.map((value) =>
+    value?.default ? { ...value, identity: 'default' } : value,
+  )
+  const combined = combineCollations(normalized)
+  return combined?.default &&
+    combined.identity !== 'conflict' &&
+    normalized.some((value) => value?.default && value.kind === 'C')
+    ? { ...combined, kind: 'C' }
+    : combined
+}
+
+const arrayElementCollation = (
+  type: ArrayElementType,
+  operand?: Bound,
+): BoundCollation | undefined => {
+  const collation = builtinTypeComparison(
+    type.startsWith('enum:') ? 'pg_catalog.anyenum' : type,
+  )?.collation
+  if (!collation) return undefined
+  const inherited =
+    operand?.type !== null || operand?.collation?.explicit ? operand?.collation : undefined
+  if (inherited) return inherited
+  return collation === 'pg_catalog."C"' ? { kind: 'C', identity: 'C' } : defaultCollation
 }
 
 const containsColumn = (node: unknown): boolean => {
@@ -1270,7 +1333,10 @@ export function bindCatalogCheck(
     if (!operands.every((operand): operand is EvalExpression => operand !== null)) return unknown
     return {
       type,
-      collation: combineCollations(args.map((arg) => arg.collation)),
+      collation:
+        (multidimensional
+          ? arrayCollations(args.map((arg) => arg.collation))
+          : combineCollations(args.map((arg) => arg.collation))) ?? arrayElementCollation(element),
       value: { kind: 'array-constructor', type, elementType: element, multidimensional, operands },
     }
   }
@@ -1389,7 +1455,9 @@ export function bindCatalogCheck(
           : implicitOperand(arg, type, definition),
       )
       if (!operands.every((value): value is EvalExpression => value !== null)) return unknown
-      const collation = combineCollations(args.map((arg) => arg.collation))
+      const collation = type.startsWith('array:')
+        ? arrayCollations(args.map((arg) => arg.collation))
+        : combineCollations(args.map((arg) => arg.collation))
       const allNull = operands.every(
         (operand) =>
           operand.kind === 'certain' &&
@@ -1403,8 +1471,11 @@ export function bindCatalogCheck(
         operands.length > 1 && !allNull,
       )
       if (!resolved || resolved.item.args[0] !== resolved.item.args[1]) return unknown
-      const comparisonType =
-        resolved.item.args[0] === 'pg_catalog.anyenum' ? type : resolved.item.args[0]!
+      const comparisonType = ['pg_catalog.anyenum', 'pg_catalog.anyarray'].includes(
+        resolved.item.args[0]!,
+      )
+        ? type
+        : resolved.item.args[0]!
       if (comparisonType !== type && builtinCast(type, comparisonType)?.method !== 'b')
         return unknown
       return {
@@ -1425,6 +1496,7 @@ export function bindCatalogCheck(
                 signature: resolved.signature,
                 type: 'pg_catalog.bool',
                 collation: resolved.collation?.kind,
+                ...arrayDefaultCollation(resolved.signature, resolved.collation),
               },
             },
       }
@@ -1484,14 +1556,16 @@ export function bindCatalogCheck(
         ...(definition && type.startsWith('enum:') ? { enum: definition } : {}),
         enumDomain: commonEnumDomain(args),
         nominalDomain: commonNominalDomain(args),
-        ...([
-          'pg_catalog.name',
-          'pg_catalog.text',
-          'pg_catalog."varchar"',
-          'pg_catalog.bpchar',
-        ].includes(type)
-          ? { collation: combineCollations(args.map((arg) => arg.collation)) }
-          : {}),
+        ...(type.startsWith('array:')
+          ? { collation: arrayCollations(args.map((arg) => arg.collation)) }
+          : [
+                'pg_catalog.name',
+                'pg_catalog.text',
+                'pg_catalog."varchar"',
+                'pg_catalog.bpchar',
+              ].includes(type)
+            ? { collation: combineCollations(args.map((arg) => arg.collation)) }
+            : {}),
         value: { kind: 'coalesce', type, operands },
       }
     }
@@ -1548,14 +1622,16 @@ export function bindCatalogCheck(
             : materializeInteger(arm, type),
       )
       if (type !== 'pg_catalog.bool' && values.some((value) => !value)) return unknown
-      const collation = [
-        'pg_catalog.name',
-        'pg_catalog.text',
-        'pg_catalog."varchar"',
-        'pg_catalog.bpchar',
-      ].includes(type)
-        ? combineCollations(arms.map((arm) => arm.collation))
-        : undefined
+      const collation = type.startsWith('array:')
+        ? arrayCollations(arms.map((arm) => arm.collation))
+        : [
+              'pg_catalog.name',
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+            ].includes(type)
+          ? combineCollations(arms.map((arm) => arm.collation))
+          : undefined
       const scrutinee = caseExpression['arg'] === undefined ? null : bind(caseExpression['arg'])
       let simple: Extract<EvalExpression, { kind: 'case' }>['scrutinee']
       let equalities: Extract<EvalExpression, { kind: 'case' }>['branches'][number]['equality'][] =
@@ -1582,6 +1658,7 @@ export function bindCatalogCheck(
           signature: match!.signature,
           type: 'pg_catalog.bool',
           collation: match!.collation?.kind,
+          ...arrayDefaultCollation(match!.signature, match!.collation),
         }))
         conditions = resolved.map((match) => match!.operands[1]!)
       } else {
@@ -1731,10 +1808,17 @@ export function bindCatalogCheck(
                 ...(definition ? { enum: definition } : {}),
               }
           }
-          bound = value ? { type, value } : unknown
+          bound = value
+            ? {
+                type,
+                value,
+                collation: arrayElementCollation(element as ArrayElementType, operand),
+              }
+            : unknown
         }
         if (!bound.value || modifier < 0) return bound
         return {
+          ...bound,
           type,
           value: {
             kind: 'array-typmod',
@@ -2831,7 +2915,9 @@ export function bindCatalogCheck(
           ...(type === 'pg_catalog.name' ||
           type === 'pg_catalog.text' ||
           type === 'pg_catalog."varchar"' ||
-          type === 'pg_catalog.bpchar'
+          type === 'pg_catalog.bpchar' ||
+          (type.startsWith('array:') &&
+            arrayElementCollation(type.slice(6) as ArrayElementType) !== undefined)
             ? {
                 collation: {
                   kind:
@@ -2918,6 +3004,7 @@ export function bindCatalogCheck(
                     signature: pair!.signature,
                     type: 'pg_catalog.bool',
                     collation: pair!.collation?.kind,
+                    ...arrayDefaultCollation(pair!.signature, pair!.collation),
                   },
                   operands: pair!.operands,
                 },
@@ -2975,6 +3062,7 @@ export function bindCatalogCheck(
               signature: entry.comparator!,
               type: 'pg_catalog.int4',
               collation: pair!.collation?.kind,
+              ...arrayDefaultCollation(pair!.signature, pair!.collation),
             },
           })
         }
@@ -3064,7 +3152,9 @@ export function bindCatalogCheck(
       const definition = subject.enum ?? members.find((member) => member.enum)?.enum
       const value = materialize(subject, type, definition)
       if (!value) return unknown
-      const collation = combineCollations([subject, ...members].map((member) => member.collation))
+      const collation = type.startsWith('array:')
+        ? arrayCollations([subject, ...members].map((member) => member.collation))
+        : combineCollations([subject, ...members].map((member) => member.collation))
       const resolved = members.map((member) =>
         candidate('operator', name!, [
           { ...subject, type, value, literal: undefined, collation },
@@ -3112,6 +3202,7 @@ export function bindCatalogCheck(
             signature: first.signature,
             type: 'pg_catalog.bool',
             collation: collation?.kind,
+            ...arrayDefaultCollation(first.signature, collation),
           },
         },
       }
@@ -3140,20 +3231,30 @@ export function bindCatalogCheck(
         signature: resolved.signature,
         type: 'pg_catalog.bool' as const,
         collation: resolved.collation?.kind,
+        ...arrayDefaultCollation(resolved.signature, resolved.collation),
       }
       if (operator['kind'] === 'AEXPR_NULLIF') {
         const type =
           resolved.item.args[0] === 'pg_catalog.anyenum'
             ? resolved.enum && enumType(resolved.enum)
-            : catalogScalarType(resolved.item.args[0]!)
+            : resolved.item.args[0] === 'pg_catalog.anyarray'
+              ? resolved.operands[0]!.kind === 'certain'
+                ? resolved.operands[0]!.expression.type
+                : resolved.operands[0]!.kind === 'call'
+                  ? resolved.operands[0]!.call.type
+                  : 'type' in resolved.operands[0]!
+                    ? resolved.operands[0]!.type
+                    : null
+              : catalogScalarType(resolved.item.args[0]!)
         if (!type) return unknown
+        const resultType = type as ScalarType
         return {
-          type,
+          type: resultType,
           enum: resolved.enum,
           collation: resolved.collation,
           value: {
             kind: 'nullif',
-            type,
+            type: resultType,
             operands: [resolved.operands[0]!, resolved.operands[1]!],
             comparison,
           },
@@ -3526,7 +3627,13 @@ export function bindCatalogCheck(
         : undefined,
       value: {
         kind: 'call',
-        call: { kind, signature: resolved.signature, type, collation: collation?.kind },
+        call: {
+          kind,
+          signature: resolved.signature,
+          type,
+          collation: collation?.kind,
+          ...arrayDefaultCollation(resolved.signature, collation),
+        },
         operands: resolved.operands,
       },
     }
