@@ -2689,6 +2689,141 @@ func MakeTidParts(block int64, offset int) TidValue {
 	low := int64(langruntime.CheckedI32(offset))
 	return MakeTidValue(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(block, int64(65536)), low))
 }
+func JsonpathUnknown() JsonpathValue {
+	return JsonpathValue{Kind: JsonpathValueUnknown}
+}
+func JsonpathNull() JsonpathValue {
+	return JsonpathValue{Kind: JsonpathValueNull}
+}
+func JsonpathIsNull(input JsonpathValue) BoolValue {
+	input = CopyJsonpathValue(input)
+	if input.Kind == JsonpathValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == JsonpathValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == JsonpathValueNull {
+		return BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: false}
+}
+func JsonpathFromCaseGuard(input CheckOutcome) JsonpathValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return JsonpathValue{Kind: JsonpathValueError, Error: error}
+	}
+	return JsonpathValue{Kind: JsonpathValueUnknown}
+}
+func JsonpathFromCoercedValue(input JsonpathValue) JsonpathValue {
+	input = CopyJsonpathValue(input)
+	if input.Kind == JsonpathValueStoredText {
+		text := langruntime.CheckedString(input.StoredText)
+		characters := []rune(text)
+		if len(characters) == 0 {
+			return JsonpathValue{Kind: JsonpathValueUnknown}
+		}
+		index := 0
+		for index < len(characters) {
+			if characters[index] == '\x00' {
+				return JsonpathValue{Kind: JsonpathValueUnknown}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return JsonpathValue{Kind: JsonpathValueStoredText, StoredText: text}
+	}
+	if input.Kind == JsonpathValueValue {
+		value := CopyJsonpathPayload(input.Value)
+		if value.Root == 0 || value.Root >= len(value.Nodes) {
+			return JsonpathValue{Kind: JsonpathValueUnknown}
+		}
+		index := 0
+		for index < len(value.Characters) {
+			if value.Characters[index] == '\x00' {
+				return JsonpathValue{Kind: JsonpathValueUnknown}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		visited := []int{}
+		langruntime.CheckedAdd(len(visited), 1)
+		visited = append(visited, langruntime.CheckedIndex(0))
+		index = langruntime.CheckedIndex(1)
+		for index < len(value.Nodes) {
+			if jsonpathPayloadNodeValid(&value, index) == false {
+				return JsonpathValue{Kind: JsonpathValueUnknown}
+			}
+			langruntime.CheckedAdd(len(visited), 1)
+			visited = append(visited, langruntime.CheckedIndex(0))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		pending := []jsonpathBoundaryVisit{}
+		langruntime.CheckedAdd(len(pending), 1)
+		pending = append(pending, copyjsonpathBoundaryVisit(jsonpathBoundaryVisit{node: value.Root, filters: 0, subscript: false, accessor: false, list: false}))
+		depth := 1
+		for depth > 0 {
+			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			visit := pending[depth]
+			if visited[visit.node] != 0 {
+				return JsonpathValue{Kind: JsonpathValueUnknown}
+			}
+			visited[visit.node] = langruntime.CheckedIndex(1)
+			node := value.Nodes[visit.node]
+			if (node.Kind == JsonpathNodeSubscript) != visit.list {
+				return JsonpathValue{Kind: JsonpathValueUnknown}
+			}
+			if visit.list == false && jsonpathAccessorKind(node.Kind) != visit.accessor {
+				return JsonpathValue{Kind: JsonpathValueUnknown}
+			}
+			if node.Kind == JsonpathNodeCurrent && visit.filters == 0 {
+				return JsonpathValue{Kind: JsonpathValueUnknown}
+			}
+			if node.Kind == JsonpathNodeLast && visit.subscript == false {
+				return JsonpathValue{Kind: JsonpathValueUnknown}
+			}
+			child := 0
+			for child < 3 {
+				next := node.Next
+				filters := visit.filters
+				subscript := visit.subscript
+				accessor := true
+				list := node.Kind == JsonpathNodeSubscript
+				if child == 1 {
+					next = langruntime.CheckedIndex(node.Left)
+					accessor = false
+					list = node.Kind == JsonpathNodeIndex
+					if node.Kind == JsonpathNodeFilter {
+						filters = langruntime.CheckedAdd(filters, 1)
+					}
+					if node.Kind == JsonpathNodeIndex || node.Kind == JsonpathNodeSubscript {
+						subscript = true
+					}
+				}
+				if child == 2 {
+					next = langruntime.CheckedIndex(node.Right)
+					accessor = false
+					list = false
+					if node.Kind == JsonpathNodeSubscript {
+						subscript = true
+					}
+				}
+				if next > 0 {
+					task := jsonpathBoundaryVisit{node: next, filters: filters, subscript: subscript, accessor: accessor, list: list}
+					if depth < len(pending) {
+						pending[depth] = copyjsonpathBoundaryVisit(task)
+					} else {
+						langruntime.CheckedAdd(len(pending), 1)
+						pending = append(pending, copyjsonpathBoundaryVisit(task))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+				child = langruntime.CheckedAdd(child, 1)
+			}
+		}
+		return JsonpathValue{Kind: JsonpathValueValue, Value: value}
+	}
+	return input
+}
 
 type NumericLayout struct {
 	Valid   bool
@@ -5486,6 +5621,44 @@ func jsonbStorageAdmission(source *JsonbPayload) BoolValue {
 	return jsonbStorageDecision(jsonbStorageLayout(source))
 }
 
+const JsonpathNodeRoot = 1
+const JsonpathNodeCurrent = 2
+const JsonpathNodeLast = 3
+const JsonpathNodeString = 4
+const JsonpathNodeNumber = 5
+const JsonpathNodeVariable = 6
+const JsonpathNodeNull = 7
+const JsonpathNodeTrue = 8
+const JsonpathNodeFalse = 9
+const JsonpathNodeKey = 10
+const JsonpathNodeAnyKey = 11
+const JsonpathNodeAnyArray = 12
+const JsonpathNodeIndex = 13
+const JsonpathNodeSubscript = 14
+const JsonpathNodeDescendant = 15
+const JsonpathNodeFilter = 16
+const JsonpathNodeExists = 17
+const JsonpathNodeNot = 18
+const JsonpathNodeIsUnknown = 19
+const JsonpathNodePlus = 20
+const JsonpathNodeMinus = 21
+const JsonpathNodeAdd = 22
+const JsonpathNodeSub = 23
+const JsonpathNodeMul = 24
+const JsonpathNodeDiv = 25
+const JsonpathNodeMod = 26
+const JsonpathNodeEq = 27
+const JsonpathNodeNe = 28
+const JsonpathNodeLt = 29
+const JsonpathNodeLe = 30
+const JsonpathNodeGt = 31
+const JsonpathNodeGe = 32
+const JsonpathNodeAnd = 33
+const JsonpathNodeOr = 34
+const JsonpathNodeStarts = 35
+const JsonpathNodeRegex = 36
+const JsonpathNodeMethod = 100
+
 type JsonpathNode struct {
 	Kind      int
 	Next      int
@@ -5498,7 +5671,7 @@ type JsonpathNode struct {
 	Flags     int
 }
 
-func CopyJsonpathNode(value JsonpathNode) JsonpathNode {
+func copyJsonpathNode(value JsonpathNode) JsonpathNode {
 	return JsonpathNode{Kind: langruntime.CheckedI32(value.Kind), Next: langruntime.CheckedIndex(value.Next), Left: langruntime.CheckedIndex(value.Left), Right: langruntime.CheckedIndex(value.Right), TextStart: langruntime.CheckedIndex(value.TextStart), TextEnd: langruntime.CheckedIndex(value.TextEnd), First: langruntime.CheckedI32(value.First), Last: langruntime.CheckedI32(value.Last), Flags: langruntime.CheckedI32(value.Flags)}
 }
 
@@ -5510,7 +5683,7 @@ type JsonpathPayload struct {
 }
 
 func CopyJsonpathPayload(value JsonpathPayload) JsonpathPayload {
-	return JsonpathPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, CopyJsonpathNode), Root: langruntime.CheckedIndex(value.Root), Lax: value.Lax}
+	return JsonpathPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, copyJsonpathNode), Root: langruntime.CheckedIndex(value.Root), Lax: value.Lax}
 }
 
 type JsonpathValueKind uint8
@@ -5519,13 +5692,15 @@ const (
 	JsonpathValueUnknown JsonpathValueKind = iota
 	JsonpathValueNull
 	JsonpathValueValue
+	JsonpathValueStoredText
 	JsonpathValueError
 )
 
 type JsonpathValue struct {
-	Kind  JsonpathValueKind
-	Value JsonpathPayload
-	Error SqlError
+	Kind       JsonpathValueKind
+	Value      JsonpathPayload
+	StoredText string
+	Error      SqlError
 }
 
 func CopyJsonpathValue(value JsonpathValue) JsonpathValue {
@@ -5536,37 +5711,151 @@ func CopyJsonpathValue(value JsonpathValue) JsonpathValue {
 		return JsonpathValue{Kind: JsonpathValueNull}
 	case JsonpathValueValue:
 		return JsonpathValue{Kind: JsonpathValueValue, Value: CopyJsonpathPayload(value.Value)}
+	case JsonpathValueStoredText:
+		return JsonpathValue{Kind: JsonpathValueStoredText, StoredText: langruntime.CheckedString(value.StoredText)}
 	case JsonpathValueError:
 		return JsonpathValue{Kind: JsonpathValueError, Error: value.Error}
 	}
 	panic("unknown enum variant")
 }
-func JsonpathUnknown() JsonpathValue {
-	return JsonpathValue{Kind: JsonpathValueUnknown}
+func jsonpathAccessorKind(kind int) bool {
+	kind = langruntime.CheckedI32(kind)
+	return (kind >= JsonpathNodeKey && kind <= JsonpathNodeIndex) || kind == JsonpathNodeDescendant || kind == JsonpathNodeFilter || kind >= JsonpathNodeMethod
 }
-func JsonpathNull() JsonpathValue {
-	return JsonpathValue{Kind: JsonpathValueNull}
+func jsonpathMethodArity(kind int) int {
+	kind = langruntime.CheckedI32(kind)
+	if kind == 102 || kind == 108 || kind == 111 || kind == 114 || kind == 116 || kind == 123 || kind == 129 || kind == 115 || kind == 122 || kind == 104 || kind == 125 || kind == 118 || kind == 121 {
+		return 0
+	}
+	if kind == 128 {
+		return 1
+	}
+	if kind == 109 || kind == 126 || kind == 130 || kind == 132 {
+		return 2
+	}
+	if kind == 124 {
+		return 3
+	}
+	return langruntime.CheckedSignedNegate(1)
 }
-func JsonpathIsNull(input JsonpathValue) BoolValue {
-	input = CopyJsonpathValue(input)
-	if input.Kind == JsonpathValueError {
-		error := input.Error
-		return BoolValue{Kind: BoolValueError, Error: error}
+func jsonpathPayloadNodeValid(value *JsonpathPayload, index int) bool {
+	index = langruntime.CheckedIndex(index)
+	node := value.Nodes[index]
+	if node.Next >= len(value.Nodes) || node.Left >= len(value.Nodes) || node.Right >= len(value.Nodes) || node.TextStart > node.TextEnd || node.TextEnd > len(value.Characters) {
+		return false
 	}
-	if input.Kind == JsonpathValueUnknown {
-		return BoolValue{Kind: BoolValueUnknown}
+	kind := node.Kind
+	if kind < JsonpathNodeRoot || (kind > JsonpathNodeRegex && kind < JsonpathNodeMethod) {
+		return false
 	}
-	if input.Kind == JsonpathValueNull {
-		return BoolValue{Kind: BoolValueValue, Value: true}
+	if kind == JsonpathNodeNumber {
+		text := langruntime.NewTextBuffer("")
+		position := node.TextStart
+		negative := false
+		if position < node.TextEnd && value.Characters[position] == '-' {
+			negative = true
+			text = append(text, string(langruntime.CheckedChar('-'))...)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		begin := position
+		point := false
+		nonzero := false
+		fraction := 0
+		for position < node.TextEnd {
+			character := value.Characters[position]
+			if character == '.' {
+				if point || position == begin || langruntime.CheckedAdd(position, 1) == node.TextEnd {
+					return false
+				}
+				point = true
+			} else if int(langruntime.CheckedChar(character)) >= 48 && int(langruntime.CheckedChar(character)) <= 57 {
+				if character != '0' {
+					nonzero = true
+				}
+				if point {
+					fraction = langruntime.CheckedAdd(fraction, 1)
+				}
+				if position == begin && character == '0' && langruntime.CheckedAdd(position, 1) < node.TextEnd && value.Characters[langruntime.CheckedAdd(position, 1)] != '.' {
+					return false
+				}
+			} else {
+				return false
+			}
+			text = append(text, string(langruntime.CheckedChar(character))...)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if begin == node.TextEnd || (negative && nonzero == false) || fraction > 16383 {
+			return false
+		}
+		parts := NumericParts(string(text))
+		if parts.Valid == false || parts.Special != 1 || parts.Weight > 131072 {
+			return false
+		}
 	}
-	return BoolValue{Kind: BoolValueValue, Value: false}
+	if kind == JsonpathNodeRegex {
+		return node.Left > 0 && node.Right == 0 && node.Flags >= 0 && node.Flags <= 31 && (langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(node.Flags, 8)), 2) == 0 || node.Flags >= 16)
+	}
+	if kind >= JsonpathNodeMethod {
+		arity := jsonpathMethodArity(kind)
+		if arity < 0 {
+			return false
+		}
+		if arity == 0 {
+			return node.Left == 0 && node.Right == 0
+		}
+		if arity < 3 && node.Right != 0 {
+			return false
+		}
+		if node.Left == 0 {
+			return node.Right == 0
+		}
+		left := value.Nodes[node.Left]
+		argumentKind := JsonpathNodeNumber
+		if arity == 1 {
+			argumentKind = langruntime.CheckedI32(JsonpathNodeString)
+		}
+		if left.Kind != argumentKind || left.Next != 0 {
+			return false
+		}
+		if node.Right > 0 {
+			right := value.Nodes[node.Right]
+			if right.Kind != JsonpathNodeNumber || right.Next != 0 {
+				return false
+			}
+		}
+		return true
+	}
+	if kind >= JsonpathNodeAdd && kind <= JsonpathNodeStarts {
+		return node.Left > 0 && node.Right > 0
+	}
+	if kind == JsonpathNodeSubscript {
+		return node.Left > 0
+	}
+	if kind == JsonpathNodeIndex || (kind >= JsonpathNodeFilter && kind <= JsonpathNodeMinus) {
+		if (kind == JsonpathNodePlus || kind == JsonpathNodeMinus) && node.Left > 0 {
+			child := value.Nodes[node.Left]
+			if child.Kind == JsonpathNodeNumber && child.Next == 0 {
+				return false
+			}
+		}
+		return node.Left > 0 && node.Right == 0
+	}
+	if kind == JsonpathNodeDescendant && (node.First < langruntime.CheckedSignedNegate(1) || node.Last < langruntime.CheckedSignedNegate(1)) {
+		return false
+	}
+	return node.Left == 0 && node.Right == 0
 }
-func JsonpathFromCaseGuard(input CheckOutcome) JsonpathValue {
-	if input.Kind == CheckOutcomeError {
-		error := input.Error
-		return JsonpathValue{Kind: JsonpathValueError, Error: error}
-	}
-	return JsonpathValue{Kind: JsonpathValueUnknown}
+
+type jsonpathBoundaryVisit struct {
+	node      int
+	filters   int
+	subscript bool
+	accessor  bool
+	list      bool
+}
+
+func copyjsonpathBoundaryVisit(value jsonpathBoundaryVisit) jsonpathBoundaryVisit {
+	return jsonpathBoundaryVisit{node: langruntime.CheckedIndex(value.node), filters: langruntime.CheckedIndex(value.filters), subscript: value.subscript, accessor: value.accessor, list: value.list}
 }
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)

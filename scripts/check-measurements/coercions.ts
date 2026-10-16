@@ -1,4 +1,9 @@
 import {
+  jsonpathInputForms,
+  invalidJsonpathInputForms,
+  deferredJsonpathContextForms,
+} from '../../tests/sql-semantics/check-jsonpath-input-forms.js'
+import {
   jsonInputForms,
   invalidJsonInputForms,
 } from '../../tests/sql-semantics/check-json-input-forms.js'
@@ -101,6 +106,47 @@ const nanBinaryPrecision = {
 } as const
 
 const inputForms = [
+  {
+    type: 'pg_catalog.jsonpath',
+    suite: 'tests/sql-semantics/check-jsonpath-sql.test.ts',
+    handled: jsonpathInputForms,
+    rejected: invalidJsonpathInputForms,
+    deferred: deferredJsonpathContextForms,
+    platformDependent: [],
+    contextRequired: deferredJsonpathContextForms,
+    unimplementedGrammar: [],
+    rowInput: {
+      representation:
+        'JsonpathValue with an exact source graph or a trusted SQL-coerced stored-text facet',
+      rawQueryParameters: 'defer assignment coercion to PostgreSQL',
+      owner: 'tests/sql-semantics/check-jsonpath-payload.test.ts',
+      rawQueryParameterOwner: 'tests/sql-semantics/check-jsonpath-write-input.test.ts',
+    },
+    requirements: [
+      {
+        requirement: 'server_encoding',
+        setting: 'UTF8',
+        scope: 'Non-ASCII source or decoded Unicode escapes during raw input',
+      },
+      {
+        requirement: 'defaultCollation',
+        setting: 'C',
+        scope: 'Ordinary regex literal compilation; quoted regex is independent',
+      },
+      {
+        requirement: 'implementation-limit',
+        scope:
+          'Existing regex compiler can defer accepted patterns; already-coerced graph values remain usable',
+        owner: 'tests/sql-semantics/check-jsonpath-literals.test.ts',
+      },
+      {
+        requirement: 'rendered-input-limit',
+        scope:
+          'PostgreSQL rendering can be non-reparseable or semantically lossy; stored text retains I/O, while query execution needs an exact source graph or an inversion proof',
+        owner: 'tests/sql-semantics/check-jsonpath-sql.test.ts',
+      },
+    ],
+  },
   {
     type: 'pg_catalog.jsonb',
     suite: 'tests/sql-semantics/check-jsonb-input.test.ts',
@@ -469,7 +515,9 @@ export async function measureCoercions(pg: PGlite) {
             ? 'textsend'
             : null
     const sql =
-      target === 'pg_catalog."json"' || target === 'pg_catalog.jsonb'
+      target === 'pg_catalog."json"' ||
+      target === 'pg_catalog.jsonb' ||
+      target === 'pg_catalog.jsonpath'
         ? `CAST(${cast} AS pg_catalog.text) IS NOT DISTINCT FROM CAST(${cast} AS pg_catalog.text)`
         : send
           ? `${send}(${cast}) IS NOT DISTINCT FROM ${send}(${cast})`

@@ -56,6 +56,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'uuid' ||
       expression.kind === 'json' ||
       expression.kind === 'jsonb' ||
+      expression.kind === 'jsonpath' ||
       expression.kind === 'temporal' ||
       expression.kind === 'enum'
     )

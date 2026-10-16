@@ -30,6 +30,7 @@ import {
   catalogSnapshotType,
   catalogJsonType,
   catalogJsonbType,
+  catalogJsonpathType,
   catalogOidType,
   catalogMoneyType,
   catalogPolygonType,
@@ -412,6 +413,9 @@ describe('world CHECK INSERT parity', () => {
     const jsonbRuntime = await import(
       pathToFileURL(join(directory, 'js/checks-rust/checkruntime/runtime.js')).href
     )
+    const jsonpathOperations = await import(
+      pathToFileURL(join(directory, 'js/checks-rust/pg_catalog/operations.js')).href
+    )
     for (const artifact of go.artifacts) {
       await mkdir(dirname(artifact.path), { recursive: true })
       await writeFile(artifact.path, artifact.content)
@@ -549,6 +553,13 @@ describe('world CHECK INSERT parity', () => {
           (column) =>
             column.generated === 'none' &&
             catalogXid8Type(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
+      const jsonpathColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogJsonpathType(column.typeName, column.typeOid, catalog.domains),
         )
         .map((column) => column.name)
       const jsonbColumns = table.columns
@@ -710,6 +721,18 @@ describe('world CHECK INSERT parity', () => {
         const payload = bytes === null ? null : bytes.readBigInt64BE()
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
+      }
+      for (const name of jsonpathColumns) {
+        const source = (
+          await pg.query<{ source: string | null }>(
+            `SELECT ${quote(name)}::text AS source FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.source
+        portableRow[name] =
+          source === null
+            ? null
+            : jsonpathOperations.jsonpathFromStoredText(jsonbRuntime.makeTextValue(source))
+        goRow[name] = source
       }
       for (const name of jsonbColumns) {
         const source = (
@@ -988,6 +1011,7 @@ describe('world CHECK INSERT parity', () => {
         snapshotColumns,
         jsonColumns,
         jsonbColumns,
+        jsonpathColumns,
         oidColumns,
         moneyColumns,
         polygonColumns,

@@ -276,9 +276,9 @@ exposes a prerequisite:
 - [x] JSON/JSONB binary send, source/canonical bytes, version framing and strict states; retain encoding requirements and classify receive functions as internal interfaces.
 - [ ] Explicit VARIADIC arrays and path-array access follow arrays.
 - [x] JSONPath lexical/grammar foundation: owned arenas, comments, names, variables, numeric/Unicode forms, precedence, accessor/method arguments, @/last scopes and ordered validation events; no public SQL admission.
-- [x] Private UTF8/C JSONPath literal validation: exact numeric forms, regex compilation/flags and error order; retain collation requirements and regex compiler limits as Unknown.
-- [x] Owned normalized JSONPath query graph, unary numeric folding, iterative canonical UTF8 text output and value-state/clone semantics; retain non-reparseable PostgreSQL output cases.
-- [ ] JSONPath encoding admission, public SQL input/literal/cast integration, binary send and execution over the logical JSONB tree.
+- [x] Owned JSONPath graph, exact source graphs, unary numeric folding, iterative output and clone/state semantics; retain regex compiler limits and lossy PostgreSQL text rendering.
+- [x] JSONPath SQL row values, source/stored literal provenance, text I/O casts, JSONB conversion/builders, CASE/COALESCE, binary send and INSERT parity; checked graph/stored-text facets, explicit UTF8/C requirements and raw assignment deferral.
+- [ ] JSONPath execution over the logical JSONB tree: strict/lax traversal, filters, variables, predicates, arithmetic, methods and context-sensitive operations.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
 Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations,

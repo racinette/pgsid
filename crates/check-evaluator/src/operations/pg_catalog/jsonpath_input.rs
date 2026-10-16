@@ -37,7 +37,7 @@ fn jsonpath_regex_literal(pattern: &str, flags: i32, c_collation: bool) -> BoolV
     BoolValue::Unknown
 }
 
-pub fn jsonpath_from_text_utf8(input: TextValue, c_collation: bool) -> JsonpathValue {
+pub fn jsonpath_from_text(input: TextValue, c_collation: bool, utf8: bool) -> JsonpathValue {
     if let TextValue::Error(error) = input {
         return JsonpathValue::Error(error);
     };
@@ -46,6 +46,22 @@ pub fn jsonpath_from_text_utf8(input: TextValue, c_collation: bool) -> JsonpathV
     };
     if let TextValue::Value(value) = input {
         let tree = jsonpath_parse(value.as_str());
+        if utf8 == false {
+            let mut position: usize = 0;
+            while position < tree.source.len() {
+                if tree.source[position] as i32 > 127 {
+                    return JsonpathValue::Unknown;
+                };
+                position += 1;
+            }
+            position = 0;
+            while position < tree.text.len() {
+                if tree.text[position] as i32 > 127 {
+                    return JsonpathValue::Unknown;
+                };
+                position += 1;
+            }
+        };
         let mut index: usize = 0;
         while index < tree.validation.len() {
             let node = tree.nodes[tree.validation[index]];
@@ -81,6 +97,10 @@ pub fn jsonpath_from_text_utf8(input: TextValue, c_collation: bool) -> JsonpathV
         return jsonpath_value_from_tree(tree);
     };
     JsonpathValue::Unknown
+}
+
+pub fn jsonpath_from_text_utf8(input: TextValue, c_collation: bool) -> JsonpathValue {
+    jsonpath_from_text(input, c_collation, true)
 }
 
 pub fn jsonpath_validate_utf8(input: TextValue, c_collation: bool) -> BoolValue {

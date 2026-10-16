@@ -94,7 +94,7 @@ pub fn jsonpath_numeric_probe(input: TextValue, expected: TextValue) -> BoolValu
       source,
       requiresRegex: true,
     }
-    expect(valueRepresentation('pg_catalog.jsonpath').represented).toBe(false)
+    expect(valueRepresentation('pg_catalog.jsonpath').represented).toBe(true)
     const scalar = assembleCheckRust({ source: '', callables: [] })
     expect(scalar.modules.find((module) => module.name === 'regex_engine')).toBeUndefined()
     expect(
