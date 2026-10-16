@@ -159,8 +159,7 @@ and internal/cstring interfaces are not an automatic CHECK implementation queue.
 
 ## Expand value representations
 
-- [x] Establish exported owned point-list payloads with independent clones and
-      transfers in Rust, Go and TypeScript; retain private aggregate boundaries.
+- [x] Establish exported owned point-list payloads with independent clones and transfers in Rust, Go and TypeScript; retain private aggregate boundaries.
 
 Implement the remaining concrete PostgreSQL value families after the preceding
 expression and corpus work. Complete one bounded slice through the completion
@@ -252,6 +251,7 @@ exposes a prerequisite:
 - [x] Remove generation-time enum OIDs from emitted literals and public label
       adapters, and verify hash deferral across independent databases.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
+- [x] Establish private typed array storage, dimensions/lower bounds, NULL/Unknown elements, independent nested clones and metadata parity; public SQL admission remains pending.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.

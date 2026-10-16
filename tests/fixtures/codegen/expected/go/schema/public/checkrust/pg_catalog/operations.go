@@ -22,6 +22,128 @@ func addressAndWord(left int, right int) int {
 	}
 	return result
 }
+func CardinalityM1rn(input checkruntime.ArrayValue) checkruntime.Int4Value {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(len(value.Elements)))}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func ArrayNdims8wu3(input checkruntime.ArrayValue) checkruntime.Int4Value {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		if len(value.Dimensions) == 0 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(len(value.Dimensions)))}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func arrayDimensionValue(input checkruntime.ArrayValue, dimension checkruntime.Int4Value, mode int) checkruntime.Int4Value {
+	input = checkruntime.CopyArrayValue(input)
+	mode = langruntime.CheckedI32(mode)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if dimension.Kind == checkruntime.Int4ValueError {
+		error := dimension.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if dimension.Kind == checkruntime.Int4ValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		if dimension.Kind == checkruntime.Int4ValueValue {
+			index := langruntime.CheckedI32(dimension.Value)
+			if index < 1 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+			}
+			position := langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(index, 1), 0)
+			if position >= len(value.Dimensions) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+			}
+			selected := value.Dimensions[position]
+			if mode == 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: selected.Length}
+			}
+			if mode == 1 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: selected.Lower}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(selected.Lower, selected.Length), 1)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func ArrayLengthPebh(input checkruntime.ArrayValue, dimension checkruntime.Int4Value) checkruntime.Int4Value {
+	input = checkruntime.CopyArrayValue(input)
+	return arrayDimensionValue(input, dimension, 0)
+}
+func ArrayLower3uq2(input checkruntime.ArrayValue, dimension checkruntime.Int4Value) checkruntime.Int4Value {
+	input = checkruntime.CopyArrayValue(input)
+	return arrayDimensionValue(input, dimension, 1)
+}
+func ArrayUpperLnz3(input checkruntime.ArrayValue, dimension checkruntime.Int4Value) checkruntime.Int4Value {
+	input = checkruntime.CopyArrayValue(input)
+	return arrayDimensionValue(input, dimension, 2)
+}
+func ArrayDims01ex(input checkruntime.ArrayValue) checkruntime.TextValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		if len(value.Dimensions) == 0 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+		}
+		text := langruntime.NewTextBuffer("")
+		position := 0
+		for position < len(value.Dimensions) {
+			selected := value.Dimensions[position]
+			lower := Int4ToText(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: selected.Lower})
+			upper := Int4ToText(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(selected.Lower, selected.Length), 1)})
+			if lower.Kind == checkruntime.TextValueValue {
+				first := langruntime.CheckedString(lower.Value)
+				if upper.Kind == checkruntime.TextValueValue {
+					last := langruntime.CheckedString(upper.Value)
+					text = append(text, string(langruntime.CheckedChar('['))...)
+					text = append(text, first...)
+					text = append(text, string(langruntime.CheckedChar(':'))...)
+					text = append(text, last...)
+					text = append(text, string(langruntime.CheckedChar(']'))...)
+				}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func Int48lt65ji(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error

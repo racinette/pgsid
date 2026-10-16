@@ -6172,6 +6172,1749 @@ interface JsonpathBoundaryVisit {
 function copyJsonpathBoundaryVisit(value: JsonpathBoundaryVisit): JsonpathBoundaryVisit {
     return { node: langruntime.checkedIndex(value.node), filters: langruntime.checkedIndex(value.filters), subscript: langruntime.checkedBool(value.subscript), accessor: langruntime.checkedBool(value.accessor), list: langruntime.checkedBool(value.list) };
 }
+export type ArrayElement = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+} | {
+    readonly kind: "Int2";
+    readonly value: number;
+} | {
+    readonly kind: "Int4";
+    readonly value: number;
+} | {
+    readonly kind: "Int8";
+    readonly value: bigint;
+} | {
+    readonly kind: "Timestamp";
+    readonly value: bigint;
+} | {
+    readonly kind: "Timestamptz";
+    readonly value: bigint;
+} | {
+    readonly kind: "Enum";
+    readonly value: EnumPayload;
+} | {
+    readonly kind: "Date";
+    readonly value: number;
+} | {
+    readonly kind: "Text";
+    readonly value: string;
+} | {
+    readonly kind: "Bool";
+    readonly value: boolean;
+} | {
+    readonly kind: "Numeric";
+    readonly value: string;
+} | {
+    readonly kind: "Json";
+    readonly value: JsonPayload;
+} | {
+    readonly kind: "Jsonb";
+    readonly value: JsonbPayload;
+} | {
+    readonly kind: "Network";
+    readonly value: NetworkAddress;
+} | {
+    readonly kind: "Bit";
+    readonly value: string;
+} | {
+    readonly kind: "Bytea";
+    readonly value: string;
+} | {
+    readonly kind: "Macaddr";
+    readonly value: MacAddress;
+} | {
+    readonly kind: "Macaddr8";
+    readonly value: MacAddress;
+} | {
+    readonly kind: "Uuid";
+    readonly value: Uuid;
+} | {
+    readonly kind: "Float4";
+    readonly value: number;
+} | {
+    readonly kind: "Float8";
+    readonly value: bigint;
+} | {
+    readonly kind: "Time";
+    readonly value: bigint;
+} | {
+    readonly kind: "Timetz";
+    readonly value: TimetzPayload;
+} | {
+    readonly kind: "Interval";
+    readonly value: IntervalPayload;
+} | {
+    readonly kind: "Point";
+    readonly value: PointPayload;
+} | {
+    readonly kind: "Line";
+    readonly value: LinePayload;
+} | {
+    readonly kind: "Lseg";
+    readonly value: LsegPayload;
+} | {
+    readonly kind: "Box";
+    readonly value: BoxPayload;
+} | {
+    readonly kind: "Path";
+    readonly value: PathPayload;
+} | {
+    readonly kind: "Polygon";
+    readonly value: PolygonPayload;
+} | {
+    readonly kind: "Circle";
+    readonly value: CirclePayload;
+} | {
+    readonly kind: "Money";
+    readonly value: bigint;
+} | {
+    readonly kind: "InternalChar";
+    readonly value: number;
+} | {
+    readonly kind: "Oid";
+    readonly value: bigint;
+} | {
+    readonly kind: "Xid";
+    readonly value: bigint;
+} | {
+    readonly kind: "Cid";
+    readonly value: bigint;
+} | {
+    readonly kind: "Snapshot";
+    readonly value: SnapshotPayload;
+} | {
+    readonly kind: "Xid8";
+    readonly value: bigint;
+} | {
+    readonly kind: "PgLsn";
+    readonly value: bigint;
+} | {
+    readonly kind: "Tid";
+    readonly value: bigint;
+} | {
+    readonly kind: "Jsonpath";
+    readonly value: JsonpathPayload;
+} | {
+    readonly kind: "Float4UnspecifiedNan";
+} | {
+    readonly kind: "Float8UnspecifiedNan";
+} | {
+    readonly kind: "ByteaUnspecified";
+    readonly value: number;
+} | {
+    readonly kind: "BoxNonNull";
+};
+function copyArrayElement(value: ArrayElement): ArrayElement {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Int2": return { kind: "Int2", value: langruntime.checkedI32(value.value) };
+        case "Int4": return { kind: "Int4", value: langruntime.checkedI32(value.value) };
+        case "Int8": return { kind: "Int8", value: langruntime.checkedI64(value.value) };
+        case "Timestamp": return { kind: "Timestamp", value: langruntime.checkedI64(value.value) };
+        case "Timestamptz": return { kind: "Timestamptz", value: langruntime.checkedI64(value.value) };
+        case "Enum": return { kind: "Enum", value: value.value };
+        case "Date": return { kind: "Date", value: langruntime.checkedI32(value.value) };
+        case "Text": return { kind: "Text", value: langruntime.checkedString(value.value) };
+        case "Bool": return { kind: "Bool", value: langruntime.checkedBool(value.value) };
+        case "Numeric": return { kind: "Numeric", value: langruntime.checkedString(value.value) };
+        case "Json": return { kind: "Json", value: value.value };
+        case "Jsonb": return { kind: "Jsonb", value: copyJsonbPayload(value.value) };
+        case "Network": return { kind: "Network", value: value.value };
+        case "Bit": return { kind: "Bit", value: langruntime.checkedString(value.value) };
+        case "Bytea": return { kind: "Bytea", value: langruntime.checkedString(value.value) };
+        case "Macaddr": return { kind: "Macaddr", value: value.value };
+        case "Macaddr8": return { kind: "Macaddr8", value: value.value };
+        case "Uuid": return { kind: "Uuid", value: value.value };
+        case "Float4": return { kind: "Float4", value: langruntime.checkedI32(value.value) };
+        case "Float8": return { kind: "Float8", value: langruntime.checkedI64(value.value) };
+        case "Time": return { kind: "Time", value: langruntime.checkedI64(value.value) };
+        case "Timetz": return { kind: "Timetz", value: value.value };
+        case "Interval": return { kind: "Interval", value: value.value };
+        case "Point": return { kind: "Point", value: value.value };
+        case "Line": return { kind: "Line", value: value.value };
+        case "Lseg": return { kind: "Lseg", value: value.value };
+        case "Box": return { kind: "Box", value: value.value };
+        case "Path": return { kind: "Path", value: copyPathPayload(value.value) };
+        case "Polygon": return { kind: "Polygon", value: copyPolygonPayload(value.value) };
+        case "Circle": return { kind: "Circle", value: value.value };
+        case "Money": return { kind: "Money", value: langruntime.checkedI64(value.value) };
+        case "InternalChar": return { kind: "InternalChar", value: langruntime.checkedI32(value.value) };
+        case "Oid": return { kind: "Oid", value: langruntime.checkedI64(value.value) };
+        case "Xid": return { kind: "Xid", value: langruntime.checkedI64(value.value) };
+        case "Cid": return { kind: "Cid", value: langruntime.checkedI64(value.value) };
+        case "Snapshot": return { kind: "Snapshot", value: copySnapshotPayload(value.value) };
+        case "Xid8": return { kind: "Xid8", value: langruntime.checkedI64(value.value) };
+        case "PgLsn": return { kind: "PgLsn", value: langruntime.checkedI64(value.value) };
+        case "Tid": return { kind: "Tid", value: langruntime.checkedI64(value.value) };
+        case "Jsonpath": return { kind: "Jsonpath", value: copyJsonpathPayload(value.value) };
+        case "Float4UnspecifiedNan": return { kind: "Float4UnspecifiedNan" };
+        case "Float8UnspecifiedNan": return { kind: "Float8UnspecifiedNan" };
+        case "ByteaUnspecified": return { kind: "ByteaUnspecified", value: langruntime.checkedI32(value.value) };
+        case "BoxNonNull": return { kind: "BoxNonNull" };
+    }
+}
+export function arrayElementFamily(input: ArrayElement): number {
+    input = copyArrayElement(input);
+    if (input.kind === "Int2") {
+        return 1;
+    }
+    if (input.kind === "Int4") {
+        return 2;
+    }
+    if (input.kind === "Int8") {
+        return 3;
+    }
+    if (input.kind === "Timestamp") {
+        return 4;
+    }
+    if (input.kind === "Timestamptz") {
+        return 5;
+    }
+    if (input.kind === "Enum") {
+        return 6;
+    }
+    if (input.kind === "Date") {
+        return 7;
+    }
+    if (input.kind === "Text") {
+        return 8;
+    }
+    if (input.kind === "Bool") {
+        return 9;
+    }
+    if (input.kind === "Numeric") {
+        return 10;
+    }
+    if (input.kind === "Json") {
+        return 11;
+    }
+    if (input.kind === "Jsonb") {
+        return 12;
+    }
+    if (input.kind === "Network") {
+        return 13;
+    }
+    if (input.kind === "Bit") {
+        return 14;
+    }
+    if (input.kind === "Bytea") {
+        return 15;
+    }
+    if (input.kind === "Macaddr") {
+        return 16;
+    }
+    if (input.kind === "Macaddr8") {
+        return 17;
+    }
+    if (input.kind === "Uuid") {
+        return 18;
+    }
+    if (input.kind === "Float4") {
+        return 19;
+    }
+    if (input.kind === "Float8") {
+        return 20;
+    }
+    if (input.kind === "Time") {
+        return 21;
+    }
+    if (input.kind === "Timetz") {
+        return 22;
+    }
+    if (input.kind === "Interval") {
+        return 23;
+    }
+    if (input.kind === "Point") {
+        return 24;
+    }
+    if (input.kind === "Line") {
+        return 25;
+    }
+    if (input.kind === "Lseg") {
+        return 26;
+    }
+    if (input.kind === "Box") {
+        return 27;
+    }
+    if (input.kind === "Path") {
+        return 28;
+    }
+    if (input.kind === "Polygon") {
+        return 29;
+    }
+    if (input.kind === "Circle") {
+        return 30;
+    }
+    if (input.kind === "Money") {
+        return 31;
+    }
+    if (input.kind === "InternalChar") {
+        return 32;
+    }
+    if (input.kind === "Oid") {
+        return 33;
+    }
+    if (input.kind === "Xid") {
+        return 34;
+    }
+    if (input.kind === "Cid") {
+        return 35;
+    }
+    if (input.kind === "Snapshot") {
+        return 36;
+    }
+    if (input.kind === "Xid8") {
+        return 37;
+    }
+    if (input.kind === "PgLsn") {
+        return 38;
+    }
+    if (input.kind === "Tid") {
+        return 39;
+    }
+    if (input.kind === "Jsonpath") {
+        return 40;
+    }
+    if (input.kind === "Float4UnspecifiedNan") {
+        return 19;
+    }
+    if (input.kind === "Float8UnspecifiedNan") {
+        return 20;
+    }
+    if (input.kind === "ByteaUnspecified") {
+        return 15;
+    }
+    if (input.kind === "BoxNonNull") {
+        return 27;
+    }
+    return 0;
+}
+export function arrayElementFromInt2(input: Int2Value): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "Int2", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToInt2(input: ArrayElement): Int2Value {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Int2") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromInt4(input: Int4Value): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "Int4", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToInt4(input: ArrayElement): Int4Value {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Int4") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromInt8(input: Int8Value): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Int8", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToInt8(input: ArrayElement): Int8Value {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Int8") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromTimestamp(input: TimestampValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Timestamp", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToTimestamp(input: ArrayElement): TimestampValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Timestamp") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromTimestamptz(input: TimestamptzValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Timestamptz", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToTimestamptz(input: ArrayElement): TimestamptzValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Timestamptz") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromEnum(input: EnumValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: EnumPayload = input.value;
+        return { kind: "Enum", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToEnum(input: ArrayElement): EnumValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Enum") {
+        const value: EnumPayload = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromDate(input: DateValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "Date", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToDate(input: ArrayElement): DateValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Date") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromText(input: TextValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Text", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToText(input: ArrayElement): TextValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Text") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromBool(input: BoolValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: boolean = langruntime.checkedBool(input.value);
+        return { kind: "Bool", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToBool(input: ArrayElement): BoolValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Bool") {
+        const value: boolean = langruntime.checkedBool(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromNumeric(input: NumericValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Numeric", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToNumeric(input: ArrayElement): NumericValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Numeric") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromJson(input: JsonValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonPayload = input.value;
+        return { kind: "Json", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToJson(input: ArrayElement): JsonValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Json") {
+        const value: JsonPayload = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromJsonb(input: JsonbValue): ArrayElement {
+    input = copyJsonbValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonbPayload = copyJsonbPayload(input.value);
+        return { kind: "Jsonb", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToJsonb(input: ArrayElement): JsonbValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Jsonb") {
+        const value: JsonbPayload = copyJsonbPayload(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromNetwork(input: NetworkValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: NetworkAddress = input.value;
+        return { kind: "Network", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToNetwork(input: ArrayElement): NetworkValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Network") {
+        const value: NetworkAddress = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromBit(input: BitValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Bit", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToBit(input: ArrayElement): BitValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Bit") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromBytea(input: ByteaValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Bytea", value: value };
+    }
+    if (input.kind === "Unspecified") {
+        const length: number = langruntime.checkedI32(input.value);
+        return { kind: "ByteaUnspecified", value: length };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToBytea(input: ArrayElement): ByteaValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Bytea") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: value };
+    }
+    if (input.kind === "ByteaUnspecified") {
+        const length: number = langruntime.checkedI32(input.value);
+        return { kind: "Unspecified", value: length };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromMacaddr(input: MacaddrValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: MacAddress = input.value;
+        return { kind: "Macaddr", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToMacaddr(input: ArrayElement): MacaddrValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Macaddr") {
+        const value: MacAddress = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromMacaddr8(input: Macaddr8Value): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: MacAddress = input.value;
+        return { kind: "Macaddr8", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToMacaddr8(input: ArrayElement): Macaddr8Value {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Macaddr8") {
+        const value: MacAddress = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromUuid(input: UuidValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: Uuid = input.value;
+        return { kind: "Uuid", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToUuid(input: ArrayElement): UuidValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Uuid") {
+        const value: Uuid = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromFloat4(input: Float4Value): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "Float4", value: value };
+    }
+    if (input.kind === "UnspecifiedNan") {
+        return { kind: "Float4UnspecifiedNan" };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToFloat4(input: ArrayElement): Float4Value {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Float4") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "Value", value: value };
+    }
+    if (input.kind === "Float4UnspecifiedNan") {
+        return { kind: "UnspecifiedNan" };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromFloat8(input: Float8Value): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Float8", value: value };
+    }
+    if (input.kind === "UnspecifiedNan") {
+        return { kind: "Float8UnspecifiedNan" };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToFloat8(input: ArrayElement): Float8Value {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Float8") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    if (input.kind === "Float8UnspecifiedNan") {
+        return { kind: "UnspecifiedNan" };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromTime(input: TimeValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Time", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToTime(input: ArrayElement): TimeValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Time") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromTimetz(input: TimetzValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: TimetzPayload = input.value;
+        return { kind: "Timetz", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToTimetz(input: ArrayElement): TimetzValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Timetz") {
+        const value: TimetzPayload = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromInterval(input: IntervalValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: IntervalPayload = input.value;
+        return { kind: "Interval", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToInterval(input: ArrayElement): IntervalValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Interval") {
+        const value: IntervalPayload = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromPoint(input: PointValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: PointPayload = input.value;
+        return { kind: "Point", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToPoint(input: ArrayElement): PointValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Point") {
+        const value: PointPayload = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromLine(input: LineValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: LinePayload = input.value;
+        return { kind: "Line", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToLine(input: ArrayElement): LineValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Line") {
+        const value: LinePayload = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromLseg(input: LsegValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: LsegPayload = input.value;
+        return { kind: "Lseg", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToLseg(input: ArrayElement): LsegValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Lseg") {
+        const value: LsegPayload = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromBox(input: BoxValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: BoxPayload = input.value;
+        return { kind: "Box", value: value };
+    }
+    if (input.kind === "NonNull") {
+        return { kind: "BoxNonNull" };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToBox(input: ArrayElement): BoxValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Box") {
+        const value: BoxPayload = input.value;
+        return { kind: "Value", value: value };
+    }
+    if (input.kind === "BoxNonNull") {
+        return { kind: "NonNull" };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromPath(input: PathValue): ArrayElement {
+    input = copyPathValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: PathPayload = copyPathPayload(input.value);
+        return { kind: "Path", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToPath(input: ArrayElement): PathValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Path") {
+        const value: PathPayload = copyPathPayload(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromPolygon(input: PolygonValue): ArrayElement {
+    input = copyPolygonValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: PolygonPayload = copyPolygonPayload(input.value);
+        return { kind: "Polygon", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToPolygon(input: ArrayElement): PolygonValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Polygon") {
+        const value: PolygonPayload = copyPolygonPayload(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromCircle(input: CircleValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: CirclePayload = input.value;
+        return { kind: "Circle", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToCircle(input: ArrayElement): CircleValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Circle") {
+        const value: CirclePayload = input.value;
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromMoney(input: MoneyValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Money", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToMoney(input: ArrayElement): MoneyValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Money") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromInternalChar(input: InternalCharValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "InternalChar", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToInternalChar(input: ArrayElement): InternalCharValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "InternalChar") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromOid(input: OidValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Oid", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToOid(input: ArrayElement): OidValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Oid") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromXid(input: XidValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Xid", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToXid(input: ArrayElement): XidValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Xid") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromCid(input: CidValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Cid", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToCid(input: ArrayElement): CidValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Cid") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromSnapshot(input: SnapshotValue): ArrayElement {
+    input = copySnapshotValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: SnapshotPayload = copySnapshotPayload(input.value);
+        return { kind: "Snapshot", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToSnapshot(input: ArrayElement): SnapshotValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Snapshot") {
+        const value: SnapshotPayload = copySnapshotPayload(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromXid8(input: Xid8Value): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Xid8", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToXid8(input: ArrayElement): Xid8Value {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Xid8") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromPgLsn(input: PgLsnValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "PgLsn", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToPgLsn(input: ArrayElement): PgLsnValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "PgLsn") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromTid(input: TidValue): ArrayElement {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Tid", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToTid(input: ArrayElement): TidValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Tid") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementFromJsonpath(input: JsonpathValue): ArrayElement {
+    input = copyJsonpathValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: JsonpathPayload = copyJsonpathPayload(input.value);
+        return { kind: "Jsonpath", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToJsonpath(input: ArrayElement): JsonpathValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Jsonpath") {
+        const value: JsonpathPayload = copyJsonpathPayload(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export interface ArrayDimension {
+    readonly lower: number;
+    readonly length: number;
+}
+export function copyArrayDimension(value: ArrayDimension): ArrayDimension {
+    return { lower: langruntime.checkedI32(value.lower), length: langruntime.checkedI32(value.length) };
+}
+export interface ArrayPayload {
+    readonly elementType: string;
+    readonly elementKind: number;
+    readonly dimensions: ArrayDimension[];
+    readonly elements: ArrayElement[];
+}
+export function copyArrayPayload(value: ArrayPayload): ArrayPayload {
+    return { elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement) };
+}
+export type ArrayValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+} | {
+    readonly kind: "Value";
+    readonly value: ArrayPayload;
+};
+export function copyArrayValue(value: ArrayValue): ArrayValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Value": return { kind: "Value", value: copyArrayPayload(value.value) };
+    }
+}
+export type ArrayArguments = {
+    kind: "Unknown";
+} | {
+    kind: "Error";
+    value: SqlError;
+} | {
+    kind: "Value";
+    value: ArrayPayload;
+};
+function copyArrayArguments(value: ArrayArguments): ArrayArguments {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Value": return { kind: "Value", value: copyArrayPayload(value.value) };
+    }
+}
+export function arrayUnknown(): ArrayValue {
+    return { kind: "Unknown" };
+}
+export function arrayNull(): ArrayValue {
+    return { kind: "Null" };
+}
+export function arrayIsNull(input: ArrayValue): BoolValue {
+    input = copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Value", value: true };
+    }
+    return { kind: "Value", value: false };
+}
+export function arrayFromCaseGuard(input: CheckOutcome): ArrayValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function makeArrayValue(input: ArrayPayload): ArrayValue {
+    input = copyArrayPayload(input);
+    let position: number = 0;
+    while (position < input.elements.length) {
+        const element: ArrayElement = copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement));
+        if (element.kind === "Error") {
+            const error: SqlError = element.value;
+            return { kind: "Error", value: error };
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    const identity: string[] = Array.from(input.elementType);
+    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 40) {
+        return { kind: "Unknown" };
+    }
+    position = langruntime.checkedIndex(0);
+    while (position < identity.length) {
+        if (langruntime.indexChar(identity, langruntime.checkedIndex(position)) === "\0") {
+            return { kind: "Unknown" };
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (input.dimensions.length > 6) {
+        return { kind: "Unknown" };
+    }
+    let count: bigint = 0n;
+    if (input.dimensions.length > 0) {
+        count = langruntime.checkedI64(1n);
+    }
+    position = langruntime.checkedIndex(0);
+    while (position < input.dimensions.length) {
+        const dimension: ArrayDimension = langruntime.indexStruct(input.dimensions, langruntime.checkedIndex(position), copyArrayDimension);
+        if (dimension.length <= 0) {
+            return { kind: "Unknown" };
+        }
+        const length: bigint = BigInt(langruntime.checkedI32(dimension.length));
+        const end: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), length);
+        if (end > 2147483647n || count > langruntime.checkedI64Divide(2147483647n, length)) {
+            return { kind: "Unknown" };
+        }
+        count = langruntime.checkedI64(langruntime.checkedI64Multiply(count, length));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (!(count === BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.elements.length))))))) {
+        return { kind: "Unknown" };
+    }
+    position = langruntime.checkedIndex(0);
+    while (position < input.elements.length) {
+        const kind: number = arrayElementFamily(copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement)));
+        if (!(kind === 0) && !(kind === input.elementKind)) {
+            return { kind: "Unknown" };
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { kind: "Value", value: input };
+}
+export function arrayFromCoercedValue(input: ArrayValue, elementType: string, elementKind: number): ArrayValue {
+    input = copyArrayValue(input);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        if (!(value.elementType === elementType) || !(value.elementKind === elementKind)) {
+            return { kind: "Unknown" };
+        }
+        return makeArrayValue(value);
+    }
+    return input;
+}
+export function makeArrayArguments(elementType: string, elementKind: number): ArrayArguments {
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    const dimensions: ArrayDimension[] = [];
+    const elements: ArrayElement[] = [];
+    return { kind: "Value", value: { elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: elements } };
+}
+export function appendArrayDimension(input: ArrayArguments, lower: number, length: number): ArrayArguments {
+    input = copyArrayArguments(input);
+    lower = langruntime.checkedI32(lower);
+    length = langruntime.checkedI32(length);
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        let dimensions: ArrayDimension[] = value.dimensions;
+        langruntime.pushStruct(dimensions, { lower: lower, length: length }, copyArrayDimension);
+        return { kind: "Value", value: { elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: value.elements } };
+    }
+    return input;
+}
+export function appendArrayArgument(input: ArrayArguments, element: ArrayElement): ArrayArguments {
+    input = copyArrayArguments(input);
+    element = copyArrayElement(element);
+    if (input.kind === "Error") {
+        return input;
+    }
+    if (element.kind === "Error") {
+        const error: SqlError = element.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        let elements: ArrayElement[] = value.elements;
+        langruntime.pushStruct(elements, element, copyArrayElement);
+        return { kind: "Value", value: { elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements } };
+    }
+    return input;
+}
+export function finishArrayArguments(input: ArrayArguments): ArrayValue {
+    input = copyArrayArguments(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        return makeArrayValue(value);
+    }
+    return { kind: "Unknown" };
+}
+export function arrayFlatElement(input: ArrayValue, offset: Int4Value): ArrayElement {
+    input = copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (offset.kind === "Error") {
+        const error: SqlError = offset.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (offset.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        if (offset.kind === "Value") {
+            const index: number = langruntime.checkedI32(offset.value);
+            if (index < 0) {
+                return { kind: "Null" };
+            }
+            const position: number = langruntime.indexFromI32(index, 0);
+            if (position >= value.elements.length) {
+                return { kind: "Null" };
+            }
+            return copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(position), copyArrayElement));
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);

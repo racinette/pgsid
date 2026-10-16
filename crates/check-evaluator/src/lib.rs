@@ -12,6 +12,8 @@ pub mod checkruntime {
     include!("jsonb_build.rs");
     include!("jsonb_storage.rs");
     include!("jsonpath.rs");
+    include!("array_elements.rs");
+    include!("array.rs");
     include!("bit.rs");
     include!("hash.rs");
     include!("text_builder.rs");
@@ -50,6 +52,7 @@ pub mod pg_catalog {
     use super::*;
 
     include!("operations/pg_catalog/boolean.rs");
+    include!("operations/pg_catalog/array_metadata.rs");
     include!("operations/pg_catalog/json_core.rs");
     include!("operations/pg_catalog/jsonpath_scan.rs");
     include!("operations/pg_catalog/jsonpath_tables.generated.rs");
