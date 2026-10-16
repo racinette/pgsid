@@ -2,6 +2,9 @@ pub fn sql__pg_catalog__to_jsonb__9y7o(input: JsonbInput) -> JsonbValue {
     if let JsonbInput::Error(error) = input {
         return JsonbValue::Error(error);
     };
+    if let JsonbInput::ConvertedError(error) = input {
+        return JsonbValue::Error(error);
+    };
     if let JsonbInput::Null = input {
         return JsonbValue::Null;
     };

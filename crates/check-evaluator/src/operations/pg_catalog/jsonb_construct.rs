@@ -35,6 +35,12 @@ fn jsonb_build_node(node: JsonbNode, next: usize, key_start: usize, key_end: usi
 }
 
 fn jsonb_build(input: JsonbArguments, object: bool) -> JsonbValue {
+    if let JsonbArguments::Error(error) = input {
+        return JsonbValue::Error(error);
+    };
+    if let JsonbArguments::Null = input {
+        return JsonbValue::Null;
+    };
     if let JsonbArguments::Values(batch) = input {
         let mut index: usize = 0;
         let mut odd = false;

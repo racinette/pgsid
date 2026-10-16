@@ -124,3 +124,12 @@ VALUES ('{"a":{"x":1}}', '{"a":{"x":1}}', 'a', 'x', '1', '1');
 
 INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
 VALUES ('{"a":1,"b":null}', '{a,b}', true, true, false);
+
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a,1,b,2}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["a","1","b","2"]', '[1,null]', '[1.00,2.5]', '[1,null,2,3]', '{"a":"1","b":"2"}', '[[1,null,2,3],null]', '{"slots":[1,null,2,3]}', false);
+
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES ('{1,"null",2}', '[1,null,2]', '[1,null,2]', 1, false);
+
+INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
+VALUES ('{}', '[]', false);

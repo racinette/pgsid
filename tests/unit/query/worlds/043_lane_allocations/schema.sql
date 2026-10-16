@@ -473,3 +473,46 @@ CREATE TABLE lane_document_keys (
   CONSTRAINT all_document_keys_call CHECK (jsonb_exists_all(document, keys) IS NOT DISTINCT FROM expected_all),
   CONSTRAINT guarded_document_keys CHECK (CASE WHEN bypass THEN true ELSE document ?| keys END)
 );
+
+CREATE TABLE lane_jsonb_arrays (
+  slots lane_slots,
+  labels text[],
+  documents jsonb[],
+  amounts numeric[],
+  expected_slots jsonb,
+  expected_labels jsonb,
+  expected_documents jsonb,
+  expected_amounts jsonb,
+  expected_flattened jsonb,
+  expected_object jsonb,
+  expected_nested jsonb,
+  expected_named jsonb,
+  bypass boolean,
+  CONSTRAINT jsonb_slot_array CHECK (to_jsonb(slots) IS NOT DISTINCT FROM expected_slots),
+  CONSTRAINT jsonb_label_array CHECK (to_jsonb(labels) IS NOT DISTINCT FROM expected_labels),
+  CONSTRAINT jsonb_document_array CHECK (to_jsonb(documents) IS NOT DISTINCT FROM expected_documents),
+  CONSTRAINT jsonb_amount_array CHECK (to_jsonb(amounts) IS NOT DISTINCT FROM expected_amounts),
+  CONSTRAINT jsonb_flattened_slots CHECK (jsonb_build_array(VARIADIC slots) IS NOT DISTINCT FROM expected_flattened),
+  CONSTRAINT jsonb_label_object CHECK (jsonb_build_object(VARIADIC labels) IS NOT DISTINCT FROM expected_object),
+  CONSTRAINT jsonb_nested_slots CHECK (jsonb_build_array(slots,NULL) IS NOT DISTINCT FROM expected_nested),
+  CONSTRAINT jsonb_named_slots CHECK (jsonb_build_object('slots',slots) IS NOT DISTINCT FROM expected_named),
+  CONSTRAINT jsonb_variadic_null_array CHECK (CASE WHEN bypass THEN true ELSE jsonb_build_array(VARIADIC labels) IS NOT NULL END)
+);
+
+CREATE TABLE lane_jsonb_imports (
+  payload text,
+  expected_nested jsonb,
+  expected_flattened jsonb,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT jsonb_import_nested CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(payload::json[]) IS NOT DISTINCT FROM expected_nested END),
+  CONSTRAINT jsonb_import_flattened CHECK (CASE WHEN bypass THEN true ELSE jsonb_build_array(VARIADIC payload::json[]) IS NOT DISTINCT FROM expected_flattened END),
+  CONSTRAINT jsonb_import_eager CHECK (CASE WHEN bypass THEN true ELSE jsonb_build_array(payload::json[],1/divisor) IS NOT NULL END)
+);
+
+CREATE TABLE lane_jsonb_stage_arrays (
+  stages lane_stage[],
+  expected jsonb,
+  bypass boolean,
+  CONSTRAINT enum_jsonb CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(stages) IS NOT DISTINCT FROM expected AND jsonb_build_array(VARIADIC stages) IS NOT DISTINCT FROM expected END)
+);

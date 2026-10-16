@@ -120,6 +120,12 @@ const jsonbConversionHelpers = new Map<string, string>(
 export const jsonbConversionHelper = (type: string): string | undefined =>
   type.startsWith('enum:') ? 'jsonb_input_from_enum' : jsonbConversionHelpers.get(type)
 
+export const supportsJsonbConversion = (type: string): boolean =>
+  type.startsWith('array:')
+    ? arrayElementFamily(type.slice(6)) !== null &&
+      jsonbConversionHelper(type.slice(6)) !== undefined
+    : jsonbConversionHelper(type) !== undefined
+
 export const isJsonbBuilder = (
   item: ReturnType<typeof builtinMetadata>,
 ): item is ReturnType<typeof builtinMetadata> & {
@@ -1687,8 +1693,11 @@ export function emitCheckRustEvaluator(
       }
       let arguments_ = operands.map((operand) => ownedOperand(operand))
       if (jsonbConversion || (jsonbBuilder && operands.length > 0)) {
-        const carriers: string[] = []
-        for (const [index, original] of operands.entries()) {
+        const scalarInput = (
+          original: { name: string; type: string },
+          key: boolean | string,
+          lines: string[],
+        ): string => {
           let operand = original
           if (['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'].includes(operand.type)) {
             const conversion = builtinCast(operand.type, 'pg_catalog."numeric"')
@@ -1699,7 +1708,7 @@ export function emitCheckRustEvaluator(
             operand = emitCall(
               { kind: 'cast', signature: conversion.implementation, type: 'pg_catalog."numeric"' },
               [operand],
-              destination,
+              lines,
             )
           }
           if (
@@ -1735,21 +1744,88 @@ export function emitCheckRustEvaluator(
                 'JSONB string conversion requires its catalog output identity',
               )
           }
-          const key =
-            jsonbBuilder && implementation.name === 'jsonb_build_object' && index % 2 === 0
           const helper =
-            key && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-              ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
-              : jsonbConversionHelper(operand.type)
+            typeof key === 'string' &&
+            ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+              ? 'jsonb_array_' + operand.type.slice('pg_catalog.'.length) + '_input'
+              : key && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+                ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
+                : jsonbConversionHelper(operand.type)
           if (!helper)
             throw new UnsupportedCheckRustExpression(
               `JSONB conversion requires a supported concrete input category: ${operand.type}`,
             )
           const carrier = fresh('jsonb_input')
-          destination.push(`let ${carrier} = ${helper}(${ownedOperand(operand)});`)
-          carriers.push(carrier)
+          const args = [ownedOperand(operand)]
+          if (
+            typeof key === 'string' &&
+            ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+          )
+            args.push(key)
+          lines.push(`let ${carrier} = ${helper}(${args.join(', ')});`)
+          return carrier
         }
-        if (jsonbBuilder) {
+        const arrayInputs = (operand: { name: string; type: string }, object: boolean): string => {
+          const elementType = operand.type.slice(6)
+          if (!operand.type.startsWith('array:') || arrayElementFamily(elementType) === null)
+            throw new UnsupportedCheckRustExpression(
+              'JSONB array conversion requires a concrete scalar element identity',
+            )
+          const initial = fresh('jsonb_array_initial'),
+            cursor = fresh('jsonb_array_cursor'),
+            element = fresh('jsonb_array_element'),
+            scalar = fresh('jsonb_array_scalar')
+          destination.push(
+            `let ${initial} = prepare_jsonb_array_input(${ownedOperand(operand)});`,
+            `let mut ${cursor}: JsonbArrayInputPayload = ${initial};`,
+          )
+          const body: string[] = [
+            `let ${element} = jsonb_array_input_element(&${cursor});`,
+            `let ${scalar} = array_element_to_${rustValuePrefix(rustType(elementType))}(${element});`,
+          ]
+          let key: boolean | string = false
+          if (object && ['pg_catalog.float4', 'pg_catalog.float8'].includes(elementType)) {
+            key = fresh('jsonb_array_key')
+            body.push(`let ${key} = jsonb_array_input_is_key(&${cursor});`)
+          }
+          const carrier = scalarInput({ name: scalar, type: elementType }, key, body)
+          body.push(`${cursor} = append_jsonb_array_input(${cursor}, ${carrier});`)
+          destination.push(`while jsonb_array_input_continues(&${cursor}) {`, ...indent(body), '}')
+          return cursor
+        }
+        const variadic = jsonbBuilder && call.kind !== 'cast' && call.variadic === true
+        const carriers: string[] = []
+        if (variadic) {
+          if (operands.length !== 1 || !operands[0]!.type.startsWith('array:'))
+            throw new UnsupportedCheckRustExpression(
+              'Explicit JSONB VARIADIC calls require one concrete array',
+            )
+          const cursor = arrayInputs(operands[0]!, implementation.name === 'jsonb_build_object'),
+            batch = fresh('jsonb_array_arguments')
+          destination.push(`let ${batch} = jsonb_array_input_arguments(${cursor});`)
+          arguments_ = [batch]
+        } else
+          for (const [index, operand] of operands.entries()) {
+            const key =
+              jsonbBuilder && implementation.name === 'jsonb_build_object' && index % 2 === 0
+            if (operand.type.startsWith('array:')) {
+              const carrier = fresh('jsonb_array_input')
+              if (key)
+                destination.push(
+                  `let ${carrier} = jsonb_array_key_input(${ownedOperand(operand)});`,
+                )
+              else {
+                const cursor = arrayInputs(operand, false),
+                  value = fresh('jsonb_array_value')
+                destination.push(
+                  `let ${value} = jsonb_array_input_value(${cursor});`,
+                  `let ${carrier} = jsonb_array_value_input(${ownedOperand(operand)}, ${value});`,
+                )
+              }
+              carriers.push(carrier)
+            } else carriers.push(scalarInput(operand, key, destination))
+          }
+        if (jsonbBuilder && !variadic) {
           let batch = fresh('jsonb_arguments')
           destination.push(`let ${batch} = make_jsonb_arguments();`)
           for (const carrier of carriers) {
@@ -1758,7 +1834,7 @@ export function emitCheckRustEvaluator(
             batch = next
           }
           arguments_ = [batch]
-        } else arguments_ = carriers
+        } else if (!variadic) arguments_ = carriers
       }
       callables.add(implementation.rustName)
       const name = fresh('value')

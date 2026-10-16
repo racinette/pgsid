@@ -11,6 +11,7 @@ pub mod checkruntime {
     include!("json_array_paths.rs");
     include!("jsonb.rs");
     include!("jsonb_build.rs");
+    include!("jsonb_array.rs");
     include!("jsonb_storage.rs");
     include!("jsonpath.rs");
     include!("array_elements.rs");
@@ -97,6 +98,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/jsonb_convert.rs");
     include!("operations/pg_catalog/jsonb_convert_context.rs");
     include!("operations/pg_catalog/jsonb_construct.rs");
+    include!("operations/pg_catalog/jsonb_array.rs");
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/timestamptz.rs");

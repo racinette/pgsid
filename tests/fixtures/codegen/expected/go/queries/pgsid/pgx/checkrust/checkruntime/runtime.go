@@ -842,6 +842,7 @@ const (
 	JsonbInputUnknown JsonbInputKind = iota
 	JsonbInputNull
 	JsonbInputError
+	JsonbInputConvertedError
 	JsonbInputBoolean
 	JsonbInputNumber
 	JsonbInputText
@@ -850,13 +851,14 @@ const (
 )
 
 type JsonbInput struct {
-	Kind    JsonbInputKind
-	Error   SqlError
-	Boolean bool
-	Number  string
-	Text    string
-	Json    JsonPayload
-	Jsonb   JsonbPayload
+	Kind           JsonbInputKind
+	Error          SqlError
+	ConvertedError SqlError
+	Boolean        bool
+	Number         string
+	Text           string
+	Json           JsonPayload
+	Jsonb          JsonbPayload
 }
 
 func CopyJsonbInput(value JsonbInput) JsonbInput {
@@ -867,6 +869,8 @@ func CopyJsonbInput(value JsonbInput) JsonbInput {
 		return JsonbInput{Kind: JsonbInputNull}
 	case JsonbInputError:
 		return JsonbInput{Kind: JsonbInputError, Error: value.Error}
+	case JsonbInputConvertedError:
+		return JsonbInput{Kind: JsonbInputConvertedError, ConvertedError: value.ConvertedError}
 	case JsonbInputBoolean:
 		return JsonbInput{Kind: JsonbInputBoolean, Boolean: value.Boolean}
 	case JsonbInputNumber:
@@ -892,16 +896,26 @@ func CopyJsonbArgumentPayload(value JsonbArgumentPayload) JsonbArgumentPayload {
 type JsonbArgumentsKind uint8
 
 const (
-	JsonbArgumentsValues JsonbArgumentsKind = iota
+	JsonbArgumentsUnknown JsonbArgumentsKind = iota
+	JsonbArgumentsNull
+	JsonbArgumentsError
+	JsonbArgumentsValues
 )
 
 type JsonbArguments struct {
 	Kind   JsonbArgumentsKind
+	Error  SqlError
 	Values JsonbArgumentPayload
 }
 
 func CopyJsonbArguments(value JsonbArguments) JsonbArguments {
 	switch value.Kind {
+	case JsonbArgumentsUnknown:
+		return JsonbArguments{Kind: JsonbArgumentsUnknown}
+	case JsonbArgumentsNull:
+		return JsonbArguments{Kind: JsonbArgumentsNull}
+	case JsonbArgumentsError:
+		return JsonbArguments{Kind: JsonbArgumentsError, Error: value.Error}
 	case JsonbArgumentsValues:
 		return JsonbArguments{Kind: JsonbArgumentsValues, Values: CopyJsonbArgumentPayload(value.Values)}
 	}
@@ -5824,6 +5838,85 @@ func JsonbFromString(input TextValue) JsonbValue {
 		return JsonbRebuild(result, true)
 	}
 	return JsonbValue{Kind: JsonbValueUnknown}
+}
+
+type JsonbArrayInputPayload struct {
+	State      int
+	Error      SqlError
+	Dimensions []ArrayDimension
+	Elements   []ArrayElement
+	Values     []JsonbInput
+	Position   int
+}
+
+func copyJsonbArrayInputPayload(value JsonbArrayInputPayload) JsonbArrayInputPayload {
+	return JsonbArrayInputPayload{State: langruntime.CheckedI32(value.State), Error: value.Error, Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement), Values: langruntime.CheckedStructs(value.Values, CopyJsonbInput), Position: langruntime.CheckedIndex(value.Position)}
+}
+
+type JsonbArrayInputPlanKind uint8
+
+const (
+	JsonbArrayInputPlanValue JsonbArrayInputPlanKind = iota
+)
+
+type JsonbArrayInputPlan struct {
+	Kind  JsonbArrayInputPlanKind
+	Value JsonbArrayInputPayload
+}
+
+func copyJsonbArrayInputPlan(value JsonbArrayInputPlan) JsonbArrayInputPlan {
+	switch value.Kind {
+	case JsonbArrayInputPlanValue:
+		return JsonbArrayInputPlan{Kind: JsonbArrayInputPlanValue, Value: copyJsonbArrayInputPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func PrepareJsonbArrayInput(input ArrayValue) JsonbArrayInputPayload {
+	prepared := PrepareArrayOutput(input)
+	values := []JsonbInput{}
+	return JsonbArrayInputPayload{State: prepared.State, Error: prepared.Error, Dimensions: prepared.Dimensions, Elements: prepared.Elements, Values: values, Position: 0}
+}
+func JsonbArrayInputContinues(input *JsonbArrayInputPayload) bool {
+	return input.State == 1 && input.Position < len(input.Elements)
+}
+func JsonbArrayInputIsKey(input *JsonbArrayInputPayload) bool {
+	return langruntime.CheckedSignedRemainder((int(int32(input.Position))), 2) == 0
+}
+func JsonbArrayInputElement(input *JsonbArrayInputPayload) ArrayElement {
+	if input.Position < len(input.Elements) {
+		return CopyArrayElement(input.Elements[input.Position])
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func AppendJsonbArrayInput(input JsonbArrayInputPayload, value JsonbInput) JsonbArrayInputPayload {
+	values := input.Values
+	langruntime.CheckedAdd(len(values), 1)
+	values = append(values, CopyJsonbInput(value))
+	return JsonbArrayInputPayload{State: input.State, Error: input.Error, Dimensions: input.Dimensions, Elements: input.Elements, Values: values, Position: langruntime.CheckedAdd(input.Position, 1)}
+}
+func JsonbArrayInputArguments(input JsonbArrayInputPayload) JsonbArguments {
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return JsonbArguments{Kind: JsonbArgumentsError, Error: input.Error}
+	}
+	if input.State == 0 {
+		return JsonbArguments{Kind: JsonbArgumentsNull}
+	}
+	if input.State != 1 || len(input.Values) != len(input.Elements) {
+		return JsonbArguments{Kind: JsonbArgumentsUnknown}
+	}
+	return JsonbArguments{Kind: JsonbArgumentsValues, Values: JsonbArgumentPayload{Values: input.Values}}
+}
+func JsonbArrayFloat4Input(input Float4Value, key bool) JsonbInput {
+	if key {
+		return JsonbKeyInputFromFloat4(input)
+	}
+	return JsonbInputFromFloat4(input)
+}
+func JsonbArrayFloat8Input(input Float8Value, key bool) JsonbInput {
+	if key {
+		return JsonbKeyInputFromFloat8(input)
+	}
+	return JsonbInputFromFloat8(input)
 }
 
 type jsonbStorageSize struct {

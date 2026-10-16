@@ -355,7 +355,7 @@ fn check_block(
                 let (pattern, mutable) = match &local.pat {
                     Pat::Ident(pattern) if pattern.mutability.is_none() => (pattern, false),
                     Pat::Type(typed) if typed.attrs.is_empty() => {
-                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload")))
+                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload")))
                         {
                             type_name(&typed.ty)?;
                         };
@@ -1212,6 +1212,35 @@ pub fn evaluate_check(input: ArrayValue) -> CheckOutcome {
         check_source(source).unwrap();
         for invalid in [
             source.replace("input: ArrayValue", "input: ArraySortPayload"),
+            source.replace("&plan", "&mut plan"),
+            source.replace("&plan", "&missing"),
+            source.replace("let mut plan", "let plan"),
+        ] {
+            assert!(check_source(&invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn jsonb_array_inputs_are_internal_mutable_records() {
+        let source = r#"
+pub fn evaluate_check(input: ArrayValue) -> CheckOutcome {
+    let initial = prepare_jsonb_array_input(input);
+    let mut plan: JsonbArrayInputPayload = initial;
+    while jsonb_array_input_continues(&plan) {
+        let element = jsonb_array_input_element(&plan);
+        let scalar = array_element_to_text(element);
+        let value = jsonb_input_from_text(scalar);
+        plan = append_jsonb_array_input(plan, value);
+    }
+    let batch = jsonb_array_input_arguments(plan);
+    let result = sql__pg_catalog__jsonb_build_array__gfm5(batch);
+    let nullness = jsonb_is_null(result);
+    check_from_bool(nullness)
+}
+"#;
+        check_source(source).unwrap();
+        for invalid in [
+            source.replace("input: ArrayValue", "input: JsonbArrayInputPayload"),
             source.replace("&plan", "&mut plan"),
             source.replace("&plan", "&missing"),
             source.replace("let mut plan", "let plan"),
