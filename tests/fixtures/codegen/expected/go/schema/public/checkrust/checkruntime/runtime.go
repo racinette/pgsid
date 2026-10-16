@@ -6010,6 +6010,1785 @@ type jsonpathBoundaryVisit struct {
 func copyjsonpathBoundaryVisit(value jsonpathBoundaryVisit) jsonpathBoundaryVisit {
 	return jsonpathBoundaryVisit{node: langruntime.CheckedIndex(value.node), filters: langruntime.CheckedIndex(value.filters), subscript: value.subscript, accessor: value.accessor, list: value.list}
 }
+
+type ArrayElementKind uint8
+
+const (
+	ArrayElementUnknown ArrayElementKind = iota
+	ArrayElementNull
+	ArrayElementError
+	ArrayElementInt2
+	ArrayElementInt4
+	ArrayElementInt8
+	ArrayElementTimestamp
+	ArrayElementTimestamptz
+	ArrayElementEnum
+	ArrayElementDate
+	ArrayElementText
+	ArrayElementBool
+	ArrayElementNumeric
+	ArrayElementJson
+	ArrayElementJsonb
+	ArrayElementNetwork
+	ArrayElementBit
+	ArrayElementBytea
+	ArrayElementMacaddr
+	ArrayElementMacaddr8
+	ArrayElementUuid
+	ArrayElementFloat4
+	ArrayElementFloat8
+	ArrayElementTime
+	ArrayElementTimetz
+	ArrayElementInterval
+	ArrayElementPoint
+	ArrayElementLine
+	ArrayElementLseg
+	ArrayElementBox
+	ArrayElementPath
+	ArrayElementPolygon
+	ArrayElementCircle
+	ArrayElementMoney
+	ArrayElementInternalChar
+	ArrayElementOid
+	ArrayElementXid
+	ArrayElementCid
+	ArrayElementSnapshot
+	ArrayElementXid8
+	ArrayElementPgLsn
+	ArrayElementTid
+	ArrayElementJsonpath
+	ArrayElementFloat4UnspecifiedNan
+	ArrayElementFloat8UnspecifiedNan
+	ArrayElementByteaUnspecified
+	ArrayElementBoxNonNull
+)
+
+type ArrayElement struct {
+	Kind             ArrayElementKind
+	Error            SqlError
+	Int2             int
+	Int4             int
+	Int8             int64
+	Timestamp        int64
+	Timestamptz      int64
+	Enum             EnumPayload
+	Date             int
+	Text             string
+	Bool             bool
+	Numeric          string
+	Json             JsonPayload
+	Jsonb            JsonbPayload
+	Network          NetworkAddress
+	Bit              string
+	Bytea            string
+	Macaddr          MacAddress
+	Macaddr8         MacAddress
+	Uuid             Uuid
+	Float4           int
+	Float8           int64
+	Time             int64
+	Timetz           TimetzPayload
+	Interval         IntervalPayload
+	Point            PointPayload
+	Line             LinePayload
+	Lseg             LsegPayload
+	Box              BoxPayload
+	Path             PathPayload
+	Polygon          PolygonPayload
+	Circle           CirclePayload
+	Money            int64
+	InternalChar     int
+	Oid              int64
+	Xid              int64
+	Cid              int64
+	Snapshot         SnapshotPayload
+	Xid8             int64
+	PgLsn            int64
+	Tid              int64
+	Jsonpath         JsonpathPayload
+	ByteaUnspecified int
+}
+
+func copyArrayElement(value ArrayElement) ArrayElement {
+	switch value.Kind {
+	case ArrayElementUnknown:
+		return ArrayElement{Kind: ArrayElementUnknown}
+	case ArrayElementNull:
+		return ArrayElement{Kind: ArrayElementNull}
+	case ArrayElementError:
+		return ArrayElement{Kind: ArrayElementError, Error: value.Error}
+	case ArrayElementInt2:
+		return ArrayElement{Kind: ArrayElementInt2, Int2: langruntime.CheckedI32(value.Int2)}
+	case ArrayElementInt4:
+		return ArrayElement{Kind: ArrayElementInt4, Int4: langruntime.CheckedI32(value.Int4)}
+	case ArrayElementInt8:
+		return ArrayElement{Kind: ArrayElementInt8, Int8: value.Int8}
+	case ArrayElementTimestamp:
+		return ArrayElement{Kind: ArrayElementTimestamp, Timestamp: value.Timestamp}
+	case ArrayElementTimestamptz:
+		return ArrayElement{Kind: ArrayElementTimestamptz, Timestamptz: value.Timestamptz}
+	case ArrayElementEnum:
+		return ArrayElement{Kind: ArrayElementEnum, Enum: value.Enum}
+	case ArrayElementDate:
+		return ArrayElement{Kind: ArrayElementDate, Date: langruntime.CheckedI32(value.Date)}
+	case ArrayElementText:
+		return ArrayElement{Kind: ArrayElementText, Text: langruntime.CheckedString(value.Text)}
+	case ArrayElementBool:
+		return ArrayElement{Kind: ArrayElementBool, Bool: value.Bool}
+	case ArrayElementNumeric:
+		return ArrayElement{Kind: ArrayElementNumeric, Numeric: langruntime.CheckedString(value.Numeric)}
+	case ArrayElementJson:
+		return ArrayElement{Kind: ArrayElementJson, Json: value.Json}
+	case ArrayElementJsonb:
+		return ArrayElement{Kind: ArrayElementJsonb, Jsonb: CopyJsonbPayload(value.Jsonb)}
+	case ArrayElementNetwork:
+		return ArrayElement{Kind: ArrayElementNetwork, Network: value.Network}
+	case ArrayElementBit:
+		return ArrayElement{Kind: ArrayElementBit, Bit: langruntime.CheckedString(value.Bit)}
+	case ArrayElementBytea:
+		return ArrayElement{Kind: ArrayElementBytea, Bytea: langruntime.CheckedString(value.Bytea)}
+	case ArrayElementMacaddr:
+		return ArrayElement{Kind: ArrayElementMacaddr, Macaddr: value.Macaddr}
+	case ArrayElementMacaddr8:
+		return ArrayElement{Kind: ArrayElementMacaddr8, Macaddr8: value.Macaddr8}
+	case ArrayElementUuid:
+		return ArrayElement{Kind: ArrayElementUuid, Uuid: value.Uuid}
+	case ArrayElementFloat4:
+		return ArrayElement{Kind: ArrayElementFloat4, Float4: langruntime.CheckedI32(value.Float4)}
+	case ArrayElementFloat8:
+		return ArrayElement{Kind: ArrayElementFloat8, Float8: value.Float8}
+	case ArrayElementTime:
+		return ArrayElement{Kind: ArrayElementTime, Time: value.Time}
+	case ArrayElementTimetz:
+		return ArrayElement{Kind: ArrayElementTimetz, Timetz: value.Timetz}
+	case ArrayElementInterval:
+		return ArrayElement{Kind: ArrayElementInterval, Interval: value.Interval}
+	case ArrayElementPoint:
+		return ArrayElement{Kind: ArrayElementPoint, Point: value.Point}
+	case ArrayElementLine:
+		return ArrayElement{Kind: ArrayElementLine, Line: value.Line}
+	case ArrayElementLseg:
+		return ArrayElement{Kind: ArrayElementLseg, Lseg: value.Lseg}
+	case ArrayElementBox:
+		return ArrayElement{Kind: ArrayElementBox, Box: value.Box}
+	case ArrayElementPath:
+		return ArrayElement{Kind: ArrayElementPath, Path: CopyPathPayload(value.Path)}
+	case ArrayElementPolygon:
+		return ArrayElement{Kind: ArrayElementPolygon, Polygon: CopyPolygonPayload(value.Polygon)}
+	case ArrayElementCircle:
+		return ArrayElement{Kind: ArrayElementCircle, Circle: value.Circle}
+	case ArrayElementMoney:
+		return ArrayElement{Kind: ArrayElementMoney, Money: value.Money}
+	case ArrayElementInternalChar:
+		return ArrayElement{Kind: ArrayElementInternalChar, InternalChar: langruntime.CheckedI32(value.InternalChar)}
+	case ArrayElementOid:
+		return ArrayElement{Kind: ArrayElementOid, Oid: value.Oid}
+	case ArrayElementXid:
+		return ArrayElement{Kind: ArrayElementXid, Xid: value.Xid}
+	case ArrayElementCid:
+		return ArrayElement{Kind: ArrayElementCid, Cid: value.Cid}
+	case ArrayElementSnapshot:
+		return ArrayElement{Kind: ArrayElementSnapshot, Snapshot: CopySnapshotPayload(value.Snapshot)}
+	case ArrayElementXid8:
+		return ArrayElement{Kind: ArrayElementXid8, Xid8: value.Xid8}
+	case ArrayElementPgLsn:
+		return ArrayElement{Kind: ArrayElementPgLsn, PgLsn: value.PgLsn}
+	case ArrayElementTid:
+		return ArrayElement{Kind: ArrayElementTid, Tid: value.Tid}
+	case ArrayElementJsonpath:
+		return ArrayElement{Kind: ArrayElementJsonpath, Jsonpath: CopyJsonpathPayload(value.Jsonpath)}
+	case ArrayElementFloat4UnspecifiedNan:
+		return ArrayElement{Kind: ArrayElementFloat4UnspecifiedNan}
+	case ArrayElementFloat8UnspecifiedNan:
+		return ArrayElement{Kind: ArrayElementFloat8UnspecifiedNan}
+	case ArrayElementByteaUnspecified:
+		return ArrayElement{Kind: ArrayElementByteaUnspecified, ByteaUnspecified: langruntime.CheckedI32(value.ByteaUnspecified)}
+	case ArrayElementBoxNonNull:
+		return ArrayElement{Kind: ArrayElementBoxNonNull}
+	}
+	panic("unknown enum variant")
+}
+func ArrayElementFamily(input ArrayElement) int {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementInt2 {
+		return 1
+	}
+	if input.Kind == ArrayElementInt4 {
+		return 2
+	}
+	if input.Kind == ArrayElementInt8 {
+		return 3
+	}
+	if input.Kind == ArrayElementTimestamp {
+		return 4
+	}
+	if input.Kind == ArrayElementTimestamptz {
+		return 5
+	}
+	if input.Kind == ArrayElementEnum {
+		return 6
+	}
+	if input.Kind == ArrayElementDate {
+		return 7
+	}
+	if input.Kind == ArrayElementText {
+		return 8
+	}
+	if input.Kind == ArrayElementBool {
+		return 9
+	}
+	if input.Kind == ArrayElementNumeric {
+		return 10
+	}
+	if input.Kind == ArrayElementJson {
+		return 11
+	}
+	if input.Kind == ArrayElementJsonb {
+		return 12
+	}
+	if input.Kind == ArrayElementNetwork {
+		return 13
+	}
+	if input.Kind == ArrayElementBit {
+		return 14
+	}
+	if input.Kind == ArrayElementBytea {
+		return 15
+	}
+	if input.Kind == ArrayElementMacaddr {
+		return 16
+	}
+	if input.Kind == ArrayElementMacaddr8 {
+		return 17
+	}
+	if input.Kind == ArrayElementUuid {
+		return 18
+	}
+	if input.Kind == ArrayElementFloat4 {
+		return 19
+	}
+	if input.Kind == ArrayElementFloat8 {
+		return 20
+	}
+	if input.Kind == ArrayElementTime {
+		return 21
+	}
+	if input.Kind == ArrayElementTimetz {
+		return 22
+	}
+	if input.Kind == ArrayElementInterval {
+		return 23
+	}
+	if input.Kind == ArrayElementPoint {
+		return 24
+	}
+	if input.Kind == ArrayElementLine {
+		return 25
+	}
+	if input.Kind == ArrayElementLseg {
+		return 26
+	}
+	if input.Kind == ArrayElementBox {
+		return 27
+	}
+	if input.Kind == ArrayElementPath {
+		return 28
+	}
+	if input.Kind == ArrayElementPolygon {
+		return 29
+	}
+	if input.Kind == ArrayElementCircle {
+		return 30
+	}
+	if input.Kind == ArrayElementMoney {
+		return 31
+	}
+	if input.Kind == ArrayElementInternalChar {
+		return 32
+	}
+	if input.Kind == ArrayElementOid {
+		return 33
+	}
+	if input.Kind == ArrayElementXid {
+		return 34
+	}
+	if input.Kind == ArrayElementCid {
+		return 35
+	}
+	if input.Kind == ArrayElementSnapshot {
+		return 36
+	}
+	if input.Kind == ArrayElementXid8 {
+		return 37
+	}
+	if input.Kind == ArrayElementPgLsn {
+		return 38
+	}
+	if input.Kind == ArrayElementTid {
+		return 39
+	}
+	if input.Kind == ArrayElementJsonpath {
+		return 40
+	}
+	if input.Kind == ArrayElementFloat4UnspecifiedNan {
+		return 19
+	}
+	if input.Kind == ArrayElementFloat8UnspecifiedNan {
+		return 20
+	}
+	if input.Kind == ArrayElementByteaUnspecified {
+		return 15
+	}
+	if input.Kind == ArrayElementBoxNonNull {
+		return 27
+	}
+	return 0
+}
+func ArrayElementFromInt2(input Int2Value) ArrayElement {
+	if input.Kind == Int2ValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == Int2ValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == Int2ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		return ArrayElement{Kind: ArrayElementInt2, Int2: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToInt2(input ArrayElement) Int2Value {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return Int2Value{Kind: Int2ValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return Int2Value{Kind: Int2ValueNull}
+	}
+	if input.Kind == ArrayElementInt2 {
+		value := langruntime.CheckedI32(input.Int2)
+		return Int2Value{Kind: Int2ValueValue, Value: value}
+	}
+	return Int2Value{Kind: Int2ValueUnknown}
+}
+func ArrayElementFromInt4(input Int4Value) ArrayElement {
+	if input.Kind == Int4ValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == Int4ValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		return ArrayElement{Kind: ArrayElementInt4, Int4: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToInt4(input ArrayElement) Int4Value {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return Int4Value{Kind: Int4ValueNull}
+	}
+	if input.Kind == ArrayElementInt4 {
+		value := langruntime.CheckedI32(input.Int4)
+		return Int4Value{Kind: Int4ValueValue, Value: value}
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func ArrayElementFromInt8(input Int8Value) ArrayElement {
+	if input.Kind == Int8ValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == Int8ValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == Int8ValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementInt8, Int8: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToInt8(input ArrayElement) Int8Value {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return Int8Value{Kind: Int8ValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return Int8Value{Kind: Int8ValueNull}
+	}
+	if input.Kind == ArrayElementInt8 {
+		value := input.Int8
+		return Int8Value{Kind: Int8ValueValue, Value: value}
+	}
+	return Int8Value{Kind: Int8ValueUnknown}
+}
+func ArrayElementFromTimestamp(input TimestampValue) ArrayElement {
+	if input.Kind == TimestampValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == TimestampValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == TimestampValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementTimestamp, Timestamp: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToTimestamp(input ArrayElement) TimestampValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return TimestampValue{Kind: TimestampValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return TimestampValue{Kind: TimestampValueNull}
+	}
+	if input.Kind == ArrayElementTimestamp {
+		value := input.Timestamp
+		return TimestampValue{Kind: TimestampValueValue, Value: value}
+	}
+	return TimestampValue{Kind: TimestampValueUnknown}
+}
+func ArrayElementFromTimestamptz(input TimestamptzValue) ArrayElement {
+	if input.Kind == TimestamptzValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == TimestamptzValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == TimestamptzValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementTimestamptz, Timestamptz: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToTimestamptz(input ArrayElement) TimestamptzValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return TimestamptzValue{Kind: TimestamptzValueNull}
+	}
+	if input.Kind == ArrayElementTimestamptz {
+		value := input.Timestamptz
+		return TimestamptzValue{Kind: TimestamptzValueValue, Value: value}
+	}
+	return TimestamptzValue{Kind: TimestamptzValueUnknown}
+}
+func ArrayElementFromEnum(input EnumValue) ArrayElement {
+	if input.Kind == EnumValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == EnumValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == EnumValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementEnum, Enum: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToEnum(input ArrayElement) EnumValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return EnumValue{Kind: EnumValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return EnumValue{Kind: EnumValueNull}
+	}
+	if input.Kind == ArrayElementEnum {
+		value := input.Enum
+		return EnumValue{Kind: EnumValueValue, Value: value}
+	}
+	return EnumValue{Kind: EnumValueUnknown}
+}
+func ArrayElementFromDate(input DateValue) ArrayElement {
+	if input.Kind == DateValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == DateValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == DateValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		return ArrayElement{Kind: ArrayElementDate, Date: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToDate(input ArrayElement) DateValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return DateValue{Kind: DateValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return DateValue{Kind: DateValueNull}
+	}
+	if input.Kind == ArrayElementDate {
+		value := langruntime.CheckedI32(input.Date)
+		return DateValue{Kind: DateValueValue, Value: value}
+	}
+	return DateValue{Kind: DateValueUnknown}
+}
+func ArrayElementFromText(input TextValue) ArrayElement {
+	if input.Kind == TextValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == TextValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return ArrayElement{Kind: ArrayElementText, Text: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToText(input ArrayElement) TextValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return TextValue{Kind: TextValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return TextValue{Kind: TextValueNull}
+	}
+	if input.Kind == ArrayElementText {
+		value := langruntime.CheckedString(input.Text)
+		return TextValue{Kind: TextValueValue, Value: value}
+	}
+	return TextValue{Kind: TextValueUnknown}
+}
+func ArrayElementFromBool(input BoolValue) ArrayElement {
+	if input.Kind == BoolValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == BoolValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == BoolValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementBool, Bool: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToBool(input ArrayElement) BoolValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return BoolValue{Kind: BoolValueNull}
+	}
+	if input.Kind == ArrayElementBool {
+		value := input.Bool
+		return BoolValue{Kind: BoolValueValue, Value: value}
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
+func ArrayElementFromNumeric(input NumericValue) ArrayElement {
+	if input.Kind == NumericValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == NumericValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return ArrayElement{Kind: ArrayElementNumeric, Numeric: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToNumeric(input ArrayElement) NumericValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return NumericValue{Kind: NumericValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return NumericValue{Kind: NumericValueNull}
+	}
+	if input.Kind == ArrayElementNumeric {
+		value := langruntime.CheckedString(input.Numeric)
+		return NumericValue{Kind: NumericValueValue, Value: value}
+	}
+	return NumericValue{Kind: NumericValueUnknown}
+}
+func ArrayElementFromJson(input JsonValue) ArrayElement {
+	if input.Kind == JsonValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == JsonValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == JsonValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementJson, Json: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToJson(input ArrayElement) JsonValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return JsonValue{Kind: JsonValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return JsonValue{Kind: JsonValueNull}
+	}
+	if input.Kind == ArrayElementJson {
+		value := input.Json
+		return JsonValue{Kind: JsonValueValue, Value: value}
+	}
+	return JsonValue{Kind: JsonValueUnknown}
+}
+func ArrayElementFromJsonb(input JsonbValue) ArrayElement {
+	input = CopyJsonbValue(input)
+	if input.Kind == JsonbValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == JsonbValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == JsonbValueValue {
+		value := CopyJsonbPayload(input.Value)
+		return ArrayElement{Kind: ArrayElementJsonb, Jsonb: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToJsonb(input ArrayElement) JsonbValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return JsonbValue{Kind: JsonbValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return JsonbValue{Kind: JsonbValueNull}
+	}
+	if input.Kind == ArrayElementJsonb {
+		value := CopyJsonbPayload(input.Jsonb)
+		return JsonbValue{Kind: JsonbValueValue, Value: value}
+	}
+	return JsonbValue{Kind: JsonbValueUnknown}
+}
+func ArrayElementFromNetwork(input NetworkValue) ArrayElement {
+	if input.Kind == NetworkValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == NetworkValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == NetworkValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementNetwork, Network: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToNetwork(input ArrayElement) NetworkValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return NetworkValue{Kind: NetworkValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return NetworkValue{Kind: NetworkValueNull}
+	}
+	if input.Kind == ArrayElementNetwork {
+		value := input.Network
+		return NetworkValue{Kind: NetworkValueValue, Value: value}
+	}
+	return NetworkValue{Kind: NetworkValueUnknown}
+}
+func ArrayElementFromBit(input BitValue) ArrayElement {
+	if input.Kind == BitValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == BitValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return ArrayElement{Kind: ArrayElementBit, Bit: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToBit(input ArrayElement) BitValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return BitValue{Kind: BitValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return BitValue{Kind: BitValueNull}
+	}
+	if input.Kind == ArrayElementBit {
+		value := langruntime.CheckedString(input.Bit)
+		return BitValue{Kind: BitValueValue, Value: value}
+	}
+	return BitValue{Kind: BitValueUnknown}
+}
+func ArrayElementFromBytea(input ByteaValue) ArrayElement {
+	if input.Kind == ByteaValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == ByteaValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return ArrayElement{Kind: ArrayElementBytea, Bytea: value}
+	}
+	if input.Kind == ByteaValueUnspecified {
+		length := langruntime.CheckedI32(input.Unspecified)
+		return ArrayElement{Kind: ArrayElementByteaUnspecified, ByteaUnspecified: length}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToBytea(input ArrayElement) ByteaValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return ByteaValue{Kind: ByteaValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return ByteaValue{Kind: ByteaValueNull}
+	}
+	if input.Kind == ArrayElementBytea {
+		value := langruntime.CheckedString(input.Bytea)
+		return ByteaValue{Kind: ByteaValueValue, Value: value}
+	}
+	if input.Kind == ArrayElementByteaUnspecified {
+		length := langruntime.CheckedI32(input.ByteaUnspecified)
+		return ByteaValue{Kind: ByteaValueUnspecified, Unspecified: length}
+	}
+	return ByteaValue{Kind: ByteaValueUnknown}
+}
+func ArrayElementFromMacaddr(input MacaddrValue) ArrayElement {
+	if input.Kind == MacaddrValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == MacaddrValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == MacaddrValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementMacaddr, Macaddr: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToMacaddr(input ArrayElement) MacaddrValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return MacaddrValue{Kind: MacaddrValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return MacaddrValue{Kind: MacaddrValueNull}
+	}
+	if input.Kind == ArrayElementMacaddr {
+		value := input.Macaddr
+		return MacaddrValue{Kind: MacaddrValueValue, Value: value}
+	}
+	return MacaddrValue{Kind: MacaddrValueUnknown}
+}
+func ArrayElementFromMacaddr8(input Macaddr8Value) ArrayElement {
+	if input.Kind == Macaddr8ValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == Macaddr8ValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == Macaddr8ValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementMacaddr8, Macaddr8: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToMacaddr8(input ArrayElement) Macaddr8Value {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return Macaddr8Value{Kind: Macaddr8ValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return Macaddr8Value{Kind: Macaddr8ValueNull}
+	}
+	if input.Kind == ArrayElementMacaddr8 {
+		value := input.Macaddr8
+		return Macaddr8Value{Kind: Macaddr8ValueValue, Value: value}
+	}
+	return Macaddr8Value{Kind: Macaddr8ValueUnknown}
+}
+func ArrayElementFromUuid(input UuidValue) ArrayElement {
+	if input.Kind == UuidValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == UuidValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == UuidValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementUuid, Uuid: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToUuid(input ArrayElement) UuidValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return UuidValue{Kind: UuidValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return UuidValue{Kind: UuidValueNull}
+	}
+	if input.Kind == ArrayElementUuid {
+		value := input.Uuid
+		return UuidValue{Kind: UuidValueValue, Value: value}
+	}
+	return UuidValue{Kind: UuidValueUnknown}
+}
+func ArrayElementFromFloat4(input Float4Value) ArrayElement {
+	if input.Kind == Float4ValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == Float4ValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == Float4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		return ArrayElement{Kind: ArrayElementFloat4, Float4: value}
+	}
+	if input.Kind == Float4ValueUnspecifiedNan {
+		return ArrayElement{Kind: ArrayElementFloat4UnspecifiedNan}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToFloat4(input ArrayElement) Float4Value {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return Float4Value{Kind: Float4ValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return Float4Value{Kind: Float4ValueNull}
+	}
+	if input.Kind == ArrayElementFloat4 {
+		value := langruntime.CheckedI32(input.Float4)
+		return Float4Value{Kind: Float4ValueValue, Value: value}
+	}
+	if input.Kind == ArrayElementFloat4UnspecifiedNan {
+		return Float4Value{Kind: Float4ValueUnspecifiedNan}
+	}
+	return Float4Value{Kind: Float4ValueUnknown}
+}
+func ArrayElementFromFloat8(input Float8Value) ArrayElement {
+	if input.Kind == Float8ValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == Float8ValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == Float8ValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementFloat8, Float8: value}
+	}
+	if input.Kind == Float8ValueUnspecifiedNan {
+		return ArrayElement{Kind: ArrayElementFloat8UnspecifiedNan}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToFloat8(input ArrayElement) Float8Value {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return Float8Value{Kind: Float8ValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return Float8Value{Kind: Float8ValueNull}
+	}
+	if input.Kind == ArrayElementFloat8 {
+		value := input.Float8
+		return Float8Value{Kind: Float8ValueValue, Value: value}
+	}
+	if input.Kind == ArrayElementFloat8UnspecifiedNan {
+		return Float8Value{Kind: Float8ValueUnspecifiedNan}
+	}
+	return Float8Value{Kind: Float8ValueUnknown}
+}
+func ArrayElementFromTime(input TimeValue) ArrayElement {
+	if input.Kind == TimeValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == TimeValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == TimeValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementTime, Time: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToTime(input ArrayElement) TimeValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return TimeValue{Kind: TimeValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return TimeValue{Kind: TimeValueNull}
+	}
+	if input.Kind == ArrayElementTime {
+		value := input.Time
+		return TimeValue{Kind: TimeValueValue, Value: value}
+	}
+	return TimeValue{Kind: TimeValueUnknown}
+}
+func ArrayElementFromTimetz(input TimetzValue) ArrayElement {
+	if input.Kind == TimetzValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == TimetzValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == TimetzValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementTimetz, Timetz: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToTimetz(input ArrayElement) TimetzValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return TimetzValue{Kind: TimetzValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return TimetzValue{Kind: TimetzValueNull}
+	}
+	if input.Kind == ArrayElementTimetz {
+		value := input.Timetz
+		return TimetzValue{Kind: TimetzValueValue, Value: value}
+	}
+	return TimetzValue{Kind: TimetzValueUnknown}
+}
+func ArrayElementFromInterval(input IntervalValue) ArrayElement {
+	if input.Kind == IntervalValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == IntervalValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == IntervalValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementInterval, Interval: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToInterval(input ArrayElement) IntervalValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return IntervalValue{Kind: IntervalValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return IntervalValue{Kind: IntervalValueNull}
+	}
+	if input.Kind == ArrayElementInterval {
+		value := input.Interval
+		return IntervalValue{Kind: IntervalValueValue, Value: value}
+	}
+	return IntervalValue{Kind: IntervalValueUnknown}
+}
+func ArrayElementFromPoint(input PointValue) ArrayElement {
+	if input.Kind == PointValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == PointValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == PointValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementPoint, Point: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToPoint(input ArrayElement) PointValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return PointValue{Kind: PointValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return PointValue{Kind: PointValueNull}
+	}
+	if input.Kind == ArrayElementPoint {
+		value := input.Point
+		return PointValue{Kind: PointValueValue, Value: value}
+	}
+	return PointValue{Kind: PointValueUnknown}
+}
+func ArrayElementFromLine(input LineValue) ArrayElement {
+	if input.Kind == LineValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == LineValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == LineValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementLine, Line: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToLine(input ArrayElement) LineValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return LineValue{Kind: LineValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return LineValue{Kind: LineValueNull}
+	}
+	if input.Kind == ArrayElementLine {
+		value := input.Line
+		return LineValue{Kind: LineValueValue, Value: value}
+	}
+	return LineValue{Kind: LineValueUnknown}
+}
+func ArrayElementFromLseg(input LsegValue) ArrayElement {
+	if input.Kind == LsegValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == LsegValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == LsegValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementLseg, Lseg: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToLseg(input ArrayElement) LsegValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return LsegValue{Kind: LsegValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return LsegValue{Kind: LsegValueNull}
+	}
+	if input.Kind == ArrayElementLseg {
+		value := input.Lseg
+		return LsegValue{Kind: LsegValueValue, Value: value}
+	}
+	return LsegValue{Kind: LsegValueUnknown}
+}
+func ArrayElementFromBox(input BoxValue) ArrayElement {
+	if input.Kind == BoxValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == BoxValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == BoxValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementBox, Box: value}
+	}
+	if input.Kind == BoxValueNonNull {
+		return ArrayElement{Kind: ArrayElementBoxNonNull}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToBox(input ArrayElement) BoxValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return BoxValue{Kind: BoxValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return BoxValue{Kind: BoxValueNull}
+	}
+	if input.Kind == ArrayElementBox {
+		value := input.Box
+		return BoxValue{Kind: BoxValueValue, Value: value}
+	}
+	if input.Kind == ArrayElementBoxNonNull {
+		return BoxValue{Kind: BoxValueNonNull}
+	}
+	return BoxValue{Kind: BoxValueUnknown}
+}
+func ArrayElementFromPath(input PathValue) ArrayElement {
+	input = CopyPathValue(input)
+	if input.Kind == PathValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == PathValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == PathValueValue {
+		value := CopyPathPayload(input.Value)
+		return ArrayElement{Kind: ArrayElementPath, Path: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToPath(input ArrayElement) PathValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return PathValue{Kind: PathValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return PathValue{Kind: PathValueNull}
+	}
+	if input.Kind == ArrayElementPath {
+		value := CopyPathPayload(input.Path)
+		return PathValue{Kind: PathValueValue, Value: value}
+	}
+	return PathValue{Kind: PathValueUnknown}
+}
+func ArrayElementFromPolygon(input PolygonValue) ArrayElement {
+	input = CopyPolygonValue(input)
+	if input.Kind == PolygonValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == PolygonValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == PolygonValueValue {
+		value := CopyPolygonPayload(input.Value)
+		return ArrayElement{Kind: ArrayElementPolygon, Polygon: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToPolygon(input ArrayElement) PolygonValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return PolygonValue{Kind: PolygonValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return PolygonValue{Kind: PolygonValueNull}
+	}
+	if input.Kind == ArrayElementPolygon {
+		value := CopyPolygonPayload(input.Polygon)
+		return PolygonValue{Kind: PolygonValueValue, Value: value}
+	}
+	return PolygonValue{Kind: PolygonValueUnknown}
+}
+func ArrayElementFromCircle(input CircleValue) ArrayElement {
+	if input.Kind == CircleValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == CircleValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == CircleValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementCircle, Circle: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToCircle(input ArrayElement) CircleValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return CircleValue{Kind: CircleValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return CircleValue{Kind: CircleValueNull}
+	}
+	if input.Kind == ArrayElementCircle {
+		value := input.Circle
+		return CircleValue{Kind: CircleValueValue, Value: value}
+	}
+	return CircleValue{Kind: CircleValueUnknown}
+}
+func ArrayElementFromMoney(input MoneyValue) ArrayElement {
+	if input.Kind == MoneyValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == MoneyValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == MoneyValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementMoney, Money: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToMoney(input ArrayElement) MoneyValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return MoneyValue{Kind: MoneyValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return MoneyValue{Kind: MoneyValueNull}
+	}
+	if input.Kind == ArrayElementMoney {
+		value := input.Money
+		return MoneyValue{Kind: MoneyValueValue, Value: value}
+	}
+	return MoneyValue{Kind: MoneyValueUnknown}
+}
+func ArrayElementFromInternalChar(input InternalCharValue) ArrayElement {
+	if input.Kind == InternalCharValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == InternalCharValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == InternalCharValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		return ArrayElement{Kind: ArrayElementInternalChar, InternalChar: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToInternalChar(input ArrayElement) InternalCharValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return InternalCharValue{Kind: InternalCharValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return InternalCharValue{Kind: InternalCharValueNull}
+	}
+	if input.Kind == ArrayElementInternalChar {
+		value := langruntime.CheckedI32(input.InternalChar)
+		return InternalCharValue{Kind: InternalCharValueValue, Value: value}
+	}
+	return InternalCharValue{Kind: InternalCharValueUnknown}
+}
+func ArrayElementFromOid(input OidValue) ArrayElement {
+	if input.Kind == OidValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == OidValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == OidValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementOid, Oid: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToOid(input ArrayElement) OidValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return OidValue{Kind: OidValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return OidValue{Kind: OidValueNull}
+	}
+	if input.Kind == ArrayElementOid {
+		value := input.Oid
+		return OidValue{Kind: OidValueValue, Value: value}
+	}
+	return OidValue{Kind: OidValueUnknown}
+}
+func ArrayElementFromXid(input XidValue) ArrayElement {
+	if input.Kind == XidValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == XidValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == XidValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementXid, Xid: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToXid(input ArrayElement) XidValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return XidValue{Kind: XidValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return XidValue{Kind: XidValueNull}
+	}
+	if input.Kind == ArrayElementXid {
+		value := input.Xid
+		return XidValue{Kind: XidValueValue, Value: value}
+	}
+	return XidValue{Kind: XidValueUnknown}
+}
+func ArrayElementFromCid(input CidValue) ArrayElement {
+	if input.Kind == CidValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == CidValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == CidValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementCid, Cid: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToCid(input ArrayElement) CidValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return CidValue{Kind: CidValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return CidValue{Kind: CidValueNull}
+	}
+	if input.Kind == ArrayElementCid {
+		value := input.Cid
+		return CidValue{Kind: CidValueValue, Value: value}
+	}
+	return CidValue{Kind: CidValueUnknown}
+}
+func ArrayElementFromSnapshot(input SnapshotValue) ArrayElement {
+	input = CopySnapshotValue(input)
+	if input.Kind == SnapshotValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == SnapshotValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == SnapshotValueValue {
+		value := CopySnapshotPayload(input.Value)
+		return ArrayElement{Kind: ArrayElementSnapshot, Snapshot: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToSnapshot(input ArrayElement) SnapshotValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return SnapshotValue{Kind: SnapshotValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return SnapshotValue{Kind: SnapshotValueNull}
+	}
+	if input.Kind == ArrayElementSnapshot {
+		value := CopySnapshotPayload(input.Snapshot)
+		return SnapshotValue{Kind: SnapshotValueValue, Value: value}
+	}
+	return SnapshotValue{Kind: SnapshotValueUnknown}
+}
+func ArrayElementFromXid8(input Xid8Value) ArrayElement {
+	if input.Kind == Xid8ValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == Xid8ValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == Xid8ValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementXid8, Xid8: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToXid8(input ArrayElement) Xid8Value {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return Xid8Value{Kind: Xid8ValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return Xid8Value{Kind: Xid8ValueNull}
+	}
+	if input.Kind == ArrayElementXid8 {
+		value := input.Xid8
+		return Xid8Value{Kind: Xid8ValueValue, Value: value}
+	}
+	return Xid8Value{Kind: Xid8ValueUnknown}
+}
+func ArrayElementFromPgLsn(input PgLsnValue) ArrayElement {
+	if input.Kind == PgLsnValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == PgLsnValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == PgLsnValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementPgLsn, PgLsn: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToPgLsn(input ArrayElement) PgLsnValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return PgLsnValue{Kind: PgLsnValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return PgLsnValue{Kind: PgLsnValueNull}
+	}
+	if input.Kind == ArrayElementPgLsn {
+		value := input.PgLsn
+		return PgLsnValue{Kind: PgLsnValueValue, Value: value}
+	}
+	return PgLsnValue{Kind: PgLsnValueUnknown}
+}
+func ArrayElementFromTid(input TidValue) ArrayElement {
+	if input.Kind == TidValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == TidValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == TidValueValue {
+		value := input.Value
+		return ArrayElement{Kind: ArrayElementTid, Tid: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToTid(input ArrayElement) TidValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return TidValue{Kind: TidValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return TidValue{Kind: TidValueNull}
+	}
+	if input.Kind == ArrayElementTid {
+		value := input.Tid
+		return TidValue{Kind: TidValueValue, Value: value}
+	}
+	return TidValue{Kind: TidValueUnknown}
+}
+func ArrayElementFromJsonpath(input JsonpathValue) ArrayElement {
+	input = CopyJsonpathValue(input)
+	if input.Kind == JsonpathValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == JsonpathValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == JsonpathValueValue {
+		value := CopyJsonpathPayload(input.Value)
+		return ArrayElement{Kind: ArrayElementJsonpath, Jsonpath: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToJsonpath(input ArrayElement) JsonpathValue {
+	input = copyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return JsonpathValue{Kind: JsonpathValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return JsonpathValue{Kind: JsonpathValueNull}
+	}
+	if input.Kind == ArrayElementJsonpath {
+		value := CopyJsonpathPayload(input.Jsonpath)
+		return JsonpathValue{Kind: JsonpathValueValue, Value: value}
+	}
+	return JsonpathValue{Kind: JsonpathValueUnknown}
+}
+
+type ArrayDimension struct {
+	Lower  int
+	Length int
+}
+
+func copyArrayDimension(value ArrayDimension) ArrayDimension {
+	return ArrayDimension{Lower: langruntime.CheckedI32(value.Lower), Length: langruntime.CheckedI32(value.Length)}
+}
+
+type ArrayPayload struct {
+	ElementType string
+	ElementKind int
+	Dimensions  []ArrayDimension
+	Elements    []ArrayElement
+}
+
+func CopyArrayPayload(value ArrayPayload) ArrayPayload {
+	return ArrayPayload{ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, copyArrayElement)}
+}
+
+type ArrayValueKind uint8
+
+const (
+	ArrayValueUnknown ArrayValueKind = iota
+	ArrayValueNull
+	ArrayValueError
+	ArrayValueValue
+)
+
+type ArrayValue struct {
+	Kind  ArrayValueKind
+	Error SqlError
+	Value ArrayPayload
+}
+
+func CopyArrayValue(value ArrayValue) ArrayValue {
+	switch value.Kind {
+	case ArrayValueUnknown:
+		return ArrayValue{Kind: ArrayValueUnknown}
+	case ArrayValueNull:
+		return ArrayValue{Kind: ArrayValueNull}
+	case ArrayValueError:
+		return ArrayValue{Kind: ArrayValueError, Error: value.Error}
+	case ArrayValueValue:
+		return ArrayValue{Kind: ArrayValueValue, Value: CopyArrayPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+
+type ArrayArgumentsKind uint8
+
+const (
+	ArrayArgumentsUnknown ArrayArgumentsKind = iota
+	ArrayArgumentsError
+	ArrayArgumentsValue
+)
+
+type ArrayArguments struct {
+	Kind  ArrayArgumentsKind
+	Error SqlError
+	Value ArrayPayload
+}
+
+func copyArrayArguments(value ArrayArguments) ArrayArguments {
+	switch value.Kind {
+	case ArrayArgumentsUnknown:
+		return ArrayArguments{Kind: ArrayArgumentsUnknown}
+	case ArrayArgumentsError:
+		return ArrayArguments{Kind: ArrayArgumentsError, Error: value.Error}
+	case ArrayArgumentsValue:
+		return ArrayArguments{Kind: ArrayArgumentsValue, Value: CopyArrayPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func ArrayUnknown() ArrayValue {
+	return ArrayValue{Kind: ArrayValueUnknown}
+}
+func ArrayNull() ArrayValue {
+	return ArrayValue{Kind: ArrayValueNull}
+}
+func ArrayIsNull(input ArrayValue) BoolValue {
+	input = CopyArrayValue(input)
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == ArrayValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == ArrayValueNull {
+		return BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: false}
+}
+func ArrayFromCaseGuard(input CheckOutcome) ArrayValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	return ArrayValue{Kind: ArrayValueUnknown}
+}
+func MakeArrayValue(input ArrayPayload) ArrayValue {
+	input = CopyArrayPayload(input)
+	position := 0
+	for position < len(input.Elements) {
+		element := copyArrayElement(input.Elements[position])
+		if element.Kind == ArrayElementError {
+			error := element.Error
+			return ArrayValue{Kind: ArrayValueError, Error: error}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	identity := []rune(input.ElementType)
+	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 40 {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	position = langruntime.CheckedIndex(0)
+	for position < len(identity) {
+		if identity[position] == '\x00' {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if len(input.Dimensions) > 6 {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	count := int64(0)
+	if len(input.Dimensions) > 0 {
+		count = int64(1)
+	}
+	position = langruntime.CheckedIndex(0)
+	for position < len(input.Dimensions) {
+		dimension := input.Dimensions[position]
+		if dimension.Length <= 0 {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		length := int64(langruntime.CheckedI32(dimension.Length))
+		end := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), length)
+		if end > int64(2147483647) || count > langruntime.CheckedI64Divide(int64(2147483647), length) {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		count = langruntime.CheckedI64Multiply(count, length)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if count != int64(langruntime.CheckedI32((int(int32(len(input.Elements)))))) {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	position = langruntime.CheckedIndex(0)
+	for position < len(input.Elements) {
+		kind := ArrayElementFamily(copyArrayElement(input.Elements[position]))
+		if kind != 0 && kind != input.ElementKind {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return ArrayValue{Kind: ArrayValueValue, Value: input}
+}
+func ArrayFromCoercedValue(input ArrayValue, elementType string, elementKind int) ArrayValue {
+	input = CopyArrayValue(input)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	if input.Kind == ArrayValueValue {
+		value := CopyArrayPayload(input.Value)
+		if value.ElementType != elementType || value.ElementKind != elementKind {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		return MakeArrayValue(value)
+	}
+	return input
+}
+func MakeArrayArguments(elementType string, elementKind int) ArrayArguments {
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	dimensions := []ArrayDimension{}
+	elements := []ArrayElement{}
+	return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: elements}}
+}
+func AppendArrayDimension(input ArrayArguments, lower int, length int) ArrayArguments {
+	input = copyArrayArguments(input)
+	lower = langruntime.CheckedI32(lower)
+	length = langruntime.CheckedI32(length)
+	if input.Kind == ArrayArgumentsValue {
+		value := CopyArrayPayload(input.Value)
+		dimensions := value.Dimensions
+		langruntime.CheckedAdd(len(dimensions), 1)
+		dimensions = append(dimensions, ArrayDimension{Lower: lower, Length: length})
+		return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: value.Elements}}
+	}
+	return input
+}
+func AppendArrayArgument(input ArrayArguments, element ArrayElement) ArrayArguments {
+	input = copyArrayArguments(input)
+	element = copyArrayElement(element)
+	if input.Kind == ArrayArgumentsError {
+		return input
+	}
+	if element.Kind == ArrayElementError {
+		error := element.Error
+		return ArrayArguments{Kind: ArrayArgumentsError, Error: error}
+	}
+	if input.Kind == ArrayArgumentsValue {
+		value := CopyArrayPayload(input.Value)
+		elements := value.Elements
+		langruntime.CheckedAdd(len(elements), 1)
+		elements = append(elements, copyArrayElement(element))
+		return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements}}
+	}
+	return input
+}
+func FinishArrayArguments(input ArrayArguments) ArrayValue {
+	input = copyArrayArguments(input)
+	if input.Kind == ArrayArgumentsError {
+		error := input.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if input.Kind == ArrayArgumentsValue {
+		value := CopyArrayPayload(input.Value)
+		return MakeArrayValue(value)
+	}
+	return ArrayValue{Kind: ArrayValueUnknown}
+}
+func ArrayFlatElement(input ArrayValue, offset Int4Value) ArrayElement {
+	input = CopyArrayValue(input)
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if offset.Kind == Int4ValueError {
+		error := offset.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == ArrayValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if offset.Kind == Int4ValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == ArrayValueValue {
+		value := CopyArrayPayload(input.Value)
+		if offset.Kind == Int4ValueValue {
+			index := langruntime.CheckedI32(offset.Value)
+			if index < 0 {
+				return ArrayElement{Kind: ArrayElementNull}
+			}
+			position := langruntime.IndexFromI32(index, 0)
+			if position >= len(value.Elements) {
+				return ArrayElement{Kind: ArrayElementNull}
+			}
+			return copyArrayElement(value.Elements[position])
+		}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

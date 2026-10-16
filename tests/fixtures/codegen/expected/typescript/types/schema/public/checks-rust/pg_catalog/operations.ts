@@ -17,6 +17,128 @@ function addressAndWord(left: number, right: number): number {
     }
     return result;
 }
+export function cardinalityM1rn(input: checkruntime.ArrayValue): checkruntime.Int4Value {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        return { kind: "Value", value: langruntime.checkedI32(langruntime.checkedIndex(value.elements.length)) };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayNdims8wu3(input: checkruntime.ArrayValue): checkruntime.Int4Value {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (value.dimensions.length === 0) {
+            return { kind: "Null" };
+        }
+        return { kind: "Value", value: langruntime.checkedI32(langruntime.checkedIndex(value.dimensions.length)) };
+    }
+    return { kind: "Unknown" };
+}
+function arrayDimensionValue(input: checkruntime.ArrayValue, dimension: checkruntime.Int4Value, mode: number): checkruntime.Int4Value {
+    input = checkruntime.copyArrayValue(input);
+    mode = langruntime.checkedI32(mode);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (dimension.kind === "Error") {
+        const error: checkruntime.SqlError = dimension.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (dimension.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (dimension.kind === "Value") {
+            const index: number = langruntime.checkedI32(dimension.value);
+            if (index < 1) {
+                return { kind: "Null" };
+            }
+            const position: number = langruntime.indexFromI32(langruntime.checkedSignedSubtract(index, 1), 0);
+            if (position >= value.dimensions.length) {
+                return { kind: "Null" };
+            }
+            const selected: checkruntime.ArrayDimension = langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension);
+            if (mode === 0) {
+                return { kind: "Value", value: selected.length };
+            }
+            if (mode === 1) {
+                return { kind: "Value", value: selected.lower };
+            }
+            return { kind: "Value", value: langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(selected.lower, selected.length), 1) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arrayLengthPebh(input: checkruntime.ArrayValue, dimension: checkruntime.Int4Value): checkruntime.Int4Value {
+    input = checkruntime.copyArrayValue(input);
+    return arrayDimensionValue(input, dimension, 0);
+}
+export function arrayLower3uq2(input: checkruntime.ArrayValue, dimension: checkruntime.Int4Value): checkruntime.Int4Value {
+    input = checkruntime.copyArrayValue(input);
+    return arrayDimensionValue(input, dimension, 1);
+}
+export function arrayUpperLnz3(input: checkruntime.ArrayValue, dimension: checkruntime.Int4Value): checkruntime.Int4Value {
+    input = checkruntime.copyArrayValue(input);
+    return arrayDimensionValue(input, dimension, 2);
+}
+export function arrayDims01ex(input: checkruntime.ArrayValue): checkruntime.TextValue {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (value.dimensions.length === 0) {
+            return { kind: "Null" };
+        }
+        let text: string = "";
+        let position: number = 0;
+        while (position < value.dimensions.length) {
+            const selected: checkruntime.ArrayDimension = langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension);
+            const lower: checkruntime.TextValue = int4ToText({ kind: "Value", value: selected.lower });
+            const upper: checkruntime.TextValue = int4ToText({ kind: "Value", value: langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(selected.lower, selected.length), 1) });
+            if (lower.kind === "Value") {
+                const first: string = langruntime.checkedString(lower.value);
+                if (upper.kind === "Value") {
+                    const last: string = langruntime.checkedString(upper.value);
+                    text = text + langruntime.checkedChar("[");
+                    text = text + first;
+                    text = text + langruntime.checkedChar(":");
+                    text = text + last;
+                    text = text + langruntime.checkedChar("]");
+                }
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return { kind: "Value", value: text };
+    }
+    return { kind: "Unknown" };
+}
 export function int48lt65ji(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
