@@ -53,6 +53,15 @@ export type EvalExpression =
     }
   | { kind: 'coalesce'; type: ScalarType; operands: readonly EvalExpression[] }
   | {
+      kind: 'array-subscript'
+      type: ScalarType
+      elementType: ArrayElementType
+      operand: EvalExpression
+      slice: boolean
+      upper: readonly (EvalExpression | null)[]
+      lower: readonly (EvalExpression | null)[]
+    }
+  | {
       kind: 'array-text-literal'
       moneyLiterals?: readonly { text: string; units: string }[]
       type: ArrayType
@@ -344,6 +353,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'array-text-literal' ||
       node.kind === 'text-to-array' ||
       node.kind === 'array-to-text' ||
+      node.kind === 'array-subscript' ||
       node.kind === 'array-typmod'
     ) {
       const result = backend.uncertain(node.type)

@@ -228,3 +228,55 @@ INSERT INTO lane_exports (documents, expected_documents) VALUES ('{"null",NULL}'
 -- name: export_exact_numeric_values
 INSERT INTO lane_exports (amounts, expected_amounts)
 VALUES ('{12345678901234567890.0012300,NaN,Infinity,-Infinity,0.00}', '{12345678901234567890.0012300,NaN,Infinity,-Infinity,0.00}');
+
+-- name: selection_shifted_bounds
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', 0, 0, 0, 1, 10, NULL, '{10,NULL}', 1, false);
+
+-- name: selection_null_cell
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', 1, 0, 1, 1, NULL, NULL, '{NULL}', 1, false);
+
+-- name: selection_nested_lanes
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:1][-1:0]={{1,NULL},{3,4}}', 0, -1, 0, 0, NULL, 1, '{{1,NULL}}', 1, false);
+
+-- name: selection_clamped_slice
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', -1, 0, -100, 100, NULL, NULL, '{10,NULL,30}', 1, false);
+
+-- name: selection_empty_slice
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', 9, 0, 9, 10, NULL, NULL, '{}', 1, false);
+
+-- name: selection_reversed_slice
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', 9, 0, 2, 0, NULL, NULL, '{}', 1, false);
+
+-- name: selection_null_array_skips_division
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES (NULL, 1, 1, 0, 1, NULL, NULL, NULL, 0, false);
+
+-- name: selection_null_slice_bound
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', 0, 0, NULL, 1, 10, NULL, NULL, 1, false);
+
+-- name: selection_wrong_slot
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', 0, 0, 0, 1, 99, NULL, '{10,NULL}', 1, false);
+
+-- name: selection_wrong_lane_slot
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:1][-1:0]={{1,NULL},{3,4}}', 0, -1, 0, 0, NULL, 99, '{{1,NULL}}', 1, false);
+
+-- name: selection_wrong_slice_bounds
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', 0, 0, 0, 1, 10, NULL, '[0:1]={10,NULL}', 1, false);
+
+-- name: selection_division_error
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', 0, 0, 0, 1, 10, NULL, '{10,NULL}', 0, false);
+
+-- name: selection_guarded_division
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', 0, 0, 0, 1, 10, NULL, '{10,NULL}', 0, true);

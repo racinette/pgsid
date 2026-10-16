@@ -10,3 +10,6 @@ VALUES ('{1,2}', '{a,b}', '{yes,no}', '{1.25,2.5}', '{"{\"a\":1}"}', '{(1,1),(0,
 
 INSERT INTO lane_exports (slots, labels, flags, amounts, documents, expected_slots, expected_labels, expected_flags, expected_amounts, expected_documents, bypass)
 VALUES ('[0:1]={1,NULL}', ARRAY['NULL','a,b'], ARRAY[true,false,NULL], ARRAY[1.2300::numeric,NULL], ARRAY['{"a":1}'::jsonb,NULL], '[0:1]={1,NULL}', '{"NULL","a,b"}', '{t,f,NULL}', '{1.2300,NULL}', '{"{\"a\": 1}",NULL}', false);
+
+INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
+VALUES ('[0:2]={10,NULL,30}', 0, 0, 0, 1, 10, NULL, '{10,NULL}', 1, false);

@@ -67,6 +67,22 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
+  if (expression.kind === 'array-subscript') {
+    const operands = prepareAll([
+      expression.operand,
+      ...expression.upper.filter((bound): bound is EvalExpression => bound !== null),
+      ...expression.lower.filter((bound): bound is EvalExpression => bound !== null),
+    ])
+    return operands
+      ? operands.every((operand) => operand.constant)
+        ? constant(expression)
+        : {
+            constant: false,
+            null: false,
+            expressions: operands.flatMap((operand) => operand.expressions),
+          }
+      : null
+  }
   if (expression.kind === 'array-text-literal') return constant(expression)
   if (
     expression.kind === 'certain' &&

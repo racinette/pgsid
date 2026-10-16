@@ -77,6 +77,13 @@ export function portableCheckAtoms(
 ): EvalBoolExpression {
   const rustNames = checkRustCallableNames()
   const scalar = (value: EvalExpression): EvalExpression => {
+    if (value.kind === 'array-subscript')
+      return {
+        ...value,
+        operand: scalar(value.operand),
+        upper: value.upper.map((bound) => (bound ? scalar(bound) : null)),
+        lower: value.lower.map((bound) => (bound ? scalar(bound) : null)),
+      }
     if (
       value.kind === 'clock-to-text' ||
       value.kind === 'text-to-array' ||

@@ -79,3 +79,20 @@ CREATE TABLE lane_exports (
   CONSTRAINT exported_amounts CHECK (amounts::text COLLATE "C" IS NOT DISTINCT FROM expected_amounts COLLATE "C"),
   CONSTRAINT exported_documents CHECK (documents::text COLLATE "C" IS NOT DISTINCT FROM expected_documents COLLATE "C")
 );
+
+CREATE TABLE lane_selections (
+  slots lane_slots,
+  slot_index integer,
+  lane_index integer,
+  slice_low integer,
+  slice_high integer,
+  expected_slot integer,
+  expected_lane_slot integer,
+  expected_slice text,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT selected_slot CHECK (slots[slot_index] IS NOT DISTINCT FROM expected_slot),
+  CONSTRAINT selected_lane_slot CHECK (slots[slot_index][lane_index] IS NOT DISTINCT FROM expected_lane_slot),
+  CONSTRAINT selected_slice CHECK (slots[slice_low:slice_high]::text COLLATE "C" IS NOT DISTINCT FROM expected_slice COLLATE "C"),
+  CONSTRAINT guarded_selection CHECK (CASE WHEN bypass THEN true ELSE slots[slot_index / divisor] IS NOT DISTINCT FROM expected_slot END)
+);

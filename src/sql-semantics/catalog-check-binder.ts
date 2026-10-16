@@ -1281,6 +1281,87 @@ export function bindCatalogCheck(
   const bind = (node: unknown, expectedType?: ScalarType): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const indirection = fields(wrapper['A_Indirection'])
+    if (indirection) {
+      const operand = bind(indirection['arg'])
+      if (!operand.type?.startsWith('array:') || !operand.value) return unknown
+      const items = indirection['indirection']
+      if (!Array.isArray(items) || items.length === 0 || items.length > 6) return unknown
+      const indices = items.map((item) => fields(fields(item)?.['A_Indices']))
+      if (indices.some((item) => !item)) return unknown
+      const slice = indices.some((item) => item!['is_slice'] === true)
+      const coerceIndex = (node: unknown): EvalExpression | null => {
+        const bound = bind(node),
+          source = boundType(bound)
+        const value = materialize(bound, source ?? 'pg_catalog.int4')
+        if (!value || source === 'pg_catalog.int4' || source === null) return value
+        const conversion = builtinCast(source, 'pg_catalog.int4')
+        if (!conversion || conversion.context === 'e') return null
+        if (conversion.method === 'b')
+          return {
+            kind: 'call',
+            call: { kind: 'cast', signature: null, type: 'pg_catalog.int4' },
+            operands: [value],
+          }
+        if (conversion.method !== 'f' || !conversion.implementation) return null
+        const implementation = builtinMetadata(conversion.implementation)
+        if (
+          implementation.kind !== 'function' ||
+          implementation.args.length !== 1 ||
+          implementation.args[0] !== source ||
+          implementation.result !== 'pg_catalog.int4'
+        )
+          return null
+        return {
+          kind: 'call',
+          call: { kind: 'cast', signature: conversion.implementation, type: 'pg_catalog.int4' },
+          operands: [value],
+        }
+      }
+      const upper: (EvalExpression | null)[] = [],
+        lower: (EvalExpression | null)[] = []
+      for (const item of indices) {
+        if (!item) return unknown
+        const high = item['uidx'] ? coerceIndex(item['uidx']) : null
+        if ((item['uidx'] && !high) || (!slice && !high)) return unknown
+        upper.push(high)
+        if (slice) {
+          const low = item['lidx']
+            ? coerceIndex(item['lidx'])
+            : item['is_slice'] === true
+              ? null
+              : {
+                  kind: 'certain' as const,
+                  expression: {
+                    kind: 'integer' as const,
+                    type: 'pg_catalog.int4' as const,
+                    value: '1',
+                  },
+                }
+          if (item['lidx'] && !low) return unknown
+          lower.push(low)
+        }
+      }
+      const elementType = operand.type.slice(6) as ArrayElementType
+      const definition = elementType.startsWith('enum:')
+        ? enums.find((item) => enumType(item) === elementType)
+        : undefined
+      const type = slice ? (operand.type as ArrayType) : elementType
+      return {
+        type,
+        collation: operand.collation,
+        ...(!slice && definition ? { enum: definition } : {}),
+        value: {
+          kind: 'array-subscript',
+          type,
+          elementType,
+          operand: operand.value,
+          slice,
+          upper,
+          lower,
+        },
+      }
+    }
     if (fields(wrapper['A_ArrayExpr']))
       return bindArray(
         node,

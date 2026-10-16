@@ -1,3 +1,4 @@
+import { arrayScalarProfiles } from './check-array-fixtures.js'
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -20,70 +21,6 @@ const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'"
 it('outputs source and stored array casts with the catalog element representation, preserving pure values and explicit formatting deferrals', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-array-output-families-'))
-  const scalarLiterals = [
-    ['smallint', "'-123'"],
-    ['integer', "'-2147483648'"],
-    ['bigint', "'9007199254740993'"],
-    ['timestamp', "'2000-01-01 12:34:56'"],
-    ['timestamptz', "'2000-01-01 12:34:56+00'"],
-    ['array_stage', "'new'"],
-    ['date', "'2000-01-01'"],
-    ['text', "'雪,NULL'"],
-    ['boolean', 'true'],
-    ['numeric', "'12345678901234567890.0012300'"],
-    ['json', '\'{"a":1}\''],
-    ['jsonb', '\'{"a":1}\''],
-    ['inet', "'2001:db8::1/64'"],
-    ['bit varying', "'101001'"],
-    ['bytea', String.raw`'\x0001ff'`],
-    ['macaddr', "'08:00:2b:01:02:03'"],
-    ['macaddr8', "'08:00:2b:01:02:03:04:05'"],
-    ['uuid', "'12345678-1234-1234-1234-123456789abc'"],
-    ['real', "'NaN'"],
-    ['double precision', "'-0'"],
-    ['time', "'12:34:56'"],
-    ['timetz', "'12:34:56+00'"],
-    ['interval', "'1 day'"],
-    ['point', "'(0,1)'"],
-    ['line', "'{1,0,0}'"],
-    ['lseg', "'[(0,0),(1,1)]'"],
-    ['box', "'(1,1),(0,0)'"],
-    ['path', "'[(0,0),(1,1)]'"],
-    ['polygon', "'((0,0),(1,0),(0,1))'"],
-    ['circle', "'<(0,0),1>'"],
-    ['money', "'0'"],
-    ['"char"', "'a'"],
-    ['oid', "'4294967295'"],
-    ['xid', "'4294967295'"],
-    ['cid', "'4294967295'"],
-    ['pg_snapshot', "'10:20:12,15'"],
-    ['xid8', "'18446744073709551615'"],
-    ['pg_lsn', "'FFFFFFFF/FFFFFFFF'"],
-    ['tid', "'(4294967295,65535)'"],
-    ['jsonpath', "'$.a[0]'"],
-  ] as const
-  const extraFamilies = [
-    ['varchar(2)', "'雪😊abc'"],
-    ['character(3)', "'abcdef'"],
-    ['name', "''"],
-    ['refcursor', "'cursor_name'"],
-    ['bit(4)', "'1010'"],
-    ['cidr', "'192.0.2.0/24'"],
-    ['txid_snapshot', "'10:20:12,15'"],
-    ...[
-      'regclass',
-      'regcollation',
-      'regconfig',
-      'regdictionary',
-      'regnamespace',
-      'regoper',
-      'regoperator',
-      'regproc',
-      'regprocedure',
-      'regrole',
-      'regtype',
-    ].map((type) => [type, "'0'"] as const),
-  ] as const
 
   try {
     await pg.exec(
@@ -113,7 +50,7 @@ it('outputs source and stored array casts with the catalog element representatio
       deferred: boolean
       runtime: boolean
     }[] = []
-    for (const [index, [type, literal]] of [...scalarLiterals, ...extraFamilies].entries()) {
+    for (const [index, [type, literal]] of arrayScalarProfiles.entries()) {
       const arraySql = `ARRAY[${literal}::${type},NULL::${type}]::${type}[]`
       const value = (await pg.query<{ value: string }>(`SELECT (${arraySql})::text AS value`))
         .rows[0]!.value
@@ -246,7 +183,7 @@ it('outputs source and stored array casts with the catalog element representatio
             expected: { kind: 'False' },
           })
       }
-    expect([...scalarLiterals, ...extraFamilies]).toHaveLength(58)
+    expect(arrayScalarProfiles).toHaveLength(58)
     await mkdir('artifacts/array-output', { recursive: true })
     await writeFile(
       'artifacts/array-output/family-fixtures.json',
