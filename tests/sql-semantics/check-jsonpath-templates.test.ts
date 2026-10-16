@@ -15,7 +15,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 
-it('executes numeric and calendar JSONPath datetime templates with strict formatting and error hardness in every target', async () => {
+it('executes JSONPath datetime templates, named fields and clock conventions with strict formatting and error hardness in every target', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonpath-templates-'))
   const value = (input: string | boolean): Input => ({ kind: 'Value', value: input })
@@ -271,6 +271,153 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       ['2,024 24', 'Y,YYY YY'],
       ['2,024 BC', 'Y,YYY BC'],
     )
+    pairs.push(
+      ['February', 'Month'],
+      ['Tue', 'DY'],
+      ['Tuesday', 'DAY'],
+      ['IX', 'RM'],
+      ['12 PM', 'HH12 AM'],
+      ['29 February 2024', 'DD Month YYYY'],
+      ['29 February 2023', 'DD Month YYYY'],
+      ['February-30', 'Month-DD'],
+      ['II-30', 'RM-DD'],
+      ['2024-09-Thursday', 'IYYY-IW-Day'],
+      ['2024-09-Thu', 'IYYY-IW-DY'],
+      ['2024-February-29', 'IYYY-Month-DD'],
+      ['January 01', 'Month MM'],
+      ['January 02', 'Month MM'],
+      ['01 Jan', 'MM Mon'],
+      ['02 Jan', 'MM Mon'],
+      ['IX September', 'RM Month'],
+      ['Monday Monday', 'DAY DAY'],
+      ['Monday Tuesday', 'DAY DAY'],
+      ['Sunday Sunday', 'DAY DAY'],
+      ['5 Thursday', 'D DAY'],
+      ['4 Thursday', 'D DAY'],
+      ['4 Thursday', 'ID DAY'],
+      ['4 Friday', 'ID DAY'],
+      ['2024-February', 'IYYY-TMMonth'],
+      ['', 'TMMonth'],
+      ['bad-February', 'YYYY-TMMonth'],
+      ['Mondayth', 'DAYTH'],
+      ['Monday', 'DAYTH'],
+      ['Januaryth', 'MonthTH'],
+      ['January', 'MonthTH'],
+      ['IXth', 'RMth'],
+      ['IX', 'RMth'],
+      ['IXth', 'RMth"th"'],
+      ['1 BCth', 'YYYY BCTH'],
+      ['1 BC', 'YYYY BCTH'],
+      ['1 BCth', 'YYYY BCTH"th"'],
+      ['12 AMth', 'HH12 AMTH'],
+      ['12 AM', 'HH12 AMTH'],
+      ['12+03th', 'HH24TZHTH'],
+      ['12+03', 'HH24TZHTH'],
+      ['January', 'FMMonth'],
+      ['12 PM', 'TMHH12 TMAM'],
+      ['IX', 'TMRM'],
+      ['jAnUaRy', 'MONTH'],
+      ['Jånuary', 'MONTH'],
+      ['Januar', 'MONTH'],
+      ['Januaryx', 'MONTH'],
+      ['Januaryx', 'MONTH"x"'],
+      [' February', 'Month'],
+      [' February', '" "Month'],
+      ['12  PM', 'HH12 AM'],
+      ['12 PM', 'HH12 AM'],
+      ['12PM', 'HH12AM'],
+      ['123PM', 'HH12AM'],
+      ['PM', 'AM'],
+      ['AM', 'AM'],
+      ['A.M.', 'A.M.'],
+      ['12 P.M.', 'HH12 A.M.'],
+      ['12 PM AM', 'HH12 AM AM'],
+      ['12 AM PM', 'HH12 AM AM'],
+      ['12 PM PM', 'HH12 AM AM'],
+      ['0112AM', 'HH12HH24AM'],
+      ['1212AM', 'HH24HH12AM'],
+      ['0101PM', 'HH12HH24AM'],
+      ['3600 AM', 'SSSS AM'],
+      ['43200 AM', 'SSSS AM'],
+      ['43200 PM', 'SSSS AM'],
+      ['0 AM', 'SSSS AM'],
+      ['-1 AM', 'SSSS AM'],
+      ['3600 0 AM', 'SSSS HH12 AM'],
+      ['2023-02-29 0 AM', 'YYYY-MM-DD HH12 AM'],
+      ['2023-02-29 1 AM', 'YYYY-MM-DD HH12 AM'],
+      ['2024-060 12:34:56 PM', 'YYYY-DDD HH12:MI:SS AM'],
+      ['29 February 2024 11:59:59.999999 PM+03:30', 'DD Month YYYY HH12:MI:SS.FF1 AMOF'],
+    )
+    const fullMonths = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ]
+    const romanMonths = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+    for (const [index, month] of fullMonths.entries()) {
+      pairs.push(
+        [month, 'Month'],
+        [month.toUpperCase(), 'MONTH'],
+        [month.toLowerCase(), 'month'],
+        [month.slice(0, 3), 'Mon'],
+        [romanMonths[index]!, 'RM'],
+        [romanMonths[index]!.toLowerCase(), 'rm'],
+      )
+    }
+    for (const day of [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ])
+      pairs.push(
+        [day, 'Day'],
+        [day.toUpperCase(), 'DAY'],
+        [day.toLowerCase(), 'day'],
+        [day.slice(0, 3), 'Dy'],
+        ['2024-09-' + day, 'IYYY-IW-Day'],
+      )
+    for (const hour of ['0', '1', '11', '12', '13', '23', '24', '-1'])
+      for (const [format, indicator] of [
+        ['HH12 AM', 'AM'],
+        ['HH12 AM', 'PM'],
+        ['HH AM', 'pM'],
+        ['HH24 AM', 'AM'],
+        ['HH12 A.M.', 'p.m.'],
+      ])
+        pairs.push([hour + ' ' + indicator, format!])
+    for (const input of [
+      'I',
+      'II',
+      'III',
+      'IIII',
+      'IV',
+      'V',
+      'VI',
+      'VII',
+      'VIII',
+      'VIIII',
+      'IX',
+      'X',
+      'XI',
+      'XII',
+      'XIII',
+      'Ⅳ',
+      '',
+    ])
+      pairs.push([input, 'RM'])
     for (const century of [
       '0',
       '1',
@@ -436,11 +583,9 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
     }
     for (const [input, format] of [
       ['February', 'TMMonth'],
-      ['February', 'Month'],
-      ['Tue', 'DY'],
-      ['Tuesday', 'DAY'],
-      ['IX', 'RM'],
-      ['12 PM', 'HH12 AM'],
+      ['Feb', 'TMMon'],
+      ['Monday', 'TMDay'],
+      ['Mon', 'TMDy'],
       ['12:34:56Z', 'HH24:MI:SSTZ'],
     ]) {
       const path = '$.datetime(' + JSON.stringify(format) + ')'

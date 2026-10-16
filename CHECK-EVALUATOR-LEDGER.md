@@ -283,8 +283,8 @@ exposes a prerequisite:
 - [x] JSONPath type/size and abs/floor/ceiling/double methods; retain strict/lax target handling, numeric display scales, finite-float validation versus string conversion, predicate suppression and INSERT parity.
 - [x] JSONPath integer/bigint/boolean/number/decimal/string conversions, owned string results and chained predicates; preserve parsing, numeric scales, argument validation, suppression and INSERT parity.
 - [x] JSONPath keyvalue objects: owned logical nodes, document/variable/generated IDs, wrapping counters and offsets, partially unknown identities, strict/lax prefixes, format limits and INSERT parity.
-- [x] JSONPath temporal methods and numeric calendar/clock templates: typed intermediates, widths/literals, grouped years/eras, ordinal/Julian/week calendars, fractions/offsets, comparisons and INSERT parity; preserve partial-field validation, integer widths, error hardness and context requirements.
-- [ ] JSONPath named/12-hour datetime template fields, regex execution and context-sensitive operations.
+- [x] JSONPath temporal methods and numeric calendar/clock templates: typed intermediates, widths/literals, grouped years/eras, ordinal/Julian/week calendars, 12-hour clocks, English/Roman names, fractions/offsets, comparisons and INSERT parity; preserve partial-field validation, integer widths, error hardness and context requirements.
+- [ ] JSONPath regex execution and context-sensitive operations.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.

@@ -9,6 +9,7 @@ struct JsonpathTemplateToken {
     digit: bool,
     fill: bool,
     ordinal: bool,
+    translated: bool,
     character: char,
 }
 
@@ -16,7 +17,6 @@ struct JsonpathTemplateToken {
 struct JsonpathTemplateProgram {
     tokens: Vec<JsonpathTemplateToken>,
     error: u32,
-    supported: bool,
     dated: bool,
     timed: bool,
     zoned: bool,
@@ -33,11 +33,11 @@ const JSONPATH_TEMPLATE_NAMES: &[&str] = &[
     "sssss", "ssss", "ss", "tzh", "tzm", "tz", "us", "ww", "w", "y,yyy", "yyyy", "yyy", "yy", "y",
 ];
 const JSONPATH_TEMPLATE_KINDS: &[i32] = &[
-    32, 100, 31, 100, 32, 31, 30, 100, 24, 6, 100, 100, 100, 25, 12, 13, 14, 15, 16, 17, 23, 7,
-    100, 100, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 100, 100, 10, 100, 100, 21, 100, 100, 29, 100,
-    18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4, 32, 100, 31, 100, 32, 31, 30, 100, 24, 6,
-    100, 25, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 100,
-    100, 10, 21, 100, 100, 29, 100, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4,
+    32, 43, 31, 42, 32, 31, 30, 46, 24, 6, 47, 46, 47, 25, 12, 13, 14, 15, 16, 17, 23, 7, 41, 41,
+    38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 44, 45, 10, 44, 45, 21, 43, 42, 29, 48, 18, 18, 9, 19,
+    20, 22, 11, 26, 27, 33, 1, 2, 3, 4, 32, 43, 31, 42, 32, 31, 30, 46, 24, 6, 47, 25, 12, 13, 14,
+    15, 16, 17, 23, 7, 41, 41, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 44, 45, 10, 21, 43, 42, 29,
+    48, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4,
 ];
 const JSONPATH_TEMPLATE_DIGITS: &[i32] = &[
     0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -68,7 +68,6 @@ fn jsonpath_template_compile(input: &str) -> JsonpathTemplateProgram {
     let mut tokens: Vec<JsonpathTemplateToken> = Vec::new();
     let mut position: usize = 0;
     let mut error: u32 = 0;
-    let mut supported = true;
     let mut dated = false;
     let mut timed = false;
     let mut zoned = false;
@@ -95,6 +94,9 @@ fn jsonpath_template_compile(input: &str) -> JsonpathTemplateProgram {
             let kind = JSONPATH_TEMPLATE_KINDS[key];
             let mut width = characters.len();
             if kind == 7 || kind == 19 || kind == 20 || kind == 21 || kind == 22 {
+                width = 2;
+            };
+            if kind == 41 {
                 width = 2;
             };
             if kind == 38 {
@@ -124,15 +126,14 @@ fn jsonpath_template_compile(input: &str) -> JsonpathTemplateProgram {
                 digit: JSONPATH_TEMPLATE_DIGITS[key] > 0,
                 fill: fill,
                 ordinal: ordinal,
+                translated: translated,
                 character: ' ',
             });
-            if kind == 100 {
-                supported = false;
-            };
-            if (kind >= 1 && kind <= 6) || (kind >= 24 && kind <= 39) {
+            if (kind >= 1 && kind <= 6) || (kind >= 24 && kind <= 39) || (kind >= 44 && kind <= 48)
+            {
                 dated = true;
             };
-            if kind >= 7 && kind <= 18 {
+            if (kind >= 7 && kind <= 18) || (kind >= 41 && kind <= 43) {
                 timed = true;
             };
             if kind >= 19 && kind <= 22 {
@@ -160,6 +161,7 @@ fn jsonpath_template_compile(input: &str) -> JsonpathTemplateProgram {
                             digit: numeric_wire_decimal_digit(stored) >= 0,
                             fill: false,
                             ordinal: false,
+                            translated: false,
                             character: stored,
                         });
                     };
@@ -182,6 +184,7 @@ fn jsonpath_template_compile(input: &str) -> JsonpathTemplateProgram {
                     digit: false,
                     fill: false,
                     ordinal: false,
+                    translated: false,
                     character: character,
                 });
                 position += 1;
@@ -191,7 +194,6 @@ fn jsonpath_template_compile(input: &str) -> JsonpathTemplateProgram {
     JsonpathTemplateProgram {
         tokens: tokens,
         error: error,
-        supported: supported,
         dated: dated,
         timed: timed,
         zoned: zoned,
@@ -296,15 +298,12 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
             if program.error > 0 {
                 return jsonpath_template_error(program.error, true);
             };
-            if program.supported == false {
-                return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
-            };
             let source = JsonpathTemporalSource {
                 characters: text.chars().collect(),
             };
             let mut fields: Vec<JsonpathTemplateField> = Vec::new();
             let mut index: usize = 0;
-            while index < 34 {
+            while index < 35 {
                 fields.push(JsonpathTemplateField { value: 0 });
                 index += 1;
             }
@@ -313,6 +312,7 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
             let mut precision: i32 = -1;
             let mut year_size: i32 = 0;
             let mut date_mode: i32 = 0;
+            let mut twelve_hour = false;
             index = 0;
             while index < program.tokens.len() {
                 let token = program.tokens[index];
@@ -331,6 +331,9 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
                             return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
                         };
                         date_mode = mode;
+                    };
+                    if token.translated && token.kind >= 44 && token.kind <= 47 {
+                        return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
                     };
                     let mut variable =
                         token.fill || token.ordinal || index + 1 == program.tokens.len();
@@ -379,6 +382,9 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
                         } else {
                             return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
                         };
+                    };
+                    if token.kind >= 42 && token.kind <= 48 {
+                        read = jsonpath_template_named_read(&source, position, token.kind);
                     };
                     if token.kind == 33 {
                         read = jsonpath_template_read_integer(&source, position, 1, true);
@@ -446,6 +452,20 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
                     if field == 21 || field == 22 {
                         field = 19;
                     };
+                    if field == 41 {
+                        twelve_hour = true;
+                        field = 7;
+                    };
+                    if field == 42 || field == 43 {
+                        twelve_hour = true;
+                        field = 34;
+                    };
+                    if field == 44 || field == 45 || field == 48 {
+                        field = 5;
+                    };
+                    if field == 46 || field == 47 {
+                        field = 25;
+                    };
                     let slot = usize::try_from(field).unwrap_or(0);
                     if field != 29 && fields[slot].value != 0 && fields[slot].value != read.value {
                         return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
@@ -480,6 +500,9 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
                             consumed += 1;
                         }
                     };
+                    if token.kind == 46 || token.kind == 47 {
+                        value = value + 1;
+                    };
                     if token.kind == 39 {
                         value = ((value as i64) + 1i64) as i32;
                         if value > 7 {
@@ -506,7 +529,7 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
                         };
                         position = minutes.end;
                     };
-                    if token.ordinal {
+                    if token.ordinal && jsonpath_template_ordinal_field(token.kind) {
                         let mut skipped: usize = 0;
                         while skipped < 2 && position < source.characters.len() {
                             position += 1;
@@ -521,6 +544,29 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
             }
             if position != source.characters.len() {
                 return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
+            };
+            let mut hours = fields[18].value / 3600;
+            let mut minutes = (fields[18].value % 3600) / 60;
+            let mut seconds = fields[18].value % 60;
+            if fields[7].value != 0 {
+                hours = fields[7].value;
+            };
+            if fields[8].value != 0 {
+                minutes = fields[8].value;
+            };
+            if fields[9].value != 0 {
+                seconds = fields[9].value;
+            };
+            if twelve_hour {
+                if hours < 1 || hours > 12 {
+                    return jsonpath_template_error(JSONPATH_TEMPLATE_FORMAT, false);
+                };
+                if fields[34].value != 0 && hours < 12 {
+                    hours = hours + 12;
+                };
+                if fields[34].value == 0 && hours == 12 {
+                    hours = 0;
+                };
             };
             let calendar = jsonpath_template_calendar(
                 fields[1].value,
@@ -545,18 +591,6 @@ fn jsonpath_template_parse(input: TextValue, template: TextValue) -> JsonpathTem
                 if program.dated {
                     date = make_date_value(value as i32);
                 };
-            };
-            let mut hours = fields[18].value / 3600;
-            let mut minutes = (fields[18].value % 3600) / 60;
-            let mut seconds = fields[18].value % 60;
-            if fields[7].value != 0 {
-                hours = fields[7].value;
-            };
-            if fields[8].value != 0 {
-                minutes = fields[8].value;
-            };
-            if fields[9].value != 0 {
-                seconds = fields[9].value;
             };
             let fraction = (fields[10].value as i64) * 1000i64 + fields[11].value as i64;
             if hours < 0

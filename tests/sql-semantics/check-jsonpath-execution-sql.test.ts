@@ -26,6 +26,11 @@ it('binds JSONPath execution identities, defaults and expression composition in 
   })
   try {
     const expressions: Record<string, string> = {
+      template_twelve_hour: `(document @@ '"12 AM".datetime("HH12 AM").string()=="00:00:00"') IS TRUE`,
+      template_named_month: `(document @@ '"29 February 2024".datetime("DD Month YYYY")=="2024-02-29".date()') IS TRUE`,
+      template_roman_month: `(document @@ '"2024-II-29".datetime("YYYY-RM-DD")=="2024-02-29".date()') IS TRUE`,
+      template_named_weekday: `(document @@ '"2024-09-Thursday".datetime("IYYY-IW-Day")=="2024-02-29".date()') IS TRUE`,
+      template_clock_error_order: `jsonb_path_query_first(document,'"2023-02-29 0 AM".datetime("YYYY-MM-DD HH12 AM")') IS NULL`,
       template_century: `(document @@ '"21 24".datetime("CC YY")=="2024-01-01".date()') IS TRUE`,
       template_iso_week: `(document @@ '"2024-09-4".datetime("IYYY-IW-ID")=="2024-02-29".date()') IS TRUE`,
       template_julian: `(document @@ '"2460370".datetime("J")=="2024-02-29".date()') IS TRUE`,
@@ -197,6 +202,11 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ['{"a":"bad","flag":true}', '$.a.datetime()', '{}', true, false],
       ['{"a":"20240229","flag":true}', '$.a.datetime("YYYYMMDD")', '{}', false, false],
       ['{"a":"2024-060","flag":true}', '$.a.datetime("YYYY-DDD")', '{}', false, false],
+      ['{"a":"29 February 2024","flag":true}', '$.a.datetime("DD Month YYYY")', '{}', false, false],
+      ['{"a":"12 PM","flag":true}', '$.a.datetime("HH12 AM")', '{}', false, false],
+      ['{"a":"2024-09-Thursday","flag":true}', '$.a.datetime("IYYY-IW-Day")', '{}', false, false],
+      ['{"a":"13 AM","flag":true}', '$.a.datetime("HH12 AM")', '{}', true, false],
+
       ['{"a":"2024-09-4","flag":true}', '$.a.datetime("IYYY-IW-ID")', '{}', false, false],
       ['{"a":"21 24","flag":true}', '$.a.datetime("CC YY")', '{}', false, false],
       ['{"a":"1 BC","flag":true}', '$.a.datetime("YYYY AD")', '{}', false, false],

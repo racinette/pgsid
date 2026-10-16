@@ -5,6 +5,9 @@ fn jsonpath_template_date_mode(kind: i32) -> i32 {
         || kind == 26
         || kind == 27
         || kind == 33
+        || kind == 44
+        || kind == 45
+        || kind == 48
     {
         return 1;
     };
