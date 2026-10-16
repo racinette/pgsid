@@ -26,6 +26,12 @@ it('binds JSONPath execution identities, defaults and expression composition in 
   })
   try {
     const expressions: Record<string, string> = {
+      predicate: `(document @@ '$.flag==true') IS NOT DISTINCT FROM expected_match`,
+      filter_exists: `(document @? '$.a?(@>1)') IS NOT DISTINCT FROM expected_exists`,
+      filter_array: `jsonb_path_query_array(document,'$.a?(@>1)') IS NOT DISTINCT FROM expected_array`,
+      predicate_unknown: `(document @@ '(1=="x") is unknown') IS TRUE`,
+      suppressed_predicate: `(document @@ '(1/0==1) is unknown') IS TRUE`,
+      logical_skip: `(document @@ '(1==1) || exists($missing)') IS TRUE`,
       arithmetic: `jsonb_path_query_array(document,'(2+3)*4') IS NOT DISTINCT FROM '[20]'::jsonb`,
       penultimate: `jsonb_path_query_first(document,'$.a[last-1]') IS NOT DISTINCT FROM expected_first`,
       nested_last: `jsonb_path_query_array(document,'$.a[$.i[last] to last]') IS NOT DISTINCT FROM expected_array`,
@@ -109,6 +115,10 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ['{"a":[1,2,3],"flag":true}', '$.a[last-1]', '{}', false, false],
       ['{"a":[1,2],"flag":true}', '$v+1', '{"v":[1]}', false, false],
       ['{"a":[],"flag":true}', 'strict -$v[0,8]', '{"v":[1]}', true, false],
+      ['{"a":[1,2,3],"flag":true}', '$.a?(@>1)', '{}', false, false],
+      ['{"a":[1,2],"flag":true}', '$.a?(@>$limit)', '{"limit":1}', false, false],
+      ['{"a":[],"flag":true}', 'strict $.missing==1', '{}', false, false],
+      ['{"a":[1,2],"flag":true}', '$.a?(@==$missing)', '{}', true, false],
     ]
     for (const [document, source, variables, silent, bypass] of cases) {
       const wanted = (
