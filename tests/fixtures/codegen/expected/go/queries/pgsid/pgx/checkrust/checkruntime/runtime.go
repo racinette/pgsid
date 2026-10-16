@@ -432,6 +432,7 @@ const sqlErrorInternal = 56966976
 const sqlErrorJsonSubscript = 3452655
 const sqlErrorJsonArray = 3452661
 const sqlErrorJsonMember = 3452662
+const sqlErrorJsonNumber = 3452663
 const sqlErrorJsonObject = 3452664
 const sqlErrorJsonSingleton = 3452660
 
@@ -444,6 +445,9 @@ func SqlErrorMessage(error SqlError) SqlErrorDescription {
 	}
 	if error.State == sqlErrorJsonMember {
 		return SqlErrorDescription{Message: "SQL/JSON member not found"}
+	}
+	if error.State == sqlErrorJsonNumber {
+		return SqlErrorDescription{Message: "SQL/JSON number not found"}
 	}
 	if error.State == sqlErrorJsonObject {
 		return SqlErrorDescription{Message: "SQL/JSON object not found"}
@@ -657,6 +661,19 @@ type NumericValue struct {
 	Error SqlError
 }
 
+func CopyNumericValue(value NumericValue) NumericValue {
+	switch value.Kind {
+	case NumericValueUnknown:
+		return NumericValue{Kind: NumericValueUnknown}
+	case NumericValueNull:
+		return NumericValue{Kind: NumericValueNull}
+	case NumericValueValue:
+		return NumericValue{Kind: NumericValueValue, Value: langruntime.CheckedString(value.Value)}
+	case NumericValueError:
+		return NumericValue{Kind: NumericValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
 func NumericUnknown() NumericValue {
 	return NumericValue{Kind: NumericValueUnknown}
 }

@@ -15,7 +15,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 
-it('executes structural JSONPath sequences, strict errors and silent prefixes in every target', async () => {
+it('executes structural JSONPath sequences, arithmetic, strict errors and silent prefixes in every target', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonpath-execution-'))
   const value = (input: string | boolean): Input => ({ kind: 'Value', value: input })
@@ -115,7 +115,60 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       source,
       requiresRegex: false,
     }
-    const cases: [string, string, string?][] = [
+    const cases: [string, string, string?, boolean?][] = [
+      ['{}', '1+2*3'],
+      ['{}', '(1+2)*3'],
+      ['{}', '1/3'],
+      ['{}', '5.50%2'],
+      ['{}', '-(1+2)'],
+      ['{}', '+(1-2)'],
+      ['{}', '1/0'],
+      ['{}', '1%0'],
+      ['{}', 'true+1'],
+      ['{}', 'true+$missing'],
+      ['{}', 'true+(1/0)'],
+      ['{}', '(1/0)+$missing'],
+      ['{}', '-true'],
+      ['{}', 'strict -true'],
+      ['{}', '-$v', '{"v":[1,2]}'],
+      ['[1,"x",2]', '-$'],
+      ['[1,"x",2]', 'strict -$'],
+      ['["x",1]', '+$'],
+      ['[]', '-$'],
+      ['[[1],2]', '-$'],
+      ['[1]', '$+1'],
+      ['[1,2]', '$+1'],
+      ['[1]', 'strict $+1'],
+      ['{}', '$a+$b', '{"a":[1],"b":[2]}'],
+      ['{}', '$a+$missing', '{"a":[1,2]}'],
+      ['{}', '$a+1', '{"a":[]}'],
+      ['[1]', 'strict -$[0,8]', '{}', false],
+      ['[1]', 'strict $[0,8]+1', '{}', false],
+      ['[1,2]', '-$[*]', '{}', false],
+      ['[1,"x",2]', '-$[*]', '{}', false],
+      ['{"x":2,"y":3}', '$.x+$.y', '{}', false],
+      ['{}', '(1+2)[0]', '{}', false],
+      ['{}', 'strict (1+2)[0]', '{}', false],
+      ['{}', '(-$v)[0]', '{"v":2}', false],
+      ['[0,1,2,3]', '$[last-1]'],
+      ['[0,1,2,3]', '$[last-1 to last]'],
+      ['[0,1,2,3]', '$[(5/2)-1]'],
+      ['[0,1,2,3]', '$[1+1,3%2]'],
+      ['[0,1,2,3]', '$[$i+1]', '{"i":[1]}'],
+      ['[0,1,2,3]', '$[$i+1]', '{"i":[1,2]}'],
+      ['[0,1,2,3]', '$[-$i]', '{"i":[-1,-2]}'],
+      ['[0,1,2,3]', '$[-$i]', '{"i":[-1]}'],
+      ['[0,1]', '$[0,1/0]'],
+      ['[0,1]', 'strict $[0,1/0]'],
+      ['[]', '$[last-1]'],
+      ['[0,1]', '$[last+1]'],
+      ['[0,1]', 'strict $[last+1]'],
+      ['[0,1]', '$[$[0]+1]', '{}', false],
+      ['{"a":[0,1,2],"i":[1,0]}', '$.a[$.i[last] to last]'],
+      ['[0,1,0]', '$[last-$[last]]', '{}', false],
+      ['[0,1,2]', '$[last-$x[last]]', '{"x":[0,1]}', false],
+      ['{}', '(1+2).a', '{}', false],
+      ['{}', '1e131071*10'],
       ['null', '$'],
       ['false', '$'],
       ['true', '$'],
@@ -190,7 +243,7 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
     ]
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     const references: unknown[] = []
-    for (const [document, path, variables = '{}'] of cases) {
+    for (const [document, path, variables = '{}', storedSafe = true] of cases) {
       const canonical = (
         await pg.query<{ text: string }>('SELECT $1::jsonpath::text AS text', [path])
       ).rows[0]!.text
@@ -219,7 +272,7 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
                 silent: value(silent),
                 expected: output === null ? { kind: 'Null' } : value(output),
               },
-              expected,
+              expected: variant.stored && !storedSafe ? { kind: 'Unknown' } : expected,
             })
         }
       }
@@ -297,7 +350,7 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       })
     }
     for (const variant of variants) {
-      for (const path of ['$[last-1]', '$?(@==1)', '$.a.size()', '$ == true', '$ like_regex "a"'])
+      for (const path of ['$?(@==1)', '$.a.size()', '$ == true', '$ like_regex "a"'])
         fixtures.push({
           name: variant.name,
           row: {
@@ -360,6 +413,46 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
         })
       }
     }
+    const original = '(-$v)[0]+2'
+    const printed = (
+      await pg.query<{ text: string }>('SELECT $1::jsonpath::text AS text', [original])
+    ).rows[0]!.text
+    const witness: Record<string, string> = {}
+    for (const [name, path] of [
+      ['original', original],
+      ['printed', printed],
+    ] as const) {
+      try {
+        witness[name] = (
+          await pg.query<{ text: string }>(
+            `SELECT jsonb_path_query_array('{}'::jsonb,$1::jsonpath,'{"v":[1,2]}'::jsonb)::text AS text`,
+            [path],
+          )
+        ).rows[0]!.text
+      } catch (failure) {
+        witness[name] = (failure as { code: string }).code
+      }
+    }
+    expect(witness).toEqual({ original: '22038', printed: '[1]' })
+    for (const variant of variants.filter(
+      (item) => !item.stored && (item.mode === 2 || item.mode === 3),
+    ))
+      fixtures.push({
+        name: variant.name,
+        row: {
+          document: value('{}'),
+          path: value('1+'.repeat(4000) + '1'),
+          variables: value('{}'),
+          silent: value(false),
+          expected: value(variant.mode === 2 ? '[4001]' : '4001'),
+        },
+        expected: { kind: 'True' },
+      })
+    await mkdir('artifacts/jsonpath-arithmetic', { recursive: true })
+    await writeFile(
+      'artifacts/jsonpath-arithmetic/lossy-rendering.json',
+      JSON.stringify({ original, printed, witness }, null, 2) + '\n',
+    )
     await mkdir('artifacts/jsonpath-execution', { recursive: true })
     await writeFile(
       'artifacts/jsonpath-execution/fixtures.json',

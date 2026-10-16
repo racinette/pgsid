@@ -108,7 +108,7 @@ export function jsonValueRequirements(item: BuiltinCallable) {
       {
         kind: 'implementation',
         requirement:
-          'Structural traversal, variables, numeric subscripts/ranges and last are implemented. Reached filters, predicates, arithmetic subscript expressions and methods remain deferred.',
+          'Structural traversal, variables, sequence arithmetic and subscript expressions are implemented. Reached filters, predicates and methods remain deferred. Arithmetic operands with accessors or arithmetic results followed by accessors require exact source graphs because stored rendering can lose grouping.',
         owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
       },
     ]

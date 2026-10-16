@@ -392,6 +392,7 @@ const SQL_ERROR_INTERNAL: u32 = 56966976;
 const SQL_ERROR_JSON_SUBSCRIPT: u32 = 3452655;
 const SQL_ERROR_JSON_ARRAY: u32 = 3452661;
 const SQL_ERROR_JSON_MEMBER: u32 = 3452662;
+const SQL_ERROR_JSON_NUMBER: u32 = 3452663;
 const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
 const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
 
@@ -409,6 +410,11 @@ pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
     if error.state == SQL_ERROR_JSON_MEMBER {
         return SqlErrorDescription {
             message: "SQL/JSON member not found",
+        };
+    }
+    if error.state == SQL_ERROR_JSON_NUMBER {
+        return SqlErrorDescription {
+            message: "SQL/JSON number not found",
         };
     }
     if error.state == SQL_ERROR_JSON_OBJECT {
