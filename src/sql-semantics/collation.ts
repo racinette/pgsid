@@ -373,6 +373,15 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         implementation.strict === (implementation.args.length === 2) &&
         implementation.volatility === 's'))
   return (
+    (implementation.kind === 'function' &&
+      implementation.schema === 'pg_catalog' &&
+      implementation.name === 'jsonb_set_lax' &&
+      implementation.args.join(',') ===
+        'pg_catalog.jsonb,pg_catalog._text,pg_catalog.jsonb,pg_catalog.bool,pg_catalog.text' &&
+      implementation.result === 'pg_catalog.jsonb' &&
+      !implementation.strict &&
+      implementation.volatility === 'i' &&
+      !implementation.returnsSet) ||
     arrayStringIO ||
     jsonField ||
     nameIntrinsic ||

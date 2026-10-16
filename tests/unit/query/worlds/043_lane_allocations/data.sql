@@ -133,3 +133,15 @@ VALUES ('{1,"null",2}', '[1,null,2]', '[1,null,2]', 1, false);
 
 INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
 VALUES ('{}', '[]', false);
+
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2,3]', '{1}', '9', false, false, true, '[1,3]', '[1,9,3]', '[1,9,2,3]', false);
+
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{a}', NULL, true, 'use_json_null', '{"a":null}', '{"a":null}', true, false);
+
+INSERT INTO lane_document_edit_imports (document, path, replacement, create_missing, policy, expected, bypass)
+VALUES ('{"a":1}', '{a}', '9', true, 'use_json_null', '{"a":9}', false);
+
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1,"b":2,"nested":{"a":3}}', '{a,b}', 'a', 'b', '{"nested":{"a":3}}', '{"nested":{"a":3}}', '{"b":2,"nested":{"a":3}}', false);

@@ -146,6 +146,17 @@ export const isJsonbBuilder = (
 
 export class UnsupportedCheckRustExpression extends Error {}
 
+export const isJsonbSetLax = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'jsonb_set_lax' &&
+  item.args.join(',') ===
+    'pg_catalog.jsonb,pg_catalog._text,pg_catalog.jsonb,pg_catalog.bool,pg_catalog.text' &&
+  item.result === 'pg_catalog.jsonb' &&
+  !item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet
+
 const arrayElementOutput = (
   elementType: string,
   definition: EnumDefinition | undefined,
@@ -1109,6 +1120,7 @@ export function emitCheckRustEvaluator(
           !arrayFill &&
           !arrayStringIO &&
           !jsonbBuilder &&
+          !isJsonbSetLax(implementation) &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
           !arrayBinarySend &&

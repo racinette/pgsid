@@ -516,3 +516,60 @@ CREATE TABLE lane_jsonb_stage_arrays (
   bypass boolean,
   CONSTRAINT enum_jsonb CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(stages) IS NOT DISTINCT FROM expected AND jsonb_build_array(VARIADIC stages) IS NOT DISTINCT FROM expected END)
 );
+
+CREATE TABLE lane_document_edits (
+  document jsonb,
+  path lane_document_path,
+  replacement jsonb,
+  create_missing boolean,
+  insert_after boolean,
+  run_insert boolean,
+  expected_delete jsonb,
+  expected_set jsonb,
+  expected_insert jsonb,
+  bypass boolean,
+  CONSTRAINT deleted_document_path CHECK (CASE WHEN bypass THEN true ELSE jsonb_delete_path(document,path) IS NOT DISTINCT FROM expected_delete END),
+  CONSTRAINT deleted_document_operator CHECK (CASE WHEN bypass THEN true ELSE (document #- path) IS NOT DISTINCT FROM expected_delete END),
+  CONSTRAINT replaced_document_path CHECK (CASE WHEN bypass THEN true ELSE jsonb_set(document,path,replacement,create_missing) IS NOT DISTINCT FROM expected_set END),
+  CONSTRAINT inserted_document_path CHECK (CASE WHEN bypass OR NOT run_insert THEN true ELSE jsonb_insert(document,path,replacement,insert_after) IS NOT DISTINCT FROM expected_insert END)
+);
+
+CREATE TABLE lane_document_null_edits (
+  document jsonb,
+  path lane_document_path,
+  replacement jsonb,
+  create_missing boolean,
+  policy text,
+  expected_policy jsonb,
+  expected_default jsonb,
+  run_default boolean,
+  bypass boolean,
+  CONSTRAINT document_null_policy CHECK (CASE WHEN bypass THEN true ELSE jsonb_set_lax(document,path,replacement,create_missing,policy) IS NOT DISTINCT FROM expected_policy END),
+  CONSTRAINT document_null_default CHECK (CASE WHEN bypass OR NOT run_default THEN true ELSE jsonb_set_lax(document,path,replacement,create_missing) IS NOT DISTINCT FROM expected_default END)
+);
+
+CREATE TABLE lane_document_edit_imports (
+  document jsonb,
+  path text,
+  replacement jsonb,
+  create_missing boolean,
+  policy text,
+  expected jsonb,
+  bypass boolean,
+  CONSTRAINT imported_document_edit CHECK (CASE WHEN bypass THEN true ELSE jsonb_set_lax(document,path::text[],replacement,create_missing,policy) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_document_key_removals (
+  document jsonb,
+  keys lane_document_path,
+  first_key text,
+  second_key text,
+  expected_bulk jsonb,
+  expected_expanded jsonb,
+  expected_scalar jsonb,
+  bypass boolean,
+  CONSTRAINT bulk_removed_keys CHECK (CASE WHEN bypass THEN true ELSE (document - keys) IS NOT DISTINCT FROM expected_bulk END),
+  CONSTRAINT variadic_removed_keys CHECK (CASE WHEN bypass THEN true ELSE jsonb_delete(document,VARIADIC keys) IS NOT DISTINCT FROM expected_bulk END),
+  CONSTRAINT expanded_removed_keys CHECK (CASE WHEN bypass THEN true ELSE jsonb_delete(document,first_key,second_key) IS NOT DISTINCT FROM expected_expanded END),
+  CONSTRAINT scalar_removed_key CHECK (CASE WHEN bypass THEN true ELSE jsonb_delete(document,first_key) IS NOT DISTINCT FROM expected_scalar END)
+);

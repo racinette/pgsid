@@ -798,7 +798,7 @@ const candidate = (
       ? undefined
       : integerCandidate(kind, name, args)
   if (integer !== undefined) return integer
-  const matches = callables.flatMap(({ signature, item }) => {
+  const expandedMatches = callables.flatMap(({ signature, item }) => {
     const variadicAny =
       !explicitVariadic && item.kind === 'function' && item.variadic === 'pg_catalog."any"'
     const typedVariadic =
@@ -1021,6 +1021,25 @@ const candidate = (
         ]
       : []
   })
+  const matches = expandedMatches.filter(
+    ({ item, matchingArgs }) =>
+      item.kind !== 'function' ||
+      item.variadic === null ||
+      explicitVariadic ||
+      !expandedMatches.some(
+        (other) =>
+          other.item.kind === 'function' &&
+          other.item.variadic === null &&
+          other.item.schema === item.schema &&
+          other.item.args.length === (matchingArgs ?? item.args).length &&
+          other.item.args.every(
+            (type, index) =>
+              (catalogScalarType(type) ?? type) ===
+              (catalogScalarType((matchingArgs ?? item.args)[index]!) ??
+                (matchingArgs ?? item.args)[index]),
+          ),
+      ),
+  )
   const types = args.map(boundType)
   const exact = matches.filter(({ item, matchingArgs }) =>
     (matchingArgs ?? item.args)
@@ -1042,6 +1061,41 @@ const candidate = (
   ) {
     const preferred = matches.filter(({ item }) =>
       item.args.every((type) => type === 'pg_catalog.varbit'),
+    )
+    if (preferred.length === 1) return preferred[0]!
+  }
+  const unknownPositions = types.flatMap((type, index) =>
+    type === null && args[index]!.literal ? [index] : [],
+  )
+  if (
+    unknownPositions.length &&
+    matches.every(({ item, matchingArgs }) =>
+      (matchingArgs ?? item.args)
+        .slice(0, args.length)
+        .every((type, index) =>
+          types[index] === null
+            ? builtinTypeResolution(type) !== null
+            : (catalogScalarType(type) ?? type) === types[index],
+        ),
+    )
+  ) {
+    const preferences = unknownPositions.map((index) => {
+      const resolutions = matches.map(({ item, matchingArgs }) =>
+        builtinTypeResolution((matchingArgs ?? item.args)[index]!)!,
+      )
+      const categories = new Set(resolutions.map((resolution) => resolution.category))
+      const category = categories.has('S') ? 'S' : categories.size === 1 ? [...categories][0] : null
+      const hasPreferred = resolutions.some(
+        (resolution) => resolution.category === category && resolution.preferred,
+      )
+      return { resolutions, category, hasPreferred }
+    })
+    if (preferences.some(({ category }) => category === null)) return null
+    const preferred = matches.filter((_, position) =>
+      preferences.every(({ resolutions, category, hasPreferred }) => {
+        const resolution = resolutions[position]!
+        return resolution.category === category && (!hasPreferred || resolution.preferred)
+      }),
     )
     if (preferred.length === 1) return preferred[0]!
   }
