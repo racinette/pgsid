@@ -88,3 +88,15 @@ VALUES ('[0:2]={new,NULL,done}', '|', 'missing', 'new|missing|done');
 
 INSERT INTO lane_document_exports (payload, separator, null_marker, expected_text, bypass)
 VALUES ('{1.0,"null",NULL}', '|', 'missing', '1.0|null|missing', false);
+
+INSERT INTO lane_reversals (slots, expected_slots, bypass)
+VALUES ('[0:1][2:3]={{1,NULL},{2,3}}', '[0:1][2:3]={{2,3},{1,NULL}}', false);
+
+INSERT INTO lane_stage_reversals (stages, expected_stages)
+VALUES ('[0:2]={new,NULL,done}', '[0:2]={done,NULL,new}');
+
+INSERT INTO lane_document_reversals (payload, expected_payload, bypass)
+VALUES ('{1,"null",NULL}', '{NULL,"null",1}', false);
+
+INSERT INTO lane_binary_exports (stages, bypass)
+VALUES (NULL, true);

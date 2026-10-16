@@ -285,6 +285,28 @@ export const isArrayTrim = (item: ReturnType<typeof builtinMetadata>): boolean =
   item.args[0] === 'pg_catalog.anyarray' &&
   item.args[1] === 'pg_catalog.int4'
 
+export const isArrayBinarySend = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'array_send' &&
+  item.strict &&
+  item.volatility === 's' &&
+  !item.returnsSet &&
+  item.args.length === 1 &&
+  item.args[0] === 'pg_catalog.anyarray' &&
+  item.result === 'pg_catalog.bytea'
+
+const isArrayReverse = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'array_reverse' &&
+  item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.args.length === 1 &&
+  item.args[0] === 'pg_catalog.anyarray' &&
+  item.result === 'pg_catalog.anyarray'
+
 export const isArrayRewrite = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
   item.schema === 'pg_catalog' &&
@@ -1029,6 +1051,8 @@ export function emitCheckRustEvaluator(
       const arrayStringIO = isArrayStringIO(implementation)
       const arrayFill = isArrayFill(implementation)
       const arrayTrim = isArrayTrim(implementation)
+      const arrayReverse = isArrayReverse(implementation)
+      const arrayBinarySend = isArrayBinarySend(implementation)
       const arrayRewrite = isArrayRewrite(implementation)
       const arrayTransform = isArrayTransform(implementation)
       const transformArray =
@@ -1049,7 +1073,7 @@ export function emitCheckRustEvaluator(
               ? enumIdentity
               : arrayFill
                 ? `array:${operands[0]?.type}`
-                : arrayTrim
+                : arrayTrim || arrayReverse
                   ? operands[0]?.type
                   : arrayStringIO && implementation.name === 'string_to_array'
                     ? 'array:pg_catalog.text'
@@ -1067,6 +1091,7 @@ export function emitCheckRustEvaluator(
           !jsonbBuilder &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
+          !arrayBinarySend &&
           !arrayStringIO &&
           !jsonbConversion &&
           !jsonbBuilder &&

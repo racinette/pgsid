@@ -22,6 +22,17 @@ func addressAndWord(left int, right int) int {
 	}
 	return result
 }
+func ArraySendG245(input checkruntime.ArrayValue) checkruntime.ByteaValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 func arrayComparisonBoolean(input checkruntime.Int4Value, strategy int) checkruntime.BoolValue {
 	strategy = langruntime.CheckedI32(strategy)
 	if input.Kind == checkruntime.Int4ValueError {
@@ -772,6 +783,43 @@ func FinishArrayOutput(input checkruntime.ArrayOutputPayload, rendered checkrunt
 		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
+const arrayReverseLimit = 8584704
+
+func ArrayReverseIwk0(input checkruntime.ArrayValue) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		if len(value.Dimensions) == 0 || value.Dimensions[0].Length < 2 {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: value}
+		}
+		depth := 0
+		for depth < len(value.Dimensions) {
+			dimension := value.Dimensions[depth]
+			if langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), (int64(langruntime.CheckedI32(dimension.Length)))) > int64(2147483647) {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayReverseLimit)}
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+		}
+		rows := value.Dimensions[0].Length
+		width := langruntime.CheckedSignedDivide((int(int32(len(value.Elements)))), rows)
+		elements := []checkruntime.ArrayElement{}
+		row := 0
+		for row < rows {
+			column := 0
+			for column < width {
+				offset := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(rows, row), 1)), width), column)
+				position := langruntime.IndexFromI32(offset, len(value.Elements))
+				langruntime.CheckedAdd(len(elements), 1)
+				elements = append(elements, checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(value.Elements[position])))
+				column = langruntime.CheckedI32(langruntime.CheckedSignedAdd(column, 1))
+			}
+			row = langruntime.CheckedI32(langruntime.CheckedSignedAdd(row, 1))
+		}
+		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements})
+	}
+	return input
 }
 func ArrayRemoveWiwe(input checkruntime.ArrayValue) checkruntime.ArrayValue {
 	input = checkruntime.CopyArrayValue(input)

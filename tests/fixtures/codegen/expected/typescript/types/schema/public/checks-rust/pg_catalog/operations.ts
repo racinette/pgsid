@@ -17,6 +17,17 @@ function addressAndWord(left: number, right: number): number {
     }
     return result;
 }
+export function arraySendG245(input: checkruntime.ArrayValue): checkruntime.ByteaValue {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
 function arrayComparisonBoolean(input: checkruntime.Int4Value, strategy: number): checkruntime.BoolValue {
     strategy = langruntime.checkedI32(strategy);
     if (input.kind === "Error") {
@@ -769,6 +780,40 @@ export function finishArrayOutput(input: checkruntime.ArrayOutputPayload, render
         return { kind: "Value", value: output };
     }
     return { kind: "Unknown" };
+}
+const arrayReverseLimit = 8584704;
+export function arrayReverseIwk0(input: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (value.dimensions.length === 0 || langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length < 2) {
+            return { kind: "Value", value: value };
+        }
+        let depth: number = 0;
+        while (depth < value.dimensions.length) {
+            const dimension: checkruntime.ArrayDimension = langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(depth), checkruntime.copyArrayDimension);
+            if (langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), (BigInt(langruntime.checkedI32(dimension.length)))) > 2147483647n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(arrayReverseLimit) };
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+        }
+        const rows: number = langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length;
+        const width: number = langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(value.elements.length))), rows);
+        let elements: checkruntime.ArrayElement[] = [];
+        let row: number = 0;
+        while (row < rows) {
+            let column: number = 0;
+            while (column < width) {
+                const offset: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(rows, row), 1)), width), column);
+                const position: number = langruntime.indexFromI32(offset, value.elements.length);
+                langruntime.pushStruct(elements, checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)), checkruntime.copyArrayElement);
+                column = langruntime.checkedI32(langruntime.checkedSignedAdd(column, 1));
+            }
+            row = langruntime.checkedI32(langruntime.checkedSignedAdd(row, 1));
+        }
+        return checkruntime.makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements });
+    }
+    return input;
 }
 export function arrayRemoveWiwe(input: checkruntime.ArrayValue): checkruntime.ArrayValue {
     input = checkruntime.copyArrayValue(input);
