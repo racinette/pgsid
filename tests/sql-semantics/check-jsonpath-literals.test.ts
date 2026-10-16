@@ -110,8 +110,19 @@ pub fn jsonpath_numeric_probe(input: TextValue, expected: TextValue) -> BoolValu
     expect(
       scalar.modules
         .find((module) => module.name === 'pg_catalog')!
-        .files.filter((file) => file.path.includes('/jsonpath_')),
-    ).toHaveLength(5)
+        .files.filter((file) => file.path.includes('/jsonpath_'))
+        .map((file) => file.path.split('/').at(-1)),
+    ).toEqual([
+      'jsonpath_calendar.rs',
+      'jsonpath_names.rs',
+      'jsonpath_output.rs',
+      'jsonpath_parse.rs',
+      'jsonpath_scan.rs',
+      'jsonpath_tables.generated.rs',
+      'jsonpath_template.rs',
+      'jsonpath_temporal.rs',
+      'jsonpath_value.rs',
+    ])
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     const oracle: unknown[] = []
     const extra = [

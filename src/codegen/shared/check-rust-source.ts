@@ -51,6 +51,19 @@ export function assembleCheckRust(evaluator: {
     })),
   })
   const requiresUnicode = evaluator.callables.some((name) => unicodeCallables.has(name))
+  const executionSource = /\/jsonpath_execute\.rs$/u
+  const executionFiles =
+    /\/jsonpath_(?:execute|arithmetic|conversions|keyvalue|methods|predicates|regex)\.rs$/u
+  const executionCallables = checkRustCallableNames({
+    ...maintained,
+    modules: maintained.modules.map((module) => ({
+      ...module,
+      files: module.files.filter(
+        (file) => module.name === 'pg_catalog' && executionSource.test(file.path),
+      ),
+    })),
+  })
+  const requiresJsonpathExecution = evaluator.callables.some((name) => executionCallables.has(name))
   const regexCallables = checkRustCallableNames({
     ...maintained,
     modules: maintained.modules.map((module) => ({
@@ -61,7 +74,9 @@ export function assembleCheckRust(evaluator: {
     })),
   })
   const requiresRegex =
-    evaluator.requiresRegex === true || evaluator.callables.some((name) => regexCallables.has(name))
+    requiresJsonpathExecution ||
+    evaluator.requiresRegex === true ||
+    evaluator.callables.some((name) => regexCallables.has(name))
   const modules = maintained.modules.flatMap((module) => {
     if (module.name === 'regex_engine' && !requiresRegex) return []
     return [
@@ -71,6 +86,12 @@ export function assembleCheckRust(evaluator: {
           (name) => requiresRegex || name !== 'regex_engine',
         ),
         files: module.files.filter((file) => {
+          if (
+            module.name === 'pg_catalog' &&
+            !requiresJsonpathExecution &&
+            executionFiles.test(file.path)
+          )
+            return false
           if (
             module.name === 'checkruntime' &&
             !requiresUnicode &&

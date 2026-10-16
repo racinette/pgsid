@@ -26,6 +26,10 @@ it('binds JSONPath execution identities, defaults and expression composition in 
   })
   try {
     const expressions: Record<string, string> = {
+      regex_ascii: `(document @@ '"Abc" like_regex "abc" flag "i"') IS TRUE`,
+      regex_quote: `(document @@ '"é" like_regex "é" flag "q"') IS TRUE`,
+      regex_filter: `jsonb_path_query_array('["abc",1,"bad"]'::jsonb,'$[*]?(@ like_regex "^a")') IS NOT DISTINCT FROM '["abc"]'::jsonb`,
+      regex_strict_unknown: `jsonb_path_match('["abc",1]'::jsonb,'strict $[*] like_regex "a"') IS NULL`,
       template_twelve_hour: `(document @@ '"12 AM".datetime("HH12 AM").string()=="00:00:00"') IS TRUE`,
       template_named_month: `(document @@ '"29 February 2024".datetime("DD Month YYYY")=="2024-02-29".date()') IS TRUE`,
       template_roman_month: `(document @@ '"2024-II-29".datetime("YYYY-RM-DD")=="2024-02-29".date()') IS TRUE`,
@@ -128,14 +132,18 @@ it('binds JSONPath execution identities, defaults and expression composition in 
     }))
     for (const [index, plan] of plans.entries())
       expect(hasUncertain(plan.expression), checks[index]!.name).toBe(false)
-    const group = prepareCheckRustGroup(plans, { defaultCollation: 'C', serverEncoding: 'UTF8' })
+    const group = prepareCheckRustGroup(plans, {
+      defaultCollation: 'C',
+      defaultCtype: 'C.UTF-8',
+      serverEncoding: 'UTF8',
+    })
     for (const [index, check] of group.checks.entries())
       expect(check.kind, checks[index]!.name + ('reason' in check ? ': ' + check.reason : '')).toBe(
         'supported',
       )
-    expect(group.evaluatorSource).toContain('jsonpath_exists_utf8(')
+    expect(group.evaluatorSource).toContain('jsonpath_exists_context(')
     const defaultContext = prepareCheckRustGroup(plans)
-    expect(defaultContext.evaluatorSource).toContain('sql__pg_catalog__jsonb_path_exists__81t5(')
+    expect(defaultContext.evaluatorSource).toContain('jsonpath_exists_context(')
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     const references: unknown[] = []
     const cases: [string | null, string, string, boolean, boolean][] = [
@@ -204,6 +212,12 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ['{"a":"2024-060","flag":true}', '$.a.datetime("YYYY-DDD")', '{}', false, false],
       ['{"a":"29 February 2024","flag":true}', '$.a.datetime("DD Month YYYY")', '{}', false, false],
       ['{"a":"12 PM","flag":true}', '$.a.datetime("HH12 AM")', '{}', false, false],
+      ['{"a":"Abc","flag":true}', '$.a like_regex "abc" flag "i"', '{}', false, false],
+      ['{"a":"é","flag":true}', '$.a like_regex "é" flag "q"', '{}', false, false],
+      ['{"a":["abc",1],"flag":true}', 'strict $.a[*] like_regex "a"', '{}', false, false],
+      ['{"a":"abc","flag":true}', '$.a like_regex "["', '{}', false, true],
+      ['{"a":"abc","flag":true}', '$.a like_regex "a" flag "x"', '{}', false, true],
+
       ['{"a":"2024-09-Thursday","flag":true}', '$.a.datetime("IYYY-IW-Day")', '{}', false, false],
       ['{"a":"13 AM","flag":true}', '$.a.datetime("HH12 AM")', '{}', true, false],
 

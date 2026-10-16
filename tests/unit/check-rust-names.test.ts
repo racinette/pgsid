@@ -37,7 +37,36 @@ describe('CHECK evaluator identity names', () => {
       graph.modules.flatMap((module) => module.files.map((file) => file.path))
     expect(sources(withoutZones).some((path) => path.includes('/timezone'))).toBe(false)
     expect(sources(withZones)).toContain('generated/timezone_tables.rs')
-    expect(sources(withZones).filter((path) => path.includes('/timezone'))).toHaveLength(4)
+    expect(sources(withZones).filter((path) => path.includes('/timezone'))).toHaveLength(6)
+  })
+  it('includes the regex engine and execution sources only for their consumers', () => {
+    const paths = (graph: ReturnType<typeof assembleCheckRust>) =>
+      graph.modules.flatMap((module) => module.files.map((file) => file.path))
+    const scalar = assembleCheckRust({
+      source: '',
+      callables: ['sql__pg_catalog__regexp_like__k08m'],
+    })
+    expect(scalar.modules.some((module) => module.name === 'regex_engine')).toBe(true)
+    expect(paths(scalar).some((path) => path.endsWith('/jsonpath_execute.rs'))).toBe(false)
+    const bare = assembleCheckRust({ source: '', callables: [] })
+    expect(bare.modules.some((module) => module.name === 'regex_engine')).toBe(false)
+    expect(paths(bare).some((path) => path.endsWith('/jsonpath_execute.rs'))).toBe(false)
+    const values = assembleCheckRust({ source: '', callables: [], requiresRegex: true })
+    expect(paths(values)).toContain(
+      'crates/check-evaluator/src/operations/pg_catalog/jsonpath_input.rs',
+    )
+    expect(paths(values).some((path) => path.endsWith('/jsonpath_execute.rs'))).toBe(false)
+    const execution = assembleCheckRust({
+      source: '',
+      callables: ['sql__pg_catalog__jsonb_path_query_first__w0y6'],
+    })
+    expect(execution.modules.some((module) => module.name === 'regex_engine')).toBe(true)
+    expect(paths(execution)).toContain(
+      'crates/check-evaluator/src/operations/pg_catalog/jsonpath_execute.rs',
+    )
+    expect(paths(execution)).toContain(
+      'crates/check-evaluator/src/operations/pg_catalog/jsonpath_regex.rs',
+    )
   })
   it('keeps names stable across reordering, additions, and unsupported constraints', () => {
     const first = { identity, expression }

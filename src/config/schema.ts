@@ -307,6 +307,7 @@ export const codegenSchema = z
     checks: z
       .object({
         defaultCollation: z.literal('C').optional(),
+        defaultCtype: z.enum(['C', 'C.UTF-8']).optional(),
         serverEncoding: z.literal('UTF8').optional(),
       })
       .strict()

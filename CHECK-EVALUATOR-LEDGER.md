@@ -21,8 +21,7 @@ Measure each boundary separately:
 | `artifacts/check-worlds/report.json`     | Actual INSERT outcomes, Unknown results, and unexercised constraints                  |
 | `artifacts/check-coercions/report.json`  | Explicit cast pairs and runtime text conversions, compared in raw/stored CHECKs       |
 
-Generated artifacts are ignored by Git. The census and type-audit producers live
-under maintained `scripts/check-measurements/`.
+Generated artifacts are ignored by Git. The census and type-audit producers live under maintained `scripts/check-measurements/`.
 
 Refresh world outcomes before measuring the surface. Run from the repository root:
 
@@ -284,7 +283,8 @@ exposes a prerequisite:
 - [x] JSONPath integer/bigint/boolean/number/decimal/string conversions, owned string results and chained predicates; preserve parsing, numeric scales, argument validation, suppression and INSERT parity.
 - [x] JSONPath keyvalue objects: owned logical nodes, document/variable/generated IDs, wrapping counters and offsets, partially unknown identities, strict/lax prefixes, format limits and INSERT parity.
 - [x] JSONPath temporal methods and numeric calendar/clock templates: typed intermediates, widths/literals, grouped years/eras, ordinal/Julian/week calendars, 12-hour clocks, English/Roman names, fractions/offsets, comparisons and INSERT parity; preserve partial-field validation, integer widths, error hardness and context requirements.
-- [ ] JSONPath regex execution and context-sensitive operations.
+- [x] JSONPath regex execution under declared C/C.UTF-8 character profiles: flags, strict/lax sequences, lazy guards, error hardness and INSERT parity; retain engine limits and Unicode locale requirements.
+- [ ] JSONPath Unicode locale-sensitive regex matching, remaining context-sensitive operations and callable/interface classification.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.

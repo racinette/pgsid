@@ -187,6 +187,7 @@ const rustType = (type: string): string => {
 
 export type CheckExecutionContext = {
   defaultCollation?: 'C'
+  defaultCtype?: 'C' | 'C.UTF-8'
   serverEncoding?: 'UTF8'
 }
 
@@ -712,8 +713,7 @@ export function emitCheckRustEvaluator(
       }
       callables.add(implementation.rustName)
       const name = fresh('value')
-      const callable =
-        executionContext.serverEncoding === 'UTF8' &&
+      const jsonpathExecution =
         implementation.schema === 'pg_catalog' &&
         [
           'jsonb_path_exists',
@@ -723,8 +723,21 @@ export function emitCheckRustEvaluator(
           'jsonb_path_query_array',
           'jsonb_path_query_first',
         ].includes(implementation.name)
-          ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_utf8'
-          : implementation.rustName
+      const callable = jsonpathExecution
+        ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
+        : implementation.rustName
+      if (jsonpathExecution)
+        arguments_.push(
+          String(executionContext.defaultCollation === 'C'),
+          String(executionContext.serverEncoding === 'UTF8'),
+          String(
+            executionContext.defaultCtype === 'C'
+              ? 1
+              : executionContext.defaultCtype === 'C.UTF-8'
+                ? 2
+                : 0,
+          ),
+        )
       destination.push(`let ${name} = ${callable}(${arguments_.join(', ')});`)
       return { name, type: call.type }
     }

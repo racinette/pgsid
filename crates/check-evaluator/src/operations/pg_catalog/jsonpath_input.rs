@@ -3,31 +3,7 @@ fn jsonpath_regex_literal(pattern: &str, flags: i32, c_collation: bool) -> BoolV
     if quoted == false && c_collation == false {
         return BoolValue::Unknown;
     };
-    let mut syntax = Syntax::Advanced;
-    let mut newline = NewlineMode::Stop;
-    if quoted {
-        syntax = Syntax::Literal;
-        newline = NewlineMode::Ordinary;
-    } else {
-        let dotall = (flags / 2) % 2 == 1;
-        let multiline = (flags / 4) % 2 == 1;
-        if dotall && multiline {
-            newline = NewlineMode::Anchors;
-        } else if dotall {
-            newline = NewlineMode::Ordinary;
-        } else if multiline {
-            newline = NewlineMode::Sensitive;
-        };
-    };
-    let result = compile(
-        pattern,
-        RegexOptions {
-            syntax: syntax,
-            case_sensitive: flags % 2 == 0,
-            expanded: false,
-            newline: newline,
-        },
-    );
+    let result = compile(pattern, jsonpath_regex_options(flags));
     if let CompileOutcome::InvalidPattern = result {
         return BoolValue::Error(make_sql_error(SQLSTATE_INVALID_REGEX));
     };
@@ -115,4 +91,30 @@ pub fn jsonpath_validate_utf8(input: TextValue, c_collation: bool) -> BoolValue 
         return BoolValue::Value(true);
     };
     BoolValue::Unknown
+}
+
+fn jsonpath_regex_options(flags: i32) -> RegexOptions {
+    let quoted = flags >= 16;
+    let mut syntax = Syntax::Advanced;
+    let mut newline = NewlineMode::Stop;
+    if quoted {
+        syntax = Syntax::Literal;
+        newline = NewlineMode::Ordinary;
+    } else {
+        let dotall = (flags / 2) % 2 == 1;
+        let multiline = (flags / 4) % 2 == 1;
+        if dotall && multiline {
+            newline = NewlineMode::Anchors;
+        } else if dotall {
+            newline = NewlineMode::Ordinary;
+        } else if multiline {
+            newline = NewlineMode::Sensitive;
+        };
+    };
+    RegexOptions {
+        syntax: syntax,
+        case_sensitive: flags % 2 == 0,
+        expanded: false,
+        newline: newline,
+    }
 }
