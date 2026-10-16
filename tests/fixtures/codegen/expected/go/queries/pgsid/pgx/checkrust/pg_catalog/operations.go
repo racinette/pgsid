@@ -12354,6 +12354,292 @@ func jsonpathExecutionLiterals(path *checkruntime.JsonpathPayload) []checkruntim
 	}
 	return nodes
 }
+func jsonpathTemplateDateMode(kind int) int {
+	kind = langruntime.CheckedI32(kind)
+	if (kind >= 1 && kind <= 6) || kind == 24 || kind == 25 || kind == 26 || kind == 27 || kind == 33 {
+		return 1
+	}
+	if kind >= 34 && kind <= 40 {
+		return 2
+	}
+	return 0
+}
+func jsonpathTemplateCalendarFits(value int64) bool {
+	return value >= int64(-2147483648) && value <= int64(2147483647)
+}
+func jsonpathTemplateWeekStart(year int, week int) int {
+	year = langruntime.CheckedI32(year)
+	week = langruntime.CheckedI32(week)
+	shifted := int(int32((langruntime.CheckedI64Add((int64(langruntime.CheckedI32(year))), int64(4799)))))
+	y := int64(langruntime.CheckedI32(shifted))
+	century := langruntime.CheckedI64Divide(y, int64(100))
+	fourth := int(int32((langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(langruntime.CheckedI64Multiply(y, int64(365)), int64(32167)), langruntime.CheckedI64Divide(y, int64(4))), century), langruntime.CheckedI64Divide(century, int64(4))), langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(int64(7834), int64(14)), int64(256))), int64(4)))))
+	weekday := langruntime.CheckedSignedRemainder(fourth, 7)
+	if weekday < 0 {
+		weekday = langruntime.CheckedI32(langruntime.CheckedSignedAdd(weekday, 7))
+	}
+	return int(int32((langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(week))), int64(1))), int64(7)), (int64(langruntime.CheckedI32(fourth)))), (int64(langruntime.CheckedI32(weekday)))))))
+}
+func jsonpathTemplateJulianCalendar(value int) temporalCalendarFields {
+	value = langruntime.CheckedI32(value)
+	julian := langruntime.CheckedI64Remainder((langruntime.CheckedI64Add((int64(langruntime.CheckedI32(value))), int64(32044))), int64(4294967296))
+	if julian < int64(0) {
+		julian = langruntime.CheckedI64Add(julian, int64(4294967296))
+	}
+	quad := langruntime.CheckedI64Divide(julian, int64(146097))
+	extra := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract(julian, langruntime.CheckedI64Multiply(quad, int64(146097)))), int64(4)), int64(3))
+	julian = langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(julian, int64(60)), langruntime.CheckedI64Multiply(quad, int64(3))), langruntime.CheckedI64Divide(extra, int64(146097)))), int64(4294967296))
+	quad = langruntime.CheckedI64Divide(julian, int64(1461))
+	julian = langruntime.CheckedI64Subtract(julian, langruntime.CheckedI64Multiply(quad, int64(1461)))
+	year := langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(julian, int64(4)), int64(1461))
+	if year != int64(0) {
+		julian = langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(305))), int64(365)), int64(123))
+	} else {
+		julian = langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(julian, int64(306))), int64(366)), int64(123))
+	}
+	year = langruntime.CheckedI64Add(year, langruntime.CheckedI64Multiply(quad, int64(4)))
+	quad = langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(julian, int64(2141)), int64(65536))
+	return temporalCalendarFields{year: int(int32((langruntime.CheckedI64Subtract(year, int64(4800))))), month: int(int32((langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(quad, int64(10))), int64(12)), int64(1))))), day: int(int32((langruntime.CheckedI64Subtract(julian, langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(int64(7834), quad), int64(256))))))}
+}
+func jsonpathTemplateMonthDays(year int, month int) int {
+	year = langruntime.CheckedI32(year)
+	month = langruntime.CheckedI32(month)
+	if month == 2 {
+		if langruntime.CheckedSignedRemainder(year, 4) == 0 && (langruntime.CheckedSignedRemainder(year, 100) != 0 || langruntime.CheckedSignedRemainder(year, 400) == 0) {
+			return 29
+		}
+		return 28
+	}
+	if month == 4 || month == 6 || month == 9 || month == 11 {
+		return 30
+	}
+	return 31
+}
+func jsonpathTemplateCalendar(inputYear int, yearSize int, century int, bc int, julian int, week int, weekday int, weekOfMonth int, inputMonth int, inputDay int, dayOfYear int, mode int, bounded bool) checkruntime.Int8Value {
+	inputYear = langruntime.CheckedI32(inputYear)
+	yearSize = langruntime.CheckedI32(yearSize)
+	century = langruntime.CheckedI32(century)
+	bc = langruntime.CheckedI32(bc)
+	julian = langruntime.CheckedI32(julian)
+	week = langruntime.CheckedI32(week)
+	weekday = langruntime.CheckedI32(weekday)
+	weekOfMonth = langruntime.CheckedI32(weekOfMonth)
+	inputMonth = langruntime.CheckedI32(inputMonth)
+	inputDay = langruntime.CheckedI32(inputDay)
+	dayOfYear = langruntime.CheckedI32(dayOfYear)
+	mode = langruntime.CheckedI32(mode)
+	year := 0
+	month := 1
+	day := 1
+	yearSet := inputYear != 0 || century != 0
+	monthSet := false
+	daySet := false
+	cent := century
+	if bc != 0 {
+		cent = langruntime.CheckedI32(int(int32((langruntime.CheckedI64Subtract(int64(0), (int64(langruntime.CheckedI32(cent))))))))
+	}
+	if inputYear != 0 {
+		if century != 0 && yearSize <= 2 {
+			low := langruntime.CheckedSignedRemainder(inputYear, 100)
+			if low != 0 {
+				step := langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(cent))), int64(1))
+				if cent < 0 {
+					step = langruntime.CheckedI64Add((int64(langruntime.CheckedI32(cent))), int64(1))
+				}
+				product := langruntime.CheckedI64Multiply(step, int64(100))
+				if jsonpathTemplateCalendarFits(product) == false {
+					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateRange)}
+				}
+				combined := langruntime.CheckedI64Add(product, (int64(langruntime.CheckedI32(low))))
+				if cent < 0 {
+					combined = langruntime.CheckedI64Subtract(product, (int64(langruntime.CheckedI32(low))))
+				}
+				if jsonpathTemplateCalendarFits(combined) == false {
+					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateRange)}
+				}
+				if cent < 0 {
+					combined = langruntime.CheckedI64Add(combined, int64(1))
+				}
+				if jsonpathTemplateCalendarFits(combined) == false {
+					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateRange)}
+				}
+				year = langruntime.CheckedI32(int(int32(combined)))
+			} else {
+				combined := langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(cent))), int64(100))
+				if cent < 0 {
+					combined = langruntime.CheckedI64Add(combined, int64(1))
+				}
+				year = langruntime.CheckedI32(int(int32(combined)))
+			}
+		} else {
+			year = langruntime.CheckedI32(inputYear)
+			if bc != 0 {
+				year = langruntime.CheckedI32(int(int32((langruntime.CheckedI64Subtract(int64(0), (int64(langruntime.CheckedI32(year))))))))
+			}
+			if year < 0 {
+				year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 1))
+			}
+		}
+	} else if century != 0 {
+		product := langruntime.CheckedI64Multiply((langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(cent))), int64(1))), int64(100))
+		if cent < 0 {
+			product = langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(cent))), int64(100))
+		}
+		if jsonpathTemplateCalendarFits(product) == false || jsonpathTemplateCalendarFits(langruntime.CheckedI64Add(product, int64(1))) == false {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateRange)}
+		}
+		year = langruntime.CheckedI32(int(int32((langruntime.CheckedI64Add(product, int64(1))))))
+	}
+	if julian != 0 {
+		calendar := jsonpathTemplateJulianCalendar(julian)
+		year = langruntime.CheckedI32(calendar.year)
+		month = langruntime.CheckedI32(calendar.month)
+		day = langruntime.CheckedI32(calendar.day)
+		yearSet = true
+		monthSet = true
+		daySet = true
+	}
+	ordinal := dayOfYear
+	if week != 0 {
+		if mode == 2 {
+			base := jsonpathTemplateWeekStart(year, week)
+			value := int64(langruntime.CheckedI32(base))
+			if weekday > 1 {
+				value = langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(value, (int64(langruntime.CheckedI32(weekday)))), int64(2))
+			} else if weekday != 0 {
+				value = langruntime.CheckedI64Add(value, int64(6))
+			}
+			calendar := jsonpathTemplateJulianCalendar(int(int32(value)))
+			year = langruntime.CheckedI32(calendar.year)
+			month = langruntime.CheckedI32(calendar.month)
+			day = langruntime.CheckedI32(calendar.day)
+			yearSet = true
+			monthSet = true
+			daySet = true
+		} else {
+			step := langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(week))), int64(1))
+			product := langruntime.CheckedI64Multiply(step, int64(7))
+			value := langruntime.CheckedI64Add(product, int64(1))
+			if jsonpathTemplateCalendarFits(step) == false || jsonpathTemplateCalendarFits(product) == false || jsonpathTemplateCalendarFits(value) == false {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateRange)}
+			}
+			ordinal = langruntime.CheckedI32(int(int32(value)))
+		}
+	}
+	explicitDay := inputDay
+	if weekOfMonth != 0 {
+		step := langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(weekOfMonth))), int64(1))
+		product := langruntime.CheckedI64Multiply(step, int64(7))
+		value := langruntime.CheckedI64Add(product, int64(1))
+		if jsonpathTemplateCalendarFits(step) == false || jsonpathTemplateCalendarFits(product) == false || jsonpathTemplateCalendarFits(value) == false {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateRange)}
+		}
+		explicitDay = langruntime.CheckedI32(int(int32(value)))
+	}
+	if explicitDay != 0 {
+		day = langruntime.CheckedI32(explicitDay)
+		daySet = true
+	}
+	if inputMonth != 0 {
+		month = langruntime.CheckedI32(inputMonth)
+		monthSet = true
+	}
+	if ordinal != 0 && (month <= 1 || day <= 1) {
+		if year == 0 && bc == 0 {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateFormat)}
+		}
+		if mode == 2 {
+			base := jsonpathTemplateWeekStart(year, 1)
+			value := langruntime.CheckedI64Add(langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(base))), int64(1)), (int64(langruntime.CheckedI32(ordinal))))
+			calendar := jsonpathTemplateJulianCalendar(int(int32(value)))
+			year = langruntime.CheckedI32(calendar.year)
+			month = langruntime.CheckedI32(calendar.month)
+			day = langruntime.CheckedI32(calendar.day)
+			yearSet = true
+			monthSet = true
+			daySet = true
+		} else {
+			selected := 1
+			previous := 0
+			total := jsonpathTemplateMonthDays(year, 1)
+			for selected <= 12 && ordinal > total {
+				previous = langruntime.CheckedI32(total)
+				selected = langruntime.CheckedI32(langruntime.CheckedSignedAdd(selected, 1))
+				if selected <= 12 {
+					total = langruntime.CheckedI32(langruntime.CheckedSignedAdd(total, jsonpathTemplateMonthDays(year, selected)))
+				}
+			}
+			if month <= 1 {
+				month = langruntime.CheckedI32(selected)
+			}
+			if day <= 1 {
+				day = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(ordinal, previous))
+			}
+			monthSet = true
+			daySet = true
+		}
+	}
+	if (monthSet && (month < 1 || month > 12)) || (daySet && (day < 1 || day > 31)) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateRange)}
+	}
+	if yearSet && monthSet && daySet && day > jsonpathTemplateMonthDays(year, month) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateRange)}
+	}
+	if bounded && (year < langruntime.CheckedSignedNegate(4713) || year > 5874897) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateRange)}
+	}
+	value := langruntime.CheckedI64Subtract(temporalJulianFromCalendar(year, month, day), int64(2451545))
+	if bounded && (value < int64(-2451545) || value >= int64(2145031949)) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(jsonpathTemplateRange)}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value}
+}
+func jsonpathTemplateAsciiMatches(source *jsonpathTemporalSource, position int, name string) bool {
+	position = langruntime.CheckedIndex(position)
+	name = langruntime.CheckedString(name)
+	characters := []rune(name)
+	if langruntime.CheckedAdd(position, len(characters)) > len(source.characters) {
+		return false
+	}
+	index := 0
+	for index < len(characters) {
+		if langruntime.AsciiLowercase(source.characters[langruntime.CheckedAdd(position, index)]) != langruntime.AsciiLowercase(characters[index]) {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func jsonpathTemplateYearGroup(source *jsonpathTemporalSource, begin int) jsonpathTemplateRead {
+	begin = langruntime.CheckedIndex(begin)
+	position := begin
+	for position < len(source.characters) && checkruntime.NumericSpace(source.characters[position]) {
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	limit := langruntime.CheckedAdd(position, 3)
+	if limit > len(source.characters) {
+		limit = langruntime.CheckedIndex(len(source.characters))
+	}
+	negative := false
+	if position < limit && (source.characters[position] == '+' || source.characters[position] == '-') {
+		negative = source.characters[position] == '-'
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	start := position
+	value := 0
+	for position < limit && numericWireDecimalDigit(source.characters[position]) >= 0 {
+		value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(value, 10), numericWireDecimalDigit(source.characters[position])))
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	error := 0
+	if start == position {
+		error = langruntime.CheckedIndex(jsonpathTemplateFormat)
+	}
+	if negative {
+		value = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, value))
+	}
+	return jsonpathTemplateRead{value: value, end: position, width: langruntime.CheckedSubtract(position, begin), error: error}
+}
 
 const jsonpathMethodBigint = 115
 const jsonpathMethodNumber = 118
@@ -16398,7 +16684,7 @@ func copyjsonpathTemplateProgram(value jsonpathTemplateProgram) jsonpathTemplate
 }
 
 var jsonpathTemplateNames = []string{"A.D.", "A.M.", "AD", "AM", "B.C.", "BC", "CC", "DAY", "DDD", "DD", "DY", "Day", "Dy", "D", "FF1", "FF2", "FF3", "FF4", "FF5", "FF6", "FX", "HH24", "HH12", "HH", "IDDD", "ID", "IW", "IYYY", "IYY", "IY", "I", "J", "MI", "MM", "MONTH", "MON", "MS", "Month", "Mon", "OF", "P.M.", "PM", "Q", "RM", "SSSSS", "SSSS", "SS", "TZH", "TZM", "TZ", "US", "WW", "W", "Y,YYY", "YYYY", "YYY", "YY", "Y", "a.d.", "a.m.", "ad", "am", "b.c.", "bc", "cc", "day", "ddd", "dd", "dy", "d", "ff1", "ff2", "ff3", "ff4", "ff5", "ff6", "fx", "hh24", "hh12", "hh", "iddd", "id", "iw", "iyyy", "iyy", "iy", "i", "j", "mi", "mm", "month", "mon", "ms", "of", "p.m.", "pm", "q", "rm", "sssss", "ssss", "ss", "tzh", "tzm", "tz", "us", "ww", "w", "y,yyy", "yyyy", "yyy", "yy", "y"}
-var jsonpathTemplateKinds = []int{100, 100, 100, 100, 100, 100, 100, 100, 100, 6, 100, 100, 100, 100, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 8, 5, 100, 100, 10, 100, 100, 21, 100, 100, 100, 100, 18, 18, 9, 19, 20, 22, 11, 100, 100, 100, 1, 2, 3, 4, 100, 100, 100, 100, 100, 100, 100, 100, 100, 6, 100, 100, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 8, 5, 100, 100, 10, 21, 100, 100, 100, 100, 18, 18, 9, 19, 20, 22, 11, 100, 100, 100, 1, 2, 3, 4}
+var jsonpathTemplateKinds = []int{32, 100, 31, 100, 32, 31, 30, 100, 24, 6, 100, 100, 100, 25, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 100, 100, 10, 100, 100, 21, 100, 100, 29, 100, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4, 32, 100, 31, 100, 32, 31, 30, 100, 24, 6, 100, 25, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 100, 100, 10, 21, 100, 100, 29, 100, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4}
 var jsonpathTemplateDigits = []int{0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1}
 
 func jsonpathTemplateMatches(source *jsonpathTemporalSource, position int, name string) bool {
@@ -16450,6 +16736,12 @@ func jsonpathTemplateCompile(input string) jsonpathTemplateProgram {
 			if kind == 7 || kind == 19 || kind == 20 || kind == 21 || kind == 22 {
 				width = langruntime.CheckedIndex(2)
 			}
+			if kind == 38 {
+				width = langruntime.CheckedIndex(3)
+			}
+			if kind == 39 {
+				width = langruntime.CheckedIndex(1)
+			}
 			if kind == 10 {
 				width = langruntime.CheckedIndex(3)
 			}
@@ -16469,7 +16761,7 @@ func jsonpathTemplateCompile(input string) jsonpathTemplateProgram {
 			if kind == 100 {
 				supported = false
 			}
-			if kind >= 1 && kind <= 6 {
+			if (kind >= 1 && kind <= 6) || (kind >= 24 && kind <= 39) {
 				dated = true
 			}
 			if kind >= 7 && kind <= 18 {
@@ -16613,7 +16905,7 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 			source := jsonpathTemporalSource{characters: []rune(text)}
 			fields := []jsonpathTemplateField{}
 			index := 0
-			for index < 23 {
+			for index < 34 {
 				langruntime.CheckedAdd(len(fields), 1)
 				fields = append(fields, copyjsonpathTemplateField(jsonpathTemplateField{value: 0}))
 				index = langruntime.CheckedAdd(index, 1)
@@ -16621,6 +16913,8 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 			position := 0
 			zoneSign := langruntime.CheckedSignedNegate(1)
 			precision := langruntime.CheckedSignedNegate(1)
+			yearSize := 0
+			dateMode := 0
 			index = langruntime.CheckedIndex(0)
 			for index < len(program.tokens) {
 				token := program.tokens[index]
@@ -16633,6 +16927,13 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 					}
 					position = langruntime.CheckedAdd(position, 1)
 				} else if token.kind != 23 {
+					mode := jsonpathTemplateDateMode(token.kind)
+					if mode != 0 {
+						if dateMode != 0 && dateMode != mode {
+							return jsonpathTemplateError(jsonpathTemplateFormat, false)
+						}
+						dateMode = langruntime.CheckedI32(mode)
+					}
 					variable := token.fill || token.ordinal || langruntime.CheckedAdd(index, 1) == len(program.tokens)
 					if langruntime.CheckedAdd(index, 1) < len(program.tokens) && program.tokens[langruntime.CheckedAdd(index, 1)].digit == false {
 						variable = true
@@ -16651,13 +16952,72 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 						}
 					}
 					read := jsonpathTemplateReadInteger(&source, position, token.width, variable)
+					if token.kind == 31 || token.kind == 32 {
+						ad := langruntime.NewTextBuffer("AD")
+						bc := langruntime.NewTextBuffer("BC")
+						length := 2
+						if token.kind == 32 {
+							ad = langruntime.NewTextBuffer("A.D.")
+							bc = langruntime.NewTextBuffer("B.C.")
+							length = langruntime.CheckedIndex(4)
+						}
+						if jsonpathTemplateAsciiMatches(&source, position, string(ad)) {
+							read = copyjsonpathTemplateRead(jsonpathTemplateRead{value: 0, end: langruntime.CheckedAdd(position, length), width: length, error: 0})
+						} else if jsonpathTemplateAsciiMatches(&source, position, string(bc)) {
+							read = copyjsonpathTemplateRead(jsonpathTemplateRead{value: 1, end: langruntime.CheckedAdd(position, length), width: length, error: 0})
+						} else {
+							return jsonpathTemplateError(jsonpathTemplateFormat, false)
+						}
+					}
+					if token.kind == 33 {
+						read = copyjsonpathTemplateRead(jsonpathTemplateReadInteger(&source, position, 1, true))
+						if read.error == jsonpathTemplateRange {
+							return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+						}
+						if read.error == 0 {
+							if read.end == len(source.characters) || source.characters[read.end] != ',' {
+								return jsonpathTemplateError(jsonpathTemplateFormat, false)
+							}
+							part := jsonpathTemplateYearGroup(&source, langruntime.CheckedAdd(read.end, 1))
+							if part.error > 0 {
+								return jsonpathTemplateError(part.error, false)
+							}
+							product := langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(read.value))), int64(1000))
+							combined := langruntime.CheckedI64Add(product, int64(langruntime.CheckedI32(part.value)))
+							if jsonpathTemplateCalendarFits(product) == false || jsonpathTemplateCalendarFits(combined) == false {
+								return jsonpathTemplateError(jsonpathTemplateRange, false)
+							}
+							read = copyjsonpathTemplateRead(jsonpathTemplateRead{value: int(int32(combined)), end: part.end, width: langruntime.CheckedSubtract(part.end, position), error: 0})
+						}
+					}
 					if read.error > 0 {
 						return jsonpathTemplateError(read.error, false)
 					}
 					position = langruntime.CheckedIndex(read.end)
 					field := token.kind
-					if field >= 2 && field <= 4 {
+					if field >= 1 && field <= 4 {
+						yearSize = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(5, field))
 						field = langruntime.CheckedI32(1)
+					}
+					if field == 33 {
+						yearSize = langruntime.CheckedI32(4)
+						field = langruntime.CheckedI32(1)
+					}
+					if field >= 34 && field <= 37 {
+						yearSize = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(38, field))
+						field = langruntime.CheckedI32(1)
+					}
+					if field == 32 {
+						field = langruntime.CheckedI32(31)
+					}
+					if field == 38 {
+						field = langruntime.CheckedI32(24)
+					}
+					if field == 39 {
+						field = langruntime.CheckedI32(25)
+					}
+					if field == 40 {
+						field = langruntime.CheckedI32(26)
 					}
 					if field >= 12 && field <= 17 {
 						precision = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(field, 11))
@@ -16667,11 +17027,11 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 						field = langruntime.CheckedI32(19)
 					}
 					slot := langruntime.IndexFromI32(field, 0)
-					if fields[slot].value != 0 && fields[slot].value != read.value {
+					if field != 29 && fields[slot].value != 0 && fields[slot].value != read.value {
 						return jsonpathTemplateError(jsonpathTemplateFormat, false)
 					}
 					value := read.value
-					if token.kind >= 2 && token.kind <= 4 && read.width < 4 {
+					if ((token.kind >= 2 && token.kind <= 4) || (token.kind >= 35 && token.kind <= 37)) && read.width < 4 {
 						if value < 70 {
 							value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 2000))
 						} else if value < 100 {
@@ -16697,7 +17057,15 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 							consumed = langruntime.CheckedAdd(consumed, 1)
 						}
 					}
-					fields[slot] = copyjsonpathTemplateField(jsonpathTemplateField{value: value})
+					if token.kind == 39 {
+						value = langruntime.CheckedI32(int(int32((langruntime.CheckedI64Add((int64(langruntime.CheckedI32(value))), int64(1))))))
+						if value > 7 {
+							value = langruntime.CheckedI32(1)
+						}
+					}
+					if field != 29 {
+						fields[slot] = copyjsonpathTemplateField(jsonpathTemplateField{value: value})
+					}
 					if (token.kind == 21 || token.kind == 22) && position < len(source.characters) && source.characters[position] == ':' {
 						minutes := jsonpathTemplateReadInteger(&source, langruntime.CheckedAdd(position, 1), 2, variable)
 						if minutes.error > 0 {
@@ -16725,31 +17093,17 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 			if position != len(source.characters) {
 				return jsonpathTemplateError(jsonpathTemplateFormat, false)
 			}
-			year := 0
-			index = langruntime.CheckedIndex(1)
-			for index <= 4 {
-				if fields[index].value != 0 {
-					if year != 0 && year != fields[index].value {
-						return jsonpathTemplateError(jsonpathTemplateFormat, false)
-					}
-					year = langruntime.CheckedI32(fields[index].value)
+			calendar := jsonpathTemplateCalendar(fields[1].value, yearSize, fields[30].value, fields[31].value, fields[28].value, fields[26].value, fields[25].value, fields[27].value, fields[5].value, fields[6].value, fields[24].value, dateMode, program.dated)
+			if calendar.Kind == checkruntime.Int8ValueError {
+				error := calendar.Error
+				return jsonpathTemplateError(error.State, false)
+			}
+			date := checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+			if calendar.Kind == checkruntime.Int8ValueValue {
+				value := calendar.Value
+				if program.dated {
+					date = checkruntime.MakeDateValue(int(int32(value)))
 				}
-				index = langruntime.CheckedAdd(index, 1)
-			}
-			if year == 0 {
-				year = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
-			}
-			month := fields[5].value
-			day := fields[6].value
-			if month == 0 {
-				month = langruntime.CheckedI32(1)
-			}
-			if day == 0 {
-				day = langruntime.CheckedI32(1)
-			}
-			date := checkruntime.DateFromYmd(year, month, day)
-			if date.Kind == checkruntime.DateValueError {
-				return jsonpathTemplateError(jsonpathTemplateRange, false)
 			}
 			hours := langruntime.CheckedSignedDivide(fields[18].value, 3600)
 			minutes := langruntime.CheckedSignedDivide((langruntime.CheckedSignedRemainder(fields[18].value, 3600)), 60)
@@ -16939,23 +17293,11 @@ func jsonpathTemporalDecode(input checkruntime.TextValue) jsonpathTemporalValue 
 			if date.valid == false {
 				return jsonpathTemporalInvalid()
 			}
-			year := first.value
-			if year == 0 {
-				year = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
-			}
-			monthValue := month.value
-			dayValue := date.value
-			if monthValue == 0 {
-				monthValue = langruntime.CheckedI32(1)
-			}
-			if dayValue == 0 {
-				dayValue = langruntime.CheckedI32(1)
-			}
-			calendar := checkruntime.DateFromYmd(year, monthValue, dayValue)
+			calendar := jsonpathTemplateCalendar(first.value, 4, 0, 0, 0, 0, 0, 0, month.value, date.value, 0, 1, true)
 			valid := false
-			if calendar.Kind == checkruntime.DateValueValue {
-				number := langruntime.CheckedI32(calendar.Value)
-				day = langruntime.CheckedI32(number)
+			if calendar.Kind == checkruntime.Int8ValueValue {
+				number := calendar.Value
+				day = langruntime.CheckedI32(int(int32(number)))
 				valid = true
 			}
 			if valid == false {
