@@ -108,8 +108,21 @@ export function jsonValueRequirements(item: BuiltinCallable) {
       {
         kind: 'implementation',
         requirement:
-          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Core type/size/abs/floor/ceiling/double methods and integer/bigint/boolean/number/decimal/string conversions are implemented. Keyvalue objects preserve document/variable/generated identities, logical offsets, signed-word wrapping, unknown-id projections and format-limit errors. Default ISO datetime/date/time/time_tz/timestamp/timestamp_tz methods retain typed intermediates, precision, original-offset rendering, comparisons and hard versus suppressible errors. Numeric calendar/clock datetime templates support strict separators, quoted literals, compact widths, short/grouped years, century/era, Gregorian/ISO weeks, day-of-year, Julian dates, fractions, numeric offsets and distinct template/value errors. English month/day names, Roman months and 12-hour clocks are implemented. Translated names retain locale requirements; regex matching remains deferred. Platform-dependent float input forms retain Unknown requirements. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
+          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Core type/size/abs/floor/ceiling/double methods and integer/bigint/boolean/number/decimal/string conversions are implemented. Keyvalue objects preserve document/variable/generated identities, logical offsets, signed-word wrapping, unknown-id projections and format-limit errors. Default ISO datetime/date/time/time_tz/timestamp/timestamp_tz methods retain typed intermediates, precision, original-offset rendering, comparisons and hard versus suppressible errors. Numeric calendar/clock datetime templates support strict separators, quoted literals, compact widths, short/grouped years, century/era, Gregorian/ISO weeks, day-of-year, Julian dates, fractions, numeric offsets and distinct template/value errors. English month/day names, Roman months and 12-hour clocks are implemented. Translated names retain locale requirements. Platform-dependent float input forms retain Unknown requirements. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
         owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
+      },
+      {
+        kind: 'database',
+        setting: 'database default collation / LC_CTYPE / server_encoding',
+        requirement:
+          'Regex matching uses the database default collation independently of expression collations. Declare C ordering separately from C or C.UTF-8 character classification; C ordering does not imply ASCII character classes. Case-sensitive quoted literals bypass collation. Non-ASCII matching requires UTF8. Locale-neutral patterns require no character-type declaration; other supported patterns require C character types or ASCII subjects and patterns under C.UTF-8.',
+        owner: 'tests/sql-semantics/check-jsonpath-regex.test.ts',
+      },
+      {
+        kind: 'implementation',
+        requirement:
+          'Regex predicates reuse the maintained engine with JSONPath flags, strict/lax sequence semantics, three-valued non-string handling, lazy guards and hard regex errors. Non-ASCII C.UTF-8 class, case-folding and other unproven locale-sensitive patterns defer, as do unsupported engine syntax and capacity. These are implementation gaps, separate from missing database context.',
+        owner: 'tests/sql-semantics/check-jsonpath-regex.test.ts',
       },
       {
         kind: 'session',

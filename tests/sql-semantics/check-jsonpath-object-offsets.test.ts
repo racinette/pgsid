@@ -33,7 +33,7 @@ it('derives JSONPath object offsets from logical JSONB values in every target', 
       source: evaluatorSource,
       callables: ['sql__pg_catalog__jsonb_path_query_first__w0y6'],
     })
-    expect(source.modules.some((module) => module.name === 'regex_engine')).toBe(false)
+    expect(source.modules.some((module) => module.name === 'regex_engine')).toBe(true)
     source.modules
       .find((module) => module.name === 'pg_catalog')!
       .files.push({
@@ -53,7 +53,7 @@ pub fn jsonpath_offset_probe(document:TextValue,path:TextValue,expected:TextValu
     empty_nodes.push(JsonbNode{kind:6,child:0,next:0,key_start:0,key_end:0,text_start:0,text_end:0});
     let empty_characters:Vec<char>=Vec::new();
     let vars=JsonbPayload{characters:empty_characters,nodes:empty_nodes,root:1};
-    let context=jsonpath_execution_make_context(value,vars,path,true,encoding,true);
+    let context=jsonpath_execution_make_context(value,vars,path,true,encoding,true,false,0);
     let sequence=jsonpath_execution_walk(context.clone(),false);
     if sequence.unknown || sequence.error>0 || sequence.items.len()!=1 {return BoolValue::Unknown;};
     let reference=sequence.items[0];
@@ -77,7 +77,7 @@ pub fn jsonpath_offset_probe(document:TextValue,path:TextValue,expected:TextValu
     const group: ReturnType<typeof prepareCheckRustGroup> = {
       source,
       evaluatorSource,
-      requiresRegex: false,
+      requiresRegex: true,
       checks: [{ kind: 'supported', entryName: entry, inputs }],
     }
     const value = (input: string | boolean): Input => ({ kind: 'Value', value: input })

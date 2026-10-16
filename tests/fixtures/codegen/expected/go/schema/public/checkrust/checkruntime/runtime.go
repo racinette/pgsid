@@ -319,19 +319,6 @@ type TextValue struct {
 	Error SqlError
 }
 
-func CopyTextValue(value TextValue) TextValue {
-	switch value.Kind {
-	case TextValueUnknown:
-		return TextValue{Kind: TextValueUnknown}
-	case TextValueNull:
-		return TextValue{Kind: TextValueNull}
-	case TextValueValue:
-		return TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(value.Value)}
-	case TextValueError:
-		return TextValue{Kind: TextValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
 func Int4Unknown() Int4Value {
 	return Int4Value{Kind: Int4ValueUnknown}
 }
@@ -682,7 +669,7 @@ type NumericValue struct {
 	Error SqlError
 }
 
-func CopyNumericValue(value NumericValue) NumericValue {
+func copyNumericValue(value NumericValue) NumericValue {
 	switch value.Kind {
 	case NumericValueUnknown:
 		return NumericValue{Kind: NumericValueUnknown}
@@ -806,7 +793,7 @@ type JsonbNode struct {
 	TextEnd   int
 }
 
-func CopyJsonbNode(value JsonbNode) JsonbNode {
+func copyJsonbNode(value JsonbNode) JsonbNode {
 	return JsonbNode{Kind: langruntime.CheckedI32(value.Kind), Child: langruntime.CheckedIndex(value.Child), Next: langruntime.CheckedIndex(value.Next), KeyStart: langruntime.CheckedIndex(value.KeyStart), KeyEnd: langruntime.CheckedIndex(value.KeyEnd), TextStart: langruntime.CheckedIndex(value.TextStart), TextEnd: langruntime.CheckedIndex(value.TextEnd)}
 }
 
@@ -817,7 +804,7 @@ type JsonbPayload struct {
 }
 
 func CopyJsonbPayload(value JsonbPayload) JsonbPayload {
-	return JsonbPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, CopyJsonbNode), Root: langruntime.CheckedIndex(value.Root)}
+	return JsonbPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, copyJsonbNode), Root: langruntime.CheckedIndex(value.Root)}
 }
 
 type JsonbValueKind uint8
@@ -5837,7 +5824,7 @@ type JsonpathNode struct {
 	Flags     int
 }
 
-func CopyJsonpathNode(value JsonpathNode) JsonpathNode {
+func copyJsonpathNode(value JsonpathNode) JsonpathNode {
 	return JsonpathNode{Kind: langruntime.CheckedI32(value.Kind), Next: langruntime.CheckedIndex(value.Next), Left: langruntime.CheckedIndex(value.Left), Right: langruntime.CheckedIndex(value.Right), TextStart: langruntime.CheckedIndex(value.TextStart), TextEnd: langruntime.CheckedIndex(value.TextEnd), First: langruntime.CheckedI32(value.First), Last: langruntime.CheckedI32(value.Last), Flags: langruntime.CheckedI32(value.Flags)}
 }
 
@@ -5849,7 +5836,7 @@ type JsonpathPayload struct {
 }
 
 func CopyJsonpathPayload(value JsonpathPayload) JsonpathPayload {
-	return JsonpathPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, CopyJsonpathNode), Root: langruntime.CheckedIndex(value.Root), Lax: value.Lax}
+	return JsonpathPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, copyJsonpathNode), Root: langruntime.CheckedIndex(value.Root), Lax: value.Lax}
 }
 
 type JsonpathValueKind uint8

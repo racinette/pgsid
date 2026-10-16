@@ -66,7 +66,7 @@ it('executes structural JSONPath sequences, arithmetic, predicates, filters, cor
       source: evaluatorSource,
       callables: functions.map(([, sql, hash]) => `sql__pg_catalog__${sql}__${hash}`),
     })
-    expect(source.modules.some((module) => module.name === 'regex_engine')).toBe(false)
+    expect(source.modules.some((module) => module.name === 'regex_engine')).toBe(true)
     const operations = source.modules.find((module) => module.name === 'pg_catalog')!
     operations.files.find((file) => file.path.endsWith('/jsonpath_execute.rs'))!.source += `
 pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables: TextValue, silent: BoolValue, expected: TextValue, mode: i32, stored: bool, utf8: bool) -> BoolValue {
@@ -142,7 +142,7 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       checks: entries.map((entryName) => ({ kind: 'supported', entryName, inputs })),
       evaluatorSource,
       source,
-      requiresRegex: false,
+      requiresRegex: true,
     }
     const cases: [string, string, string?, boolean?][] = [
       ['{}', '$.keyvalue()'],
@@ -582,6 +582,7 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       '0e16384',
     ])
       cases.push([JSON.stringify(text), '$.number()'])
+    cases.push(['{"a":"2024"}', '$ like_regex "a"'])
     const temporalMethods = ['datetime', 'date', 'time', 'time_tz', 'timestamp', 'timestamp_tz']
     for (const input of [
       '2024-02-29',
@@ -771,7 +772,7 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       })
     }
     for (const variant of variants) {
-      for (const path of ['$.a.datetime("TMMonth")', '$ like_regex "a"'])
+      for (const path of ['$.a.datetime("TMMonth")'])
         fixtures.push({
           name: variant.name,
           row: {

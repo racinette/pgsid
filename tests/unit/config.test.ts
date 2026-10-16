@@ -8,6 +8,12 @@ describe('config schema', () => {
       'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, serverEncoding: UTF8 }\n',
     )
     expect(config.sql.codegen?.checks).toEqual({ defaultCollation: 'C', serverEncoding: 'UTF8' })
+    for (const defaultCtype of ['C', 'C.UTF-8'])
+      expect(
+        parseConfigString(
+          `schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, defaultCtype: ${defaultCtype}, serverEncoding: UTF8 }\n`,
+        ).sql.codegen?.checks,
+      ).toEqual({ defaultCollation: 'C', defaultCtype, serverEncoding: 'UTF8' })
     expect(
       parseConfigString('schema: schema.sql\nsql:\n  codegen: {}\n').sql.codegen?.checks,
     ).toBeUndefined()
@@ -15,6 +21,7 @@ describe('config schema', () => {
       '{ defaultCollation: default }',
       '{ defaultCollation: en_US }',
       '{ serverEncoding: LATIN1 }',
+      '{ defaultCtype: en_US.UTF-8 }',
       '{ unknown: C }',
     ])
       expect(() =>

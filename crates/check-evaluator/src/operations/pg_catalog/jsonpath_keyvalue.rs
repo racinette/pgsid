@@ -7,6 +7,8 @@ fn jsonpath_execution_make_context(
     ordered_result: bool,
     utf8: bool,
     variable_base: bool,
+    c_collation: bool,
+    ctype: i32,
 ) -> JsonpathExecutionContext {
     let mut needs_objects = false;
     let mut index: usize = 1;
@@ -77,6 +79,8 @@ fn jsonpath_execution_make_context(
         path_root: query.root,
         lax: query.lax,
         utf8: utf8,
+        c_collation: c_collation,
+        ctype: ctype,
         ordered_result: ordered_result,
         document_ids: document_ids,
         variables_ids: variables_ids,

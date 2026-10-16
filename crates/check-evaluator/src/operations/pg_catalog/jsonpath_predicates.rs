@@ -73,7 +73,8 @@ fn jsonpath_execution_predicate_task(
 }
 
 fn jsonpath_predicate_kind(kind: i32) -> bool {
-    kind == JSONPATH_NODE_EXISTS
+    kind == JSONPATH_NODE_REGEX
+        || kind == JSONPATH_NODE_EXISTS
         || kind == JSONPATH_NODE_NOT
         || kind == JSONPATH_NODE_IS_UNKNOWN
         || (kind >= JSONPATH_NODE_EQ && kind <= JSONPATH_NODE_STARTS)

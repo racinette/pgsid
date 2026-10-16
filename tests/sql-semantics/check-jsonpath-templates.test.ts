@@ -66,7 +66,7 @@ it('executes JSONPath datetime templates, named fields and clock conventions wit
       source: evaluatorSource,
       callables: functions.map(([, sql, hash]) => `sql__pg_catalog__${sql}__${hash}`),
     })
-    expect(source.modules.some((module) => module.name === 'regex_engine')).toBe(false)
+    expect(source.modules.some((module) => module.name === 'regex_engine')).toBe(true)
     const operations = source.modules.find((module) => module.name === 'pg_catalog')!
     operations.files.find((file) => file.path.endsWith('/jsonpath_execute.rs'))!.source += `
 pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables: TextValue, silent: BoolValue, expected: TextValue, mode: i32, stored: bool, utf8: bool) -> BoolValue {
@@ -114,7 +114,7 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       checks: entries.map((entryName) => ({ kind: 'supported', entryName, inputs })),
       evaluatorSource,
       source,
-      requiresRegex: false,
+      requiresRegex: true,
     }
     const pairs: [string, string][] = [
       ['2024', 'YYYY'],

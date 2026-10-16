@@ -456,49 +456,6 @@ fn jsonpath_temporal_method(kind: i32) -> bool {
     kind == 104 || kind == 109 || kind == 126 || kind == 128 || kind == 130 || kind == 132
 }
 
-fn jsonpath_temporal_apply(
-    context: &JsonpathExecutionContext,
-    method: JsonpathNode,
-    input: TextValue,
-    value_kind: i32,
-) -> JsonpathTemporalValue {
-    if value_kind != 4 {
-        return jsonpath_temporal_invalid();
-    };
-    if method.kind == 128 && method.left > 0 {
-        return jsonpath_template_parse(
-            input,
-            jsonpath_method_text(
-                context,
-                JsonpathReference {
-                    source: 2,
-                    node: method.left,
-                },
-            ),
-        );
-    };
-    let mut precision: i32 = -1;
-    if method.left > 0 {
-        let converted = sql__pg_catalog__int4__z4rh(jsonpath_execution_numeric(
-            context,
-            JsonpathReference {
-                source: 2,
-                node: method.left,
-            },
-        ));
-        if let Int4Value::Error(_) = converted {
-            return jsonpath_temporal_invalid();
-        };
-        if let Int4Value::Value(number) = converted {
-            precision = number;
-        };
-        if let Int4Value::Unknown = converted {
-            return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
-        };
-    };
-    jsonpath_temporal_convert(input, method.kind, precision)
-}
-
 fn jsonpath_temporal_compare(
     left: JsonpathTemporalValue,
     right: JsonpathTemporalValue,
