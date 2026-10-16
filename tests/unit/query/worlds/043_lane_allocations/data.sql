@@ -40,3 +40,15 @@ VALUES ('[0:2]={new,done,new}', 'new', 0, '{0,2}');
 
 INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
 VALUES ('{}', '{NULL}', NULL, false);
+
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES ('[0:1]={1,NULL}', 2, '[0:2]={1,NULL,2}', '[0:2]={2,1,NULL}', false);
+
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('[0:1]={1,2}', '[5:6][0:1]={{3,4},{5,6}}', '[5:7][0:1]={{1,2},{3,4},{5,6}}', '[5:7][0:1]');
+
+INSERT INTO lane_stage_extensions (stages, needle, extra_stages, expected_append, expected_prepend, expected_join)
+VALUES ('{new}', 'done', '{done}', '{new,done}', '{done,new}', '{new,done}');
+
+INSERT INTO lane_document_extensions (payload, extra_payload, expected_payload, bypass)
+VALUES ('{1}', '{"null",NULL}', '{1,"null",NULL}', false);

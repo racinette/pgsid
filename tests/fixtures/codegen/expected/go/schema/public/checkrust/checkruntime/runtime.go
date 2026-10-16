@@ -7759,7 +7759,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		}
 		length := int64(langruntime.CheckedI32(dimension.Length))
 		end := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), length)
-		if end > int64(2147483647) || count > langruntime.CheckedI64Divide(int64(2147483647), length) {
+		if end > int64(2147483648) || count > langruntime.CheckedI64Divide(int64(2147483647), length) {
 			return ArrayValue{Kind: ArrayValueUnknown}
 		}
 		count = langruntime.CheckedI64Multiply(count, length)
@@ -8034,6 +8034,14 @@ func FinishArrayChildren(input ArrayChildrenArguments) ArrayValue {
 		}
 		if empty && len(dimensions) > 0 {
 			return ArrayValue{Kind: ArrayValueError, Error: MakeSqlError(sqlErrorArraySubscript)}
+		}
+		axis := 0
+		for axis < len(dimensions) {
+			dimension := dimensions[axis]
+			if langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), (int64(langruntime.CheckedI32(dimension.Length)))) > int64(2147483647) {
+				return ArrayValue{Kind: ArrayValueError, Error: MakeSqlError(sqlErrorProgramLimit)}
+			}
+			axis = langruntime.CheckedAdd(axis, 1)
 		}
 		return MakeArrayValue(ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: elements})
 	}
@@ -8744,6 +8752,9 @@ func ArrayFetchSubscript(input ArrayValue, indices ArraySubscripts) ArrayElement
 				index := bounds.Upper[depth]
 				if index.Provided == false {
 					return ArrayElement{Kind: ArrayElementUnknown}
+				}
+				if langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), (int64(langruntime.CheckedI32(dimension.Length)))) > int64(2147483647) {
+					return ArrayElement{Kind: ArrayElementNull}
 				}
 				relative := langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(index.Value))), (int64(langruntime.CheckedI32(dimension.Lower))))
 				if relative < int64(0) || relative >= int64(langruntime.CheckedI32(dimension.Length)) {

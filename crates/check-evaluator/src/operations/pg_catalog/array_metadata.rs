@@ -56,7 +56,7 @@ fn array_dimension_value(input: ArrayValue, dimension: Int4Value, mode: i32) -> 
             if mode == 1 {
                 return Int4Value::Value(selected.lower);
             };
-            return Int4Value::Value(selected.lower + selected.length - 1);
+            return Int4Value::Value(selected.lower + (selected.length - 1));
         };
     };
     Int4Value::Unknown
@@ -90,7 +90,7 @@ pub fn sql__pg_catalog__array_dims__01ex(input: ArrayValue) -> TextValue {
         while position < value.dimensions.len() {
             let selected = value.dimensions[position];
             let lower = int4_to_text(Int4Value::Value(selected.lower));
-            let upper = int4_to_text(Int4Value::Value(selected.lower + selected.length - 1));
+            let upper = int4_to_text(Int4Value::Value(selected.lower + (selected.length - 1)));
             if let TextValue::Value(first) = lower {
                 if let TextValue::Value(last) = upper {
                     text.push('[');

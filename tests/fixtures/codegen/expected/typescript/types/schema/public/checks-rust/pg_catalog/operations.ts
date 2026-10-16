@@ -238,7 +238,7 @@ function arrayDimensionValue(input: checkruntime.ArrayValue, dimension: checkrun
             if (mode === 1) {
                 return { kind: "Value", value: selected.lower };
             }
-            return { kind: "Value", value: langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(selected.lower, selected.length), 1) };
+            return { kind: "Value", value: langruntime.checkedSignedAdd(selected.lower, (langruntime.checkedSignedSubtract(selected.length, 1))) };
         }
     }
     return { kind: "Unknown" };
@@ -274,7 +274,7 @@ export function arrayDims01ex(input: checkruntime.ArrayValue): checkruntime.Text
         while (position < value.dimensions.length) {
             const selected: checkruntime.ArrayDimension = langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension);
             const lower: checkruntime.TextValue = int4ToText({ kind: "Value", value: selected.lower });
-            const upper: checkruntime.TextValue = int4ToText({ kind: "Value", value: langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(selected.lower, selected.length), 1) });
+            const upper: checkruntime.TextValue = int4ToText({ kind: "Value", value: langruntime.checkedSignedAdd(selected.lower, (langruntime.checkedSignedSubtract(selected.length, 1))) });
             if (lower.kind === "Value") {
                 const first: string = langruntime.checkedString(lower.value);
                 if (upper.kind === "Value") {
@@ -559,6 +559,231 @@ export function arrayPositionXcpr(input: checkruntime.Int4Value): checkruntime.I
 export function arrayPositionsJonj(input: checkruntime.ArrayValue): checkruntime.ArrayValue {
     input = checkruntime.copyArrayValue(input);
     return input;
+}
+const arrayTransformRank = 3452544;
+const arrayTransformShape = 3452630;
+const arrayTransformLimit = 8584704;
+const arrayTransformOverflow = 3452547;
+const arrayTransformType = 6822148;
+function arrayTransformFinish(input: checkruntime.ArrayPayload, boundAdjustment: number): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayPayload(input);
+    boundAdjustment = langruntime.checkedI32(boundAdjustment);
+    let position: number = 0;
+    let count: bigint = 1n;
+    while (position < input.dimensions.length) {
+        const dimension: checkruntime.ArrayDimension = langruntime.indexStruct(input.dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension);
+        const length: bigint = BigInt(langruntime.checkedI32(dimension.length));
+        const end: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), length);
+        let adjustment: bigint = 0n;
+        if (position === 0) {
+            adjustment = langruntime.checkedI64(BigInt(langruntime.checkedI32(boundAdjustment)));
+        }
+        if (length <= 0n || count > langruntime.checkedI64Divide(2147483647n, length) || langruntime.checkedI64Subtract(end, adjustment) > 2147483647n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformLimit) };
+        }
+        count = langruntime.checkedI64(langruntime.checkedI64Multiply(count, length));
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return checkruntime.makeArrayValue(input);
+}
+function arrayPush(input: checkruntime.ArrayValue, element: checkruntime.ArrayElement, elementType: string, elementKind: number, prepend: boolean): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    element = checkruntime.copyArrayElement(element);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    prepend = langruntime.checkedBool(prepend);
+    if (prepend) {
+        if (element.kind === "Error") {
+            const error: checkruntime.SqlError = element.value;
+            return { kind: "Error", value: error };
+        }
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (element.kind === "Error") {
+        const error: checkruntime.SqlError = element.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        return arrayPushPayload(value, element, elementType, elementKind, prepend);
+    }
+    const dimensions: checkruntime.ArrayDimension[] = [];
+    const elements: checkruntime.ArrayElement[] = [];
+    const empty: checkruntime.ArrayPayload = { elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: elements };
+    return arrayPushPayload(empty, element, elementType, elementKind, prepend);
+}
+function arrayPushPayload(value: checkruntime.ArrayPayload, element: checkruntime.ArrayElement, elementType: string, elementKind: number, prepend: boolean): checkruntime.ArrayValue {
+    value = checkruntime.copyArrayPayload(value);
+    element = checkruntime.copyArrayElement(element);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    prepend = langruntime.checkedBool(prepend);
+    if (!(value.elementType === elementType) || !(value.elementKind === elementKind)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformType) };
+    }
+    if (value.dimensions.length > 1) {
+        return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformRank) };
+    }
+    let lower: number = 1;
+    let length: number = 0;
+    if (value.dimensions.length === 1) {
+        lower = langruntime.checkedI32(langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).lower);
+        length = langruntime.checkedI32(langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length);
+        if (prepend && lower === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformOverflow) };
+        }
+        if (prepend === false && langruntime.checkedI64Add((BigInt(langruntime.checkedI32(lower))), (BigInt(langruntime.checkedI32(length)))) > 2147483647n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformOverflow) };
+        }
+    }
+    if (length === 2147483647) {
+        return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformLimit) };
+    }
+    let output: checkruntime.ArrayElement[] = [];
+    if (prepend) {
+        langruntime.pushStruct(output, checkruntime.copyArrayElement(element), checkruntime.copyArrayElement);
+    }
+    let position: number = 0;
+    while (position < value.elements.length) {
+        langruntime.pushStruct(output, checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)), checkruntime.copyArrayElement);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (prepend === false) {
+        langruntime.pushStruct(output, element, checkruntime.copyArrayElement);
+    }
+    let dimensions: checkruntime.ArrayDimension[] = [];
+    langruntime.pushStruct(dimensions, { lower: lower, length: langruntime.checkedSignedAdd(length, 1) }, checkruntime.copyArrayDimension);
+    let adjustment: number = 0;
+    if (prepend && length > 0) {
+        adjustment = langruntime.checkedI32(1);
+    }
+    return arrayTransformFinish({ elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: output }, adjustment);
+}
+export function arrayAppendK9mc(input: checkruntime.ArrayValue, element: checkruntime.ArrayElement, elementType: string, elementKind: number): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    element = checkruntime.copyArrayElement(element);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    return arrayPush(input, element, elementType, elementKind, false);
+}
+export function arrayPrepend0tgl(element: checkruntime.ArrayElement, input: checkruntime.ArrayValue, elementType: string, elementKind: number): checkruntime.ArrayValue {
+    element = checkruntime.copyArrayElement(element);
+    input = checkruntime.copyArrayValue(input);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    return arrayPush(input, element, elementType, elementKind, true);
+}
+export function arrayCat6rla(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Null") {
+        return right;
+    }
+    if (right.kind === "Null") {
+        return left;
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(right.value);
+            if (!(a.elementType === b.elementType) || !(a.elementKind === b.elementKind)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformType) };
+            }
+            const rankA: number = a.dimensions.length;
+            const rankB: number = b.dimensions.length;
+            if (rankB === 0) {
+                return { kind: "Value", value: a };
+            }
+            if (rankA === 0) {
+                return { kind: "Value", value: b };
+            }
+            if (rankA > langruntime.checkedAdd(rankB, 1) || rankB > langruntime.checkedAdd(rankA, 1)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformShape) };
+            }
+            let dimensions: checkruntime.ArrayDimension[] = [];
+            let position: number = 0;
+            let outerLength: bigint = 0n;
+            let outerLower: number = 1;
+            if (rankA === rankB) {
+                outerLength = langruntime.checkedI64(langruntime.checkedI64Add((BigInt(langruntime.checkedI32(langruntime.indexStruct(a.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length))), (BigInt(langruntime.checkedI32(langruntime.indexStruct(b.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length)))));
+                outerLower = langruntime.checkedI32(langruntime.indexStruct(a.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).lower);
+                position = langruntime.checkedIndex(1);
+                while (position < rankA) {
+                    const first: checkruntime.ArrayDimension = langruntime.indexStruct(a.dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension);
+                    const second: checkruntime.ArrayDimension = langruntime.indexStruct(b.dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension);
+                    if (!(first.lower === second.lower) || !(first.length === second.length)) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformShape) };
+                    }
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+            if (rankA < rankB) {
+                outerLength = langruntime.checkedI64(langruntime.checkedI64Add((BigInt(langruntime.checkedI32(langruntime.indexStruct(b.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length))), 1n));
+                outerLower = langruntime.checkedI32(langruntime.indexStruct(b.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).lower);
+                position = langruntime.checkedIndex(0);
+                while (position < rankA) {
+                    const first: checkruntime.ArrayDimension = langruntime.indexStruct(a.dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension);
+                    const second: checkruntime.ArrayDimension = langruntime.indexStruct(b.dimensions, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)), checkruntime.copyArrayDimension);
+                    if (!(first.lower === second.lower) || !(first.length === second.length)) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformShape) };
+                    }
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+            if (rankA > rankB) {
+                outerLength = langruntime.checkedI64(langruntime.checkedI64Add((BigInt(langruntime.checkedI32(langruntime.indexStruct(a.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length))), 1n));
+                outerLower = langruntime.checkedI32(langruntime.indexStruct(a.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).lower);
+                position = langruntime.checkedIndex(0);
+                while (position < rankB) {
+                    const first: checkruntime.ArrayDimension = langruntime.indexStruct(b.dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension);
+                    const second: checkruntime.ArrayDimension = langruntime.indexStruct(a.dimensions, langruntime.checkedIndex(langruntime.checkedAdd(position, 1)), checkruntime.copyArrayDimension);
+                    if (!(first.lower === second.lower) || !(first.length === second.length)) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformShape) };
+                    }
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+            if (outerLength > 2147483647n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformLimit) };
+            }
+            langruntime.pushStruct(dimensions, { lower: outerLower, length: Number(BigInt.asIntN(32, langruntime.checkedI64(outerLength))) }, checkruntime.copyArrayDimension);
+            position = langruntime.checkedIndex(1);
+            if (rankA >= rankB) {
+                while (position < rankA) {
+                    langruntime.pushStruct(dimensions, langruntime.indexStruct(a.dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension), checkruntime.copyArrayDimension);
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+            else {
+                while (position < rankB) {
+                    langruntime.pushStruct(dimensions, langruntime.indexStruct(b.dimensions, langruntime.checkedIndex(position), checkruntime.copyArrayDimension), checkruntime.copyArrayDimension);
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+            let elements: checkruntime.ArrayElement[] = a.elements;
+            position = langruntime.checkedIndex(0);
+            while (position < b.elements.length) {
+                langruntime.pushStruct(elements, checkruntime.copyArrayElement(langruntime.indexStruct(b.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)), checkruntime.copyArrayElement);
+                position = langruntime.checkedAdd(position, 1);
+            }
+            return arrayTransformFinish({ elementType: a.elementType, elementKind: a.elementKind, dimensions: dimensions, elements: elements }, 0);
+        }
+    }
+    return { kind: "Unknown" };
 }
 export function int48lt65ji(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
     if (left.kind === "Error") {

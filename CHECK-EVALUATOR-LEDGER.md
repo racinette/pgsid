@@ -243,8 +243,7 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
       retain active-transaction requirements for current snapshot retrieval.
 - [x] Remove generation-time enum OIDs from emitted literals and public label adapters, and verify hash deferral across independent databases.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
-- [x] Establish private typed array storage, dimensions/lower bounds, NULL/Unknown elements, independent nested clones and metadata parity.
-- [x] Admit SQL-coerced scalar/enum arrays and domains over arrays, metadata calls, typed builtin NULLs, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
+- [x] Establish typed scalar/enum arrays with dimensions/lower bounds, NULL/Unknown cells, independent nested clones, SQL-coerced public inputs and array domains, metadata, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
 - [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, eager errors, constant preparation and INSERT parity; preserve nominal domain-element deferrals.
 - [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.
 - [x] Admit source/stored array literals and text I/O input, integer/Boolean/numeric/enum input profiles, widths/precision, explicit array_nulls, captured money units and coerced name facets; verify lazy preparation, exact cells and INSERT parity.
@@ -254,6 +253,7 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Admit containment/overlap through default element equality, shape/duplicate independence, nonmatching NULL cells, partial-input recovery, reached errors, constant preparation, collation boundaries and INSERT parity.
 - [x] Establish catalog-linked array element casts, precision/width arguments, common CASE/COALESCE/extrema/constructor types, retained bounds and partial cells, nominal enums and INSERT parity; generic compatible signatures and I/O coercions follow.
 - [x] Bind compatible array/element signatures and admit first/all position searches, NULL matching, lower bounds/start positions, support/shape error order, partial-input prefixes, context/preparation boundaries, nominal enums and INSERT parity.
+- [x] Admit compatible append/prepend and concatenation, NULL identities, copied scalar/enum cells, rank/shape and bound errors, extreme-bound composition, constant preparation and public INSERT parity.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.

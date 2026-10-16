@@ -243,7 +243,7 @@ func arrayDimensionValue(input checkruntime.ArrayValue, dimension checkruntime.I
 			if mode == 1 {
 				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: selected.Lower}
 			}
-			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(selected.Lower, selected.Length), 1)}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(selected.Lower, (langruntime.CheckedSignedSubtract(selected.Length, 1)))}
 		}
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
@@ -279,7 +279,7 @@ func ArrayDims01ex(input checkruntime.ArrayValue) checkruntime.TextValue {
 		for position < len(value.Dimensions) {
 			selected := value.Dimensions[position]
 			lower := Int4ToText(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: selected.Lower})
-			upper := Int4ToText(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(selected.Lower, selected.Length), 1)})
+			upper := Int4ToText(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(selected.Lower, (langruntime.CheckedSignedSubtract(selected.Length, 1)))})
 			if lower.Kind == checkruntime.TextValueValue {
 				first := langruntime.CheckedString(lower.Value)
 				if upper.Kind == checkruntime.TextValueValue {
@@ -560,6 +560,238 @@ func ArrayPositionXcpr(input checkruntime.Int4Value) checkruntime.Int4Value {
 func ArrayPositionsJonj(input checkruntime.ArrayValue) checkruntime.ArrayValue {
 	input = checkruntime.CopyArrayValue(input)
 	return input
+}
+
+const arrayTransformRank = 3452544
+const arrayTransformShape = 3452630
+const arrayTransformLimit = 8584704
+const arrayTransformOverflow = 3452547
+const arrayTransformType = 6822148
+
+func arrayTransformFinish(input checkruntime.ArrayPayload, boundAdjustment int) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayPayload(input)
+	boundAdjustment = langruntime.CheckedI32(boundAdjustment)
+	position := 0
+	count := int64(1)
+	for position < len(input.Dimensions) {
+		dimension := input.Dimensions[position]
+		length := int64(langruntime.CheckedI32(dimension.Length))
+		end := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), length)
+		adjustment := int64(0)
+		if position == 0 {
+			adjustment = int64(langruntime.CheckedI32(boundAdjustment))
+		}
+		if length <= int64(0) || count > langruntime.CheckedI64Divide(int64(2147483647), length) || langruntime.CheckedI64Subtract(end, adjustment) > int64(2147483647) {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformLimit)}
+		}
+		count = langruntime.CheckedI64Multiply(count, length)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return checkruntime.MakeArrayValue(input)
+}
+func arrayPush(input checkruntime.ArrayValue, element checkruntime.ArrayElement, elementType string, elementKind int, prepend bool) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	element = checkruntime.CopyArrayElement(element)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	if prepend {
+		if element.Kind == checkruntime.ArrayElementError {
+			error := element.Error
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+		}
+	}
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if element.Kind == checkruntime.ArrayElementError {
+		error := element.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueUnknown {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		return arrayPushPayload(value, element, elementType, elementKind, prepend)
+	}
+	dimensions := []checkruntime.ArrayDimension{}
+	elements := []checkruntime.ArrayElement{}
+	empty := checkruntime.ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: elements}
+	return arrayPushPayload(empty, element, elementType, elementKind, prepend)
+}
+func arrayPushPayload(value checkruntime.ArrayPayload, element checkruntime.ArrayElement, elementType string, elementKind int, prepend bool) checkruntime.ArrayValue {
+	value = checkruntime.CopyArrayPayload(value)
+	element = checkruntime.CopyArrayElement(element)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	if value.ElementType != elementType || value.ElementKind != elementKind {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformType)}
+	}
+	if len(value.Dimensions) > 1 {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformRank)}
+	}
+	lower := 1
+	length := 0
+	if len(value.Dimensions) == 1 {
+		lower = langruntime.CheckedI32(value.Dimensions[0].Lower)
+		length = langruntime.CheckedI32(value.Dimensions[0].Length)
+		if prepend && lower == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformOverflow)}
+		}
+		if prepend == false && langruntime.CheckedI64Add((int64(langruntime.CheckedI32(lower))), (int64(langruntime.CheckedI32(length)))) > int64(2147483647) {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformOverflow)}
+		}
+	}
+	if length == 2147483647 {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformLimit)}
+	}
+	output := []checkruntime.ArrayElement{}
+	if prepend {
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(element)))
+	}
+	position := 0
+	for position < len(value.Elements) {
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(value.Elements[position])))
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if prepend == false {
+		langruntime.CheckedAdd(len(output), 1)
+		output = append(output, checkruntime.CopyArrayElement(element))
+	}
+	dimensions := []checkruntime.ArrayDimension{}
+	langruntime.CheckedAdd(len(dimensions), 1)
+	dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: lower, Length: langruntime.CheckedSignedAdd(length, 1)})
+	adjustment := 0
+	if prepend && length > 0 {
+		adjustment = langruntime.CheckedI32(1)
+	}
+	return arrayTransformFinish(checkruntime.ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: output}, adjustment)
+}
+func ArrayAppendK9mc(input checkruntime.ArrayValue, element checkruntime.ArrayElement, elementType string, elementKind int) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	element = checkruntime.CopyArrayElement(element)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	return arrayPush(input, element, elementType, elementKind, false)
+}
+func ArrayPrepend0tgl(element checkruntime.ArrayElement, input checkruntime.ArrayValue, elementType string, elementKind int) checkruntime.ArrayValue {
+	element = checkruntime.CopyArrayElement(element)
+	input = checkruntime.CopyArrayValue(input)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	return arrayPush(input, element, elementType, elementKind, true)
+}
+func ArrayCat6rla(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.ArrayValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	if left.Kind == checkruntime.ArrayValueError {
+		error := left.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if right.Kind == checkruntime.ArrayValueError {
+		error := right.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if left.Kind == checkruntime.ArrayValueNull {
+		return right
+	}
+	if right.Kind == checkruntime.ArrayValueNull {
+		return left
+	}
+	if left.Kind == checkruntime.ArrayValueValue {
+		a := checkruntime.CopyArrayPayload(left.Value)
+		if right.Kind == checkruntime.ArrayValueValue {
+			b := checkruntime.CopyArrayPayload(right.Value)
+			if a.ElementType != b.ElementType || a.ElementKind != b.ElementKind {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformType)}
+			}
+			rankA := len(a.Dimensions)
+			rankB := len(b.Dimensions)
+			if rankB == 0 {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: a}
+			}
+			if rankA == 0 {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: b}
+			}
+			if rankA > langruntime.CheckedAdd(rankB, 1) || rankB > langruntime.CheckedAdd(rankA, 1) {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformShape)}
+			}
+			dimensions := []checkruntime.ArrayDimension{}
+			position := 0
+			outerLength := int64(0)
+			outerLower := 1
+			if rankA == rankB {
+				outerLength = langruntime.CheckedI64Add((int64(langruntime.CheckedI32(a.Dimensions[0].Length))), (int64(langruntime.CheckedI32(b.Dimensions[0].Length))))
+				outerLower = langruntime.CheckedI32(a.Dimensions[0].Lower)
+				position = langruntime.CheckedIndex(1)
+				for position < rankA {
+					first := a.Dimensions[position]
+					second := b.Dimensions[position]
+					if first.Lower != second.Lower || first.Length != second.Length {
+						return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformShape)}
+					}
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			}
+			if rankA < rankB {
+				outerLength = langruntime.CheckedI64Add((int64(langruntime.CheckedI32(b.Dimensions[0].Length))), int64(1))
+				outerLower = langruntime.CheckedI32(b.Dimensions[0].Lower)
+				position = langruntime.CheckedIndex(0)
+				for position < rankA {
+					first := a.Dimensions[position]
+					second := b.Dimensions[langruntime.CheckedAdd(position, 1)]
+					if first.Lower != second.Lower || first.Length != second.Length {
+						return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformShape)}
+					}
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			}
+			if rankA > rankB {
+				outerLength = langruntime.CheckedI64Add((int64(langruntime.CheckedI32(a.Dimensions[0].Length))), int64(1))
+				outerLower = langruntime.CheckedI32(a.Dimensions[0].Lower)
+				position = langruntime.CheckedIndex(0)
+				for position < rankB {
+					first := b.Dimensions[position]
+					second := a.Dimensions[langruntime.CheckedAdd(position, 1)]
+					if first.Lower != second.Lower || first.Length != second.Length {
+						return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformShape)}
+					}
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			}
+			if outerLength > int64(2147483647) {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformLimit)}
+			}
+			langruntime.CheckedAdd(len(dimensions), 1)
+			dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: outerLower, Length: int(int32(outerLength))})
+			position = langruntime.CheckedIndex(1)
+			if rankA >= rankB {
+				for position < rankA {
+					langruntime.CheckedAdd(len(dimensions), 1)
+					dimensions = append(dimensions, a.Dimensions[position])
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			} else {
+				for position < rankB {
+					langruntime.CheckedAdd(len(dimensions), 1)
+					dimensions = append(dimensions, b.Dimensions[position])
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			}
+			elements := a.Elements
+			position = langruntime.CheckedIndex(0)
+			for position < len(b.Elements) {
+				langruntime.CheckedAdd(len(elements), 1)
+				elements = append(elements, checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(b.Elements[position])))
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			return arrayTransformFinish(checkruntime.ArrayPayload{ElementType: a.ElementType, ElementKind: a.ElementKind, Dimensions: dimensions, Elements: elements}, 0)
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
 }
 func Int48lt65ji(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
