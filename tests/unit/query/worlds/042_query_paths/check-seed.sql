@@ -86,3 +86,23 @@ INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables
 INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'nested last scopes','{"a":[0,1,2],"i":[1,0],"flag":false}'::jsonb,'$.a[$.i[last] to last]'::jsonpath,'$.a[$.i[last] to last]','{}'::jsonb,false,false,true,false,'[0,1,2]'::jsonb,'0'::jsonb);
 -- name: document_wrong_arithmetic
 INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong arithmetic result','{"flag":false}'::jsonb,'$delta+1'::jsonpath,'$delta+1','{"delta":[1]}'::jsonb,false,false,true,false,'[3]'::jsonb,'2'::jsonb);
+-- name: document_filter
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'filtered numbers','{"a":[1,2,3],"flag":true}'::jsonb,'$.a?(@>1)'::jsonpath,'$.a?(@>1)','{}'::jsonb,false,false,true,true,'[2,3]'::jsonb,'2'::jsonb);
+-- name: document_filter_none
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'no matching number','{"a":[1],"flag":false}'::jsonb,'$.a?(@>1)'::jsonpath,'$.a?(@>1)','{}'::jsonb,false,false,false,false,'[]'::jsonb,NULL::jsonb);
+-- name: document_filter_variable
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'variable filter','{"a":[1,2,3],"flag":true}'::jsonb,'$.a?(@>$limit)'::jsonpath,'$.a?(@>$limit)','{"limit":2}'::jsonb,false,false,true,true,'[3]'::jsonb,'3'::jsonb);
+-- name: document_predicate_unknown
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'known unknown predicate','{"flag":true}'::jsonb,'1=="x"'::jsonpath,'1=="x"','{}'::jsonb,false,false,true,true,'[null]'::jsonb,'null'::jsonb);
+-- name: document_predicate_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'suppressed predicate error','{"flag":true}'::jsonb,'strict $.missing==1'::jsonpath,'strict $.missing==1','{}'::jsonb,false,false,true,true,'[null]'::jsonb,'null'::jsonb);
+-- name: document_predicate_skip
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'lazy true predicate','{"flag":false}'::jsonb,'(1==1) || exists($missing)'::jsonpath,'(1==1) || exists($missing)','{}'::jsonb,false,false,true,false,'[true]'::jsonb,'true'::jsonb);
+-- name: document_nested_filter
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'nested current scopes','{"a":[{"values":[1,2],"keep":true},{"values":[1],"keep":true},{"values":[3],"keep":false}],"flag":true}'::jsonb,'$.a?(exists(@.values?(@>1)) && @.keep==true).values'::jsonpath,'$.a?(exists(@.values?(@>1)) && @.keep==true).values','{}'::jsonb,false,false,true,true,'[[1,2]]'::jsonb,'[1,2]'::jsonb);
+-- name: document_starts_with
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'prefix match','{"a":["abc","xyz","abd"],"flag":true}'::jsonb,'$.a?(@ starts with "ab")'::jsonpath,'$.a?(@ starts with "ab")','{}'::jsonb,false,false,true,true,'["abc","abd"]'::jsonb,'"abc"'::jsonb);
+-- name: document_filter_wrong_results
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong filtered numbers','{"a":[1,2,3],"flag":true}'::jsonb,'$.a?(@>1)'::jsonpath,'$.a?(@>1)','{}'::jsonb,false,false,true,true,'[1,2,3]'::jsonb,'2'::jsonb);
+-- name: document_filter_missing_variable
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'missing filter variable','{"a":[1,2],"flag":true}'::jsonb,'$.a?(@==$missing)'::jsonpath,'$.a?(@==$missing)','{}'::jsonb,true,false,NULL,true,'[]'::jsonb,NULL::jsonb);

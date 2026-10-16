@@ -102,13 +102,13 @@ export function jsonValueRequirements(item: BuiltinCallable) {
         kind: 'database',
         setting: 'server_encoding',
         requirement:
-          'Wildcard and descendant traversal over multiple nonempty object keys containing non-ASCII text requires declared UTF8 to establish sequence order.',
+          'Order-sensitive wildcard/descendant traversal over non-ASCII object keys and non-ASCII string predicates require declared UTF8. ASCII predicates and encoding-independent terminal Boolean facts remain portable.',
         owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
       },
       {
         kind: 'implementation',
         requirement:
-          'Structural traversal, variables, sequence arithmetic and subscript expressions are implemented. Reached filters, predicates and methods remain deferred. Arithmetic operands with accessors or arithmetic results followed by accessors require exact source graphs because stored rendering can lose grouping.',
+          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Reached methods and regex matching remain deferred. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
         owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
       },
     ]

@@ -5,6 +5,7 @@ const JSONPATH_EXEC_OBJECT: u32 = 3452664;
 const JSONPATH_EXEC_SINGLETON: u32 = 3452660;
 const JSONPATH_EXEC_VARIABLE: u32 = 6820852;
 const JSONPATH_EXEC_PARAMETER: u32 = 3452619;
+const JSONPATH_EXEC_INTERNAL: u32 = 56966976;
 
 #[derive(Clone, Copy)]
 struct JsonpathReference {
@@ -41,6 +42,7 @@ struct JsonpathExecutionTask {
     from: i32,
     to: i32,
     mark: usize,
+    scope: JsonpathExecutionScope,
 }
 
 #[derive(Clone)]
@@ -55,6 +57,17 @@ fn jsonpath_execution_node(
     context: &JsonpathExecutionContext,
     reference: JsonpathReference,
 ) -> JsonbNode {
+    if reference.source == 4 {
+        return JsonbNode {
+            kind: reference.node as i32,
+            child: 0,
+            next: 0,
+            key_start: 0,
+            key_end: 0,
+            text_start: 0,
+            text_end: 0,
+        };
+    };
     if reference.source == 3 {
         return JsonbNode {
             kind: 3,
@@ -218,6 +231,7 @@ fn jsonpath_execution_make_task(
         from: 0,
         to: 0,
         mark: 0,
+        scope: jsonpath_execution_empty_scope(),
     }
 }
 
@@ -242,8 +256,16 @@ fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
                     && node.kind != JSONPATH_NODE_INDEX
                     && node.kind != JSONPATH_NODE_SUBSCRIPT
                     && node.kind != JSONPATH_NODE_DESCENDANT
-                    && (node.kind < JSONPATH_NODE_PLUS || node.kind > JSONPATH_NODE_MOD)
+                    && node.kind != JSONPATH_NODE_CURRENT
+                    && node.kind != JSONPATH_NODE_FILTER
+                    && node.kind != JSONPATH_NODE_EXISTS
+                    && node.kind != JSONPATH_NODE_NOT
+                    && node.kind != JSONPATH_NODE_IS_UNKNOWN
+                    && (node.kind < JSONPATH_NODE_PLUS || node.kind > JSONPATH_NODE_STARTS)
                 {
+                    return JsonpathValue::Unknown;
+                };
+                if jsonpath_predicate_kind(node.kind) && node.next > 0 {
                     return JsonpathValue::Unknown;
                 };
                 if node.kind >= JSONPATH_NODE_PLUS && node.kind <= JSONPATH_NODE_MOD {
@@ -287,6 +309,13 @@ fn jsonpath_execution_walk(
     let mut collect_base: usize = 0;
     let mut collect_unwrap = false;
     let mut innermost_size: i32 = -1;
+    let mut current = JsonpathReference {
+        source: 0,
+        node: context.document_root,
+    };
+    let mut exists_stop: usize = 0;
+    let mut exists_depth: usize = 0;
+    let mut caught_error = false;
     let mut error: u32 = 0;
     let mut unknown = false;
     while count > 0 && error == 0 && unknown == false {
@@ -316,6 +345,7 @@ fn jsonpath_execution_walk(
                     spec: task.spec,
                     to: task.to,
                     mark: 0,
+                    scope: jsonpath_execution_empty_scope(),
                 });
             };
             let mut mode: i32 = 0;
@@ -340,6 +370,7 @@ fn jsonpath_execution_walk(
                 from: 0,
                 to: 0,
                 mark: 0,
+                scope: jsonpath_execution_empty_scope(),
             };
             pending.push(selected);
         } else if task.mode == 2 {
@@ -360,6 +391,7 @@ fn jsonpath_execution_walk(
                         from: 0,
                         to: 0,
                         mark: 0,
+                        scope: jsonpath_execution_empty_scope(),
                     });
                 };
                 let eligible = (step.first >= 0
@@ -399,6 +431,7 @@ fn jsonpath_execution_walk(
                     from: 0,
                     to: 0,
                     mark: 0,
+                    scope: jsonpath_execution_empty_scope(),
                 });
             };
         } else if task.mode == 4 {
@@ -414,6 +447,7 @@ fn jsonpath_execution_walk(
                 from: 0,
                 to: 0,
                 mark: item_count,
+                scope: jsonpath_execution_empty_scope(),
             });
             if collect_depth == 0 {
                 collect_base = item_count;
@@ -440,6 +474,7 @@ fn jsonpath_execution_walk(
                 from: 0,
                 to: 0,
                 mark: task.mark,
+                scope: jsonpath_execution_empty_scope(),
             });
             pending.push(jsonpath_execution_make_task(
                 0,
@@ -500,6 +535,7 @@ fn jsonpath_execution_walk(
                     from: 0,
                     to: 0,
                     mark: 0,
+                    scope: jsonpath_execution_empty_scope(),
                 });
             };
         } else if task.mode == 10 {
@@ -516,6 +552,7 @@ fn jsonpath_execution_walk(
                     from: 0,
                     to: 0,
                     mark: 0,
+                    scope: jsonpath_execution_empty_scope(),
                 });
             };
             let selected = operands[task.level];
@@ -542,10 +579,10 @@ fn jsonpath_execution_walk(
                     context.lax,
                     task.ignore,
                 ));
-            } else if existence == false
-                || context.lax == false
-                || collect_depth > 0
+            } else if context.lax == false
                 || step.next > 0
+                || ((existence == false || collect_depth > 0)
+                    && (exists_stop == 0 || collect_depth != exists_depth))
             {
                 error = JSONPATH_EXEC_NUMBER;
             };
@@ -591,6 +628,7 @@ fn jsonpath_execution_walk(
                         from: position,
                         to: 0,
                         mark: item_count,
+                        scope: jsonpath_execution_empty_scope(),
                     });
                     if collect_depth == 0 {
                         collect_base = item_count;
@@ -620,6 +658,7 @@ fn jsonpath_execution_walk(
                         from: begin,
                         to: position,
                         mark: 0,
+                        scope: jsonpath_execution_empty_scope(),
                     });
                 };
             };
@@ -642,6 +681,7 @@ fn jsonpath_execution_walk(
                         from: 0,
                         to: 0,
                         mark: 0,
+                        scope: jsonpath_execution_empty_scope(),
                     });
                 };
                 let mut from = task.from;
@@ -687,11 +727,213 @@ fn jsonpath_execution_walk(
                         from: from,
                         to: to,
                         mark: 0,
+                        scope: jsonpath_execution_empty_scope(),
                     });
                 };
             };
         } else if task.mode == 14 {
             innermost_size = task.from;
+        } else if task.mode == 15 || task.mode == 16 || task.mode == 17 {
+            let step = context.path_nodes[task.step];
+            let mut predicate: i32 = 1;
+            let mut ready = true;
+            if caught_error {
+                predicate = 0;
+                caught_error = false;
+            } else if task.mode == 15 {
+                let scope = task.scope;
+                pending.push(jsonpath_execution_predicate_task(
+                    16,
+                    task.step,
+                    task.reference,
+                    task.ignore,
+                    task.mark,
+                    item_count,
+                    0,
+                    scope,
+                ));
+                collect_unwrap = step.kind != JSONPATH_NODE_STARTS;
+                pending.push(jsonpath_execution_make_task(
+                    0,
+                    step.right,
+                    task.reference,
+                    context.lax,
+                    task.ignore,
+                ));
+                ready = false;
+            } else if task.mode == 17 {
+                if item_count > task.mark {
+                    predicate = 2;
+                };
+            } else {
+                let mut left_index = task.mark;
+                let mut error_pair = false;
+                let mut found_pair = false;
+                while left_index < task.level && ready && unknown == false {
+                    let mut right_index = task.level;
+                    while right_index < item_count && ready && unknown == false {
+                        let first = items[left_index];
+                        let second = items[right_index];
+                        let mut left_number = jsonpath_execution_numeric(context, first);
+                        let mut right_number = jsonpath_execution_numeric(context, second);
+                        if first.source == 3 {
+                            left_number = numbers[first.node].clone();
+                        };
+                        if second.source == 3 {
+                            right_number = numbers[second.node].clone();
+                        };
+                        let result = jsonpath_predicate_pair(
+                            context,
+                            step.kind,
+                            first,
+                            second,
+                            left_number,
+                            right_number,
+                        );
+                        if result.deferred {
+                            unknown = true;
+                        } else if result.state == 0 {
+                            error_pair = true;
+                            if context.lax == false {
+                                predicate = 0;
+                                ready = false;
+                            };
+                        } else if result.state == 2 {
+                            found_pair = true;
+                            if context.lax {
+                                predicate = 2;
+                                ready = false;
+                            };
+                        };
+                        right_index += 1;
+                    }
+                    left_index += 1;
+                }
+                if ready {
+                    if found_pair {
+                        predicate = 2;
+                    } else if error_pair {
+                        predicate = 0;
+                    };
+                };
+                ready = true;
+            };
+            if ready {
+                item_count = task.mark;
+                collect_depth = task.scope.depth;
+                collect_base = task.scope.base;
+                collect_unwrap = task.scope.unwrap;
+                innermost_size = task.scope.size;
+                current = task.scope.current;
+                exists_stop = task.scope.exists_stop;
+                exists_depth = task.scope.exists_depth;
+                pending.push(jsonpath_execution_make_task(
+                    0,
+                    step.next,
+                    JsonpathReference {
+                        source: 4,
+                        node: usize::try_from(predicate).unwrap_or(0),
+                    },
+                    context.lax,
+                    task.ignore,
+                ));
+            };
+        } else if task.mode == 18 || task.mode == 19 || task.mode == 20 || task.mode == 21 {
+            let step = context.path_nodes[task.step];
+            let mut predicate: i32 = 0;
+            if item_count - task.mark == 1 {
+                predicate = jsonpath_execution_node(context, items[task.mark]).kind;
+            } else {
+                error = JSONPATH_EXEC_INTERNAL;
+            };
+            item_count = task.mark;
+            collect_depth = task.scope.depth;
+            collect_base = task.scope.base;
+            collect_unwrap = task.scope.unwrap;
+            innermost_size = task.scope.size;
+            current = task.scope.current;
+            exists_stop = task.scope.exists_stop;
+            exists_depth = task.scope.exists_depth;
+            let mut ready = true;
+            if task.mode == 18 {
+                if (step.kind == JSONPATH_NODE_AND && predicate == 1)
+                    || (step.kind == JSONPATH_NODE_OR && predicate == 2)
+                {
+                } else {
+                    if context.path_nodes[step.right].next > 0 {
+                        error = JSONPATH_EXEC_INTERNAL;
+                    } else {
+                        pending.push(jsonpath_execution_predicate_task(
+                            19,
+                            task.step,
+                            task.reference,
+                            task.ignore,
+                            item_count,
+                            0,
+                            predicate,
+                            task.scope,
+                        ));
+                        if collect_depth == 0 {
+                            collect_base = item_count;
+                        };
+                        collect_depth += 1;
+                        collect_unwrap = false;
+                        exists_stop = 0;
+                        exists_depth = 0;
+                        pending.push(jsonpath_execution_make_task(
+                            0,
+                            step.right,
+                            task.reference,
+                            context.lax,
+                            task.ignore,
+                        ));
+                    };
+                    ready = false;
+                };
+            } else if task.mode == 19 {
+                if (step.kind == JSONPATH_NODE_AND && predicate == 2)
+                    || (step.kind == JSONPATH_NODE_OR && predicate == 1)
+                {
+                    predicate = task.from;
+                };
+            } else if task.mode == 20 {
+                if step.kind == JSONPATH_NODE_NOT {
+                    if predicate == 1 {
+                        predicate = 2;
+                    } else if predicate == 2 {
+                        predicate = 1;
+                    };
+                } else {
+                    if predicate == 0 {
+                        predicate = 2;
+                    } else {
+                        predicate = 1;
+                    };
+                };
+            } else {
+                if predicate == 2 {
+                    pending.push(jsonpath_execution_make_task(
+                        0,
+                        step.next,
+                        task.reference,
+                        context.lax,
+                        task.ignore,
+                    ));
+                };
+                ready = false;
+            };
+            if ready {
+                pending.push(jsonpath_execution_make_task(
+                    0,
+                    step.next,
+                    JsonpathReference {
+                        source: 4,
+                        node: usize::try_from(predicate).unwrap_or(0),
+                    },
+                    context.lax,
+                    task.ignore,
+                ));
+            };
         } else if task.step == 0 {
             if collect_depth > 0 && collect_unwrap && context.lax && task.unwrap && value.kind == 5
             {
@@ -714,7 +956,9 @@ fn jsonpath_execution_walk(
                     items.push(task.reference);
                 };
                 item_count += 1;
-                if existence && context.lax && collect_depth == 0 {
+                if context.lax && exists_stop > 0 && collect_depth == exists_depth {
+                    count = exists_stop;
+                } else if existence && context.lax && collect_depth == 0 {
                     count = 0;
                 };
             };
@@ -882,6 +1126,7 @@ fn jsonpath_execution_walk(
                         from: innermost_size,
                         to: 0,
                         mark: 0,
+                        scope: jsonpath_execution_empty_scope(),
                     });
                     innermost_size = size;
                     pending.push(JsonpathExecutionTask {
@@ -895,6 +1140,7 @@ fn jsonpath_execution_walk(
                         from: 0,
                         to: 0,
                         mark: 0,
+                        scope: jsonpath_execution_empty_scope(),
                     });
                 } else if task.ignore == false {
                     error = JSONPATH_EXEC_ARRAY;
@@ -934,6 +1180,7 @@ fn jsonpath_execution_walk(
                     from: 0,
                     to: 0,
                     mark: item_count,
+                    scope: jsonpath_execution_empty_scope(),
                 });
                 if collect_depth == 0 {
                     collect_base = item_count;
@@ -947,6 +1194,123 @@ fn jsonpath_execution_walk(
                     context.lax,
                     task.ignore,
                 ));
+            } else if step.kind == JSONPATH_NODE_CURRENT {
+                pending.push(jsonpath_execution_make_task(
+                    0,
+                    step.next,
+                    current,
+                    context.lax,
+                    task.ignore,
+                ));
+            } else if (step.kind >= JSONPATH_NODE_EQ && step.kind <= JSONPATH_NODE_GE)
+                || step.kind == JSONPATH_NODE_STARTS
+                || step.kind == JSONPATH_NODE_EXISTS
+            {
+                let scope = jsonpath_execution_saved_scope(
+                    current,
+                    innermost_size,
+                    collect_depth,
+                    collect_base,
+                    collect_unwrap,
+                    exists_stop,
+                    exists_depth,
+                );
+                let mut mode: i32 = 15;
+                if step.kind == JSONPATH_NODE_EXISTS {
+                    mode = 17;
+                };
+                pending.push(jsonpath_execution_predicate_task(
+                    mode,
+                    task.step,
+                    task.reference,
+                    task.ignore,
+                    item_count,
+                    0,
+                    0,
+                    scope,
+                ));
+                if collect_depth == 0 {
+                    collect_base = item_count;
+                };
+                collect_depth += 1;
+                collect_unwrap = step.kind != JSONPATH_NODE_EXISTS;
+                exists_stop = 0;
+                exists_depth = 0;
+                if step.kind == JSONPATH_NODE_EXISTS && context.lax {
+                    exists_stop = count + 1;
+                    exists_depth = collect_depth;
+                };
+                pending.push(jsonpath_execution_make_task(
+                    0,
+                    step.left,
+                    task.reference,
+                    context.lax,
+                    task.ignore,
+                ));
+            } else if step.kind == JSONPATH_NODE_AND
+                || step.kind == JSONPATH_NODE_OR
+                || step.kind == JSONPATH_NODE_NOT
+                || step.kind == JSONPATH_NODE_IS_UNKNOWN
+                || step.kind == JSONPATH_NODE_FILTER
+            {
+                if step.kind == JSONPATH_NODE_FILTER && task.unwrap && value.kind == 5 {
+                    if value.child > 0 {
+                        pending.push(jsonpath_execution_make_task(
+                            1,
+                            task.step,
+                            JsonpathReference {
+                                source: task.reference.source,
+                                node: value.child,
+                            },
+                            false,
+                            task.ignore,
+                        ));
+                    };
+                } else if context.path_nodes[step.left].next > 0 {
+                    error = JSONPATH_EXEC_INTERNAL;
+                } else {
+                    let scope = jsonpath_execution_saved_scope(
+                        current,
+                        innermost_size,
+                        collect_depth,
+                        collect_base,
+                        collect_unwrap,
+                        exists_stop,
+                        exists_depth,
+                    );
+                    let mut mode: i32 = 18;
+                    if step.kind == JSONPATH_NODE_NOT || step.kind == JSONPATH_NODE_IS_UNKNOWN {
+                        mode = 20;
+                    };
+                    if step.kind == JSONPATH_NODE_FILTER {
+                        mode = 21;
+                        current = task.reference;
+                    };
+                    pending.push(jsonpath_execution_predicate_task(
+                        mode,
+                        task.step,
+                        task.reference,
+                        task.ignore,
+                        item_count,
+                        0,
+                        0,
+                        scope,
+                    ));
+                    if collect_depth == 0 {
+                        collect_base = item_count;
+                    };
+                    collect_depth += 1;
+                    collect_unwrap = false;
+                    exists_stop = 0;
+                    exists_depth = 0;
+                    pending.push(jsonpath_execution_make_task(
+                        0,
+                        step.left,
+                        task.reference,
+                        context.lax,
+                        task.ignore,
+                    ));
+                };
             } else if step.kind == JSONPATH_NODE_DESCENDANT {
                 pending.push(jsonpath_execution_make_task(
                     2,
@@ -986,6 +1350,28 @@ fn jsonpath_execution_walk(
             count += 1;
             index += 1;
         }
+        if error > 0 && error != JSONPATH_EXEC_VARIABLE && error != JSONPATH_EXEC_INTERNAL {
+            let mut position = count;
+            let mut handled = false;
+            while position > 0 && handled == false {
+                position = position - 1;
+                let frame = tasks[position];
+                if frame.mode == 15 || frame.mode == 16 || frame.mode == 17 {
+                    item_count = frame.mark;
+                    collect_depth = frame.scope.depth;
+                    collect_base = frame.scope.base;
+                    collect_unwrap = frame.scope.unwrap;
+                    innermost_size = frame.scope.size;
+                    current = frame.scope.current;
+                    exists_stop = frame.scope.exists_stop;
+                    exists_depth = frame.scope.exists_depth;
+                    count = position + 1;
+                    caught_error = true;
+                    error = 0;
+                    handled = true;
+                };
+            }
+        };
     }
     if collect_depth > 0 {
         item_count = collect_base;

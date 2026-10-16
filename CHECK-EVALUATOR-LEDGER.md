@@ -280,7 +280,8 @@ exposes a prerequisite:
 - [x] JSONPath SQL row values, source/stored literal provenance, text I/O casts, JSONB conversion/builders, CASE/COALESCE, binary send and INSERT parity; checked graph/stored-text facets, explicit UTF8/C requirements and raw assignment deferral.
 - [x] JSONPath structural execution: roots, members/wildcards, variables, numeric subscripts/ranges, last and descendants; strict/lax, silent prefixes, existence/match/query calls, safe stored-text recovery, UTF8 object order and INSERT parity.
 - [x] JSONPath sequence arithmetic and subscript expressions: numeric signs/operators, single-number operands, last scopes, one-level lax result unwrapping, error order and silent prefixes; preserve stored-text grouping requirements and INSERT parity.
-- [ ] JSONPath filters, predicates, methods, regex execution and context-sensitive operations.
+- [x] JSONPath filters/current scopes, three-valued comparisons, starts-with, exists, NOT/is-unknown and lazy AND/OR; preserve suppression, missing-variable errors, known JSON null versus evaluator Unknown, encoding and stored-text grouping requirements.
+- [ ] JSONPath methods, regex execution and context-sensitive operations.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
@@ -292,8 +293,7 @@ Catalog identities and pseudo-types share families; polymorphic signatures resol
 
 ## Completion gate for implementation tasks
 
-Keep PostgreSQL behavior in maintained Rust. Generate evaluator control flow and target code through ASTs. Preserve schema namespaces, separate CHECK and regex
-transpilers, errors as values, and diagnostic Unknown results.
+Keep PostgreSQL behavior in maintained Rust. Generate evaluator control flow and target code through ASTs. Preserve schema namespaces, separate CHECK and regex transpilers, errors as values, and diagnostic Unknown results.
 
 For each implementation task, select focused family suites and regressions for the shared behavior it changes. Verify Rust, Go and TypeScript against PostgreSQL, including raw/stored binding, public inputs and NULL/Unknown/error behavior. Rebuild affected assets, verify relevant codegen goldens, and run applicable static, corpus
 and measurement checks. Record selected dependencies and any reused evidence. Select INSERT worlds with `PGSID_CHECK_WORLDS=directory[,directory]`; keep scoped reports separate.

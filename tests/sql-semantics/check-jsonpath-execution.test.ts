@@ -15,7 +15,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 
-it('executes structural JSONPath sequences, arithmetic, strict errors and silent prefixes in every target', async () => {
+it('executes structural JSONPath sequences, arithmetic, predicates, filters and silent prefixes in every target', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonpath-execution-'))
   const value = (input: string | boolean): Input => ({ kind: 'Value', value: input })
@@ -116,6 +116,68 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       requiresRegex: false,
     }
     const cases: [string, string, string?, boolean?][] = [
+      ['1', '$==1'],
+      ['1.0', '$==1.00'],
+      ['1', '$!=2'],
+      ['1', '$<2'],
+      ['1', '$<=1'],
+      ['1', '$>0'],
+      ['1', '$>=1'],
+      ['false', '$<true'],
+      ['true', '$>false'],
+      ['true', '$==1'],
+      ['null', '$==null'],
+      ['null', '$<null'],
+      ['1', '$==null'],
+      ['1', '$!=null'],
+      ['[1,"x"]', '$==1'],
+      ['[1,"x"]', 'strict $[*]==1'],
+      ['[1,"x"]', 'strict $==1'],
+      ['[]', '$!=null'],
+      ['[]', '$==$missing'],
+      ['{}', 'strict $.missing==1'],
+      ['{}', '1/0==1'],
+      ['{}', '(1/0==1) is unknown'],
+      ['{}', '1/0==$missing'],
+      ['{}', 'true==$missing'],
+      ['{}', '$a==$b', '{"a":[1,"x"],"b":[2,1]}'],
+      ['{}', 'strict $a[*]==$b[*]', '{"a":[1,"x"],"b":[2,1]}'],
+      ['{}', '$a!=$b', '{"a":{},"b":{}}'],
+      ['[]', 'exists($[*])'],
+      ['[true]', 'exists($[0,$missing])'],
+      ['[true]', 'strict exists($[0,$missing])'],
+      ['[true]', 'strict exists($[0,9])'],
+      ['{}', 'exists($.missing)'],
+      ['{}', 'strict exists($.missing)'],
+      ['["x",1]', 'exists(-$)'],
+      ['["x"]', 'exists(-$)'],
+      ['[1,"x"]', 'strict exists(-$)'],
+      ['[1,2,3]', '$?(@>1)'],
+      ['[1,2,3]', 'strict $?(@>1)'],
+      ['[[1,2],[3]]', '$?(@>1)'],
+      ['[{"x":1},{"x":2},{}]', '$[*]?(@.x>1).x'],
+      ['[{"x":1},{"x":2},{}]', 'strict $[*]?(@.x>1).x'],
+      [
+        '[{"a":[1,2],"b":1},{"a":[1],"b":1},{"a":[3],"b":0}]',
+        '$[*]?(exists(@.a?(@>1)) && @.b==1).b',
+      ],
+      ['[1,2]', '$?(@==$missing)'],
+      ['[1,2]', '$?(@==$v)', '{"v":null}'],
+      ['{}', '(1==2) && exists($missing)'],
+      ['{}', '(1==1) || exists($missing)'],
+      ['{}', '(1=="x") && exists($missing)'],
+      ['{}', '!(1=="x")'],
+      ['{}', '(1=="x") is unknown'],
+      ['{}', '(1==1)[0]', '{}', false],
+      ['"abc"', '$ starts with "ab"'],
+      ['"abc"', '$ starts with ""'],
+      ['"a"', '$ starts with "ab"'],
+      ['"abc"', '$ starts with "bc"'],
+      ['["abc","abd"]', '$ starts with $p', '{"p":["ab"]}'],
+      ['["abc","abd"]', '$ starts with $p', '{"p":"ab"}'],
+      ['["abc",5]', '$ starts with "z"'],
+      ['["abc",5]', '$ starts with "a"'],
+      ['"é"', '$==null'],
       ['{}', '1+2*3'],
       ['{}', '(1+2)*3'],
       ['{}', '1/3'],
@@ -241,6 +303,9 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       ['{"a":{"b":1}}', '$.**{0 to last}.b'],
       ['[[1,2],[3]]', '$.**[*]'],
     ]
+    for (const left of ['1==1', '1==2', '1=="x"'])
+      for (const right of ['1==1', '1==2', '1=="x"'])
+        for (const operator of ['&&', '||']) cases.push(['{}', `(${left}) ${operator} (${right})`])
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     const references: unknown[] = []
     for (const [document, path, variables = '{}', storedSafe = true] of cases) {
@@ -345,12 +410,12 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       })
       fixtures.push({
         name: variant.name,
-        row: { ...base, path: value('(-$.x.abs() == 1)') },
+        row: { ...base, document: value('{"x":1}'), path: value('(-$.x.abs() == 1)') },
         expected: { kind: 'Unknown' },
       })
     }
     for (const variant of variants) {
-      for (const path of ['$?(@==1)', '$.a.size()', '$ == true', '$ like_regex "a"'])
+      for (const path of ['$.a.size()', '$ like_regex "a"'])
         fixtures.push({
           name: variant.name,
           row: {
@@ -413,6 +478,34 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
         })
       }
     }
+    for (const variant of variants) {
+      for (const path of ['$=="é"', '$<"雪"', '$ starts with "é"']) {
+        const query =
+          variant.mode < 4
+            ? `SELECT ${variant.sql}($1::jsonb,$2::jsonpath,'{}',false)::text AS text`
+            : `SELECT ($1::jsonb ${variant.mode === 4 ? '@?' : '@@'} $2::jsonpath)::text AS text`
+        let output: string | null = null
+        let expected: Outcome = { kind: 'True' }
+        try {
+          output = (await pg.query<{ text: string | null }>(query, ['"éclair"', path])).rows[0]!
+            .text
+        } catch (failure) {
+          expected = error((failure as { code: string }).code)
+        }
+        if (!variant.utf8) expected = { kind: 'Unknown' }
+        fixtures.push({
+          name: variant.name,
+          row: {
+            document: value('"éclair"'),
+            path: value(path),
+            variables: value('{}'),
+            silent: value(false),
+            expected: output === null ? { kind: 'Null' } : value(output),
+          },
+          expected,
+        })
+      }
+    }
     const original = '(-$v)[0]+2'
     const printed = (
       await pg.query<{ text: string }>('SELECT $1::jsonpath::text AS text', [original])
@@ -445,6 +538,20 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
           variables: value('{}'),
           silent: value(false),
           expected: value(variant.mode === 2 ? '[4001]' : '4001'),
+        },
+        expected: { kind: 'True' },
+      })
+    for (const variant of variants.filter(
+      (item) => !item.stored && (item.mode === 2 || item.mode === 3),
+    ))
+      fixtures.push({
+        name: variant.name,
+        row: {
+          document: value('{}'),
+          path: value('(1==1)&&'.repeat(1500) + '(1==2)'),
+          variables: value('{}'),
+          silent: value(false),
+          expected: value(variant.mode === 2 ? '[false]' : 'false'),
         },
         expected: { kind: 'True' },
       })

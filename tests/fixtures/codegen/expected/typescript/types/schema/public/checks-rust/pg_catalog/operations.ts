@@ -12412,6 +12412,7 @@ const jsonpathExecObject = 3452664;
 const jsonpathExecSingleton = 3452660;
 const jsonpathExecVariable = 6820852;
 const jsonpathExecParameter = 3452619;
+const jsonpathExecInternal = 56966976;
 interface JsonpathReference {
     source: number;
     node: number;
@@ -12448,9 +12449,10 @@ interface JsonpathExecutionTask {
     from: number;
     to: number;
     mark: number;
+    scope: JsonpathExecutionScope;
 }
 function copyJsonpathExecutionTask(value: JsonpathExecutionTask): JsonpathExecutionTask {
-    return { mode: langruntime.checkedI32(value.mode), step: langruntime.checkedIndex(value.step), reference: copyJsonpathReference(value.reference), unwrap: langruntime.checkedBool(value.unwrap), ignore: langruntime.checkedBool(value.ignore), level: langruntime.checkedIndex(value.level), spec: langruntime.checkedIndex(value.spec), from: langruntime.checkedI32(value.from), to: langruntime.checkedI32(value.to), mark: langruntime.checkedIndex(value.mark) };
+    return { mode: langruntime.checkedI32(value.mode), step: langruntime.checkedIndex(value.step), reference: copyJsonpathReference(value.reference), unwrap: langruntime.checkedBool(value.unwrap), ignore: langruntime.checkedBool(value.ignore), level: langruntime.checkedIndex(value.level), spec: langruntime.checkedIndex(value.spec), from: langruntime.checkedI32(value.from), to: langruntime.checkedI32(value.to), mark: langruntime.checkedIndex(value.mark), scope: copyJsonpathExecutionScope(value.scope) };
 }
 interface JsonpathSequence {
     items: JsonpathReference[];
@@ -12463,6 +12465,9 @@ function copyJsonpathSequence(value: JsonpathSequence): JsonpathSequence {
 }
 function jsonpathExecutionNode(context: JsonpathExecutionContext, reference: JsonpathReference): checkruntime.JsonbNode {
     reference = copyJsonpathReference(reference);
+    if (reference.source === 4) {
+        return { kind: langruntime.checkedI32(langruntime.checkedIndex(reference.node)), child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 };
+    }
     if (reference.source === 3) {
         return { kind: 3, child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 };
     }
@@ -12577,7 +12582,7 @@ function jsonpathExecutionMakeTask(mode: number, step: number, reference: Jsonpa
     reference = copyJsonpathReference(reference);
     unwrap = langruntime.checkedBool(unwrap);
     ignore = langruntime.checkedBool(ignore);
-    return { mode: mode, step: step, reference: copyJsonpathReference(reference), unwrap: unwrap, ignore: ignore, level: 0, spec: 0, from: 0, to: 0, mark: 0 };
+    return { mode: mode, step: step, reference: copyJsonpathReference(reference), unwrap: unwrap, ignore: ignore, level: 0, spec: 0, from: 0, to: 0, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) };
 }
 function jsonpathExecutionStored(input: checkruntime.JsonpathValue): checkruntime.JsonpathValue {
     input = checkruntime.copyJsonpathValue(input);
@@ -12589,7 +12594,10 @@ function jsonpathExecutionStored(input: checkruntime.JsonpathValue): checkruntim
             let index: number = 1;
             while (index < path.nodes.length) {
                 const node: checkruntime.JsonpathNode = langruntime.indexStruct(path.nodes, langruntime.checkedIndex(index), checkruntime.copyJsonpathNode);
-                if (!(node.kind === checkruntime.jsonpathNodeRoot) && !(node.kind === checkruntime.jsonpathNodeVariable) && !(node.kind === checkruntime.jsonpathNodeString) && !(node.kind === checkruntime.jsonpathNodeNumber) && !(node.kind === checkruntime.jsonpathNodeNull) && !(node.kind === checkruntime.jsonpathNodeTrue) && !(node.kind === checkruntime.jsonpathNodeFalse) && !(node.kind === checkruntime.jsonpathNodeLast) && !(node.kind === checkruntime.jsonpathNodeKey) && !(node.kind === checkruntime.jsonpathNodeAnyKey) && !(node.kind === checkruntime.jsonpathNodeAnyArray) && !(node.kind === checkruntime.jsonpathNodeIndex) && !(node.kind === checkruntime.jsonpathNodeSubscript) && !(node.kind === checkruntime.jsonpathNodeDescendant) && (node.kind < checkruntime.jsonpathNodePlus || node.kind > checkruntime.jsonpathNodeMod)) {
+                if (!(node.kind === checkruntime.jsonpathNodeRoot) && !(node.kind === checkruntime.jsonpathNodeVariable) && !(node.kind === checkruntime.jsonpathNodeString) && !(node.kind === checkruntime.jsonpathNodeNumber) && !(node.kind === checkruntime.jsonpathNodeNull) && !(node.kind === checkruntime.jsonpathNodeTrue) && !(node.kind === checkruntime.jsonpathNodeFalse) && !(node.kind === checkruntime.jsonpathNodeLast) && !(node.kind === checkruntime.jsonpathNodeKey) && !(node.kind === checkruntime.jsonpathNodeAnyKey) && !(node.kind === checkruntime.jsonpathNodeAnyArray) && !(node.kind === checkruntime.jsonpathNodeIndex) && !(node.kind === checkruntime.jsonpathNodeSubscript) && !(node.kind === checkruntime.jsonpathNodeDescendant) && !(node.kind === checkruntime.jsonpathNodeCurrent) && !(node.kind === checkruntime.jsonpathNodeFilter) && !(node.kind === checkruntime.jsonpathNodeExists) && !(node.kind === checkruntime.jsonpathNodeNot) && !(node.kind === checkruntime.jsonpathNodeIsUnknown) && (node.kind < checkruntime.jsonpathNodePlus || node.kind > checkruntime.jsonpathNodeStarts)) {
+                    return { kind: "Unknown" };
+                }
+                if (jsonpathPredicateKind(node.kind) && node.next > 0) {
                     return { kind: "Unknown" };
                 }
                 if (node.kind >= checkruntime.jsonpathNodePlus && node.kind <= checkruntime.jsonpathNodeMod) {
@@ -12621,6 +12629,10 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
     let collectBase: number = 0;
     let collectUnwrap: boolean = false;
     let innermostSize: number = langruntime.checkedSignedNegate(1);
+    let current: JsonpathReference = copyJsonpathReference({ source: 0, node: context.documentRoot });
+    let existsStop: number = 0;
+    let existsDepth: number = 0;
+    let caughtError: boolean = false;
     let error: number = 0;
     let unknown: boolean = false;
     while (count > 0 && error === 0 && unknown === false) {
@@ -12636,14 +12648,14 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                 following = langruntime.checkedIndex(0);
             }
             if (following > 0) {
-                langruntime.pushStruct(pending, { reference: copyJsonpathReference({ source: task.reference.source, node: following }), from: langruntime.checkedSignedAdd(task.from, 1), mode: task.mode, step: task.step, unwrap: task.unwrap, ignore: task.ignore, level: task.level, spec: task.spec, to: task.to, mark: 0 }, copyJsonpathExecutionTask);
+                langruntime.pushStruct(pending, { reference: copyJsonpathReference({ source: task.reference.source, node: following }), from: langruntime.checkedSignedAdd(task.from, 1), mode: task.mode, step: task.step, unwrap: task.unwrap, ignore: task.ignore, level: task.level, spec: task.spec, to: task.to, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
             }
             let mode: number = 0;
             if (task.mode === 3) {
                 mode = langruntime.checkedI32(2);
             }
             let selected: JsonpathExecutionTask = copyJsonpathExecutionTask(jsonpathExecutionMakeTask(mode, task.step, task.reference, task.unwrap, task.ignore));
-            selected = copyJsonpathExecutionTask({ level: task.level, mode: selected.mode, step: selected.step, reference: copyJsonpathReference(selected.reference), unwrap: selected.unwrap, ignore: selected.ignore, spec: 0, from: 0, to: 0, mark: 0 });
+            selected = copyJsonpathExecutionTask({ level: task.level, mode: selected.mode, step: selected.step, reference: copyJsonpathReference(selected.reference), unwrap: selected.unwrap, ignore: selected.ignore, spec: 0, from: 0, to: 0, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) });
             langruntime.pushStruct(pending, selected, copyJsonpathExecutionTask);
         }
         else if (task.mode === 2) {
@@ -12651,7 +12663,7 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
             const within: boolean = step.last < 0 || task.level <= langruntime.indexFromI32(step.last, 0);
             if (within) {
                 if (value.child > 0 && (step.last < 0 || task.level < langruntime.indexFromI32(step.last, 0))) {
-                    langruntime.pushStruct(pending, { mode: 6, step: task.step, reference: copyJsonpathReference(task.reference), level: task.level, unwrap: context.lax, ignore: true, spec: 0, from: 0, to: 0, mark: 0 }, copyJsonpathExecutionTask);
+                    langruntime.pushStruct(pending, { mode: 6, step: task.step, reference: copyJsonpathReference(task.reference), level: task.level, unwrap: context.lax, ignore: true, spec: 0, from: 0, to: 0, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
                 }
                 const eligible: boolean = (step.first >= 0 && task.level >= langruntime.indexFromI32(step.first, 0)) || (step.first < 0 && step.last < 0 && task.level > 0 && value.kind < 5);
                 if (eligible) {
@@ -12664,12 +12676,12 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                 unknown = langruntime.checkedBool(true);
             }
             else {
-                langruntime.pushStruct(pending, { mode: 3, step: task.step, reference: copyJsonpathReference({ source: task.reference.source, node: value.child }), level: langruntime.checkedAdd(task.level, 1), unwrap: context.lax, ignore: true, spec: 0, from: 0, to: 0, mark: 0 }, copyJsonpathExecutionTask);
+                langruntime.pushStruct(pending, { mode: 3, step: task.step, reference: copyJsonpathReference({ source: task.reference.source, node: value.child }), level: langruntime.checkedAdd(task.level, 1), unwrap: context.lax, ignore: true, spec: 0, from: 0, to: 0, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
             }
         }
         else if (task.mode === 4) {
             const spec: checkruntime.JsonpathNode = langruntime.indexStruct(context.pathNodes, langruntime.checkedIndex(task.spec), checkruntime.copyJsonpathNode);
-            langruntime.pushStruct(pending, { mode: 11, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: collectUnwrap, ignore: task.ignore, level: task.level, spec: task.spec, from: 0, to: 0, mark: itemCount }, copyJsonpathExecutionTask);
+            langruntime.pushStruct(pending, { mode: 11, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: collectUnwrap, ignore: task.ignore, level: task.level, spec: task.spec, from: 0, to: 0, mark: itemCount, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
             if (collectDepth === 0) {
                 collectBase = langruntime.checkedIndex(itemCount);
             }
@@ -12679,7 +12691,7 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
         }
         else if (task.mode === 7) {
             const step: checkruntime.JsonpathNode = langruntime.indexStruct(context.pathNodes, langruntime.checkedIndex(task.step), checkruntime.copyJsonpathNode);
-            langruntime.pushStruct(pending, { mode: 8, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: task.unwrap, ignore: task.ignore, level: itemCount, spec: 0, from: 0, to: 0, mark: task.mark }, copyJsonpathExecutionTask);
+            langruntime.pushStruct(pending, { mode: 8, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: task.unwrap, ignore: task.ignore, level: itemCount, spec: 0, from: 0, to: 0, mark: task.mark, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
             langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.right, task.reference, context.lax, task.ignore), copyJsonpathExecutionTask);
         }
         else if (task.mode === 8) {
@@ -12715,13 +12727,13 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
             }
             itemCount = langruntime.checkedIndex(task.mark);
             if (operands.length > start) {
-                langruntime.pushStruct(pending, { mode: 10, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: context.lax, ignore: task.ignore, level: start, spec: operands.length, from: 0, to: 0, mark: 0 }, copyJsonpathExecutionTask);
+                langruntime.pushStruct(pending, { mode: 10, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: context.lax, ignore: task.ignore, level: start, spec: operands.length, from: 0, to: 0, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
             }
         }
         else if (task.mode === 10) {
             const step: checkruntime.JsonpathNode = langruntime.indexStruct(context.pathNodes, langruntime.checkedIndex(task.step), checkruntime.copyJsonpathNode);
             if (langruntime.checkedAdd(task.level, 1) < task.spec) {
-                langruntime.pushStruct(pending, { mode: 10, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: task.unwrap, ignore: task.ignore, level: langruntime.checkedAdd(task.level, 1), spec: task.spec, from: 0, to: 0, mark: 0 }, copyJsonpathExecutionTask);
+                langruntime.pushStruct(pending, { mode: 10, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: task.unwrap, ignore: task.ignore, level: langruntime.checkedAdd(task.level, 1), spec: task.spec, from: 0, to: 0, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
             }
             const selected: JsonpathReference = copyJsonpathReference(langruntime.indexStruct(operands, langruntime.checkedIndex(task.level), copyJsonpathReference));
             let number: checkruntime.NumericValue = jsonpathExecutionNumeric(context, selected);
@@ -12739,7 +12751,7 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                 }
                 langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.next, { source: 3, node: numbers.length }, context.lax, task.ignore), copyJsonpathExecutionTask);
             }
-            else if (existence === false || context.lax === false || collectDepth > 0 || step.next > 0) {
+            else if (context.lax === false || step.next > 0 || ((existence === false || collectDepth > 0) && (existsStop === 0 || !(collectDepth === existsDepth)))) {
                 error = langruntime.checkedIndex(jsonpathExecNumber);
             }
         }
@@ -12776,7 +12788,7 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                 const position: number = langruntime.checkedI32(index.value);
                 const spec: checkruntime.JsonpathNode = langruntime.indexStruct(context.pathNodes, langruntime.checkedIndex(task.spec), checkruntime.copyJsonpathNode);
                 if (task.mode === 11 && spec.right > 0) {
-                    langruntime.pushStruct(pending, { mode: 12, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: collectUnwrap, ignore: task.ignore, level: task.level, spec: task.spec, from: position, to: 0, mark: itemCount }, copyJsonpathExecutionTask);
+                    langruntime.pushStruct(pending, { mode: 12, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: collectUnwrap, ignore: task.ignore, level: task.level, spec: task.spec, from: position, to: 0, mark: itemCount, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
                     if (collectDepth === 0) {
                         collectBase = langruntime.checkedIndex(itemCount);
                     }
@@ -12789,7 +12801,7 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                     if (task.mode === 11) {
                         begin = langruntime.checkedI32(position);
                     }
-                    langruntime.pushStruct(pending, { mode: 13, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: context.lax, ignore: task.ignore, level: task.level, spec: task.spec, from: begin, to: position, mark: 0 }, copyJsonpathExecutionTask);
+                    langruntime.pushStruct(pending, { mode: 13, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: context.lax, ignore: task.ignore, level: task.level, spec: task.spec, from: begin, to: position, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
                 }
             }
         }
@@ -12802,7 +12814,7 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
             }
             else {
                 if (spec.next > 0) {
-                    langruntime.pushStruct(pending, { mode: 4, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: task.unwrap, ignore: task.ignore, level: task.level, spec: spec.next, from: 0, to: 0, mark: 0 }, copyJsonpathExecutionTask);
+                    langruntime.pushStruct(pending, { mode: 4, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: task.unwrap, ignore: task.ignore, level: task.level, spec: spec.next, from: 0, to: 0, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
                 }
                 let from: number = task.from;
                 let to: number = task.to;
@@ -12826,12 +12838,163 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                     if (value.kind === 5) {
                         mode = langruntime.checkedI32(5);
                     }
-                    langruntime.pushStruct(pending, { mode: mode, step: step.next, reference: copyJsonpathReference({ source: task.reference.source, node: child }), unwrap: context.lax, ignore: task.ignore, level: 0, spec: 0, from: from, to: to, mark: 0 }, copyJsonpathExecutionTask);
+                    langruntime.pushStruct(pending, { mode: mode, step: step.next, reference: copyJsonpathReference({ source: task.reference.source, node: child }), unwrap: context.lax, ignore: task.ignore, level: 0, spec: 0, from: from, to: to, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
                 }
             }
         }
         else if (task.mode === 14) {
             innermostSize = langruntime.checkedI32(task.from);
+        }
+        else if (task.mode === 15 || task.mode === 16 || task.mode === 17) {
+            const step: checkruntime.JsonpathNode = langruntime.indexStruct(context.pathNodes, langruntime.checkedIndex(task.step), checkruntime.copyJsonpathNode);
+            let predicate: number = 1;
+            let ready: boolean = true;
+            if (caughtError) {
+                predicate = langruntime.checkedI32(0);
+                caughtError = langruntime.checkedBool(false);
+            }
+            else if (task.mode === 15) {
+                const scope: JsonpathExecutionScope = copyJsonpathExecutionScope(task.scope);
+                langruntime.pushStruct(pending, jsonpathExecutionPredicateTask(16, task.step, task.reference, task.ignore, task.mark, itemCount, 0, scope), copyJsonpathExecutionTask);
+                collectUnwrap = langruntime.checkedBool(!(step.kind === checkruntime.jsonpathNodeStarts));
+                langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.right, task.reference, context.lax, task.ignore), copyJsonpathExecutionTask);
+                ready = langruntime.checkedBool(false);
+            }
+            else if (task.mode === 17) {
+                if (itemCount > task.mark) {
+                    predicate = langruntime.checkedI32(2);
+                }
+            }
+            else {
+                let leftIndex: number = task.mark;
+                let errorPair: boolean = false;
+                let foundPair: boolean = false;
+                while (leftIndex < task.level && ready && unknown === false) {
+                    let rightIndex: number = task.level;
+                    while (rightIndex < itemCount && ready && unknown === false) {
+                        const first: JsonpathReference = copyJsonpathReference(langruntime.indexStruct(items, langruntime.checkedIndex(leftIndex), copyJsonpathReference));
+                        const second: JsonpathReference = copyJsonpathReference(langruntime.indexStruct(items, langruntime.checkedIndex(rightIndex), copyJsonpathReference));
+                        let leftNumber: checkruntime.NumericValue = jsonpathExecutionNumeric(context, first);
+                        let rightNumber: checkruntime.NumericValue = jsonpathExecutionNumeric(context, second);
+                        if (first.source === 3) {
+                            leftNumber = langruntime.indexStruct(numbers, langruntime.checkedIndex(first.node), checkruntime.copyNumericValue);
+                        }
+                        if (second.source === 3) {
+                            rightNumber = langruntime.indexStruct(numbers, langruntime.checkedIndex(second.node), checkruntime.copyNumericValue);
+                        }
+                        const result: JsonpathPredicateValue = copyJsonpathPredicateValue(jsonpathPredicatePair(context, step.kind, first, second, leftNumber, rightNumber));
+                        if (result.deferred) {
+                            unknown = langruntime.checkedBool(true);
+                        }
+                        else if (result.state === 0) {
+                            errorPair = langruntime.checkedBool(true);
+                            if (context.lax === false) {
+                                predicate = langruntime.checkedI32(0);
+                                ready = langruntime.checkedBool(false);
+                            }
+                        }
+                        else if (result.state === 2) {
+                            foundPair = langruntime.checkedBool(true);
+                            if (context.lax) {
+                                predicate = langruntime.checkedI32(2);
+                                ready = langruntime.checkedBool(false);
+                            }
+                        }
+                        rightIndex = langruntime.checkedAdd(rightIndex, 1);
+                    }
+                    leftIndex = langruntime.checkedAdd(leftIndex, 1);
+                }
+                if (ready) {
+                    if (foundPair) {
+                        predicate = langruntime.checkedI32(2);
+                    }
+                    else if (errorPair) {
+                        predicate = langruntime.checkedI32(0);
+                    }
+                }
+                ready = langruntime.checkedBool(true);
+            }
+            if (ready) {
+                itemCount = langruntime.checkedIndex(task.mark);
+                collectDepth = langruntime.checkedIndex(task.scope.depth);
+                collectBase = langruntime.checkedIndex(task.scope.base);
+                collectUnwrap = langruntime.checkedBool(task.scope.unwrap);
+                innermostSize = langruntime.checkedI32(task.scope.size);
+                current = copyJsonpathReference(task.scope.current);
+                existsStop = langruntime.checkedIndex(task.scope.existsStop);
+                existsDepth = langruntime.checkedIndex(task.scope.existsDepth);
+                langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.next, { source: 4, node: langruntime.indexFromI32(predicate, 0) }, context.lax, task.ignore), copyJsonpathExecutionTask);
+            }
+        }
+        else if (task.mode === 18 || task.mode === 19 || task.mode === 20 || task.mode === 21) {
+            const step: checkruntime.JsonpathNode = langruntime.indexStruct(context.pathNodes, langruntime.checkedIndex(task.step), checkruntime.copyJsonpathNode);
+            let predicate: number = 0;
+            if (langruntime.checkedSubtract(itemCount, task.mark) === 1) {
+                predicate = langruntime.checkedI32(jsonpathExecutionNode(context, langruntime.indexStruct(items, langruntime.checkedIndex(task.mark), copyJsonpathReference)).kind);
+            }
+            else {
+                error = langruntime.checkedIndex(jsonpathExecInternal);
+            }
+            itemCount = langruntime.checkedIndex(task.mark);
+            collectDepth = langruntime.checkedIndex(task.scope.depth);
+            collectBase = langruntime.checkedIndex(task.scope.base);
+            collectUnwrap = langruntime.checkedBool(task.scope.unwrap);
+            innermostSize = langruntime.checkedI32(task.scope.size);
+            current = copyJsonpathReference(task.scope.current);
+            existsStop = langruntime.checkedIndex(task.scope.existsStop);
+            existsDepth = langruntime.checkedIndex(task.scope.existsDepth);
+            let ready: boolean = true;
+            if (task.mode === 18) {
+                if ((step.kind === checkruntime.jsonpathNodeAnd && predicate === 1) || (step.kind === checkruntime.jsonpathNodeOr && predicate === 2)) {
+                }
+                else {
+                    if (langruntime.indexStruct(context.pathNodes, langruntime.checkedIndex(step.right), checkruntime.copyJsonpathNode).next > 0) {
+                        error = langruntime.checkedIndex(jsonpathExecInternal);
+                    }
+                    else {
+                        langruntime.pushStruct(pending, jsonpathExecutionPredicateTask(19, task.step, task.reference, task.ignore, itemCount, 0, predicate, task.scope), copyJsonpathExecutionTask);
+                        if (collectDepth === 0) {
+                            collectBase = langruntime.checkedIndex(itemCount);
+                        }
+                        collectDepth = langruntime.checkedAdd(collectDepth, 1);
+                        collectUnwrap = langruntime.checkedBool(false);
+                        existsStop = langruntime.checkedIndex(0);
+                        existsDepth = langruntime.checkedIndex(0);
+                        langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.right, task.reference, context.lax, task.ignore), copyJsonpathExecutionTask);
+                    }
+                    ready = langruntime.checkedBool(false);
+                }
+            }
+            else if (task.mode === 19) {
+                if ((step.kind === checkruntime.jsonpathNodeAnd && predicate === 2) || (step.kind === checkruntime.jsonpathNodeOr && predicate === 1)) {
+                    predicate = langruntime.checkedI32(task.from);
+                }
+            }
+            else if (task.mode === 20) {
+                if (step.kind === checkruntime.jsonpathNodeNot) {
+                    if (predicate === 1) {
+                        predicate = langruntime.checkedI32(2);
+                    }
+                    else if (predicate === 2) {
+                        predicate = langruntime.checkedI32(1);
+                    }
+                }
+                else if (predicate === 0) {
+                    predicate = langruntime.checkedI32(2);
+                }
+                else {
+                    predicate = langruntime.checkedI32(1);
+                }
+            }
+            else {
+                if (predicate === 2) {
+                    langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.next, task.reference, context.lax, task.ignore), copyJsonpathExecutionTask);
+                }
+                ready = langruntime.checkedBool(false);
+            }
+            if (ready) {
+                langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.next, { source: 4, node: langruntime.indexFromI32(predicate, 0) }, context.lax, task.ignore), copyJsonpathExecutionTask);
+            }
         }
         else if (task.step === 0) {
             if (collectDepth > 0 && collectUnwrap && context.lax && task.unwrap && value.kind === 5) {
@@ -12847,7 +13010,10 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                     langruntime.pushStruct(items, task.reference, copyJsonpathReference);
                 }
                 itemCount = langruntime.checkedAdd(itemCount, 1);
-                if (existence && context.lax && collectDepth === 0) {
+                if (context.lax && existsStop > 0 && collectDepth === existsDepth) {
+                    count = langruntime.checkedIndex(existsStop);
+                }
+                else if (existence && context.lax && collectDepth === 0) {
                     count = langruntime.checkedIndex(0);
                 }
             }
@@ -12923,9 +13089,9 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                             child = langruntime.checkedIndex(jsonpathExecutionNode(context, { source: task.reference.source, node: child }).next);
                         }
                     }
-                    langruntime.pushStruct(pending, { mode: 14, step: 0, reference: copyJsonpathReference(task.reference), unwrap: false, ignore: task.ignore, level: 0, spec: 0, from: innermostSize, to: 0, mark: 0 }, copyJsonpathExecutionTask);
+                    langruntime.pushStruct(pending, { mode: 14, step: 0, reference: copyJsonpathReference(task.reference), unwrap: false, ignore: task.ignore, level: 0, spec: 0, from: innermostSize, to: 0, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
                     innermostSize = langruntime.checkedI32(size);
-                    langruntime.pushStruct(pending, { mode: 4, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: context.lax, ignore: task.ignore, level: langruntime.indexFromI32(size, 0), spec: step.left, from: 0, to: 0, mark: 0 }, copyJsonpathExecutionTask);
+                    langruntime.pushStruct(pending, { mode: 4, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: context.lax, ignore: task.ignore, level: langruntime.indexFromI32(size, 0), spec: step.left, from: 0, to: 0, mark: 0, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
                 }
                 else if (task.ignore === false) {
                     error = langruntime.checkedIndex(jsonpathExecArray);
@@ -12949,13 +13115,66 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                 if (step.kind === checkruntime.jsonpathNodePlus || step.kind === checkruntime.jsonpathNodeMinus) {
                     mode = langruntime.checkedI32(9);
                 }
-                langruntime.pushStruct(pending, { mode: mode, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: collectUnwrap, ignore: task.ignore, level: 0, spec: 0, from: 0, to: 0, mark: itemCount }, copyJsonpathExecutionTask);
+                langruntime.pushStruct(pending, { mode: mode, step: task.step, reference: copyJsonpathReference(task.reference), unwrap: collectUnwrap, ignore: task.ignore, level: 0, spec: 0, from: 0, to: 0, mark: itemCount, scope: copyJsonpathExecutionScope(jsonpathExecutionEmptyScope()) }, copyJsonpathExecutionTask);
                 if (collectDepth === 0) {
                     collectBase = langruntime.checkedIndex(itemCount);
                 }
                 collectDepth = langruntime.checkedAdd(collectDepth, 1);
                 collectUnwrap = langruntime.checkedBool(true);
                 langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.left, task.reference, context.lax, task.ignore), copyJsonpathExecutionTask);
+            }
+            else if (step.kind === checkruntime.jsonpathNodeCurrent) {
+                langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.next, current, context.lax, task.ignore), copyJsonpathExecutionTask);
+            }
+            else if ((step.kind >= checkruntime.jsonpathNodeEq && step.kind <= checkruntime.jsonpathNodeGe) || step.kind === checkruntime.jsonpathNodeStarts || step.kind === checkruntime.jsonpathNodeExists) {
+                const scope: JsonpathExecutionScope = copyJsonpathExecutionScope(jsonpathExecutionSavedScope(current, innermostSize, collectDepth, collectBase, collectUnwrap, existsStop, existsDepth));
+                let mode: number = 15;
+                if (step.kind === checkruntime.jsonpathNodeExists) {
+                    mode = langruntime.checkedI32(17);
+                }
+                langruntime.pushStruct(pending, jsonpathExecutionPredicateTask(mode, task.step, task.reference, task.ignore, itemCount, 0, 0, scope), copyJsonpathExecutionTask);
+                if (collectDepth === 0) {
+                    collectBase = langruntime.checkedIndex(itemCount);
+                }
+                collectDepth = langruntime.checkedAdd(collectDepth, 1);
+                collectUnwrap = langruntime.checkedBool(!(step.kind === checkruntime.jsonpathNodeExists));
+                existsStop = langruntime.checkedIndex(0);
+                existsDepth = langruntime.checkedIndex(0);
+                if (step.kind === checkruntime.jsonpathNodeExists && context.lax) {
+                    existsStop = langruntime.checkedIndex(langruntime.checkedAdd(count, 1));
+                    existsDepth = langruntime.checkedIndex(collectDepth);
+                }
+                langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.left, task.reference, context.lax, task.ignore), copyJsonpathExecutionTask);
+            }
+            else if (step.kind === checkruntime.jsonpathNodeAnd || step.kind === checkruntime.jsonpathNodeOr || step.kind === checkruntime.jsonpathNodeNot || step.kind === checkruntime.jsonpathNodeIsUnknown || step.kind === checkruntime.jsonpathNodeFilter) {
+                if (step.kind === checkruntime.jsonpathNodeFilter && task.unwrap && value.kind === 5) {
+                    if (value.child > 0) {
+                        langruntime.pushStruct(pending, jsonpathExecutionMakeTask(1, task.step, { source: task.reference.source, node: value.child }, false, task.ignore), copyJsonpathExecutionTask);
+                    }
+                }
+                else if (langruntime.indexStruct(context.pathNodes, langruntime.checkedIndex(step.left), checkruntime.copyJsonpathNode).next > 0) {
+                    error = langruntime.checkedIndex(jsonpathExecInternal);
+                }
+                else {
+                    const scope: JsonpathExecutionScope = copyJsonpathExecutionScope(jsonpathExecutionSavedScope(current, innermostSize, collectDepth, collectBase, collectUnwrap, existsStop, existsDepth));
+                    let mode: number = 18;
+                    if (step.kind === checkruntime.jsonpathNodeNot || step.kind === checkruntime.jsonpathNodeIsUnknown) {
+                        mode = langruntime.checkedI32(20);
+                    }
+                    if (step.kind === checkruntime.jsonpathNodeFilter) {
+                        mode = langruntime.checkedI32(21);
+                        current = copyJsonpathReference(task.reference);
+                    }
+                    langruntime.pushStruct(pending, jsonpathExecutionPredicateTask(mode, task.step, task.reference, task.ignore, itemCount, 0, 0, scope), copyJsonpathExecutionTask);
+                    if (collectDepth === 0) {
+                        collectBase = langruntime.checkedIndex(itemCount);
+                    }
+                    collectDepth = langruntime.checkedAdd(collectDepth, 1);
+                    collectUnwrap = langruntime.checkedBool(false);
+                    existsStop = langruntime.checkedIndex(0);
+                    existsDepth = langruntime.checkedIndex(0);
+                    langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.left, task.reference, context.lax, task.ignore), copyJsonpathExecutionTask);
+                }
             }
             else if (step.kind === checkruntime.jsonpathNodeDescendant) {
                 langruntime.pushStruct(pending, jsonpathExecutionMakeTask(2, task.step, task.reference, context.lax, true), copyJsonpathExecutionTask);
@@ -12991,6 +13210,28 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
             }
             count = langruntime.checkedAdd(count, 1);
             index = langruntime.checkedAdd(index, 1);
+        }
+        if (error > 0 && !(error === jsonpathExecVariable) && !(error === jsonpathExecInternal)) {
+            let position: number = count;
+            let handled: boolean = false;
+            while (position > 0 && handled === false) {
+                position = langruntime.checkedIndex(langruntime.checkedSubtract(position, 1));
+                const frame: JsonpathExecutionTask = copyJsonpathExecutionTask(langruntime.indexStruct(tasks, langruntime.checkedIndex(position), copyJsonpathExecutionTask));
+                if (frame.mode === 15 || frame.mode === 16 || frame.mode === 17) {
+                    itemCount = langruntime.checkedIndex(frame.mark);
+                    collectDepth = langruntime.checkedIndex(frame.scope.depth);
+                    collectBase = langruntime.checkedIndex(frame.scope.base);
+                    collectUnwrap = langruntime.checkedBool(frame.scope.unwrap);
+                    innermostSize = langruntime.checkedI32(frame.scope.size);
+                    current = copyJsonpathReference(frame.scope.current);
+                    existsStop = langruntime.checkedIndex(frame.scope.existsStop);
+                    existsDepth = langruntime.checkedIndex(frame.scope.existsDepth);
+                    count = langruntime.checkedIndex(langruntime.checkedAdd(position, 1));
+                    caughtError = langruntime.checkedBool(true);
+                    error = langruntime.checkedIndex(0);
+                    handled = langruntime.checkedBool(true);
+                }
+            }
         }
     }
     if (collectDepth > 0) {
@@ -14290,6 +14531,179 @@ function jsonpathParse(input: string): JsonpathParseTree {
         }
     }
     return tree;
+}
+interface JsonpathExecutionScope {
+    current: JsonpathReference;
+    size: number;
+    depth: number;
+    base: number;
+    unwrap: boolean;
+    existsStop: number;
+    existsDepth: number;
+}
+function copyJsonpathExecutionScope(value: JsonpathExecutionScope): JsonpathExecutionScope {
+    return { current: copyJsonpathReference(value.current), size: langruntime.checkedI32(value.size), depth: langruntime.checkedIndex(value.depth), base: langruntime.checkedIndex(value.base), unwrap: langruntime.checkedBool(value.unwrap), existsStop: langruntime.checkedIndex(value.existsStop), existsDepth: langruntime.checkedIndex(value.existsDepth) };
+}
+interface JsonpathPredicateValue {
+    state: number;
+    deferred: boolean;
+}
+function copyJsonpathPredicateValue(value: JsonpathPredicateValue): JsonpathPredicateValue {
+    return { state: langruntime.checkedI32(value.state), deferred: langruntime.checkedBool(value.deferred) };
+}
+function jsonpathExecutionEmptyScope(): JsonpathExecutionScope {
+    return { current: copyJsonpathReference({ source: 0, node: 0 }), size: langruntime.checkedSignedNegate(1), depth: 0, base: 0, unwrap: false, existsStop: 0, existsDepth: 0 };
+}
+function jsonpathExecutionSavedScope(current: JsonpathReference, size: number, depth: number, base: number, unwrap: boolean, existsStop: number, existsDepth: number): JsonpathExecutionScope {
+    current = copyJsonpathReference(current);
+    size = langruntime.checkedI32(size);
+    depth = langruntime.checkedIndex(depth);
+    base = langruntime.checkedIndex(base);
+    unwrap = langruntime.checkedBool(unwrap);
+    existsStop = langruntime.checkedIndex(existsStop);
+    existsDepth = langruntime.checkedIndex(existsDepth);
+    return { current: copyJsonpathReference(current), size: size, depth: depth, base: base, unwrap: unwrap, existsStop: existsStop, existsDepth: existsDepth };
+}
+function jsonpathExecutionPredicateTask(mode: number, step: number, reference: JsonpathReference, ignore: boolean, mark: number, level: number, from: number, scope: JsonpathExecutionScope): JsonpathExecutionTask {
+    mode = langruntime.checkedI32(mode);
+    step = langruntime.checkedIndex(step);
+    reference = copyJsonpathReference(reference);
+    ignore = langruntime.checkedBool(ignore);
+    mark = langruntime.checkedIndex(mark);
+    level = langruntime.checkedIndex(level);
+    from = langruntime.checkedI32(from);
+    scope = copyJsonpathExecutionScope(scope);
+    return { mode: mode, step: step, reference: copyJsonpathReference(reference), unwrap: false, ignore: ignore, level: level, spec: 0, from: from, to: 0, mark: mark, scope: copyJsonpathExecutionScope(scope) };
+}
+function jsonpathPredicateKind(kind: number): boolean {
+    kind = langruntime.checkedI32(kind);
+    return kind === checkruntime.jsonpathNodeExists || kind === checkruntime.jsonpathNodeNot || kind === checkruntime.jsonpathNodeIsUnknown || (kind >= checkruntime.jsonpathNodeEq && kind <= checkruntime.jsonpathNodeStarts);
+}
+function jsonpathPredicatePair(context: JsonpathExecutionContext, kind: number, left: JsonpathReference, right: JsonpathReference, leftNumber: checkruntime.NumericValue, rightNumber: checkruntime.NumericValue): JsonpathPredicateValue {
+    kind = langruntime.checkedI32(kind);
+    left = copyJsonpathReference(left);
+    right = copyJsonpathReference(right);
+    const a: checkruntime.JsonbNode = jsonpathExecutionNode(context, left);
+    const b: checkruntime.JsonbNode = jsonpathExecutionNode(context, right);
+    const booleanA: boolean = a.kind === 1 || a.kind === 2;
+    const booleanB: boolean = b.kind === 1 || b.kind === 2;
+    const sameType: boolean = a.kind === b.kind || (booleanA && booleanB);
+    if (kind === checkruntime.jsonpathNodeStarts) {
+        if (!(a.kind === 4) || !(b.kind === 4)) {
+            return { state: 0, deferred: false };
+        }
+    }
+    else if (sameType === false) {
+        if (a.kind === 0 || b.kind === 0) {
+            let result: number = 1;
+            if (kind === checkruntime.jsonpathNodeNe) {
+                result = langruntime.checkedI32(2);
+            }
+            return { state: result, deferred: false };
+        }
+        return { state: 0, deferred: false };
+    }
+    if (a.kind >= 5) {
+        return { state: 0, deferred: false };
+    }
+    let order: number = 0;
+    if (booleanA) {
+        order = langruntime.checkedI32(langruntime.checkedSignedSubtract(a.kind, b.kind));
+    }
+    if (a.kind === 3) {
+        const result: checkruntime.Int4Value = numericCompare(leftNumber, rightNumber);
+        let known: boolean = false;
+        if (result.kind === "Value") {
+            const value: number = langruntime.checkedI32(result.value);
+            order = langruntime.checkedI32(value);
+            known = langruntime.checkedBool(true);
+        }
+        if (known === false) {
+            return { state: 0, deferred: true };
+        }
+    }
+    if (a.kind === 4) {
+        let first: number = a.textStart;
+        let second: number = b.textStart;
+        let unicode: boolean = false;
+        while (first < a.textEnd) {
+            if (langruntime.checkedChar(jsonpathExecutionCharacter(context, left.source, first)).codePointAt(0)! > 127) {
+                unicode = langruntime.checkedBool(true);
+            }
+            first = langruntime.checkedAdd(first, 1);
+        }
+        while (second < b.textEnd) {
+            if (langruntime.checkedChar(jsonpathExecutionCharacter(context, right.source, second)).codePointAt(0)! > 127) {
+                unicode = langruntime.checkedBool(true);
+            }
+            second = langruntime.checkedAdd(second, 1);
+        }
+        if (unicode && context.utf8 === false) {
+            return { state: 0, deferred: true };
+        }
+        if (kind === checkruntime.jsonpathNodeStarts) {
+            let result: number = 2;
+            if (langruntime.checkedSubtract(b.textEnd, b.textStart) > langruntime.checkedSubtract(a.textEnd, a.textStart)) {
+                result = langruntime.checkedI32(1);
+            }
+            else {
+                let offset: number = 0;
+                while (offset < langruntime.checkedSubtract(b.textEnd, b.textStart)) {
+                    if (!(jsonpathExecutionCharacter(context, left.source, langruntime.checkedAdd(a.textStart, offset)) === jsonpathExecutionCharacter(context, right.source, langruntime.checkedAdd(b.textStart, offset)))) {
+                        result = langruntime.checkedI32(1);
+                    }
+                    offset = langruntime.checkedAdd(offset, 1);
+                }
+            }
+            return { state: result, deferred: false };
+        }
+        first = langruntime.checkedIndex(a.textStart);
+        second = langruntime.checkedIndex(b.textStart);
+        while (first < a.textEnd && second < b.textEnd && order === 0) {
+            const codeA: number = langruntime.checkedChar(jsonpathExecutionCharacter(context, left.source, first)).codePointAt(0)!;
+            const codeB: number = langruntime.checkedChar(jsonpathExecutionCharacter(context, right.source, second)).codePointAt(0)!;
+            if (codeA < codeB) {
+                order = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            }
+            else if (codeA > codeB) {
+                order = langruntime.checkedI32(1);
+            }
+            first = langruntime.checkedAdd(first, 1);
+            second = langruntime.checkedAdd(second, 1);
+        }
+        if (order === 0) {
+            if (first < a.textEnd) {
+                order = langruntime.checkedI32(1);
+            }
+            if (second < b.textEnd) {
+                order = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            }
+        }
+    }
+    let result: boolean = false;
+    if (kind === checkruntime.jsonpathNodeEq) {
+        result = langruntime.checkedBool(order === 0);
+    }
+    if (kind === checkruntime.jsonpathNodeNe) {
+        result = langruntime.checkedBool(!(order === 0));
+    }
+    if (kind === checkruntime.jsonpathNodeLt) {
+        result = langruntime.checkedBool(order < 0);
+    }
+    if (kind === checkruntime.jsonpathNodeLe) {
+        result = langruntime.checkedBool(order <= 0);
+    }
+    if (kind === checkruntime.jsonpathNodeGt) {
+        result = langruntime.checkedBool(order > 0);
+    }
+    if (kind === checkruntime.jsonpathNodeGe) {
+        result = langruntime.checkedBool(order >= 0);
+    }
+    let state: number = 1;
+    if (result) {
+        state = langruntime.checkedI32(2);
+    }
+    return { state: state, deferred: false };
 }
 interface JsonpathScanSource {
     characters: string[];
