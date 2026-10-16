@@ -108,8 +108,14 @@ export function jsonValueRequirements(item: BuiltinCallable) {
       {
         kind: 'implementation',
         requirement:
-          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Core type/size/abs/floor/ceiling/double methods and integer/bigint/boolean/number/decimal/string conversions are implemented. Keyvalue objects preserve document/variable/generated identities, logical offsets, signed-word wrapping, unknown-id projections and format-limit errors. Default ISO datetime/date/time/time_tz/timestamp/timestamp_tz methods retain typed intermediates, precision, original-offset rendering, comparisons and hard versus suppressible errors. Custom datetime templates and regex matching are deferred. Platform-dependent float input forms retain Unknown requirements. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
+          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Core type/size/abs/floor/ceiling/double methods and integer/bigint/boolean/number/decimal/string conversions are implemented. Keyvalue objects preserve document/variable/generated identities, logical offsets, signed-word wrapping, unknown-id projections and format-limit errors. Default ISO datetime/date/time/time_tz/timestamp/timestamp_tz methods retain typed intermediates, precision, original-offset rendering, comparisons and hard versus suppressible errors. Numeric Gregorian calendar/clock datetime templates support strict separators, quoted literals, compact widths, short years, fractions, numeric offsets and distinct template/value errors. Other template fields and regex matching remain deferred. Platform-dependent float input forms retain Unknown requirements. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
         owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
+      },
+      {
+        kind: 'implementation',
+        requirement:
+          'Datetime template calendar weeks, day-of-year, Julian dates, century/era, 12-hour clocks, named fields and localized forms remain pending. Malformed standard-format separators raise hard 22007; reached unsupported template fields retain Unknown.',
+        owner: 'tests/sql-semantics/check-jsonpath-templates.test.ts',
       },
       {
         kind: 'session',

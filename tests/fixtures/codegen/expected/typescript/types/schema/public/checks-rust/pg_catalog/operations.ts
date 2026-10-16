@@ -16379,7 +16379,465 @@ const jsonpathReduceSignedPlus = 41;
 const jsonpathReduceSignedMinus = 42;
 const jsonpathReduceNone = 43;
 const jsonpathReduceKey = 44;
+const jsonpathTemplateFormat = 3452551;
+const jsonpathTemplateRange = 3452552;
+const jsonpathTemplateZone = 3452553;
+interface JsonpathTemplateToken {
+    kind: number;
+    width: number;
+    digit: boolean;
+    fill: boolean;
+    ordinal: boolean;
+    character: string;
+}
+function copyJsonpathTemplateToken(value: JsonpathTemplateToken): JsonpathTemplateToken {
+    return { kind: langruntime.checkedI32(value.kind), width: langruntime.checkedIndex(value.width), digit: langruntime.checkedBool(value.digit), fill: langruntime.checkedBool(value.fill), ordinal: langruntime.checkedBool(value.ordinal), character: langruntime.checkedChar(value.character) };
+}
+interface JsonpathTemplateProgram {
+    tokens: JsonpathTemplateToken[];
+    error: number;
+    supported: boolean;
+    dated: boolean;
+    timed: boolean;
+    zoned: boolean;
+}
+function copyJsonpathTemplateProgram(value: JsonpathTemplateProgram): JsonpathTemplateProgram {
+    return { tokens: langruntime.checkedStructs(value.tokens, copyJsonpathTemplateToken), error: langruntime.checkedIndex(value.error), supported: langruntime.checkedBool(value.supported), dated: langruntime.checkedBool(value.dated), timed: langruntime.checkedBool(value.timed), zoned: langruntime.checkedBool(value.zoned) };
+}
+const jsonpathTemplateNames: ReadonlyArray<string> = ["A.D.", "A.M.", "AD", "AM", "B.C.", "BC", "CC", "DAY", "DDD", "DD", "DY", "Day", "Dy", "D", "FF1", "FF2", "FF3", "FF4", "FF5", "FF6", "FX", "HH24", "HH12", "HH", "IDDD", "ID", "IW", "IYYY", "IYY", "IY", "I", "J", "MI", "MM", "MONTH", "MON", "MS", "Month", "Mon", "OF", "P.M.", "PM", "Q", "RM", "SSSSS", "SSSS", "SS", "TZH", "TZM", "TZ", "US", "WW", "W", "Y,YYY", "YYYY", "YYY", "YY", "Y", "a.d.", "a.m.", "ad", "am", "b.c.", "bc", "cc", "day", "ddd", "dd", "dy", "d", "ff1", "ff2", "ff3", "ff4", "ff5", "ff6", "fx", "hh24", "hh12", "hh", "iddd", "id", "iw", "iyyy", "iyy", "iy", "i", "j", "mi", "mm", "month", "mon", "ms", "of", "p.m.", "pm", "q", "rm", "sssss", "ssss", "ss", "tzh", "tzm", "tz", "us", "ww", "w", "y,yyy", "yyyy", "yyy", "yy", "y"];
+const jsonpathTemplateKinds: ReadonlyArray<number> = [100, 100, 100, 100, 100, 100, 100, 100, 100, 6, 100, 100, 100, 100, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 8, 5, 100, 100, 10, 100, 100, 21, 100, 100, 100, 100, 18, 18, 9, 19, 20, 22, 11, 100, 100, 100, 1, 2, 3, 4, 100, 100, 100, 100, 100, 100, 100, 100, 100, 6, 100, 100, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 8, 5, 100, 100, 10, 21, 100, 100, 100, 100, 18, 18, 9, 19, 20, 22, 11, 100, 100, 100, 1, 2, 3, 4];
+const jsonpathTemplateDigits: ReadonlyArray<number> = [0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1];
+function jsonpathTemplateMatches(source: JsonpathTemporalSource, position: number, name: string): boolean {
+    position = langruntime.checkedIndex(position);
+    name = langruntime.checkedString(name);
+    const characters: string[] = Array.from(name);
+    if (langruntime.checkedAdd(position, characters.length) > source.characters.length) {
+        return false;
+    }
+    let index: number = 0;
+    while (index < characters.length) {
+        if (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, index))) === langruntime.indexChar(characters, langruntime.checkedIndex(index)))) {
+            return false;
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+function jsonpathTemplateCompile(input: string): JsonpathTemplateProgram {
+    input = langruntime.checkedString(input);
+    const source: JsonpathTemporalSource = { characters: Array.from(input) };
+    let tokens: JsonpathTemplateToken[] = [];
+    let position: number = 0;
+    let error: number = 0;
+    let supported: boolean = true;
+    let dated: boolean = false;
+    let timed: boolean = false;
+    let zoned: boolean = false;
+    while (position < source.characters.length && error === 0) {
+        const fill: boolean = jsonpathTemplateMatches(source, position, "FM") || jsonpathTemplateMatches(source, position, "fm");
+        const translated: boolean = jsonpathTemplateMatches(source, position, "TM") || jsonpathTemplateMatches(source, position, "tm");
+        if (fill || translated) {
+            position = langruntime.checkedAdd(position, 2);
+        }
+        let key: number = jsonpathTemplateNames.length;
+        let index: number = 0;
+        while (index < jsonpathTemplateNames.length && key === jsonpathTemplateNames.length) {
+            const name: string = langruntime.indexStatic(jsonpathTemplateNames, langruntime.checkedIndex(index));
+            if (jsonpathTemplateMatches(source, position, name)) {
+                key = langruntime.checkedIndex(index);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (key < jsonpathTemplateNames.length) {
+            const name: string = langruntime.indexStatic(jsonpathTemplateNames, langruntime.checkedIndex(key));
+            const characters: string[] = Array.from(name);
+            const kind: number = langruntime.indexStatic(jsonpathTemplateKinds, langruntime.checkedIndex(key));
+            let width: number = characters.length;
+            if (kind === 7 || kind === 19 || kind === 20 || kind === 21 || kind === 22) {
+                width = langruntime.checkedIndex(2);
+            }
+            if (kind === 10) {
+                width = langruntime.checkedIndex(3);
+            }
+            if (kind === 11) {
+                width = langruntime.checkedIndex(6);
+            }
+            if (kind >= 12 && kind <= 17) {
+                width = langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedSubtract(kind, 11), 0));
+            }
+            position = langruntime.checkedAdd(position, characters.length);
+            const ordinal: boolean = jsonpathTemplateMatches(source, position, "TH") || jsonpathTemplateMatches(source, position, "th");
+            if (ordinal || jsonpathTemplateMatches(source, position, "SP")) {
+                position = langruntime.checkedAdd(position, 2);
+            }
+            langruntime.pushStruct(tokens, { kind: kind, width: width, digit: langruntime.indexStatic(jsonpathTemplateDigits, langruntime.checkedIndex(key)) > 0, fill: fill, ordinal: ordinal, character: " " }, copyJsonpathTemplateToken);
+            if (kind === 100) {
+                supported = langruntime.checkedBool(false);
+            }
+            if (kind >= 1 && kind <= 6) {
+                dated = langruntime.checkedBool(true);
+            }
+            if (kind >= 7 && kind <= 18) {
+                timed = langruntime.checkedBool(true);
+            }
+            if (kind >= 19 && kind <= 22) {
+                zoned = langruntime.checkedBool(true);
+            }
+        }
+        else if (position < source.characters.length) {
+            const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+            if (character === "\"") {
+                position = langruntime.checkedAdd(position, 1);
+                let quoted: boolean = true;
+                while (position < source.characters.length && quoted) {
+                    const literal: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+                    position = langruntime.checkedAdd(position, 1);
+                    if (literal === "\"") {
+                        quoted = langruntime.checkedBool(false);
+                    }
+                    else {
+                        let stored: string = literal;
+                        if (literal === "\\" && position < source.characters.length) {
+                            stored = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
+                            position = langruntime.checkedAdd(position, 1);
+                        }
+                        langruntime.pushStruct(tokens, { kind: 0, width: 0, digit: numericWireDecimalDigit(stored) >= 0, fill: false, ordinal: false, character: stored }, copyJsonpathTemplateToken);
+                    }
+                }
+            }
+            else {
+                if (!(character === "-") && !(character === ".") && !(character === "/") && !(character === ",") && !(character === "'") && !(character === ":") && !(character === ";") && !(character === " ")) {
+                    error = langruntime.checkedIndex(jsonpathTemplateFormat);
+                }
+                langruntime.pushStruct(tokens, { kind: 0, width: 0, digit: false, fill: false, ordinal: false, character: character }, copyJsonpathTemplateToken);
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+    }
+    return { tokens: tokens, error: error, supported: supported, dated: dated, timed: timed, zoned: zoned };
+}
+interface JsonpathTemplateField {
+    value: number;
+}
+function copyJsonpathTemplateField(value: JsonpathTemplateField): JsonpathTemplateField {
+    return { value: langruntime.checkedI32(value.value) };
+}
+interface JsonpathTemplateRead {
+    value: number;
+    end: number;
+    width: number;
+    error: number;
+}
+function copyJsonpathTemplateRead(value: JsonpathTemplateRead): JsonpathTemplateRead {
+    return { value: langruntime.checkedI32(value.value), end: langruntime.checkedIndex(value.end), width: langruntime.checkedIndex(value.width), error: langruntime.checkedIndex(value.error) };
+}
+function jsonpathTemplateReadInteger(source: JsonpathTemporalSource, begin: number, width: number, variable: boolean): JsonpathTemplateRead {
+    begin = langruntime.checkedIndex(begin);
+    width = langruntime.checkedIndex(width);
+    variable = langruntime.checkedBool(variable);
+    let start: number = begin;
+    while (start < source.characters.length && checkruntime.numericSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(start)))) {
+        start = langruntime.checkedAdd(start, 1);
+    }
+    let limit: number = source.characters.length;
+    let error: number = 0;
+    if (variable === false) {
+        if (langruntime.checkedAdd(start, width) > limit) {
+            error = langruntime.checkedIndex(jsonpathTemplateFormat);
+        }
+        else {
+            limit = langruntime.checkedIndex(langruntime.checkedAdd(start, width));
+        }
+    }
+    let position: number = start;
+    let negative: boolean = false;
+    if (position < limit && (langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "+" || langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-")) {
+        negative = langruntime.checkedBool(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === "-");
+        position = langruntime.checkedAdd(position, 1);
+    }
+    const digits: number = position;
+    let value: bigint = 0n;
+    let overflow: boolean = false;
+    while (position < limit && numericWireDecimalDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))) >= 0) {
+        const digit: bigint = BigInt(langruntime.checkedI32(numericWireDecimalDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))));
+        if (value > langruntime.checkedI64Divide((langruntime.checkedI64Subtract(2147483648n, digit)), 10n)) {
+            overflow = langruntime.checkedBool(true);
+        }
+        if (overflow === false) {
+            value = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(value, 10n), digit));
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (position === digits) {
+        position = langruntime.checkedIndex(start);
+        if (variable || position === begin) {
+            error = langruntime.checkedIndex(jsonpathTemplateFormat);
+        }
+    }
+    else if (variable === false && !(position === limit)) {
+        error = langruntime.checkedIndex(jsonpathTemplateFormat);
+    }
+    if (overflow || (negative === false && value > 2147483647n)) {
+        error = langruntime.checkedIndex(jsonpathTemplateRange);
+    }
+    if (negative) {
+        value = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, value));
+    }
+    return { value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))), end: position, width: langruntime.checkedSubtract(position, begin), error: error };
+}
+function jsonpathTemplateError(error: number, hard: boolean): JsonpathTemporalValue {
+    error = langruntime.checkedIndex(error);
+    hard = langruntime.checkedBool(hard);
+    return jsonpathTemporalState(0, 0n, 0, error, false, hard);
+}
+function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkruntime.TextValue): JsonpathTemporalValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return jsonpathTemplateError(error.state, false);
+    }
+    if (template.kind === "Error") {
+        const error: checkruntime.SqlError = template.value;
+        return jsonpathTemplateError(error.state, false);
+    }
+    if (input.kind === "Null") {
+        return jsonpathTemporalState(langruntime.checkedSignedNegate(1), 0n, 0, 0, false, false);
+    }
+    if (template.kind === "Null") {
+        return jsonpathTemporalState(langruntime.checkedSignedNegate(1), 0n, 0, 0, false, false);
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        if (template.kind === "Value") {
+            const format: string = langruntime.checkedString(template.value);
+            const program: JsonpathTemplateProgram = jsonpathTemplateCompile(format);
+            if (program.error > 0) {
+                return jsonpathTemplateError(program.error, true);
+            }
+            if (program.supported === false) {
+                return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+            }
+            const source: JsonpathTemporalSource = { characters: Array.from(text) };
+            let fields: JsonpathTemplateField[] = [];
+            let index: number = 0;
+            while (index < 23) {
+                langruntime.pushStruct(fields, { value: 0 }, copyJsonpathTemplateField);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            let position: number = 0;
+            let zoneSign: number = langruntime.checkedSignedNegate(1);
+            let precision: number = langruntime.checkedSignedNegate(1);
+            index = langruntime.checkedIndex(0);
+            while (index < program.tokens.length) {
+                const token: JsonpathTemplateToken = copyJsonpathTemplateToken(langruntime.indexStruct(program.tokens, langruntime.checkedIndex(index), copyJsonpathTemplateToken));
+                if (position === source.characters.length) {
+                    return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                }
+                if (token.kind === 0) {
+                    if (!(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === token.character)) {
+                        return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                    }
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                else if (!(token.kind === 23)) {
+                    let variable: boolean = token.fill || token.ordinal || langruntime.checkedAdd(index, 1) === program.tokens.length;
+                    if (langruntime.checkedAdd(index, 1) < program.tokens.length && langruntime.indexStruct(program.tokens, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)), copyJsonpathTemplateToken).digit === false) {
+                        variable = langruntime.checkedBool(true);
+                    }
+                    if (token.kind === 22 && jsonpathTemporalLetter(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+                        return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+                    }
+                    if (token.kind === 19 || token.kind === 21 || token.kind === 22) {
+                        zoneSign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+                        const character: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(position));
+                        if (character === "+" || character === "-" || character === " ") {
+                            if (character === "-") {
+                                zoneSign = langruntime.checkedI32(1);
+                            }
+                            position = langruntime.checkedAdd(position, 1);
+                        }
+                    }
+                    const read: JsonpathTemplateRead = copyJsonpathTemplateRead(jsonpathTemplateReadInteger(source, position, token.width, variable));
+                    if (read.error > 0) {
+                        return jsonpathTemplateError(read.error, false);
+                    }
+                    position = langruntime.checkedIndex(read.end);
+                    let field: number = token.kind;
+                    if (field >= 2 && field <= 4) {
+                        field = langruntime.checkedI32(1);
+                    }
+                    if (field >= 12 && field <= 17) {
+                        precision = langruntime.checkedI32(langruntime.checkedSignedSubtract(field, 11));
+                        field = langruntime.checkedI32(11);
+                    }
+                    if (field === 21 || field === 22) {
+                        field = langruntime.checkedI32(19);
+                    }
+                    const slot: number = langruntime.indexFromI32(field, 0);
+                    if (!(langruntime.indexStruct(fields, langruntime.checkedIndex(slot), copyJsonpathTemplateField).value === 0) && !(langruntime.indexStruct(fields, langruntime.checkedIndex(slot), copyJsonpathTemplateField).value === read.value)) {
+                        return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                    }
+                    let value: number = read.value;
+                    if (token.kind >= 2 && token.kind <= 4 && read.width < 4) {
+                        if (value < 70) {
+                            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 2000));
+                        }
+                        else if (value < 100) {
+                            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 1900));
+                        }
+                        else if (value < 520) {
+                            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 2000));
+                        }
+                        else if (value < 1000) {
+                            value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 1000));
+                        }
+                    }
+                    if (field === 10) {
+                        if (read.width === 1) {
+                            value = langruntime.checkedI32(langruntime.checkedSignedMultiply(value, 100));
+                        }
+                        if (read.width === 2) {
+                            value = langruntime.checkedI32(langruntime.checkedSignedMultiply(value, 10));
+                        }
+                    }
+                    if (field === 11) {
+                        let consumed: number = read.width;
+                        while (consumed < 6) {
+                            value = langruntime.checkedI32(langruntime.checkedSignedMultiply(value, 10));
+                            consumed = langruntime.checkedAdd(consumed, 1);
+                        }
+                    }
+                    fields[langruntime.checkedIndexIn(fields, slot)] = copyJsonpathTemplateField({ value: value });
+                    if ((token.kind === 21 || token.kind === 22) && position < source.characters.length && langruntime.indexChar(source.characters, langruntime.checkedIndex(position)) === ":") {
+                        const minutes: JsonpathTemplateRead = copyJsonpathTemplateRead(jsonpathTemplateReadInteger(source, langruntime.checkedAdd(position, 1), 2, variable));
+                        if (minutes.error > 0) {
+                            return jsonpathTemplateError(minutes.error, false);
+                        }
+                        if (!(langruntime.indexStruct(fields, langruntime.checkedIndex(20), copyJsonpathTemplateField).value === 0) && !(langruntime.indexStruct(fields, langruntime.checkedIndex(20), copyJsonpathTemplateField).value === minutes.value)) {
+                            return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                        }
+                        fields[langruntime.checkedIndexIn(fields, 20)] = copyJsonpathTemplateField({ value: minutes.value });
+                        position = langruntime.checkedIndex(minutes.end);
+                    }
+                    if (token.ordinal) {
+                        let skipped: number = 0;
+                        while (skipped < 2 && position < source.characters.length) {
+                            position = langruntime.checkedAdd(position, 1);
+                            skipped = langruntime.checkedAdd(skipped, 1);
+                        }
+                    }
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            while (position < source.characters.length && checkruntime.numericSpace(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)))) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            if (!(position === source.characters.length)) {
+                return jsonpathTemplateError(jsonpathTemplateFormat, false);
+            }
+            let year: number = 0;
+            index = langruntime.checkedIndex(1);
+            while (index <= 4) {
+                if (!(langruntime.indexStruct(fields, langruntime.checkedIndex(index), copyJsonpathTemplateField).value === 0)) {
+                    if (!(year === 0) && !(year === langruntime.indexStruct(fields, langruntime.checkedIndex(index), copyJsonpathTemplateField).value)) {
+                        return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                    }
+                    year = langruntime.checkedI32(langruntime.indexStruct(fields, langruntime.checkedIndex(index), copyJsonpathTemplateField).value);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (year === 0) {
+                year = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            }
+            let month: number = langruntime.indexStruct(fields, langruntime.checkedIndex(5), copyJsonpathTemplateField).value;
+            let day: number = langruntime.indexStruct(fields, langruntime.checkedIndex(6), copyJsonpathTemplateField).value;
+            if (month === 0) {
+                month = langruntime.checkedI32(1);
+            }
+            if (day === 0) {
+                day = langruntime.checkedI32(1);
+            }
+            const date: checkruntime.DateValue = checkruntime.dateFromYmd(year, month, day);
+            if (date.kind === "Error") {
+                return jsonpathTemplateError(jsonpathTemplateRange, false);
+            }
+            let hours: number = langruntime.checkedSignedDivide(langruntime.indexStruct(fields, langruntime.checkedIndex(18), copyJsonpathTemplateField).value, 3600);
+            let minutes: number = langruntime.checkedSignedDivide((langruntime.checkedSignedRemainder(langruntime.indexStruct(fields, langruntime.checkedIndex(18), copyJsonpathTemplateField).value, 3600)), 60);
+            let seconds: number = langruntime.checkedSignedRemainder(langruntime.indexStruct(fields, langruntime.checkedIndex(18), copyJsonpathTemplateField).value, 60);
+            if (!(langruntime.indexStruct(fields, langruntime.checkedIndex(7), copyJsonpathTemplateField).value === 0)) {
+                hours = langruntime.checkedI32(langruntime.indexStruct(fields, langruntime.checkedIndex(7), copyJsonpathTemplateField).value);
+            }
+            if (!(langruntime.indexStruct(fields, langruntime.checkedIndex(8), copyJsonpathTemplateField).value === 0)) {
+                minutes = langruntime.checkedI32(langruntime.indexStruct(fields, langruntime.checkedIndex(8), copyJsonpathTemplateField).value);
+            }
+            if (!(langruntime.indexStruct(fields, langruntime.checkedIndex(9), copyJsonpathTemplateField).value === 0)) {
+                seconds = langruntime.checkedI32(langruntime.indexStruct(fields, langruntime.checkedIndex(9), copyJsonpathTemplateField).value);
+            }
+            const fraction: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(langruntime.indexStruct(fields, langruntime.checkedIndex(10), copyJsonpathTemplateField).value))), 1000n), BigInt(langruntime.checkedI32(langruntime.indexStruct(fields, langruntime.checkedIndex(11), copyJsonpathTemplateField).value)));
+            if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59 || fraction < 0n || fraction > 999999n) {
+                return jsonpathTemplateError(jsonpathTemplateRange, false);
+            }
+            if (langruntime.indexStruct(fields, langruntime.checkedIndex(19), copyJsonpathTemplateField).value < 0 || langruntime.indexStruct(fields, langruntime.checkedIndex(19), copyJsonpathTemplateField).value > 15 || langruntime.indexStruct(fields, langruntime.checkedIndex(20), copyJsonpathTemplateField).value < 0 || langruntime.indexStruct(fields, langruntime.checkedIndex(20), copyJsonpathTemplateField).value > 59) {
+                return jsonpathTemplateError(jsonpathTemplateZone, false);
+            }
+            const zone: number = langruntime.checkedSignedMultiply(zoneSign, (langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(fields, langruntime.checkedIndex(19), copyJsonpathTemplateField).value, 3600), langruntime.checkedSignedMultiply(langruntime.indexStruct(fields, langruntime.checkedIndex(20), copyJsonpathTemplateField).value, 60))));
+            const clock: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(hours))), 3600000000n), langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(minutes))), 60000000n)), langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(seconds))), 1000000n)), fraction);
+            if (program.dated === false && program.timed === false) {
+                return jsonpathTemplateError(jsonpathTemplateFormat, false);
+            }
+            if (program.dated && program.timed === false) {
+                if (program.zoned) {
+                    return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                }
+                if (date.kind === "Value") {
+                    const value: number = langruntime.checkedI32(date.value);
+                    return jsonpathTemporalState(1, BigInt(langruntime.checkedI32(value)), 0, 0, false, false);
+                }
+            }
+            if (program.dated === false) {
+                const scaled: checkruntime.TimeValue = clockScaleValue({ kind: "Value", value: clock }, { kind: "Value", value: precision });
+                let result: bigint = clock;
+                if (precision >= 0) {
+                    if (scaled.kind === "Value") {
+                        const value: bigint = langruntime.checkedI64(scaled.value);
+                        result = langruntime.checkedI64(value);
+                    }
+                }
+                let kind: number = 2;
+                if (program.zoned) {
+                    kind = langruntime.checkedI32(3);
+                }
+                return jsonpathTemporalState(kind, result, zone, 0, false, false);
+            }
+            if (date.kind === "Value") {
+                const day: number = langruntime.checkedI32(date.value);
+                const combined: checkruntime.Int8Value = jsonpathTemporalTimestamp(day, clock, zone);
+                if (combined.kind === "Value") {
+                    const value: bigint = langruntime.checkedI64(combined.value);
+                    let result: bigint = value;
+                    let kind: number = 4;
+                    if (program.zoned) {
+                        kind = langruntime.checkedI32(5);
+                    }
+                    if (precision >= 0) {
+                        const scaled: checkruntime.Int8Value = temporalAdjustPrecision(result, precision);
+                        if (scaled.kind === "Error") {
+                            return jsonpathTemplateError(jsonpathTemplateRange, false);
+                        }
+                        if (scaled.kind === "Value") {
+                            const value: bigint = langruntime.checkedI64(scaled.value);
+                            result = langruntime.checkedI64(value);
+                        }
+                    }
+                    return jsonpathTemporalState(kind, result, zone, 0, false, false);
+                }
+            }
+            return jsonpathTemplateError(jsonpathTemplateRange, false);
+        }
+    }
+    return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+}
 const jsonpathTemporalArgument = 3452653;
+const jsonpathTemporalRange = 3452552;
 const jsonpathTemporalFeature = 466560;
 interface JsonpathTemporalValue {
     kind: number;
@@ -16612,32 +17070,14 @@ function jsonpathTemporalDecode(input: checkruntime.TextValue): JsonpathTemporal
         }
         const time: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(hour))), 3600000000n), langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(minute.value))), 60000000n)), langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(second.value))), 1000000n)), BigInt(langruntime.checkedI32(fraction)));
         if (hasDate) {
-            const midnight: checkruntime.TimestampValue = timestampSwxj({ kind: "Value", value: day });
-            if (midnight.kind === "Value") {
-                const start: bigint = langruntime.checkedI64(midnight.value);
-                const added: checkruntime.Int8Value = int8pl1v1h({ kind: "Value", value: start }, { kind: "Value", value: time });
-                if (added.kind === "Value") {
-                    const number: bigint = langruntime.checkedI64(added.value);
-                    const checked: checkruntime.TimestampValue = checkruntime.makeTimestampValue(number);
-                    if (checked.kind === "Value") {
-                        const value: bigint = langruntime.checkedI64(checked.value);
-                        if (zoned) {
-                            const adjustment: bigint = langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(zone))), 1000000n);
-                            const shifted: checkruntime.Int8Value = int8pl1v1h({ kind: "Value", value: value }, { kind: "Value", value: adjustment });
-                            if (shifted.kind === "Value") {
-                                const utc: bigint = langruntime.checkedI64(shifted.value);
-                                const valid: checkruntime.TimestamptzValue = checkruntime.makeTimestamptzValue(utc);
-                                if (valid.kind === "Value") {
-                                    const value: bigint = langruntime.checkedI64(valid.value);
-                                    return jsonpathTemporalState(5, value, zone, 0, false, false);
-                                }
-                            }
-                        }
-                        else {
-                            return jsonpathTemporalState(4, value, 0, 0, false, false);
-                        }
-                    }
+            const parsed: checkruntime.Int8Value = jsonpathTemporalTimestamp(day, time, zone);
+            if (parsed.kind === "Value") {
+                const value: bigint = langruntime.checkedI64(parsed.value);
+                let kind: number = 4;
+                if (zoned) {
+                    kind = langruntime.checkedI32(5);
                 }
+                return jsonpathTemporalState(kind, value, zone, 0, false, false);
             }
             return jsonpathTemporalInvalid();
         }
@@ -16754,10 +17194,6 @@ function jsonpathTemporalConvert(input: checkruntime.TextValue, method: number, 
             const scaled: checkruntime.Int8Value = temporalAdjustPrecision(value, digits);
             if (scaled.kind === "Value") {
                 const number: bigint = langruntime.checkedI64(scaled.value);
-                const checked: checkruntime.TimestampValue = checkruntime.makeTimestampValue(number);
-                if (checked.kind === "Error") {
-                    return jsonpathTemporalInvalid();
-                }
                 value = langruntime.checkedI64(number);
             }
         }
@@ -16839,7 +17275,7 @@ function jsonpathTemporalApply(context: JsonpathExecutionContext, method: checkr
         return jsonpathTemporalInvalid();
     }
     if (method.kind === 128 && method.left > 0) {
-        return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+        return jsonpathTemplateParse(input, jsonpathMethodText(context, { source: 2, node: method.left }));
     }
     let precision: number = langruntime.checkedSignedNegate(1);
     if (method.left > 0) {
@@ -16880,6 +17316,22 @@ function jsonpathTemporalCompare(left: JsonpathTemporalValue, right: JsonpathTem
         return { kind: "Error", value: checkruntime.makeSqlError(jsonpathTemporalFeature) };
     }
     return { kind: "Null" };
+}
+function jsonpathTemporalTimestamp(day: number, clock: bigint, zone: number): checkruntime.Int8Value {
+    day = langruntime.checkedI32(day);
+    clock = langruntime.checkedI64(clock);
+    zone = langruntime.checkedI32(zone);
+    const days: bigint = BigInt(langruntime.checkedI32(day));
+    if (days < -2451545n || days > 106751983n) {
+        return { kind: "Error", value: checkruntime.makeSqlError(jsonpathTemporalRange) };
+    }
+    const value: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Multiply(days, 86400000000n), clock), langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(zone))), 1000000n));
+    const checked: checkruntime.TimestampValue = checkruntime.makeTimestampValue(value);
+    if (checked.kind === "Error") {
+        const error: checkruntime.SqlError = checked.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Value", value: value };
 }
 function jsonpathRadixLiteral(source: JsonpathScanSource, radix: number): checkruntime.TextValue {
     radix = langruntime.checkedI32(radix);

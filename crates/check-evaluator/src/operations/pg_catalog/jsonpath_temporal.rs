@@ -1,4 +1,5 @@
 const JSONPATH_TEMPORAL_ARGUMENT: u32 = 3452653;
+const JSONPATH_TEMPORAL_RANGE: u32 = 3452552;
 const JSONPATH_TEMPORAL_FEATURE: u32 = 466560;
 
 #[derive(Clone, Copy)]
@@ -257,32 +258,13 @@ fn jsonpath_temporal_decode(input: TextValue) -> JsonpathTemporalValue {
             + (second.value as i64) * 1000000i64
             + fraction as i64;
         if has_date {
-            let midnight = sql__pg_catalog__timestamp__swxj(DateValue::Value(day));
-            if let TimestampValue::Value(start) = midnight {
-                let added =
-                    sql__pg_catalog__int8pl__1v1h(Int8Value::Value(start), Int8Value::Value(time));
-                if let Int8Value::Value(number) = added {
-                    let checked = make_timestamp_value(number);
-                    if let TimestampValue::Value(value) = checked {
-                        if zoned {
-                            let adjustment = (zone as i64) * 1000000i64;
-                            let shifted = sql__pg_catalog__int8pl__1v1h(
-                                Int8Value::Value(value),
-                                Int8Value::Value(adjustment),
-                            );
-                            if let Int8Value::Value(utc) = shifted {
-                                let valid = make_timestamptz_value(utc);
-                                if let TimestamptzValue::Value(value) = valid {
-                                    return jsonpath_temporal_state(
-                                        5, value, zone, 0, false, false,
-                                    );
-                                };
-                            };
-                        } else {
-                            return jsonpath_temporal_state(4, value, 0, 0, false, false);
-                        };
-                    };
+            let parsed = jsonpath_temporal_timestamp(day, time, zone);
+            if let Int8Value::Value(value) = parsed {
+                let mut kind: i32 = 4;
+                if zoned {
+                    kind = 5;
                 };
+                return jsonpath_temporal_state(kind, value, zone, 0, false, false);
             };
             return jsonpath_temporal_invalid();
         };
@@ -396,10 +378,6 @@ fn jsonpath_temporal_convert(
         } else {
             let scaled = temporal_adjust_precision(value, digits);
             if let Int8Value::Value(number) = scaled {
-                let checked = make_timestamp_value(number);
-                if let TimestampValue::Error(_) = checked {
-                    return jsonpath_temporal_invalid();
-                };
                 value = number;
             };
         };
@@ -486,7 +464,16 @@ fn jsonpath_temporal_apply(
         return jsonpath_temporal_invalid();
     };
     if method.kind == 128 && method.left > 0 {
-        return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+        return jsonpath_template_parse(
+            input,
+            jsonpath_method_text(
+                context,
+                JsonpathReference {
+                    source: 2,
+                    node: method.left,
+                },
+            ),
+        );
     };
     let mut precision: i32 = -1;
     if method.left > 0 {
@@ -549,4 +536,17 @@ fn jsonpath_temporal_compare(
         return Int4Value::Error(make_sql_error(JSONPATH_TEMPORAL_FEATURE));
     };
     Int4Value::Null
+}
+
+fn jsonpath_temporal_timestamp(day: i32, clock: i64, zone: i32) -> Int8Value {
+    let days = day as i64;
+    if days < -2451545i64 || days > 106751983i64 {
+        return Int8Value::Error(make_sql_error(JSONPATH_TEMPORAL_RANGE));
+    };
+    let value = days * 86400000000i64 + clock + (zone as i64) * 1000000i64;
+    let checked = make_timestamp_value(value);
+    if let TimestampValue::Error(error) = checked {
+        return Int8Value::Error(error);
+    };
+    Int8Value::Value(value)
 }

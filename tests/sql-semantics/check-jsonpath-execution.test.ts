@@ -757,7 +757,7 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       })
       fixtures.push({
         name: variant.name,
-        row: { ...base, document: value('{"a":"2024"}'), path: value('$.a.datetime("YYYY")') },
+        row: { ...base, document: value('{"a":"2024"}'), path: value('$.a.datetime("TMMonth")') },
         expected: { kind: 'Unknown' },
       })
       fixtures.push({
@@ -765,13 +765,13 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
         row: {
           ...base,
           document: value('{"x":"2024"}'),
-          path: value('(-$.x.datetime("YYYY") == 1)'),
+          path: value('(-$.x.datetime("TMMonth") == 1)'),
         },
         expected: { kind: 'Unknown' },
       })
     }
     for (const variant of variants) {
-      for (const path of ['$.a.datetime("YYYY")', '$ like_regex "a"'])
+      for (const path of ['$.a.datetime("TMMonth")', '$ like_regex "a"'])
         fixtures.push({
           name: variant.name,
           row: {
@@ -789,7 +789,7 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
         ['"12:34:56Z"', '$.datetime()'],
         ['"2024-02-29T12:34:56Z"', '$.datetime().string()'],
         ['"2024-02-29T12:34:56+03:30"', '$.time_tz()'],
-        ['"2024"', '$.datetime("YYYY")'],
+        ['"2024"', '$.datetime("TMMonth")'],
       ])
         fixtures.push({
           name: variant.name,

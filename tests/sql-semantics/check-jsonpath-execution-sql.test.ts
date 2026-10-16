@@ -26,6 +26,10 @@ it('binds JSONPath execution identities, defaults and expression composition in 
   })
   try {
     const expressions: Record<string, string> = {
+      template_date: `(document @@ '"20240229".datetime("YYYYMMDD")=="2024-02-29".date()') IS TRUE`,
+      template_type: `(document @@ '"12:34:56-05:30".datetime("HH24:MI:SSTZH:TZM").type()=="time with time zone"') IS TRUE`,
+      template_silent_value: `jsonb_path_query_first(document,'"bad".datetime("YYYY")','{}',true) IS NULL`,
+      template_hard_skip: `CASE WHEN bypass THEN true ELSE jsonb_path_exists(document,'"2024".datetime("YYYY_")','{}',true) END`,
       temporal_type: `(document @@ '"2024-02-29".datetime().type()=="date"') IS TRUE`,
       temporal_render: `jsonb_path_query_first(document,'"2024-02-29T12:34:56+03:30".datetime().string()') IS NOT DISTINCT FROM '"2024-02-29T12:34:56+03:30"'::jsonb`,
       temporal_compare: `(document @@ '"2024-02-29".date()<"2024-02-29T00:00:01".timestamp()') IS TRUE`,
@@ -139,7 +143,7 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ['{"a":[true],"flag":true}', 'strict $.a[0,8]', '{}', true, false],
       ['{"a":[true],"flag":true}', 'strict $.a[0,$missing]', '{}', true, false],
       ['{"a":[1,2],"flag":true}', '(', '{}', false, true],
-      ['{"a":"2024","flag":true}', '$.a.datetime("YYYY")', '{}', false, true],
+      ['{"a":"2024","flag":true}', '$.a.datetime("TMMonth")', '{}', false, true],
       ['{"a":[1,2,3],"flag":true}', '$.a[last-1]', '{}', false, false],
       ['{"a":[1,2],"flag":true}', '$v+1', '{"v":[1]}', false, false],
       ['{"a":[],"flag":true}', 'strict -$v[0,8]', '{"v":[1]}', true, false],
@@ -185,6 +189,17 @@ it('binds JSONPath execution identities, defaults and expression composition in 
         false,
       ],
       ['{"a":"bad","flag":true}', '$.a.datetime()', '{}', true, false],
+      ['{"a":"20240229","flag":true}', '$.a.datetime("YYYYMMDD")', '{}', false, false],
+      [
+        '{"a":"12:34:56-05:30","flag":true}',
+        '$.a.datetime("HH24:MI:SSTZH:TZM").string()',
+        '{}',
+        false,
+        false,
+      ],
+      ['{"a":"bad","flag":true}', '$.a.datetime("YYYY")', '{}', true, false],
+      ['{"a":"2024","flag":true}', '$.a.datetime("YYYY_")', '{}', true, false],
+
       ['{"a":"2024-02-29","flag":true}', '$.a.timestamp_tz()', '{}', true, false],
     ]
     for (const [document, source, variables, silent, bypass] of cases) {
@@ -226,7 +241,7 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       for (const [name, sql] of Object.entries(expressions)) {
         let expected: Outcome
         if (
-          source === '$.a.datetime("YYYY")' &&
+          source === '$.a.datetime("TMMonth")' &&
           ['array_runtime', 'first_runtime', 'exists_runtime', 'runtime_render'].includes(name)
         )
           expected = { kind: 'Unknown' }
