@@ -12410,7 +12410,7 @@ function jsonpathExecutionLiterals(path: checkruntime.JsonpathPayload): checkrun
 }
 function jsonpathTemplateDateMode(kind: number): number {
     kind = langruntime.checkedI32(kind);
-    if ((kind >= 1 && kind <= 6) || kind === 24 || kind === 25 || kind === 26 || kind === 27 || kind === 33) {
+    if ((kind >= 1 && kind <= 6) || kind === 24 || kind === 25 || kind === 26 || kind === 27 || kind === 33 || kind === 44 || kind === 45 || kind === 48) {
         return 1;
     }
     if (kind >= 34 && kind <= 40) {
@@ -14950,6 +14950,69 @@ function jsonpathMethodNumeric(kind: number, number: checkruntime.NumericValue, 
     }
     return ceilingPr5v(number);
 }
+const jsonpathTemplateMonthWords: ReadonlyArray<string> = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const jsonpathTemplateMonthShortWords: ReadonlyArray<string> = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const jsonpathTemplateDayWords: ReadonlyArray<string> = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const jsonpathTemplateDayShortWords: ReadonlyArray<string> = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const jsonpathTemplateRomanWords: ReadonlyArray<string> = ["XII", "XI", "X", "IX", "VIII", "VII", "VI", "V", "IV", "III", "II", "I"];
+const jsonpathTemplateAmPmWords: ReadonlyArray<string> = ["AM", "PM", "A.M.", "P.M."];
+function jsonpathTemplateNamedRead(source: JsonpathTemporalSource, position: number, kind: number): JsonpathTemplateRead {
+    position = langruntime.checkedIndex(position);
+    kind = langruntime.checkedI32(kind);
+    let index: number = 0;
+    let limit: number = 12;
+    if (kind === 42) {
+        limit = langruntime.checkedIndex(2);
+    }
+    if (kind === 43) {
+        index = langruntime.checkedIndex(2);
+        limit = langruntime.checkedIndex(4);
+    }
+    if (kind === 46 || kind === 47) {
+        limit = langruntime.checkedIndex(7);
+    }
+    while (index < limit) {
+        let name: string = "";
+        if (kind === 42 || kind === 43) {
+            name = langruntime.checkedString(langruntime.indexStatic(jsonpathTemplateAmPmWords, langruntime.checkedIndex(index)));
+        }
+        if (kind === 44) {
+            name = langruntime.checkedString(langruntime.indexStatic(jsonpathTemplateMonthWords, langruntime.checkedIndex(index)));
+        }
+        if (kind === 45) {
+            name = langruntime.checkedString(langruntime.indexStatic(jsonpathTemplateMonthShortWords, langruntime.checkedIndex(index)));
+        }
+        if (kind === 46) {
+            name = langruntime.checkedString(langruntime.indexStatic(jsonpathTemplateDayWords, langruntime.checkedIndex(index)));
+        }
+        if (kind === 47) {
+            name = langruntime.checkedString(langruntime.indexStatic(jsonpathTemplateDayShortWords, langruntime.checkedIndex(index)));
+        }
+        if (kind === 48) {
+            name = langruntime.checkedString(langruntime.indexStatic(jsonpathTemplateRomanWords, langruntime.checkedIndex(index)));
+        }
+        if (jsonpathTemplateAsciiMatches(source, position, name)) {
+            const characters: string[] = Array.from(name);
+            let value: number = langruntime.checkedI32(langruntime.checkedIndex(index));
+            if (kind === 42 || kind === 43) {
+                value = langruntime.checkedI32(langruntime.checkedSignedRemainder(value, 2));
+            }
+            if (kind === 44 || kind === 45) {
+                value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 1));
+            }
+            if (kind === 48) {
+                value = langruntime.checkedI32(langruntime.checkedSignedSubtract(12, value));
+            }
+            return { value: value, end: langruntime.checkedAdd(position, characters.length), width: characters.length, error: 0 };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { value: 0, end: position, width: 0, error: jsonpathTemplateFormat };
+}
+function jsonpathTemplateOrdinalField(kind: number): boolean {
+    kind = langruntime.checkedI32(kind);
+    return (kind >= 1 && kind <= 18) || (kind >= 24 && kind <= 30) || (kind >= 33 && kind <= 41);
+}
 interface JsonpathPrintTask {
     mode: number;
     node: number;
@@ -16683,24 +16746,24 @@ interface JsonpathTemplateToken {
     digit: boolean;
     fill: boolean;
     ordinal: boolean;
+    translated: boolean;
     character: string;
 }
 function copyJsonpathTemplateToken(value: JsonpathTemplateToken): JsonpathTemplateToken {
-    return { kind: langruntime.checkedI32(value.kind), width: langruntime.checkedIndex(value.width), digit: langruntime.checkedBool(value.digit), fill: langruntime.checkedBool(value.fill), ordinal: langruntime.checkedBool(value.ordinal), character: langruntime.checkedChar(value.character) };
+    return { kind: langruntime.checkedI32(value.kind), width: langruntime.checkedIndex(value.width), digit: langruntime.checkedBool(value.digit), fill: langruntime.checkedBool(value.fill), ordinal: langruntime.checkedBool(value.ordinal), translated: langruntime.checkedBool(value.translated), character: langruntime.checkedChar(value.character) };
 }
 interface JsonpathTemplateProgram {
     tokens: JsonpathTemplateToken[];
     error: number;
-    supported: boolean;
     dated: boolean;
     timed: boolean;
     zoned: boolean;
 }
 function copyJsonpathTemplateProgram(value: JsonpathTemplateProgram): JsonpathTemplateProgram {
-    return { tokens: langruntime.checkedStructs(value.tokens, copyJsonpathTemplateToken), error: langruntime.checkedIndex(value.error), supported: langruntime.checkedBool(value.supported), dated: langruntime.checkedBool(value.dated), timed: langruntime.checkedBool(value.timed), zoned: langruntime.checkedBool(value.zoned) };
+    return { tokens: langruntime.checkedStructs(value.tokens, copyJsonpathTemplateToken), error: langruntime.checkedIndex(value.error), dated: langruntime.checkedBool(value.dated), timed: langruntime.checkedBool(value.timed), zoned: langruntime.checkedBool(value.zoned) };
 }
 const jsonpathTemplateNames: ReadonlyArray<string> = ["A.D.", "A.M.", "AD", "AM", "B.C.", "BC", "CC", "DAY", "DDD", "DD", "DY", "Day", "Dy", "D", "FF1", "FF2", "FF3", "FF4", "FF5", "FF6", "FX", "HH24", "HH12", "HH", "IDDD", "ID", "IW", "IYYY", "IYY", "IY", "I", "J", "MI", "MM", "MONTH", "MON", "MS", "Month", "Mon", "OF", "P.M.", "PM", "Q", "RM", "SSSSS", "SSSS", "SS", "TZH", "TZM", "TZ", "US", "WW", "W", "Y,YYY", "YYYY", "YYY", "YY", "Y", "a.d.", "a.m.", "ad", "am", "b.c.", "bc", "cc", "day", "ddd", "dd", "dy", "d", "ff1", "ff2", "ff3", "ff4", "ff5", "ff6", "fx", "hh24", "hh12", "hh", "iddd", "id", "iw", "iyyy", "iyy", "iy", "i", "j", "mi", "mm", "month", "mon", "ms", "of", "p.m.", "pm", "q", "rm", "sssss", "ssss", "ss", "tzh", "tzm", "tz", "us", "ww", "w", "y,yyy", "yyyy", "yyy", "yy", "y"];
-const jsonpathTemplateKinds: ReadonlyArray<number> = [32, 100, 31, 100, 32, 31, 30, 100, 24, 6, 100, 100, 100, 25, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 100, 100, 10, 100, 100, 21, 100, 100, 29, 100, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4, 32, 100, 31, 100, 32, 31, 30, 100, 24, 6, 100, 25, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 100, 100, 10, 21, 100, 100, 29, 100, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4];
+const jsonpathTemplateKinds: ReadonlyArray<number> = [32, 43, 31, 42, 32, 31, 30, 46, 24, 6, 47, 46, 47, 25, 12, 13, 14, 15, 16, 17, 23, 7, 41, 41, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 44, 45, 10, 44, 45, 21, 43, 42, 29, 48, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4, 32, 43, 31, 42, 32, 31, 30, 46, 24, 6, 47, 25, 12, 13, 14, 15, 16, 17, 23, 7, 41, 41, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 44, 45, 10, 21, 43, 42, 29, 48, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4];
 const jsonpathTemplateDigits: ReadonlyArray<number> = [0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1];
 function jsonpathTemplateMatches(source: JsonpathTemporalSource, position: number, name: string): boolean {
     position = langruntime.checkedIndex(position);
@@ -16724,7 +16787,6 @@ function jsonpathTemplateCompile(input: string): JsonpathTemplateProgram {
     let tokens: JsonpathTemplateToken[] = [];
     let position: number = 0;
     let error: number = 0;
-    let supported: boolean = true;
     let dated: boolean = false;
     let timed: boolean = false;
     let zoned: boolean = false;
@@ -16751,6 +16813,9 @@ function jsonpathTemplateCompile(input: string): JsonpathTemplateProgram {
             if (kind === 7 || kind === 19 || kind === 20 || kind === 21 || kind === 22) {
                 width = langruntime.checkedIndex(2);
             }
+            if (kind === 41) {
+                width = langruntime.checkedIndex(2);
+            }
             if (kind === 38) {
                 width = langruntime.checkedIndex(3);
             }
@@ -16771,14 +16836,11 @@ function jsonpathTemplateCompile(input: string): JsonpathTemplateProgram {
             if (ordinal || jsonpathTemplateMatches(source, position, "SP")) {
                 position = langruntime.checkedAdd(position, 2);
             }
-            langruntime.pushStruct(tokens, { kind: kind, width: width, digit: langruntime.indexStatic(jsonpathTemplateDigits, langruntime.checkedIndex(key)) > 0, fill: fill, ordinal: ordinal, character: " " }, copyJsonpathTemplateToken);
-            if (kind === 100) {
-                supported = langruntime.checkedBool(false);
-            }
-            if ((kind >= 1 && kind <= 6) || (kind >= 24 && kind <= 39)) {
+            langruntime.pushStruct(tokens, { kind: kind, width: width, digit: langruntime.indexStatic(jsonpathTemplateDigits, langruntime.checkedIndex(key)) > 0, fill: fill, ordinal: ordinal, translated: translated, character: " " }, copyJsonpathTemplateToken);
+            if ((kind >= 1 && kind <= 6) || (kind >= 24 && kind <= 39) || (kind >= 44 && kind <= 48)) {
                 dated = langruntime.checkedBool(true);
             }
-            if (kind >= 7 && kind <= 18) {
+            if ((kind >= 7 && kind <= 18) || (kind >= 41 && kind <= 43)) {
                 timed = langruntime.checkedBool(true);
             }
             if (kind >= 19 && kind <= 22) {
@@ -16802,7 +16864,7 @@ function jsonpathTemplateCompile(input: string): JsonpathTemplateProgram {
                             stored = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position)));
                             position = langruntime.checkedAdd(position, 1);
                         }
-                        langruntime.pushStruct(tokens, { kind: 0, width: 0, digit: numericWireDecimalDigit(stored) >= 0, fill: false, ordinal: false, character: stored }, copyJsonpathTemplateToken);
+                        langruntime.pushStruct(tokens, { kind: 0, width: 0, digit: numericWireDecimalDigit(stored) >= 0, fill: false, ordinal: false, translated: false, character: stored }, copyJsonpathTemplateToken);
                     }
                 }
             }
@@ -16810,12 +16872,12 @@ function jsonpathTemplateCompile(input: string): JsonpathTemplateProgram {
                 if (!(character === "-") && !(character === ".") && !(character === "/") && !(character === ",") && !(character === "'") && !(character === ":") && !(character === ";") && !(character === " ")) {
                     error = langruntime.checkedIndex(jsonpathTemplateFormat);
                 }
-                langruntime.pushStruct(tokens, { kind: 0, width: 0, digit: false, fill: false, ordinal: false, character: character }, copyJsonpathTemplateToken);
+                langruntime.pushStruct(tokens, { kind: 0, width: 0, digit: false, fill: false, ordinal: false, translated: false, character: character }, copyJsonpathTemplateToken);
                 position = langruntime.checkedAdd(position, 1);
             }
         }
     }
-    return { tokens: tokens, error: error, supported: supported, dated: dated, timed: timed, zoned: zoned };
+    return { tokens: tokens, error: error, dated: dated, timed: timed, zoned: zoned };
 }
 interface JsonpathTemplateField {
     value: number;
@@ -16914,13 +16976,10 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
             if (program.error > 0) {
                 return jsonpathTemplateError(program.error, true);
             }
-            if (program.supported === false) {
-                return jsonpathTemporalState(0, 0n, 0, 0, true, false);
-            }
             const source: JsonpathTemporalSource = { characters: Array.from(text) };
             let fields: JsonpathTemplateField[] = [];
             let index: number = 0;
-            while (index < 34) {
+            while (index < 35) {
                 langruntime.pushStruct(fields, { value: 0 }, copyJsonpathTemplateField);
                 index = langruntime.checkedAdd(index, 1);
             }
@@ -16929,6 +16988,7 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
             let precision: number = langruntime.checkedSignedNegate(1);
             let yearSize: number = 0;
             let dateMode: number = 0;
+            let twelveHour: boolean = false;
             index = langruntime.checkedIndex(0);
             while (index < program.tokens.length) {
                 const token: JsonpathTemplateToken = copyJsonpathTemplateToken(langruntime.indexStruct(program.tokens, langruntime.checkedIndex(index), copyJsonpathTemplateToken));
@@ -16948,6 +17008,9 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
                             return jsonpathTemplateError(jsonpathTemplateFormat, false);
                         }
                         dateMode = langruntime.checkedI32(mode);
+                    }
+                    if (token.translated && token.kind >= 44 && token.kind <= 47) {
+                        return jsonpathTemporalState(0, 0n, 0, 0, true, false);
                     }
                     let variable: boolean = token.fill || token.ordinal || langruntime.checkedAdd(index, 1) === program.tokens.length;
                     if (langruntime.checkedAdd(index, 1) < program.tokens.length && langruntime.indexStruct(program.tokens, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)), copyJsonpathTemplateToken).digit === false) {
@@ -16985,6 +17048,9 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
                         else {
                             return jsonpathTemplateError(jsonpathTemplateFormat, false);
                         }
+                    }
+                    if (token.kind >= 42 && token.kind <= 48) {
+                        read = copyJsonpathTemplateRead(jsonpathTemplateNamedRead(source, position, token.kind));
                     }
                     if (token.kind === 33) {
                         read = copyJsonpathTemplateRead(jsonpathTemplateReadInteger(source, position, 1, true));
@@ -17043,6 +17109,20 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
                     if (field === 21 || field === 22) {
                         field = langruntime.checkedI32(19);
                     }
+                    if (field === 41) {
+                        twelveHour = langruntime.checkedBool(true);
+                        field = langruntime.checkedI32(7);
+                    }
+                    if (field === 42 || field === 43) {
+                        twelveHour = langruntime.checkedBool(true);
+                        field = langruntime.checkedI32(34);
+                    }
+                    if (field === 44 || field === 45 || field === 48) {
+                        field = langruntime.checkedI32(5);
+                    }
+                    if (field === 46 || field === 47) {
+                        field = langruntime.checkedI32(25);
+                    }
                     const slot: number = langruntime.indexFromI32(field, 0);
                     if (!(field === 29) && !(langruntime.indexStruct(fields, langruntime.checkedIndex(slot), copyJsonpathTemplateField).value === 0) && !(langruntime.indexStruct(fields, langruntime.checkedIndex(slot), copyJsonpathTemplateField).value === read.value)) {
                         return jsonpathTemplateError(jsonpathTemplateFormat, false);
@@ -17077,6 +17157,9 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
                             consumed = langruntime.checkedAdd(consumed, 1);
                         }
                     }
+                    if (token.kind === 46 || token.kind === 47) {
+                        value = langruntime.checkedI32(langruntime.checkedSignedAdd(value, 1));
+                    }
                     if (token.kind === 39) {
                         value = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Add((BigInt(langruntime.checkedI32(value))), 1n))))));
                         if (value > 7) {
@@ -17097,7 +17180,7 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
                         fields[langruntime.checkedIndexIn(fields, 20)] = copyJsonpathTemplateField({ value: minutes.value });
                         position = langruntime.checkedIndex(minutes.end);
                     }
-                    if (token.ordinal) {
+                    if (token.ordinal && jsonpathTemplateOrdinalField(token.kind)) {
                         let skipped: number = 0;
                         while (skipped < 2 && position < source.characters.length) {
                             position = langruntime.checkedAdd(position, 1);
@@ -17113,18 +17196,6 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
             if (!(position === source.characters.length)) {
                 return jsonpathTemplateError(jsonpathTemplateFormat, false);
             }
-            const calendar: checkruntime.Int8Value = jsonpathTemplateCalendar(langruntime.indexStruct(fields, langruntime.checkedIndex(1), copyJsonpathTemplateField).value, yearSize, langruntime.indexStruct(fields, langruntime.checkedIndex(30), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(31), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(28), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(26), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(25), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(27), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(5), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(6), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(24), copyJsonpathTemplateField).value, dateMode, program.dated);
-            if (calendar.kind === "Error") {
-                const error: checkruntime.SqlError = calendar.value;
-                return jsonpathTemplateError(error.state, false);
-            }
-            let date: checkruntime.DateValue = { kind: "Unknown" };
-            if (calendar.kind === "Value") {
-                const value: bigint = langruntime.checkedI64(calendar.value);
-                if (program.dated) {
-                    date = checkruntime.makeDateValue(Number(BigInt.asIntN(32, langruntime.checkedI64(value))));
-                }
-            }
             let hours: number = langruntime.checkedSignedDivide(langruntime.indexStruct(fields, langruntime.checkedIndex(18), copyJsonpathTemplateField).value, 3600);
             let minutes: number = langruntime.checkedSignedDivide((langruntime.checkedSignedRemainder(langruntime.indexStruct(fields, langruntime.checkedIndex(18), copyJsonpathTemplateField).value, 3600)), 60);
             let seconds: number = langruntime.checkedSignedRemainder(langruntime.indexStruct(fields, langruntime.checkedIndex(18), copyJsonpathTemplateField).value, 60);
@@ -17136,6 +17207,29 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
             }
             if (!(langruntime.indexStruct(fields, langruntime.checkedIndex(9), copyJsonpathTemplateField).value === 0)) {
                 seconds = langruntime.checkedI32(langruntime.indexStruct(fields, langruntime.checkedIndex(9), copyJsonpathTemplateField).value);
+            }
+            if (twelveHour) {
+                if (hours < 1 || hours > 12) {
+                    return jsonpathTemplateError(jsonpathTemplateFormat, false);
+                }
+                if (!(langruntime.indexStruct(fields, langruntime.checkedIndex(34), copyJsonpathTemplateField).value === 0) && hours < 12) {
+                    hours = langruntime.checkedI32(langruntime.checkedSignedAdd(hours, 12));
+                }
+                if (langruntime.indexStruct(fields, langruntime.checkedIndex(34), copyJsonpathTemplateField).value === 0 && hours === 12) {
+                    hours = langruntime.checkedI32(0);
+                }
+            }
+            const calendar: checkruntime.Int8Value = jsonpathTemplateCalendar(langruntime.indexStruct(fields, langruntime.checkedIndex(1), copyJsonpathTemplateField).value, yearSize, langruntime.indexStruct(fields, langruntime.checkedIndex(30), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(31), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(28), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(26), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(25), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(27), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(5), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(6), copyJsonpathTemplateField).value, langruntime.indexStruct(fields, langruntime.checkedIndex(24), copyJsonpathTemplateField).value, dateMode, program.dated);
+            if (calendar.kind === "Error") {
+                const error: checkruntime.SqlError = calendar.value;
+                return jsonpathTemplateError(error.state, false);
+            }
+            let date: checkruntime.DateValue = { kind: "Unknown" };
+            if (calendar.kind === "Value") {
+                const value: bigint = langruntime.checkedI64(calendar.value);
+                if (program.dated) {
+                    date = checkruntime.makeDateValue(Number(BigInt.asIntN(32, langruntime.checkedI64(value))));
+                }
             }
             const fraction: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(langruntime.indexStruct(fields, langruntime.checkedIndex(10), copyJsonpathTemplateField).value))), 1000n), BigInt(langruntime.checkedI32(langruntime.indexStruct(fields, langruntime.checkedIndex(11), copyJsonpathTemplateField).value)));
             if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59 || fraction < 0n || fraction > 999999n) {

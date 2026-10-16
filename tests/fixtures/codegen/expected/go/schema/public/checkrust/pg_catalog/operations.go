@@ -12356,7 +12356,7 @@ func jsonpathExecutionLiterals(path *checkruntime.JsonpathPayload) []checkruntim
 }
 func jsonpathTemplateDateMode(kind int) int {
 	kind = langruntime.CheckedI32(kind)
-	if (kind >= 1 && kind <= 6) || kind == 24 || kind == 25 || kind == 26 || kind == 27 || kind == 33 {
+	if (kind >= 1 && kind <= 6) || kind == 24 || kind == 25 || kind == 26 || kind == 27 || kind == 33 || kind == 44 || kind == 45 || kind == 48 {
 		return 1
 	}
 	if kind >= 34 && kind <= 40 {
@@ -14916,6 +14916,71 @@ func jsonpathMethodNumeric(kind int, number checkruntime.NumericValue, text chec
 	return CeilingPr5v(number)
 }
 
+var jsonpathTemplateMonthWords = []string{"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
+var jsonpathTemplateMonthShortWords = []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+var jsonpathTemplateDayWords = []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+var jsonpathTemplateDayShortWords = []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
+var jsonpathTemplateRomanWords = []string{"XII", "XI", "X", "IX", "VIII", "VII", "VI", "V", "IV", "III", "II", "I"}
+var jsonpathTemplateAmPmWords = []string{"AM", "PM", "A.M.", "P.M."}
+
+func jsonpathTemplateNamedRead(source *jsonpathTemporalSource, position int, kind int) jsonpathTemplateRead {
+	position = langruntime.CheckedIndex(position)
+	kind = langruntime.CheckedI32(kind)
+	index := 0
+	limit := 12
+	if kind == 42 {
+		limit = langruntime.CheckedIndex(2)
+	}
+	if kind == 43 {
+		index = langruntime.CheckedIndex(2)
+		limit = langruntime.CheckedIndex(4)
+	}
+	if kind == 46 || kind == 47 {
+		limit = langruntime.CheckedIndex(7)
+	}
+	for index < limit {
+		name := langruntime.NewTextBuffer("")
+		if kind == 42 || kind == 43 {
+			name = langruntime.NewTextBuffer(jsonpathTemplateAmPmWords[index])
+		}
+		if kind == 44 {
+			name = langruntime.NewTextBuffer(jsonpathTemplateMonthWords[index])
+		}
+		if kind == 45 {
+			name = langruntime.NewTextBuffer(jsonpathTemplateMonthShortWords[index])
+		}
+		if kind == 46 {
+			name = langruntime.NewTextBuffer(jsonpathTemplateDayWords[index])
+		}
+		if kind == 47 {
+			name = langruntime.NewTextBuffer(jsonpathTemplateDayShortWords[index])
+		}
+		if kind == 48 {
+			name = langruntime.NewTextBuffer(jsonpathTemplateRomanWords[index])
+		}
+		if jsonpathTemplateAsciiMatches(source, position, string(name)) {
+			characters := []rune(string(name))
+			value := int(int32(index))
+			if kind == 42 || kind == 43 {
+				value = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(value, 2))
+			}
+			if kind == 44 || kind == 45 {
+				value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 1))
+			}
+			if kind == 48 {
+				value = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(12, value))
+			}
+			return jsonpathTemplateRead{value: value, end: langruntime.CheckedAdd(position, len(characters)), width: len(characters), error: 0}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return jsonpathTemplateRead{value: 0, end: position, width: 0, error: jsonpathTemplateFormat}
+}
+func jsonpathTemplateOrdinalField(kind int) bool {
+	kind = langruntime.CheckedI32(kind)
+	return (kind >= 1 && kind <= 18) || (kind >= 24 && kind <= 30) || (kind >= 33 && kind <= 41)
+}
+
 type jsonpathPrintTask struct {
 	mode     int
 	node     int
@@ -16658,33 +16723,33 @@ const jsonpathTemplateRange = 3452552
 const jsonpathTemplateZone = 3452553
 
 type jsonpathTemplateToken struct {
-	kind      int
-	width     int
-	digit     bool
-	fill      bool
-	ordinal   bool
-	character rune
+	kind       int
+	width      int
+	digit      bool
+	fill       bool
+	ordinal    bool
+	translated bool
+	character  rune
 }
 
 func copyjsonpathTemplateToken(value jsonpathTemplateToken) jsonpathTemplateToken {
-	return jsonpathTemplateToken{kind: langruntime.CheckedI32(value.kind), width: langruntime.CheckedIndex(value.width), digit: value.digit, fill: value.fill, ordinal: value.ordinal, character: langruntime.CheckedChar(value.character)}
+	return jsonpathTemplateToken{kind: langruntime.CheckedI32(value.kind), width: langruntime.CheckedIndex(value.width), digit: value.digit, fill: value.fill, ordinal: value.ordinal, translated: value.translated, character: langruntime.CheckedChar(value.character)}
 }
 
 type jsonpathTemplateProgram struct {
-	tokens    []jsonpathTemplateToken
-	error     int
-	supported bool
-	dated     bool
-	timed     bool
-	zoned     bool
+	tokens []jsonpathTemplateToken
+	error  int
+	dated  bool
+	timed  bool
+	zoned  bool
 }
 
 func copyjsonpathTemplateProgram(value jsonpathTemplateProgram) jsonpathTemplateProgram {
-	return jsonpathTemplateProgram{tokens: langruntime.CheckedStructs(value.tokens, copyjsonpathTemplateToken), error: langruntime.CheckedIndex(value.error), supported: value.supported, dated: value.dated, timed: value.timed, zoned: value.zoned}
+	return jsonpathTemplateProgram{tokens: langruntime.CheckedStructs(value.tokens, copyjsonpathTemplateToken), error: langruntime.CheckedIndex(value.error), dated: value.dated, timed: value.timed, zoned: value.zoned}
 }
 
 var jsonpathTemplateNames = []string{"A.D.", "A.M.", "AD", "AM", "B.C.", "BC", "CC", "DAY", "DDD", "DD", "DY", "Day", "Dy", "D", "FF1", "FF2", "FF3", "FF4", "FF5", "FF6", "FX", "HH24", "HH12", "HH", "IDDD", "ID", "IW", "IYYY", "IYY", "IY", "I", "J", "MI", "MM", "MONTH", "MON", "MS", "Month", "Mon", "OF", "P.M.", "PM", "Q", "RM", "SSSSS", "SSSS", "SS", "TZH", "TZM", "TZ", "US", "WW", "W", "Y,YYY", "YYYY", "YYY", "YY", "Y", "a.d.", "a.m.", "ad", "am", "b.c.", "bc", "cc", "day", "ddd", "dd", "dy", "d", "ff1", "ff2", "ff3", "ff4", "ff5", "ff6", "fx", "hh24", "hh12", "hh", "iddd", "id", "iw", "iyyy", "iyy", "iy", "i", "j", "mi", "mm", "month", "mon", "ms", "of", "p.m.", "pm", "q", "rm", "sssss", "ssss", "ss", "tzh", "tzm", "tz", "us", "ww", "w", "y,yyy", "yyyy", "yyy", "yy", "y"}
-var jsonpathTemplateKinds = []int{32, 100, 31, 100, 32, 31, 30, 100, 24, 6, 100, 100, 100, 25, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 100, 100, 10, 100, 100, 21, 100, 100, 29, 100, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4, 32, 100, 31, 100, 32, 31, 30, 100, 24, 6, 100, 25, 12, 13, 14, 15, 16, 17, 23, 7, 100, 100, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 100, 100, 10, 21, 100, 100, 29, 100, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4}
+var jsonpathTemplateKinds = []int{32, 43, 31, 42, 32, 31, 30, 46, 24, 6, 47, 46, 47, 25, 12, 13, 14, 15, 16, 17, 23, 7, 41, 41, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 44, 45, 10, 44, 45, 21, 43, 42, 29, 48, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4, 32, 43, 31, 42, 32, 31, 30, 46, 24, 6, 47, 25, 12, 13, 14, 15, 16, 17, 23, 7, 41, 41, 38, 39, 40, 34, 35, 36, 37, 28, 8, 5, 44, 45, 10, 21, 43, 42, 29, 48, 18, 18, 9, 19, 20, 22, 11, 26, 27, 33, 1, 2, 3, 4}
 var jsonpathTemplateDigits = []int{0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1}
 
 func jsonpathTemplateMatches(source *jsonpathTemporalSource, position int, name string) bool {
@@ -16709,7 +16774,6 @@ func jsonpathTemplateCompile(input string) jsonpathTemplateProgram {
 	tokens := []jsonpathTemplateToken{}
 	position := 0
 	error := 0
-	supported := true
 	dated := false
 	timed := false
 	zoned := false
@@ -16736,6 +16800,9 @@ func jsonpathTemplateCompile(input string) jsonpathTemplateProgram {
 			if kind == 7 || kind == 19 || kind == 20 || kind == 21 || kind == 22 {
 				width = langruntime.CheckedIndex(2)
 			}
+			if kind == 41 {
+				width = langruntime.CheckedIndex(2)
+			}
 			if kind == 38 {
 				width = langruntime.CheckedIndex(3)
 			}
@@ -16757,14 +16824,11 @@ func jsonpathTemplateCompile(input string) jsonpathTemplateProgram {
 				position = langruntime.CheckedAdd(position, 2)
 			}
 			langruntime.CheckedAdd(len(tokens), 1)
-			tokens = append(tokens, copyjsonpathTemplateToken(jsonpathTemplateToken{kind: kind, width: width, digit: jsonpathTemplateDigits[key] > 0, fill: fill, ordinal: ordinal, character: ' '}))
-			if kind == 100 {
-				supported = false
-			}
-			if (kind >= 1 && kind <= 6) || (kind >= 24 && kind <= 39) {
+			tokens = append(tokens, copyjsonpathTemplateToken(jsonpathTemplateToken{kind: kind, width: width, digit: jsonpathTemplateDigits[key] > 0, fill: fill, ordinal: ordinal, translated: translated, character: ' '}))
+			if (kind >= 1 && kind <= 6) || (kind >= 24 && kind <= 39) || (kind >= 44 && kind <= 48) {
 				dated = true
 			}
-			if kind >= 7 && kind <= 18 {
+			if (kind >= 7 && kind <= 18) || (kind >= 41 && kind <= 43) {
 				timed = true
 			}
 			if kind >= 19 && kind <= 22 {
@@ -16787,7 +16851,7 @@ func jsonpathTemplateCompile(input string) jsonpathTemplateProgram {
 							position = langruntime.CheckedAdd(position, 1)
 						}
 						langruntime.CheckedAdd(len(tokens), 1)
-						tokens = append(tokens, copyjsonpathTemplateToken(jsonpathTemplateToken{kind: 0, width: 0, digit: numericWireDecimalDigit(stored) >= 0, fill: false, ordinal: false, character: stored}))
+						tokens = append(tokens, copyjsonpathTemplateToken(jsonpathTemplateToken{kind: 0, width: 0, digit: numericWireDecimalDigit(stored) >= 0, fill: false, ordinal: false, translated: false, character: stored}))
 					}
 				}
 			} else {
@@ -16795,12 +16859,12 @@ func jsonpathTemplateCompile(input string) jsonpathTemplateProgram {
 					error = langruntime.CheckedIndex(jsonpathTemplateFormat)
 				}
 				langruntime.CheckedAdd(len(tokens), 1)
-				tokens = append(tokens, copyjsonpathTemplateToken(jsonpathTemplateToken{kind: 0, width: 0, digit: false, fill: false, ordinal: false, character: character}))
+				tokens = append(tokens, copyjsonpathTemplateToken(jsonpathTemplateToken{kind: 0, width: 0, digit: false, fill: false, ordinal: false, translated: false, character: character}))
 				position = langruntime.CheckedAdd(position, 1)
 			}
 		}
 	}
-	return jsonpathTemplateProgram{tokens: tokens, error: error, supported: supported, dated: dated, timed: timed, zoned: zoned}
+	return jsonpathTemplateProgram{tokens: tokens, error: error, dated: dated, timed: timed, zoned: zoned}
 }
 
 type jsonpathTemplateField struct {
@@ -16899,13 +16963,10 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 			if program.error > 0 {
 				return jsonpathTemplateError(program.error, true)
 			}
-			if program.supported == false {
-				return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
-			}
 			source := jsonpathTemporalSource{characters: []rune(text)}
 			fields := []jsonpathTemplateField{}
 			index := 0
-			for index < 34 {
+			for index < 35 {
 				langruntime.CheckedAdd(len(fields), 1)
 				fields = append(fields, copyjsonpathTemplateField(jsonpathTemplateField{value: 0}))
 				index = langruntime.CheckedAdd(index, 1)
@@ -16915,6 +16976,7 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 			precision := langruntime.CheckedSignedNegate(1)
 			yearSize := 0
 			dateMode := 0
+			twelveHour := false
 			index = langruntime.CheckedIndex(0)
 			for index < len(program.tokens) {
 				token := program.tokens[index]
@@ -16933,6 +16995,9 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 							return jsonpathTemplateError(jsonpathTemplateFormat, false)
 						}
 						dateMode = langruntime.CheckedI32(mode)
+					}
+					if token.translated && token.kind >= 44 && token.kind <= 47 {
+						return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
 					}
 					variable := token.fill || token.ordinal || langruntime.CheckedAdd(index, 1) == len(program.tokens)
 					if langruntime.CheckedAdd(index, 1) < len(program.tokens) && program.tokens[langruntime.CheckedAdd(index, 1)].digit == false {
@@ -16968,6 +17033,9 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 						} else {
 							return jsonpathTemplateError(jsonpathTemplateFormat, false)
 						}
+					}
+					if token.kind >= 42 && token.kind <= 48 {
+						read = copyjsonpathTemplateRead(jsonpathTemplateNamedRead(&source, position, token.kind))
 					}
 					if token.kind == 33 {
 						read = copyjsonpathTemplateRead(jsonpathTemplateReadInteger(&source, position, 1, true))
@@ -17026,6 +17094,20 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 					if field == 21 || field == 22 {
 						field = langruntime.CheckedI32(19)
 					}
+					if field == 41 {
+						twelveHour = true
+						field = langruntime.CheckedI32(7)
+					}
+					if field == 42 || field == 43 {
+						twelveHour = true
+						field = langruntime.CheckedI32(34)
+					}
+					if field == 44 || field == 45 || field == 48 {
+						field = langruntime.CheckedI32(5)
+					}
+					if field == 46 || field == 47 {
+						field = langruntime.CheckedI32(25)
+					}
 					slot := langruntime.IndexFromI32(field, 0)
 					if field != 29 && fields[slot].value != 0 && fields[slot].value != read.value {
 						return jsonpathTemplateError(jsonpathTemplateFormat, false)
@@ -17057,6 +17139,9 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 							consumed = langruntime.CheckedAdd(consumed, 1)
 						}
 					}
+					if token.kind == 46 || token.kind == 47 {
+						value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(value, 1))
+					}
 					if token.kind == 39 {
 						value = langruntime.CheckedI32(int(int32((langruntime.CheckedI64Add((int64(langruntime.CheckedI32(value))), int64(1))))))
 						if value > 7 {
@@ -17077,7 +17162,7 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 						fields[20] = copyjsonpathTemplateField(jsonpathTemplateField{value: minutes.value})
 						position = langruntime.CheckedIndex(minutes.end)
 					}
-					if token.ordinal {
+					if token.ordinal && jsonpathTemplateOrdinalField(token.kind) {
 						skipped := 0
 						for skipped < 2 && position < len(source.characters) {
 							position = langruntime.CheckedAdd(position, 1)
@@ -17093,18 +17178,6 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 			if position != len(source.characters) {
 				return jsonpathTemplateError(jsonpathTemplateFormat, false)
 			}
-			calendar := jsonpathTemplateCalendar(fields[1].value, yearSize, fields[30].value, fields[31].value, fields[28].value, fields[26].value, fields[25].value, fields[27].value, fields[5].value, fields[6].value, fields[24].value, dateMode, program.dated)
-			if calendar.Kind == checkruntime.Int8ValueError {
-				error := calendar.Error
-				return jsonpathTemplateError(error.State, false)
-			}
-			date := checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
-			if calendar.Kind == checkruntime.Int8ValueValue {
-				value := calendar.Value
-				if program.dated {
-					date = checkruntime.MakeDateValue(int(int32(value)))
-				}
-			}
 			hours := langruntime.CheckedSignedDivide(fields[18].value, 3600)
 			minutes := langruntime.CheckedSignedDivide((langruntime.CheckedSignedRemainder(fields[18].value, 3600)), 60)
 			seconds := langruntime.CheckedSignedRemainder(fields[18].value, 60)
@@ -17116,6 +17189,29 @@ func jsonpathTemplateParse(input checkruntime.TextValue, template checkruntime.T
 			}
 			if fields[9].value != 0 {
 				seconds = langruntime.CheckedI32(fields[9].value)
+			}
+			if twelveHour {
+				if hours < 1 || hours > 12 {
+					return jsonpathTemplateError(jsonpathTemplateFormat, false)
+				}
+				if fields[34].value != 0 && hours < 12 {
+					hours = langruntime.CheckedI32(langruntime.CheckedSignedAdd(hours, 12))
+				}
+				if fields[34].value == 0 && hours == 12 {
+					hours = langruntime.CheckedI32(0)
+				}
+			}
+			calendar := jsonpathTemplateCalendar(fields[1].value, yearSize, fields[30].value, fields[31].value, fields[28].value, fields[26].value, fields[25].value, fields[27].value, fields[5].value, fields[6].value, fields[24].value, dateMode, program.dated)
+			if calendar.Kind == checkruntime.Int8ValueError {
+				error := calendar.Error
+				return jsonpathTemplateError(error.State, false)
+			}
+			date := checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+			if calendar.Kind == checkruntime.Int8ValueValue {
+				value := calendar.Value
+				if program.dated {
+					date = checkruntime.MakeDateValue(int(int32(value)))
+				}
 			}
 			fraction := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(fields[10].value))), int64(1000)), int64(langruntime.CheckedI32(fields[11].value)))
 			if hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59 || fraction < int64(0) || fraction > int64(999999) {
