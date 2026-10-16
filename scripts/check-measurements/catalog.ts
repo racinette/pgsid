@@ -108,7 +108,13 @@ export function jsonValueRequirements(item: BuiltinCallable) {
       {
         kind: 'implementation',
         requirement:
-          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Core type/size/abs/floor/ceiling/double methods and integer/bigint/boolean/number/decimal/string conversions are implemented. Keyvalue objects preserve document/variable/generated identities, logical offsets, signed-word wrapping, unknown-id projections and format-limit errors. Temporal methods and regex matching are deferred. Platform-dependent float input forms retain Unknown requirements. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
+          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Core type/size/abs/floor/ceiling/double methods and integer/bigint/boolean/number/decimal/string conversions are implemented. Keyvalue objects preserve document/variable/generated identities, logical offsets, signed-word wrapping, unknown-id projections and format-limit errors. Default ISO datetime/date/time/time_tz/timestamp/timestamp_tz methods retain typed intermediates, precision, original-offset rendering, comparisons and hard versus suppressible errors. Custom datetime templates and regex matching are deferred. Platform-dependent float input forms retain Unknown requirements. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
+        owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
+      },
+      {
+        kind: 'session',
+        requirement:
+          'Alphabetic datetime timezone suffixes require the session timezone and abbreviation registry. Timestamp-with-zone to time_tz conversion requires session TimeZone. Non-_tz conversions and comparisons that PostgreSQL forbids without timezone usage retain hard errors even when silent.',
         owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
       },
     ]

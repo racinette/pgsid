@@ -57,9 +57,11 @@ struct JsonpathSequence {
     items: Vec<JsonpathReference>,
     numbers: Vec<NumericValue>,
     strings: Vec<TextValue>,
+    temporals: Vec<JsonpathTemporalValue>,
     generated_nodes: Vec<JsonbNode>,
     generated_characters: Vec<char>,
     error: u32,
+    hard_error: bool,
     unknown: bool,
 }
 
@@ -69,6 +71,17 @@ fn jsonpath_execution_node(
 ) -> JsonbNode {
     if reference.source == 6 {
         return context.generated_nodes[reference.node];
+    };
+    if reference.source == 7 {
+        return JsonbNode {
+            kind: 7,
+            child: 0,
+            next: 0,
+            key_start: 0,
+            key_end: 0,
+            text_start: 0,
+            text_end: 0,
+        };
     };
     if reference.source == 5 {
         return JsonbNode {
@@ -290,6 +303,7 @@ fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
                     && node.kind != JSONPATH_NODE_IS_UNKNOWN
                     && (node.kind < JSONPATH_NODE_PLUS || node.kind > JSONPATH_NODE_STARTS)
                     && jsonpath_method_core(node.kind) == false
+                    && jsonpath_temporal_method(node.kind) == false
                     && node.kind != JSONPATH_METHOD_KEYVALUE
                 {
                     return JsonpathValue::Unknown;
@@ -332,6 +346,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
     let mut item_count: usize = 0;
     let mut numbers: Vec<NumericValue> = Vec::new();
     let mut strings: Vec<TextValue> = Vec::new();
+    let mut temporals: Vec<JsonpathTemporalValue> = Vec::new();
     let mut operands: Vec<JsonpathReference> = Vec::new();
     let mut collect_depth: usize = 0;
     let mut collect_base: usize = 0;
@@ -345,6 +360,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
     let mut exists_depth: usize = 0;
     let mut caught_error = false;
     let mut error: u32 = 0;
+    let mut hard_error = false;
     let mut unknown = false;
     while count > 0 && error == 0 && unknown == false {
         count = count - 1;
@@ -427,7 +443,10 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                 };
                 let eligible = (step.first >= 0
                     && task.level >= usize::try_from(step.first).unwrap_or(0))
-                    || (step.first < 0 && step.last < 0 && task.level > 0 && value.kind < 5);
+                    || (step.first < 0
+                        && step.last < 0
+                        && task.level > 0
+                        && (value.kind < 5 || value.kind == 7));
                 if eligible {
                     pending.push(jsonpath_execution_make_task(
                         0,
@@ -831,7 +850,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                         if second.source == 5 {
                             right_text = strings[second.node].clone();
                         };
-                        let result = jsonpath_predicate_pair(
+                        let mut result = jsonpath_predicate_pair(
                             &context,
                             step.kind,
                             first,
@@ -841,6 +860,49 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                             left_text,
                             right_text,
                         );
+                        if first.source == 7
+                            && second.source == 7
+                            && step.kind != JSONPATH_NODE_STARTS
+                        {
+                            let comparison = jsonpath_temporal_compare(
+                                temporals[first.node],
+                                temporals[second.node],
+                            );
+                            if let Int4Value::Error(failure) = comparison {
+                                error = failure.state;
+                                hard_error = true;
+                                ready = false;
+                            };
+                            if let Int4Value::Value(order) = comparison {
+                                let mut matches = false;
+                                if step.kind == JSONPATH_NODE_EQ {
+                                    matches = order == 0;
+                                };
+                                if step.kind == JSONPATH_NODE_NE {
+                                    matches = order != 0;
+                                };
+                                if step.kind == JSONPATH_NODE_LT {
+                                    matches = order < 0;
+                                };
+                                if step.kind == JSONPATH_NODE_LE {
+                                    matches = order <= 0;
+                                };
+                                if step.kind == JSONPATH_NODE_GT {
+                                    matches = order > 0;
+                                };
+                                if step.kind == JSONPATH_NODE_GE {
+                                    matches = order >= 0;
+                                };
+                                let mut state: i32 = 1;
+                                if matches {
+                                    state = 2;
+                                };
+                                result = JsonpathPredicateValue {
+                                    state: state,
+                                    deferred: false,
+                                };
+                            };
+                        };
                         if result.deferred {
                             unknown = true;
                         } else if result.state == 0 {
@@ -1508,15 +1570,61 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                         ));
                     };
                 };
+            } else if jsonpath_temporal_method(step.kind) {
+                if task.unwrap && value.kind == 5 {
+                    if value.child > 0 {
+                        pending.push(jsonpath_execution_make_task(
+                            1,
+                            task.step,
+                            JsonpathReference {
+                                source: task.reference.source,
+                                node: value.child,
+                            },
+                            false,
+                            task.ignore,
+                        ));
+                    };
+                } else {
+                    let mut text = jsonpath_method_text(&context, task.reference);
+                    if task.reference.source == 5 {
+                        text = strings[task.reference.node].clone();
+                    };
+                    let temporal = jsonpath_temporal_apply(&context, step, text, value.kind);
+                    if temporal.error > 0 {
+                        error = temporal.error;
+                        hard_error = temporal.hard;
+                    };
+                    if temporal.unknown {
+                        unknown = true;
+                    };
+                    if temporal.kind > 0 && temporal.error == 0 && temporal.unknown == false {
+                        let index = temporals.len();
+                        temporals.push(temporal);
+                        pending.push(jsonpath_execution_make_task(
+                            0,
+                            step.next,
+                            JsonpathReference {
+                                source: 7,
+                                node: index,
+                            },
+                            context.lax,
+                            task.ignore,
+                        ));
+                    };
+                };
             } else if jsonpath_method_core(step.kind) {
                 if step.kind == JSONPATH_METHOD_TYPE {
+                    let mut type_index = value.kind;
+                    if task.reference.source == 7 {
+                        type_index = 6 + temporals[task.reference.node].kind;
+                    };
                     pending.push(jsonpath_execution_make_task(
                         0,
                         step.next,
                         JsonpathReference {
                             source: 2,
                             node: context.path_nodes.len()
-                                + usize::try_from(value.kind).unwrap_or(0),
+                                + usize::try_from(type_index).unwrap_or(0),
                         },
                         context.lax,
                         task.ignore,
@@ -1584,7 +1692,13 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     let mut source: i32 = 3;
                     let mut node = numbers.len();
                     if step.kind == JSONPATH_METHOD_STRING {
-                        computed_text = jsonpath_conversion_string_value(number, text, value.kind);
+                        if task.reference.source == 7 {
+                            computed_text =
+                                jsonpath_temporal_render(temporals[task.reference.node]);
+                        } else {
+                            computed_text =
+                                jsonpath_conversion_string_value(number, text, value.kind);
+                        };
                         source = 5;
                         node = strings.len();
                     } else if step.kind == JSONPATH_METHOD_BOOLEAN {
@@ -1677,6 +1791,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
             index += 1;
         }
         if error > 0
+            && hard_error == false
             && error != JSONPATH_EXEC_VARIABLE
             && error != JSONPATH_EXEC_INTERNAL
             && error != JSONPATH_EXEC_PROGRAM_LIMIT
@@ -1716,9 +1831,11 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
         items: selected,
         numbers: numbers,
         strings: strings,
+        temporals: temporals,
         generated_nodes: context.generated_nodes,
         generated_characters: context.generated_characters,
         error: error,
+        hard_error: hard_error,
         unknown: unknown,
     }
 }
@@ -1821,6 +1938,23 @@ fn jsonpath_execution_output(
                     }
                 };
             };
+            if task.reference.source == 7 {
+                let rendered = jsonpath_temporal_render(sequence.temporals[task.reference.node]);
+                if let TextValue::Error(failure) = rendered {
+                    return JsonbValue::Error(failure);
+                };
+                if let TextValue::Unknown = rendered {
+                    return JsonbValue::Unknown;
+                };
+                if let TextValue::Value(text) = rendered {
+                    let content: Vec<char> = text.chars().collect();
+                    let mut position: usize = 0;
+                    while position < content.len() {
+                        characters.push(content[position]);
+                        position += 1;
+                    }
+                };
+            };
             let mut position = node.text_start;
             while position < node.text_end {
                 characters.push(jsonpath_execution_result_character(
@@ -1832,8 +1966,12 @@ fn jsonpath_execution_output(
                 position += 1;
             }
             let index = nodes.len();
+            let mut output_kind = node.kind;
+            if task.reference.source == 7 {
+                output_kind = 4;
+            };
             nodes.push(JsonbNode {
-                kind: node.kind,
+                kind: output_kind,
                 child: 0,
                 next: 0,
                 key_start: key_start,
@@ -1961,6 +2099,7 @@ fn jsonpath_evaluate(
                     };
                     if sequence.error > 0
                         && (suppress == false
+                            || sequence.hard_error
                             || sequence.error == JSONPATH_EXEC_VARIABLE
                             || sequence.error == JSONPATH_EXEC_PROGRAM_LIMIT)
                     {

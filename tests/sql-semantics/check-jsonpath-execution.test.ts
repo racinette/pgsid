@@ -15,7 +15,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 
-it('executes structural JSONPath sequences, arithmetic, predicates, filters, core methods, scalar conversions, keyvalue objects and silent prefixes in every target', async () => {
+it('executes structural JSONPath sequences, arithmetic, predicates, filters, core methods, scalar conversions, keyvalue objects, temporal methods and silent prefixes in every target', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonpath-execution-'))
   const value = (input: string | boolean): Input => ({ kind: 'Value', value: input })
@@ -582,6 +582,83 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       '0e16384',
     ])
       cases.push([JSON.stringify(text), '$.number()'])
+    const temporalMethods = ['datetime', 'date', 'time', 'time_tz', 'timestamp', 'timestamp_tz']
+    for (const input of [
+      '2024-02-29',
+      '2023-02-29',
+      '2024-02-29T12:34:56.123456',
+      '2024-02-29T12:34:56.123456+03:30',
+      '12:34:56.123456',
+      '12:34:56.123456-05:30',
+      'not a date',
+    ]) {
+      for (const method of temporalMethods) {
+        if (method === 'time_tz' && input.includes('T') && input.includes('+')) continue
+        cases.push([JSON.stringify(input), `$.${method}()`])
+      }
+    }
+    const typed = [
+      '"2024-02-29".date()',
+      '"12:34:56".time()',
+      '"12:34:56+03:30".time_tz()',
+      '"2024-02-29T12:34:56".timestamp()',
+      '"2024-02-29T12:34:56+03:30".timestamp_tz()',
+    ]
+    for (const item of typed) {
+      for (const suffix of [
+        '',
+        '.type()',
+        '.string()',
+        '.size()',
+        '.date()',
+        '.number()',
+        '.boolean()',
+        '.abs()',
+        '[0]',
+        '.*',
+        '.**{last}',
+      ])
+        cases.push(['{}', item + suffix])
+      cases.push(['{}', `strict ${item}.size()`])
+      cases.push(['{}', `${item} == null`])
+      cases.push(['{}', `${item} == ${item}.string()`])
+      for (const other of typed) cases.push(['{}', `${item} == ${other}`])
+      for (const operator of ['!=', '<', '<=', '>', '>='])
+        cases.push(['{}', `${item} ${operator} ${item}`])
+    }
+    for (const precision of ['0', '2', '6', '7', '2147483647', '2147483648'])
+      for (const method of ['time', 'time_tz', 'timestamp', 'timestamp_tz']) {
+        const input = method.startsWith('timestamp')
+          ? '2024-02-29T23:59:59.999999'
+          : '23:59:59.999999'
+        cases.push([
+          JSON.stringify(input + (method.endsWith('_tz') ? '+03:30' : '')),
+          `$.${method}(${precision})`,
+        ])
+      }
+    cases.push(
+      ['{}', '"5874897-12-31".date() > "294276-12-31T23:59:59".timestamp()'],
+      ['{}', '"294276-12-31T23:59:59".timestamp() < "5874897-12-31".date()'],
+      ['{}', '"5874897-12-31".timestamp()'],
+      ['{}', 'exists("2024-02-29T12:34:56+03:30".date())'],
+      ['{}', '("2024-02-29T12:34:56+03:30".date()==null) is unknown'],
+      ['{}', '(1==1) || exists("2024-02-29T12:34:56+03:30".date())'],
+      ['{}', '(1==2) && exists("2024-02-29T12:34:56+03:30".date())'],
+      ['{}', '("bad".datetime()==1) is unknown'],
+      ['{}', '"2024-02-29".datetime().string().date()'],
+      ['{}', '"12:34:56.123456+03:30".datetime().string().time_tz(2)'],
+      ['{}', '"2024-02-29T12:34:56+03:30".datetime().string().timestamp_tz()'],
+      ['{}', '"12:34:56+03:30".time_tz()=="09:04:56+00".time_tz()'],
+      ['{}', '"2024-02-29T12:34:56+03:30".timestamp_tz()=="2024-02-29T09:04:56+00".timestamp_tz()'],
+      ['["2024-02-29","bad","2024-03-01"]', '$.date()'],
+      ['["2024-02-29","bad","2024-03-01"]', 'strict $[*].date()'],
+      ['["2024-02-29","bad","2024-03-01"]', '$[*]?(@.date()>"2024-02-28".date()).date()'],
+      ['["2024-02-29"]', 'strict $.date()'],
+      ['[["2024-02-29"]]', '$.date()'],
+      ['null', '$.date()'],
+      ['1', '$.date()'],
+      ['{}', '$v.date()', '{"v":"2024-02-29"}'],
+    )
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     const references: unknown[] = []
     for (const [document, path, variables = '{}', storedSafe = true] of cases) {
@@ -667,9 +744,8 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       fixtures.push({
         name: variant.name,
         row: { ...base, path: value('$.a.datetime()') },
-        expected: variant.stored
-          ? { kind: 'Unknown' }
-          : variant.mode === 0 || variant.mode === 4
+        expected:
+          variant.mode === 0 || variant.mode === 4
             ? { kind: 'False' }
             : variant.mode === 2
               ? { kind: 'False' }
@@ -681,21 +757,25 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
       })
       fixtures.push({
         name: variant.name,
-        row: { ...base, document: value('{"a":1}'), path: value('$.a.datetime()') },
+        row: { ...base, document: value('{"a":"2024"}'), path: value('$.a.datetime("YYYY")') },
         expected: { kind: 'Unknown' },
       })
       fixtures.push({
         name: variant.name,
-        row: { ...base, document: value('{"x":1}'), path: value('(-$.x.datetime() == 1)') },
+        row: {
+          ...base,
+          document: value('{"x":"2024"}'),
+          path: value('(-$.x.datetime("YYYY") == 1)'),
+        },
         expected: { kind: 'Unknown' },
       })
     }
     for (const variant of variants) {
-      for (const path of ['$.a.datetime()', '$ like_regex "a"'])
+      for (const path of ['$.a.datetime("YYYY")', '$ like_regex "a"'])
         fixtures.push({
           name: variant.name,
           row: {
-            document: value('{"a":[1,2]}'),
+            document: value('{"a":"2024"}'),
             path: value(path),
             variables: value('{}'),
             silent: value(false),
@@ -704,6 +784,24 @@ fn jsonpath_execution_input(document:TextValue)->JsonbValue {
           expected: { kind: 'Unknown' },
         })
     }
+    for (const variant of variants)
+      for (const [document, path] of [
+        ['"12:34:56Z"', '$.datetime()'],
+        ['"2024-02-29T12:34:56Z"', '$.datetime().string()'],
+        ['"2024-02-29T12:34:56+03:30"', '$.time_tz()'],
+        ['"2024"', '$.datetime("YYYY")'],
+      ])
+        fixtures.push({
+          name: variant.name,
+          row: {
+            document: value(document!),
+            path: value(path!),
+            variables: value('{}'),
+            silent: value(true),
+            expected: value('true'),
+          },
+          expected: { kind: 'Unknown' },
+        })
     for (const [, sql] of functions.slice(0, 4))
       await expect(
         pg.query(`SELECT ${sql}('{}'::jsonb,'(-$.x.abs() == 1)'::jsonpath,'[]'::jsonb,true)`),

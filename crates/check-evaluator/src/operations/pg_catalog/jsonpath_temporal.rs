@@ -471,3 +471,82 @@ fn jsonpath_temporal_render(input: JsonpathTemporalValue) -> TextValue {
     };
     TextValue::Value(output)
 }
+
+fn jsonpath_temporal_method(kind: i32) -> bool {
+    kind == 104 || kind == 109 || kind == 126 || kind == 128 || kind == 130 || kind == 132
+}
+
+fn jsonpath_temporal_apply(
+    context: &JsonpathExecutionContext,
+    method: JsonpathNode,
+    input: TextValue,
+    value_kind: i32,
+) -> JsonpathTemporalValue {
+    if value_kind != 4 {
+        return jsonpath_temporal_invalid();
+    };
+    if method.kind == 128 && method.left > 0 {
+        return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+    };
+    let mut precision: i32 = -1;
+    if method.left > 0 {
+        let converted = sql__pg_catalog__int4__z4rh(jsonpath_execution_numeric(
+            context,
+            JsonpathReference {
+                source: 2,
+                node: method.left,
+            },
+        ));
+        if let Int4Value::Error(_) = converted {
+            return jsonpath_temporal_invalid();
+        };
+        if let Int4Value::Value(number) = converted {
+            precision = number;
+        };
+        if let Int4Value::Unknown = converted {
+            return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+        };
+    };
+    jsonpath_temporal_convert(input, method.kind, precision)
+}
+
+fn jsonpath_temporal_compare(
+    left: JsonpathTemporalValue,
+    right: JsonpathTemporalValue,
+) -> Int4Value {
+    if left.kind == right.kind {
+        if left.kind == 3 {
+            return sql__pg_catalog__timetz_cmp__wy50(
+                TimetzValue::Value(TimetzPayload {
+                    time: left.value,
+                    zone: left.zone,
+                }),
+                TimetzValue::Value(TimetzPayload {
+                    time: right.value,
+                    zone: right.zone,
+                }),
+            );
+        };
+        return Int4Value::Value(temporal_compare(left.value, right.value));
+    };
+    if left.kind == 1 && right.kind == 4 {
+        return sql__pg_catalog__date_cmp_timestamp__ppmh(
+            DateValue::Value(left.value as i32),
+            TimestampValue::Value(right.value),
+        );
+    };
+    if left.kind == 4 && right.kind == 1 {
+        return sql__pg_catalog__timestamp_cmp_date__rsh8(
+            TimestampValue::Value(left.value),
+            DateValue::Value(right.value as i32),
+        );
+    };
+    let left_calendar = left.kind == 1 || left.kind == 4 || left.kind == 5;
+    let right_calendar = right.kind == 1 || right.kind == 4 || right.kind == 5;
+    let left_clock = left.kind == 2 || left.kind == 3;
+    let right_clock = right.kind == 2 || right.kind == 3;
+    if (left_calendar && right_calendar) || (left_clock && right_clock) {
+        return Int4Value::Error(make_sql_error(JSONPATH_TEMPORAL_FEATURE));
+    };
+    Int4Value::Null
+}

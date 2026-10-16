@@ -6,7 +6,18 @@ const JSONPATH_METHOD_DOUBLE: i32 = 116;
 const JSONPATH_METHOD_CEILING: i32 = 123;
 const JSONPATH_METHOD_NON_NUMERIC: u32 = 3452658;
 const JSONPATH_METHOD_TYPE_NAMES: &[&str] = &[
-    "null", "boolean", "boolean", "number", "string", "array", "object",
+    "null",
+    "boolean",
+    "boolean",
+    "number",
+    "string",
+    "array",
+    "object",
+    "date",
+    "time without time zone",
+    "time with time zone",
+    "timestamp without time zone",
+    "timestamp with time zone",
 ];
 
 fn jsonpath_method_core(kind: i32) -> bool {
