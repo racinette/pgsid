@@ -123,22 +123,24 @@ fn jsonpath_temporal_decode(input: TextValue) -> JsonpathTemporalValue {
             if date.valid == false {
                 return jsonpath_temporal_invalid();
             };
-            let mut year = first.value;
-            if year == 0 {
-                year = -1;
-            };
-            let mut month_value = month.value;
-            let mut day_value = date.value;
-            if month_value == 0 {
-                month_value = 1;
-            };
-            if day_value == 0 {
-                day_value = 1;
-            };
-            let calendar = date_from_ymd(year, month_value, day_value);
+            let calendar = jsonpath_template_calendar(
+                first.value,
+                4,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                month.value,
+                date.value,
+                0,
+                1,
+                true,
+            );
             let mut valid = false;
-            if let DateValue::Value(number) = calendar {
-                day = number;
+            if let Int8Value::Value(number) = calendar {
+                day = number as i32;
                 valid = true;
             };
             if valid == false {

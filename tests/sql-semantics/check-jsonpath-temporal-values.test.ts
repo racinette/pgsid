@@ -95,6 +95,10 @@ pub fn jsonpath_temporal_value_probe(input:TextValue,method:Int4Value,precision:
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     const references: unknown[] = []
     const cases = new Set([
+      '0000-02-30',
+      '0000-02-31',
+      '-1-02-30',
+      '2023-02-30',
       '2024-00-00',
       '2024-00-02',
       '2024-01-00',

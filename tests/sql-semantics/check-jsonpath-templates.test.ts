@@ -15,7 +15,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 
-it('executes numeric JSONPath datetime templates with strict formatting and error hardness in every target', async () => {
+it('executes numeric and calendar JSONPath datetime templates with strict formatting and error hardness in every target', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonpath-templates-'))
   const value = (input: string | boolean): Input => ({ kind: 'Value', value: input })
@@ -208,6 +208,139 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       ['12:34:56', 'HH24:MI:SS '],
       ['2024-02-29', 'YYYY-MM-DD"unterminated'],
     ]
+    pairs.push(
+      ['21 24', 'CC YY'],
+      ['2024 AD', 'YYYY AD'],
+      ['2460370', 'J'],
+      ['4', 'Q'],
+      ['2024-09', 'YYYY-WW'],
+      ['2024-02-4', 'YYYY-MM-W'],
+      ['2024-060', 'YYYY-DDD'],
+      ['2024-W09-4', 'IYYY-"W"IW-ID'],
+      ['02-30', 'MM-DD'],
+      ['02-31', 'MM-DD'],
+      ['00-31', 'MM-DD'],
+      ['13-01', 'MM-DD'],
+      ['0000-02-30', 'YYYY-MM-DD'],
+      ['-1-02-30', 'YYYY-MM-DD'],
+      ['1 BC-060', 'YYYY BC-DDD'],
+      ['0 BC-060', 'YYYY BC-DDD'],
+      ['2024-05-01-060', 'YYYY-MM-DD-DDD'],
+      ['2024-01-05-060', 'YYYY-MM-DD-DDD'],
+      ['2023-02-02-999', 'YYYY-MM-DD-DDD'],
+      ['2024-00-02-060', 'YYYY-MM-DD-DDD'],
+      ['2024-09-001', 'YYYY-WW-DDD'],
+      ['2024-02-2-28', 'YYYY-MM-W-DD'],
+      ['1 AD BC', 'YYYY AD AD'],
+      ['1 BC AD', 'YYYY BC BC'],
+      ['1 BC BC', 'YYYY AD BC'],
+      ['2460370 2024', 'J YYYY'],
+      ['2024 2460370', 'YYYY J'],
+      ['2147483647 2460370', 'YYYY J'],
+      ['2460370 0', 'J YYYY'],
+      ['2024-09-1', 'YYYY-IW-ID'],
+      ['2024-02-29', 'IYYY-MM-DD'],
+      ['2024-09-1', 'IYYY-WW-D'],
+      ['2024-060-01', 'IYYY-IDDD-DD'],
+      ['2024-W09-4', 'iyyy-"W"iw-id'],
+      ['24-09-4', 'IY-IW-ID'],
+      ['2024', 'IYYY'],
+      ['060', 'IDDD'],
+      ['060', 'DDD'],
+      ['53 12', 'IW HH24'],
+      ['2147483647 12', 'IW HH24'],
+      ['-2147483648 12', 'IW HH24'],
+      ['306783380 12', 'IW HH24'],
+      ['53', 'IW'],
+      ['53', 'WW'],
+      ['2,024', 'Y,YYY'],
+      ['2,0240229', 'Y,YYYMMDD'],
+      ['2,024-02-29', 'Y,YYY-MM-DD'],
+      ['2,24', 'Y,YYY'],
+      ['2,0244', 'Y,YYY'],
+      ['2, 24', 'Y,YYY'],
+      ['2 ,024', 'Y,YYY'],
+      ['-2,024', 'Y,YYY'],
+      ['+2,-24', 'Y,YYY'],
+      ['2,+24', 'Y,YYY'],
+      ['0,000', 'Y,YYY'],
+      ['2147483,647', 'Y,YYY'],
+      ['2147483,648', 'Y,YYY'],
+      ['2147484,-99', 'Y,YYY'],
+      ['2,024 2024', 'Y,YYY YYYY'],
+      ['2,024 24', 'Y,YYY YY'],
+      ['2,024 BC', 'Y,YYY BC'],
+    )
+    for (const century of [
+      '0',
+      '1',
+      '19',
+      '20',
+      '21',
+      '-1',
+      '42949673',
+      '2147483647',
+      '-2147483648',
+    ])
+      for (const year of ['00', '01', '24', '99']) pairs.push([century + ' ' + year, 'CC YY'])
+    for (const year of ['0', '1', '-1', '2024', '2147483647', '-2147483648'])
+      for (const era of ['AD', 'BC', 'a.d.', 'b.c.'])
+        pairs.push([year + ' ' + era, 'YYYY ' + (era.includes('.') ? 'A.D.' : 'AD')])
+    for (const century of ['1', '21', '-1', '2147483647', '-2147483648'])
+      for (const era of ['AD', 'BC']) pairs.push([century + ' ' + era, 'CC BC'])
+    for (const year of ['2023', '2024', '0000', '-1'])
+      for (const ordinal of [
+        '0',
+        '1',
+        '59',
+        '60',
+        '365',
+        '366',
+        '367',
+        '-1',
+        '2147483647',
+        '-2147483648',
+      ])
+        pairs.push([year + '-' + ordinal, 'YYYY-DDD'])
+    for (const week of [
+      '0',
+      '1',
+      '9',
+      '53',
+      '54',
+      '-1',
+      '2147483647',
+      '-2147483648',
+      '306783380',
+    ]) {
+      pairs.push(['2024-' + week, 'YYYY-WW'])
+      pairs.push(['2024-02-' + week, 'YYYY-MM-W'])
+    }
+    for (const year of ['2020', '2021', '2024', '0', '2147483647', '-2147483648'])
+      for (const week of ['0', '1', '53', '54', '-1', '2147483647', '-2147483648'])
+        pairs.push([year + '-' + week, 'IYYY-IW'])
+    for (const weekday of ['-2147483648', '-1', '0', '1', '4', '7', '8', '2147483647']) {
+      pairs.push(['2024-09-' + weekday, 'IYYY-IW-ID'])
+      pairs.push([weekday, 'D'])
+    }
+    for (const ordinal of ['-2147483648', '-1', '0', '1', '365', '366', '371', '372', '2147483647'])
+      pairs.push(['2024-' + ordinal, 'IYYY-IDDD'])
+    for (const julian of [
+      '-2147483648',
+      '-32045',
+      '-32044',
+      '-32043',
+      '-1',
+      '0',
+      '1',
+      '1721060',
+      '2451545',
+      '2460370',
+      '2147483493',
+      '2147483494',
+      '2147483647',
+    ])
+      pairs.push([julian, 'J'])
     for (const year of [
       '1',
       '69',
@@ -307,14 +440,6 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       ['Tue', 'DY'],
       ['Tuesday', 'DAY'],
       ['IX', 'RM'],
-      ['21 24', 'CC YY'],
-      ['2024 AD', 'YYYY AD'],
-      ['2460370', 'J'],
-      ['4', 'Q'],
-      ['2024-09', 'YYYY-WW'],
-      ['2024-02-4', 'YYYY-MM-W'],
-      ['2024-060', 'YYYY-DDD'],
-      ['2024-W09-4', 'IYYY-"W"IW-ID'],
       ['12 PM', 'HH12 AM'],
       ['12:34:56Z', 'HH24:MI:SSTZ'],
     ]) {
@@ -327,6 +452,41 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       ).rows[0]!.output
       expect(JSON.parse(output)).toHaveLength(1)
       references.push({ document: JSON.stringify(input), path, output, deferred: true })
+      for (const variant of variants)
+        fixtures.push({
+          name: variant.name,
+          row: {
+            document: value(JSON.stringify(input)),
+            path: value(path),
+            variables: value('{}'),
+            silent: value(true),
+            expected: value('true'),
+          },
+          expected: { kind: 'Unknown' },
+        })
+    }
+    for (const input of ['4294967296,024', '2147483648,001', '99999999999999999999,024']) {
+      const path = '$.datetime("Y,YYY")'
+      let output: string | null = null
+      let state: string | null = null
+      try {
+        output = (
+          await pg.query<{ output: string }>(
+            'SELECT jsonb_path_query_array($1::jsonb,$2::jsonpath)::text AS output',
+            [JSON.stringify(input), path],
+          )
+        ).rows[0]!.output
+      } catch (failure) {
+        state = (failure as { code: string }).code
+      }
+      references.push({
+        document: JSON.stringify(input),
+        path,
+        output,
+        state,
+        deferred: true,
+        requirement: 'out-of-range C scanf integer input',
+      })
       for (const variant of variants)
         fixtures.push({
           name: variant.name,

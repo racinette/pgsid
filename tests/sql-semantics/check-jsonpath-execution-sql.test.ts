@@ -26,6 +26,12 @@ it('binds JSONPath execution identities, defaults and expression composition in 
   })
   try {
     const expressions: Record<string, string> = {
+      template_century: `(document @@ '"21 24".datetime("CC YY")=="2024-01-01".date()') IS TRUE`,
+      template_iso_week: `(document @@ '"2024-09-4".datetime("IYYY-IW-ID")=="2024-02-29".date()') IS TRUE`,
+      template_julian: `(document @@ '"2460370".datetime("J")=="2024-02-29".date()') IS TRUE`,
+      template_era: `(document @@ '"1 BC".datetime("YYYY AD").string()=="0001-01-01 BC"') IS TRUE`,
+      template_partial_calendar: `(document @@ '"02-30".datetime("MM-DD").string()=="0001-03-01 BC"') IS TRUE`,
+      template_convention_conflict: `(document @@ '("2024-09-4".datetime("YYYY-IW-ID")==null) is unknown') IS TRUE`,
       template_date: `(document @@ '"20240229".datetime("YYYYMMDD")=="2024-02-29".date()') IS TRUE`,
       template_type: `(document @@ '"12:34:56-05:30".datetime("HH24:MI:SSTZH:TZM").type()=="time with time zone"') IS TRUE`,
       template_silent_value: `jsonb_path_query_first(document,'"bad".datetime("YYYY")','{}',true) IS NULL`,
@@ -190,6 +196,12 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ],
       ['{"a":"bad","flag":true}', '$.a.datetime()', '{}', true, false],
       ['{"a":"20240229","flag":true}', '$.a.datetime("YYYYMMDD")', '{}', false, false],
+      ['{"a":"2024-060","flag":true}', '$.a.datetime("YYYY-DDD")', '{}', false, false],
+      ['{"a":"2024-09-4","flag":true}', '$.a.datetime("IYYY-IW-ID")', '{}', false, false],
+      ['{"a":"21 24","flag":true}', '$.a.datetime("CC YY")', '{}', false, false],
+      ['{"a":"1 BC","flag":true}', '$.a.datetime("YYYY AD")', '{}', false, false],
+      ['{"a":"2024-09-4","flag":true}', '$.a.datetime("YYYY-IW-ID")', '{}', true, false],
+
       [
         '{"a":"12:34:56-05:30","flag":true}',
         '$.a.datetime("HH24:MI:SSTZH:TZM").string()',
