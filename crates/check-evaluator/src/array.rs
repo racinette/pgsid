@@ -1239,7 +1239,10 @@ pub fn array_slice_subscript(input: ArrayValue, indices: ArraySubscripts) -> Arr
                     if first.provided && (first.value as i64) > low {
                         low = first.value as i64;
                     };
-                    if last.provided && (last.value as i64) < high {
+                    if last.provided
+                        && (dimension.lower as i64) + (dimension.length as i64) <= 2147483647i64
+                        && (last.value as i64) < high
+                    {
                         high = last.value as i64;
                     };
                 };

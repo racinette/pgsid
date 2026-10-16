@@ -85,6 +85,228 @@ func ArraycontainedUyb2(input checkruntime.BoolValue) checkruntime.BoolValue {
 func ArrayoverlapLwrw(input checkruntime.BoolValue) checkruntime.BoolValue {
 	return input
 }
+
+const arrayFillNull = 3452548
+const arrayFillShape = 3452630
+const arrayFillLimit = 8584704
+const arrayFillPortableItems = int64(134217727)
+const arrayFillMaxItems = int64(268435455)
+
+func arrayFillNulls(input *checkruntime.ArrayPayload) checkruntime.Int4Value {
+	unknown := false
+	position := 0
+	for position < len(input.Elements) {
+		element := checkruntime.CopyArrayElement(input.Elements[position])
+		if element.Kind == checkruntime.ArrayElementNull {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(arrayFillNull)}
+		}
+		if element.Kind == checkruntime.ArrayElementUnknown {
+			unknown = true
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if unknown {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+}
+func arrayFillPayload(element checkruntime.ArrayElement, lengths checkruntime.ArrayPayload, bounds checkruntime.ArrayPayload, elementType string, elementKind int) checkruntime.ArrayValue {
+	element = checkruntime.CopyArrayElement(element)
+	lengths = checkruntime.CopyArrayPayload(lengths)
+	bounds = checkruntime.CopyArrayPayload(bounds)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	if len(bounds.Dimensions) > 1 {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillShape)}
+	}
+	boundNulls := arrayFillNulls(&bounds)
+	if boundNulls.Kind == checkruntime.Int4ValueError {
+		error := boundNulls.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if boundNulls == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if len(bounds.Elements) != len(lengths.Elements) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillShape)}
+	}
+	count := int64(1)
+	if len(lengths.Elements) == 0 {
+		count = int64(0)
+	}
+	dimensions := []checkruntime.ArrayDimension{}
+	position := 0
+	for position < len(lengths.Elements) {
+		length := checkruntime.ArrayElementToInt4(checkruntime.CopyArrayElement(lengths.Elements[position]))
+		lower := checkruntime.ArrayElementToInt4(checkruntime.CopyArrayElement(bounds.Elements[position]))
+		if length.Kind == checkruntime.Int4ValueValue {
+			size := langruntime.CheckedI32(length.Value)
+			if size < 0 {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillLimit)}
+			}
+			size64 := int64(langruntime.CheckedI32(size))
+			if size64 > int64(0) && count > langruntime.CheckedI64Divide(int64(2147483647), size64) {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillLimit)}
+			}
+			count = langruntime.CheckedI64Multiply(count, size64)
+			if lower.Kind == checkruntime.Int4ValueValue {
+				start := langruntime.CheckedI32(lower.Value)
+				langruntime.CheckedAdd(len(dimensions), 1)
+				dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: start, Length: size})
+			}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if len(dimensions) != len(lengths.Elements) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if count > arrayFillMaxItems {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillLimit)}
+	}
+	position = langruntime.CheckedIndex(0)
+	for position < len(dimensions) {
+		dimension := dimensions[position]
+		if langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), (int64(langruntime.CheckedI32(dimension.Length)))) > int64(2147483647) {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillLimit)}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if count == int64(0) {
+		empty := checkruntime.MakeArrayArguments(elementType, elementKind)
+		return checkruntime.FinishArrayArguments(empty)
+	}
+	if count > arrayFillPortableItems {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	elements := []checkruntime.ArrayElement{}
+	filled := int64(0)
+	for filled < count {
+		langruntime.CheckedAdd(len(elements), 1)
+		elements = append(elements, checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(element)))
+		filled = langruntime.CheckedI64Add(filled, int64(1))
+	}
+	return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: elements})
+}
+func arrayFillValue(element checkruntime.ArrayElement, lengths checkruntime.ArrayValue, bounds checkruntime.ArrayValue, provided bool, elementType string, elementKind int) checkruntime.ArrayValue {
+	element = checkruntime.CopyArrayElement(element)
+	lengths = checkruntime.CopyArrayValue(lengths)
+	bounds = checkruntime.CopyArrayValue(bounds)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	if element.Kind == checkruntime.ArrayElementError {
+		error := element.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if lengths.Kind == checkruntime.ArrayValueError {
+		error := lengths.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if bounds.Kind == checkruntime.ArrayValueError {
+		error := bounds.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if lengths.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillNull)}
+	}
+	if provided {
+		if bounds.Kind == checkruntime.ArrayValueNull {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillNull)}
+		}
+	}
+	if lengths.Kind == checkruntime.ArrayValueValue {
+		shape := checkruntime.CopyArrayPayload(lengths.Value)
+		if len(shape.Dimensions) > 1 {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillShape)}
+		}
+		nulls := arrayFillNulls(&shape)
+		if nulls.Kind == checkruntime.Int4ValueError {
+			error := nulls.Error
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+		}
+		if nulls == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+		}
+		if len(shape.Elements) > 6 {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillLimit)}
+		}
+		if provided {
+			if bounds.Kind == checkruntime.ArrayValueValue {
+				lower := checkruntime.CopyArrayPayload(bounds.Value)
+				return arrayFillPayload(element, shape, lower, elementType, elementKind)
+			}
+		} else {
+			builder := checkruntime.MakeArrayArguments("pg_catalog.int4", 2)
+			position := 0
+			for position < len(shape.Elements) {
+				one := checkruntime.ArrayElementFromInt4(checkruntime.MakeInt4Value(1))
+				builder = checkruntime.CopyArrayArguments(checkruntime.AppendArrayArgument(builder, one))
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			defaults := checkruntime.FinishArrayConstructor(builder)
+			if defaults.Kind == checkruntime.ArrayValueValue {
+				lower := checkruntime.CopyArrayPayload(defaults.Value)
+				return arrayFillPayload(element, shape, lower, elementType, elementKind)
+			}
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
+func ArrayFill8l6w(element checkruntime.ArrayElement, lengths checkruntime.ArrayValue, elementType string, elementKind int) checkruntime.ArrayValue {
+	element = checkruntime.CopyArrayElement(element)
+	lengths = checkruntime.CopyArrayValue(lengths)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	return arrayFillValue(element, lengths, checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}, false, elementType, elementKind)
+}
+func ArrayFill3xoe(element checkruntime.ArrayElement, lengths checkruntime.ArrayValue, bounds checkruntime.ArrayValue, elementType string, elementKind int) checkruntime.ArrayValue {
+	element = checkruntime.CopyArrayElement(element)
+	lengths = checkruntime.CopyArrayValue(lengths)
+	bounds = checkruntime.CopyArrayValue(bounds)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	return arrayFillValue(element, lengths, bounds, true, elementType, elementKind)
+}
+func TrimArrayUzie(input checkruntime.ArrayValue, count checkruntime.Int4Value) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if count.Kind == checkruntime.Int4ValueError {
+		error := count.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if count == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		payload := checkruntime.CopyArrayPayload(input.Value)
+		if count.Kind == checkruntime.Int4ValueValue {
+			remove := langruntime.CheckedI32(count.Value)
+			length := 0
+			lower := 1
+			if len(payload.Dimensions) > 0 {
+				length = langruntime.CheckedI32(payload.Dimensions[0].Length)
+				lower = langruntime.CheckedI32(payload.Dimensions[0].Lower)
+			}
+			if remove < 0 || remove > length {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayFillShape)}
+			}
+			upper := langruntime.CheckedI64Subtract(langruntime.CheckedI64Subtract(langruntime.CheckedI64Add((int64(langruntime.CheckedI32(lower))), (int64(langruntime.CheckedI32(length)))), (int64(langruntime.CheckedI32(remove)))), int64(1))
+			if upper < int64(-2147483648) {
+				upper = langruntime.CheckedI64Add(upper, int64(4294967296))
+			}
+			bounds := checkruntime.MakeArraySubscripts()
+			bounds = checkruntime.CopyArraySubscripts(checkruntime.AppendArraySubscript(bounds, checkruntime.MakeInt4Value(int(int32(upper))), false, true))
+			bounds = checkruntime.CopyArraySubscripts(checkruntime.AppendArraySubscript(bounds, checkruntime.MakeInt4Value(0), true, false))
+			return checkruntime.ArraySliceSubscript(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: payload}, bounds)
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
 func ArrayIntegerTextElement(input checkruntime.TextValue, family int) checkruntime.ArrayElement {
 	family = langruntime.CheckedI32(family)
 	bits := 64

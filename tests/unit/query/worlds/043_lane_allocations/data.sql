@@ -64,3 +64,15 @@ VALUES ('{}', '{1}', '{2}', '{}', '{}', false);
 
 INSERT INTO lane_jsonb_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
 VALUES ('{1.0,1,2}', '{1}', '{0}', '{2}', '{0,0,2}', false);
+
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{2,2}', '{0,-2}', '{{7,7},{7,7}}', '[0:1][-2:-1]={{7,7},{7,7}}', false);
+
+INSERT INTO lane_truncations (slots, trim_count, expected_slots)
+VALUES ('[0:1][2:3]={{1,2},{3,4}}', 1, '{{1,2}}');
+
+INSERT INTO lane_stage_templates (seed, dimensions, lower_bounds, expected_fill, stages, trim_count, expected_trim)
+VALUES ('done', '{2}', '{0}', '[0:1]={done,done}', '[3:4]={new,done}', 1, '{new}');
+
+INSERT INTO lane_document_templates (seed, dimensions, expected_count, expected_layout, expected_cell)
+VALUES ('{"a":[1]}'::jsonb, '{2,2}', 4, '[1:2][1:2]', '{"a":[1]}'::jsonb);

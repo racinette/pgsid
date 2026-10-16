@@ -283,3 +283,44 @@ CREATE TABLE lane_jsonb_revisions (
   CONSTRAINT removed_jsonb CHECK (CASE WHEN bypass THEN true ELSE array_remove(payload::jsonb[], (needle::jsonb[])[1])::text COLLATE "C" IS NOT DISTINCT FROM expected_remove COLLATE "C" END),
   CONSTRAINT replaced_jsonb CHECK (array_replace(payload::jsonb[], (needle::jsonb[])[1], (replacement::jsonb[])[1])::text COLLATE "C" IS NOT DISTINCT FROM expected_replace COLLATE "C")
 );
+
+CREATE TABLE lane_templates (
+  seed integer,
+  dimensions lane_slots,
+  lower_bounds integer[],
+  expected_default text,
+  expected_bounded text,
+  bypass boolean,
+  CONSTRAINT default_template CHECK (CASE WHEN bypass THEN true ELSE array_fill(seed, dimensions)::text COLLATE "C" IS NOT DISTINCT FROM expected_default COLLATE "C" END),
+  CONSTRAINT bounded_template CHECK (CASE WHEN bypass THEN true ELSE array_fill(seed, dimensions, lower_bounds)::text COLLATE "C" IS NOT DISTINCT FROM expected_bounded COLLATE "C" END)
+);
+
+CREATE TABLE lane_truncations (
+  slots lane_slots,
+  trim_count integer,
+  expected_slots text,
+  CONSTRAINT trimmed_slots CHECK (trim_array(slots, trim_count)::text COLLATE "C" IS NOT DISTINCT FROM expected_slots COLLATE "C")
+);
+
+CREATE TABLE lane_stage_templates (
+  seed lane_stage,
+  dimensions integer[],
+  lower_bounds integer[],
+  expected_fill text,
+  stages lane_stage[],
+  trim_count integer,
+  expected_trim text,
+  CONSTRAINT filled_stages CHECK (array_fill(seed, dimensions, lower_bounds)::text COLLATE "C" IS NOT DISTINCT FROM expected_fill COLLATE "C"),
+  CONSTRAINT trimmed_stages CHECK (trim_array(stages, trim_count)::text COLLATE "C" IS NOT DISTINCT FROM expected_trim COLLATE "C")
+);
+
+CREATE TABLE lane_document_templates (
+  seed jsonb,
+  dimensions integer[],
+  expected_count integer,
+  expected_layout text,
+  expected_cell jsonb,
+  CONSTRAINT document_template_count CHECK (cardinality(array_fill(seed, dimensions)) IS NOT DISTINCT FROM expected_count),
+  CONSTRAINT document_template_layout CHECK (array_dims(array_fill(seed, dimensions)) COLLATE "C" IS NOT DISTINCT FROM expected_layout COLLATE "C"),
+  CONSTRAINT document_template_cell CHECK ((array_fill(seed, dimensions))[1][1] IS NOT DISTINCT FROM expected_cell)
+);

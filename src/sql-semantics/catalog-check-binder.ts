@@ -901,6 +901,7 @@ const candidate = (
       (!catalogScalarType(item.result) &&
         ![
           'pg_catalog.anyenum',
+          'pg_catalog.anyarray',
           'pg_catalog.anycompatiblearray',
           'pg_catalog.anycompatible',
         ].includes(item.result))
@@ -957,6 +958,21 @@ const candidate = (
       (!arrayIdentity || arrayTypes.some((type) => type !== arrayIdentity))
     )
       return []
+    if (arrayIdentity && elementType && arrayIdentity !== `array:${elementType}`) return []
+    const resultArray =
+      item.result === 'pg_catalog.anyarray'
+        ? (arrayIdentity ??
+          (elementType &&
+          !elementType.startsWith('array:') &&
+          fullArgs.every(
+            (arg, index) =>
+              item.args[index] !== 'pg_catalog.anyelement' ||
+              (arg.nominalDomain === undefined && arg.enumDomain === undefined),
+          )
+            ? arrayType(elementType as ArrayElementType)
+            : null))
+        : null
+    if (item.result === 'pg_catalog.anyarray' && !resultArray) return []
     const enumCall = item.args.includes('pg_catalog.anyenum')
     const compatible = item.args.some(
       (type) => type === 'pg_catalog.anycompatiblearray' || type === 'pg_catalog.anycompatible',
@@ -987,7 +1003,12 @@ const candidate = (
     if (compatible && (!compatibleType || compatibleType.startsWith('array:'))) return []
     const compatibleArray = compatibleType ? arrayType(compatibleType as ArrayElementType) : null
     const definition = fullArgs.find(
-      (arg, index) => (item.args[index] === 'pg_catalog.anyenum' || compatible) && arg.enum,
+      (arg, index) =>
+        (['pg_catalog.anyenum', 'pg_catalog.anyelement', 'pg_catalog.anyarray'].includes(
+          item.args[index]!,
+        ) ||
+          compatible) &&
+        arg.enum,
     )?.enum
     if (
       (item.result === 'pg_catalog.anyenum' && !enumCall) ||
@@ -1012,15 +1033,17 @@ const candidate = (
               ? materialize(arg, arrayIdentity!)
               : item.args[index] === 'pg_catalog.anyelement'
                 ? materialize(arg, elementType!, arg.enum)
-                : isIntegerType(item.args[index]!)
-                  ? materializeInteger(arg, item.args[index]! as ScalarType)
-                  : materialize(
-                      arg,
-                      item.args[index] === 'pg_catalog.anyenum'
-                        ? enumType(definition!)
-                        : (item.args[index]! as ScalarType),
-                      definition,
-                    ),
+                : catalogScalarType(item.args[index]!)?.startsWith('array:')
+                  ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
+                  : isIntegerType(item.args[index]!)
+                    ? materializeInteger(arg, item.args[index]! as ScalarType)
+                    : materialize(
+                        arg,
+                        item.args[index] === 'pg_catalog.anyenum'
+                          ? enumType(definition!)
+                          : (item.args[index]! as ScalarType),
+                        definition,
+                      ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [
@@ -1035,14 +1058,16 @@ const candidate = (
                 ? compatibleArray!
                 : item.result === 'pg_catalog.anycompatible'
                   ? compatibleType!
-                  : undefined,
+                  : (resultArray ?? undefined),
           },
         ]
       : []
   })
   const types = args.map(boundType)
   const exact = matches.filter(({ item }) =>
-    item.args.slice(0, args.length).every((type, index) => type === types[index]),
+    item.args
+      .slice(0, args.length)
+      .every((type, index) => (catalogScalarType(type) ?? type) === types[index]),
   )
   if (exact.length === 1) return exact[0]!
   if (kind === 'operator' && args.length === 2) {

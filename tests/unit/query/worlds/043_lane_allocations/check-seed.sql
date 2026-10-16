@@ -850,3 +850,147 @@ VALUES ('{1,2}', '{1}', '{3}', '{2}', '{1,3}', false);
 -- name: jsonb_revisions_multidimensional_replacement
 INSERT INTO lane_jsonb_revisions (payload, needle, replacement, expected_remove, expected_replace, bypass)
 VALUES ('{{1,NULL},{2,1}}', '{1}', '{3}', NULL, '{{3,NULL},{2,3}}', true);
+
+-- name: templates_bounded_dimensions
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{2,2}', '{0,-2}', '{{7,7},{7,7}}', '[0:1][-2:-1]={{7,7},{7,7}}', false);
+
+-- name: templates_null_seed
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (NULL, '{2}', '{0}', '{NULL,NULL}', '[0:1]={NULL,NULL}', false);
+
+-- name: templates_empty_dimensions
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{}', '{}', '{}', '{}', false);
+
+-- name: templates_zero_dimension
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{2,0}', '{0,2147483647}', '{}', '{}', false);
+
+-- name: templates_wrong_default
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{2}', '{0}', '{7}', '[0:1]={7,7}', false);
+
+-- name: templates_wrong_bounded
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{2}', '{0}', '{7,7}', '{7,7}', false);
+
+-- name: templates_null_dimensions
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, NULL, '{1}', NULL, NULL, false);
+
+-- name: templates_null_lower_bounds
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{}', NULL, '{}', NULL, false);
+
+-- name: templates_null_dimension_cell
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{NULL}', '{1}', NULL, NULL, false);
+
+-- name: templates_negative_after_zero
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{0,-1}', '{1,1}', NULL, NULL, false);
+
+-- name: templates_dimension_vector_rank
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{{2}}', '{1}', NULL, NULL, false);
+
+-- name: templates_lower_vector_rank
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{2}', '{{1}}', '{7,7}', NULL, false);
+
+-- name: templates_mismatched_vectors
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{2}', '{}', '{7,7}', NULL, false);
+
+-- name: templates_dimension_limit
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{1,1,1,1,1,1,1}', '{1,1,1,1,1,1,1}', NULL, NULL, false);
+
+-- name: templates_portable_count_overflow
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (NULL, '{268435456}', '{1}', NULL, NULL, false);
+
+-- name: templates_guarded_dimensions
+INSERT INTO lane_templates (seed, dimensions, lower_bounds, expected_default, expected_bounded, bypass)
+VALUES (7, '{NULL}', NULL, NULL, NULL, true);
+
+-- name: truncations_multidimensional
+INSERT INTO lane_truncations (slots, trim_count, expected_slots)
+VALUES ('[0:1][2:3]={{1,2},{3,4}}', 1, '{{1,2}}');
+
+-- name: truncations_zero_resets_bounds
+INSERT INTO lane_truncations (slots, trim_count, expected_slots)
+VALUES ('[0:1]={1,NULL}', 0, '{1,NULL}');
+
+-- name: truncations_all_elements
+INSERT INTO lane_truncations (slots, trim_count, expected_slots)
+VALUES ('[0:1]={1,NULL}', 2, '{}');
+
+-- name: truncations_null_source
+INSERT INTO lane_truncations (slots, trim_count, expected_slots)
+VALUES (NULL, -1, NULL);
+
+-- name: truncations_null_count
+INSERT INTO lane_truncations (slots, trim_count, expected_slots)
+VALUES ('{1,2}', NULL, NULL);
+
+-- name: truncations_negative_count
+INSERT INTO lane_truncations (slots, trim_count, expected_slots)
+VALUES ('{1,2}', -1, NULL);
+
+-- name: truncations_excess_count
+INSERT INTO lane_truncations (slots, trim_count, expected_slots)
+VALUES ('{1,2}', 3, NULL);
+
+-- name: truncations_wrong_contents
+INSERT INTO lane_truncations (slots, trim_count, expected_slots)
+VALUES ('{1,2}', 1, '{2}');
+
+-- name: truncations_minimum_lower_overflow
+INSERT INTO lane_truncations (slots, trim_count, expected_slots)
+VALUES ('[-2147483648:-2147483647]={1,2}', 2, '{1,2}');
+
+-- name: stage_templates_schema_identity
+INSERT INTO lane_stage_templates (seed, dimensions, lower_bounds, expected_fill, stages, trim_count, expected_trim)
+VALUES ('done', '{2}', '{0}', '[0:1]={done,done}', '[3:4]={new,done}', 1, '{new}');
+
+-- name: stage_templates_null_cells
+INSERT INTO lane_stage_templates (seed, dimensions, lower_bounds, expected_fill, stages, trim_count, expected_trim)
+VALUES (NULL, '{2}', '{0}', '[0:1]={NULL,NULL}', NULL, NULL, NULL);
+
+-- name: stage_templates_wrong_fill
+INSERT INTO lane_stage_templates (seed, dimensions, lower_bounds, expected_fill, stages, trim_count, expected_trim)
+VALUES ('done', '{2}', '{0}', '[0:1]={new,new}', '{new,done}', 1, '{new}');
+
+-- name: stage_templates_wrong_trim
+INSERT INTO lane_stage_templates (seed, dimensions, lower_bounds, expected_fill, stages, trim_count, expected_trim)
+VALUES ('done', '{2}', '{0}', '[0:1]={done,done}', '{new,done}', 1, '{done}');
+
+-- name: document_templates_owned_cells
+INSERT INTO lane_document_templates (seed, dimensions, expected_count, expected_layout, expected_cell)
+VALUES ('{"a":[1]}'::jsonb, '{2,2}', 4, '[1:2][1:2]', '{"a":[1]}'::jsonb);
+
+-- name: document_templates_sql_null
+INSERT INTO lane_document_templates (seed, dimensions, expected_count, expected_layout, expected_cell)
+VALUES (NULL, '{1,1}', 1, '[1:1][1:1]', NULL);
+
+-- name: document_templates_json_null
+INSERT INTO lane_document_templates (seed, dimensions, expected_count, expected_layout, expected_cell)
+VALUES ('null'::jsonb, '{1,1}', 1, '[1:1][1:1]', 'null'::jsonb);
+
+-- name: document_templates_empty
+INSERT INTO lane_document_templates (seed, dimensions, expected_count, expected_layout, expected_cell)
+VALUES ('{"a":[1]}'::jsonb, '{}', 0, NULL, NULL);
+
+-- name: document_templates_wrong_count
+INSERT INTO lane_document_templates (seed, dimensions, expected_count, expected_layout, expected_cell)
+VALUES ('{"a":[1]}'::jsonb, '{2,2}', 3, '[1:2][1:2]', '{"a":[1]}'::jsonb);
+
+-- name: document_templates_wrong_layout
+INSERT INTO lane_document_templates (seed, dimensions, expected_count, expected_layout, expected_cell)
+VALUES ('{"a":[1]}'::jsonb, '{2,2}', 4, '[0:1][0:1]', '{"a":[1]}'::jsonb);
+
+-- name: document_templates_wrong_cell
+INSERT INTO lane_document_templates (seed, dimensions, expected_count, expected_layout, expected_cell)
+VALUES ('{"a":[1]}'::jsonb, '{2,2}', 4, '[1:2][1:2]', '{"a":[2]}'::jsonb);
