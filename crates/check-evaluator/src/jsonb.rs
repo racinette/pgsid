@@ -38,10 +38,10 @@ fn jsonb_node_child(node: JsonbNode, child: usize) -> JsonbNode {
     }
 }
 
-fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken) -> BoolValue {
+fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken, utf8: bool) -> BoolValue {
     let following = json_read_next_token(source, token.end);
     if following.start < source.characters.len() && source.characters[following.start] == '"' {
-        let decoded = json_read_decode_string(source, following);
+        let decoded = json_read_decode_string_context(source, following, utf8);
         if let TextValue::Error(error) = decoded {
             return BoolValue::Error(error);
         };
@@ -55,8 +55,8 @@ fn jsonb_scalar_ready(source: &JsonSyntaxSource, token: JsonReadToken) -> BoolVa
     BoolValue::Value(true)
 }
 
-fn jsonb_number_text(source: &JsonSyntaxSource, token: JsonReadToken) -> TextValue {
-    let ready = jsonb_scalar_ready(source, token);
+fn jsonb_number_text(source: &JsonSyntaxSource, token: JsonReadToken, utf8: bool) -> TextValue {
+    let ready = jsonb_scalar_ready(source, token, utf8);
     if let BoolValue::Error(error) = ready {
         return TextValue::Error(error);
     };
@@ -268,7 +268,7 @@ fn jsonb_normalize_objects(input: JsonbPayload) -> JsonbPayload {
     }
 }
 
-fn jsonb_parse_text(input: TextValue, admission: bool) -> JsonbValue {
+fn jsonb_parse_text_context(input: TextValue, admission: bool, utf8: bool) -> JsonbValue {
     if let TextValue::Error(error) = input {
         return JsonbValue::Error(error);
     };
@@ -305,7 +305,7 @@ fn jsonb_parse_text(input: TextValue, admission: bool) -> JsonbValue {
             let token = json_read_next_token(&source, position);
             let mut decoded = TextValue::Null;
             if token.start < source.characters.len() && source.characters[token.start] == '"' {
-                decoded = json_read_decode_string(&source, token);
+                decoded = json_read_decode_string_context(&source, token, utf8);
                 if let TextValue::Error(error) = decoded {
                     return JsonbValue::Error(error);
                 };
@@ -381,7 +381,7 @@ fn jsonb_parse_text(input: TextValue, admission: bool) -> JsonbValue {
                     || transition.action == JSON_SYNTAX_OPEN_OBJECT
                 {
                     if token.syntax == JSON_SYNTAX_NUMBER {
-                        decoded = jsonb_number_text(&source, token);
+                        decoded = jsonb_number_text(&source, token, utf8);
                         if let TextValue::Error(error) = decoded {
                             return JsonbValue::Error(error);
                         };
@@ -390,7 +390,7 @@ fn jsonb_parse_text(input: TextValue, admission: bool) -> JsonbValue {
                         };
                     };
                     if admission && token.kind == JSON_READ_QUOTE {
-                        let ready = jsonb_scalar_ready(&source, token);
+                        let ready = jsonb_scalar_ready(&source, token, utf8);
                         if let BoolValue::Error(error) = ready {
                             return JsonbValue::Error(error);
                         };
@@ -755,4 +755,12 @@ fn jsonb_input_valid(source: &JsonbPayload) -> bool {
 
 pub fn jsonb_from_text(input: TextValue) -> JsonbValue {
     jsonb_parse_text(input, true)
+}
+
+pub fn jsonb_from_text_context(input: TextValue, utf8: bool) -> JsonbValue {
+    jsonb_parse_text_context(input, true, utf8)
+}
+
+fn jsonb_parse_text(input: TextValue, admission: bool) -> JsonbValue {
+    jsonb_parse_text_context(input, admission, false)
 }

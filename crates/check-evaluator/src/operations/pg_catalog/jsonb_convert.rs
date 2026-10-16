@@ -213,3 +213,23 @@ pub fn jsonb_input_from_timestamptz(input: TimestamptzValue) -> JsonbInput {
     };
     JsonbInput::Unknown
 }
+
+pub fn jsonb_input_from_json_context(input: JsonValue, utf8: bool) -> JsonbInput {
+    if utf8 == false {
+        return jsonb_input_from_json(input);
+    };
+    if let JsonValue::Error(error) = input {
+        return JsonbInput::Error(error);
+    };
+    if let JsonValue::Null = input {
+        return JsonbInput::Null;
+    };
+    if let JsonValue::Value(value) = input {
+        let converted = jsonb_from_text_context(TextValue::Value(value.source), true);
+        if let JsonbValue::Error(error) = converted {
+            return JsonbInput::ConvertedError(error);
+        };
+        return jsonb_input_from_jsonb(converted);
+    };
+    JsonbInput::Unknown
+}

@@ -2090,3 +2090,187 @@ VALUES ('{a,1}', '{}', '{"a":"1"}', false);
 -- name: object_import_wrong_binary
 INSERT INTO lane_object_imports (payload, expected, expected_binary, bypass)
 VALUES ('{a,1}', '{"a" : "1"}', '{}', false);
+
+-- name: stripped_object
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"a":null,"b":1}', false, true, '{"b":1}', '{"b":1}', '{"b":1}', false);
+
+-- name: stripped_null_source
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES (NULL, true, true, NULL, NULL, NULL, false);
+
+-- name: stripped_json_null
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES (' null ', true, true, 'null', 'null', 'null', false);
+
+-- name: stripped_number
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES (' 1.00e+02 ', true, true, '1.00e+02', '1.00e+02', '1.00e+02', false);
+
+-- name: stripped_large_number
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('1e999999', true, true, '1e999999', '1e999999', '1e999999', false);
+
+-- name: stripped_string
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('"\u0061\/\n"', true, true, '"a/\n"', '"a/\n"', '"a/\n"', false);
+
+-- name: stripped_empty_object
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{}', true, true, '{}', '{}', '{}', false);
+
+-- name: stripped_empty_array
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('[]', true, true, '[]', '[]', '[]', false);
+
+-- name: stripped_all_fields
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"a":null,"b":null}', true, true, '{}', '{}', '{}', false);
+
+-- name: stripped_array_default
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('[null,1,null]', false, true, '[null,1,null]', '[null,1,null]', '[1]', false);
+
+-- name: stripped_array_flag
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('[null,1,null]', true, true, '[null,1,null]', '[1]', '[1]', false);
+
+-- name: stripped_array_null_flag
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('[null,1,null]', NULL, true, '[null,1,null]', NULL, NULL, false);
+
+-- name: stripped_first_duplicate
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"a":null,"a":1}', true, true, '{"a":1}', '{"a":1}', '{"a":1}', false);
+
+-- name: stripped_last_duplicate
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"a":1,"a":null}', true, true, '{"a":1}', '{"a":1}', '{"a":1}', false);
+
+-- name: stripped_retained_duplicates
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"a":1,"a":2,"a":null}', true, true, '{"a":1,"a":2}', '{"a":1,"a":2}', '{"a":1,"a":2}', false);
+
+-- name: stripped_nested
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"a":{"x":null},"b":[null,{"y":null}]}', true, true, '{"a":{},"b":[null,{}]}', '{"a":{},"b":[{}]}', '{"a":{},"b":[{}]}', false);
+
+-- name: stripped_containers
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('[null,[],{},[null]]', true, true, '[null,[],{},[null]]', '[[],{},[]]', '[[],{},[]]', false);
+
+-- name: stripped_escaped_key
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"\u0061":null,"b":"\u0042"}', true, true, '{"b":"B"}', '{"b":"B"}', '{"b":"B"}', false);
+
+-- name: stripped_unicode_key
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"\u00e9":null,"a":"\ud83d\ude0a"}', true, true, '{"a":"😊"}', '{"a":"😊"}', '{"a":"😊"}', false);
+
+-- name: stripped_unicode_source
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"雪":null,"a":"😊"}', true, true, '{"a":"😊"}', '{"a":"😊"}', '{"a":"😊"}', false);
+
+-- name: stripped_zero_key
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"\u0000":null}', true, true, NULL, NULL, NULL, false);
+
+-- name: stripped_surrogate
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"bad":"\ud800x"}', true, true, NULL, NULL, NULL, false);
+
+-- name: stripped_null_before_decoding
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"\u0000":null}', NULL, false, NULL, NULL, NULL, false);
+
+-- name: stripped_skipped
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"\u0000":null}', true, true, NULL, NULL, NULL, true);
+
+-- name: stripped_wrong_default
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"a":null,"b":1}', true, true, '{}', '{"b":1}', '{"b":1}', false);
+
+-- name: stripped_wrong_explicit
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"a":null,"b":1}', true, true, '{"b":1}', '{}', '{"b":1}', false);
+
+-- name: stripped_wrong_composed
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"a":null,"b":1}', true, true, '{"b":1}', '{"b":1}', '{}', false);
+
+-- name: stripped_import_valid
+INSERT INTO lane_strip_imports (payload, strip_arrays, expected, bypass)
+VALUES (' { "a" : null, "b" : [null,1] } ', true, '{"b":[1]}', false);
+
+-- name: stripped_import_bad
+INSERT INTO lane_strip_imports (payload, strip_arrays, expected, bypass)
+VALUES ('bad', true, NULL, false);
+
+-- name: stripped_import_bad_null_flag
+INSERT INTO lane_strip_imports (payload, strip_arrays, expected, bypass)
+VALUES ('bad', NULL, NULL, false);
+
+-- name: stripped_import_skipped
+INSERT INTO lane_strip_imports (payload, strip_arrays, expected, bypass)
+VALUES ('bad', true, NULL, true);
+
+-- name: stripped_import_null
+INSERT INTO lane_strip_imports (payload, strip_arrays, expected, bypass)
+VALUES (NULL, true, NULL, false);
+
+-- name: stripped_import_wrong
+INSERT INTO lane_strip_imports (payload, strip_arrays, expected, bypass)
+VALUES ('{"a":null}', true, '{"a":null}', false);
+
+-- name: encoded_unicode_scalar
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('"\u00e9"', '"\u00e9"', 1, '"é"', '["é"]', '["é",1]', false);
+
+-- name: encoded_unicode_keys
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('{"\u00e9":1,"雪":2}', '{"\u00e9":1,"雪":2}', 1, '{"é":1,"雪":2}', '[{"é":1,"雪":2}]', '[{"é":1,"雪":2},1]', false);
+
+-- name: encoded_unicode_pair
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('"\ud83d\ude0a"', '"\ud83d\ude0a"', 1, '"😊"', '["😊"]', '["😊",1]', false);
+
+-- name: encoded_json_null
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('null', 'null', 1, 'null', '[null]', '[null,1]', false);
+
+-- name: encoded_sql_null
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES (NULL, NULL, 1, NULL, '[null]', '[null,1]', false);
+
+-- name: encoded_zero_error
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('"\u0000"', '"\u0000"', 1, NULL, NULL, NULL, false);
+
+-- name: encoded_surrogate_error
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('"\ud800"', '"\ud800"', 1, NULL, NULL, NULL, false);
+
+-- name: encoded_eager_error
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('"\u00e9"', '"\u00e9"', 0, '"é"', '["é"]', NULL, false);
+
+-- name: encoded_bad_text
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('{}', 'bad', 1, '{}', '[{}]', '[{},1]', false);
+
+-- name: encoded_skipped
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('"\u0000"', 'bad', 0, NULL, NULL, NULL, true);
+
+-- name: encoded_wrong_scalar
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('"\u00e9"', '"\u00e9"', 1, '{}', '["é"]', '["é",1]', false);
+
+-- name: encoded_wrong_array
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('"\u00e9"', '"\u00e9"', 1, '"é"', '{}', '["é",1]', false);
+
+-- name: encoded_wrong_eager
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('"\u00e9"', '"\u00e9"', 1, '"é"', '["é"]', '[]', false);

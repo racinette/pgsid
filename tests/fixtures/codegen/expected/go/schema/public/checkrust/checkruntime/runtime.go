@@ -5025,6 +5025,171 @@ func JsonReadArrayPath(input JsonValue, path ArrayValue, asText bool, utf8 bool)
 	}
 	return TextValue{Kind: TextValueUnknown}
 }
+func JsonQuoteString(input string) string {
+	input = langruntime.CheckedString(input)
+	characters := []rune(input)
+	hex := []rune("0123456789abcdef")
+	output := langruntime.NewTextBuffer("")
+	output = append(output, string(langruntime.CheckedChar('"'))...)
+	position := 0
+	for position < len(characters) {
+		character := characters[position]
+		code := int(langruntime.CheckedChar(character))
+		if character == '"' {
+			output = append(output, "\\\""...)
+		} else if character == '\\' {
+			output = append(output, "\\\\"...)
+		} else if character == '\b' {
+			output = append(output, "\\b"...)
+		} else if character == '\f' {
+			output = append(output, "\\f"...)
+		} else if character == '\n' {
+			output = append(output, "\\n"...)
+		} else if character == '\r' {
+			output = append(output, "\\r"...)
+		} else if character == '\t' {
+			output = append(output, "\\t"...)
+		} else if code < 32 {
+			output = append(output, "\\u00"...)
+			output = append(output, string(langruntime.CheckedChar(hex[langruntime.IndexFromI32(langruntime.CheckedSignedDivide(code, 16), 0)]))...)
+			output = append(output, string(langruntime.CheckedChar(hex[langruntime.IndexFromI32(langruntime.CheckedSignedRemainder(code, 16), 0)]))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar(character))...)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	output = append(output, string(langruntime.CheckedChar('"'))...)
+	return string(output)
+}
+
+type jsonStripFrame struct {
+	node  int
+	child int
+	first bool
+}
+
+func copyjsonStripFrame(value jsonStripFrame) jsonStripFrame {
+	return jsonStripFrame{node: langruntime.CheckedIndex(value.node), child: langruntime.CheckedIndex(value.child), first: value.first}
+}
+func JsonStripNullsContext(input JsonValue, arrays BoolValue, utf8 bool) JsonValue {
+	if input.Kind == JsonValueError {
+		error := input.Error
+		return JsonValue{Kind: JsonValueError, Error: error}
+	}
+	if arrays.Kind == BoolValueError {
+		error := arrays.Error
+		return JsonValue{Kind: JsonValueError, Error: error}
+	}
+	if input.Kind == JsonValueNull {
+		return JsonValue{Kind: JsonValueNull}
+	}
+	if arrays == (BoolValue{Kind: BoolValueNull}) {
+		return JsonValue{Kind: JsonValueNull}
+	}
+	if input.Kind == JsonValueValue {
+		value := input.Value
+		if arrays.Kind == BoolValueValue {
+			remove := arrays.Value
+			document := parseJsonArrayPathDocument(value.Source, utf8)
+			if document.state == langruntime.CheckedSignedNegate(2) {
+				return JsonValue{Kind: JsonValueError, Error: document.error}
+			}
+			if document.state != 1 {
+				return JsonValue{Kind: JsonValueUnknown}
+			}
+			source := jsonSyntaxSource{characters: document.characters}
+			output := langruntime.NewTextBuffer("")
+			frames := []jsonStripFrame{}
+			depth := 0
+			current := document.root
+			visiting := true
+			for visiting || depth > 0 {
+				if visiting {
+					node := document.nodes[current]
+					if node.kind >= 5 {
+						if node.kind == 6 {
+							output = append(output, string(langruntime.CheckedChar('{'))...)
+						} else {
+							output = append(output, string(langruntime.CheckedChar('['))...)
+						}
+						frame := jsonStripFrame{node: current, child: node.child, first: true}
+						if depth == len(frames) {
+							langruntime.CheckedAdd(len(frames), 1)
+							frames = append(frames, copyjsonStripFrame(frame))
+						} else {
+							frames[depth] = copyjsonStripFrame(frame)
+						}
+						depth = langruntime.CheckedAdd(depth, 1)
+					} else if node.kind == 4 {
+						token := jsonReadNextToken(&source, node.start)
+						decoded := jsonReadDecodeStringContext(&source, token, utf8)
+						if decoded.Kind == TextValueError {
+							error := decoded.Error
+							return JsonValue{Kind: JsonValueError, Error: error}
+						}
+						ready := false
+						if decoded.Kind == TextValueValue {
+							text := langruntime.CheckedString(decoded.Value)
+							quoted := JsonQuoteString(text)
+							output = append(output, quoted...)
+							ready = true
+						}
+						if ready == false {
+							return JsonValue{Kind: JsonValueUnknown}
+						}
+					} else {
+						position := node.start
+						for position < node.end {
+							output = append(output, string(langruntime.CheckedChar(source.characters[position]))...)
+							position = langruntime.CheckedAdd(position, 1)
+						}
+					}
+					visiting = false
+				} else {
+					frame := frames[langruntime.CheckedSubtract(depth, 1)]
+					parent := document.nodes[frame.node]
+					child := frame.child
+					for child > 0 {
+						node := document.nodes[child]
+						if node.kind != 0 || (parent.kind != 6 && remove == false) {
+							break
+						}
+						child = langruntime.CheckedIndex(node.next)
+					}
+					if child == 0 {
+						if parent.kind == 6 {
+							output = append(output, string(langruntime.CheckedChar('}'))...)
+						} else {
+							output = append(output, string(langruntime.CheckedChar(']'))...)
+						}
+						depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+					} else {
+						node := document.nodes[child]
+						if frame.first == false {
+							output = append(output, string(langruntime.CheckedChar(','))...)
+						}
+						if parent.kind == 6 {
+							key := langruntime.NewTextBuffer("")
+							position := node.keyStart
+							for position < node.keyEnd {
+								key = append(key, string(langruntime.CheckedChar(document.names[position]))...)
+								position = langruntime.CheckedAdd(position, 1)
+							}
+							quoted := JsonQuoteString(string(key))
+							output = append(output, quoted...)
+							output = append(output, string(langruntime.CheckedChar(':'))...)
+						}
+						frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonStripFrame(jsonStripFrame{node: frame.node, child: node.next, first: false})
+						current = langruntime.CheckedIndex(child)
+						visiting = true
+					}
+				}
+			}
+			return MakeJsonValue(string(output))
+		}
+	}
+	return JsonValue{Kind: JsonValueUnknown}
+}
 
 type jsonbFrame struct {
 	state    int
@@ -5056,11 +5221,11 @@ func jsonbNodeChild(node JsonbNode, child int) JsonbNode {
 	child = langruntime.CheckedIndex(child)
 	return JsonbNode{Kind: node.Kind, Child: child, Next: node.Next, KeyStart: node.KeyStart, KeyEnd: node.KeyEnd, TextStart: node.TextStart, TextEnd: node.TextEnd}
 }
-func jsonbScalarReady(source *jsonSyntaxSource, token jsonReadToken) BoolValue {
+func jsonbScalarReady(source *jsonSyntaxSource, token jsonReadToken, utf8 bool) BoolValue {
 	token = copyjsonReadToken(token)
 	following := jsonReadNextToken(source, token.end)
 	if following.start < len(source.characters) && source.characters[following.start] == '"' {
-		decoded := jsonReadDecodeString(source, following)
+		decoded := jsonReadDecodeStringContext(source, following, utf8)
 		if decoded.Kind == TextValueError {
 			error := decoded.Error
 			return BoolValue{Kind: BoolValueError, Error: error}
@@ -5074,9 +5239,9 @@ func jsonbScalarReady(source *jsonSyntaxSource, token jsonReadToken) BoolValue {
 	}
 	return BoolValue{Kind: BoolValueValue, Value: true}
 }
-func jsonbNumberText(source *jsonSyntaxSource, token jsonReadToken) TextValue {
+func jsonbNumberText(source *jsonSyntaxSource, token jsonReadToken, utf8 bool) TextValue {
 	token = copyjsonReadToken(token)
-	ready := jsonbScalarReady(source, token)
+	ready := jsonbScalarReady(source, token, utf8)
 	if ready.Kind == BoolValueError {
 		error := ready.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -5279,7 +5444,7 @@ func jsonbNormalizeObjects(input JsonbPayload) JsonbPayload {
 	}
 	return JsonbPayload{Characters: source.characters, Nodes: nodes, Root: input.Root}
 }
-func jsonbParseText(input TextValue, admission bool) JsonbValue {
+func jsonbParseTextContext(input TextValue, admission bool, utf8 bool) JsonbValue {
 	if input.Kind == TextValueError {
 		error := input.Error
 		return JsonbValue{Kind: JsonbValueError, Error: error}
@@ -5304,7 +5469,7 @@ func jsonbParseText(input TextValue, admission bool) JsonbValue {
 			token := jsonReadNextToken(&source, position)
 			decoded := TextValue{Kind: TextValueNull}
 			if token.start < len(source.characters) && source.characters[token.start] == '"' {
-				decoded = jsonReadDecodeString(&source, token)
+				decoded = jsonReadDecodeStringContext(&source, token, utf8)
 				if decoded.Kind == TextValueError {
 					error := decoded.Error
 					return JsonbValue{Kind: JsonbValueError, Error: error}
@@ -5378,7 +5543,7 @@ func jsonbParseText(input TextValue, admission bool) JsonbValue {
 					keyEnd = langruntime.CheckedIndex(len(characters))
 				} else if transition.action == jsonSyntaxValue || transition.action == jsonSyntaxOpenArray || transition.action == jsonSyntaxOpenObject {
 					if token.syntax == jsonSyntaxNumber {
-						decoded = jsonbNumberText(&source, token)
+						decoded = jsonbNumberText(&source, token, utf8)
 						if decoded.Kind == TextValueError {
 							error := decoded.Error
 							return JsonbValue{Kind: JsonbValueError, Error: error}
@@ -5388,7 +5553,7 @@ func jsonbParseText(input TextValue, admission bool) JsonbValue {
 						}
 					}
 					if admission && token.kind == jsonReadQuote {
-						ready := jsonbScalarReady(&source, token)
+						ready := jsonbScalarReady(&source, token, utf8)
 						if ready.Kind == BoolValueError {
 							error := ready.Error
 							return JsonbValue{Kind: JsonbValueError, Error: error}
@@ -5736,6 +5901,12 @@ func jsonbInputValid(source *JsonbPayload) bool {
 }
 func JsonbFromText(input TextValue) JsonbValue {
 	return jsonbParseText(input, true)
+}
+func JsonbFromTextContext(input TextValue, utf8 bool) JsonbValue {
+	return jsonbParseTextContext(input, true, utf8)
+}
+func jsonbParseText(input TextValue, admission bool) JsonbValue {
+	return jsonbParseTextContext(input, admission, false)
 }
 func jsonbPreorder(input JsonbPayload) JsonbPayload {
 	input = CopyJsonbPayload(input)

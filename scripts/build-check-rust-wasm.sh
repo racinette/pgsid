@@ -39,6 +39,7 @@ writeFileSync(`${assets}/check-rust-sources.json`, JSON.stringify({
       read('crates/check-evaluator/src/json_syntax.rs'),
       read('crates/check-evaluator/src/json_read.rs'),
       read('crates/check-evaluator/src/json_array_paths.rs'),
+      read('crates/check-evaluator/src/json_format.rs'),
       read('crates/check-evaluator/src/jsonb.rs'),
       read('crates/check-evaluator/src/jsonb_build.rs'),
       read('crates/check-evaluator/src/jsonb_array.rs'),

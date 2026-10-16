@@ -1068,15 +1068,17 @@ const candidate = (
     type === null && args[index]!.literal ? [index] : [],
   )
   if (
+    matches.length > 1 &&
     unknownPositions.length &&
     matches.every(({ item, matchingArgs }) =>
-      (matchingArgs ?? item.args)
-        .slice(0, args.length)
-        .every((type, index) =>
-          types[index] === null
+      args.every((_, index) => {
+        const type = (matchingArgs ?? item.args)[index]
+        return type === undefined
+          ? false
+          : types[index] === null
             ? builtinTypeResolution(type) !== null
-            : (catalogScalarType(type) ?? type) === types[index],
-        ),
+            : (catalogScalarType(type) ?? type) === types[index]
+      }),
     )
   ) {
     const preferences = unknownPositions.map((index) => {

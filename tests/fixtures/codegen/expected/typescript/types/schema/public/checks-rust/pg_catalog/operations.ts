@@ -12424,52 +12424,12 @@ export function jsonArrayElementTextT2sr(input: checkruntime.JsonValue, index: c
 export function jsonArrayLength97pw(input: checkruntime.JsonValue): checkruntime.Int4Value {
     return checkruntime.jsonReadLength(input);
 }
+export function jsonStripNullsZ8vm(input: checkruntime.JsonValue, arrays: checkruntime.BoolValue, utf8: boolean): checkruntime.JsonValue {
+    utf8 = langruntime.checkedBool(utf8);
+    return checkruntime.jsonStripNullsContext(input, arrays, utf8);
+}
 const jsonObjectArrayRank = 3452630;
 const jsonObjectArrayNull = 3452548;
-function jsonObjectArrayQuote(input: string): string {
-    input = langruntime.checkedString(input);
-    const characters: string[] = Array.from(input);
-    const hex: string[] = Array.from("0123456789abcdef");
-    let output: string = "";
-    output = output + langruntime.checkedChar("\"");
-    let position: number = 0;
-    while (position < characters.length) {
-        const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
-        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
-        if (character === "\"") {
-            output = output + "\\\"";
-        }
-        else if (character === "\\") {
-            output = output + "\\\\";
-        }
-        else if (character === "\b") {
-            output = output + "\\b";
-        }
-        else if (character === "\f") {
-            output = output + "\\f";
-        }
-        else if (character === "\n") {
-            output = output + "\\n";
-        }
-        else if (character === "\r") {
-            output = output + "\\r";
-        }
-        else if (character === "\t") {
-            output = output + "\\t";
-        }
-        else if (code < 32) {
-            output = output + "\\u00";
-            output = output + langruntime.checkedChar(langruntime.indexChar(hex, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedDivide(code, 16), 0))));
-            output = output + langruntime.checkedChar(langruntime.indexChar(hex, langruntime.checkedIndex(langruntime.indexFromI32(langruntime.checkedSignedRemainder(code, 16), 0))));
-        }
-        else {
-            output = output + langruntime.checkedChar(character);
-        }
-        position = langruntime.checkedAdd(position, 1);
-    }
-    output = output + langruntime.checkedChar("\"");
-    return output;
-}
 function jsonObjectArrayKnown(keys: checkruntime.ArrayPayload, values: checkruntime.ArrayPayload, paired: boolean): checkruntime.JsonValue {
     keys = checkruntime.copyArrayPayload(keys);
     values = checkruntime.copyArrayPayload(values);
@@ -12529,7 +12489,7 @@ function jsonObjectArrayKnown(keys: checkruntime.ArrayPayload, values: checkrunt
             if (index > 0) {
                 output = output + ", ";
             }
-            const quoted: string = jsonObjectArrayQuote(text);
+            const quoted: string = checkruntime.jsonQuoteString(text);
             output = output + quoted;
             output = output + " : ";
         }
@@ -12552,7 +12512,7 @@ function jsonObjectArrayKnown(keys: checkruntime.ArrayPayload, values: checkrunt
         }
         if (value.kind === "Value") {
             const text: string = langruntime.checkedString(value.value);
-            const quoted: string = jsonObjectArrayQuote(text);
+            const quoted: string = checkruntime.jsonQuoteString(text);
             output = output + quoted;
             ready = langruntime.checkedBool(true);
         }
@@ -13163,6 +13123,29 @@ export function jsonbInputFromTimestamptz(input: checkruntime.TimestamptzValue):
         if (value === 9223372036854775807n) {
             return { kind: "Text", value: "infinity" };
         }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbInputFromJsonContext(input: checkruntime.JsonValue, utf8: boolean): checkruntime.JsonbInput {
+    utf8 = langruntime.checkedBool(utf8);
+    if (utf8 === false) {
+        return checkruntime.jsonbInputFromJson(input);
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonPayload = input.value;
+        const converted: checkruntime.JsonbValue = checkruntime.jsonbFromTextContext({ kind: "Value", value: value.source }, true);
+        if (converted.kind === "Error") {
+            const error: checkruntime.SqlError = converted.value;
+            return { kind: "ConvertedError", value: error };
+        }
+        return checkruntime.jsonbInputFromJsonb(converted);
     }
     return { kind: "Unknown" };
 }
