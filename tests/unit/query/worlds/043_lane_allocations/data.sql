@@ -174,3 +174,12 @@ VALUES (' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', '1.2300', '雪😊', true,
 INSERT INTO lane_json_conversion_imports (payload, pretty, expected, bypass)
 VALUES ('{" { \"a\":1,\"a\":2 } ",NULL}', true, '[ { "a":1,"a":2 } ,
  null]', false);
+
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('雪😊', '1.2300', true, ' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', 'a', 'a', true, '["雪😊", 1.2300, true,  { "a":1,"a":2 } , {"a": 3, "aa": 2, "é": 1}, null]', '{"label" : "雪😊", "number" : 1.2300, "flag" : true, "document" :  { "a":1,"a":2 } , "binary" : {"a": 3, "aa": 2, "é": 1}}', '{"a" : 1, "a" : 2}', '{"true" :  { "a":1,"a":2 } , "1.2300" : "雪😊"}', '[]', '{}', false);
+
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('[0:2]={1,NULL,2}', '{a,1,a,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '[[1,null,2], null]', '[1, null, 2]', '{"a" : "1", "a" : "2"}', '[ { "a":1,"a":2 } , "\u0000", 1e999999, null]', false);
+
+INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
+VALUES ('{"\"\\u0000\"",NULL}', 1, '[["\u0000",null], 1]', '{"values" : ["\u0000",null], "count" : 1}', false);

@@ -7,6 +7,7 @@ import {
   supportsJsonbConversion,
   isJsonConversion,
   isJsonbBuilder,
+  isJsonBuilder,
   isJsonpathTimezoneCallable,
   isArrayStringIO,
   isArrayBinarySend,
@@ -51,6 +52,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         isJsonpathTimezoneCallable(implementation) &&
         rustNames.has(implementation.rustName)) ||
       (rust && isJsonbBuilder(implementation) && rustNames.has(implementation.rustName)) ||
+      (rust && isJsonBuilder(implementation) && rustNames.has(implementation.rustName)) ||
       (rust && isJsonConversion(implementation) && rustNames.has(implementation.rustName)) ||
       (rust &&
         implementation.kind === 'function' &&
@@ -140,7 +142,8 @@ export function portableCheckAtoms(
         item.schema === 'pg_catalog' &&
         ((item.name === 'to_jsonb' && item.args[0] === 'pg_catalog.anyelement') ||
           isJsonConversion(item) ||
-          isJsonbBuilder(item))
+          isJsonbBuilder(item) ||
+          isJsonBuilder(item))
       ) {
         for (const operand of value.operands) {
           const type =

@@ -2451,3 +2451,148 @@ VALUES (NULL, true, NULL, false);
 -- name: json_conversion_import_wrong
 INSERT INTO lane_json_conversion_imports (payload, pretty, expected, bypass)
 VALUES ('{1,NULL}', false, '[]', false);
+
+-- name: raw_build_mixed
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('雪😊', '1.2300', true, ' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', 'a', 'a', true, '["雪😊", 1.2300, true,  { "a":1,"a":2 } , {"a": 3, "aa": 2, "é": 1}, null]', '{"label" : "雪😊", "number" : 1.2300, "flag" : true, "document" :  { "a":1,"a":2 } , "binary" : {"a": 3, "aa": 2, "é": 1}}', '{"a" : 1, "a" : 2}', '{"true" :  { "a":1,"a":2 } , "1.2300" : "雪😊"}', '[]', '{}', false);
+
+-- name: raw_build_null_values
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, '[null, null, null, null, null, null]', '{"label" : null, "number" : null, "flag" : null, "document" : null, "binary" : null}', NULL, NULL, '[]', '{}', false);
+
+-- name: raw_build_raw_escape
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('null', '-0.000', false, '"\u0000"', 'null', '雪', '😊', true, '["null", 0.000, false, "\u0000", null, null]', '{"label" : "null", "number" : 0.000, "flag" : false, "document" : "\u0000", "binary" : null}', '{"雪" : 1, "😊" : 2}', '{"false" : "\u0000", "0.000" : "null"}', '[]', '{}', false);
+
+-- name: raw_build_large_source
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('"\
+', 'NaN', true, '1e999999', '{}', '', 'a', true, '["\"\\\n", "NaN", true, 1e999999, {}, null]', '{"label" : "\"\\\n", "number" : "NaN", "flag" : true, "document" : 1e999999, "binary" : {}}', '{"" : 1, "a" : 2}', '{"true" : 1e999999, "NaN" : "\"\\\n"}', '[]', '{}', false);
+
+-- name: raw_build_null_first
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('x', '1', true, '1', '1', NULL, 'a', true, '["x", 1, true, 1, 1, null]', '{"label" : "x", "number" : 1, "flag" : true, "document" : 1, "binary" : 1}', NULL, '{"true" : 1, "1" : "x"}', '[]', '{}', false);
+
+-- name: raw_build_null_second
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('x', '1', true, '1', '1', 'a', NULL, true, '["x", 1, true, 1, 1, null]', '{"label" : "x", "number" : 1, "flag" : true, "document" : 1, "binary" : 1}', NULL, '{"true" : 1, "1" : "x"}', '[]', '{}', false);
+
+-- name: raw_build_null_flag
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('x', '1', NULL, '1', '1', 'a', 'a', true, '["x", 1, null, 1, 1, null]', '{"label" : "x", "number" : 1, "flag" : null, "document" : 1, "binary" : 1}', '{"a" : 1, "a" : 2}', NULL, '[]', '{}', false);
+
+-- name: raw_build_null_amount
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('x', NULL, true, '1', '1', 'a', 'a', true, '["x", null, true, 1, 1, null]', '{"label" : "x", "number" : null, "flag" : true, "document" : 1, "binary" : 1}', '{"a" : 1, "a" : 2}', NULL, '[]', '{}', false);
+
+-- name: raw_build_wrong_array
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('雪😊', '1.2300', true, ' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', 'a', 'a', true, 'wrong', '{"label" : "雪😊", "number" : 1.2300, "flag" : true, "document" :  { "a":1,"a":2 } , "binary" : {"a": 3, "aa": 2, "é": 1}}', '{"a" : 1, "a" : 2}', '{"true" :  { "a":1,"a":2 } , "1.2300" : "雪😊"}', '[]', '{}', false);
+
+-- name: raw_build_wrong_object
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('雪😊', '1.2300', true, ' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', 'a', 'a', true, '["雪😊", 1.2300, true,  { "a":1,"a":2 } , {"a": 3, "aa": 2, "é": 1}, null]', 'wrong', '{"a" : 1, "a" : 2}', '{"true" :  { "a":1,"a":2 } , "1.2300" : "雪😊"}', '[]', '{}', false);
+
+-- name: raw_build_wrong_duplicate
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('雪😊', '1.2300', true, ' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', 'a', 'a', true, '["雪😊", 1.2300, true,  { "a":1,"a":2 } , {"a": 3, "aa": 2, "é": 1}, null]', '{"label" : "雪😊", "number" : 1.2300, "flag" : true, "document" :  { "a":1,"a":2 } , "binary" : {"a": 3, "aa": 2, "é": 1}}', 'wrong', '{"true" :  { "a":1,"a":2 } , "1.2300" : "雪😊"}', '[]', '{}', false);
+
+-- name: raw_build_wrong_keys
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('雪😊', '1.2300', true, ' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', 'a', 'a', true, '["雪😊", 1.2300, true,  { "a":1,"a":2 } , {"a": 3, "aa": 2, "é": 1}, null]', '{"label" : "雪😊", "number" : 1.2300, "flag" : true, "document" :  { "a":1,"a":2 } , "binary" : {"a": 3, "aa": 2, "é": 1}}', '{"a" : 1, "a" : 2}', 'wrong', '[]', '{}', false);
+
+-- name: raw_build_wrong_empty_array
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('雪😊', '1.2300', true, ' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', 'a', 'a', true, '["雪😊", 1.2300, true,  { "a":1,"a":2 } , {"a": 3, "aa": 2, "é": 1}, null]', '{"label" : "雪😊", "number" : 1.2300, "flag" : true, "document" :  { "a":1,"a":2 } , "binary" : {"a": 3, "aa": 2, "é": 1}}', '{"a" : 1, "a" : 2}', '{"true" :  { "a":1,"a":2 } , "1.2300" : "雪😊"}', 'wrong', '{}', false);
+
+-- name: raw_build_wrong_empty_object
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('雪😊', '1.2300', true, ' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', 'a', 'a', true, '["雪😊", 1.2300, true,  { "a":1,"a":2 } , {"a": 3, "aa": 2, "é": 1}, null]', '{"label" : "雪😊", "number" : 1.2300, "flag" : true, "document" :  { "a":1,"a":2 } , "binary" : {"a": 3, "aa": 2, "é": 1}}', '{"a" : 1, "a" : 2}', '{"true" :  { "a":1,"a":2 } , "1.2300" : "雪😊"}', '[]', 'wrong', false);
+
+-- name: raw_build_skipped
+INSERT INTO lane_raw_document_builders (label, amount, flag, document, binary_document, first_key, second_key, run_keys, expected_array, expected_object, expected_duplicate, expected_keys, expected_empty_array, expected_empty_object, bypass)
+VALUES ('雪😊', '1.2300', true, ' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', NULL, 'a', true, 'wrong', '{"label" : "雪😊", "number" : 1.2300, "flag" : true, "document" :  { "a":1,"a":2 } , "binary" : {"a": 3, "aa": 2, "é": 1}}', '{"a" : 1, "a" : 2}', '{"true" :  { "a":1,"a":2 } , "1.2300" : "雪😊"}', '[]', '{}', true);
+
+-- name: raw_build_array_values
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('[0:2]={1,NULL,2}', '{a,1,a,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '[[1,null,2], null]', '[1, null, 2]', '{"a" : "1", "a" : "2"}', '[ { "a":1,"a":2 } , "\u0000", 1e999999, null]', false);
+
+-- name: raw_build_array_empty
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('{}', '{}', '{}', '[[], null]', '[]', '{}', '[]', false);
+
+-- name: raw_build_array_null
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES (NULL, NULL, NULL, '[null, null]', NULL, NULL, NULL, false);
+
+-- name: raw_build_array_null_cells
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('{NULL,NULL}', '{a,NULL}', '{NULL,NULL}', '[[null,null], null]', '[null, null]', '{"a" : null}', '[null, null]', false);
+
+-- name: raw_build_array_matrix
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('[0:1][5:6]={{1,2},{3,NULL}}', '{{a,1},{a,2}}', '{"1","null"}', '[[[1,2],[3,null]], null]', '[1, 2, 3, null]', '{"a" : "1", "a" : "2"}', '[1, null]', false);
+
+-- name: raw_build_array_odd
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('{1}', '{a,1,b}', '{}', '[[1], null]', '[1]', NULL, '[]', false);
+
+-- name: raw_build_array_null_key
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('{1}', '{NULL,1}', '{}', '[[1], null]', '[1]', NULL, '[]', false);
+
+-- name: raw_build_array_unicode
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('{1}', '{雪,😊}', '{"\"雪\"","\"😊\""}', '[[1], null]', '[1]', '{"雪" : "😊"}', '["雪", "😊"]', false);
+
+-- name: raw_build_array_wrong_nested
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('[0:2]={1,NULL,2}', '{a,1,a,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', 'wrong', '[1, null, 2]', '{"a" : "1", "a" : "2"}', '[ { "a":1,"a":2 } , "\u0000", 1e999999, null]', false);
+
+-- name: raw_build_array_wrong_flattened
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('[0:2]={1,NULL,2}', '{a,1,a,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '[[1,null,2], null]', 'wrong', '{"a" : "1", "a" : "2"}', '[ { "a":1,"a":2 } , "\u0000", 1e999999, null]', false);
+
+-- name: raw_build_array_wrong_object
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('[0:2]={1,NULL,2}', '{a,1,a,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '[[1,null,2], null]', '[1, null, 2]', 'wrong', '[ { "a":1,"a":2 } , "\u0000", 1e999999, null]', false);
+
+-- name: raw_build_array_wrong_documents
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('[0:2]={1,NULL,2}', '{a,1,a,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '[[1,null,2], null]', '[1, null, 2]', '{"a" : "1", "a" : "2"}', 'wrong', false);
+
+-- name: raw_build_array_skipped
+INSERT INTO lane_raw_array_builders (slots, labels, documents, expected_nested, expected_flattened, expected_object, expected_documents, bypass)
+VALUES ('[0:2]={1,NULL,2}', '{NULL,1}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '[[1,null,2], null]', '[1, null, 2]', '{"a" : "1", "a" : "2"}', '[ { "a":1,"a":2 } , "\u0000", 1e999999, null]', true);
+
+-- name: raw_build_import
+INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
+VALUES ('{"\"\\u0000\"",NULL}', 1, '[["\u0000",null], 1]', '{"values" : ["\u0000",null], "count" : 1}', false);
+
+-- name: raw_build_import_bad
+INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
+VALUES ('bad', 1, NULL, NULL, false);
+
+-- name: raw_build_import_bad_before_division
+INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
+VALUES ('bad', 0, NULL, NULL, false);
+
+-- name: raw_build_import_eager
+INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
+VALUES ('{"\"\\u0000\""}', 0, NULL, NULL, false);
+
+-- name: raw_build_import_null
+INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
+VALUES (NULL, 1, '[null, 1]', '{"values" : null, "count" : 1}', false);
+
+-- name: raw_build_import_skipped
+INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
+VALUES ('bad', 0, NULL, NULL, true);
+
+-- name: raw_build_import_wrong_array
+INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
+VALUES ('{1,NULL}', 1, '[]', '{"values" : [1,null], "count" : 1}', false);
+
+-- name: raw_build_import_wrong_object
+INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
+VALUES ('{1,NULL}', 1, '[[1,null], 1]', '{}', false);
