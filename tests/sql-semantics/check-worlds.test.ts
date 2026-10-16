@@ -13,6 +13,7 @@ import { getStatements, parseSql } from '../../src/ast.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import type { CatalogSnapshot, ColumnInfo } from '../../src/catalog/types.js'
 import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
+import { enumType } from '../../src/sql-semantics/expressions.js'
 import {
   catalogDateType,
   catalogArrayType,
@@ -758,13 +759,16 @@ describe('world CHECK INSERT parity', () => {
         )!
         const elementType = type.slice(6)
         const profiles: Record<string, { kind: string; family: number }> = {
+          'pg_catalog.int2': { kind: 'Int2', family: 1 },
           'pg_catalog.int4': { kind: 'Int4', family: 2 },
+          'pg_catalog.int8': { kind: 'Int8', family: 3 },
           'pg_catalog.text': { kind: 'Text', family: 8 },
           'pg_catalog.bool': { kind: 'Bool', family: 9 },
           'pg_catalog."numeric"': { kind: 'Numeric', family: 10 },
           'pg_catalog.jsonb': { kind: 'Jsonb', family: 12 },
         }
-        const profile = profiles[elementType]
+        const definition = catalog.enums.find((item) => enumType(item) === elementType)
+        const profile = definition ? { kind: 'Enum', family: 6 } : profiles[elementType]
         if (!profile) throw new Error('Missing array INSERT fixture conversion: ' + elementType)
         const result = (
           await pg.query<{ dimensions: string | null; elements: string | null }>(
@@ -789,11 +793,15 @@ describe('world CHECK INSERT parity', () => {
             : {
                 kind: profile.kind,
                 value:
-                  profile.kind === 'Int4'
+                  profile.kind === 'Int4' || profile.kind === 'Int2'
                     ? Number(value)
-                    : profile.kind === 'Bool'
-                      ? value === 'true'
-                      : value,
+                    : profile.kind === 'Int8'
+                      ? BigInt(value)
+                      : profile.kind === 'Enum'
+                        ? definition!.values.indexOf(value)
+                        : profile.kind === 'Bool'
+                          ? value === 'true'
+                          : value,
               },
         )
         const value = {
@@ -810,11 +818,15 @@ describe('world CHECK INSERT parity', () => {
           value: {
             ...value.value,
             elements: elements.map((element) =>
-              element.kind === 'Jsonb'
-                ? jsonbRuntime.arrayElementFromJsonb(
-                    jsonbRuntime.makeJsonbValue(element.value as string),
+              element.kind === 'Enum'
+                ? jsonbRuntime.arrayElementFromEnum(
+                    jsonbRuntime.makeEnumValue(element.value as number),
                   )
-                : element,
+                : element.kind === 'Jsonb'
+                  ? jsonbRuntime.arrayElementFromJsonb(
+                      jsonbRuntime.makeJsonbValue(element.value as string),
+                    )
+                  : element,
             ),
           },
         }

@@ -142,3 +142,30 @@ CREATE TABLE lane_document_membership (
   CONSTRAINT documents_contained CHECK (CASE WHEN bypass THEN true ELSE first_payload::json[] <@ second_payload::json[] END),
   CONSTRAINT documents_overlap CHECK (CASE WHEN bypass THEN true ELSE first_payload::json[] && second_payload::json[] END)
 );
+
+CREATE TABLE lane_promotions (
+  small_slots smallint[],
+  big_slots bigint[],
+  narrow_slots integer[],
+  expected_fallback text,
+  expected_selected text,
+  expected_narrow text,
+  expected_layout text,
+  use_small boolean,
+  bypass boolean,
+  CONSTRAINT promoted_fallback CHECK (COALESCE(small_slots, big_slots)::text COLLATE "C" IS NOT DISTINCT FROM expected_fallback COLLATE "C"),
+  CONSTRAINT promoted_selection CHECK ((CASE WHEN use_small THEN small_slots ELSE big_slots END)::text COLLATE "C" IS NOT DISTINCT FROM expected_selected COLLATE "C"),
+  CONSTRAINT narrowed_slots CHECK (CASE WHEN bypass THEN true ELSE narrow_slots::smallint[]::text COLLATE "C" IS NOT DISTINCT FROM expected_narrow COLLATE "C" END),
+  CONSTRAINT promoted_batch_layout CHECK (array_dims(ARRAY[small_slots, big_slots]) COLLATE "C" IS NOT DISTINCT FROM expected_layout COLLATE "C")
+);
+
+CREATE TYPE lane_stage AS ENUM ('new', 'done');
+CREATE TABLE lane_stage_arrays (
+  first_stages lane_stage[],
+  second_stages lane_stage[],
+  expected_stages text,
+  require_order boolean,
+  CONSTRAINT stage_fallback CHECK (COALESCE(first_stages, second_stages)::text COLLATE "C" IS NOT DISTINCT FROM expected_stages COLLATE "C"),
+  CONSTRAINT stage_array_order CHECK (CASE WHEN require_order THEN first_stages <= second_stages ELSE true END),
+  CONSTRAINT stages_approved CHECK (first_stages <@ second_stages)
+);

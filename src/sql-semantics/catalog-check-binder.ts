@@ -1010,6 +1010,12 @@ const candidate = (
 const commonType = (args: readonly Bound[]): ScalarType | null => {
   const types = args.map(boundType).filter((type): type is ScalarType => type !== null)
   if (!types.length) return 'pg_catalog.text'
+  if (types.every((type) => type.startsWith('array:'))) {
+    const element = commonType(
+      types.map((type) => ({ ...unknown, type: type.slice(6) as ArrayElementType })),
+    )
+    return element && !element.startsWith('array:') ? arrayType(element as ArrayElementType) : null
+  }
   let selected = types[0]!
   for (const type of types.slice(1)) {
     if (type === selected) continue
@@ -1036,6 +1042,8 @@ const implicitOperand = (
   const source = boundType(arg)
   const value = materialize(arg, source ?? target, definition)
   if (!value || source === null || source === target) return value
+  if (source.startsWith('array:') && target.startsWith('array:'))
+    return coerceArray(value, source as ArrayType, target as ArrayType, 'i')
   const conversion = builtinCast(source, target)
   if (conversion?.context !== 'i') return null
   if (conversion.method === 'b')
@@ -1070,6 +1078,49 @@ const implicitOperand = (
     }
   }
   return null
+}
+
+const coerceArray = (
+  operand: EvalExpression,
+  source: ArrayType,
+  target: ArrayType,
+  context: 'i' | 'e',
+  modifier = -1,
+): EvalExpression | null => {
+  if (source === target) return operand
+  const from = source.slice(6) as ArrayElementType,
+    to = target.slice(6) as ArrayElementType,
+    conversion = builtinCast(from, to)
+  if (!conversion || (context === 'i' && conversion.context !== 'i')) return null
+  const signature =
+    conversion.method === 'b'
+      ? null
+      : conversion.method === 'f'
+        ? conversion.implementation
+        : undefined
+  if (signature === undefined) return null
+  if (signature !== null) {
+    const callable = builtinMetadata(signature)
+    if (
+      callable.kind !== 'function' ||
+      !['', 'pg_catalog.int4', 'pg_catalog.int4,pg_catalog.bool'].includes(
+        callable.args.slice(1).join(','),
+      ) ||
+      callable.args[0] !== from ||
+      callable.result !== to
+    )
+      return null
+  }
+  return {
+    kind: 'array-coerce',
+    type: target,
+    sourceElementType: from,
+    elementType: to,
+    conversion: { kind: 'cast', signature, type: to },
+    explicit: context === 'e',
+    modifier,
+    operand,
+  }
 }
 
 const comparisonCandidate = (
@@ -1323,7 +1374,14 @@ export function bindCatalogCheck(
       if (multidimensional) {
         if (!arg.value && fields(fields(member)?.['A_ArrayExpr']))
           arg = bindArray(member, { type: element, name: elementTypeName(element) })
-        return materialize(arg, type)
+        return target
+          ? bind({
+              TypeCast: {
+                arg: member,
+                typeName: { ...target.name, arrayBounds: [{ Integer: { ival: -1 } }] },
+              },
+            }).value
+          : implicitOperand(arg, type)
       }
       if (target) arg = bind({ TypeCast: { arg: member, typeName: target.name } })
       if (arg.literal?.kind === 'string' && element !== 'pg_catalog.text')
@@ -1509,6 +1567,7 @@ export function bindCatalogCheck(
       if (args.some((arg) => !arg.value && !arg.literal)) return unknown
       const coercedType = args.some(
         (arg) =>
+          arg.type?.startsWith('array:') ||
           arg.type === 'pg_catalog.float4' ||
           arg.type === 'pg_catalog.float8' ||
           isOidType(arg.type),
@@ -1582,6 +1641,7 @@ export function bindCatalogCheck(
       const arms = [...results, otherwise]
       const coercedType = arms.some(
         (arm) =>
+          arm.type?.startsWith('array:') ||
           arm.type === 'pg_catalog.float4' ||
           arm.type === 'pg_catalog.float8' ||
           isOidType(arm.type),
@@ -1785,6 +1845,8 @@ export function bindCatalogCheck(
         else {
           const operand = bind(cast['arg'])
           let value = materialize(operand, type, definition)
+          if (!value && operand.value && operand.type?.startsWith('array:'))
+            value = coerceArray(operand.value, operand.type as ArrayType, type, 'e', modifier)
           if (
             !value &&
             operand.value &&

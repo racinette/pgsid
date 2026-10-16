@@ -9295,6 +9295,42 @@ export function arrayMembershipFinishStep(result: BoolValue, matched: BoolValue,
     }
     return boolFromCheck(orFinish(checkFromBool(result), checkFromBool(matched)));
 }
+export function arrayCoercionDeferred(input: ArrayElement): ArrayElement {
+    input = copyArrayElement(input);
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function finishArrayCoercion(input: ArrayOutputPayload, converted: ArrayArguments): ArrayValue {
+    input = copyArrayOutputPayload(input);
+    converted = copyArrayArguments(converted);
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === langruntime.checkedSignedNegate(1)) {
+        return { kind: "Unknown" };
+    }
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (converted.kind === "Error") {
+        const error: SqlError = converted.value;
+        return { kind: "Error", value: error };
+    }
+    if (converted.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(converted.value);
+        if (!(value.elements.length === input.elements.length)) {
+            return { kind: "Unknown" };
+        }
+        return makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: input.dimensions, elements: value.elements });
+    }
+    return { kind: "Unknown" };
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);

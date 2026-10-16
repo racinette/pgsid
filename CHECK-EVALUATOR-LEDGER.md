@@ -253,11 +253,11 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Admit multidimensional element fetches and slices, omitted/mixed bounds, integer assignment casts, copied cells, constant preparation and reached-error order; verify raw/stored composition and INSERT parity.
 - [x] Admit array equality/order through catalog-selected element support, NULL cells, dimensional tie-breaks, reached context deferrals, owned snapshots, constant preparation, expression composition and INSERT parity.
 - [x] Admit containment/overlap through default element equality, shape/duplicate independence, nonmatching NULL cells, partial-input recovery, reached errors, constant preparation, collation boundaries and INSERT parity.
+- [x] Establish catalog-linked array element casts, precision/width arguments, common CASE/COALESCE/extrema/constructor types, retained bounds and partial cells, nominal enums and INSERT parity; generic compatible signatures and I/O coercions follow.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
-- [x] Establish lossless SQL-coerced JSON values, root type, source output, domains,
-      NULL literals, lazy composition, public wrappers and raw-write preservation.
+- [x] Establish lossless SQL-coerced JSON values, root type, source output, domains, NULL literals, lazy composition, public wrappers and raw-write preservation.
 - [x] JSON literals and runtime text I/O casts, preserving eager input errors and lazy branches.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.
 - [x] JSONB logical normalization, shared parsing, SQL-coerced public inputs, domains, NULL and lazy composition.
