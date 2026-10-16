@@ -63,6 +63,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/array_input.rs");
     include!("operations/pg_catalog/array_output.rs");
     include!("operations/pg_catalog/array_string_io.rs");
+    include!("operations/pg_catalog/array_reverse.rs");
+    include!("operations/pg_catalog/array_binary_io.rs");
     include!("operations/pg_catalog/json_core.rs");
     include!("operations/pg_catalog/jsonpath_scan.rs");
     include!("operations/pg_catalog/jsonpath_tables.generated.rs");

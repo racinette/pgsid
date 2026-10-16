@@ -363,3 +363,29 @@ CREATE TABLE lane_document_exports (
   bypass boolean,
   CONSTRAINT rendered_documents CHECK (CASE WHEN bypass THEN true ELSE array_to_string(payload::jsonb[], separator, null_marker) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END)
 );
+
+CREATE TABLE lane_reversals (
+  slots lane_slots,
+  expected_slots text,
+  bypass boolean,
+  CONSTRAINT reversed_slots CHECK (CASE WHEN bypass THEN true ELSE array_reverse(slots)::text COLLATE "C" IS NOT DISTINCT FROM expected_slots COLLATE "C" END)
+);
+
+CREATE TABLE lane_stage_reversals (
+  stages lane_stage[],
+  expected_stages text,
+  CONSTRAINT reversed_stages CHECK (array_reverse(stages)::text COLLATE "C" IS NOT DISTINCT FROM expected_stages COLLATE "C")
+);
+
+CREATE TABLE lane_document_reversals (
+  payload text,
+  expected_payload text,
+  bypass boolean,
+  CONSTRAINT reversed_documents CHECK (CASE WHEN bypass THEN true ELSE array_reverse(payload::jsonb[])::text COLLATE "C" IS NOT DISTINCT FROM expected_payload COLLATE "C" END)
+);
+
+CREATE TABLE lane_binary_exports (
+  stages lane_stage[],
+  bypass boolean,
+  CONSTRAINT binary_array_context CHECK (CASE WHEN bypass THEN true ELSE array_send(stages) IS NOT NULL END)
+);

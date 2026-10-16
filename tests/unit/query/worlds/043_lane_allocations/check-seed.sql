@@ -1130,3 +1130,103 @@ VALUES ('bad', '|', NULL, NULL, false);
 -- name: document_exports_skipped_error
 INSERT INTO lane_document_exports (payload, separator, null_marker, expected_text, bypass)
 VALUES ('bad', '|', NULL, NULL, true);
+
+-- name: reversals_matrix
+INSERT INTO lane_reversals (slots, expected_slots, bypass)
+VALUES ('[0:1][2:3]={{1,NULL},{2,3}}', '[0:1][2:3]={{2,3},{1,NULL}}', false);
+
+-- name: reversals_vector
+INSERT INTO lane_reversals (slots, expected_slots, bypass)
+VALUES ('[0:2]={1,NULL,2}', '[0:2]={2,NULL,1}', false);
+
+-- name: reversals_empty
+INSERT INTO lane_reversals (slots, expected_slots, bypass)
+VALUES ('{}', '{}', false);
+
+-- name: reversals_null
+INSERT INTO lane_reversals (slots, expected_slots, bypass)
+VALUES (NULL, NULL, false);
+
+-- name: reversals_single_row
+INSERT INTO lane_reversals (slots, expected_slots, bypass)
+VALUES ('[0:0][2:3]={{1,2}}', '[0:0][2:3]={{1,2}}', false);
+
+-- name: reversals_signed_minimum
+INSERT INTO lane_reversals (slots, expected_slots, bypass)
+VALUES ('[-2147483648:-2147483647]={1,2}', '[-2147483648:-2147483647]={2,1}', false);
+
+-- name: reversals_wrong_order
+INSERT INTO lane_reversals (slots, expected_slots, bypass)
+VALUES ('{1,2}', '{1,2}', false);
+
+-- name: reversals_wrong_bounds
+INSERT INTO lane_reversals (slots, expected_slots, bypass)
+VALUES ('[0:1]={1,2}', '{2,1}', false);
+
+-- name: reversals_skipped
+INSERT INTO lane_reversals (slots, expected_slots, bypass)
+VALUES ('{1,2}', '{wrong}', true);
+
+-- name: stage_reversals_labels
+INSERT INTO lane_stage_reversals (stages, expected_stages)
+VALUES ('[0:2]={new,NULL,done}', '[0:2]={done,NULL,new}');
+
+-- name: stage_reversals_empty
+INSERT INTO lane_stage_reversals (stages, expected_stages)
+VALUES ('{}', '{}');
+
+-- name: stage_reversals_null
+INSERT INTO lane_stage_reversals (stages, expected_stages)
+VALUES (NULL, NULL);
+
+-- name: stage_reversals_wrong_labels
+INSERT INTO lane_stage_reversals (stages, expected_stages)
+VALUES ('{new,done}', '{new,done}');
+
+-- name: document_reversals_owned
+INSERT INTO lane_document_reversals (payload, expected_payload, bypass)
+VALUES ('{1,"null",NULL}', '{NULL,"null",1}', false);
+
+-- name: document_reversals_empty
+INSERT INTO lane_document_reversals (payload, expected_payload, bypass)
+VALUES ('{}', '{}', false);
+
+-- name: document_reversals_null
+INSERT INTO lane_document_reversals (payload, expected_payload, bypass)
+VALUES (NULL, NULL, false);
+
+-- name: document_reversals_wrong_order
+INSERT INTO lane_document_reversals (payload, expected_payload, bypass)
+VALUES ('{1,2}', '{1,2}', false);
+
+-- name: document_reversals_reached_error
+INSERT INTO lane_document_reversals (payload, expected_payload, bypass)
+VALUES ('bad', NULL, false);
+
+-- name: document_reversals_skipped_error
+INSERT INTO lane_document_reversals (payload, expected_payload, bypass)
+VALUES ('bad', NULL, true);
+
+-- name: binary_exports_empty
+INSERT INTO lane_binary_exports (stages, bypass)
+VALUES ('{}', false);
+
+-- name: binary_exports_null_cells
+INSERT INTO lane_binary_exports (stages, bypass)
+VALUES ('{NULL}', false);
+
+-- name: binary_exports_values
+INSERT INTO lane_binary_exports (stages, bypass)
+VALUES ('{new,done}', false);
+
+-- name: binary_exports_skipped
+INSERT INTO lane_binary_exports (stages, bypass)
+VALUES ('{new}', true);
+
+-- name: binary_exports_null
+INSERT INTO lane_binary_exports (stages, bypass)
+VALUES (NULL, false);
+
+-- name: binary_exports_null_skipped
+INSERT INTO lane_binary_exports (stages, bypass)
+VALUES (NULL, true);

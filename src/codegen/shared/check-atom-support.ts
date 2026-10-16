@@ -8,6 +8,7 @@ import {
   isJsonbBuilder,
   isJsonpathTimezoneCallable,
   isArrayStringIO,
+  isArrayBinarySend,
 } from './check-rust-evaluator.js'
 import { builtinCast, builtinMetadata } from '../../postgres/builtins/inventory.js'
 import { enumEqualityOperation } from '../../sql-semantics/expressions.js'
@@ -43,7 +44,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
     (metadata.volatility === 'i' ||
       (rust &&
         implementation.kind === 'function' &&
-        isArrayStringIO(implementation) &&
+        (isArrayStringIO(implementation) || isArrayBinarySend(implementation)) &&
         rustNames.has(implementation.rustName)) ||
       (rust &&
         isJsonpathTimezoneCallable(implementation) &&
