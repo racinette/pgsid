@@ -2,6 +2,7 @@ import { readFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { PGlite } from '@electric-sql/pglite'
 import { format } from 'prettier'
 import { callableIdentity, readBuiltinCatalog } from '../src/postgres/builtins/catalog.js'
+import { readBuiltinTypeComparisons } from '../src/postgres/builtins/type-comparisons.js'
 import { builtinDomain, domainExportName } from '../src/postgres/builtins/taxonomy.js'
 import type { BuiltinCallable, BuiltinDomain } from '../src/postgres/builtins/taxonomy.js'
 
@@ -27,10 +28,19 @@ try {
   }
   const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
   const sources = new Map<string, string>()
+  const typeComparisons = await readBuiltinTypeComparisons(pg)
   const callableIds = new Set(
     [...catalog.functions, ...catalog.operators].map(({ metadata }) => callableIdentity(metadata)),
   )
   const btreeKeys = new Set<string>()
+  for (const comparison of typeComparisons)
+    for (const signature of [comparison.equality, comparison.comparator])
+      if (signature !== null && !callableIds.has(signature))
+        throw new Error(`Default type comparison references an absent callable: ${signature}`)
+  sources.set(
+    'type-comparisons.generated.ts',
+    `export const PG18_TYPE_COMPARISONS = ${JSON.stringify(Object.fromEntries(typeComparisons.map((entry) => [entry.identity, entry])))} as const`,
+  )
   const ioKeys = new Set<string>()
   for (const io of catalog.typeIO) {
     if (ioKeys.has(io.identity)) throw new Error(`Duplicate type I/O identity: ${io.identity}`)

@@ -8922,6 +8922,261 @@ export function arraySliceSubscript(input: ArrayValue, indices: ArraySubscripts)
     }
     return { kind: "Unknown" };
 }
+const arrayComparisonUndefined = 6822435;
+const arrayComparisonTypeMismatch = 6822148;
+export interface ArrayComparisonPayload {
+    left: ArrayElement[];
+    right: ArrayElement[];
+    limit: number;
+    state: number;
+    error: SqlError;
+    tail: number;
+    value: number;
+}
+function copyArrayComparisonPayload(value: ArrayComparisonPayload): ArrayComparisonPayload {
+    return { left: langruntime.checkedStructs(value.left, copyArrayElement), right: langruntime.checkedStructs(value.right, copyArrayElement), limit: langruntime.checkedIndex(value.limit), state: langruntime.checkedI32(value.state), error: value.error, tail: langruntime.checkedI32(value.tail), value: langruntime.checkedI32(value.value) };
+}
+export type ArrayComparisonPlan = {
+    kind: "Value";
+    value: ArrayComparisonPayload;
+};
+function copyArrayComparisonPlan(value: ArrayComparisonPlan): ArrayComparisonPlan {
+    switch (value.kind) {
+        case "Value": return { kind: "Value", value: copyArrayComparisonPayload(value.value) };
+    }
+}
+function arrayComparisonState(state: number, error: SqlError, value: number): ArrayComparisonPayload {
+    state = langruntime.checkedI32(state);
+    value = langruntime.checkedI32(value);
+    const left: ArrayElement[] = [];
+    const right: ArrayElement[] = [];
+    return { left: left, right: right, limit: 0, state: state, error: error, tail: 0, value: value };
+}
+function arrayShapeOrder(left: ArrayPayload, right: ArrayPayload): number {
+    if (left.elements.length < right.elements.length) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left.elements.length > right.elements.length) {
+        return 1;
+    }
+    if (left.dimensions.length < right.dimensions.length) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left.dimensions.length > right.dimensions.length) {
+        return 1;
+    }
+    let position: number = 0;
+    while (position < left.dimensions.length) {
+        if (langruntime.indexStruct(left.dimensions, langruntime.checkedIndex(position), copyArrayDimension).length < langruntime.indexStruct(right.dimensions, langruntime.checkedIndex(position), copyArrayDimension).length) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        if (langruntime.indexStruct(left.dimensions, langruntime.checkedIndex(position), copyArrayDimension).length > langruntime.indexStruct(right.dimensions, langruntime.checkedIndex(position), copyArrayDimension).length) {
+            return 1;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    position = langruntime.checkedIndex(0);
+    while (position < left.dimensions.length) {
+        if (langruntime.indexStruct(left.dimensions, langruntime.checkedIndex(position), copyArrayDimension).lower < langruntime.indexStruct(right.dimensions, langruntime.checkedIndex(position), copyArrayDimension).lower) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        if (langruntime.indexStruct(left.dimensions, langruntime.checkedIndex(position), copyArrayDimension).lower > langruntime.indexStruct(right.dimensions, langruntime.checkedIndex(position), copyArrayDimension).lower) {
+            return 1;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return 0;
+}
+export function prepareArrayComparison(left: ArrayValue, right: ArrayValue, equality: boolean, available: boolean): ArrayComparisonPayload {
+    left = copyArrayValue(left);
+    right = copyArrayValue(right);
+    equality = langruntime.checkedBool(equality);
+    available = langruntime.checkedBool(available);
+    if (left.kind === "Error") {
+        const error: SqlError = left.value;
+        return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 0);
+    }
+    if (right.kind === "Error") {
+        const error: SqlError = right.value;
+        return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 0);
+    }
+    if (left.kind === "Unknown") {
+        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+    }
+    if (right.kind === "Unknown") {
+        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+    }
+    if (left.kind === "Null") {
+        return arrayComparisonState(0, makeSqlError(0), 0);
+    }
+    if (right.kind === "Null") {
+        return arrayComparisonState(0, makeSqlError(0), 0);
+    }
+    if (left.kind === "Value") {
+        const a: ArrayPayload = copyArrayPayload(left.value);
+        if (right.kind === "Value") {
+            const b: ArrayPayload = copyArrayPayload(right.value);
+            if (!(a.elementType === b.elementType) || !(a.elementKind === b.elementKind)) {
+                return arrayComparisonState(langruntime.checkedSignedNegate(2), makeSqlError(arrayComparisonTypeMismatch), 0);
+            }
+            const tail: number = arrayShapeOrder(a, b);
+            if (equality && !(tail === 0)) {
+                return arrayComparisonState(2, makeSqlError(0), 1);
+            }
+            if (available === false) {
+                return arrayComparisonState(langruntime.checkedSignedNegate(2), makeSqlError(arrayComparisonUndefined), 0);
+            }
+            let limit: number = a.elements.length;
+            if (b.elements.length < limit) {
+                limit = langruntime.checkedIndex(b.elements.length);
+            }
+            return { left: a.elements, right: b.elements, limit: limit, state: 1, error: makeSqlError(0), tail: tail, value: 0 };
+        }
+    }
+    return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+}
+export function arrayComparisonInitial(input: ArrayComparisonPayload): Int4Value {
+    input = copyArrayComparisonPayload(input);
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === langruntime.checkedSignedNegate(1)) {
+        return { kind: "Unknown" };
+    }
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    return { kind: "Value", value: input.value };
+}
+export function arrayComparisonContinues(input: ArrayComparisonPayload, index: Int4Value, result: Int4Value): boolean {
+    input = copyArrayComparisonPayload(input);
+    if (result.kind === "Value") {
+        const comparison: number = langruntime.checkedI32(result.value);
+        if (index.kind === "Value") {
+            const offset: number = langruntime.checkedI32(index.value);
+            return input.state === 1 && comparison === 0 && offset >= 0 && (BigInt(langruntime.checkedI32(offset))) < (BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.limit))))));
+        }
+    }
+    return false;
+}
+export function arrayComparisonElementAt(input: ArrayComparisonPayload, index: Int4Value, right: boolean): ArrayElement {
+    input = copyArrayComparisonPayload(input);
+    right = langruntime.checkedBool(right);
+    if (index.kind === "Value") {
+        const offset: number = langruntime.checkedI32(index.value);
+        const position: number = langruntime.indexFromI32(offset, input.limit);
+        if (offset >= 0 && position < input.limit) {
+            if (right) {
+                return copyArrayElement(langruntime.indexStruct(input.right, langruntime.checkedIndex(position), copyArrayElement));
+            }
+            return copyArrayElement(langruntime.indexStruct(input.left, langruntime.checkedIndex(position), copyArrayElement));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arrayComparisonPair(left: ArrayElement, right: ArrayElement, equality: boolean): Int4Value {
+    left = copyArrayElement(left);
+    right = copyArrayElement(right);
+    equality = langruntime.checkedBool(equality);
+    if (left.kind === "Error") {
+        const error: SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (right.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    let leftNull: boolean = false;
+    let rightNull: boolean = false;
+    if (left.kind === "Null") {
+        leftNull = langruntime.checkedBool(true);
+    }
+    if (right.kind === "Null") {
+        rightNull = langruntime.checkedBool(true);
+    }
+    if (leftNull && rightNull) {
+        return { kind: "Value", value: 0 };
+    }
+    if (leftNull) {
+        return { kind: "Value", value: 1 };
+    }
+    if (rightNull) {
+        if (equality) {
+            return { kind: "Value", value: 1 };
+        }
+        return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+    }
+    return { kind: "Null" };
+}
+export function arrayPairRequiresScalar(input: Int4Value): boolean {
+    if (input.kind === "Null") {
+        return true;
+    }
+    return false;
+}
+export function arrayEqualityStep(input: BoolValue): Int4Value {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: boolean = langruntime.checkedBool(input.value);
+        if (value) {
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Value", value: 1 };
+}
+export function arrayOrderStep(input: Int4Value): Int4Value {
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        if (value < 0) {
+            return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+        }
+        if (value > 0) {
+            return { kind: "Value", value: 1 };
+        }
+        return { kind: "Value", value: 0 };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Unknown" };
+    }
+    return input;
+}
+export function arrayOrderFromEquality(input: BoolValue): Int4Value {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: boolean = langruntime.checkedBool(input.value);
+        if (value) {
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function finishArrayComparison(input: ArrayComparisonPayload, result: Int4Value): Int4Value {
+    input = copyArrayComparisonPayload(input);
+    if (input.state === 1) {
+        if (result.kind === "Value") {
+            const value: number = langruntime.checkedI32(result.value);
+            if (value === 0) {
+                return { kind: "Value", value: input.tail };
+            }
+        }
+    }
+    return result;
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);

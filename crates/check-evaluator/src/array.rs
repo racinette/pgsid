@@ -1296,3 +1296,273 @@ pub fn array_slice_subscript(input: ArrayValue, indices: ArraySubscripts) -> Arr
     };
     ArrayValue::Unknown
 }
+
+const ARRAY_COMPARISON_UNDEFINED: u32 = 6822435;
+const ARRAY_COMPARISON_TYPE_MISMATCH: u32 = 6822148;
+
+#[derive(Clone)]
+pub struct ArrayComparisonPayload {
+    pub left: Vec<ArrayElement>,
+    pub right: Vec<ArrayElement>,
+    pub limit: usize,
+    pub state: i32,
+    pub error: SqlError,
+    pub tail: i32,
+    pub value: i32,
+}
+
+#[derive(Clone)]
+pub enum ArrayComparisonPlan {
+    Value(ArrayComparisonPayload),
+}
+
+fn array_comparison_state(state: i32, error: SqlError, value: i32) -> ArrayComparisonPayload {
+    let left: Vec<ArrayElement> = Vec::new();
+    let right: Vec<ArrayElement> = Vec::new();
+    ArrayComparisonPayload {
+        left: left,
+        right: right,
+        limit: 0,
+        state: state,
+        error: error,
+        tail: 0,
+        value: value,
+    }
+}
+
+fn array_shape_order(left: &ArrayPayload, right: &ArrayPayload) -> i32 {
+    if left.elements.len() < right.elements.len() {
+        return -1;
+    };
+    if left.elements.len() > right.elements.len() {
+        return 1;
+    };
+    if left.dimensions.len() < right.dimensions.len() {
+        return -1;
+    };
+    if left.dimensions.len() > right.dimensions.len() {
+        return 1;
+    };
+    let mut position: usize = 0;
+    while position < left.dimensions.len() {
+        if left.dimensions[position].length < right.dimensions[position].length {
+            return -1;
+        };
+        if left.dimensions[position].length > right.dimensions[position].length {
+            return 1;
+        };
+        position += 1;
+    }
+    position = 0;
+    while position < left.dimensions.len() {
+        if left.dimensions[position].lower < right.dimensions[position].lower {
+            return -1;
+        };
+        if left.dimensions[position].lower > right.dimensions[position].lower {
+            return 1;
+        };
+        position += 1;
+    }
+    0
+}
+
+pub fn prepare_array_comparison(
+    left: ArrayValue,
+    right: ArrayValue,
+    equality: bool,
+    available: bool,
+) -> ArrayComparisonPayload {
+    if let ArrayValue::Error(error) = left {
+        return array_comparison_state(-2, error, 0);
+    };
+    if let ArrayValue::Error(error) = right {
+        return array_comparison_state(-2, error, 0);
+    };
+    if let ArrayValue::Unknown = left {
+        return array_comparison_state(-1, make_sql_error(0), 0);
+    };
+    if let ArrayValue::Unknown = right {
+        return array_comparison_state(-1, make_sql_error(0), 0);
+    };
+    if let ArrayValue::Null = left {
+        return array_comparison_state(0, make_sql_error(0), 0);
+    };
+    if let ArrayValue::Null = right {
+        return array_comparison_state(0, make_sql_error(0), 0);
+    };
+    if let ArrayValue::Value(a) = left {
+        if let ArrayValue::Value(b) = right {
+            if a.element_type != b.element_type || a.element_kind != b.element_kind {
+                return array_comparison_state(
+                    -2,
+                    make_sql_error(ARRAY_COMPARISON_TYPE_MISMATCH),
+                    0,
+                );
+            };
+            let tail = array_shape_order(&a, &b);
+            if equality && tail != 0 {
+                return array_comparison_state(2, make_sql_error(0), 1);
+            };
+            if available == false {
+                return array_comparison_state(-2, make_sql_error(ARRAY_COMPARISON_UNDEFINED), 0);
+            };
+            let mut limit = a.elements.len();
+            if b.elements.len() < limit {
+                limit = b.elements.len();
+            };
+            return ArrayComparisonPayload {
+                left: a.elements,
+                right: b.elements,
+                limit: limit,
+                state: 1,
+                error: make_sql_error(0),
+                tail: tail,
+                value: 0,
+            };
+        };
+    };
+    array_comparison_state(-1, make_sql_error(0), 0)
+}
+
+pub fn array_comparison_initial(input: &ArrayComparisonPayload) -> Int4Value {
+    if input.state == -2 {
+        return Int4Value::Error(input.error);
+    };
+    if input.state == -1 {
+        return Int4Value::Unknown;
+    };
+    if input.state == 0 {
+        return Int4Value::Null;
+    };
+    Int4Value::Value(input.value)
+}
+
+pub fn array_comparison_continues(
+    input: &ArrayComparisonPayload,
+    index: Int4Value,
+    result: Int4Value,
+) -> bool {
+    if let Int4Value::Value(comparison) = result {
+        if let Int4Value::Value(offset) = index {
+            return input.state == 1
+                && comparison == 0
+                && offset >= 0
+                && (offset as i64) < ((input.limit as i32) as i64);
+        };
+    };
+    false
+}
+
+pub fn array_comparison_element_at(
+    input: &ArrayComparisonPayload,
+    index: Int4Value,
+    right: bool,
+) -> ArrayElement {
+    if let Int4Value::Value(offset) = index {
+        let position = usize::try_from(offset).unwrap_or(input.limit);
+        if offset >= 0 && position < input.limit {
+            if right {
+                return input.right[position].clone();
+            };
+            return input.left[position].clone();
+        };
+    };
+    ArrayElement::Unknown
+}
+
+pub fn array_comparison_pair(left: ArrayElement, right: ArrayElement, equality: bool) -> Int4Value {
+    if let ArrayElement::Error(error) = left {
+        return Int4Value::Error(error);
+    };
+    if let ArrayElement::Error(error) = right {
+        return Int4Value::Error(error);
+    };
+    if let ArrayElement::Unknown = left {
+        return Int4Value::Unknown;
+    };
+    if let ArrayElement::Unknown = right {
+        return Int4Value::Unknown;
+    };
+    let mut left_null = false;
+    let mut right_null = false;
+    if let ArrayElement::Null = left {
+        left_null = true;
+    };
+    if let ArrayElement::Null = right {
+        right_null = true;
+    };
+    if left_null && right_null {
+        return Int4Value::Value(0);
+    };
+    if left_null {
+        return Int4Value::Value(1);
+    };
+    if right_null {
+        if equality {
+            return Int4Value::Value(1);
+        };
+        return Int4Value::Value(-1);
+    };
+    Int4Value::Null
+}
+
+pub fn array_pair_requires_scalar(input: Int4Value) -> bool {
+    if let Int4Value::Null = input {
+        return true;
+    };
+    false
+}
+
+pub fn array_equality_step(input: BoolValue) -> Int4Value {
+    if let BoolValue::Error(error) = input {
+        return Int4Value::Error(error);
+    };
+    if let BoolValue::Unknown = input {
+        return Int4Value::Unknown;
+    };
+    if let BoolValue::Value(value) = input {
+        if value {
+            return Int4Value::Value(0);
+        };
+    };
+    Int4Value::Value(1)
+}
+
+pub fn array_order_step(input: Int4Value) -> Int4Value {
+    if let Int4Value::Value(value) = input {
+        if value < 0 {
+            return Int4Value::Value(-1);
+        };
+        if value > 0 {
+            return Int4Value::Value(1);
+        };
+        return Int4Value::Value(0);
+    };
+    if let Int4Value::Null = input {
+        return Int4Value::Unknown;
+    };
+    input
+}
+
+pub fn array_order_from_equality(input: BoolValue) -> Int4Value {
+    if let BoolValue::Error(error) = input {
+        return Int4Value::Error(error);
+    };
+    if let BoolValue::Value(value) = input {
+        if value {
+            return Int4Value::Value(0);
+        };
+    };
+    Int4Value::Unknown
+}
+
+pub fn finish_array_comparison(input: &ArrayComparisonPayload, result: Int4Value) -> Int4Value {
+    if input.state == 1 {
+        if let Int4Value::Value(value) = result {
+            if value == 0 {
+                return Int4Value::Value(input.tail);
+            };
+        };
+    };
+    result
+}

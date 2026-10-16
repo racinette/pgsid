@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, expectTypeOf, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { callableIdentity, readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
+import { readBuiltinTypeComparisons } from '../../src/postgres/builtins/type-comparisons.js'
+import { PG18_TYPE_COMPARISONS } from '../../src/postgres/builtins/type-comparisons.generated.js'
 import {
   PG18_BUILTIN_GROUPS,
   PG18_BUILTINS_VERSION,
@@ -16,6 +18,7 @@ import {
   functionMetadata,
   builtinBtreeComparisons,
   builtinTypeIO,
+  builtinTypeComparison,
 } from '../../src/postgres/builtins/inventory.js'
 import { builtinDomain } from '../../src/postgres/builtins/taxonomy.js'
 import { PG18_TYPE_NAMES } from '../../src/postgres/builtins/type-names.generated.js'
@@ -64,6 +67,39 @@ describe('PostgreSQL builtin inventory', () => {
         expect(builtinDomain(row, PG18_TYPE_NAMES)).toBe(domain)
       }
     }
+  })
+
+  it('matches server-selected default comparison classes without retaining temporary probes or OIDs', async () => {
+    const comparisons = await readBuiltinTypeComparisons(pg)
+    expect(new Set(comparisons.map((entry) => entry.identity)).size).toBe(comparisons.length)
+    expect(Object.fromEntries(comparisons.map((entry) => [entry.identity, entry]))).toEqual(
+      PG18_TYPE_COMPARISONS,
+    )
+    for (const entry of comparisons) {
+      expect(builtinTypeComparison(entry.identity)).toEqual(entry)
+      if (entry.equality) expect(builtinMetadata(entry.equality).kind).toBe('operator')
+      if (entry.comparator)
+        expect(functionMetadata(entry.comparator).result).toBe('pg_catalog.int4')
+    }
+    expect(builtinTypeComparison('pg_catalog.regclass')).toMatchObject({
+      btreeClass: 'pg_catalog.oid_ops',
+    })
+    expect(builtinTypeComparison('pg_catalog.xid')).toMatchObject({
+      btreeClass: null,
+      hashClass: 'pg_catalog.xid_ops',
+      comparator: null,
+    })
+    expect(builtinTypeComparison('pg_catalog.point')).toMatchObject({
+      equality: null,
+      comparator: null,
+    })
+    expect(
+      (
+        await pg.query<{ clean: boolean }>(
+          "SELECT to_regclass('pg_temp._pgsid_type_comparison_probe') IS NULL AS clean",
+        )
+      ).rows[0]!.clean,
+    ).toBe(true)
   })
 
   it('matches catalog type categories and preferred coercion targets', () => {

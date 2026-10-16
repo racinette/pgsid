@@ -280,3 +280,73 @@ VALUES ('[0:2]={10,NULL,30}', 0, 0, 0, 1, 10, NULL, '{10,NULL}', 0, false);
 -- name: selection_guarded_division
 INSERT INTO lane_selections (slots, slot_index, lane_index, slice_low, slice_high, expected_slot, expected_lane_slot, expected_slice, divisor, bypass)
 VALUES ('[0:2]={10,NULL,30}', 0, 0, 0, 1, 10, NULL, '{10,NULL}', 0, true);
+
+-- name: comparison_identical_null_cells
+INSERT INTO lane_comparisons (first_slots, second_slots, expected_equal, expected_order, first_labels, second_labels, expected_label_order, minimum_amount, require_order, expected_member)
+VALUES ('{1,NULL}', '{1,NULL}', true, 0, '{a}', '{z}', -1, '1', true, true);
+
+-- name: comparison_first_difference
+INSERT INTO lane_comparisons (first_slots, second_slots, expected_equal, expected_order, first_labels, second_labels, expected_label_order, minimum_amount, require_order, expected_member)
+VALUES ('{1,2}', '{2,0}', false, -1, '{雪}', '{😊}', -1, '1.25', true, false);
+
+-- name: comparison_null_cell_above_value
+INSERT INTO lane_comparisons (first_slots, second_slots, expected_equal, expected_order, minimum_amount, require_order, expected_member)
+VALUES ('{NULL}', '{9}', false, 1, '2', false, false);
+
+-- name: comparison_shifted_bounds
+INSERT INTO lane_comparisons (first_slots, second_slots, expected_equal, expected_order, minimum_amount, require_order, expected_member)
+VALUES ('[0:1]={1,NULL}', '{1,NULL}', false, -1, '1', true, false);
+
+-- name: comparison_null_arrays
+INSERT INTO lane_comparisons (minimum_amount, require_order) VALUES ('1', true);
+
+-- name: comparison_empty_arrays
+INSERT INTO lane_comparisons (first_slots, second_slots, expected_equal, expected_order, minimum_amount, require_order, expected_member)
+VALUES ('{}', '{}', true, 0, '1', true, true);
+
+-- name: comparison_prefix_cardinality
+INSERT INTO lane_comparisons (first_slots, second_slots, expected_equal, expected_order, minimum_amount, require_order, expected_member)
+VALUES ('{1}', '{1,NULL}', false, -1, '1', true, false);
+
+-- name: comparison_wrong_equality
+INSERT INTO lane_comparisons (first_slots, second_slots, expected_equal, expected_order, minimum_amount, require_order, expected_member)
+VALUES ('{1}', '{2}', true, -1, '1', true, false);
+
+-- name: comparison_wrong_order
+INSERT INTO lane_comparisons (first_slots, second_slots, expected_equal, expected_order, minimum_amount, require_order, expected_member)
+VALUES ('{1}', '{2}', false, 1, '1', true, false);
+
+-- name: comparison_wrong_label_order
+INSERT INTO lane_comparisons (first_labels, second_labels, expected_label_order, minimum_amount)
+VALUES ('{a}', '{z}', 1, '1');
+
+-- name: comparison_amount_below_minimum
+INSERT INTO lane_comparisons (minimum_amount) VALUES ('0.50');
+
+-- name: comparison_required_order_rejected
+INSERT INTO lane_comparisons (first_slots, second_slots, expected_equal, expected_order, minimum_amount, require_order, expected_member)
+VALUES ('{2}', '{1}', false, 1, '1', true, false);
+
+-- name: comparison_wrong_membership
+INSERT INTO lane_comparisons (first_slots, second_slots, expected_equal, expected_order, minimum_amount, require_order, expected_member)
+VALUES ('{1,NULL}', '{2}', false, -1, '1', true, false);
+
+-- name: comparison_guarded_document_input
+INSERT INTO lane_document_comparisons (first_payload, second_payload, bypass)
+VALUES ('bad', 'bad', true);
+
+-- name: comparison_document_shape_mismatch
+INSERT INTO lane_document_comparisons (first_payload, second_payload, bypass)
+VALUES ('{}', '{NULL}', false);
+
+-- name: comparison_document_empty_missing_equality
+INSERT INTO lane_document_comparisons (first_payload, second_payload, bypass)
+VALUES ('{}', '{}', false);
+
+-- name: comparison_document_null_cells_missing_equality
+INSERT INTO lane_document_comparisons (first_payload, second_payload, bypass)
+VALUES ('{NULL}', '{NULL}', false);
+
+-- name: comparison_document_null_array
+INSERT INTO lane_document_comparisons (first_payload, second_payload, bypass)
+VALUES (NULL, '{}', false);

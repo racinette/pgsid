@@ -519,6 +519,7 @@ export type SqlCallableExpression =
       signature: string
       type: string
       collation?: string
+      collationDefault?: boolean
     }
   | { kind: 'cast'; signature: string | null; type: string }
 
