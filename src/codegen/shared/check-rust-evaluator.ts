@@ -163,6 +163,21 @@ export const isArrayComparison = (
         'arrayoverlap',
       ].includes(item.name) && item.result === 'pg_catalog.bool')
 
+export const isArraySearch = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  !item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.args[0] === 'pg_catalog.anycompatiblearray' &&
+  item.args[1] === 'pg_catalog.anycompatible' &&
+  ((item.name === 'array_position' &&
+    item.result === 'pg_catalog.int4' &&
+    (item.args.length === 2 || (item.args.length === 3 && item.args[2] === 'pg_catalog.int4'))) ||
+    (item.name === 'array_positions' &&
+      item.result === 'pg_catalog._int4' &&
+      item.args.length === 2))
+
 export const isJsonpathTimezoneCallable = (
   item: ReturnType<typeof builtinMetadata>,
 ): item is ReturnType<typeof builtinMetadata> & { kind: 'function' } =>
@@ -906,18 +921,24 @@ export function emitCheckRustEvaluator(
         isJsonbBuilder(implementation) &&
         (implementation.args.length === 0 ? operands.length === 0 : operands.length > 0)
       const jsonpathTimezone = isJsonpathTimezoneCallable(implementation)
+      const arraySearch = isArraySearch(implementation)
       const enumOperands = implementation.args.flatMap((type, index) =>
         type === 'pg_catalog.anyenum' ? [operands[index]?.type] : [],
       )
       const enumCall = enumOperands.length > 0
       const enumIdentity = enumOperands[0]
       const resultType =
-        implementation.result === 'pg_catalog.anyenum' ? enumIdentity : implementation.result
+        arraySearch && implementation.name === 'array_positions'
+          ? 'array:pg_catalog.int4'
+          : implementation.result === 'pg_catalog.anyenum'
+            ? enumIdentity
+            : implementation.result
       if (
         metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
         resultType !== call.type ||
         (!implementation.strict &&
+          !arraySearch &&
           !jsonbBuilder &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
@@ -970,19 +991,27 @@ export function emitCheckRustEvaluator(
       if (
         !jsonbBuilder &&
         implementation.args.some((type, index) =>
-          type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
+          arraySearch &&
+          type === 'pg_catalog.anycompatiblearray' &&
+          operands[index]?.type.startsWith('array:')
             ? false
-            : type === 'pg_catalog.anyenum' && enumCall
-              ? !operands[index]?.type.startsWith('enum:')
-              : type === 'pg_catalog.anyelement' && jsonbConversion
+            : arraySearch &&
+                type === 'pg_catalog.anycompatible' &&
+                operands[0]?.type === `array:${operands[index]?.type}`
+              ? false
+              : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
                 ? false
-                : operands[index]?.type !== type &&
-                  !(
-                    call.kind === 'cast' &&
-                    call.type === 'pg_catalog."char"' &&
-                    type === 'pg_catalog.text' &&
-                    operands[index]?.type === 'pg_catalog.bpchar'
-                  ),
+                : type === 'pg_catalog.anyenum' && enumCall
+                  ? !operands[index]?.type.startsWith('enum:')
+                  : type === 'pg_catalog.anyelement' && jsonbConversion
+                    ? false
+                    : operands[index]?.type !== type &&
+                      !(
+                        call.kind === 'cast' &&
+                        call.type === 'pg_catalog."char"' &&
+                        type === 'pg_catalog.text' &&
+                        operands[index]?.type === 'pg_catalog.bpchar'
+                      ),
         )
       )
         throw new UnsupportedCheckRustExpression(
@@ -990,12 +1019,13 @@ export function emitCheckRustEvaluator(
         )
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
-      if (isArrayComparison(implementation)) {
+      if (isArrayComparison(implementation) || arraySearch) {
         const arrayType = operands[0]?.type
         if (
           !arrayType?.startsWith('array:') ||
-          operands.length !== 2 ||
-          operands[1]?.type !== arrayType
+          (arraySearch
+            ? operands[1]?.type !== arrayType.slice(6)
+            : operands.length !== 2 || operands[1]?.type !== arrayType)
         )
           throw new UnsupportedCheckRustExpression(
             'Array comparison requires one concrete array identity',
@@ -1005,7 +1035,8 @@ export function emitCheckRustEvaluator(
         const membership = ['arraycontains', 'arraycontained', 'arrayoverlap'].includes(
           implementation.name,
         )
-        const equality = membership || ['array_eq', 'array_ne'].includes(implementation.name)
+        const equality =
+          arraySearch || membership || ['array_eq', 'array_ne'].includes(implementation.name)
         const defaults = builtinTypeComparison(
           elementType.startsWith('enum:') ? 'pg_catalog.anyenum' : elementType,
         )
@@ -1102,6 +1133,73 @@ export function emitCheckRustEvaluator(
               scalarLines.push(`${result} = array_order_from_equality(${compared.name});`)
             } else scalarLines.push(`${result} = int4_unknown();`)
           }
+        }
+        if (arraySearch) {
+          const all = implementation.name === 'array_positions'
+          const needle = fresh('array_search_needle')
+          const prefix = rustValuePrefix(rustType(elementType))
+          destination.push(
+            `let ${needle} = array_element_from_${prefix}(${ownedOperand(operands[1]!)});`,
+          )
+          const start = operands[2] ?? {
+            name: fresh('array_search_default_start'),
+            type: 'pg_catalog.int4',
+          }
+          if (!operands[2]) destination.push(`let ${start.name} = make_int4_value(0);`)
+          const payload = fresh('array_search'),
+            initial = fresh('array_search_initial'),
+            first = fresh('array_search_first'),
+            result = fresh('array_search_result'),
+            index = fresh('array_search_index')
+          destination.push(
+            `let ${payload} = prepare_array_search(${ownedOperand(operands[0]!)}, ${needle}, ${start.name}, ${operands.length === 3}, ${selected !== null});`,
+            `let ${initial} = array_search_initial(&${payload});`,
+            `let ${first} = array_search_start(&${payload});`,
+            `let mut ${result}: Int4Value = ${initial};`,
+            `let mut ${index}: Int4Value = ${first};`,
+          )
+          const builder = all ? fresh('array_search_positions') : null
+          if (builder) {
+            const empty = fresh('array_search_empty')
+            destination.push(
+              `let ${empty} = make_array_arguments("pg_catalog.int4", 2);`,
+              `let mut ${builder}: ArrayArguments = ${empty};`,
+            )
+          }
+          const left = fresh('array_search_query'),
+            right = fresh('array_search_cell'),
+            pair = fresh('array_search_pair'),
+            compared = fresh('array_search_compared')
+          const scalarLines: string[] = []
+          emitPair(left, right, compared, scalarLines)
+          const body = [
+            `let ${left} = array_search_needle(&${payload});`,
+            `let ${right} = array_membership_element_at(&${payload}, ${index}, false);`,
+            `let ${pair} = array_comparison_pair(${left}.clone(), ${right}.clone(), true);`,
+            `let mut ${compared}: Int4Value = ${pair};`,
+            `if array_pair_requires_scalar(${pair}) {`,
+            ...indent(scalarLines),
+            '};',
+            `${result} = array_search_result_step(&${payload}, ${index}, ${compared});`,
+            ...(builder ? [`${builder} = array_search_append(${builder}, ${result});`] : []),
+            `${index} = array_text_next_index(${index});`,
+          ]
+          destination.push(
+            `while array_search_continues(&${payload}, ${index}, ${result}, ${all}) {`,
+            ...indent(body),
+            '}',
+          )
+          let finished = result
+          if (builder) {
+            finished = fresh('array_search_finished')
+            destination.push(
+              `let ${finished} = finish_array_search_positions(&${payload}, ${builder}, ${result});`,
+            )
+          }
+          const name = fresh('value')
+          destination.push(`let ${name} = ${implementation.rustName}(${finished});`)
+          callables.add(implementation.rustName)
+          return { name, type: call.type }
         }
         if (membership) {
           const all = implementation.name !== 'arrayoverlap',

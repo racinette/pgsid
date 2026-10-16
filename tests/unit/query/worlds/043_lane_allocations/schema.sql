@@ -169,3 +169,35 @@ CREATE TABLE lane_stage_arrays (
   CONSTRAINT stage_array_order CHECK (CASE WHEN require_order THEN first_stages <= second_stages ELSE true END),
   CONSTRAINT stages_approved CHECK (first_stages <@ second_stages)
 );
+
+CREATE TABLE lane_searches (
+  slots lane_slots,
+  needle integer,
+  start_slot integer,
+  expected_first integer,
+  expected_from_start integer,
+  expected_positions text,
+  require_match boolean,
+  CONSTRAINT first_matching_slot CHECK (array_position(slots, needle) IS NOT DISTINCT FROM expected_first),
+  CONSTRAINT first_matching_start CHECK (array_position(slots, needle, start_slot) IS NOT DISTINCT FROM expected_from_start),
+  CONSTRAINT all_matching_slots CHECK (array_positions(slots, needle)::text COLLATE "C" IS NOT DISTINCT FROM expected_positions COLLATE "C"),
+  CONSTRAINT required_matching_slot CHECK (CASE WHEN require_match THEN array_position(slots, needle) IS NOT NULL ELSE true END),
+  CONSTRAINT promoted_matching_slot CHECK (array_position(slots::smallint[], needle::bigint) IS NOT DISTINCT FROM expected_first)
+);
+
+CREATE TABLE lane_stage_searches (
+  stages lane_stage[],
+  needle lane_stage,
+  expected_first integer,
+  expected_positions text,
+  CONSTRAINT first_matching_stage CHECK (array_position(stages, needle) IS NOT DISTINCT FROM expected_first),
+  CONSTRAINT all_matching_stages CHECK (array_positions(stages, needle)::text COLLATE "C" IS NOT DISTINCT FROM expected_positions COLLATE "C")
+);
+
+CREATE TABLE lane_document_searches (
+  payload text,
+  needle text,
+  start_slot integer,
+  bypass boolean,
+  CONSTRAINT document_not_found CHECK (CASE WHEN bypass THEN true ELSE array_position(payload::json[], (needle::json[])[1], start_slot) IS NULL END)
+);

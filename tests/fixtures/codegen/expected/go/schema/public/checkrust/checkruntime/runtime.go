@@ -9284,6 +9284,186 @@ func FinishArrayCoercion(input ArrayOutputPayload, converted ArrayArguments) Arr
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
 }
+
+const arraySearchMultidimensional = 466560
+const arraySearchNullStart = 3452548
+
+func PrepareArraySearch(input ArrayValue, needle ArrayElement, start Int4Value, provided bool, available bool) ArrayComparisonPayload {
+	input = CopyArrayValue(input)
+	needle = CopyArrayElement(needle)
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if needle.Kind == ArrayElementError {
+		error := needle.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if start.Kind == Int4ValueError {
+		error := start.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if input.Kind == ArrayValueNull {
+		return arrayComparisonState(0, MakeSqlError(0), 0)
+	}
+	if input.Kind == ArrayValueValue {
+		array := CopyArrayPayload(input.Value)
+		if len(array.Dimensions) > 1 {
+			return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arraySearchMultidimensional), 0)
+		}
+		if len(array.Dimensions) == 0 {
+			return arrayComparisonState(2, MakeSqlError(0), 0)
+		}
+		needleNull := false
+		needleUnknown := false
+		if needle.Kind == ArrayElementNull {
+			needleNull = true
+		}
+		if needle.Kind == ArrayElementUnknown {
+			needleUnknown = true
+		}
+		knownNull := false
+		unknownNull := false
+		position := 0
+		for position < len(array.Elements) {
+			element := CopyArrayElement(array.Elements[position])
+			if element.Kind == ArrayElementNull {
+				knownNull = true
+			}
+			if element.Kind == ArrayElementUnknown {
+				unknownNull = true
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if needleNull && knownNull == false && unknownNull == false {
+			return arrayComparisonState(2, MakeSqlError(0), 0)
+		}
+		if provided {
+			if start == (Int4Value{Kind: Int4ValueUnknown}) {
+				return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+			}
+			if start == (Int4Value{Kind: Int4ValueNull}) {
+				if knownNull == false && (needleUnknown || (needleNull && unknownNull)) {
+					return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+				}
+				return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arraySearchNullStart), 0)
+			}
+		}
+		if available == false {
+			if knownNull == false && (needleUnknown || (needleNull && unknownNull)) {
+				return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+			}
+			return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayComparisonUndefined), 0)
+		}
+		lower := array.Dimensions[0].Lower
+		offset := int64(0)
+		if provided {
+			if start.Kind == Int4ValueValue {
+				value := langruntime.CheckedI32(start.Value)
+				offset = langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(value))), (int64(langruntime.CheckedI32(lower))))
+				if offset < int64(0) {
+					offset = int64(0)
+				}
+				if offset > int64(langruntime.CheckedI32((int(int32(len(array.Elements)))))) {
+					offset = int64(langruntime.CheckedI32((int(int32(len(array.Elements))))))
+				}
+			}
+		}
+		needles := []ArrayElement{}
+		langruntime.CheckedAdd(len(needles), 1)
+		needles = append(needles, CopyArrayElement(needle))
+		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: needles, State: 1, Error: MakeSqlError(0), Tail: lower, Value: int(int32(offset))}
+	}
+	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+}
+func ArraySearchInitial(input *ArrayComparisonPayload) Int4Value {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return Int4Value{Kind: Int4ValueError, Error: input.Error}
+	}
+	if input.State == langruntime.CheckedSignedNegate(1) {
+		return Int4Value{Kind: Int4ValueUnknown}
+	}
+	return Int4Value{Kind: Int4ValueNull}
+}
+func ArraySearchStart(input *ArrayComparisonPayload) Int4Value {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	return Int4Value{Kind: Int4ValueValue, Value: input.Value}
+}
+func ArraySearchContinues(input *ArrayComparisonPayload, index Int4Value, result Int4Value, all bool) bool {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if input.State != 1 {
+		return false
+	}
+	if result.Kind == Int4ValueError {
+		return false
+	}
+	if result == (Int4Value{Kind: Int4ValueUnknown}) {
+		return false
+	}
+	if all == false {
+		if result.Kind == Int4ValueValue {
+			return false
+		}
+	}
+	if index.Kind == Int4ValueValue {
+		offset := langruntime.CheckedI32(index.Value)
+		return offset >= 0 && (int64(langruntime.CheckedI32(offset))) < (int64(langruntime.CheckedI32((int(int32(input.Limit))))))
+	}
+	return false
+}
+func ArraySearchNeedle(input *ArrayComparisonPayload) ArrayElement {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if input.State == 1 && len(input.Right) == 1 {
+		return CopyArrayElement(input.Right[0])
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArraySearchResultStep(input *ArrayComparisonPayload, index Int4Value, compared Int4Value) Int4Value {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if compared.Kind == Int4ValueError {
+		error := compared.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if compared == (Int4Value{Kind: Int4ValueUnknown}) {
+		return Int4Value{Kind: Int4ValueUnknown}
+	}
+	if compared.Kind == Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		if value != 0 {
+			return Int4Value{Kind: Int4ValueNull}
+		}
+		if index.Kind == Int4ValueValue {
+			offset := langruntime.CheckedI32(index.Value)
+			position := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(input.Tail))), (int64(langruntime.CheckedI32(offset))))
+			return Int4Value{Kind: Int4ValueValue, Value: int(int32(position))}
+		}
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func ArraySearchAppend(input ArrayArguments, result Int4Value) ArrayArguments {
+	input = CopyArrayArguments(input)
+	if result.Kind == Int4ValueValue {
+		value := langruntime.CheckedI32(result.Value)
+		return AppendArrayArgument(input, ArrayElementFromInt4(MakeInt4Value(value)))
+	}
+	return input
+}
+func FinishArraySearchPositions(input *ArrayComparisonPayload, values ArrayArguments, result Int4Value) ArrayValue {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	values = CopyArrayArguments(values)
+	if input.State == 0 {
+		return ArrayValue{Kind: ArrayValueNull}
+	}
+	if result.Kind == Int4ValueError {
+		error := result.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if result == (Int4Value{Kind: Int4ValueUnknown}) {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	return FinishArrayConstructor(values)
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

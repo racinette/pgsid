@@ -9331,6 +9331,186 @@ export function finishArrayCoercion(input: ArrayOutputPayload, converted: ArrayA
     }
     return { kind: "Unknown" };
 }
+const arraySearchMultidimensional = 466560;
+const arraySearchNullStart = 3452548;
+export function prepareArraySearch(input: ArrayValue, needle: ArrayElement, start: Int4Value, provided: boolean, available: boolean): ArrayComparisonPayload {
+    input = copyArrayValue(input);
+    needle = copyArrayElement(needle);
+    provided = langruntime.checkedBool(provided);
+    available = langruntime.checkedBool(available);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 0);
+    }
+    if (needle.kind === "Error") {
+        const error: SqlError = needle.value;
+        return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 0);
+    }
+    if (start.kind === "Error") {
+        const error: SqlError = start.value;
+        return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 0);
+    }
+    if (input.kind === "Null") {
+        return arrayComparisonState(0, makeSqlError(0), 0);
+    }
+    if (input.kind === "Value") {
+        const array: ArrayPayload = copyArrayPayload(input.value);
+        if (array.dimensions.length > 1) {
+            return arrayComparisonState(langruntime.checkedSignedNegate(2), makeSqlError(arraySearchMultidimensional), 0);
+        }
+        if (array.dimensions.length === 0) {
+            return arrayComparisonState(2, makeSqlError(0), 0);
+        }
+        let needleNull: boolean = false;
+        let needleUnknown: boolean = false;
+        if (needle.kind === "Null") {
+            needleNull = langruntime.checkedBool(true);
+        }
+        if (needle.kind === "Unknown") {
+            needleUnknown = langruntime.checkedBool(true);
+        }
+        let knownNull: boolean = false;
+        let unknownNull: boolean = false;
+        let position: number = 0;
+        while (position < array.elements.length) {
+            const element: ArrayElement = copyArrayElement(langruntime.indexStruct(array.elements, langruntime.checkedIndex(position), copyArrayElement));
+            if (element.kind === "Null") {
+                knownNull = langruntime.checkedBool(true);
+            }
+            if (element.kind === "Unknown") {
+                unknownNull = langruntime.checkedBool(true);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (needleNull && knownNull === false && unknownNull === false) {
+            return arrayComparisonState(2, makeSqlError(0), 0);
+        }
+        if (provided) {
+            if (equalInt4Value(start, { kind: "Unknown" })) {
+                return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+            }
+            if (equalInt4Value(start, { kind: "Null" })) {
+                if (knownNull === false && (needleUnknown || (needleNull && unknownNull))) {
+                    return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+                }
+                return arrayComparisonState(langruntime.checkedSignedNegate(2), makeSqlError(arraySearchNullStart), 0);
+            }
+        }
+        if (available === false) {
+            if (knownNull === false && (needleUnknown || (needleNull && unknownNull))) {
+                return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+            }
+            return arrayComparisonState(langruntime.checkedSignedNegate(2), makeSqlError(arrayComparisonUndefined), 0);
+        }
+        const lower: number = langruntime.indexStruct(array.dimensions, langruntime.checkedIndex(0), copyArrayDimension).lower;
+        let offset: bigint = 0n;
+        if (provided) {
+            if (start.kind === "Value") {
+                const value: number = langruntime.checkedI32(start.value);
+                offset = langruntime.checkedI64(langruntime.checkedI64Subtract((BigInt(langruntime.checkedI32(value))), (BigInt(langruntime.checkedI32(lower)))));
+                if (offset < 0n) {
+                    offset = langruntime.checkedI64(0n);
+                }
+                if (offset > BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(array.elements.length)))))) {
+                    offset = langruntime.checkedI64(BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(array.elements.length))))));
+                }
+            }
+        }
+        let needles: ArrayElement[] = [];
+        langruntime.pushStruct(needles, needle, copyArrayElement);
+        return { limit: array.elements.length, left: array.elements, right: needles, state: 1, error: makeSqlError(0), tail: lower, value: Number(BigInt.asIntN(32, langruntime.checkedI64(offset))) };
+    }
+    return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+}
+export function arraySearchInitial(input: ArrayComparisonPayload): Int4Value {
+    input = copyArrayComparisonPayload(input);
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === langruntime.checkedSignedNegate(1)) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Null" };
+}
+export function arraySearchStart(input: ArrayComparisonPayload): Int4Value {
+    input = copyArrayComparisonPayload(input);
+    return { kind: "Value", value: input.value };
+}
+export function arraySearchContinues(input: ArrayComparisonPayload, index: Int4Value, result: Int4Value, all: boolean): boolean {
+    input = copyArrayComparisonPayload(input);
+    all = langruntime.checkedBool(all);
+    if (!(input.state === 1)) {
+        return false;
+    }
+    if (result.kind === "Error") {
+        return false;
+    }
+    if (equalInt4Value(result, { kind: "Unknown" })) {
+        return false;
+    }
+    if (all === false) {
+        if (result.kind === "Value") {
+            return false;
+        }
+    }
+    if (index.kind === "Value") {
+        const offset: number = langruntime.checkedI32(index.value);
+        return offset >= 0 && (BigInt(langruntime.checkedI32(offset))) < (BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.limit))))));
+    }
+    return false;
+}
+export function arraySearchNeedle(input: ArrayComparisonPayload): ArrayElement {
+    input = copyArrayComparisonPayload(input);
+    if (input.state === 1 && input.right.length === 1) {
+        return copyArrayElement(langruntime.indexStruct(input.right, langruntime.checkedIndex(0), copyArrayElement));
+    }
+    return { kind: "Unknown" };
+}
+export function arraySearchResultStep(input: ArrayComparisonPayload, index: Int4Value, compared: Int4Value): Int4Value {
+    input = copyArrayComparisonPayload(input);
+    if (compared.kind === "Error") {
+        const error: SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        if (!(value === 0)) {
+            return { kind: "Null" };
+        }
+        if (index.kind === "Value") {
+            const offset: number = langruntime.checkedI32(index.value);
+            const position: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(input.tail))), (BigInt(langruntime.checkedI32(offset))));
+            return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(position))) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arraySearchAppend(input: ArrayArguments, result: Int4Value): ArrayArguments {
+    input = copyArrayArguments(input);
+    if (result.kind === "Value") {
+        const value: number = langruntime.checkedI32(result.value);
+        return appendArrayArgument(input, arrayElementFromInt4(makeInt4Value(value)));
+    }
+    return input;
+}
+export function finishArraySearchPositions(input: ArrayComparisonPayload, values: ArrayArguments, result: Int4Value): ArrayValue {
+    input = copyArrayComparisonPayload(input);
+    values = copyArrayArguments(values);
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Error") {
+        const error: SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return finishArrayConstructor(values);
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);

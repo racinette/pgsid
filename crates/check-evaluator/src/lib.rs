@@ -54,6 +54,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/boolean.rs");
     include!("operations/pg_catalog/array_metadata.rs");
     include!("operations/pg_catalog/array_compare.rs");
+    include!("operations/pg_catalog/array_search.rs");
     include!("operations/pg_catalog/name_order.rs");
     include!("operations/pg_catalog/scalar_input.rs");
     include!("operations/pg_catalog/array_input.rs");

@@ -1741,3 +1741,195 @@ pub fn finish_array_coercion(input: ArrayOutputPayload, converted: ArrayArgument
     };
     ArrayValue::Unknown
 }
+
+const ARRAY_SEARCH_MULTIDIMENSIONAL: u32 = 466560;
+const ARRAY_SEARCH_NULL_START: u32 = 3452548;
+
+pub fn prepare_array_search(
+    input: ArrayValue,
+    needle: ArrayElement,
+    start: Int4Value,
+    provided: bool,
+    available: bool,
+) -> ArrayComparisonPayload {
+    if let ArrayValue::Error(error) = input {
+        return array_comparison_state(-2, error, 0);
+    };
+    if let ArrayElement::Error(error) = needle {
+        return array_comparison_state(-2, error, 0);
+    };
+    if let Int4Value::Error(error) = start {
+        return array_comparison_state(-2, error, 0);
+    };
+    if let ArrayValue::Null = input {
+        return array_comparison_state(0, make_sql_error(0), 0);
+    };
+    if let ArrayValue::Value(array) = input {
+        if array.dimensions.len() > 1 {
+            return array_comparison_state(-2, make_sql_error(ARRAY_SEARCH_MULTIDIMENSIONAL), 0);
+        };
+        if array.dimensions.len() == 0 {
+            return array_comparison_state(2, make_sql_error(0), 0);
+        };
+        let mut needle_null = false;
+        let mut needle_unknown = false;
+        if let ArrayElement::Null = needle {
+            needle_null = true;
+        };
+        if let ArrayElement::Unknown = needle {
+            needle_unknown = true;
+        };
+        let mut known_null = false;
+        let mut unknown_null = false;
+        let mut position: usize = 0;
+        while position < array.elements.len() {
+            let element = array.elements[position].clone();
+            if let ArrayElement::Null = element {
+                known_null = true;
+            };
+            if let ArrayElement::Unknown = element {
+                unknown_null = true;
+            };
+            position += 1;
+        }
+        if needle_null && known_null == false && unknown_null == false {
+            return array_comparison_state(2, make_sql_error(0), 0);
+        };
+        if provided {
+            if start == Int4Value::Unknown {
+                return array_comparison_state(-1, make_sql_error(0), 0);
+            };
+            if start == Int4Value::Null {
+                if known_null == false && (needle_unknown || (needle_null && unknown_null)) {
+                    return array_comparison_state(-1, make_sql_error(0), 0);
+                };
+                return array_comparison_state(-2, make_sql_error(ARRAY_SEARCH_NULL_START), 0);
+            };
+        };
+        if available == false {
+            if known_null == false && (needle_unknown || (needle_null && unknown_null)) {
+                return array_comparison_state(-1, make_sql_error(0), 0);
+            };
+            return array_comparison_state(-2, make_sql_error(ARRAY_COMPARISON_UNDEFINED), 0);
+        };
+        let lower = array.dimensions[0].lower;
+        let mut offset: i64 = 0i64;
+        if provided {
+            if let Int4Value::Value(value) = start {
+                offset = (value as i64) - (lower as i64);
+                if offset < 0i64 {
+                    offset = 0i64;
+                };
+                if offset > (array.elements.len() as i32) as i64 {
+                    offset = (array.elements.len() as i32) as i64;
+                };
+            };
+        };
+        let mut needles: Vec<ArrayElement> = Vec::new();
+        needles.push(needle);
+        return ArrayComparisonPayload {
+            limit: array.elements.len(),
+            left: array.elements,
+            right: needles,
+            state: 1,
+            error: make_sql_error(0),
+            tail: lower,
+            value: offset as i32,
+        };
+    };
+    array_comparison_state(-1, make_sql_error(0), 0)
+}
+
+pub fn array_search_initial(input: &ArrayComparisonPayload) -> Int4Value {
+    if input.state == -2 {
+        return Int4Value::Error(input.error);
+    };
+    if input.state == -1 {
+        return Int4Value::Unknown;
+    };
+    Int4Value::Null
+}
+
+pub fn array_search_start(input: &ArrayComparisonPayload) -> Int4Value {
+    Int4Value::Value(input.value)
+}
+
+pub fn array_search_continues(
+    input: &ArrayComparisonPayload,
+    index: Int4Value,
+    result: Int4Value,
+    all: bool,
+) -> bool {
+    if input.state != 1 {
+        return false;
+    };
+    if let Int4Value::Error(_) = result {
+        return false;
+    };
+    if result == Int4Value::Unknown {
+        return false;
+    };
+    if all == false {
+        if let Int4Value::Value(_) = result {
+            return false;
+        };
+    };
+    if let Int4Value::Value(offset) = index {
+        return offset >= 0 && (offset as i64) < ((input.limit as i32) as i64);
+    };
+    false
+}
+
+pub fn array_search_needle(input: &ArrayComparisonPayload) -> ArrayElement {
+    if input.state == 1 && input.right.len() == 1 {
+        return input.right[0].clone();
+    };
+    ArrayElement::Unknown
+}
+
+pub fn array_search_result_step(
+    input: &ArrayComparisonPayload,
+    index: Int4Value,
+    compared: Int4Value,
+) -> Int4Value {
+    if let Int4Value::Error(error) = compared {
+        return Int4Value::Error(error);
+    };
+    if compared == Int4Value::Unknown {
+        return Int4Value::Unknown;
+    };
+    if let Int4Value::Value(value) = compared {
+        if value != 0 {
+            return Int4Value::Null;
+        };
+        if let Int4Value::Value(offset) = index {
+            let position: i64 = (input.tail as i64) + (offset as i64);
+            return Int4Value::Value(position as i32);
+        };
+    };
+    Int4Value::Unknown
+}
+
+pub fn array_search_append(input: ArrayArguments, result: Int4Value) -> ArrayArguments {
+    if let Int4Value::Value(value) = result {
+        return append_array_argument(input, array_element_from_int4(make_int4_value(value)));
+    };
+    input
+}
+
+pub fn finish_array_search_positions(
+    input: &ArrayComparisonPayload,
+    values: ArrayArguments,
+    result: Int4Value,
+) -> ArrayValue {
+    if input.state == 0 {
+        return ArrayValue::Null;
+    };
+    if let Int4Value::Error(error) = result {
+        return ArrayValue::Error(error);
+    };
+    if result == Int4Value::Unknown {
+        return ArrayValue::Unknown;
+    };
+    finish_array_constructor(values)
+}

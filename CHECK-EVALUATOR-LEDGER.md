@@ -233,8 +233,7 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
       hashing, exact numeric arithmetic and SQL-coerced public inputs.
 - [x] Establish heap tuple pointer payloads, comparisons, binary/text conversion,
       portable hashes and explicit native-layout and heap-state requirements.
-- [x] Establish catalog OID aliases with nominal SQL identity, numeric operations,
-      catalog-resolved casts and explicit deferral without deployment catalog access.
+- [x] Establish catalog OID aliases with nominal SQL identity, numeric operations, catalog-resolved casts and explicit deferral without deployment catalog access.
 - [x] Establish name values, C relations, hashes, conversions, SQL-coerced public
       inputs and explicit build-limit requirements for text truncation.
 - [x] Establish nominal refcursor names, explicit text I/O casts, domains, literals,
@@ -254,6 +253,7 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Admit array equality/order through catalog-selected element support, NULL cells, dimensional tie-breaks, reached context deferrals, owned snapshots, constant preparation, expression composition and INSERT parity.
 - [x] Admit containment/overlap through default element equality, shape/duplicate independence, nonmatching NULL cells, partial-input recovery, reached errors, constant preparation, collation boundaries and INSERT parity.
 - [x] Establish catalog-linked array element casts, precision/width arguments, common CASE/COALESCE/extrema/constructor types, retained bounds and partial cells, nominal enums and INSERT parity; generic compatible signatures and I/O coercions follow.
+- [x] Bind compatible array/element signatures and admit first/all position searches, NULL matching, lower bounds/start positions, support/shape error order, partial-input prefixes, context/preparation boundaries, nominal enums and INSERT parity.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
