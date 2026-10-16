@@ -850,6 +850,7 @@ func checkRustArrayElement(input checkruntime.ArrayElement,family int) bool {
   }
   if input.Jsonpath.Root < 0 || input.Jsonpath.Root > 2147483647 { return false }
   }
+  if input.Kind==checkruntime.ArrayElementJsonpathStoredText && (!utf8.ValidString(input.JsonpathStoredText) || strings.IndexByte(input.JsonpathStoredText,0)>=0 || len(input.JsonpathStoredText)==0) { return false }
   if input.Kind==checkruntime.ArrayElementByteaUnspecified && input.ByteaUnspecified<0 { return false }
   return true
 }

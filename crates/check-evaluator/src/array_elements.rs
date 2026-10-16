@@ -43,6 +43,7 @@ pub enum ArrayElement {
     PgLsn(i64),
     Tid(i64),
     Jsonpath(JsonpathPayload),
+    JsonpathStoredText(String),
     Float4UnspecifiedNan,
     Float8UnspecifiedNan,
     ByteaUnspecified(i32),
@@ -166,6 +167,9 @@ pub fn array_element_family(input: ArrayElement) -> i32 {
     };
     if let ArrayElement::Tid(_) = input {
         return 39;
+    };
+    if let ArrayElement::JsonpathStoredText(_) = input {
+        return 40;
     };
     if let ArrayElement::Jsonpath(_) = input {
         return 40;
@@ -1230,6 +1234,9 @@ pub fn array_element_from_jsonpath(input: JsonpathValue) -> ArrayElement {
     if let JsonpathValue::Null = input {
         return ArrayElement::Null;
     };
+    if let JsonpathValue::StoredText(value) = input {
+        return ArrayElement::JsonpathStoredText(value);
+    };
     if let JsonpathValue::Value(value) = input {
         return ArrayElement::Jsonpath(value);
     };
@@ -1242,6 +1249,9 @@ pub fn array_element_to_jsonpath(input: ArrayElement) -> JsonpathValue {
     };
     if let ArrayElement::Null = input {
         return JsonpathValue::Null;
+    };
+    if let ArrayElement::JsonpathStoredText(value) = input {
+        return JsonpathValue::StoredText(value);
     };
     if let ArrayElement::Jsonpath(value) = input {
         return JsonpathValue::Value(value);

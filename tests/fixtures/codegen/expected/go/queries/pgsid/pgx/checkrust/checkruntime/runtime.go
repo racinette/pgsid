@@ -6057,6 +6057,7 @@ const (
 	ArrayElementPgLsn
 	ArrayElementTid
 	ArrayElementJsonpath
+	ArrayElementJsonpathStoredText
 	ArrayElementFloat4UnspecifiedNan
 	ArrayElementFloat8UnspecifiedNan
 	ArrayElementByteaUnspecified
@@ -6064,49 +6065,50 @@ const (
 )
 
 type ArrayElement struct {
-	Kind             ArrayElementKind
-	Error            SqlError
-	Int2             int
-	Int4             int
-	Int8             int64
-	Timestamp        int64
-	Timestamptz      int64
-	Enum             EnumPayload
-	Date             int
-	Text             string
-	Bool             bool
-	Numeric          string
-	Json             JsonPayload
-	Jsonb            JsonbPayload
-	Network          NetworkAddress
-	Bit              string
-	Bytea            string
-	Macaddr          MacAddress
-	Macaddr8         MacAddress
-	Uuid             Uuid
-	Float4           int
-	Float8           int64
-	Time             int64
-	Timetz           TimetzPayload
-	Interval         IntervalPayload
-	Point            PointPayload
-	Line             LinePayload
-	Lseg             LsegPayload
-	Box              BoxPayload
-	Path             PathPayload
-	Polygon          PolygonPayload
-	Circle           CirclePayload
-	Money            int64
-	InternalChar     int
-	Oid              int64
-	Xid              int64
-	Cid              int64
-	Snapshot         SnapshotPayload
-	Xid8             int64
-	PgLsn            int64
-	Tid              int64
-	Jsonpath         JsonpathPayload
-	ByteaUnspecified int
+	Kind               ArrayElementKind
+	Error              SqlError
+	Int2               int
+	Int4               int
+	Int8               int64
+	Timestamp          int64
+	Timestamptz        int64
+	Enum               EnumPayload
+	Date               int
+	Text               string
+	Bool               bool
+	Numeric            string
+	Json               JsonPayload
+	Jsonb              JsonbPayload
+	Network            NetworkAddress
+	Bit                string
+	Bytea              string
+	Macaddr            MacAddress
+	Macaddr8           MacAddress
+	Uuid               Uuid
+	Float4             int
+	Float8             int64
+	Time               int64
+	Timetz             TimetzPayload
+	Interval           IntervalPayload
+	Point              PointPayload
+	Line               LinePayload
+	Lseg               LsegPayload
+	Box                BoxPayload
+	Path               PathPayload
+	Polygon            PolygonPayload
+	Circle             CirclePayload
+	Money              int64
+	InternalChar       int
+	Oid                int64
+	Xid                int64
+	Cid                int64
+	Snapshot           SnapshotPayload
+	Xid8               int64
+	PgLsn              int64
+	Tid                int64
+	Jsonpath           JsonpathPayload
+	JsonpathStoredText string
+	ByteaUnspecified   int
 }
 
 func copyArrayElement(value ArrayElement) ArrayElement {
@@ -6197,6 +6199,8 @@ func copyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementTid, Tid: value.Tid}
 	case ArrayElementJsonpath:
 		return ArrayElement{Kind: ArrayElementJsonpath, Jsonpath: CopyJsonpathPayload(value.Jsonpath)}
+	case ArrayElementJsonpathStoredText:
+		return ArrayElement{Kind: ArrayElementJsonpathStoredText, JsonpathStoredText: langruntime.CheckedString(value.JsonpathStoredText)}
 	case ArrayElementFloat4UnspecifiedNan:
 		return ArrayElement{Kind: ArrayElementFloat4UnspecifiedNan}
 	case ArrayElementFloat8UnspecifiedNan:
@@ -6326,6 +6330,9 @@ func ArrayElementFamily(input ArrayElement) int {
 	}
 	if input.Kind == ArrayElementTid {
 		return 39
+	}
+	if input.Kind == ArrayElementJsonpathStoredText {
+		return 40
 	}
 	if input.Kind == ArrayElementJsonpath {
 		return 40
@@ -7514,6 +7521,10 @@ func ArrayElementFromJsonpath(input JsonpathValue) ArrayElement {
 	if input.Kind == JsonpathValueNull {
 		return ArrayElement{Kind: ArrayElementNull}
 	}
+	if input.Kind == JsonpathValueStoredText {
+		value := langruntime.CheckedString(input.StoredText)
+		return ArrayElement{Kind: ArrayElementJsonpathStoredText, JsonpathStoredText: value}
+	}
 	if input.Kind == JsonpathValueValue {
 		value := CopyJsonpathPayload(input.Value)
 		return ArrayElement{Kind: ArrayElementJsonpath, Jsonpath: value}
@@ -7528,6 +7539,10 @@ func ArrayElementToJsonpath(input ArrayElement) JsonpathValue {
 	}
 	if input.Kind == ArrayElementNull {
 		return JsonpathValue{Kind: JsonpathValueNull}
+	}
+	if input.Kind == ArrayElementJsonpathStoredText {
+		value := langruntime.CheckedString(input.JsonpathStoredText)
+		return JsonpathValue{Kind: JsonpathValueStoredText, StoredText: value}
 	}
 	if input.Kind == ArrayElementJsonpath {
 		value := CopyJsonpathPayload(input.Jsonpath)
@@ -7789,6 +7804,174 @@ func ArrayFlatElement(input ArrayValue, offset Int4Value) ArrayElement {
 	}
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
+func FinishArrayConstructor(input ArrayArguments) ArrayValue {
+	input = copyArrayArguments(input)
+	if input.Kind == ArrayArgumentsError {
+		error := input.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if input.Kind == ArrayArgumentsValue {
+		value := CopyArrayPayload(input.Value)
+		position := 0
+		for position < len(value.Elements) {
+			element := copyArrayElement(value.Elements[position])
+			if element.Kind == ArrayElementUnknown {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		dimensions := []ArrayDimension{}
+		if len(value.Elements) > 0 {
+			langruntime.CheckedAdd(len(dimensions), 1)
+			dimensions = append(dimensions, ArrayDimension{Lower: 1, Length: int(int32(len(value.Elements)))})
+		}
+		return MakeArrayValue(ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: value.Elements})
+	}
+	return ArrayValue{Kind: ArrayValueUnknown}
+}
+
+type ArrayChildrenPayload struct {
+	ElementType string
+	ElementKind int
+	Arrays      []ArrayValue
+}
+
+func copyArrayChildrenPayload(value ArrayChildrenPayload) ArrayChildrenPayload {
+	return ArrayChildrenPayload{ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Arrays: langruntime.CheckedStructs(value.Arrays, CopyArrayValue)}
+}
+
+type ArrayChildrenArgumentsKind uint8
+
+const (
+	ArrayChildrenArgumentsUnknown ArrayChildrenArgumentsKind = iota
+	ArrayChildrenArgumentsError
+	ArrayChildrenArgumentsValue
+)
+
+type ArrayChildrenArguments struct {
+	Kind  ArrayChildrenArgumentsKind
+	Error SqlError
+	Value ArrayChildrenPayload
+}
+
+func copyArrayChildrenArguments(value ArrayChildrenArguments) ArrayChildrenArguments {
+	switch value.Kind {
+	case ArrayChildrenArgumentsUnknown:
+		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsUnknown}
+	case ArrayChildrenArgumentsError:
+		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsError, Error: value.Error}
+	case ArrayChildrenArgumentsValue:
+		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsValue, Value: copyArrayChildrenPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func MakeArrayChildren(elementType string, elementKind int) ArrayChildrenArguments {
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	arrays := []ArrayValue{}
+	return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsValue, Value: ArrayChildrenPayload{ElementType: elementType, ElementKind: elementKind, Arrays: arrays}}
+}
+func AppendArrayChild(input ArrayChildrenArguments, child ArrayValue) ArrayChildrenArguments {
+	input = copyArrayChildrenArguments(input)
+	child = CopyArrayValue(child)
+	if input.Kind == ArrayChildrenArgumentsError {
+		return input
+	}
+	if child.Kind == ArrayValueError {
+		error := child.Error
+		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsError, Error: error}
+	}
+	if input.Kind == ArrayChildrenArgumentsValue {
+		value := copyArrayChildrenPayload(input.Value)
+		arrays := value.Arrays
+		langruntime.CheckedAdd(len(arrays), 1)
+		arrays = append(arrays, CopyArrayValue(child))
+		return ArrayChildrenArguments{Kind: ArrayChildrenArgumentsValue, Value: ArrayChildrenPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Arrays: arrays}}
+	}
+	return input
+}
+func FinishArrayChildren(input ArrayChildrenArguments) ArrayValue {
+	input = copyArrayChildrenArguments(input)
+	if input.Kind == ArrayChildrenArgumentsError {
+		error := input.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if input.Kind == ArrayChildrenArgumentsValue {
+		value := copyArrayChildrenPayload(input.Value)
+		position := 0
+		for position < len(value.Arrays) {
+			child := CopyArrayValue(value.Arrays[position])
+			if child.Kind == ArrayValueUnknown {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		dimensions := []ArrayDimension{}
+		elements := []ArrayElement{}
+		empty := false
+		position = langruntime.CheckedIndex(0)
+		for position < len(value.Arrays) {
+			child := CopyArrayValue(value.Arrays[position])
+			if child.Kind == ArrayValueNull {
+				empty = true
+			}
+			if child.Kind == ArrayValueValue {
+				array := CopyArrayPayload(child.Value)
+				if array.ElementType != value.ElementType || array.ElementKind != value.ElementKind {
+					return ArrayValue{Kind: ArrayValueError, Error: MakeSqlError(arrayConstructorTypeMismatch)}
+				}
+				if len(array.Dimensions) == 0 {
+					empty = true
+				} else {
+					if len(dimensions) == 0 {
+						if len(array.Dimensions) >= 6 {
+							return ArrayValue{Kind: ArrayValueError, Error: MakeSqlError(sqlErrorProgramLimit)}
+						}
+						langruntime.CheckedAdd(len(dimensions), 1)
+						dimensions = append(dimensions, ArrayDimension{Lower: 1, Length: int(int32(len(value.Arrays)))})
+						index := 0
+						for index < len(array.Dimensions) {
+							langruntime.CheckedAdd(len(dimensions), 1)
+							dimensions = append(dimensions, array.Dimensions[index])
+							index = langruntime.CheckedAdd(index, 1)
+						}
+					} else {
+						if len(dimensions) != langruntime.CheckedAdd(len(array.Dimensions), 1) {
+							return ArrayValue{Kind: ArrayValueError, Error: MakeSqlError(sqlErrorArraySubscript)}
+						}
+						index := 0
+						for index < len(array.Dimensions) {
+							expected := dimensions[langruntime.CheckedAdd(index, 1)]
+							actual := array.Dimensions[index]
+							if expected.Lower != actual.Lower || expected.Length != actual.Length {
+								return ArrayValue{Kind: ArrayValueError, Error: MakeSqlError(sqlErrorArraySubscript)}
+							}
+							index = langruntime.CheckedAdd(index, 1)
+						}
+					}
+					if langruntime.CheckedI64Add(int64(langruntime.CheckedI32((int(int32(len(elements)))))), int64(langruntime.CheckedI32((int(int32(len(array.Elements))))))) > int64(2147483647) {
+						return ArrayValue{Kind: ArrayValueError, Error: MakeSqlError(sqlErrorProgramLimit)}
+					}
+					index := 0
+					for index < len(array.Elements) {
+						langruntime.CheckedAdd(len(elements), 1)
+						elements = append(elements, copyArrayElement(copyArrayElement(array.Elements[index])))
+						index = langruntime.CheckedAdd(index, 1)
+					}
+				}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if empty && len(dimensions) > 0 {
+			return ArrayValue{Kind: ArrayValueError, Error: MakeSqlError(sqlErrorArraySubscript)}
+		}
+		return MakeArrayValue(ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: elements})
+	}
+	return ArrayValue{Kind: ArrayValueUnknown}
+}
+
+const arrayConstructorTypeMismatch = 6822148
+
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

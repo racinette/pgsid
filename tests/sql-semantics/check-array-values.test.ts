@@ -611,6 +611,12 @@ fn array_fixture_error(input:ArrayValue)->u32 {
  if let ArrayValue::Error(error)=input {return error.state;};0
 }
 pub fn array_state_probe()->BoolValue {
+ let stored=array_element_from_jsonpath(JsonpathValue::StoredText("$.a".to_owned()));
+ if array_element_family(stored.clone())!=40 {return BoolValue::Value(false);};
+ let recovered=array_element_to_jsonpath(stored);
+ let mut retained=false;
+ if let JsonpathValue::StoredText(text)=recovered {retained=text=="$.a";};
+ if retained==false {return BoolValue::Value(false);};
  let mut builder=make_array_arguments("public.first",2);
  builder=append_array_dimension(builder,-2,2);
  builder=append_array_argument(builder,ArrayElement::Int4(10));

@@ -161,10 +161,9 @@ and internal/cstring interfaces are not an automatic CHECK implementation queue.
 
 - [x] Establish exported owned point-list payloads with independent clones and transfers in Rust, Go and TypeScript; retain private aggregate boundaries.
 
-Implement the remaining concrete PostgreSQL value families after the preceding
-expression and corpus work. Complete one bounded slice through the completion
-gate before expanding it. Prioritize scalar families before arrays, ranges,
-composites, and JSON values. Use this dependency order unless implementation
+Implement the remaining concrete PostgreSQL value families after the preceding expression and corpus work.
+Complete one bounded slice through the completion gate before expanding it.
+Prioritize scalar families before arrays, ranges, composites, and JSON values. Use this dependency order unless implementation
 exposes a prerequisite:
 
 - [x] Establish IEEE bit conversion primitives before floating-point values,
@@ -253,6 +252,7 @@ exposes a prerequisite:
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
 - [x] Establish private typed array storage, dimensions/lower bounds, NULL/Unknown elements, independent nested clones and metadata parity.
 - [x] Admit SQL-coerced scalar/enum arrays and domains over arrays, metadata calls, typed builtin NULLs, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
+- [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, eager errors, constant preparation and INSERT parity; preserve nominal domain-element deferrals.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
