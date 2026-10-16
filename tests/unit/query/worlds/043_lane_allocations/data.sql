@@ -76,3 +76,15 @@ VALUES ('done', '{2}', '{0}', '[0:1]={done,done}', '[3:4]={new,done}', 1, '{new}
 
 INSERT INTO lane_document_templates (seed, dimensions, expected_count, expected_layout, expected_cell)
 VALUES ('{"a":[1]}'::jsonb, '{2,2}', 4, '[1:2][1:2]', '{"a":[1]}'::jsonb);
+
+INSERT INTO lane_text_imports (payload, separator, null_marker, expected_array, expected_join, expected_count)
+VALUES ('a,,NULL,', ',', 'NULL', '{a,"",NULL,""}', 'a,,NULL,', 4);
+
+INSERT INTO lane_string_exports (slots, separator, null_marker, expected_skip, expected_marked)
+VALUES ('[0:1][2:3]={{1,NULL},{2,3}}', '|', 'missing', '1|2|3', '1|missing|2|3');
+
+INSERT INTO lane_stage_exports (stages, separator, null_marker, expected_text)
+VALUES ('[0:2]={new,NULL,done}', '|', 'missing', 'new|missing|done');
+
+INSERT INTO lane_document_exports (payload, separator, null_marker, expected_text, bypass)
+VALUES ('{1.0,"null",NULL}', '|', 'missing', '1.0|null|missing', false);

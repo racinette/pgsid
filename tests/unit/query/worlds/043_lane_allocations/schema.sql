@@ -324,3 +324,42 @@ CREATE TABLE lane_document_templates (
   CONSTRAINT document_template_layout CHECK (array_dims(array_fill(seed, dimensions)) COLLATE "C" IS NOT DISTINCT FROM expected_layout COLLATE "C"),
   CONSTRAINT document_template_cell CHECK ((array_fill(seed, dimensions))[1][1] IS NOT DISTINCT FROM expected_cell)
 );
+
+CREATE TABLE lane_text_imports (
+  payload text,
+  separator text,
+  null_marker text,
+  expected_array text,
+  expected_join text,
+  expected_count integer,
+  CONSTRAINT split_payload CHECK (string_to_array(payload, separator, null_marker)::text COLLATE "C" IS NOT DISTINCT FROM expected_array COLLATE "C"),
+  CONSTRAINT joined_payload CHECK (array_to_string(string_to_array(payload, separator, null_marker), separator, null_marker) COLLATE "C" IS NOT DISTINCT FROM expected_join COLLATE "C"),
+  CONSTRAINT split_count CHECK (cardinality(string_to_array(payload, separator, null_marker)) IS NOT DISTINCT FROM expected_count)
+);
+
+CREATE TABLE lane_string_exports (
+  slots lane_slots,
+  separator text,
+  null_marker text,
+  expected_skip text,
+  expected_marked text,
+  CONSTRAINT skipped_slot_nulls CHECK (array_to_string(slots, separator) COLLATE "C" IS NOT DISTINCT FROM expected_skip COLLATE "C"),
+  CONSTRAINT marked_slot_nulls CHECK (array_to_string(slots, separator, null_marker) COLLATE "C" IS NOT DISTINCT FROM expected_marked COLLATE "C")
+);
+
+CREATE TABLE lane_stage_exports (
+  stages lane_stage[],
+  separator text,
+  null_marker text,
+  expected_text text,
+  CONSTRAINT rendered_stages CHECK (array_to_string(stages, separator, null_marker) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C")
+);
+
+CREATE TABLE lane_document_exports (
+  payload text,
+  separator text,
+  null_marker text,
+  expected_text text,
+  bypass boolean,
+  CONSTRAINT rendered_documents CHECK (CASE WHEN bypass THEN true ELSE array_to_string(payload::jsonb[], separator, null_marker) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END)
+);

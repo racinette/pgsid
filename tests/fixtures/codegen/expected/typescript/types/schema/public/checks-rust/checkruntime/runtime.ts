@@ -7738,13 +7738,13 @@ export function copyArrayValue(value: ArrayValue): ArrayValue {
     }
 }
 export type ArrayArguments = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 } | {
-    kind: "Value";
-    value: ArrayPayload;
+    readonly kind: "Value";
+    readonly value: ArrayPayload;
 };
 export function copyArrayArguments(value: ArrayArguments): ArrayArguments {
     switch (value.kind) {

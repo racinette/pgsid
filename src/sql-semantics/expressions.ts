@@ -520,6 +520,7 @@ export type SqlCallableExpression =
       type: string
       collation?: string
       collationDefault?: boolean
+      enum?: EnumDefinition
     }
   | { kind: 'cast'; signature: string | null; type: string }
 

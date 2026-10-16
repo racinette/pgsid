@@ -791,6 +791,217 @@ func ArrayPositionsJonj(input checkruntime.ArrayValue) checkruntime.ArrayValue {
 	input = checkruntime.CopyArrayValue(input)
 	return input
 }
+func arrayStringField(input string, marker checkruntime.TextValue, deterministic bool) checkruntime.ArrayElement {
+	input = langruntime.CheckedString(input)
+	if marker == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.ArrayElementFromText(checkruntime.MakeTextValue(input))
+	}
+	if marker.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(marker.Value)
+		if deterministic {
+			if input == value {
+				return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}
+			}
+			return checkruntime.ArrayElementFromText(checkruntime.MakeTextValue(input))
+		}
+	}
+	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
+}
+func arrayStringFinish(input checkruntime.ArrayArguments, count int) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayArguments(input)
+	count = langruntime.CheckedI32(count)
+	if count == 0 {
+		return checkruntime.FinishArrayArguments(input)
+	}
+	shaped := checkruntime.AppendArrayDimension(input, 1, count)
+	return checkruntime.FinishArrayArguments(shaped)
+}
+func arrayStringSplit(input checkruntime.TextValue, delimiter checkruntime.TextValue, marker checkruntime.TextValue, deterministic bool, utf8 bool) checkruntime.ArrayValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if delimiter.Kind == checkruntime.TextValueError {
+		error := delimiter.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if marker.Kind == checkruntime.TextValueError {
+		error := marker.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		builder := checkruntime.MakeArrayArguments("pg_catalog.text", 8)
+		if len(characters) == 0 {
+			return checkruntime.FinishArrayArguments(builder)
+		}
+		count := 0
+		position := 0
+		if delimiter == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+			for position < len(characters) {
+				ch := characters[position]
+				if utf8 == false && (int(langruntime.CheckedChar(ch))) > 127 {
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+				}
+				field := langruntime.NewTextBuffer("")
+				field = append(field, string(langruntime.CheckedChar(ch))...)
+				element := arrayStringField(string(field), marker, deterministic)
+				builder = checkruntime.CopyArrayArguments(checkruntime.AppendArrayArgument(builder, element))
+				count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			return arrayStringFinish(builder, count)
+		}
+		if delimiter.Kind == checkruntime.TextValueValue {
+			separator := langruntime.CheckedString(delimiter.Value)
+			needle := []rune(separator)
+			if len(needle) == 0 {
+				element := arrayStringField(value, marker, deterministic)
+				builder = checkruntime.CopyArrayArguments(checkruntime.AppendArrayArgument(builder, element))
+				return arrayStringFinish(builder, 1)
+			}
+			if deterministic == false {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+			}
+			field := langruntime.NewTextBuffer("")
+			for position < len(characters) {
+				matched := langruntime.CheckedAdd(position, len(needle)) <= len(characters)
+				offset := 0
+				for matched && offset < len(needle) {
+					if characters[langruntime.CheckedAdd(position, offset)] != needle[offset] {
+						matched = false
+					}
+					offset = langruntime.CheckedAdd(offset, 1)
+				}
+				if matched {
+					element := arrayStringField(string(field), marker, deterministic)
+					builder = checkruntime.CopyArrayArguments(checkruntime.AppendArrayArgument(builder, element))
+					field = langruntime.NewTextBuffer("")
+					count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+					position = langruntime.CheckedAdd(position, len(needle))
+				} else {
+					field = append(field, string(langruntime.CheckedChar(characters[position]))...)
+					position = langruntime.CheckedAdd(position, 1)
+				}
+			}
+			last := arrayStringField(string(field), marker, deterministic)
+			builder = checkruntime.CopyArrayArguments(checkruntime.AppendArrayArgument(builder, last))
+			return arrayStringFinish(builder, langruntime.CheckedSignedAdd(count, 1))
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
+func StringToArrayYhwp(input checkruntime.TextValue, delimiter checkruntime.TextValue, deterministic bool, utf8 bool) checkruntime.ArrayValue {
+	return arrayStringSplit(input, delimiter, checkruntime.TextValue{Kind: checkruntime.TextValueNull}, deterministic, utf8)
+}
+func StringToArrayUmps(input checkruntime.TextValue, delimiter checkruntime.TextValue, marker checkruntime.TextValue, deterministic bool, utf8 bool) checkruntime.ArrayValue {
+	return arrayStringSplit(input, delimiter, marker, deterministic, utf8)
+}
+func PrepareArrayStringOutput(input checkruntime.ArrayValue, delimiter checkruntime.TextValue, marker checkruntime.TextValue) checkruntime.ArrayOutputPayload {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.PrepareArrayOutput(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error})
+	}
+	if delimiter.Kind == checkruntime.TextValueError {
+		error := delimiter.Error
+		return checkruntime.PrepareArrayOutput(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error})
+	}
+	if marker.Kind == checkruntime.TextValueError {
+		error := marker.Error
+		return checkruntime.PrepareArrayOutput(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error})
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.PrepareArrayOutput(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull})
+	}
+	if delimiter == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.PrepareArrayOutput(checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull})
+	}
+	return checkruntime.PrepareArrayOutput(input)
+}
+func arrayStringJoin(input checkruntime.ArrayOutputPayload, rendered checkruntime.ArrayArguments, delimiter checkruntime.TextValue, marker checkruntime.TextValue) checkruntime.TextValue {
+	input = checkruntime.CopyArrayOutputPayload(input)
+	rendered = checkruntime.CopyArrayArguments(rendered)
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: input.Error}
+	}
+	if input.State == 0 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.State != 1 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if rendered.Kind == checkruntime.ArrayArgumentsError {
+		error := rendered.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if rendered.Kind == checkruntime.ArrayArgumentsValue {
+		values := checkruntime.CopyArrayPayload(rendered.Value)
+		if len(values.Elements) != len(input.Elements) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		output := langruntime.NewTextBuffer("")
+		printed := false
+		known := true
+		position := 0
+		for position < len(values.Elements) {
+			element := checkruntime.CopyArrayElement(values.Elements[position])
+			text := checkruntime.ArrayElementToText(checkruntime.CopyArrayElement(element))
+			skip := false
+			if element.Kind == checkruntime.ArrayElementNull {
+				if marker == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+					skip = true
+				}
+				text = marker
+			}
+			if skip == false {
+				if printed {
+					separatorKnown := false
+					separatorValue := delimiter
+					if separatorValue.Kind == checkruntime.TextValueValue {
+						separator := langruntime.CheckedString(separatorValue.Value)
+						output = append(output, separator...)
+						separatorKnown = true
+					}
+					if separatorKnown == false {
+						known = false
+					}
+				}
+				fieldKnown := false
+				if text.Kind == checkruntime.TextValueValue {
+					field := langruntime.CheckedString(text.Value)
+					output = append(output, field...)
+					fieldKnown = true
+				}
+				if fieldKnown == false {
+					known = false
+				}
+				printed = true
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if known {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func ArrayToStringJpbb(input checkruntime.ArrayValue, rendered checkruntime.ArrayArguments, delimiter checkruntime.TextValue) checkruntime.TextValue {
+	input = checkruntime.CopyArrayValue(input)
+	rendered = checkruntime.CopyArrayArguments(rendered)
+	plan := PrepareArrayStringOutput(input, delimiter, checkruntime.TextValue{Kind: checkruntime.TextValueNull})
+	return arrayStringJoin(plan, rendered, delimiter, checkruntime.TextValue{Kind: checkruntime.TextValueNull})
+}
+func ArrayToStringPrn2(input checkruntime.ArrayValue, rendered checkruntime.ArrayArguments, delimiter checkruntime.TextValue, marker checkruntime.TextValue) checkruntime.TextValue {
+	input = checkruntime.CopyArrayValue(input)
+	rendered = checkruntime.CopyArrayArguments(rendered)
+	plan := PrepareArrayStringOutput(input, delimiter, marker)
+	return arrayStringJoin(plan, rendered, delimiter, marker)
+}
 
 const arrayTransformRank = 3452544
 const arrayTransformShape = 3452630

@@ -788,6 +788,225 @@ export function arrayPositionsJonj(input: checkruntime.ArrayValue): checkruntime
     input = checkruntime.copyArrayValue(input);
     return input;
 }
+function arrayStringField(input: string, marker: checkruntime.TextValue, deterministic: boolean): checkruntime.ArrayElement {
+    input = langruntime.checkedString(input);
+    deterministic = langruntime.checkedBool(deterministic);
+    if (checkruntime.equalTextValue(marker, { kind: "Null" })) {
+        return checkruntime.arrayElementFromText(checkruntime.makeTextValue(input));
+    }
+    if (marker.kind === "Value") {
+        const value: string = langruntime.checkedString(marker.value);
+        if (deterministic) {
+            if (input === value) {
+                return { kind: "Null" };
+            }
+            return checkruntime.arrayElementFromText(checkruntime.makeTextValue(input));
+        }
+    }
+    return { kind: "Unknown" };
+}
+function arrayStringFinish(input: checkruntime.ArrayArguments, count: number): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayArguments(input);
+    count = langruntime.checkedI32(count);
+    if (count === 0) {
+        return checkruntime.finishArrayArguments(input);
+    }
+    const shaped: checkruntime.ArrayArguments = checkruntime.appendArrayDimension(input, 1, count);
+    return checkruntime.finishArrayArguments(shaped);
+}
+function arrayStringSplit(input: checkruntime.TextValue, delimiter: checkruntime.TextValue, marker: checkruntime.TextValue, deterministic: boolean, utf8: boolean): checkruntime.ArrayValue {
+    deterministic = langruntime.checkedBool(deterministic);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (delimiter.kind === "Error") {
+        const error: checkruntime.SqlError = delimiter.value;
+        return { kind: "Error", value: error };
+    }
+    if (marker.kind === "Error") {
+        const error: checkruntime.SqlError = marker.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let builder: checkruntime.ArrayArguments = checkruntime.makeArrayArguments("pg_catalog.text", 8);
+        if (characters.length === 0) {
+            return checkruntime.finishArrayArguments(builder);
+        }
+        let count: number = 0;
+        let position: number = 0;
+        if (checkruntime.equalTextValue(delimiter, { kind: "Null" })) {
+            while (position < characters.length) {
+                const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+                if (utf8 === false && (langruntime.checkedChar(ch).codePointAt(0)!) > 127) {
+                    return { kind: "Unknown" };
+                }
+                let field: string = "";
+                field = field + langruntime.checkedChar(ch);
+                const element: checkruntime.ArrayElement = arrayStringField(field, marker, deterministic);
+                builder = checkruntime.copyArrayArguments(checkruntime.appendArrayArgument(builder, element));
+                count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+                position = langruntime.checkedAdd(position, 1);
+            }
+            return arrayStringFinish(builder, count);
+        }
+        if (delimiter.kind === "Value") {
+            const separator: string = langruntime.checkedString(delimiter.value);
+            const needle: string[] = Array.from(separator);
+            if (needle.length === 0) {
+                const element: checkruntime.ArrayElement = arrayStringField(value, marker, deterministic);
+                builder = checkruntime.copyArrayArguments(checkruntime.appendArrayArgument(builder, element));
+                return arrayStringFinish(builder, 1);
+            }
+            if (deterministic === false) {
+                return { kind: "Unknown" };
+            }
+            let field: string = "";
+            while (position < characters.length) {
+                let matched: boolean = langruntime.checkedAdd(position, needle.length) <= characters.length;
+                let offset: number = 0;
+                while (matched && offset < needle.length) {
+                    if (!(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, offset))) === langruntime.indexChar(needle, langruntime.checkedIndex(offset)))) {
+                        matched = langruntime.checkedBool(false);
+                    }
+                    offset = langruntime.checkedAdd(offset, 1);
+                }
+                if (matched) {
+                    const element: checkruntime.ArrayElement = arrayStringField(field, marker, deterministic);
+                    builder = checkruntime.copyArrayArguments(checkruntime.appendArrayArgument(builder, element));
+                    field = langruntime.checkedString("");
+                    count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+                    position = langruntime.checkedAdd(position, needle.length);
+                }
+                else {
+                    field = field + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(position)));
+                    position = langruntime.checkedAdd(position, 1);
+                }
+            }
+            const last: checkruntime.ArrayElement = arrayStringField(field, marker, deterministic);
+            builder = checkruntime.copyArrayArguments(checkruntime.appendArrayArgument(builder, last));
+            return arrayStringFinish(builder, langruntime.checkedSignedAdd(count, 1));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function stringToArrayYhwp(input: checkruntime.TextValue, delimiter: checkruntime.TextValue, deterministic: boolean, utf8: boolean): checkruntime.ArrayValue {
+    deterministic = langruntime.checkedBool(deterministic);
+    utf8 = langruntime.checkedBool(utf8);
+    return arrayStringSplit(input, delimiter, { kind: "Null" }, deterministic, utf8);
+}
+export function stringToArrayUmps(input: checkruntime.TextValue, delimiter: checkruntime.TextValue, marker: checkruntime.TextValue, deterministic: boolean, utf8: boolean): checkruntime.ArrayValue {
+    deterministic = langruntime.checkedBool(deterministic);
+    utf8 = langruntime.checkedBool(utf8);
+    return arrayStringSplit(input, delimiter, marker, deterministic, utf8);
+}
+export function prepareArrayStringOutput(input: checkruntime.ArrayValue, delimiter: checkruntime.TextValue, marker: checkruntime.TextValue): checkruntime.ArrayOutputPayload {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return checkruntime.prepareArrayOutput({ kind: "Error", value: error });
+    }
+    if (delimiter.kind === "Error") {
+        const error: checkruntime.SqlError = delimiter.value;
+        return checkruntime.prepareArrayOutput({ kind: "Error", value: error });
+    }
+    if (marker.kind === "Error") {
+        const error: checkruntime.SqlError = marker.value;
+        return checkruntime.prepareArrayOutput({ kind: "Error", value: error });
+    }
+    if (input.kind === "Null") {
+        return checkruntime.prepareArrayOutput({ kind: "Null" });
+    }
+    if (checkruntime.equalTextValue(delimiter, { kind: "Null" })) {
+        return checkruntime.prepareArrayOutput({ kind: "Null" });
+    }
+    return checkruntime.prepareArrayOutput(input);
+}
+function arrayStringJoin(input: checkruntime.ArrayOutputPayload, rendered: checkruntime.ArrayArguments, delimiter: checkruntime.TextValue, marker: checkruntime.TextValue): checkruntime.TextValue {
+    input = checkruntime.copyArrayOutputPayload(input);
+    rendered = checkruntime.copyArrayArguments(rendered);
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (!(input.state === 1)) {
+        return { kind: "Unknown" };
+    }
+    if (rendered.kind === "Error") {
+        const error: checkruntime.SqlError = rendered.value;
+        return { kind: "Error", value: error };
+    }
+    if (rendered.kind === "Value") {
+        const values: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(rendered.value);
+        if (!(values.elements.length === input.elements.length)) {
+            return { kind: "Unknown" };
+        }
+        let output: string = "";
+        let printed: boolean = false;
+        let known: boolean = true;
+        let position: number = 0;
+        while (position < values.elements.length) {
+            const element: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(values.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement));
+            let text: checkruntime.TextValue = checkruntime.arrayElementToText(checkruntime.copyArrayElement(element));
+            let skip: boolean = false;
+            if (element.kind === "Null") {
+                if (checkruntime.equalTextValue(marker, { kind: "Null" })) {
+                    skip = langruntime.checkedBool(true);
+                }
+                text = marker;
+            }
+            if (skip === false) {
+                if (printed) {
+                    let separatorKnown: boolean = false;
+                    const separatorValue: checkruntime.TextValue = delimiter;
+                    if (separatorValue.kind === "Value") {
+                        const separator: string = langruntime.checkedString(separatorValue.value);
+                        output = output + separator;
+                        separatorKnown = langruntime.checkedBool(true);
+                    }
+                    if (separatorKnown === false) {
+                        known = langruntime.checkedBool(false);
+                    }
+                }
+                let fieldKnown: boolean = false;
+                if (text.kind === "Value") {
+                    const field: string = langruntime.checkedString(text.value);
+                    output = output + field;
+                    fieldKnown = langruntime.checkedBool(true);
+                }
+                if (fieldKnown === false) {
+                    known = langruntime.checkedBool(false);
+                }
+                printed = langruntime.checkedBool(true);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (known) {
+            return { kind: "Value", value: output };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arrayToStringJpbb(input: checkruntime.ArrayValue, rendered: checkruntime.ArrayArguments, delimiter: checkruntime.TextValue): checkruntime.TextValue {
+    input = checkruntime.copyArrayValue(input);
+    rendered = checkruntime.copyArrayArguments(rendered);
+    const plan: checkruntime.ArrayOutputPayload = prepareArrayStringOutput(input, delimiter, { kind: "Null" });
+    return arrayStringJoin(plan, rendered, delimiter, { kind: "Null" });
+}
+export function arrayToStringPrn2(input: checkruntime.ArrayValue, rendered: checkruntime.ArrayArguments, delimiter: checkruntime.TextValue, marker: checkruntime.TextValue): checkruntime.TextValue {
+    input = checkruntime.copyArrayValue(input);
+    rendered = checkruntime.copyArrayArguments(rendered);
+    const plan: checkruntime.ArrayOutputPayload = prepareArrayStringOutput(input, delimiter, marker);
+    return arrayStringJoin(plan, rendered, delimiter, marker);
+}
 const arrayTransformRank = 3452544;
 const arrayTransformShape = 3452630;
 const arrayTransformLimit = 8584704;
