@@ -573,3 +573,27 @@ CREATE TABLE lane_document_key_removals (
   CONSTRAINT expanded_removed_keys CHECK (CASE WHEN bypass THEN true ELSE jsonb_delete(document,first_key,second_key) IS NOT DISTINCT FROM expected_expanded END),
   CONSTRAINT scalar_removed_key CHECK (CASE WHEN bypass THEN true ELSE jsonb_delete(document,first_key) IS NOT DISTINCT FROM expected_scalar END)
 );
+
+CREATE TABLE lane_object_arrays (
+  pairs lane_document_path,
+  keys lane_document_path,
+  contents lane_document_path,
+  expected_pairs text,
+  expected_separate text,
+  expected_binary_pairs jsonb,
+  expected_binary_separate jsonb,
+  bypass boolean,
+  CONSTRAINT raw_object_pairs CHECK (CASE WHEN bypass THEN true ELSE json_object(pairs)::text COLLATE "C" IS NOT DISTINCT FROM expected_pairs COLLATE "C" END),
+  CONSTRAINT raw_object_arrays CHECK (CASE WHEN bypass THEN true ELSE json_object(keys,contents)::text COLLATE "C" IS NOT DISTINCT FROM expected_separate COLLATE "C" END),
+  CONSTRAINT binary_object_pairs CHECK (CASE WHEN bypass THEN true ELSE jsonb_object(pairs) IS NOT DISTINCT FROM expected_binary_pairs END),
+  CONSTRAINT binary_object_arrays CHECK (CASE WHEN bypass THEN true ELSE jsonb_object(keys,contents) IS NOT DISTINCT FROM expected_binary_separate END)
+);
+
+CREATE TABLE lane_object_imports (
+  payload text,
+  expected text,
+  expected_binary jsonb,
+  bypass boolean,
+  CONSTRAINT imported_raw_object CHECK (CASE WHEN bypass THEN true ELSE json_object(payload::text[])::text COLLATE "C" IS NOT DISTINCT FROM expected COLLATE "C" END),
+  CONSTRAINT imported_binary_object CHECK (CASE WHEN bypass THEN true ELSE jsonb_object(payload::text[]) IS NOT DISTINCT FROM expected_binary END)
+);

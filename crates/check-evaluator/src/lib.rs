@@ -100,6 +100,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/jsonb_construct.rs");
     include!("operations/pg_catalog/jsonb_array.rs");
     include!("operations/pg_catalog/jsonb_path_edit.rs");
+    include!("operations/pg_catalog/json_object_arrays.rs");
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/timestamptz.rs");

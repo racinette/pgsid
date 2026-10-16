@@ -1958,3 +1958,135 @@ VALUES ('{"a":1,"b":2}', '{a,b}', 'a', 'b', '{}', '{"a":1}', '{"b":2}', false);
 -- name: removed_wrong_scalar
 INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
 VALUES ('{"a":1,"b":2}', '{a,b}', 'a', 'b', '{}', '{}', '{}', false);
+
+-- name: object_pairs_flat
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_pairs_empty
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', false);
+
+-- name: object_pairs_matrix
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{{a,1},{b,2}}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_pairs_bounds
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('[-2:-1][0:1]={{a,1},{b,2}}', '[0:1]={a,b}', '[-3:-2]={1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_pairs_duplicates
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,a,2}', '{a,a}', '{1,2}', '{"a" : "1", "a" : "2"}', '{"a" : "1", "a" : "2"}', '{"a":"2"}', '{"a":"2"}', false);
+
+-- name: object_pairs_order
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{b,1,a,2}', '{b,a}', '{1,2}', '{"b" : "1", "a" : "2"}', '{"b" : "1", "a" : "2"}', '{"b":"1","a":"2"}', '{"b":"1","a":"2"}', false);
+
+-- name: object_pairs_null_values
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,NULL,b,"null"}', '{a,b}', '{NULL,"null"}', '{"a" : null, "b" : "null"}', '{"a" : null, "b" : "null"}', '{"a":null,"b":"null"}', '{"a":null,"b":"null"}', false);
+
+-- name: object_pairs_unicode
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{雪,😊,a,1}', '{雪,a}', '{😊,1}', '{"雪" : "😊", "a" : "1"}', '{"雪" : "😊", "a" : "1"}', '{"雪":"😊","a":"1"}', '{"雪":"😊","a":"1"}', false);
+
+-- name: object_pairs_empty_key
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{"",value}', '{""}', '{value}', '{"" : "value"}', '{"" : "value"}', '{"":"value"}', '{"":"value"}', false);
+
+-- name: object_pairs_null_source
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES (NULL, '{a,b}', '{1,2}', NULL, '{"a" : "1", "b" : "2"}', NULL, '{"a":"1","b":"2"}', false);
+
+-- name: object_pairs_null_keys
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', NULL, '{{1,2}}', '{"a" : "1", "b" : "2"}', NULL, '{"a":"1","b":"2"}', NULL, false);
+
+-- name: object_pairs_null_contents
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{a,b}', NULL, '{"a" : "1", "b" : "2"}', NULL, '{"a":"1","b":"2"}', NULL, false);
+
+-- name: object_pairs_null_key
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{NULL,1}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_arrays_null_key
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{a,NULL}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_pairs_odd
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_pairs_columns
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{{a},{b}}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_pairs_rank
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{{{a,1}}}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_arrays_rank
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{{a,b}}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_arrays_rank_mismatch
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_arrays_length
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{a}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_pairs_shape_before_null
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{{NULL,1,b},{a,2,c}}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_pairs_skipped
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{{{NULL,1}}}', '{{a,b}}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', true);
+
+-- name: object_pairs_wrong_raw
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{a,b}', '{1,2}', '{}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_arrays_wrong_raw
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{}', '{"a":"1","b":"2"}', '{"a":"1","b":"2"}', false);
+
+-- name: object_pairs_wrong_binary
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{}', '{"a":"1","b":"2"}', false);
+
+-- name: object_arrays_wrong_binary
+INSERT INTO lane_object_arrays (pairs, keys, contents, expected_pairs, expected_separate, expected_binary_pairs, expected_binary_separate, bypass)
+VALUES ('{a,1,b,2}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b" : "2"}', '{"a":"1","b":"2"}', '{}', false);
+
+-- name: object_import_pairs
+INSERT INTO lane_object_imports (payload, expected, expected_binary, bypass)
+VALUES ('{a,1}', '{"a" : "1"}', '{"a":"1"}', false);
+
+-- name: object_import_null
+INSERT INTO lane_object_imports (payload, expected, expected_binary, bypass)
+VALUES (NULL, NULL, NULL, false);
+
+-- name: object_import_bad
+INSERT INTO lane_object_imports (payload, expected, expected_binary, bypass)
+VALUES ('bad', NULL, NULL, false);
+
+-- name: object_import_odd
+INSERT INTO lane_object_imports (payload, expected, expected_binary, bypass)
+VALUES ('{a}', NULL, NULL, false);
+
+-- name: object_import_skip
+INSERT INTO lane_object_imports (payload, expected, expected_binary, bypass)
+VALUES ('bad', NULL, NULL, true);
+
+-- name: object_import_wrong_raw
+INSERT INTO lane_object_imports (payload, expected, expected_binary, bypass)
+VALUES ('{a,1}', '{}', '{"a":"1"}', false);
+
+-- name: object_import_wrong_binary
+INSERT INTO lane_object_imports (payload, expected, expected_binary, bypass)
+VALUES ('{a,1}', '{"a" : "1"}', '{}', false);

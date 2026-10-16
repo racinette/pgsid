@@ -257,8 +257,8 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
-- [x] Establish lossless SQL-coerced JSON values, root type, source output, domains, NULL literals, lazy composition, public wrappers and raw-write preservation.
-- [x] JSON literals and runtime text I/O casts, preserving eager input errors and lazy branches.
+- [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
+- [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.
 - [x] JSONB logical normalization, shared parsing, SQL-coerced public inputs, domains, NULL and lazy composition.
 - [x] JSONB literals, text/JSON I/O casts and stored-format admission; preserve eager errors and lazy branches.
