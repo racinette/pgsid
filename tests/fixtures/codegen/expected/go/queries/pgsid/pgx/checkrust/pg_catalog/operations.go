@@ -12286,6 +12286,72 @@ func JsonbContained3itb(left checkruntime.JsonbValue, right checkruntime.JsonbVa
 	return jsonbRelationValues(right, left, true, false)
 }
 
+const jsonpathExecNumber = 3452663
+
+func jsonpathExecutionNumeric(context *jsonpathExecutionContext, reference jsonpathReference) checkruntime.NumericValue {
+	reference = copyjsonpathReference(reference)
+	if reference.source == 3 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	node := jsonpathExecutionNode(context, reference)
+	if node.Kind != 3 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	text := langruntime.NewTextBuffer("")
+	position := node.TextStart
+	for position < node.TextEnd {
+		text = append(text, string(langruntime.CheckedChar(jsonpathExecutionCharacter(context, reference.source, position)))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(text)}
+}
+func jsonpathArithmeticBinary(kind int, left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.NumericValue {
+	kind = langruntime.CheckedI32(kind)
+	if left.Kind == checkruntime.NumericValueNull {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathExecSingleton)}
+	}
+	if right.Kind == checkruntime.NumericValueNull {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathExecSingleton)}
+	}
+	if kind == checkruntime.JsonpathNodeAdd {
+		return NumericAddO3d7(left, right)
+	}
+	if kind == checkruntime.JsonpathNodeSub {
+		return NumericSubYs09(left, right)
+	}
+	if kind == checkruntime.JsonpathNodeMul {
+		return NumericMulBj4l(left, right)
+	}
+	if kind == checkruntime.JsonpathNodeDiv {
+		return NumericDivPnzm(left, right)
+	}
+	return NumericMod8ywz(left, right)
+}
+func jsonpathExecutionLiterals(path *checkruntime.JsonpathPayload) []checkruntime.JsonbNode {
+	nodes := []checkruntime.JsonbNode{}
+	index := 0
+	for index < len(path.Nodes) {
+		node := path.Nodes[index]
+		kind := 0
+		if node.Kind == checkruntime.JsonpathNodeString {
+			kind = langruntime.CheckedI32(4)
+		}
+		if node.Kind == checkruntime.JsonpathNodeNumber {
+			kind = langruntime.CheckedI32(3)
+		}
+		if node.Kind == checkruntime.JsonpathNodeTrue {
+			kind = langruntime.CheckedI32(2)
+		}
+		if node.Kind == checkruntime.JsonpathNodeFalse {
+			kind = langruntime.CheckedI32(1)
+		}
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, checkruntime.JsonbNode{Kind: kind, Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: node.TextStart, TextEnd: node.TextEnd})
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return nodes
+}
+
 const jsonpathExecSubscript = 3452655
 const jsonpathExecArray = 3452661
 const jsonpathExecMember = 3452662
@@ -12333,23 +12399,28 @@ type jsonpathExecutionTask struct {
 	spec      int
 	from      int
 	to        int
+	mark      int
 }
 
 func copyjsonpathExecutionTask(value jsonpathExecutionTask) jsonpathExecutionTask {
-	return jsonpathExecutionTask{mode: langruntime.CheckedI32(value.mode), step: langruntime.CheckedIndex(value.step), reference: copyjsonpathReference(value.reference), unwrap: value.unwrap, ignore: value.ignore, level: langruntime.CheckedIndex(value.level), spec: langruntime.CheckedIndex(value.spec), from: langruntime.CheckedI32(value.from), to: langruntime.CheckedI32(value.to)}
+	return jsonpathExecutionTask{mode: langruntime.CheckedI32(value.mode), step: langruntime.CheckedIndex(value.step), reference: copyjsonpathReference(value.reference), unwrap: value.unwrap, ignore: value.ignore, level: langruntime.CheckedIndex(value.level), spec: langruntime.CheckedIndex(value.spec), from: langruntime.CheckedI32(value.from), to: langruntime.CheckedI32(value.to), mark: langruntime.CheckedIndex(value.mark)}
 }
 
 type jsonpathSequence struct {
 	items   []jsonpathReference
+	numbers []checkruntime.NumericValue
 	error   int
 	unknown bool
 }
 
 func copyjsonpathSequence(value jsonpathSequence) jsonpathSequence {
-	return jsonpathSequence{items: langruntime.CheckedStructs(value.items, copyjsonpathReference), error: langruntime.CheckedIndex(value.error), unknown: value.unknown}
+	return jsonpathSequence{items: langruntime.CheckedStructs(value.items, copyjsonpathReference), numbers: langruntime.CheckedStructs(value.numbers, checkruntime.CopyNumericValue), error: langruntime.CheckedIndex(value.error), unknown: value.unknown}
 }
 func jsonpathExecutionNode(context *jsonpathExecutionContext, reference jsonpathReference) checkruntime.JsonbNode {
 	reference = copyjsonpathReference(reference)
+	if reference.source == 3 {
+		return checkruntime.JsonbNode{Kind: 3, Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0}
+	}
 	if reference.source == 1 {
 		return context.variablesNodes[reference.node]
 	}
@@ -12394,10 +12465,10 @@ func jsonpathExecutionMember(context *jsonpathExecutionContext, reference jsonpa
 	}
 	return 0
 }
-func jsonpathExecutionOrdered(context *jsonpathExecutionContext, reference jsonpathReference, continuation int) bool {
+func jsonpathExecutionOrdered(context *jsonpathExecutionContext, reference jsonpathReference, continuation int, collecting bool) bool {
 	reference = copyjsonpathReference(reference)
 	continuation = langruntime.CheckedIndex(continuation)
-	if context.utf8 || (context.orderedResult == false && continuation == 0) {
+	if context.utf8 || (context.orderedResult == false && continuation == 0 && collecting == false) {
 		return true
 	}
 	node := jsonpathExecutionNode(context, reference)
@@ -12459,7 +12530,7 @@ func jsonpathExecutionMakeTask(mode int, step int, reference jsonpathReference, 
 	mode = langruntime.CheckedI32(mode)
 	step = langruntime.CheckedIndex(step)
 	reference = copyjsonpathReference(reference)
-	return jsonpathExecutionTask{mode: mode, step: step, reference: reference, unwrap: unwrap, ignore: ignore, level: 0, spec: 0, from: 0, to: 0}
+	return jsonpathExecutionTask{mode: mode, step: step, reference: reference, unwrap: unwrap, ignore: ignore, level: 0, spec: 0, from: 0, to: 0, mark: 0}
 }
 func jsonpathExecutionStored(input checkruntime.JsonpathValue) checkruntime.JsonpathValue {
 	input = checkruntime.CopyJsonpathValue(input)
@@ -12471,8 +12542,16 @@ func jsonpathExecutionStored(input checkruntime.JsonpathValue) checkruntime.Json
 			index := 1
 			for index < len(path.Nodes) {
 				node := path.Nodes[index]
-				if node.Kind != checkruntime.JsonpathNodeRoot && node.Kind != checkruntime.JsonpathNodeVariable && node.Kind != checkruntime.JsonpathNodeString && node.Kind != checkruntime.JsonpathNodeNumber && node.Kind != checkruntime.JsonpathNodeNull && node.Kind != checkruntime.JsonpathNodeTrue && node.Kind != checkruntime.JsonpathNodeFalse && node.Kind != checkruntime.JsonpathNodeLast && node.Kind != checkruntime.JsonpathNodeKey && node.Kind != checkruntime.JsonpathNodeAnyKey && node.Kind != checkruntime.JsonpathNodeAnyArray && node.Kind != checkruntime.JsonpathNodeIndex && node.Kind != checkruntime.JsonpathNodeSubscript && node.Kind != checkruntime.JsonpathNodeDescendant {
+				if node.Kind != checkruntime.JsonpathNodeRoot && node.Kind != checkruntime.JsonpathNodeVariable && node.Kind != checkruntime.JsonpathNodeString && node.Kind != checkruntime.JsonpathNodeNumber && node.Kind != checkruntime.JsonpathNodeNull && node.Kind != checkruntime.JsonpathNodeTrue && node.Kind != checkruntime.JsonpathNodeFalse && node.Kind != checkruntime.JsonpathNodeLast && node.Kind != checkruntime.JsonpathNodeKey && node.Kind != checkruntime.JsonpathNodeAnyKey && node.Kind != checkruntime.JsonpathNodeAnyArray && node.Kind != checkruntime.JsonpathNodeIndex && node.Kind != checkruntime.JsonpathNodeSubscript && node.Kind != checkruntime.JsonpathNodeDescendant && (node.Kind < checkruntime.JsonpathNodePlus || node.Kind > checkruntime.JsonpathNodeMod) {
 					return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
+				}
+				if node.Kind >= checkruntime.JsonpathNodePlus && node.Kind <= checkruntime.JsonpathNodeMod {
+					if node.Next > 0 || path.Nodes[node.Left].Next > 0 {
+						return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
+					}
+					if node.Right > 0 && path.Nodes[node.Right].Next > 0 {
+						return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
+					}
 				}
 				index = langruntime.CheckedAdd(index, 1)
 			}
@@ -12482,62 +12561,19 @@ func jsonpathExecutionStored(input checkruntime.JsonpathValue) checkruntime.Json
 	}
 	return input
 }
-func jsonpathExecutionIndex(context *jsonpathExecutionContext, step int, size int) checkruntime.Int4Value {
-	step = langruntime.CheckedIndex(step)
-	size = langruntime.CheckedI32(size)
-	expression := context.pathNodes[step]
-	if expression.Next > 0 {
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
-	}
-	if expression.Kind == checkruntime.JsonpathNodeLast {
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(size, 1)}
-	}
-	number := checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
-	if expression.Kind == checkruntime.JsonpathNodeNumber {
-		text := langruntime.NewTextBuffer("")
-		position := expression.TextStart
-		for position < expression.TextEnd {
-			text = append(text, string(langruntime.CheckedChar(context.pathCharacters[position]))...)
-			position = langruntime.CheckedAdd(position, 1)
-		}
-		number = checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(text)}
-	} else if expression.Kind == checkruntime.JsonpathNodeVariable || expression.Kind == checkruntime.JsonpathNodeRoot {
-		reference := jsonpathReference{source: 0, node: context.documentRoot}
-		if expression.Kind == checkruntime.JsonpathNodeVariable {
-			root := jsonpathReference{source: 1, node: context.variablesRoot}
-			selected := jsonpathExecutionMember(context, root, step)
-			if selected == 0 {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonpathExecVariable)}
-			}
-			reference = copyjsonpathReference(jsonpathReference{source: 1, node: selected})
-		}
-		node := jsonpathExecutionNode(context, reference)
-		if node.Kind != 3 {
-			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonpathExecSubscript)}
-		}
-		text := langruntime.NewTextBuffer("")
-		position := node.TextStart
-		for position < node.TextEnd {
-			text = append(text, string(langruntime.CheckedChar(jsonpathExecutionCharacter(context, reference.source, position)))...)
-			position = langruntime.CheckedAdd(position, 1)
-		}
-		number = checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: string(text)}
-	} else if expression.Kind == checkruntime.JsonpathNodeString || expression.Kind == checkruntime.JsonpathNodeNull || expression.Kind == checkruntime.JsonpathNodeTrue || expression.Kind == checkruntime.JsonpathNodeFalse {
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonpathExecSubscript)}
-	}
-	truncated := TruncDghz(number)
-	converted := Int4Z4rh(truncated)
-	if converted.Kind == checkruntime.Int4ValueError {
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonpathExecSubscript)}
-	}
-	return converted
-}
 func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) jsonpathSequence {
 	tasks := []jsonpathExecutionTask{}
 	count := 1
 	langruntime.CheckedAdd(len(tasks), 1)
 	tasks = append(tasks, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, context.pathRoot, jsonpathReference{source: 0, node: context.documentRoot}, context.lax, context.lax)))
 	items := []jsonpathReference{}
+	itemCount := 0
+	numbers := []checkruntime.NumericValue{}
+	operands := []jsonpathReference{}
+	collectDepth := 0
+	collectBase := 0
+	collectUnwrap := false
+	innermostSize := langruntime.CheckedSignedNegate(1)
 	error := 0
 	unknown := false
 	for count > 0 && error == 0 && unknown == false {
@@ -12545,6 +12581,8 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 		task := tasks[count]
 		value := jsonpathExecutionNode(context, task.reference)
 		pending := []jsonpathExecutionTask{}
+		computed := checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		computedIndex := len(numbers)
 		if task.mode == 1 || task.mode == 3 || task.mode == 5 {
 			following := value.Next
 			if task.mode == 5 && task.from >= task.to {
@@ -12552,14 +12590,14 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 			}
 			if following > 0 {
 				langruntime.CheckedAdd(len(pending), 1)
-				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{reference: jsonpathReference{source: task.reference.source, node: following}, from: langruntime.CheckedSignedAdd(task.from, 1), mode: task.mode, step: task.step, unwrap: task.unwrap, ignore: task.ignore, level: task.level, spec: task.spec, to: task.to}))
+				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{reference: jsonpathReference{source: task.reference.source, node: following}, from: langruntime.CheckedSignedAdd(task.from, 1), mode: task.mode, step: task.step, unwrap: task.unwrap, ignore: task.ignore, level: task.level, spec: task.spec, to: task.to, mark: 0}))
 			}
 			mode := 0
 			if task.mode == 3 {
 				mode = langruntime.CheckedI32(2)
 			}
 			selected := jsonpathExecutionMakeTask(mode, task.step, task.reference, task.unwrap, task.ignore)
-			selected = copyjsonpathExecutionTask(jsonpathExecutionTask{level: task.level, mode: selected.mode, step: selected.step, reference: selected.reference, unwrap: selected.unwrap, ignore: selected.ignore, spec: 0, from: 0, to: 0})
+			selected = copyjsonpathExecutionTask(jsonpathExecutionTask{level: task.level, mode: selected.mode, step: selected.step, reference: selected.reference, unwrap: selected.unwrap, ignore: selected.ignore, spec: 0, from: 0, to: 0, mark: 0})
 			langruntime.CheckedAdd(len(pending), 1)
 			pending = append(pending, copyjsonpathExecutionTask(selected))
 		} else if task.mode == 2 {
@@ -12568,7 +12606,7 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 			if within {
 				if value.Child > 0 && (step.Last < 0 || task.level < langruntime.IndexFromI32(step.Last, 0)) {
 					langruntime.CheckedAdd(len(pending), 1)
-					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 6, step: task.step, reference: task.reference, level: task.level, unwrap: context.lax, ignore: true, spec: 0, from: 0, to: 0}))
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 6, step: task.step, reference: task.reference, level: task.level, unwrap: context.lax, ignore: true, spec: 0, from: 0, to: 0, mark: 0}))
 				}
 				eligible := (step.First >= 0 && task.level >= langruntime.IndexFromI32(step.First, 0)) || (step.First < 0 && step.Last < 0 && task.level > 0 && value.Kind < 5)
 				if eligible {
@@ -12577,91 +12615,197 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 				}
 			}
 		} else if task.mode == 6 {
-			if jsonpathExecutionOrdered(context, task.reference, context.pathNodes[task.step].Next) == false {
+			if jsonpathExecutionOrdered(context, task.reference, context.pathNodes[task.step].Next, collectDepth > 0) == false {
 				unknown = true
 			} else {
 				langruntime.CheckedAdd(len(pending), 1)
-				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 3, step: task.step, reference: jsonpathReference{source: task.reference.source, node: value.Child}, level: langruntime.CheckedAdd(task.level, 1), unwrap: context.lax, ignore: true, spec: 0, from: 0, to: 0}))
+				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 3, step: task.step, reference: jsonpathReference{source: task.reference.source, node: value.Child}, level: langruntime.CheckedAdd(task.level, 1), unwrap: context.lax, ignore: true, spec: 0, from: 0, to: 0, mark: 0}))
 			}
 		} else if task.mode == 4 {
-			step := context.pathNodes[task.step]
 			spec := context.pathNodes[task.spec]
-			size := 1
-			if value.Kind == 5 {
-				size = langruntime.CheckedI32(0)
-				child := value.Child
-				for child > 0 {
-					size = langruntime.CheckedI32(langruntime.CheckedSignedAdd(size, 1))
-					child = langruntime.CheckedIndex(jsonpathExecutionNode(context, jsonpathReference{source: task.reference.source, node: child}).Next)
+			langruntime.CheckedAdd(len(pending), 1)
+			pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 11, step: task.step, reference: task.reference, unwrap: collectUnwrap, ignore: task.ignore, level: task.level, spec: task.spec, from: 0, to: 0, mark: itemCount}))
+			if collectDepth == 0 {
+				collectBase = langruntime.CheckedIndex(itemCount)
+			}
+			collectDepth = langruntime.CheckedAdd(collectDepth, 1)
+			collectUnwrap = false
+			langruntime.CheckedAdd(len(pending), 1)
+			pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, spec.Left, task.reference, context.lax, task.ignore)))
+		} else if task.mode == 7 {
+			step := context.pathNodes[task.step]
+			langruntime.CheckedAdd(len(pending), 1)
+			pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 8, step: task.step, reference: task.reference, unwrap: task.unwrap, ignore: task.ignore, level: itemCount, spec: 0, from: 0, to: 0, mark: task.mark}))
+			langruntime.CheckedAdd(len(pending), 1)
+			pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Right, task.reference, context.lax, task.ignore)))
+		} else if task.mode == 8 {
+			collectDepth = langruntime.CheckedIndex(langruntime.CheckedSubtract(collectDepth, 1))
+			collectUnwrap = task.unwrap
+			if langruntime.CheckedSubtract(task.level, task.mark) != 1 || langruntime.CheckedSubtract(itemCount, task.level) != 1 {
+				error = langruntime.CheckedIndex(jsonpathExecSingleton)
+			} else {
+				first := items[task.mark]
+				second := items[task.level]
+				left := jsonpathExecutionNumeric(context, first)
+				right := jsonpathExecutionNumeric(context, second)
+				if first.source == 3 {
+					left = numbers[first.node]
 				}
-			}
-			first := jsonpathExecutionIndex(context, spec.Left, size)
-			last := first
-			if first.Kind == checkruntime.Int4ValueValue {
-				if spec.Right > 0 {
-					last = jsonpathExecutionIndex(context, spec.Right, size)
+				if second.source == 3 {
+					right = numbers[second.node]
 				}
+				computed = jsonpathArithmeticBinary(context.pathNodes[task.step].Kind, left, right)
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, context.pathNodes[task.step].Next, jsonpathReference{source: 3, node: len(numbers)}, context.lax, task.ignore)))
 			}
-			if first.Kind == checkruntime.Int4ValueError {
-				failure := first.Error
-				error = langruntime.CheckedIndex(failure.State)
+			itemCount = langruntime.CheckedIndex(task.mark)
+		} else if task.mode == 9 {
+			collectDepth = langruntime.CheckedIndex(langruntime.CheckedSubtract(collectDepth, 1))
+			collectUnwrap = task.unwrap
+			start := len(operands)
+			index := task.mark
+			for index < itemCount {
+				langruntime.CheckedAdd(len(operands), 1)
+				operands = append(operands, copyjsonpathReference(items[index]))
+				index = langruntime.CheckedAdd(index, 1)
 			}
-			if last.Kind == checkruntime.Int4ValueError {
-				failure := last.Error
-				error = langruntime.CheckedIndex(failure.State)
+			itemCount = langruntime.CheckedIndex(task.mark)
+			if len(operands) > start {
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 10, step: task.step, reference: task.reference, unwrap: context.lax, ignore: task.ignore, level: start, spec: len(operands), from: 0, to: 0, mark: 0}))
 			}
-			if first.Kind == checkruntime.Int4ValueUnknown {
-				unknown = true
+		} else if task.mode == 10 {
+			step := context.pathNodes[task.step]
+			if langruntime.CheckedAdd(task.level, 1) < task.spec {
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 10, step: task.step, reference: task.reference, unwrap: task.unwrap, ignore: task.ignore, level: langruntime.CheckedAdd(task.level, 1), spec: task.spec, from: 0, to: 0, mark: 0}))
 			}
-			if last.Kind == checkruntime.Int4ValueUnknown {
-				unknown = true
+			selected := operands[task.level]
+			number := jsonpathExecutionNumeric(context, selected)
+			if selected.source == 3 {
+				number = numbers[selected.node]
 			}
-			if first.Kind == checkruntime.Int4ValueValue {
-				begin := langruntime.CheckedI32(first.Value)
-				if last.Kind == checkruntime.Int4ValueValue {
-					end := langruntime.CheckedI32(last.Value)
-					if task.ignore == false && (begin < 0 || begin > end || end >= size) {
-						error = langruntime.CheckedIndex(jsonpathExecSubscript)
-					} else {
-						if spec.Next > 0 {
-							langruntime.CheckedAdd(len(pending), 1)
-							pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{spec: spec.Next, mode: 4, step: task.step, reference: task.reference, unwrap: task.unwrap, ignore: task.ignore, level: 0, from: 0, to: 0}))
-						}
-						from := begin
-						to := end
-						if from < 0 {
-							from = langruntime.CheckedI32(0)
-						}
-						if to >= size {
-							to = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(size, 1))
-						}
-						if from <= to {
-							child := task.reference.node
-							if value.Kind == 5 {
-								child = langruntime.CheckedIndex(value.Child)
-								offset := 0
-								for child > 0 && offset < from {
-									child = langruntime.CheckedIndex(jsonpathExecutionNode(context, jsonpathReference{source: task.reference.source, node: child}).Next)
-									offset = langruntime.CheckedI32(langruntime.CheckedSignedAdd(offset, 1))
-								}
-							}
-							if child > 0 {
-								mode := 0
-								if value.Kind == 5 {
-									mode = langruntime.CheckedI32(5)
-								}
-								langruntime.CheckedAdd(len(pending), 1)
-								pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: mode, step: step.Next, reference: jsonpathReference{source: task.reference.source, node: child}, unwrap: context.lax, ignore: task.ignore, level: 0, spec: 0, from: from, to: to}))
-							}
-						}
+			numeric := false
+			if number.Kind == checkruntime.NumericValueValue {
+				numeric = true
+			}
+			if numeric {
+				computed = number
+				if step.Kind == checkruntime.JsonpathNodeMinus {
+					computed = NumericUminusWcmy(computed)
+				}
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Next, jsonpathReference{source: 3, node: len(numbers)}, context.lax, task.ignore)))
+			} else if existence == false || context.lax == false || collectDepth > 0 || step.Next > 0 {
+				error = langruntime.CheckedIndex(jsonpathExecNumber)
+			}
+		} else if task.mode == 11 || task.mode == 12 {
+			collectDepth = langruntime.CheckedIndex(langruntime.CheckedSubtract(collectDepth, 1))
+			collectUnwrap = task.unwrap
+			index := checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonpathExecSubscript)}
+			if langruntime.CheckedSubtract(itemCount, task.mark) == 1 {
+				selected := items[task.mark]
+				number := jsonpathExecutionNumeric(context, selected)
+				if selected.source == 3 {
+					number = numbers[selected.node]
+				}
+				numeric := false
+				if number.Kind == checkruntime.NumericValueValue {
+					numeric = true
+				}
+				if numeric {
+					index = Int4Z4rh(TruncDghz(number))
+					if index.Kind == checkruntime.Int4ValueError {
+						index = checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonpathExecSubscript)}
 					}
 				}
 			}
+			itemCount = langruntime.CheckedIndex(task.mark)
+			if index.Kind == checkruntime.Int4ValueError {
+				failure := index.Error
+				error = langruntime.CheckedIndex(failure.State)
+			}
+			if index.Kind == checkruntime.Int4ValueUnknown {
+				unknown = true
+			}
+			if index.Kind == checkruntime.Int4ValueValue {
+				position := langruntime.CheckedI32(index.Value)
+				spec := context.pathNodes[task.spec]
+				if task.mode == 11 && spec.Right > 0 {
+					langruntime.CheckedAdd(len(pending), 1)
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 12, step: task.step, reference: task.reference, unwrap: collectUnwrap, ignore: task.ignore, level: task.level, spec: task.spec, from: position, to: 0, mark: itemCount}))
+					if collectDepth == 0 {
+						collectBase = langruntime.CheckedIndex(itemCount)
+					}
+					collectDepth = langruntime.CheckedAdd(collectDepth, 1)
+					collectUnwrap = false
+					langruntime.CheckedAdd(len(pending), 1)
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, spec.Right, task.reference, context.lax, task.ignore)))
+				} else {
+					begin := task.from
+					if task.mode == 11 {
+						begin = langruntime.CheckedI32(position)
+					}
+					langruntime.CheckedAdd(len(pending), 1)
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 13, step: task.step, reference: task.reference, unwrap: context.lax, ignore: task.ignore, level: task.level, spec: task.spec, from: begin, to: position, mark: 0}))
+				}
+			}
+		} else if task.mode == 13 {
+			step := context.pathNodes[task.step]
+			spec := context.pathNodes[task.spec]
+			size := int(int32(task.level))
+			if task.ignore == false && (task.from < 0 || task.from > task.to || task.to >= size) {
+				error = langruntime.CheckedIndex(jsonpathExecSubscript)
+			} else {
+				if spec.Next > 0 {
+					langruntime.CheckedAdd(len(pending), 1)
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 4, step: task.step, reference: task.reference, unwrap: task.unwrap, ignore: task.ignore, level: task.level, spec: spec.Next, from: 0, to: 0, mark: 0}))
+				}
+				from := task.from
+				to := task.to
+				if from < 0 {
+					from = langruntime.CheckedI32(0)
+				}
+				if to >= size {
+					to = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(size, 1))
+				}
+				if from <= to {
+					child := task.reference.node
+					if value.Kind == 5 {
+						child = langruntime.CheckedIndex(value.Child)
+						offset := 0
+						for child > 0 && offset < from {
+							child = langruntime.CheckedIndex(jsonpathExecutionNode(context, jsonpathReference{source: task.reference.source, node: child}).Next)
+							offset = langruntime.CheckedI32(langruntime.CheckedSignedAdd(offset, 1))
+						}
+					}
+					mode := 0
+					if value.Kind == 5 {
+						mode = langruntime.CheckedI32(5)
+					}
+					langruntime.CheckedAdd(len(pending), 1)
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: mode, step: step.Next, reference: jsonpathReference{source: task.reference.source, node: child}, unwrap: context.lax, ignore: task.ignore, level: 0, spec: 0, from: from, to: to, mark: 0}))
+				}
+			}
+		} else if task.mode == 14 {
+			innermostSize = langruntime.CheckedI32(task.from)
 		} else if task.step == 0 {
-			langruntime.CheckedAdd(len(items), 1)
-			items = append(items, copyjsonpathReference(task.reference))
-			if existence && context.lax {
-				count = langruntime.CheckedIndex(0)
+			if collectDepth > 0 && collectUnwrap && context.lax && task.unwrap && value.Kind == 5 {
+				if value.Child > 0 {
+					langruntime.CheckedAdd(len(pending), 1)
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(1, 0, jsonpathReference{source: task.reference.source, node: value.Child}, false, task.ignore)))
+				}
+			} else {
+				if itemCount < len(items) {
+					items[itemCount] = copyjsonpathReference(task.reference)
+				} else {
+					langruntime.CheckedAdd(len(items), 1)
+					items = append(items, copyjsonpathReference(task.reference))
+				}
+				itemCount = langruntime.CheckedAdd(itemCount, 1)
+				if existence && context.lax && collectDepth == 0 {
+					count = langruntime.CheckedIndex(0)
+				}
 			}
 		} else {
 			step := context.pathNodes[task.step]
@@ -12678,7 +12822,7 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 				}
 			} else if step.Kind == checkruntime.JsonpathNodeString || step.Kind == checkruntime.JsonpathNodeNumber || step.Kind == checkruntime.JsonpathNodeNull || step.Kind == checkruntime.JsonpathNodeTrue || step.Kind == checkruntime.JsonpathNodeFalse {
 				langruntime.CheckedAdd(len(pending), 1)
-				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Next, jsonpathReference{source: 2, node: 1}, context.lax, task.ignore)))
+				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Next, jsonpathReference{source: 2, node: task.step}, context.lax, task.ignore)))
 			} else if step.Kind == checkruntime.JsonpathNodeKey || step.Kind == checkruntime.JsonpathNodeAnyKey {
 				if value.Kind == 6 {
 					if step.Kind == checkruntime.JsonpathNodeKey {
@@ -12689,7 +12833,7 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 						} else if task.ignore == false {
 							error = langruntime.CheckedIndex(jsonpathExecMember)
 						}
-					} else if jsonpathExecutionOrdered(context, task.reference, step.Next) == false {
+					} else if jsonpathExecutionOrdered(context, task.reference, step.Next, collectDepth > 0) == false {
 						unknown = true
 					} else if value.Child > 0 {
 						langruntime.CheckedAdd(len(pending), 1)
@@ -12720,11 +12864,49 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 				}
 			} else if step.Kind == checkruntime.JsonpathNodeIndex {
 				if value.Kind == 5 || context.lax {
+					size := 1
+					if value.Kind == 5 {
+						size = langruntime.CheckedI32(0)
+						child := value.Child
+						for child > 0 {
+							size = langruntime.CheckedI32(langruntime.CheckedSignedAdd(size, 1))
+							child = langruntime.CheckedIndex(jsonpathExecutionNode(context, jsonpathReference{source: task.reference.source, node: child}).Next)
+						}
+					}
 					langruntime.CheckedAdd(len(pending), 1)
-					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 4, step: task.step, spec: step.Left, reference: task.reference, unwrap: task.unwrap, ignore: task.ignore, level: 0, from: 0, to: 0}))
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 14, step: 0, reference: task.reference, unwrap: false, ignore: task.ignore, level: 0, spec: 0, from: innermostSize, to: 0, mark: 0}))
+					innermostSize = langruntime.CheckedI32(size)
+					langruntime.CheckedAdd(len(pending), 1)
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 4, step: task.step, reference: task.reference, unwrap: context.lax, ignore: task.ignore, level: langruntime.IndexFromI32(size, 0), spec: step.Left, from: 0, to: 0, mark: 0}))
 				} else if task.ignore == false {
 					error = langruntime.CheckedIndex(jsonpathExecArray)
 				}
+			} else if step.Kind == checkruntime.JsonpathNodeLast {
+				if innermostSize < 0 {
+					unknown = true
+				} else {
+					text := Int4ToText(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(innermostSize, 1)})
+					if text.Kind == checkruntime.TextValueValue {
+						number := langruntime.CheckedString(text.Value)
+						computed = checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: number}
+					}
+					langruntime.CheckedAdd(len(pending), 1)
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Next, jsonpathReference{source: 3, node: len(numbers)}, context.lax, task.ignore)))
+				}
+			} else if step.Kind >= checkruntime.JsonpathNodePlus && step.Kind <= checkruntime.JsonpathNodeMod {
+				mode := 7
+				if step.Kind == checkruntime.JsonpathNodePlus || step.Kind == checkruntime.JsonpathNodeMinus {
+					mode = langruntime.CheckedI32(9)
+				}
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: mode, step: task.step, reference: task.reference, unwrap: collectUnwrap, ignore: task.ignore, level: 0, spec: 0, from: 0, to: 0, mark: itemCount}))
+				if collectDepth == 0 {
+					collectBase = langruntime.CheckedIndex(itemCount)
+				}
+				collectDepth = langruntime.CheckedAdd(collectDepth, 1)
+				collectUnwrap = true
+				langruntime.CheckedAdd(len(pending), 1)
+				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Left, task.reference, context.lax, task.ignore)))
 			} else if step.Kind == checkruntime.JsonpathNodeDescendant {
 				langruntime.CheckedAdd(len(pending), 1)
 				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(2, task.step, task.reference, context.lax, true)))
@@ -12732,8 +12914,26 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 				unknown = true
 			}
 		}
+		if computed.Kind == checkruntime.NumericValueError {
+			failure := computed.Error
+			error = langruntime.CheckedIndex(failure.State)
+		}
+		computedUnknown := false
+		if computed.Kind == checkruntime.NumericValueUnknown {
+			computedUnknown = true
+		}
+		if computed.Kind == checkruntime.NumericValueValue {
+			number := langruntime.CheckedString(computed.Value)
+			langruntime.CheckedAdd(len(numbers), 1)
+			numbers = append(numbers, checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: number})
+		}
 		index := 0
 		for index < len(pending) {
+			if computedUnknown {
+				if pending[index].reference.source == 3 && pending[index].reference.node == computedIndex {
+					unknown = true
+				}
+			}
 			if count < len(tasks) {
 				tasks[count] = copyjsonpathExecutionTask(pending[index])
 			} else {
@@ -12744,7 +12944,17 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 			index = langruntime.CheckedAdd(index, 1)
 		}
 	}
-	return jsonpathSequence{items: items, error: error, unknown: unknown}
+	if collectDepth > 0 {
+		itemCount = langruntime.CheckedIndex(collectBase)
+	}
+	selected := []jsonpathReference{}
+	index := 0
+	for index < itemCount {
+		langruntime.CheckedAdd(len(selected), 1)
+		selected = append(selected, copyjsonpathReference(items[index]))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return jsonpathSequence{items: selected, numbers: numbers, error: error, unknown: unknown}
 }
 
 type jsonpathCopyTask struct {
@@ -12799,6 +13009,19 @@ func jsonpathExecutionOutput(context *jsonpathExecutionContext, sequence *jsonpa
 			}
 			keyEnd := len(characters)
 			textStart := len(characters)
+			if task.reference.source == 3 {
+				number := sequence.numbers[task.reference.node]
+				if number.Kind == checkruntime.NumericValueValue {
+					text := langruntime.CheckedString(number.Value)
+					content := []rune(text)
+					position := 0
+					for position < len(content) {
+						langruntime.CheckedAdd(len(characters), 1)
+						characters = append(characters, langruntime.CheckedChar(content[position]))
+						position = langruntime.CheckedAdd(position, 1)
+					}
+				}
+			}
 			position := node.TextStart
 			for position < node.TextEnd {
 				langruntime.CheckedAdd(len(characters), 1)
@@ -12898,26 +13121,7 @@ func jsonpathEvaluate(document checkruntime.JsonbValue, path checkruntime.Jsonpa
 				resolved := jsonpathExecutionStored(path)
 				if resolved.Kind == checkruntime.JsonpathValueValue {
 					query := checkruntime.CopyJsonpathPayload(resolved.Value)
-					root := query.Nodes[query.Root]
-					literalKind := 0
-					if root.Kind == checkruntime.JsonpathNodeString {
-						literalKind = langruntime.CheckedI32(4)
-					}
-					if root.Kind == checkruntime.JsonpathNodeNumber {
-						literalKind = langruntime.CheckedI32(3)
-					}
-					if root.Kind == checkruntime.JsonpathNodeTrue {
-						literalKind = langruntime.CheckedI32(2)
-					}
-					if root.Kind == checkruntime.JsonpathNodeFalse {
-						literalKind = langruntime.CheckedI32(1)
-					}
-					nodes := []checkruntime.JsonbNode{}
-					literal := checkruntime.JsonbNode{Kind: literalKind, Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: root.TextStart, TextEnd: root.TextEnd}
-					langruntime.CheckedAdd(len(nodes), 1)
-					nodes = append(nodes, literal)
-					langruntime.CheckedAdd(len(nodes), 1)
-					nodes = append(nodes, literal)
+					nodes := jsonpathExecutionLiterals(&query)
 					document := input
 					variables := vars
 					if utf8 {

@@ -478,6 +478,7 @@ const sqlErrorInternal = 56966976;
 const sqlErrorJsonSubscript = 3452655;
 const sqlErrorJsonArray = 3452661;
 const sqlErrorJsonMember = 3452662;
+const sqlErrorJsonNumber = 3452663;
 const sqlErrorJsonObject = 3452664;
 const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
@@ -489,6 +490,9 @@ export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
     }
     if (error.state === sqlErrorJsonMember) {
         return { message: "SQL/JSON member not found" };
+    }
+    if (error.state === sqlErrorJsonNumber) {
+        return { message: "SQL/JSON number not found" };
     }
     if (error.state === sqlErrorJsonObject) {
         return { message: "SQL/JSON object not found" };
@@ -701,6 +705,14 @@ export type NumericValue = {
     readonly kind: "Error";
     readonly value: SqlError;
 };
+export function copyNumericValue(value: NumericValue): NumericValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: langruntime.checkedString(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
 export function equalNumericValue(left: NumericValue, right: NumericValue): boolean {
     if (left.kind !== right.kind)
         return false;

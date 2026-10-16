@@ -66,3 +66,23 @@ INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables
 INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'invalid variable container','{"flag":true}'::jsonb,'$'::jsonpath,'$','[]'::jsonb,true,false,NULL,true,'[]'::jsonb,NULL::jsonb);
 -- name: document_source_error
 INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'reached invalid source','{"a":[true],"flag":true}'::jsonb,'$.a[*]'::jsonpath,'(','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: document_penultimate
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'penultimate element','{"a":[1,2,3],"flag":true}'::jsonb,'$.a[last-1]'::jsonpath,'$.a[last-1]','{}'::jsonb,false,false,true,true,'[2]'::jsonb,'2'::jsonb);
+-- name: document_delta
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'numeric delta','{"flag":false}'::jsonb,'$delta+1'::jsonpath,'$delta+1','{"delta":[1]}'::jsonb,false,false,true,false,'[2]'::jsonb,'2'::jsonb);
+-- name: document_signed_sequence
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'signed sequence','{"flag":true}'::jsonb,'-$delta'::jsonpath,'-$delta','{"delta":[1,2]}'::jsonb,false,false,true,true,'[-1,-2]'::jsonb,'-1'::jsonb);
+-- name: document_signed_prefix
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'signed prefix','{"flag":true}'::jsonb,'-$delta'::jsonpath,'-$delta','{"delta":[1,"x",2]}'::jsonb,true,false,true,true,'[-1]'::jsonb,'-1'::jsonb);
+-- name: document_operand_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'uncompleted operand','{"a":[],"flag":true}'::jsonb,'$.a[*]'::jsonpath,'strict -$delta[0,8]','{"delta":[1]}'::jsonb,true,false,false,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_arithmetic_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'division by zero','{"flag":true}'::jsonb,'1/0'::jsonpath,'1/0','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_binary_sequence_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'multiple numeric operands','{"flag":true}'::jsonb,'$delta+1'::jsonpath,'$delta+1','{"delta":[1,2]}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_binary_right_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'right operand before left type','{"flag":true}'::jsonb,'true+$missing'::jsonpath,'true+$missing','{}'::jsonb,true,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_nested_last
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'nested last scopes','{"a":[0,1,2],"i":[1,0],"flag":false}'::jsonb,'$.a[$.i[last] to last]'::jsonpath,'$.a[$.i[last] to last]','{}'::jsonb,false,false,true,false,'[0,1,2]'::jsonb,'0'::jsonb);
+-- name: document_wrong_arithmetic
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong arithmetic result','{"flag":false}'::jsonb,'$delta+1'::jsonpath,'$delta+1','{"delta":[1]}'::jsonb,false,false,true,false,'[3]'::jsonb,'2'::jsonb);
