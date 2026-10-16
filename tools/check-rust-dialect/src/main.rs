@@ -109,6 +109,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("JsonValue") => {
             Ok("JsonValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("JsonpathValue") => {
+            Ok("JsonpathValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("JsonbValue") => {
             Ok("JsonbValue")
         }
@@ -452,6 +455,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "SnapshotValue"
                     | "JsonValue"
                     | "JsonbValue"
+                    | "JsonpathValue"
                     | "CircleValue"
                     | "BoxValue"
                     | "UuidValue"
@@ -789,6 +793,28 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             );
         }
         assert!(check_source(&source.replace("input: JsonValue", "mut input: JsonValue")).is_err());
+    }
+
+    #[test]
+    fn accepts_jsonpath_wrappers_and_owned_branches_without_payload_access() {
+        let source = "pub fn evaluate_check(input: JsonpathValue) -> CheckOutcome { let mut saved: JsonpathValue = jsonpath_unknown(); saved = input.clone(); let nullness = jsonpath_is_null(saved); check_from_bool(nullness) }";
+        assert!(check_source(source).is_ok());
+        for ty in [
+            "JsonpathPayload",
+            "JsonpathNode",
+            "JsonpathValue<String>",
+            "&JsonpathValue",
+        ] {
+            assert!(
+                check_source(&source.replace("input: JsonpathValue", &format!("input: {ty}")))
+                    .is_err()
+            );
+        }
+        assert!(check_source(&source.replace("input.clone()", "input.value")).is_err());
+        assert!(
+            check_source(&source.replace("input: JsonpathValue", "mut input: JsonpathValue"))
+                .is_err()
+        );
     }
 
     #[test]

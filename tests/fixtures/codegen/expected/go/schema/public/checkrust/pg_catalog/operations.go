@@ -12306,22 +12306,22 @@ func jsonpathOutputTask(mode int, node int, brackets bool, key bool) jsonpathPri
 }
 func jsonpathPrintPriority(kind int) int {
 	kind = langruntime.CheckedI32(kind)
-	if kind == jsonpathNodeOr {
+	if kind == checkruntime.JsonpathNodeOr {
 		return 0
 	}
-	if kind == jsonpathNodeAnd {
+	if kind == checkruntime.JsonpathNodeAnd {
 		return 1
 	}
-	if (kind >= jsonpathNodeEq && kind <= jsonpathNodeGe) || kind == jsonpathNodeStarts {
+	if (kind >= checkruntime.JsonpathNodeEq && kind <= checkruntime.JsonpathNodeGe) || kind == checkruntime.JsonpathNodeStarts {
 		return 2
 	}
-	if kind == jsonpathNodeAdd || kind == jsonpathNodeSub {
+	if kind == checkruntime.JsonpathNodeAdd || kind == checkruntime.JsonpathNodeSub {
 		return 3
 	}
-	if kind >= jsonpathNodeMul && kind <= jsonpathNodeMod {
+	if kind >= checkruntime.JsonpathNodeMul && kind <= checkruntime.JsonpathNodeMod {
 		return 4
 	}
-	if kind == jsonpathNodePlus || kind == jsonpathNodeMinus {
+	if kind == checkruntime.JsonpathNodePlus || kind == checkruntime.JsonpathNodeMinus {
 		return 5
 	}
 	return 6
@@ -12382,6 +12382,10 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 	}
 	if input.Kind == checkruntime.JsonpathValueNull {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.JsonpathValueStoredText {
+		text := langruntime.CheckedString(input.StoredText)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: text}
 	}
 	if input.Kind == checkruntime.JsonpathValueValue {
 		value := checkruntime.CopyJsonpathPayload(input.Value)
@@ -12479,17 +12483,17 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 						count = langruntime.CheckedAdd(count, 1)
 					}
 					kind := node.Kind
-					if (kind == jsonpathNodeKey || kind == jsonpathNodeAnyKey || kind == jsonpathNodeDescendant) && task.key {
+					if (kind == checkruntime.JsonpathNodeKey || kind == checkruntime.JsonpathNodeAnyKey || kind == checkruntime.JsonpathNodeDescendant) && task.key {
 						output = append(output, string(langruntime.CheckedChar('.'))...)
 					}
-					if kind == jsonpathNodeString || kind == jsonpathNodeKey || kind == jsonpathNodeVariable {
-						if kind == jsonpathNodeVariable {
+					if kind == checkruntime.JsonpathNodeString || kind == checkruntime.JsonpathNodeKey || kind == checkruntime.JsonpathNodeVariable {
+						if kind == checkruntime.JsonpathNodeVariable {
 							output = append(output, string(langruntime.CheckedChar('$'))...)
 						}
 						quoted := jsonpathPrintQuote(&value, node.TextStart, node.TextEnd)
 						output = append(output, quoted...)
 					}
-					if kind == jsonpathNodeNumber {
+					if kind == checkruntime.JsonpathNodeNumber {
 						if node.Next > 0 {
 							output = append(output, string(langruntime.CheckedChar('('))...)
 						}
@@ -12502,10 +12506,10 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 							output = append(output, string(langruntime.CheckedChar(')'))...)
 						}
 					}
-					if kind == jsonpathNodeRoot || kind == jsonpathNodeCurrent || kind == jsonpathNodeLast || kind == jsonpathNodeNull || kind == jsonpathNodeTrue || kind == jsonpathNodeFalse || kind == jsonpathNodeAnyKey || kind == jsonpathNodeAnyArray {
+					if kind == checkruntime.JsonpathNodeRoot || kind == checkruntime.JsonpathNodeCurrent || kind == checkruntime.JsonpathNodeLast || kind == checkruntime.JsonpathNodeNull || kind == checkruntime.JsonpathNodeTrue || kind == checkruntime.JsonpathNodeFalse || kind == checkruntime.JsonpathNodeAnyKey || kind == checkruntime.JsonpathNodeAnyArray {
 						output = append(output, jsonpathPrintTokens[langruntime.IndexFromI32(kind, 0)]...)
 					}
-					if kind >= jsonpathNodeAdd && kind <= jsonpathNodeStarts {
+					if kind >= checkruntime.JsonpathNodeAdd && kind <= checkruntime.JsonpathNodeStarts {
 						if task.brackets {
 							output = append(output, string(langruntime.CheckedChar('('))...)
 							closing := jsonpathOutputTask(1, 38, false, false)
@@ -12545,7 +12549,7 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 						}
 						count = langruntime.CheckedAdd(count, 1)
 					}
-					if kind == jsonpathNodePlus || kind == jsonpathNodeMinus || kind == jsonpathNodeRegex {
+					if kind == checkruntime.JsonpathNodePlus || kind == checkruntime.JsonpathNodeMinus || kind == checkruntime.JsonpathNodeRegex {
 						if task.brackets {
 							output = append(output, string(langruntime.CheckedChar('('))...)
 							closing := jsonpathOutputTask(1, 38, false, false)
@@ -12557,7 +12561,7 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 							}
 							count = langruntime.CheckedAdd(count, 1)
 						}
-						if kind == jsonpathNodeRegex {
+						if kind == checkruntime.JsonpathNodeRegex {
 							pattern := jsonpathOutputTask(2, task.node, false, false)
 							if count < len(stack) {
 								stack[count] = copyjsonpathPrintTask(pattern)
@@ -12587,10 +12591,10 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 						}
 						count = langruntime.CheckedAdd(count, 1)
 					}
-					if kind == jsonpathNodeNot || kind == jsonpathNodeIsUnknown || kind == jsonpathNodeFilter || kind == jsonpathNodeExists {
+					if kind == checkruntime.JsonpathNodeNot || kind == checkruntime.JsonpathNodeIsUnknown || kind == checkruntime.JsonpathNodeFilter || kind == checkruntime.JsonpathNodeExists {
 						output = append(output, jsonpathPrintTokens[langruntime.IndexFromI32(kind, 0)]...)
 						closingToken := 38
-						if kind == jsonpathNodeIsUnknown {
+						if kind == checkruntime.JsonpathNodeIsUnknown {
 							closingToken = langruntime.CheckedIndex(39)
 						}
 						closing := jsonpathOutputTask(1, closingToken, false, false)
@@ -12610,7 +12614,7 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 						}
 						count = langruntime.CheckedAdd(count, 1)
 					}
-					if kind == jsonpathNodeIndex {
+					if kind == checkruntime.JsonpathNodeIndex {
 						output = append(output, string(langruntime.CheckedChar('['))...)
 						closing := jsonpathOutputTask(1, 41, false, false)
 						if count < len(stack) {
@@ -12629,7 +12633,7 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 						}
 						count = langruntime.CheckedAdd(count, 1)
 					}
-					if kind == jsonpathNodeDescendant {
+					if kind == checkruntime.JsonpathNodeDescendant {
 						output = append(output, "**"...)
 						if node.First != 0 || node.Last != langruntime.CheckedSignedNegate(1) {
 							output = append(output, string(langruntime.CheckedChar('{'))...)
@@ -12643,9 +12647,9 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 							output = append(output, string(langruntime.CheckedChar('}'))...)
 						}
 					}
-					if kind >= jsonpathNodeMethod {
+					if kind >= checkruntime.JsonpathNodeMethod {
 						output = append(output, string(langruntime.CheckedChar('.'))...)
-						output = append(output, jsonpathScanKeywords[langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(kind, jsonpathNodeMethod), 0)]...)
+						output = append(output, jsonpathScanKeywords[langruntime.IndexFromI32(langruntime.CheckedSignedSubtract(kind, checkruntime.JsonpathNodeMethod), 0)]...)
 						output = append(output, string(langruntime.CheckedChar('('))...)
 						closing := jsonpathOutputTask(1, 38, false, false)
 						if count < len(stack) {
@@ -12690,6 +12694,23 @@ func JsonpathToText(input checkruntime.JsonpathValue) checkruntime.TextValue {
 		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func JsonpathSendHmew(input checkruntime.JsonpathValue) checkruntime.ByteaValue {
+	input = checkruntime.CopyJsonpathValue(input)
+	output := JsonpathToText(input)
+	bytes := TextsendMgfj(output)
+	if bytes.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(bytes.Value)
+		framed := langruntime.NewTextBuffer("01")
+		framed = append(framed, value...)
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: string(framed)}
+	}
+	return bytes
+}
+func JsonbInputFromJsonpath(input checkruntime.JsonpathValue) checkruntime.JsonbInput {
+	input = checkruntime.CopyJsonpathValue(input)
+	text := JsonpathToText(input)
+	return checkruntime.JsonbInputFromText(text)
 }
 
 type jsonpathParseNode struct {
@@ -12755,43 +12776,6 @@ func copyjsonpathParseLevel(value jsonpathParseLevel) jsonpathParseLevel {
 	return jsonpathParseLevel{value: langruntime.CheckedI32(value.value), error: langruntime.CheckedIndex(value.error)}
 }
 
-const jsonpathNodeRoot = 1
-const jsonpathNodeCurrent = 2
-const jsonpathNodeLast = 3
-const jsonpathNodeString = 4
-const jsonpathNodeNumber = 5
-const jsonpathNodeVariable = 6
-const jsonpathNodeNull = 7
-const jsonpathNodeTrue = 8
-const jsonpathNodeFalse = 9
-const jsonpathNodeKey = 10
-const jsonpathNodeAnyKey = 11
-const jsonpathNodeAnyArray = 12
-const jsonpathNodeIndex = 13
-const jsonpathNodeSubscript = 14
-const jsonpathNodeDescendant = 15
-const jsonpathNodeFilter = 16
-const jsonpathNodeExists = 17
-const jsonpathNodeNot = 18
-const jsonpathNodeIsUnknown = 19
-const jsonpathNodePlus = 20
-const jsonpathNodeMinus = 21
-const jsonpathNodeAdd = 22
-const jsonpathNodeSub = 23
-const jsonpathNodeMul = 24
-const jsonpathNodeDiv = 25
-const jsonpathNodeMod = 26
-const jsonpathNodeEq = 27
-const jsonpathNodeNe = 28
-const jsonpathNodeLt = 29
-const jsonpathNodeLe = 30
-const jsonpathNodeGt = 31
-const jsonpathNodeGe = 32
-const jsonpathNodeAnd = 33
-const jsonpathNodeOr = 34
-const jsonpathNodeStarts = 35
-const jsonpathNodeRegex = 36
-const jsonpathNodeMethod = 100
 const jsonpathParseRange = 3452547
 const jsonpathParseUnsupported = 466560
 
@@ -12817,7 +12801,7 @@ func jsonpathTokenNode(scan *jsonpathScan, index int, kind int) jsonpathParseNod
 	token := scan.tokens[langruntime.CheckedSubtract(index, 1)]
 	start := token.textStart
 	end := token.textEnd
-	if kind == jsonpathNodeNumber {
+	if kind == checkruntime.JsonpathNodeNumber {
 		start = langruntime.CheckedIndex(token.start)
 		end = langruntime.CheckedIndex(token.end)
 	}
@@ -12859,42 +12843,42 @@ func jsonpathTableGoto(state int, symbol int) int {
 func jsonpathBinaryKind(token int) int {
 	token = langruntime.CheckedI32(token)
 	if token == 43 {
-		return jsonpathNodeAdd
+		return checkruntime.JsonpathNodeAdd
 	}
 	if token == 45 {
-		return jsonpathNodeSub
+		return checkruntime.JsonpathNodeSub
 	}
 	if token == 42 {
-		return jsonpathNodeMul
+		return checkruntime.JsonpathNodeMul
 	}
 	if token == 47 {
-		return jsonpathNodeDiv
+		return checkruntime.JsonpathNodeDiv
 	}
 	if token == 37 {
-		return jsonpathNodeMod
+		return checkruntime.JsonpathNodeMod
 	}
 	if token == jsonpathScanEq {
-		return jsonpathNodeEq
+		return checkruntime.JsonpathNodeEq
 	}
 	if token == jsonpathScanNe {
-		return jsonpathNodeNe
+		return checkruntime.JsonpathNodeNe
 	}
 	if token == 60 {
-		return jsonpathNodeLt
+		return checkruntime.JsonpathNodeLt
 	}
 	if token == jsonpathScanLe {
-		return jsonpathNodeLe
+		return checkruntime.JsonpathNodeLe
 	}
 	if token == 62 {
-		return jsonpathNodeGt
+		return checkruntime.JsonpathNodeGt
 	}
 	if token == jsonpathScanGe {
-		return jsonpathNodeGe
+		return checkruntime.JsonpathNodeGe
 	}
 	if token == jsonpathScanAnd {
-		return jsonpathNodeAnd
+		return checkruntime.JsonpathNodeAnd
 	}
-	return jsonpathNodeOr
+	return checkruntime.JsonpathNodeOr
 }
 func jsonpathReadLevel(scan *jsonpathScan, index int) jsonpathParseLevel {
 	index = langruntime.CheckedIndex(index)
@@ -12939,10 +12923,10 @@ func jsonpathParseScope(tree *jsonpathParseTree) int {
 		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
 		visit := pending[depth]
 		node := tree.nodes[visit.node]
-		if node.kind == jsonpathNodeCurrent && visit.filters == 0 {
+		if node.kind == checkruntime.JsonpathNodeCurrent && visit.filters == 0 {
 			return jsonpathScanSyntax
 		}
-		if node.kind == jsonpathNodeLast && visit.subscript == false {
+		if node.kind == checkruntime.JsonpathNodeLast && visit.subscript == false {
 			return jsonpathScanSyntax
 		}
 		child := 0
@@ -12952,16 +12936,16 @@ func jsonpathParseScope(tree *jsonpathParseTree) int {
 			subscript := visit.subscript
 			if child == 1 {
 				index = langruntime.CheckedIndex(node.left)
-				if node.kind == jsonpathNodeFilter {
+				if node.kind == checkruntime.JsonpathNodeFilter {
 					filters = langruntime.CheckedAdd(filters, 1)
 				}
-				if node.kind == jsonpathNodeIndex || node.kind == jsonpathNodeSubscript {
+				if node.kind == checkruntime.JsonpathNodeIndex || node.kind == checkruntime.JsonpathNodeSubscript {
 					subscript = true
 				}
 			}
 			if child == 2 {
 				index = langruntime.CheckedIndex(node.right)
-				if node.kind == jsonpathNodeSubscript {
+				if node.kind == checkruntime.JsonpathNodeSubscript {
 					subscript = true
 				}
 			}
@@ -13083,64 +13067,64 @@ func jsonpathParse(input string) jsonpathParseTree {
 					value = copyjsonpathParseSlot(second)
 				}
 				if reduce == jsonpathReduceString || reduce == jsonpathReduceVariable || reduce == jsonpathReduceNumber || reduce == jsonpathReduceKey {
-					kind := jsonpathNodeString
+					kind := checkruntime.JsonpathNodeString
 					if reduce == jsonpathReduceVariable {
-						kind = langruntime.CheckedI32(jsonpathNodeVariable)
+						kind = langruntime.CheckedI32(checkruntime.JsonpathNodeVariable)
 					}
 					if reduce == jsonpathReduceNumber {
-						kind = langruntime.CheckedI32(jsonpathNodeNumber)
+						kind = langruntime.CheckedI32(checkruntime.JsonpathNodeNumber)
 						requiresNumeric = true
 					}
 					if reduce == jsonpathReduceKey {
-						kind = langruntime.CheckedI32(jsonpathNodeKey)
+						kind = langruntime.CheckedI32(checkruntime.JsonpathNodeKey)
 					}
 					node = copyjsonpathParseNode(jsonpathTokenNode(&scan, first.token, kind))
 				}
 				if reduce == jsonpathReduceNull {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeNull, 0, 0, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeNull, 0, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceTrue {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeTrue, 0, 0, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeTrue, 0, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceFalse {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeFalse, 0, 0, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeFalse, 0, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceRoot {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeRoot, 0, 0, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeRoot, 0, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceCurrent {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeCurrent, 0, 0, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeCurrent, 0, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceLast {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeLast, 0, 0, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeLast, 0, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceBinary {
 					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathBinaryKind(second.level), first.head, third.head, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReducePlus || reduce == jsonpathReduceMinus || reduce == jsonpathReduceNot || reduce == jsonpathReduceExists || reduce == jsonpathReduceIsUnknown || reduce == jsonpathReduceFilter {
-					kind := jsonpathNodePlus
+					kind := checkruntime.JsonpathNodePlus
 					child := second.head
 					if reduce == jsonpathReduceMinus {
-						kind = langruntime.CheckedI32(jsonpathNodeMinus)
+						kind = langruntime.CheckedI32(checkruntime.JsonpathNodeMinus)
 					}
 					if reduce == jsonpathReduceNot {
-						kind = langruntime.CheckedI32(jsonpathNodeNot)
+						kind = langruntime.CheckedI32(checkruntime.JsonpathNodeNot)
 					}
 					if reduce == jsonpathReduceExists {
-						kind = langruntime.CheckedI32(jsonpathNodeExists)
+						kind = langruntime.CheckedI32(checkruntime.JsonpathNodeExists)
 						child = langruntime.CheckedIndex(third.head)
 					}
 					if reduce == jsonpathReduceIsUnknown {
-						kind = langruntime.CheckedI32(jsonpathNodeIsUnknown)
+						kind = langruntime.CheckedI32(checkruntime.JsonpathNodeIsUnknown)
 					}
 					if reduce == jsonpathReduceFilter {
-						kind = langruntime.CheckedI32(jsonpathNodeFilter)
+						kind = langruntime.CheckedI32(checkruntime.JsonpathNodeFilter)
 						child = langruntime.CheckedIndex(third.head)
 					}
 					node = copyjsonpathParseNode(jsonpathNewNode(kind, child, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceStarts {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeStarts, first.head, fourth.head, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeStarts, first.head, fourth.head, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceRegex || reduce == jsonpathReduceRegexFlags {
 					requiresRegex = true
@@ -13190,7 +13174,7 @@ func jsonpathParse(input string) jsonpathParseTree {
 						error = langruntime.CheckedIndex(jsonpathParseUnsupported)
 					}
 					token := scan.tokens[langruntime.CheckedSubtract(third.token, 1)]
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeRegex, first.head, 0, token.textStart, token.textEnd, 0, 0, flags))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeRegex, first.head, 0, token.textStart, token.textEnd, 0, 0, flags))
 				}
 				if reduce == jsonpathReduceChain || reduce == jsonpathReduceGroupChain {
 					left := first
@@ -13204,7 +13188,7 @@ func jsonpathParse(input string) jsonpathParseTree {
 					value = copyjsonpathParseSlot(jsonpathParseSlot{head: left.head, tail: right.tail, token: 0, count: 1, level: 0})
 				}
 				if reduce == jsonpathReduceSubscript || reduce == jsonpathReduceSlice {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeSubscript, first.head, third.head, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeSubscript, first.head, third.head, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceList {
 					tail := nodes[first.tail]
@@ -13212,10 +13196,10 @@ func jsonpathParse(input string) jsonpathParseTree {
 					value = copyjsonpathParseSlot(jsonpathParseSlot{head: first.head, tail: third.tail, token: 0, count: langruntime.CheckedAdd(first.count, third.count), level: 0})
 				}
 				if reduce == jsonpathReduceArrayAny {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeAnyArray, 0, 0, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeAnyArray, 0, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceArrayIndex {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeIndex, second.head, 0, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeIndex, second.head, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceLevelNumber {
 					level := jsonpathReadLevel(&scan, first.token)
@@ -13235,13 +13219,13 @@ func jsonpathParse(input string) jsonpathParseTree {
 					if reduce == jsonpathReduceAnyRange {
 						end = langruntime.CheckedI32(fifth.level)
 					}
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeDescendant, 0, 0, 0, 0, begin, end, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeDescendant, 0, 0, 0, 0, begin, end, 0))
 				}
 				if reduce == jsonpathReduceKeyAny {
-					node = copyjsonpathParseNode(jsonpathNewNode(jsonpathNodeAnyKey, 0, 0, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(checkruntime.JsonpathNodeAnyKey, 0, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceMethod || reduce == jsonpathReduceDatetime {
-					node = copyjsonpathParseNode(jsonpathNewNode(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(jsonpathNodeMethod, second.level), jsonpathScanKeyword), fourth.head, 0, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(checkruntime.JsonpathNodeMethod, second.level), jsonpathScanKeyword), fourth.head, 0, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceDecimal {
 					if fourth.count > 2 {
@@ -13253,19 +13237,19 @@ func jsonpathParse(input string) jsonpathParseTree {
 						right = langruntime.CheckedIndex(argument.next)
 						nodes[fourth.head] = copyjsonpathParseNode(jsonpathNodeLink(argument, 0))
 					}
-					node = copyjsonpathParseNode(jsonpathNewNode(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(jsonpathNodeMethod, second.level), jsonpathScanKeyword), fourth.head, right, 0, 0, 0, 0, 0))
+					node = copyjsonpathParseNode(jsonpathNewNode(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(checkruntime.JsonpathNodeMethod, second.level), jsonpathScanKeyword), fourth.head, right, 0, 0, 0, 0, 0))
 				}
 				if reduce == jsonpathReduceSignedPlus || reduce == jsonpathReduceSignedMinus {
 					requiresNumeric = true
-					number := jsonpathTokenNode(&scan, second.token, jsonpathNodeNumber)
+					number := jsonpathTokenNode(&scan, second.token, checkruntime.JsonpathNodeNumber)
 					index := len(nodes)
 					langruntime.CheckedAdd(len(nodes), 1)
 					nodes = append(nodes, copyjsonpathParseNode(number))
 					langruntime.CheckedAdd(len(validation), 1)
 					validation = append(validation, langruntime.CheckedIndex(index))
-					kind := jsonpathNodePlus
+					kind := checkruntime.JsonpathNodePlus
 					if reduce == jsonpathReduceSignedMinus {
-						kind = langruntime.CheckedI32(jsonpathNodeMinus)
+						kind = langruntime.CheckedI32(checkruntime.JsonpathNodeMinus)
 					}
 					node = copyjsonpathParseNode(jsonpathNewNode(kind, index, 0, 0, 0, 0, 0, 0))
 				}
@@ -13273,7 +13257,7 @@ func jsonpathParse(input string) jsonpathParseTree {
 					index := len(nodes)
 					langruntime.CheckedAdd(len(nodes), 1)
 					nodes = append(nodes, copyjsonpathParseNode(node))
-					if error == 0 && (node.kind == jsonpathNodeNumber || node.kind == jsonpathNodeRegex) {
+					if error == 0 && (node.kind == checkruntime.JsonpathNodeNumber || node.kind == checkruntime.JsonpathNodeRegex) {
 						langruntime.CheckedAdd(len(validation), 1)
 						validation = append(validation, langruntime.CheckedIndex(index))
 					}
@@ -13970,7 +13954,7 @@ func jsonpathValueFromTree(tree jsonpathParseTree) checkruntime.JsonpathValue {
 	for position < len(tree.nodes) {
 		node := tree.nodes[position]
 		langruntime.CheckedAdd(len(nodes), 1)
-		nodes = append(nodes, checkruntime.CopyJsonpathNode(checkruntime.JsonpathNode{Kind: node.kind, Next: node.next, Left: node.left, Right: node.right, TextStart: node.textStart, TextEnd: node.textEnd, First: node.first, Last: node.last, Flags: node.flags}))
+		nodes = append(nodes, checkruntime.JsonpathNode{Kind: node.kind, Next: node.next, Left: node.left, Right: node.right, TextStart: node.textStart, TextEnd: node.textEnd, First: node.first, Last: node.last, Flags: node.flags})
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	index := 0
@@ -13980,14 +13964,14 @@ func jsonpathValueFromTree(tree jsonpathParseTree) checkruntime.JsonpathValue {
 		literal := langruntime.NewTextBuffer("")
 		position = langruntime.CheckedIndex(node.TextStart)
 		for position < node.TextEnd {
-			if node.Kind == jsonpathNodeNumber {
+			if node.Kind == checkruntime.JsonpathNodeNumber {
 				literal = append(literal, string(langruntime.CheckedChar(tree.source[position]))...)
 			} else {
 				literal = append(literal, string(langruntime.CheckedChar(tree.text[position]))...)
 			}
 			position = langruntime.CheckedAdd(position, 1)
 		}
-		if node.Kind == jsonpathNodeNumber {
+		if node.Kind == checkruntime.JsonpathNodeNumber {
 			result := jsonpathNumericLiteral(string(literal))
 			if result.Kind == checkruntime.TextValueError {
 				error := result.Error
@@ -14006,7 +13990,7 @@ func jsonpathValueFromTree(tree jsonpathParseTree) checkruntime.JsonpathValue {
 					characters = append(characters, langruntime.CheckedChar(text[position]))
 					position = langruntime.CheckedAdd(position, 1)
 				}
-				nodes[number] = checkruntime.CopyJsonpathNode(jsonpathNumberNode(node.Next, begin, len(characters)))
+				nodes[number] = jsonpathNumberNode(node.Next, begin, len(characters))
 			}
 		}
 		index = langruntime.CheckedAdd(index, 1)
@@ -14017,12 +14001,12 @@ func jsonpathValueFromTree(tree jsonpathParseTree) checkruntime.JsonpathValue {
 	index = langruntime.CheckedIndex(1)
 	for index < len(nodes) {
 		node := nodes[index]
-		if node.Kind == jsonpathNodePlus || node.Kind == jsonpathNodeMinus {
+		if node.Kind == checkruntime.JsonpathNodePlus || node.Kind == checkruntime.JsonpathNodeMinus {
 			child := nodes[node.Left]
-			if child.Kind == jsonpathNodeNumber && child.Next == 0 {
+			if child.Kind == checkruntime.JsonpathNodeNumber && child.Next == 0 {
 				begin := child.TextStart
 				end := child.TextEnd
-				if node.Kind == jsonpathNodeMinus {
+				if node.Kind == checkruntime.JsonpathNodeMinus {
 					number := langruntime.NewTextBuffer("")
 					position = langruntime.CheckedIndex(begin)
 					for position < end {
@@ -14048,7 +14032,7 @@ func jsonpathValueFromTree(tree jsonpathParseTree) checkruntime.JsonpathValue {
 						return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
 					}
 				}
-				nodes[index] = checkruntime.CopyJsonpathNode(jsonpathNumberNode(node.Next, begin, end))
+				nodes[index] = jsonpathNumberNode(node.Next, begin, end)
 			}
 		}
 		index = langruntime.CheckedAdd(index, 1)
@@ -14059,9 +14043,9 @@ func jsonpathNumberNode(next int, begin int, end int) checkruntime.JsonpathNode 
 	next = langruntime.CheckedIndex(next)
 	begin = langruntime.CheckedIndex(begin)
 	end = langruntime.CheckedIndex(end)
-	return checkruntime.JsonpathNode{Kind: jsonpathNodeNumber, Next: next, Left: 0, Right: 0, TextStart: begin, TextEnd: end, First: 0, Last: 0, Flags: 0}
+	return checkruntime.JsonpathNode{Kind: checkruntime.JsonpathNodeNumber, Next: next, Left: 0, Right: 0, TextStart: begin, TextEnd: end, First: 0, Last: 0, Flags: 0}
 }
-func JsonpathFromCoercedTextUtf8(input checkruntime.TextValue) checkruntime.JsonpathValue {
+func JsonpathFromCoercedSourceUtf8(input checkruntime.TextValue) checkruntime.JsonpathValue {
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
 		return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueError, Error: error}
@@ -14077,6 +14061,20 @@ func JsonpathFromCoercedTextUtf8(input checkruntime.TextValue) checkruntime.Json
 			return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
 		}
 		return result
+	}
+	return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
+}
+func JsonpathFromStoredText(input checkruntime.TextValue) checkruntime.JsonpathValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		return checkruntime.JsonpathFromCoercedValue(checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueStoredText, StoredText: text})
 	}
 	return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
 }

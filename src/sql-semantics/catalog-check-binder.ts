@@ -137,6 +137,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     bytea: 'pg_catalog.bytea',
     json: 'pg_catalog."json"',
     jsonb: 'pg_catalog.jsonb',
+    jsonpath: 'pg_catalog.jsonpath',
     '"json"': 'pg_catalog."json"',
     bit: 'pg_catalog."bit"',
     '"bit"': 'pg_catalog."bit"',
@@ -306,6 +307,14 @@ export function catalogJsonbType(
   return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.jsonb'
 }
 
+export function catalogJsonpathType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog.jsonpath'
+}
+
 export function catalogPolygonType(
   name: string,
   oid: number | undefined,
@@ -405,6 +414,8 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
+  if (type === 'pg_catalog.jsonpath' && (literal.kind === 'null' || literal.kind === 'string'))
+    return { kind: 'jsonpath', type, value: literal.value }
   if (type === 'pg_catalog.jsonb' && (literal.kind === 'null' || literal.kind === 'string'))
     return { kind: 'jsonb', type, value: literal.value }
   if (type === 'pg_catalog."json"' && (literal.kind === 'null' || literal.kind === 'string'))
@@ -1124,6 +1135,7 @@ export function bindCatalogCheck(
   enums: readonly EnumInfo[] = [],
   domains: readonly DomainInfo[] = [],
   moneyLiterals: readonly { text: string; units: string }[] = [],
+  literalOrigin: 'source' | 'stored' = 'source',
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   const moneyUnits = new Map<string, string>()
   for (const literal of moneyLiterals) {
@@ -1442,6 +1454,7 @@ export function bindCatalogCheck(
           domainType !== 'pg_catalog.refcursor' &&
           domainType !== 'pg_catalog."json"' &&
           domainType !== 'pg_catalog.jsonb' &&
+          domainType !== 'pg_catalog.jsonpath' &&
           domainType !== 'pg_catalog.point' &&
           domainType !== 'pg_catalog.line' &&
           domainType !== 'pg_catalog.lseg' &&
@@ -1494,7 +1507,9 @@ export function bindCatalogCheck(
       if (!type) return unknown
       const modifiers = castType?.['typmods']
       if (
-        (type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb') &&
+        (type === 'pg_catalog."json"' ||
+          type === 'pg_catalog.jsonb' ||
+          type === 'pg_catalog.jsonpath') &&
         Array.isArray(modifiers) &&
         modifiers.length
       )
@@ -1711,6 +1726,7 @@ export function bindCatalogCheck(
         (isIntegerType(source) ||
           source === 'pg_catalog."json"' ||
           source === 'pg_catalog.jsonb' ||
+          source === 'pg_catalog.jsonpath' ||
           isSnapshotType(source) ||
           isOidAliasType(source) ||
           [
@@ -2042,7 +2058,9 @@ export function bindCatalogCheck(
         return text ? { type, value: { kind: 'text-to-tid', type, operand: text } } : unknown
       }
       if (
-        (type === 'pg_catalog."json"' || type === 'pg_catalog.jsonb') &&
+        (type === 'pg_catalog."json"' ||
+          type === 'pg_catalog.jsonb' ||
+          type === 'pg_catalog.jsonpath') &&
         operand.value &&
         [
           'pg_catalog.text',
@@ -2837,10 +2855,12 @@ export function bindCatalogCheck(
       (aliasType === 'pg_catalog.refcursor' ||
         aliasType === 'pg_catalog."json"' ||
         aliasType === 'pg_catalog.jsonb' ||
+        aliasType === 'pg_catalog.jsonpath' ||
         isSnapshotType(aliasType) ||
         ((args[0]?.type === 'pg_catalog.refcursor' ||
           args[0]?.type === 'pg_catalog."json"' ||
           args[0]?.type === 'pg_catalog.jsonb' ||
+          args[0]?.type === 'pg_catalog.jsonpath' ||
           isSnapshotType(args[0]?.type)) &&
           [
             'pg_catalog.text',
@@ -3210,5 +3230,22 @@ export function bindCatalogCheck(
       ? { kind: 'eval-scalar', expression: value.value }
       : { kind: 'uncertain' }
   }
-  return { expression: lower(root), inputs: [...inputs].sort() }
+  const annotate = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+      const mapped = value.map(annotate)
+      return mapped.every((item, index) => item === value[index]) ? value : mapped
+    }
+    if (!value || typeof value !== 'object') return value
+    const record = value as Record<string, unknown>
+    const entries = Object.entries(record).map(([key, item]) => [key, annotate(item)] as const)
+    const isJsonpath = record['kind'] === 'jsonpath' && record['type'] === 'pg_catalog.jsonpath'
+    if (!isJsonpath && entries.every(([key, item]) => item === record[key])) return value
+    return { ...Object.fromEntries(entries), ...(isJsonpath ? { origin: literalOrigin } : {}) }
+  }
+  const expression = lower(root)
+  return {
+    expression:
+      literalOrigin === 'stored' ? (annotate(expression) as EvalBoolExpression) : expression,
+    inputs: [...inputs].sort(),
+  }
 }

@@ -2834,6 +2834,138 @@ export function makeTidParts(block: bigint, offset: number): TidValue {
     const low: bigint = BigInt(langruntime.checkedI32(offset));
     return makeTidValue(langruntime.checkedI64Add(langruntime.checkedI64Multiply(block, 65536n), low));
 }
+export function jsonpathUnknown(): JsonpathValue {
+    return { kind: "Unknown" };
+}
+export function jsonpathNull(): JsonpathValue {
+    return { kind: "Null" };
+}
+export function jsonpathIsNull(input: JsonpathValue): BoolValue {
+    input = copyJsonpathValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Value", value: true };
+    }
+    return { kind: "Value", value: false };
+}
+export function jsonpathFromCaseGuard(input: CheckOutcome): JsonpathValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonpathFromCoercedValue(input: JsonpathValue): JsonpathValue {
+    input = copyJsonpathValue(input);
+    if (input.kind === "StoredText") {
+        const text: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(text);
+        if (characters.length === 0) {
+            return { kind: "Unknown" };
+        }
+        let index: number = 0;
+        while (index < characters.length) {
+            if (langruntime.indexChar(characters, langruntime.checkedIndex(index)) === "\0") {
+                return { kind: "Unknown" };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "StoredText", value: text };
+    }
+    if (input.kind === "Value") {
+        const value: JsonpathPayload = copyJsonpathPayload(input.value);
+        if (value.root === 0 || value.root >= value.nodes.length) {
+            return { kind: "Unknown" };
+        }
+        let index: number = 0;
+        while (index < value.characters.length) {
+            if (langruntime.indexChar(value.characters, langruntime.checkedIndex(index)) === "\0") {
+                return { kind: "Unknown" };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let visited: number[] = [];
+        langruntime.pushIndex(visited, 0);
+        index = langruntime.checkedIndex(1);
+        while (index < value.nodes.length) {
+            if (jsonpathPayloadNodeValid(value, index) === false) {
+                return { kind: "Unknown" };
+            }
+            langruntime.pushIndex(visited, 0);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        let pending: JsonpathBoundaryVisit[] = [];
+        langruntime.pushStruct(pending, { node: value.root, filters: 0, subscript: false, accessor: false, list: false }, copyJsonpathBoundaryVisit);
+        let depth: number = 1;
+        while (depth > 0) {
+            depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            const visit: JsonpathBoundaryVisit = copyJsonpathBoundaryVisit(langruntime.indexStruct(pending, langruntime.checkedIndex(depth), copyJsonpathBoundaryVisit));
+            if (!(langruntime.indexNumber(visited, langruntime.checkedIndex(visit.node)) === 0)) {
+                return { kind: "Unknown" };
+            }
+            visited[langruntime.checkedIndexIn(visited, visit.node)] = langruntime.checkedIndex(1);
+            const node: JsonpathNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(visit.node), copyJsonpathNode);
+            if (!((node.kind === jsonpathNodeSubscript) === visit.list)) {
+                return { kind: "Unknown" };
+            }
+            if (visit.list === false && !(jsonpathAccessorKind(node.kind) === visit.accessor)) {
+                return { kind: "Unknown" };
+            }
+            if (node.kind === jsonpathNodeCurrent && visit.filters === 0) {
+                return { kind: "Unknown" };
+            }
+            if (node.kind === jsonpathNodeLast && visit.subscript === false) {
+                return { kind: "Unknown" };
+            }
+            let child: number = 0;
+            while (child < 3) {
+                let next: number = node.next;
+                let filters: number = visit.filters;
+                let subscript: boolean = visit.subscript;
+                let accessor: boolean = true;
+                let list: boolean = node.kind === jsonpathNodeSubscript;
+                if (child === 1) {
+                    next = langruntime.checkedIndex(node.left);
+                    accessor = langruntime.checkedBool(false);
+                    list = langruntime.checkedBool(node.kind === jsonpathNodeIndex);
+                    if (node.kind === jsonpathNodeFilter) {
+                        filters = langruntime.checkedAdd(filters, 1);
+                    }
+                    if (node.kind === jsonpathNodeIndex || node.kind === jsonpathNodeSubscript) {
+                        subscript = langruntime.checkedBool(true);
+                    }
+                }
+                if (child === 2) {
+                    next = langruntime.checkedIndex(node.right);
+                    accessor = langruntime.checkedBool(false);
+                    list = langruntime.checkedBool(false);
+                    if (node.kind === jsonpathNodeSubscript) {
+                        subscript = langruntime.checkedBool(true);
+                    }
+                }
+                if (next > 0) {
+                    const task: JsonpathBoundaryVisit = copyJsonpathBoundaryVisit({ node: next, filters: filters, subscript: subscript, accessor: accessor, list: list });
+                    if (depth < pending.length) {
+                        pending[langruntime.checkedIndexIn(pending, depth)] = copyJsonpathBoundaryVisit(task);
+                    }
+                    else {
+                        langruntime.pushStruct(pending, task, copyJsonpathBoundaryVisit);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+                child = langruntime.checkedAdd(child, 1);
+            }
+        }
+        return { kind: "Value", value: value };
+    }
+    return input;
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;
@@ -5668,74 +5800,227 @@ function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
 function jsonbStorageAdmission(source: JsonbPayload): BoolValue {
     return jsonbStorageDecision(jsonbStorageLayout(source));
 }
+export const jsonpathNodeRoot = 1;
+export const jsonpathNodeCurrent = 2;
+export const jsonpathNodeLast = 3;
+export const jsonpathNodeString = 4;
+export const jsonpathNodeNumber = 5;
+export const jsonpathNodeVariable = 6;
+export const jsonpathNodeNull = 7;
+export const jsonpathNodeTrue = 8;
+export const jsonpathNodeFalse = 9;
+export const jsonpathNodeKey = 10;
+export const jsonpathNodeAnyKey = 11;
+export const jsonpathNodeAnyArray = 12;
+export const jsonpathNodeIndex = 13;
+export const jsonpathNodeSubscript = 14;
+export const jsonpathNodeDescendant = 15;
+export const jsonpathNodeFilter = 16;
+export const jsonpathNodeExists = 17;
+export const jsonpathNodeNot = 18;
+export const jsonpathNodeIsUnknown = 19;
+export const jsonpathNodePlus = 20;
+export const jsonpathNodeMinus = 21;
+export const jsonpathNodeAdd = 22;
+export const jsonpathNodeSub = 23;
+export const jsonpathNodeMul = 24;
+export const jsonpathNodeDiv = 25;
+export const jsonpathNodeMod = 26;
+export const jsonpathNodeEq = 27;
+export const jsonpathNodeNe = 28;
+export const jsonpathNodeLt = 29;
+export const jsonpathNodeLe = 30;
+export const jsonpathNodeGt = 31;
+export const jsonpathNodeGe = 32;
+export const jsonpathNodeAnd = 33;
+export const jsonpathNodeOr = 34;
+export const jsonpathNodeStarts = 35;
+export const jsonpathNodeRegex = 36;
+export const jsonpathNodeMethod = 100;
 export interface JsonpathNode {
-    kind: number;
-    next: number;
-    left: number;
-    right: number;
-    textStart: number;
-    textEnd: number;
-    first: number;
-    last: number;
-    flags: number;
+    readonly kind: number;
+    readonly next: number;
+    readonly left: number;
+    readonly right: number;
+    readonly textStart: number;
+    readonly textEnd: number;
+    readonly first: number;
+    readonly last: number;
+    readonly flags: number;
 }
 export function copyJsonpathNode(value: JsonpathNode): JsonpathNode {
     return { kind: langruntime.checkedI32(value.kind), next: langruntime.checkedIndex(value.next), left: langruntime.checkedIndex(value.left), right: langruntime.checkedIndex(value.right), textStart: langruntime.checkedIndex(value.textStart), textEnd: langruntime.checkedIndex(value.textEnd), first: langruntime.checkedI32(value.first), last: langruntime.checkedI32(value.last), flags: langruntime.checkedI32(value.flags) };
 }
 export interface JsonpathPayload {
-    characters: string[];
-    nodes: JsonpathNode[];
-    root: number;
-    lax: boolean;
+    readonly characters: string[];
+    readonly nodes: JsonpathNode[];
+    readonly root: number;
+    readonly lax: boolean;
 }
 export function copyJsonpathPayload(value: JsonpathPayload): JsonpathPayload {
     return { characters: langruntime.checkedChars(value.characters), nodes: langruntime.checkedStructs(value.nodes, copyJsonpathNode), root: langruntime.checkedIndex(value.root), lax: langruntime.checkedBool(value.lax) };
 }
 export type JsonpathValue = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: JsonpathPayload;
+    readonly kind: "Value";
+    readonly value: JsonpathPayload;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "StoredText";
+    readonly value: string;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
 export function copyJsonpathValue(value: JsonpathValue): JsonpathValue {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
         case "Null": return { kind: "Null" };
         case "Value": return { kind: "Value", value: copyJsonpathPayload(value.value) };
+        case "StoredText": return { kind: "StoredText", value: langruntime.checkedString(value.value) };
         case "Error": return { kind: "Error", value: value.value };
     }
 }
-export function jsonpathUnknown(): JsonpathValue {
-    return { kind: "Unknown" };
+function jsonpathAccessorKind(kind: number): boolean {
+    kind = langruntime.checkedI32(kind);
+    return (kind >= jsonpathNodeKey && kind <= jsonpathNodeIndex) || kind === jsonpathNodeDescendant || kind === jsonpathNodeFilter || kind >= jsonpathNodeMethod;
 }
-export function jsonpathNull(): JsonpathValue {
-    return { kind: "Null" };
+function jsonpathMethodArity(kind: number): number {
+    kind = langruntime.checkedI32(kind);
+    if (kind === 102 || kind === 108 || kind === 111 || kind === 114 || kind === 116 || kind === 123 || kind === 129 || kind === 115 || kind === 122 || kind === 104 || kind === 125 || kind === 118 || kind === 121) {
+        return 0;
+    }
+    if (kind === 128) {
+        return 1;
+    }
+    if (kind === 109 || kind === 126 || kind === 130 || kind === 132) {
+        return 2;
+    }
+    if (kind === 124) {
+        return 3;
+    }
+    return langruntime.checkedSignedNegate(1);
 }
-export function jsonpathIsNull(input: JsonpathValue): BoolValue {
-    input = copyJsonpathValue(input);
-    if (input.kind === "Error") {
-        const error: SqlError = input.value;
-        return { kind: "Error", value: error };
+function jsonpathPayloadNodeValid(value: JsonpathPayload, index: number): boolean {
+    index = langruntime.checkedIndex(index);
+    const node: JsonpathNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(index), copyJsonpathNode);
+    if (node.next >= value.nodes.length || node.left >= value.nodes.length || node.right >= value.nodes.length || node.textStart > node.textEnd || node.textEnd > value.characters.length) {
+        return false;
     }
-    if (input.kind === "Unknown") {
-        return { kind: "Unknown" };
+    const kind: number = node.kind;
+    if (kind < jsonpathNodeRoot || (kind > jsonpathNodeRegex && kind < jsonpathNodeMethod)) {
+        return false;
     }
-    if (input.kind === "Null") {
-        return { kind: "Value", value: true };
+    if (kind === jsonpathNodeNumber) {
+        let text: string = "";
+        let position: number = node.textStart;
+        let negative: boolean = false;
+        if (position < node.textEnd && langruntime.indexChar(value.characters, langruntime.checkedIndex(position)) === "-") {
+            negative = langruntime.checkedBool(true);
+            text = text + langruntime.checkedChar("-");
+            position = langruntime.checkedAdd(position, 1);
+        }
+        const begin: number = position;
+        let point: boolean = false;
+        let nonzero: boolean = false;
+        let fraction: number = 0;
+        while (position < node.textEnd) {
+            const character: string = langruntime.indexChar(value.characters, langruntime.checkedIndex(position));
+            if (character === ".") {
+                if (point || position === begin || langruntime.checkedAdd(position, 1) === node.textEnd) {
+                    return false;
+                }
+                point = langruntime.checkedBool(true);
+            }
+            else if (langruntime.checkedChar(character).codePointAt(0)! >= 48 && langruntime.checkedChar(character).codePointAt(0)! <= 57) {
+                if (!(character === "0")) {
+                    nonzero = langruntime.checkedBool(true);
+                }
+                if (point) {
+                    fraction = langruntime.checkedAdd(fraction, 1);
+                }
+                if (position === begin && character === "0" && langruntime.checkedAdd(position, 1) < node.textEnd && !(langruntime.indexChar(value.characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === ".")) {
+                    return false;
+                }
+            }
+            else {
+                return false;
+            }
+            text = text + langruntime.checkedChar(character);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (begin === node.textEnd || (negative && nonzero === false) || fraction > 16383) {
+            return false;
+        }
+        const parts: NumericLayout = copyNumericLayout(numericParts(text));
+        if (parts.valid === false || !(parts.special === 1) || parts.weight > 131072) {
+            return false;
+        }
     }
-    return { kind: "Value", value: false };
+    if (kind === jsonpathNodeRegex) {
+        return node.left > 0 && node.right === 0 && node.flags >= 0 && node.flags <= 31 && (langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(node.flags, 8)), 2) === 0 || node.flags >= 16);
+    }
+    if (kind >= jsonpathNodeMethod) {
+        const arity: number = jsonpathMethodArity(kind);
+        if (arity < 0) {
+            return false;
+        }
+        if (arity === 0) {
+            return node.left === 0 && node.right === 0;
+        }
+        if (arity < 3 && !(node.right === 0)) {
+            return false;
+        }
+        if (node.left === 0) {
+            return node.right === 0;
+        }
+        const left: JsonpathNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(node.left), copyJsonpathNode);
+        let argumentKind: number = jsonpathNodeNumber;
+        if (arity === 1) {
+            argumentKind = langruntime.checkedI32(jsonpathNodeString);
+        }
+        if (!(left.kind === argumentKind) || !(left.next === 0)) {
+            return false;
+        }
+        if (node.right > 0) {
+            const right: JsonpathNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(node.right), copyJsonpathNode);
+            if (!(right.kind === jsonpathNodeNumber) || !(right.next === 0)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if (kind >= jsonpathNodeAdd && kind <= jsonpathNodeStarts) {
+        return node.left > 0 && node.right > 0;
+    }
+    if (kind === jsonpathNodeSubscript) {
+        return node.left > 0;
+    }
+    if (kind === jsonpathNodeIndex || (kind >= jsonpathNodeFilter && kind <= jsonpathNodeMinus)) {
+        if ((kind === jsonpathNodePlus || kind === jsonpathNodeMinus) && node.left > 0) {
+            const child: JsonpathNode = langruntime.indexStruct(value.nodes, langruntime.checkedIndex(node.left), copyJsonpathNode);
+            if (child.kind === jsonpathNodeNumber && child.next === 0) {
+                return false;
+            }
+        }
+        return node.left > 0 && node.right === 0;
+    }
+    if (kind === jsonpathNodeDescendant && (node.first < langruntime.checkedSignedNegate(1) || node.last < langruntime.checkedSignedNegate(1))) {
+        return false;
+    }
+    return node.left === 0 && node.right === 0;
 }
-export function jsonpathFromCaseGuard(input: CheckOutcome): JsonpathValue {
-    if (input.kind === "Error") {
-        const error: SqlError = input.value;
-        return { kind: "Error", value: error };
-    }
-    return { kind: "Unknown" };
+interface JsonpathBoundaryVisit {
+    node: number;
+    filters: number;
+    subscript: boolean;
+    accessor: boolean;
+    list: boolean;
+}
+function copyJsonpathBoundaryVisit(value: JsonpathBoundaryVisit): JsonpathBoundaryVisit {
+    return { node: langruntime.checkedIndex(value.node), filters: langruntime.checkedIndex(value.filters), subscript: langruntime.checkedBool(value.subscript), accessor: langruntime.checkedBool(value.accessor), list: langruntime.checkedBool(value.list) };
 }
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);

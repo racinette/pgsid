@@ -20,6 +20,7 @@ export type GoCheckCase = {
   snapshotColumns?: readonly string[]
   jsonColumns?: readonly string[]
   jsonbColumns?: readonly string[]
+  jsonpathColumns?: readonly string[]
   oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
   polygonColumns?: readonly string[]
@@ -46,6 +47,7 @@ export function renderGoCheckTests(
 ): string {
   const t = go.ident('t')
   let dateRuntimeUsed = false
+  let jsonpathOperationsUsed = false
   let jsonUsed = false
   let floatUsed = false
   const fatal = (message: string, ...args: GoExpression[]): GoStatement =>
@@ -72,6 +74,7 @@ export function renderGoCheckTests(
       snapshotColumns,
       jsonColumns,
       jsonbColumns,
+      jsonpathColumns,
       oidColumns,
       moneyColumns,
       polygonColumns,
@@ -162,6 +165,22 @@ export function renderGoCheckTests(
           go.selector(go.ident('checkruntime'), oid === null ? 'Xid8Null' : 'MakeXid8Bits'),
           oid === null ? [] : [go.number(oid)],
         )
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
+        continue
+      }
+      if (options.dateRuntime && jsonpathColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const source = value as string | null
+        let wrapped: GoExpression = go.call(
+          go.selector(go.ident('checkruntime'), 'JsonpathNull'),
+          [],
+        )
+        if (source !== null) {
+          jsonpathOperationsUsed = true
+          wrapped = go.call(go.selector(go.ident('pg_catalog'), 'JsonpathFromStoredText'), [
+            go.call(go.selector(go.ident('checkruntime'), 'MakeTextValue'), [go.string(source)]),
+          ])
+        }
         statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
@@ -579,6 +598,14 @@ export function renderGoCheckTests(
       ...(jsonUsed ? [{ path: 'encoding/json' }] : []),
       ...(floatUsed ? [{ path: 'reflect' }] : []),
       ...(dateRuntimeUsed ? [{ path: options.dateRuntime!, alias: 'checkruntime' }] : []),
+      ...(jsonpathOperationsUsed
+        ? [
+            {
+              path: options.dateRuntime!.replace(/\/checkruntime$/u, '/pg_catalog'),
+              alias: 'pg_catalog',
+            },
+          ]
+        : []),
     ],
     declarations: [
       go.function(

@@ -53,6 +53,7 @@ export type BoxType = 'pg_catalog.box'
 export type UuidType = 'pg_catalog.uuid'
 export type JsonType = 'pg_catalog."json"'
 export type JsonbType = 'pg_catalog.jsonb'
+export type JsonpathType = 'pg_catalog.jsonpath'
 export type TemporalType =
   | 'pg_catalog.date'
   | 'pg_catalog."time"'
@@ -105,6 +106,7 @@ export type ScalarType =
   | BitType
   | JsonType
   | JsonbType
+  | JsonpathType
   | TemporalType
   | EnumType
   | ArrayType
@@ -139,6 +141,7 @@ function isJsonConvertibleType(type: string): boolean {
     type === 'pg_catalog.uuid' ||
     type === 'pg_catalog."json"' ||
     type === 'pg_catalog.jsonb' ||
+    type === 'pg_catalog.jsonpath' ||
     type.startsWith('enum:')
   )
     return true
@@ -352,6 +355,7 @@ export type SqlExpression =
   | { kind: 'uuid'; type: UuidType; value: string | null }
   | { kind: 'json'; type: JsonType; value: string | null }
   | { kind: 'jsonb'; type: JsonbType; value: string | null }
+  | { kind: 'jsonpath'; type: JsonpathType; value: string | null; origin?: 'source' | 'stored' }
   | { kind: 'temporal'; type: TemporalType; value: string | null }
   | { kind: 'enum'; type: EnumType; enum: EnumDefinition; value: string | null }
   | {
@@ -1056,6 +1060,10 @@ export function emitSqlExpression<Ast>(
     if (node.kind === 'uuid') {
       helpers.add('uuidInput')
       return { type: node.type, expression: backend.uuid(node.value) }
+    }
+    if (node.kind === 'jsonpath') {
+      if (node.value !== null) throw new Error('JSONPath literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
     }
     if (node.kind === 'json' || node.kind === 'jsonb') {
       if (

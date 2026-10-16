@@ -16,6 +16,7 @@ import {
   catalogSnapshotType,
   catalogJsonType,
   catalogJsonbType,
+  catalogJsonpathType,
   catalogOidType,
   catalogPolygonType,
   catalogPathType,
@@ -254,6 +255,7 @@ export function planCheckInputs(
     if (catalogSnapshotType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogJsonType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogJsonbType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogJsonpathType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogOidType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogPolygonType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogPathType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []

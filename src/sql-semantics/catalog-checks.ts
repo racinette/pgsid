@@ -35,6 +35,7 @@ export function lowerTableCheck(
   constraint: CheckConstraint,
   enums: readonly EnumInfo[] = [],
   domains: readonly DomainInfo[] = [],
+  literalOrigin: 'source' | 'stored' = 'stored',
 ): CatalogCheckPlan | null {
   if (constraint.type !== 'check') throw new Error('Expected a table CHECK constraint')
   let parsed: ReturnType<typeof parseSync>
@@ -58,6 +59,7 @@ export function lowerTableCheck(
     enums,
     domains,
     constraint.moneyLiterals,
+    literalOrigin,
   )
   return { name: constraint.name, ...bound }
 }

@@ -224,7 +224,7 @@ fn jsonpath_number_node(next: usize, begin: usize, end: usize) -> JsonpathNode {
     }
 }
 
-pub fn jsonpath_from_coerced_text_utf8(input: TextValue) -> JsonpathValue {
+pub fn jsonpath_from_coerced_source_utf8(input: TextValue) -> JsonpathValue {
     if let TextValue::Error(error) = input {
         return JsonpathValue::Error(error);
     };
@@ -238,6 +238,19 @@ pub fn jsonpath_from_coerced_text_utf8(input: TextValue) -> JsonpathValue {
             return JsonpathValue::Unknown;
         };
         return result;
+    };
+    JsonpathValue::Unknown
+}
+
+pub fn jsonpath_from_stored_text(input: TextValue) -> JsonpathValue {
+    if let TextValue::Error(error) = input {
+        return JsonpathValue::Error(error);
+    };
+    if let TextValue::Null = input {
+        return JsonpathValue::Null;
+    };
+    if let TextValue::Value(text) = input {
+        return jsonpath_from_coerced_value(JsonpathValue::StoredText(text));
     };
     JsonpathValue::Unknown
 }

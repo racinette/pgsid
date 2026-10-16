@@ -56,6 +56,7 @@ const jsonbConversionHelpers = new Map<string, string>(
       ],
       [['pg_catalog."json"'], 'json'],
       [['pg_catalog.jsonb'], 'jsonb'],
+      [['pg_catalog.jsonpath'], 'jsonpath'],
       [['pg_catalog.float4'], 'float4'],
       [['pg_catalog.float8'], 'float8'],
       [['pg_catalog.uuid'], 'uuid'],
@@ -134,6 +135,7 @@ export class UnsupportedCheckRustExpression extends Error {}
 const rustType = (type: string): string => {
   if (type === 'pg_catalog."json"') return 'JsonValue'
   if (type === 'pg_catalog.jsonb') return 'JsonbValue'
+  if (type === 'pg_catalog.jsonpath') return 'JsonpathValue'
   if (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') return 'BitValue'
   if (type === 'pg_catalog.uuid') return 'UuidValue'
   if (type === 'pg_catalog.bytea') return 'ByteaValue'
@@ -303,6 +305,7 @@ export function emitCheckRustEvaluator(
     [
       'JsonValue',
       'JsonbValue',
+      'JsonpathValue',
       'SnapshotValue',
       'PolygonValue',
       'PathValue',
@@ -334,6 +337,7 @@ export function emitCheckRustEvaluator(
           (node.expression.kind === 'point' ||
             node.expression.kind === 'json' ||
             node.expression.kind === 'jsonb' ||
+            node.expression.kind === 'jsonpath' ||
             (node.expression.kind === 'temporal' &&
               (node.expression.type === 'pg_catalog."interval"' ||
                 node.expression.type === 'pg_catalog."time"' ||
@@ -660,6 +664,7 @@ export function emitCheckRustEvaluator(
               'pg_catalog.refcursor',
               'pg_catalog."json"',
               'pg_catalog.jsonb',
+              'pg_catalog.jsonpath',
               'pg_catalog.float4',
               'pg_catalog.float8',
             ].includes(operand.type)
@@ -814,6 +819,7 @@ export function emitCheckRustEvaluator(
             'pg_catalog.txid_snapshot',
             'pg_catalog."json"',
             'pg_catalog.jsonb',
+            'pg_catalog.jsonpath',
           ].includes(operand.type)) ||
         (metadata.volatility !== 'i' && !isOidAliasType(operand.type))
       )
@@ -827,6 +833,8 @@ export function emitCheckRustEvaluator(
         }
       if (isSnapshotType(operand.type))
         return { name: bind(`snapshot_to_text(${ownedOperand(operand)})`), type: node.type }
+      if (operand.type === 'pg_catalog.jsonpath')
+        return { name: bind(`jsonpath_to_text(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog.jsonb')
         return { name: bind(`jsonb_to_text(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog."json"')
@@ -931,6 +939,15 @@ export function emitCheckRustEvaluator(
         builtinMetadata(io).result !== node.type
       )
         throw new UnsupportedCheckRustExpression('JSON input requires its catalog I/O identity')
+      if (node.type === 'pg_catalog.jsonpath') {
+        requiresRegex = true
+        return {
+          name: bind(
+            `jsonpath_from_text(${ownedOperand(operand)}, ${executionContext.defaultCollation === 'C'}, ${executionContext.serverEncoding === 'UTF8'})`,
+          ),
+          type: node.type,
+        }
+      }
       const helper = node.type === 'pg_catalog.jsonb' ? 'jsonb_from_text' : 'json_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
@@ -1217,6 +1234,19 @@ export function emitCheckRustEvaluator(
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`snapshot_from_text(${text})`), type: value.type }
       }
+      if (value.kind === 'jsonpath') {
+        if (value.value === null) return { name: bind('jsonpath_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        if (value.origin === 'stored')
+          return { name: bind(`jsonpath_from_stored_text(${text})`), type: value.type }
+        requiresRegex = true
+        return {
+          name: bind(
+            `jsonpath_from_text(${text}, ${executionContext.defaultCollation === 'C'}, ${executionContext.serverEncoding === 'UTF8'})`,
+          ),
+          type: value.type,
+        }
+      }
       if (value.kind === 'jsonb') {
         if (value.value === null) return { name: bind('jsonb_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -1419,6 +1449,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.txid_snapshot',
           'pg_catalog."json"',
           'pg_catalog.jsonb',
+          'pg_catalog.jsonpath',
           'pg_catalog.oid',
           'pg_catalog.polygon',
           'pg_catalog.path',
@@ -1773,7 +1804,22 @@ export function emitCheckRustEvaluator(
       bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
       for (const operand of operands.slice(1)) {
         const nullness = bind(
-          `${prefix}_is_null(${['JsonValue', 'JsonbValue', 'SnapshotValue', 'PolygonValue', 'PathValue', 'TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(kind) ? `${name}.clone()` : name})`,
+          `${prefix}_is_null(${
+            [
+              'JsonValue',
+              'JsonbValue',
+              'JsonpathValue',
+              'SnapshotValue',
+              'PolygonValue',
+              'PathValue',
+              'TextValue',
+              'ByteaValue',
+              'BitValue',
+              'NumericValue',
+            ].includes(kind)
+              ? `${name}.clone()`
+              : name
+          })`,
         )
         const guard = bind(`check_from_bool(${nullness})`)
         bindings.push(

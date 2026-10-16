@@ -2355,3 +2355,145 @@ pub fn make_tid_parts(block: i64, offset: i32) -> TidValue {
     let low = offset as i64;
     make_tid_value(block * 65536i64 + low)
 }
+
+pub fn jsonpath_unknown() -> JsonpathValue {
+    JsonpathValue::Unknown
+}
+
+pub fn jsonpath_null() -> JsonpathValue {
+    JsonpathValue::Null
+}
+
+pub fn jsonpath_is_null(input: JsonpathValue) -> BoolValue {
+    if let JsonpathValue::Error(error) = input {
+        return BoolValue::Error(error);
+    };
+    if let JsonpathValue::Unknown = input {
+        return BoolValue::Unknown;
+    };
+    if let JsonpathValue::Null = input {
+        return BoolValue::Value(true);
+    };
+    BoolValue::Value(false)
+}
+
+pub fn jsonpath_from_case_guard(input: CheckOutcome) -> JsonpathValue {
+    if let CheckOutcome::Error(error) = input {
+        return JsonpathValue::Error(error);
+    };
+    JsonpathValue::Unknown
+}
+
+pub fn jsonpath_from_coerced_value(input: JsonpathValue) -> JsonpathValue {
+    if let JsonpathValue::StoredText(text) = input {
+        let characters: Vec<char> = text.chars().collect();
+        if characters.len() == 0 {
+            return JsonpathValue::Unknown;
+        };
+        let mut index: usize = 0;
+        while index < characters.len() {
+            if characters[index] == '\0' {
+                return JsonpathValue::Unknown;
+            };
+            index += 1;
+        }
+        return JsonpathValue::StoredText(text);
+    };
+    if let JsonpathValue::Value(value) = input {
+        if value.root == 0 || value.root >= value.nodes.len() {
+            return JsonpathValue::Unknown;
+        };
+        let mut index: usize = 0;
+        while index < value.characters.len() {
+            if value.characters[index] == '\0' {
+                return JsonpathValue::Unknown;
+            };
+            index += 1;
+        }
+        let mut visited: Vec<usize> = Vec::new();
+        visited.push(0);
+        index = 1;
+        while index < value.nodes.len() {
+            if jsonpath_payload_node_valid(&value, index) == false {
+                return JsonpathValue::Unknown;
+            };
+            visited.push(0);
+            index += 1;
+        }
+        let mut pending: Vec<JsonpathBoundaryVisit> = Vec::new();
+        pending.push(JsonpathBoundaryVisit {
+            node: value.root,
+            filters: 0,
+            subscript: false,
+            accessor: false,
+            list: false,
+        });
+        let mut depth: usize = 1;
+        while depth > 0 {
+            depth = depth - 1;
+            let visit = pending[depth];
+            if visited[visit.node] != 0 {
+                return JsonpathValue::Unknown;
+            };
+            visited[visit.node] = 1;
+            let node = value.nodes[visit.node];
+            if (node.kind == JSONPATH_NODE_SUBSCRIPT) != visit.list {
+                return JsonpathValue::Unknown;
+            };
+            if visit.list == false && jsonpath_accessor_kind(node.kind) != visit.accessor {
+                return JsonpathValue::Unknown;
+            };
+            if node.kind == JSONPATH_NODE_CURRENT && visit.filters == 0 {
+                return JsonpathValue::Unknown;
+            };
+            if node.kind == JSONPATH_NODE_LAST && visit.subscript == false {
+                return JsonpathValue::Unknown;
+            };
+            let mut child: usize = 0;
+            while child < 3 {
+                let mut next = node.next;
+                let mut filters = visit.filters;
+                let mut subscript = visit.subscript;
+                let mut accessor = true;
+                let mut list = node.kind == JSONPATH_NODE_SUBSCRIPT;
+                if child == 1 {
+                    next = node.left;
+                    accessor = false;
+                    list = node.kind == JSONPATH_NODE_INDEX;
+                    if node.kind == JSONPATH_NODE_FILTER {
+                        filters += 1;
+                    };
+                    if node.kind == JSONPATH_NODE_INDEX || node.kind == JSONPATH_NODE_SUBSCRIPT {
+                        subscript = true;
+                    };
+                };
+                if child == 2 {
+                    next = node.right;
+                    accessor = false;
+                    list = false;
+                    if node.kind == JSONPATH_NODE_SUBSCRIPT {
+                        subscript = true;
+                    };
+                };
+                if next > 0 {
+                    let task = JsonpathBoundaryVisit {
+                        node: next,
+                        filters: filters,
+                        subscript: subscript,
+                        accessor: accessor,
+                        list: list,
+                    };
+                    if depth < pending.len() {
+                        pending[depth] = task;
+                    } else {
+                        pending.push(task);
+                    };
+                    depth += 1;
+                };
+                child += 1;
+            }
+        }
+        return JsonpathValue::Value(value);
+    };
+    input
+}

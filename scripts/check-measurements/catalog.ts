@@ -88,15 +88,19 @@ export function jsonValueRequirements(item: BuiltinCallable) {
     item.args.length === 1 &&
     item.result === 'pg_catalog.bytea' &&
     ((item.name === 'json_send' && item.args[0] === 'pg_catalog."json"') ||
-      (item.name === 'jsonb_send' && item.args[0] === 'pg_catalog.jsonb'))
+      (item.name === 'jsonb_send' && item.args[0] === 'pg_catalog.jsonb') ||
+      (item.name === 'jsonpath_send' && item.args[0] === 'pg_catalog.jsonpath'))
   ) {
     const requirements = [
       {
         kind: 'session',
         setting: 'client_encoding',
         requirement:
-          'Non-ASCII binary output and encoding conversion errors require client_encoding; ASCII bytes and strict NULL/error propagation remain portable. JSON preserves source text; JSONB sends version 1 and its canonical rendering.',
-        owner: 'tests/sql-semantics/check-json-binary.test.ts',
+          'Non-ASCII binary output and encoding conversion errors require client_encoding; ASCII bytes and strict NULL/error propagation remain portable. JSON preserves source text; JSONB and JSONPath send version 1 and their canonical rendering.',
+        owner:
+          item.name === 'jsonpath_send'
+            ? 'tests/sql-semantics/check-jsonpath-sql.test.ts'
+            : 'tests/sql-semantics/check-json-binary.test.ts',
       },
     ]
     if (item.name === 'jsonb_send')
@@ -299,7 +303,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
-    ['textsend', 'namesend', 'json_send', 'jsonb_send'].includes(item.name)
+    ['textsend', 'namesend', 'json_send', 'jsonb_send', 'jsonpath_send'].includes(item.name)
   )
     categories.push('session-setting:client_encoding')
   if (

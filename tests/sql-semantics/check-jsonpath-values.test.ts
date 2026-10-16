@@ -59,10 +59,11 @@ pub fn jsonpath_value_probe(input: TextValue, expected: TextValue, mode: i32) ->
  } else if mode == 6 {
   parsed = jsonpath_null();
  } else if mode == 1 {
-  parsed = jsonpath_from_coerced_text_utf8(input);
+  parsed = jsonpath_from_coerced_source_utf8(input);
  } else {
   parsed = jsonpath_from_text_utf8(input, mode != 2);
  };
+ parsed = jsonpath_from_coerced_value(parsed);
  if mode == 4 { return jsonpath_is_null(parsed); };
  if mode == 3 {
   let snapshot = parsed.clone();
@@ -301,7 +302,7 @@ pub fn jsonpath_value_probe(input: TextValue, expected: TextValue, mode: i32) ->
       .find((module) => module.name === 'pg_catalog')!
       .files.find((file) => file.path.endsWith('/jsonpath_output.rs'))!.source += `
 pub fn jsonpath_coerced_probe(input: TextValue, expected: TextValue) -> BoolValue {
- let parsed = jsonpath_from_coerced_text_utf8(input);
+ let parsed = jsonpath_from_coerced_source_utf8(input);
  let output = jsonpath_to_text(parsed);
  if let TextValue::Error(error) = output { return BoolValue::Error(error); };
  if let TextValue::Unknown = output { return BoolValue::Unknown; };

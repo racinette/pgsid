@@ -81,91 +81,97 @@ export async function runCheckParity(
     return result[0]!.toLowerCase() + result.slice(1)
   }
   const prefixOf = (type: string): string =>
-    type === 'pg_catalog.jsonb'
-      ? 'jsonb'
-      : type === 'pg_catalog."json"'
-        ? 'json'
-        : type === 'pg_catalog."char"'
-          ? 'internal_char'
-          : type === 'pg_catalog.xid'
-            ? 'xid'
-            : type === 'pg_catalog.cid'
-              ? 'cid'
-              : type === 'pg_catalog.pg_lsn'
-                ? 'pg_lsn'
-                : type === 'pg_catalog.tid'
-                  ? 'tid'
-                  : type === 'pg_catalog.xid8'
-                    ? 'xid8'
-                    : isOidType(type)
-                      ? 'oid'
-                      : type === 'pg_catalog.money'
-                        ? 'money'
-                        : type === 'pg_catalog.polygon'
-                          ? 'polygon'
-                          : type === 'pg_catalog.path'
-                            ? 'path'
-                            : type === 'pg_catalog.circle'
-                              ? 'circle'
-                              : type === 'pg_catalog.box'
-                                ? 'box'
-                                : type === 'pg_catalog.lseg'
-                                  ? 'lseg'
-                                  : type === 'pg_catalog.line'
-                                    ? 'line'
-                                    : type === 'pg_catalog.point'
-                                      ? 'point'
-                                      : type === 'pg_catalog."time"'
-                                        ? 'time'
-                                        : type === 'pg_catalog.timetz'
-                                          ? 'timetz'
-                                          : type === 'pg_catalog."interval"'
-                                            ? 'interval'
-                                            : type === 'pg_catalog.float4' ||
-                                                type === 'pg_catalog.float8'
-                                              ? type.slice('pg_catalog.'.length)
-                                              : type === 'pg_catalog."bit"' ||
-                                                  type === 'pg_catalog.varbit'
-                                                ? 'bit'
-                                                : type === 'pg_catalog.uuid'
-                                                  ? 'uuid'
-                                                  : type === 'pg_catalog.inet' ||
-                                                      type === 'pg_catalog.cidr'
-                                                    ? 'network'
-                                                    : type === 'pg_catalog.macaddr'
-                                                      ? 'macaddr'
-                                                      : type === 'pg_catalog.macaddr8'
-                                                        ? 'macaddr8'
-                                                        : type === 'pg_catalog.bytea'
-                                                          ? 'bytea'
-                                                          : type.startsWith('enum:')
-                                                            ? 'enum'
-                                                            : type === 'pg_catalog.int2'
-                                                              ? 'int2'
-                                                              : type === 'pg_catalog.int4'
-                                                                ? 'int4'
-                                                                : type === 'pg_catalog.int8'
-                                                                  ? 'int8'
-                                                                  : type === 'pg_catalog."numeric"'
-                                                                    ? 'numeric'
+    type === 'pg_catalog.jsonpath'
+      ? 'jsonpath'
+      : type === 'pg_catalog.jsonb'
+        ? 'jsonb'
+        : type === 'pg_catalog."json"'
+          ? 'json'
+          : type === 'pg_catalog."char"'
+            ? 'internal_char'
+            : type === 'pg_catalog.xid'
+              ? 'xid'
+              : type === 'pg_catalog.cid'
+                ? 'cid'
+                : type === 'pg_catalog.pg_lsn'
+                  ? 'pg_lsn'
+                  : type === 'pg_catalog.tid'
+                    ? 'tid'
+                    : type === 'pg_catalog.xid8'
+                      ? 'xid8'
+                      : isOidType(type)
+                        ? 'oid'
+                        : type === 'pg_catalog.money'
+                          ? 'money'
+                          : type === 'pg_catalog.polygon'
+                            ? 'polygon'
+                            : type === 'pg_catalog.path'
+                              ? 'path'
+                              : type === 'pg_catalog.circle'
+                                ? 'circle'
+                                : type === 'pg_catalog.box'
+                                  ? 'box'
+                                  : type === 'pg_catalog.lseg'
+                                    ? 'lseg'
+                                    : type === 'pg_catalog.line'
+                                      ? 'line'
+                                      : type === 'pg_catalog.point'
+                                        ? 'point'
+                                        : type === 'pg_catalog."time"'
+                                          ? 'time'
+                                          : type === 'pg_catalog.timetz'
+                                            ? 'timetz'
+                                            : type === 'pg_catalog."interval"'
+                                              ? 'interval'
+                                              : type === 'pg_catalog.float4' ||
+                                                  type === 'pg_catalog.float8'
+                                                ? type.slice('pg_catalog.'.length)
+                                                : type === 'pg_catalog."bit"' ||
+                                                    type === 'pg_catalog.varbit'
+                                                  ? 'bit'
+                                                  : type === 'pg_catalog.uuid'
+                                                    ? 'uuid'
+                                                    : type === 'pg_catalog.inet' ||
+                                                        type === 'pg_catalog.cidr'
+                                                      ? 'network'
+                                                      : type === 'pg_catalog.macaddr'
+                                                        ? 'macaddr'
+                                                        : type === 'pg_catalog.macaddr8'
+                                                          ? 'macaddr8'
+                                                          : type === 'pg_catalog.bytea'
+                                                            ? 'bytea'
+                                                            : type.startsWith('enum:')
+                                                              ? 'enum'
+                                                              : type === 'pg_catalog.int2'
+                                                                ? 'int2'
+                                                                : type === 'pg_catalog.int4'
+                                                                  ? 'int4'
+                                                                  : type === 'pg_catalog.int8'
+                                                                    ? 'int8'
                                                                     : type ===
-                                                                        'pg_catalog."timestamp"'
-                                                                      ? 'timestamp'
+                                                                        'pg_catalog."numeric"'
+                                                                      ? 'numeric'
                                                                       : type ===
-                                                                          'pg_catalog.timestamptz'
-                                                                        ? 'timestamptz'
-                                                                        : type === 'pg_catalog.date'
-                                                                          ? 'date'
+                                                                          'pg_catalog."timestamp"'
+                                                                        ? 'timestamp'
+                                                                        : type ===
+                                                                            'pg_catalog.timestamptz'
+                                                                          ? 'timestamptz'
                                                                           : type ===
-                                                                              'pg_catalog.bool'
-                                                                            ? 'bool'
-                                                                            : 'text'
+                                                                              'pg_catalog.date'
+                                                                            ? 'date'
+                                                                            : type ===
+                                                                                'pg_catalog.bool'
+                                                                              ? 'bool'
+                                                                              : 'text'
   const inputCode = (input: Input, type: string, definition?: EnumDefinition): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
       return `${prefix}_${input.kind.toLowerCase()}()`
     if (input.kind === 'Error')
       return `${pascal(prefix)}Value::Error(make_sql_error(${input.value.state}))`
+    if (prefix === 'jsonpath')
+      return `jsonpath_from_coerced_source_utf8(make_text_value(${rustStringLiteral(input.value as string)}))`
     if (prefix === 'enum' && definition) {
       const oid = enumLabelOid(definition, input.value as number)
       if (oid !== null) return `make_catalog_enum_value(${input.value}, ${oid}i64)`
@@ -230,6 +236,7 @@ export async function runCheckParity(
     if (!nullness || input.kind === 'Unknown' || input.kind === 'Error') return input
     return { kind: 'Value', value: input.kind === 'Null' }
   }
+  let goBatchRequiresJsonpath = false
   const goInput = (input: Input, type: string, definition?: EnumDefinition): GoExpression => {
     const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
     const prefix = pascal(prefixOf(type))
@@ -243,6 +250,12 @@ export async function runCheckParity(
           go.composite(runtime('SqlError'), [go.keyValue('State', go.number(input.value.state))]),
         ),
       ])
+    if (prefix === 'Jsonpath') {
+      goBatchRequiresJsonpath = true
+      return go.call(go.selector(go.ident('pg_catalog'), 'JsonpathFromCoercedSourceUtf8'), [
+        go.call(runtime('MakeTextValue'), [go.string(input.value as string)]),
+      ])
+    }
     if (prefix === 'Enum' && definition) {
       const oid = enumLabelOid(definition, input.value as number)
       if (oid !== null)
@@ -356,6 +369,7 @@ export async function runCheckParity(
           { path: 'testing' },
           { alias: 'generated', path: moduleName },
           { path: moduleName + '/checkruntime' },
+          ...(goBatchRequiresJsonpath ? [{ path: moduleName + '/pg_catalog' }] : []),
         ],
         declarations: [
           go.function(
@@ -373,6 +387,7 @@ export async function runCheckParity(
     await mkdir(batchDirectory, { recursive: true })
     await writeFile(join(batchDirectory, `checks_${index}_test.go`), source)
     goAssertions.length = 0
+    goBatchRequiresJsonpath = false
   }
   for (const [index, fixture] of fixtures.entries()) {
     const check = entries.get(fixture.name)!
@@ -505,12 +520,17 @@ export async function runCheckParity(
     join(directory, 'typescript/checks.ts'),
   ])
   const generated = await import(pathToFileURL(join(directory, 'typescript/checks.ts')).href)
+  const operations = await import(
+    pathToFileURL(join(directory, 'typescript/pg_catalog/operations.ts')).href
+  )
   for (const fixture of fixtures) {
     const check = entries.get(fixture.name)!
     const result = generated[camel(check.entryName)](
       ...check.inputs.map((input) => {
         const value = projectedInput(fixture.row[input.name]!, input.nullness)
         if (input.nullness) return value
+        if (input.type === 'pg_catalog.jsonpath' && value.kind === 'Value')
+          return operations.jsonpathFromCoercedSourceUtf8(generated.makeTextValue(value.value))
         if (input.type === 'pg_catalog.jsonb' && value.kind === 'Value')
           return generated.makeJsonbValue(value.value)
         if (input.type === 'pg_catalog."json"' && value.kind === 'Value')

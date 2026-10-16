@@ -137,6 +137,9 @@ pub fn jsonpath_to_text(input: JsonpathValue) -> TextValue {
     if let JsonpathValue::Null = input {
         return TextValue::Null;
     };
+    if let JsonpathValue::StoredText(text) = input {
+        return TextValue::Value(text);
+    };
     if let JsonpathValue::Value(value) = input {
         let mut output = String::new();
         if value.lax == false {
@@ -468,4 +471,20 @@ pub fn jsonpath_to_text(input: JsonpathValue) -> TextValue {
         return TextValue::Value(output);
     };
     TextValue::Unknown
+}
+
+pub fn sql__pg_catalog__jsonpath_send__hmew(input: JsonpathValue) -> ByteaValue {
+    let output = jsonpath_to_text(input);
+    let bytes = sql__pg_catalog__textsend__mgfj(output);
+    if let ByteaValue::Value(value) = bytes {
+        let mut framed = "01".to_owned();
+        framed.push_str(value.as_str());
+        return ByteaValue::Value(framed);
+    };
+    bytes
+}
+
+pub fn jsonb_input_from_jsonpath(input: JsonpathValue) -> JsonbInput {
+    let text = jsonpath_to_text(input);
+    jsonb_input_from_text(text)
 }

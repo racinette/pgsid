@@ -106,7 +106,7 @@ export type EvalExpression =
   | { kind: 'text-to-snapshot'; type: SnapshotType; operand: EvalExpression }
   | {
       kind: 'text-to-json'
-      type: 'pg_catalog."json"' | 'pg_catalog.jsonb'
+      type: 'pg_catalog."json"' | 'pg_catalog.jsonb' | 'pg_catalog.jsonpath'
       operand: EvalExpression
     }
   | { kind: 'text-to-oid'; type: OidType; operand: EvalExpression }
@@ -283,6 +283,7 @@ export function emitEvalExpression<Ast>(
           node.expression.kind === 'snapshot' ||
           node.expression.kind === 'json' ||
           node.expression.kind === 'jsonb' ||
+          node.expression.kind === 'jsonpath' ||
           node.expression.kind === 'oid' ||
           node.expression.kind === 'path' ||
           node.expression.kind === 'circle' ||
