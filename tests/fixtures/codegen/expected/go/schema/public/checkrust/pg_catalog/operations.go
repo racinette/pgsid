@@ -12363,46 +12363,13 @@ func JsonArrayElementTextT2sr(input checkruntime.JsonValue, index checkruntime.I
 func JsonArrayLength97pw(input checkruntime.JsonValue) checkruntime.Int4Value {
 	return checkruntime.JsonReadLength(input)
 }
+func JsonStripNullsZ8vm(input checkruntime.JsonValue, arrays checkruntime.BoolValue, utf8 bool) checkruntime.JsonValue {
+	return checkruntime.JsonStripNullsContext(input, arrays, utf8)
+}
 
 const jsonObjectArrayRank = 3452630
 const jsonObjectArrayNull = 3452548
 
-func jsonObjectArrayQuote(input string) string {
-	input = langruntime.CheckedString(input)
-	characters := []rune(input)
-	hex := []rune("0123456789abcdef")
-	output := langruntime.NewTextBuffer("")
-	output = append(output, string(langruntime.CheckedChar('"'))...)
-	position := 0
-	for position < len(characters) {
-		character := characters[position]
-		code := int(langruntime.CheckedChar(character))
-		if character == '"' {
-			output = append(output, "\\\""...)
-		} else if character == '\\' {
-			output = append(output, "\\\\"...)
-		} else if character == '\b' {
-			output = append(output, "\\b"...)
-		} else if character == '\f' {
-			output = append(output, "\\f"...)
-		} else if character == '\n' {
-			output = append(output, "\\n"...)
-		} else if character == '\r' {
-			output = append(output, "\\r"...)
-		} else if character == '\t' {
-			output = append(output, "\\t"...)
-		} else if code < 32 {
-			output = append(output, "\\u00"...)
-			output = append(output, string(langruntime.CheckedChar(hex[langruntime.IndexFromI32(langruntime.CheckedSignedDivide(code, 16), 0)]))...)
-			output = append(output, string(langruntime.CheckedChar(hex[langruntime.IndexFromI32(langruntime.CheckedSignedRemainder(code, 16), 0)]))...)
-		} else {
-			output = append(output, string(langruntime.CheckedChar(character))...)
-		}
-		position = langruntime.CheckedAdd(position, 1)
-	}
-	output = append(output, string(langruntime.CheckedChar('"'))...)
-	return string(output)
-}
 func jsonObjectArrayKnown(keys checkruntime.ArrayPayload, values checkruntime.ArrayPayload, paired bool) checkruntime.JsonValue {
 	keys = checkruntime.CopyArrayPayload(keys)
 	values = checkruntime.CopyArrayPayload(values)
@@ -12460,7 +12427,7 @@ func jsonObjectArrayKnown(keys checkruntime.ArrayPayload, values checkruntime.Ar
 			if index > 0 {
 				output = append(output, ", "...)
 			}
-			quoted := jsonObjectArrayQuote(text)
+			quoted := checkruntime.JsonQuoteString(text)
 			output = append(output, quoted...)
 			output = append(output, " : "...)
 		}
@@ -12483,7 +12450,7 @@ func jsonObjectArrayKnown(keys checkruntime.ArrayPayload, values checkruntime.Ar
 		}
 		if value.Kind == checkruntime.TextValueValue {
 			text := langruntime.CheckedString(value.Value)
-			quoted := jsonObjectArrayQuote(text)
+			quoted := checkruntime.JsonQuoteString(text)
 			output = append(output, quoted...)
 			ready = true
 		}
@@ -13104,6 +13071,28 @@ func JsonbInputFromTimestamptz(input checkruntime.TimestamptzValue) checkruntime
 		if value == int64(9223372036854775807) {
 			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputText, Text: "infinity"}
 		}
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func JsonbInputFromJsonContext(input checkruntime.JsonValue, utf8 bool) checkruntime.JsonbInput {
+	if utf8 == false {
+		return checkruntime.JsonbInputFromJson(input)
+	}
+	if input.Kind == checkruntime.JsonValueError {
+		error := input.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonValueNull {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
+	}
+	if input.Kind == checkruntime.JsonValueValue {
+		value := input.Value
+		converted := checkruntime.JsonbFromTextContext(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value.Source}, true)
+		if converted.Kind == checkruntime.JsonbValueError {
+			error := converted.Error
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputConvertedError, ConvertedError: error}
+		}
+		return checkruntime.JsonbInputFromJsonb(converted)
 	}
 	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
 }

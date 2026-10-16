@@ -151,3 +151,12 @@ VALUES ('{a,1,b,2}', '{a,b}', '{1,2}', '{"a" : "1", "b" : "2"}', '{"a" : "1", "b
 
 INSERT INTO lane_object_imports (payload, expected, expected_binary, bypass)
 VALUES ('{a,1}', '{"a" : "1"}', '{"a":"1"}', false);
+
+INSERT INTO lane_stripped_documents (document, strip_arrays, run_default, expected_default, expected_explicit, expected_composed, bypass)
+VALUES ('{"a":null,"b":1}', false, true, '{"b":1}', '{"b":1}', '{"b":1}', false);
+
+INSERT INTO lane_strip_imports (payload, strip_arrays, expected, bypass)
+VALUES (' { "a" : null, "b" : [null,1] } ', true, '{"b":[1]}', false);
+
+INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
+VALUES ('"\u00e9"', '"\u00e9"', 1, '"é"', '["é"]', '["é",1]', false);

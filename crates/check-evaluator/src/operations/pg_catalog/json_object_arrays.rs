@@ -1,42 +1,6 @@
 const JSON_OBJECT_ARRAY_RANK: u32 = 3452630;
 const JSON_OBJECT_ARRAY_NULL: u32 = 3452548;
 
-fn json_object_array_quote(input: &str) -> String {
-    let characters: Vec<char> = input.chars().collect();
-    let hex: Vec<char> = "0123456789abcdef".chars().collect();
-    let mut output = String::new();
-    output.push('"');
-    let mut position: usize = 0;
-    while position < characters.len() {
-        let character = characters[position];
-        let code = character as i32;
-        if character == '"' {
-            output.push_str("\\\"");
-        } else if character == '\\' {
-            output.push_str("\\\\");
-        } else if character == '\u{0008}' {
-            output.push_str("\\b");
-        } else if character == '\u{000c}' {
-            output.push_str("\\f");
-        } else if character == '\n' {
-            output.push_str("\\n");
-        } else if character == '\r' {
-            output.push_str("\\r");
-        } else if character == '\t' {
-            output.push_str("\\t");
-        } else if code < 32 {
-            output.push_str("\\u00");
-            output.push(hex[usize::try_from(code / 16).unwrap_or(0)]);
-            output.push(hex[usize::try_from(code % 16).unwrap_or(0)]);
-        } else {
-            output.push(character);
-        };
-        position += 1;
-    }
-    output.push('"');
-    output
-}
-
 fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: bool) -> JsonValue {
     if keys.element_type != "pg_catalog.text" || keys.element_kind != 8 {
         return JsonValue::Unknown;
@@ -90,7 +54,7 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
             if index > 0 {
                 output.push_str(", ");
             };
-            let quoted = json_object_array_quote(text.as_str());
+            let quoted = json_quote_string(text.as_str());
             output.push_str(quoted.as_str());
             output.push_str(" : ");
         };
@@ -111,7 +75,7 @@ fn json_object_array_known(keys: ArrayPayload, values: ArrayPayload, paired: boo
             ready = true;
         };
         if let TextValue::Value(text) = value {
-            let quoted = json_object_array_quote(text.as_str());
+            let quoted = json_quote_string(text.as_str());
             output.push_str(quoted.as_str());
             ready = true;
         };

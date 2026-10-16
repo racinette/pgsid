@@ -597,3 +597,40 @@ CREATE TABLE lane_object_imports (
   CONSTRAINT imported_raw_object CHECK (CASE WHEN bypass THEN true ELSE json_object(payload::text[])::text COLLATE "C" IS NOT DISTINCT FROM expected COLLATE "C" END),
   CONSTRAINT imported_binary_object CHECK (CASE WHEN bypass THEN true ELSE jsonb_object(payload::text[]) IS NOT DISTINCT FROM expected_binary END)
 );
+
+CREATE TABLE lane_stripped_documents (
+  document json,
+  strip_arrays boolean,
+  run_default boolean,
+  expected_default text,
+  expected_explicit text,
+  expected_composed text,
+  bypass boolean,
+  CONSTRAINT stripped_default_document CHECK (CASE WHEN bypass OR NOT run_default THEN true ELSE json_strip_nulls(document)::text COLLATE "C" IS NOT DISTINCT FROM expected_default COLLATE "C" END),
+  CONSTRAINT stripped_explicit_document CHECK (CASE WHEN bypass THEN true ELSE json_strip_nulls(document,strip_arrays)::text COLLATE "C" IS NOT DISTINCT FROM expected_explicit COLLATE "C" END),
+  CONSTRAINT stripped_composed_document CHECK (CASE WHEN bypass THEN true ELSE json_strip_nulls(json_strip_nulls(document,strip_arrays),true)::text COLLATE "C" IS NOT DISTINCT FROM expected_composed COLLATE "C" END)
+);
+
+CREATE TABLE lane_strip_imports (
+  payload text,
+  strip_arrays boolean,
+  expected text,
+  bypass boolean,
+  CONSTRAINT stripped_imported_document CHECK (CASE WHEN bypass THEN true ELSE json_strip_nulls(payload::json,strip_arrays)::text COLLATE "C" IS NOT DISTINCT FROM expected COLLATE "C" END)
+);
+
+CREATE TABLE lane_encoded_documents (
+  document json,
+  payload text,
+  divisor integer,
+  expected jsonb,
+  expected_array jsonb,
+  expected_eager jsonb,
+  bypass boolean,
+  CONSTRAINT encoded_scalar_document CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(document) IS NOT DISTINCT FROM expected END),
+  CONSTRAINT encoded_cast_document CHECK (CASE WHEN bypass THEN true ELSE document::jsonb IS NOT DISTINCT FROM expected END),
+  CONSTRAINT encoded_cast_text CHECK (CASE WHEN bypass THEN true ELSE payload::jsonb IS NOT DISTINCT FROM expected END),
+  CONSTRAINT encoded_document_array CHECK (CASE WHEN bypass THEN true ELSE to_jsonb(ARRAY[document]) IS NOT DISTINCT FROM expected_array END),
+  CONSTRAINT encoded_variadic_array CHECK (CASE WHEN bypass THEN true ELSE jsonb_build_array(VARIADIC ARRAY[document]) IS NOT DISTINCT FROM expected_array END),
+  CONSTRAINT encoded_eager_document CHECK (CASE WHEN bypass THEN true ELSE jsonb_build_array(document,1/divisor) IS NOT DISTINCT FROM expected_eager END)
+);

@@ -1757,18 +1757,22 @@ export function emitCheckRustEvaluator(
               )
           }
           const helper =
-            typeof key === 'string' &&
-            ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-              ? 'jsonb_array_' + operand.type.slice('pg_catalog.'.length) + '_input'
-              : key && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-                ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
-                : jsonbConversionHelper(operand.type)
+            operand.type === 'pg_catalog."json"'
+              ? 'jsonb_input_from_json_context'
+              : typeof key === 'string' &&
+                  ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+                ? 'jsonb_array_' + operand.type.slice('pg_catalog.'.length) + '_input'
+                : key && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+                  ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
+                  : jsonbConversionHelper(operand.type)
           if (!helper)
             throw new UnsupportedCheckRustExpression(
               `JSONB conversion requires a supported concrete input category: ${operand.type}`,
             )
           const carrier = fresh('jsonb_input')
           const args = [ownedOperand(operand)]
+          if (operand.type === 'pg_catalog."json"')
+            args.push(String(executionContext.serverEncoding === 'UTF8'))
           if (
             typeof key === 'string' &&
             ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
@@ -1866,10 +1870,12 @@ export function emitCheckRustEvaluator(
         : implementation.rustName
       if (
         implementation.schema === 'pg_catalog' &&
-        ['json_extract_path', 'json_extract_path_text'].includes(implementation.name) &&
-        implementation.args.length === 2 &&
-        implementation.args[0] === 'pg_catalog."json"' &&
-        implementation.args[1] === 'pg_catalog._text'
+        ((['json_extract_path', 'json_extract_path_text'].includes(implementation.name) &&
+          implementation.args.length === 2 &&
+          implementation.args[0] === 'pg_catalog."json"' &&
+          implementation.args[1] === 'pg_catalog._text') ||
+          (implementation.name === 'json_strip_nulls' &&
+            implementation.args.join(',') === 'pg_catalog."json",pg_catalog.bool'))
       )
         arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (jsonpathExecution)
@@ -2208,8 +2214,14 @@ export function emitCheckRustEvaluator(
           type: node.type,
         }
       }
-      const helper = node.type === 'pg_catalog.jsonb' ? 'jsonb_from_text' : 'json_from_text'
-      return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
+      return {
+        name: bind(
+          node.type === 'pg_catalog.jsonb'
+            ? `jsonb_from_text_context(${ownedOperand(operand)}, ${executionContext.serverEncoding === 'UTF8'})`
+            : `json_from_text(${ownedOperand(operand)})`,
+        ),
+        type: node.type,
+      }
     }
     if (node.kind === 'text-to-xid8') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -2512,7 +2524,12 @@ export function emitCheckRustEvaluator(
       if (value.kind === 'jsonb') {
         if (value.value === null) return { name: bind('jsonb_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
-        return { name: bind(`jsonb_from_text(${text})`), type: value.type }
+        return {
+          name: bind(
+            `jsonb_from_text_context(${text}, ${executionContext.serverEncoding === 'UTF8'})`,
+          ),
+          type: value.type,
+        }
       }
       if (value.kind === 'json') {
         if (value.value === null) return { name: bind('json_null()'), type: value.type }

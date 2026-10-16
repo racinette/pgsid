@@ -261,17 +261,17 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.
 - [x] JSONB logical normalization, shared parsing, SQL-coerced public inputs, domains, NULL and lazy composition.
-- [x] JSONB literals, text/JSON I/O casts and stored-format admission; preserve eager errors and lazy branches.
+- [x] JSONB literals, text/JSON I/O casts and stored-format admission; preserve declared Unicode encoding, eager errors and lazy branches.
 - [x] JSONB field/element extraction, decoded text, array length and top-level existence, including scalar indexing.
 - [x] JSONB equality/inequality and iterative containment, exact numeric scalars, NULL-safe composition and public inputs.
 - [x] JSONB C/UTF8 ordering, exact comparator results and container traversal, with declared database defaults and composed/public INSERT parity.
 - [x] JSONB scalar casts, numeric precision/scale and unconstrained scalar-domain targets; preserve NULL, rounding, errors and lazy composition.
 - [x] JSONB concatenation and top-level text/index deletion; preserve logical trees, storage admission, ownership and public INSERT parity.
-- [x] JSONB recursive null stripping, default/array flags and pretty layout; preserve renderer encoding requirements and NULL/Unknown/error states.
+- [x] JSON/JSONB recursive null stripping, raw duplicate/order/number spellings, decoded quoting, default/array flags and pretty layout; preserve encoding requirements and NULL/Unknown/errors.
 - [x] Scalar to_jsonb core values and portable network/MAC/bit, identifier/snapshot, ISO date/timestamp and clock outputs; retain finite-float, TimeZone and custom-cast requirements.
 - [x] Remaining represented to_jsonb types and enums: strict states, catalog/session deferral, interval infinities and invariant geometric output; no catalog or default-setting assumptions.
 - [x] Owned heterogeneous argument batches and internal cursors: Clone value enum vectors, nested payload copies, indexed replacement, crate-visible moves and readonly borrows; preserve public boundaries/explicit clones and reject cycles or mutable borrows.
-- [x] JSONB scalar-argument builders, empty overloads, non-strict NULLs, scalar keys, duplicate normalization, eager argument errors and owned composition.
+- [x] JSONB scalar-argument builders, empty overloads, non-strict NULLs, scalar keys, duplicate normalization, declared UTF8 JSON conversion, staged errors and owned composition.
 - [x] JSON/JSONB binary send, source/canonical bytes, version framing and strict states; retain encoding requirements and classify receive functions as internal interfaces.
 - [x] Typed VARIADIC binding, JSON/JSONB path extraction/key existence, nested array conversion/flattened builders and JSONB bulk key/path deletion, set/insert/NULL policies; preserve bounds, duplicate/source spans, traversal, partial/staged errors, scalar context, preparation and INSERT parity.
 - [x] JSONPath lexical/grammar foundation: owned arenas, comments, names, variables, numeric/Unicode forms, precedence, accessor/method arguments, @/last scopes and ordered validation events; no public SQL admission.
