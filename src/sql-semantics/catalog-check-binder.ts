@@ -21,6 +21,7 @@ import {
 } from './collation.js'
 import {
   enumType,
+  catalogScalarType,
   arrayType,
   type ArrayType,
   type ArrayElementType,
@@ -84,114 +85,7 @@ export function catalogEnumDefinition(
   }
 }
 
-export const catalogScalarType = (name: string): ScalarType | null => {
-  if (name.endsWith('[]')) {
-    const element = catalogScalarType(name.replace(/(?:\[\])+$/u, ''))
-    return element && !element.startsWith('array:')
-      ? arrayType(element as Exclude<ScalarType, ArrayType>)
-      : null
-  }
-  if (
-    name.startsWith('pg_catalog._') ||
-    (name.startsWith('_') && builtinTypeResolution('pg_catalog.' + name)?.category === 'A')
-  ) {
-    const internal = name.replace(/^pg_catalog\./u, '')
-    if (builtinTypeResolution('pg_catalog.' + internal)?.category !== 'A') return null
-    const element = catalogScalarType(internal.slice(1))
-    return element && !element.startsWith('array:')
-      ? arrayType(element as Exclude<ScalarType, ArrayType>)
-      : null
-  }
-  if (name.startsWith('pg_catalog.'))
-    return catalogScalarType(name.slice('pg_catalog.'.length).replaceAll('"', ''))
-  const names: Record<string, ScalarType> = {
-    boolean: 'pg_catalog.bool',
-    bool: 'pg_catalog.bool',
-    smallint: 'pg_catalog.int2',
-    int2: 'pg_catalog.int2',
-    integer: 'pg_catalog.int4',
-    int4: 'pg_catalog.int4',
-    bigint: 'pg_catalog.int8',
-    int8: 'pg_catalog.int8',
-    real: 'pg_catalog.float4',
-    float4: 'pg_catalog.float4',
-    'double precision': 'pg_catalog.float8',
-    float8: 'pg_catalog.float8',
-    numeric: 'pg_catalog."numeric"',
-    decimal: 'pg_catalog."numeric"',
-    inet: 'pg_catalog.inet',
-    cidr: 'pg_catalog.cidr',
-    point: 'pg_catalog.point',
-    line: 'pg_catalog.line',
-    lseg: 'pg_catalog.lseg',
-    money: 'pg_catalog.money',
-    xid: 'pg_catalog.xid',
-    cid: 'pg_catalog.cid',
-    pg_lsn: 'pg_catalog.pg_lsn',
-    tid: 'pg_catalog.tid',
-    refcursor: 'pg_catalog.refcursor',
-    name: 'pg_catalog.name',
-    char: 'pg_catalog."char"',
-    '"char"': 'pg_catalog."char"',
-    xid8: 'pg_catalog.xid8',
-    pg_snapshot: 'pg_catalog.pg_snapshot',
-    txid_snapshot: 'pg_catalog.txid_snapshot',
-    regclass: 'pg_catalog.regclass',
-    regcollation: 'pg_catalog.regcollation',
-    regconfig: 'pg_catalog.regconfig',
-    regdictionary: 'pg_catalog.regdictionary',
-    regnamespace: 'pg_catalog.regnamespace',
-    regoper: 'pg_catalog.regoper',
-    regoperator: 'pg_catalog.regoperator',
-    regproc: 'pg_catalog.regproc',
-    regprocedure: 'pg_catalog.regprocedure',
-    regrole: 'pg_catalog.regrole',
-    regtype: 'pg_catalog.regtype',
-    oid: 'pg_catalog.oid',
-    polygon: 'pg_catalog.polygon',
-    path: 'pg_catalog.path',
-    circle: 'pg_catalog.circle',
-    box: 'pg_catalog.box',
-    uuid: 'pg_catalog.uuid',
-    macaddr: 'pg_catalog.macaddr',
-    macaddr8: 'pg_catalog.macaddr8',
-    bytea: 'pg_catalog.bytea',
-    json: 'pg_catalog."json"',
-    jsonb: 'pg_catalog.jsonb',
-    jsonpath: 'pg_catalog.jsonpath',
-    '"json"': 'pg_catalog."json"',
-    bit: 'pg_catalog."bit"',
-    '"bit"': 'pg_catalog."bit"',
-    varbit: 'pg_catalog.varbit',
-    'bit varying': 'pg_catalog.varbit',
-    time: 'pg_catalog."time"',
-    'time without time zone': 'pg_catalog."time"',
-    timetz: 'pg_catalog.timetz',
-    'time with time zone': 'pg_catalog.timetz',
-    interval: 'pg_catalog."interval"',
-    date: 'pg_catalog.date',
-    timestamp: 'pg_catalog."timestamp"',
-    'timestamp without time zone': 'pg_catalog."timestamp"',
-    timestamptz: 'pg_catalog.timestamptz',
-    'timestamp with time zone': 'pg_catalog.timestamptz',
-    text: 'pg_catalog.text',
-    'character varying': 'pg_catalog."varchar"',
-    varchar: 'pg_catalog."varchar"',
-    character: 'pg_catalog.bpchar',
-    bpchar: 'pg_catalog.bpchar',
-  }
-  if (/^(?:numeric|decimal)\(/u.test(name)) return 'pg_catalog."numeric"'
-  if (/^bit\(\d+\)$/u.test(name)) return 'pg_catalog."bit"'
-  if (/^(?:bit varying|varbit)\(\d+\)$/u.test(name)) return 'pg_catalog.varbit'
-  if (name.startsWith('character varying(')) return 'pg_catalog."varchar"'
-  if (name.startsWith('character(')) return 'pg_catalog.bpchar'
-  if (/^time\(\d+\) without time zone$/u.test(name)) return 'pg_catalog."time"'
-  if (/^time\(\d+\) with time zone$/u.test(name)) return 'pg_catalog.timetz'
-  if (/^interval(?:\(| )/u.test(name)) return 'pg_catalog."interval"'
-  if (/^timestamp\(\d+\) without time zone$/u.test(name)) return 'pg_catalog."timestamp"'
-  if (/^timestamp\(\d+\) with time zone$/u.test(name)) return 'pg_catalog.timestamptz'
-  return names[name] ?? null
-}
+export { catalogScalarType } from './expressions.js'
 
 export function catalogArrayType(
   name: string,
@@ -725,6 +619,7 @@ type ResolvedCallable = {
   collation?: BoundCollation
   enum?: EnumInfo
   resultType?: ScalarType
+  matchingArgs?: readonly string[]
 }
 const boundType = (arg: Bound): ScalarType | null =>
   arg.type ?? (arg.literal?.kind === 'integer' ? 'pg_catalog.int4' : null)
@@ -843,6 +738,7 @@ const candidate = (
   name: string,
   args: readonly Bound[],
   bindDefault?: (node: unknown) => Bound,
+  explicitVariadic = false,
 ): ResolvedCallable | null => {
   const hasOmittedDefaults =
     kind === 'function' &&
@@ -873,9 +769,20 @@ const candidate = (
       item.kind === 'function' &&
       item.variadic === 'pg_catalog."any"',
   )
+  const hasTypedVariadic =
+    explicitVariadic ||
+    callables.some(
+      ({ item }) =>
+        item.kind === kind &&
+        item.kind === 'function' &&
+        item.name === name &&
+        item.variadic !== null &&
+        item.variadic !== 'pg_catalog."any"',
+    )
   if (
     !hasAnyElement &&
     !hasVariadicAny &&
+    !hasTypedVariadic &&
     !hasOmittedDefaults &&
     ((kind === 'function' && name === 'char') ||
       args.some(
@@ -887,17 +794,34 @@ const candidate = (
   )
     return comparisonCandidate(args, name, true, kind, false)
   const integer =
-    hasOmittedDefaults || hasAnyElement || hasVariadicAny
+    hasOmittedDefaults || hasAnyElement || hasVariadicAny || hasTypedVariadic
       ? undefined
       : integerCandidate(kind, name, args)
   if (integer !== undefined) return integer
   const matches = callables.flatMap(({ signature, item }) => {
-    const variadicAny = item.kind === 'function' && item.variadic === 'pg_catalog."any"'
+    const variadicAny =
+      !explicitVariadic && item.kind === 'function' && item.variadic === 'pg_catalog."any"'
+    const typedVariadic =
+      !explicitVariadic &&
+      item.kind === 'function' &&
+      item.variadic !== null &&
+      item.variadic !== 'pg_catalog."any"'
+    const explicitAny =
+      explicitVariadic && item.kind === 'function' && item.variadic === 'pg_catalog."any"'
+    if (
+      explicitVariadic &&
+      (item.kind !== 'function' || (item.variadic !== null && item.args.length !== args.length))
+    )
+      return []
     if (
       item.kind !== kind ||
       item.schema !== 'pg_catalog' ||
       item.name !== name ||
-      (variadicAny ? args.length < 1 : item.args.length < args.length) ||
+      (variadicAny
+        ? args.length < item.args.length
+        : typedVariadic
+          ? args.length < item.args.length
+          : item.args.length < args.length) ||
       (!catalogScalarType(item.result) &&
         ![
           'pg_catalog.anyenum',
@@ -908,6 +832,35 @@ const candidate = (
     )
       return []
     let fullArgs = args
+    if (typedVariadic && item.kind === 'function') {
+      const array = catalogScalarType(item.args.at(-1)!)
+      const element = catalogScalarType(item.variadic!)
+      if (!array?.startsWith('array:') || !element || array !== `array:${element}`) return []
+      const fixed = item.args.length - 1
+      const tail = args.slice(fixed)
+      const values = tail.map((arg) => implicitOperand(arg, element, arg.enum))
+      if (!values.every((value): value is EvalExpression => value !== null)) return []
+      fullArgs = [
+        ...args.slice(0, fixed),
+        {
+          type: array as ArrayType,
+          value: {
+            kind: 'array-constructor',
+            type: array as ArrayType,
+            elementType: element as ArrayElementType,
+            multidimensional: false,
+            operands: values,
+          },
+          collation:
+            combineCollations(tail.map((arg) => arg.collation)) ??
+            arrayElementCollation(element as ArrayElementType),
+        },
+      ]
+    }
+    const matchingArgs =
+      typedVariadic && item.kind === 'function'
+        ? [...item.args.slice(0, -1), ...args.slice(item.args.length - 1).map(() => item.variadic!)]
+        : item.args
     if (!variadicAny && item.args.length > args.length) {
       if (item.kind !== 'function' || !bindDefault) return []
       const missing = item.args.length - args.length
@@ -1023,33 +976,38 @@ const candidate = (
     )
       return []
     const operands = fullArgs.map((arg, index) =>
-      variadicAny
-        ? materialize(arg, boundType(arg) ?? 'pg_catalog.text', arg.enum)
-        : item.args[index] === 'pg_catalog.anycompatiblearray'
-          ? implicitOperand(arg, compatibleArray!, definition)
-          : item.args[index] === 'pg_catalog.anycompatible'
-            ? implicitOperand(arg, compatibleType!, definition)
-            : item.args[index] === 'pg_catalog.anyarray'
-              ? materialize(arg, arrayIdentity!)
-              : item.args[index] === 'pg_catalog.anyelement'
-                ? materialize(arg, elementType!, arg.enum)
-                : catalogScalarType(item.args[index]!)?.startsWith('array:')
-                  ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
-                  : isIntegerType(item.args[index]!)
-                    ? materializeInteger(arg, item.args[index]! as ScalarType)
-                    : materialize(
-                        arg,
-                        item.args[index] === 'pg_catalog.anyenum'
-                          ? enumType(definition!)
-                          : (item.args[index]! as ScalarType),
-                        definition,
-                      ),
+      explicitAny && index === item.args.length - 1
+        ? boundType(arg)?.startsWith('array:')
+          ? materialize(arg, boundType(arg)!, arg.enum)
+          : null
+        : variadicAny
+          ? materialize(arg, boundType(arg) ?? 'pg_catalog.text', arg.enum)
+          : item.args[index] === 'pg_catalog.anycompatiblearray'
+            ? implicitOperand(arg, compatibleArray!, definition)
+            : item.args[index] === 'pg_catalog.anycompatible'
+              ? implicitOperand(arg, compatibleType!, definition)
+              : item.args[index] === 'pg_catalog.anyarray'
+                ? materialize(arg, arrayIdentity!)
+                : item.args[index] === 'pg_catalog.anyelement'
+                  ? materialize(arg, elementType!, arg.enum)
+                  : catalogScalarType(item.args[index]!)?.startsWith('array:')
+                    ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
+                    : isIntegerType(item.args[index]!)
+                      ? materializeInteger(arg, item.args[index]! as ScalarType)
+                      : materialize(
+                          arg,
+                          item.args[index] === 'pg_catalog.anyenum'
+                            ? enumType(definition!)
+                            : (item.args[index]! as ScalarType),
+                          definition,
+                        ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [
           {
             signature,
             item,
+            matchingArgs,
             operands: operands as EvalExpression[],
             collation,
             enum: definition,
@@ -1064,8 +1022,8 @@ const candidate = (
       : []
   })
   const types = args.map(boundType)
-  const exact = matches.filter(({ item }) =>
-    item.args
+  const exact = matches.filter(({ item, matchingArgs }) =>
+    (matchingArgs ?? item.args)
       .slice(0, args.length)
       .every((type, index) => (catalogScalarType(type) ?? type) === types[index]),
   )
@@ -3430,8 +3388,8 @@ export function bindCatalogCheck(
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
       const name = names?.at(-1)
       const args = call['args'] ?? []
-      if (call['func_variadic'] === true) return unknown
-      if (name && Array.isArray(args)) return bindCall('function', name, args)
+      if (name && Array.isArray(args))
+        return bindCall('function', name, args, call['func_variadic'] === true)
     }
     const nullTest = fields(wrapper['NullTest'])
     if (nullTest) {
@@ -3473,6 +3431,7 @@ export function bindCatalogCheck(
     kind: 'operator' | 'function',
     name: string,
     nodes: readonly unknown[],
+    explicitVariadic = false,
   ): Bound => {
     let args = nodes.map((node) => bind(node))
     const enumArgument = args.find((arg) => arg.enum)
@@ -3599,7 +3558,7 @@ export function bindCatalogCheck(
           operand: args[0]!.value,
         },
       }
-    const resolved = candidate(kind, name, args, bind)
+    const resolved = candidate(kind, name, args, bind, explicitVariadic)
     if (!resolved) {
       if (
         kind === 'function' &&
@@ -3784,6 +3743,11 @@ export function bindCatalogCheck(
           kind,
           signature: resolved.signature,
           type,
+          ...(explicitVariadic &&
+          resolved.item.kind === 'function' &&
+          resolved.item.variadic !== null
+            ? { variadic: true as const }
+            : {}),
           ...(resolved.enum ? { enum: resolved.enum } : {}),
           collation: collation?.kind,
           ...arrayDefaultCollation(resolved.signature, collation),

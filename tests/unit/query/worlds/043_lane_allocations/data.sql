@@ -115,3 +115,12 @@ VALUES ('{}', false);
 
 INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
 VALUES ('{1.00,0,1.00}', '{0,1.00,1.00}', 3, '0', false);
+
+INSERT INTO lane_document_paths (document, binary_document, path, expected_json, expected_text, expected_binary, expected_binary_text)
+VALUES ('{"a":[{"id":7},{"id":8}]}', '{"a":[{"id":7},{"id":8}]}', '{a,-1,id}', '8', '8', '8', '8');
+
+INSERT INTO lane_expanded_paths (document, binary_document, first_key, second_key, expected_text, expected_binary_text)
+VALUES ('{"a":{"x":1}}', '{"a":{"x":1}}', 'a', 'x', '1', '1');
+
+INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
+VALUES ('{"a":1,"b":null}', '{a,b}', true, true, false);

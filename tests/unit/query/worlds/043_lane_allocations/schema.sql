@@ -430,3 +430,46 @@ CREATE TABLE lane_sorted_precision (
   CONSTRAINT sorted_precision_count CHECK (CASE WHEN bypass THEN true ELSE cardinality(array_sort(payload::numeric[])) IS NOT DISTINCT FROM expected_count END),
   CONSTRAINT sorted_precision_first CHECK (CASE WHEN bypass THEN true ELSE (array_sort(payload::numeric[]))[1] IS NOT DISTINCT FROM expected_first END)
 );
+
+CREATE DOMAIN lane_document_path AS text[];
+CREATE TABLE lane_document_paths (
+  document json,
+  binary_document jsonb,
+  path lane_document_path,
+  expected_json text,
+  expected_text text,
+  expected_binary jsonb,
+  expected_binary_text text,
+  CONSTRAINT document_path_json CHECK ((document #> path)::text COLLATE "C" IS NOT DISTINCT FROM expected_json COLLATE "C"),
+  CONSTRAINT document_path_text CHECK ((document #>> path) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C"),
+  CONSTRAINT document_path_variadic CHECK (json_extract_path(document, VARIADIC path)::text COLLATE "C" IS NOT DISTINCT FROM expected_json COLLATE "C"),
+  CONSTRAINT document_path_variadic_text CHECK (json_extract_path_text(document, VARIADIC path) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C"),
+  CONSTRAINT binary_path_json CHECK ((binary_document #> path) IS NOT DISTINCT FROM expected_binary),
+  CONSTRAINT binary_path_text CHECK ((binary_document #>> path) COLLATE "C" IS NOT DISTINCT FROM expected_binary_text COLLATE "C"),
+  CONSTRAINT binary_path_variadic CHECK (jsonb_extract_path(binary_document, VARIADIC path) IS NOT DISTINCT FROM expected_binary),
+  CONSTRAINT binary_path_variadic_text CHECK (jsonb_extract_path_text(binary_document, VARIADIC path) COLLATE "C" IS NOT DISTINCT FROM expected_binary_text COLLATE "C")
+);
+
+CREATE TABLE lane_expanded_paths (
+  document json,
+  binary_document jsonb,
+  first_key text,
+  second_key text,
+  expected_text text,
+  expected_binary_text text,
+  CONSTRAINT expanded_document_path CHECK (json_extract_path_text(document, first_key, second_key) COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C"),
+  CONSTRAINT expanded_binary_path CHECK (jsonb_extract_path_text(binary_document, first_key, second_key) COLLATE "C" IS NOT DISTINCT FROM expected_binary_text COLLATE "C")
+);
+
+CREATE TABLE lane_document_keys (
+  document jsonb,
+  keys lane_document_path,
+  expected_any boolean,
+  expected_all boolean,
+  bypass boolean,
+  CONSTRAINT any_document_keys CHECK ((document ?| keys) IS NOT DISTINCT FROM expected_any),
+  CONSTRAINT all_document_keys CHECK ((document ?& keys) IS NOT DISTINCT FROM expected_all),
+  CONSTRAINT any_document_keys_call CHECK (jsonb_exists_any(document, keys) IS NOT DISTINCT FROM expected_any),
+  CONSTRAINT all_document_keys_call CHECK (jsonb_exists_all(document, keys) IS NOT DISTINCT FROM expected_all),
+  CONSTRAINT guarded_document_keys CHECK (CASE WHEN bypass THEN true ELSE document ?| keys END)
+);

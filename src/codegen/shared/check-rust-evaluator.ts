@@ -20,6 +20,7 @@ import {
 } from './check-rust-constants.js'
 import {
   enumType,
+  catalogScalarType,
   isOidType,
   isOidAliasType,
   isSnapshotType,
@@ -1170,9 +1171,8 @@ export function emitCheckRustEvaluator(
                   ? !operands[index]?.type.startsWith('enum:')
                   : type === 'pg_catalog.anyelement' && (jsonbConversion || arrayFill)
                     ? false
-                    : arrayFill &&
-                        type === 'pg_catalog._int4' &&
-                        operands[index]?.type === 'array:pg_catalog.int4'
+                    : catalogScalarType(type)?.startsWith('array:') &&
+                        operands[index]?.type === catalogScalarType(type)
                       ? false
                       : operands[index]?.type !== type &&
                         !(
@@ -1776,6 +1776,14 @@ export function emitCheckRustEvaluator(
       const callable = jsonpathExecution
         ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
         : implementation.rustName
+      if (
+        implementation.schema === 'pg_catalog' &&
+        ['json_extract_path', 'json_extract_path_text'].includes(implementation.name) &&
+        implementation.args.length === 2 &&
+        implementation.args[0] === 'pg_catalog."json"' &&
+        implementation.args[1] === 'pg_catalog._text'
+      )
+        arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (jsonpathExecution)
         arguments_.push(
           String(executionContext.defaultCollation === 'C'),

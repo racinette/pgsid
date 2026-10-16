@@ -283,7 +283,10 @@ it('retains exact scalar cells and owned JSONB arenas when constructing flattene
         source: String.raw`
 pub fn array_constructor_payload_probe()->BoolValue {
  let deferred=append_array_argument(make_array_arguments("pg_catalog.int4",2),ArrayElement::Unknown);
- if array_is_null(finish_array_constructor(deferred))!=BoolValue::Unknown {return BoolValue::Value(false);};
+ let partial=finish_array_constructor(deferred);
+ if array_is_null(partial.clone())!=BoolValue::Value(false) {return BoolValue::Value(false);};
+ if sql__pg_catalog__cardinality__m1rn(partial.clone())!=make_int4_value(1) {return BoolValue::Value(false);};
+ if array_element_to_int4(array_flat_element(partial,make_int4_value(0)))!=Int4Value::Unknown {return BoolValue::Value(false);};
  let scalar_error=make_sql_error(3452582);
  let scalar_later_error=make_sql_error(3452547);
  let first_error=append_array_argument(ArrayArguments::Error(scalar_error),ArrayElement::Error(scalar_later_error));

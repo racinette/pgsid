@@ -274,14 +274,6 @@ pub fn finish_array_constructor(input: ArrayArguments) -> ArrayValue {
         return ArrayValue::Error(error);
     };
     if let ArrayArguments::Value(value) = input {
-        let mut position: usize = 0;
-        while position < value.elements.len() {
-            let element = value.elements[position].clone();
-            if let ArrayElement::Unknown = element {
-                return ArrayValue::Unknown;
-            };
-            position += 1;
-        }
         let mut dimensions: Vec<ArrayDimension> = Vec::new();
         if value.elements.len() > 0 {
             dimensions.push(ArrayDimension {

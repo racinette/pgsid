@@ -4291,6 +4291,10 @@ func jsonReadHex(character rune) int {
 }
 func jsonReadDecodeString(source *jsonSyntaxSource, token jsonReadToken) TextValue {
 	token = copyjsonReadToken(token)
+	return jsonReadDecodeStringContext(source, token, false)
+}
+func jsonReadDecodeStringContext(source *jsonSyntaxSource, token jsonReadToken, utf8 bool) TextValue {
+	token = copyjsonReadToken(token)
 	position := langruntime.CheckedAdd(token.start, 1)
 	high := langruntime.CheckedSignedNegate(1)
 	output := langruntime.NewTextBuffer("")
@@ -4342,7 +4346,7 @@ func jsonReadDecodeString(source *jsonSyntaxSource, token jsonReadToken) TextVal
 					if code == 0 {
 						return TextValue{Kind: TextValueError, Error: MakeSqlError(jsonReadZero)}
 					}
-					if code > 127 {
+					if code > 127 && utf8 == false {
 						return TextValue{Kind: TextValueUnknown}
 					}
 					output = append(output, string(langruntime.CheckedChar(langruntime.CharacterFromI32(code, ' ')))...)
@@ -4599,6 +4603,411 @@ func JsonKindText(kind int) TextValue {
 	}
 	if kind == 6 {
 		return MakeTextValue("object")
+	}
+	return TextValue{Kind: TextValueUnknown}
+}
+
+type jsonArrayPathNode struct {
+	kind     int
+	start    int
+	end      int
+	child    int
+	next     int
+	keyStart int
+	keyEnd   int
+}
+
+func copyjsonArrayPathNode(value jsonArrayPathNode) jsonArrayPathNode {
+	return jsonArrayPathNode{kind: langruntime.CheckedI32(value.kind), start: langruntime.CheckedIndex(value.start), end: langruntime.CheckedIndex(value.end), child: langruntime.CheckedIndex(value.child), next: langruntime.CheckedIndex(value.next), keyStart: langruntime.CheckedIndex(value.keyStart), keyEnd: langruntime.CheckedIndex(value.keyEnd)}
+}
+
+type jsonArrayPathFrame struct {
+	node     int
+	tail     int
+	state    int
+	keyStart int
+	keyEnd   int
+}
+
+func copyjsonArrayPathFrame(value jsonArrayPathFrame) jsonArrayPathFrame {
+	return jsonArrayPathFrame{node: langruntime.CheckedIndex(value.node), tail: langruntime.CheckedIndex(value.tail), state: langruntime.CheckedI32(value.state), keyStart: langruntime.CheckedIndex(value.keyStart), keyEnd: langruntime.CheckedIndex(value.keyEnd)}
+}
+
+type jsonArrayPathDocument struct {
+	characters []rune
+	names      []rune
+	nodes      []jsonArrayPathNode
+	root       int
+	state      int
+	error      SqlError
+}
+
+func copyjsonArrayPathDocument(value jsonArrayPathDocument) jsonArrayPathDocument {
+	return jsonArrayPathDocument{characters: langruntime.CheckedChars(value.characters), names: langruntime.CheckedChars(value.names), nodes: langruntime.CheckedStructs(value.nodes, copyjsonArrayPathNode), root: langruntime.CheckedIndex(value.root), state: langruntime.CheckedI32(value.state), error: value.error}
+}
+
+type jsonArrayPathCandidates struct {
+	nodes []int
+	state int
+}
+
+func copyjsonArrayPathCandidates(value jsonArrayPathCandidates) jsonArrayPathCandidates {
+	return jsonArrayPathCandidates{nodes: langruntime.CheckedIndices(value.nodes), state: langruntime.CheckedI32(value.state)}
+}
+func JsonArrayPathState(input ArrayValue) Int4Value {
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if input.Kind == ArrayValueNull {
+		return Int4Value{Kind: Int4ValueNull}
+	}
+	if input.Kind == ArrayValueValue {
+		value := CopyArrayPayload(input.Value)
+		if value.ElementType != "pg_catalog.text" || value.ElementKind != 8 {
+			return Int4Value{Kind: Int4ValueUnknown}
+		}
+		position := 0
+		for position < len(value.Elements) {
+			element := CopyArrayElement(value.Elements[position])
+			if element.Kind == ArrayElementNull {
+				return Int4Value{Kind: Int4ValueNull}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return MakeInt4Value(int(int32(len(value.Elements))))
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func JsonArrayPathIndex(input string) Int4Value {
+	characters := []rune(input)
+	position := 0
+	for position < len(characters) {
+		ch := characters[position]
+		if ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r' && ch != '\v' && ch != '\f' {
+			break
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	negative := false
+	if position < len(characters) {
+		if characters[position] == '-' {
+			negative = true
+			position = langruntime.CheckedAdd(position, 1)
+		} else if characters[position] == '+' {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	start := position
+	magnitude := int64(0)
+	limit := int64(2147483647)
+	if negative {
+		limit = int64(2147483648)
+	}
+	for position < len(characters) {
+		digit := langruntime.CheckedSignedSubtract(int(langruntime.CheckedChar(characters[position])), 48)
+		if digit < 0 || digit > 9 || magnitude > langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(limit, (int64(langruntime.CheckedI32(digit))))), int64(10)) {
+			return Int4Value{Kind: Int4ValueNull}
+		}
+		magnitude = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(magnitude, int64(10)), (int64(langruntime.CheckedI32(digit))))
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if position == start {
+		return Int4Value{Kind: Int4ValueNull}
+	}
+	if negative {
+		magnitude = langruntime.CheckedI64Subtract(int64(0), magnitude)
+	}
+	return MakeInt4Value(int(int32(magnitude)))
+}
+func jsonArrayPathEmpty(state int, error SqlError) jsonArrayPathDocument {
+	state = langruntime.CheckedI32(state)
+	characters := []rune{}
+	names := []rune{}
+	nodes := []jsonArrayPathNode{}
+	return jsonArrayPathDocument{characters: characters, names: names, nodes: nodes, root: 0, state: state, error: error}
+}
+func jsonArrayPathNodeChild(node jsonArrayPathNode, value int) jsonArrayPathNode {
+	node = copyjsonArrayPathNode(node)
+	value = langruntime.CheckedIndex(value)
+	return jsonArrayPathNode{kind: node.kind, start: node.start, end: node.end, child: value, next: node.next, keyStart: node.keyStart, keyEnd: node.keyEnd}
+}
+func jsonArrayPathNodeNext(node jsonArrayPathNode, value int) jsonArrayPathNode {
+	node = copyjsonArrayPathNode(node)
+	value = langruntime.CheckedIndex(value)
+	return jsonArrayPathNode{kind: node.kind, start: node.start, end: node.end, child: node.child, next: value, keyStart: node.keyStart, keyEnd: node.keyEnd}
+}
+func jsonArrayPathNodeEnd(node jsonArrayPathNode, value int) jsonArrayPathNode {
+	node = copyjsonArrayPathNode(node)
+	value = langruntime.CheckedIndex(value)
+	return jsonArrayPathNode{kind: node.kind, start: node.start, end: value, child: node.child, next: node.next, keyStart: node.keyStart, keyEnd: node.keyEnd}
+}
+func parseJsonArrayPathDocument(input string, utf8 bool) jsonArrayPathDocument {
+	input = langruntime.CheckedString(input)
+	source := jsonSyntaxSource{characters: []rune(input)}
+	nodes := []jsonArrayPathNode{}
+	langruntime.CheckedAdd(len(nodes), 1)
+	nodes = append(nodes, copyjsonArrayPathNode(jsonArrayPathNode{kind: langruntime.CheckedSignedNegate(1), start: 0, end: 0, child: 0, next: 0, keyStart: 0, keyEnd: 0}))
+	names := []rune{}
+	frames := []jsonArrayPathFrame{}
+	depth := 0
+	position := 0
+	root := 0
+	for position < len(source.characters) {
+		token := jsonReadNextToken(&source, position)
+		if token.kind == jsonReadEnd {
+			break
+		}
+		if token.syntax == jsonSyntaxInvalid {
+			return jsonArrayPathEmpty(langruntime.CheckedSignedNegate(2), MakeSqlError(jsonReadInvalidText))
+		}
+		decoded := TextValue{Kind: TextValueNull}
+		if token.kind == jsonReadQuote {
+			decoded = jsonReadDecodeStringContext(&source, token, utf8)
+			if decoded.Kind == TextValueError {
+				error := decoded.Error
+				return jsonArrayPathEmpty(langruntime.CheckedSignedNegate(2), error)
+			}
+			if decoded == (TextValue{Kind: TextValueUnknown}) {
+				return jsonArrayPathEmpty(langruntime.CheckedSignedNegate(1), MakeSqlError(0))
+			}
+		}
+		key := false
+		if depth > 0 {
+			frame := frames[langruntime.CheckedSubtract(depth, 1)]
+			if nodes[frame.node].kind == 6 && frame.state == 0 && token.kind == jsonReadQuote {
+				begin := len(names)
+				if decoded.Kind == TextValueValue {
+					text := langruntime.CheckedString(decoded.Value)
+					characters := []rune(text)
+					index := 0
+					for index < len(characters) {
+						langruntime.CheckedAdd(len(names), 1)
+						names = append(names, langruntime.CheckedChar(characters[index]))
+						index = langruntime.CheckedAdd(index, 1)
+					}
+				}
+				frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonArrayPathFrame(jsonArrayPathFrame{node: frame.node, tail: frame.tail, state: 1, keyStart: begin, keyEnd: len(names)})
+				key = true
+			}
+		}
+		if key == false {
+			if token.kind == jsonReadColon || token.kind == jsonReadComma {
+				if depth > 0 {
+					frame := frames[langruntime.CheckedSubtract(depth, 1)]
+					state := 0
+					if token.kind == jsonReadColon || nodes[frame.node].kind == 5 {
+						state = langruntime.CheckedI32(2)
+					}
+					frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonArrayPathFrame(jsonArrayPathFrame{node: frame.node, tail: frame.tail, state: state, keyStart: frame.keyStart, keyEnd: frame.keyEnd})
+				}
+			} else if token.kind == jsonReadObjectClose || token.kind == jsonReadArrayClose {
+				if depth == 0 {
+					return jsonArrayPathEmpty(langruntime.CheckedSignedNegate(2), MakeSqlError(jsonReadInvalidText))
+				}
+				frame := frames[langruntime.CheckedSubtract(depth, 1)]
+				nodes[frame.node] = copyjsonArrayPathNode(jsonArrayPathNodeEnd(nodes[frame.node], token.end))
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			} else {
+				kind := 3
+				if token.kind == jsonReadObjectOpen {
+					kind = langruntime.CheckedI32(6)
+				} else if token.kind == jsonReadArrayOpen {
+					kind = langruntime.CheckedI32(5)
+				} else if token.kind == jsonReadQuote {
+					kind = langruntime.CheckedI32(4)
+				} else if source.characters[token.start] == 'n' {
+					kind = langruntime.CheckedI32(0)
+				} else if source.characters[token.start] == 't' {
+					kind = langruntime.CheckedI32(1)
+				} else if source.characters[token.start] == 'f' {
+					kind = langruntime.CheckedI32(2)
+				}
+				keyStart := 0
+				keyEnd := 0
+				index := len(nodes)
+				if depth > 0 {
+					frame := frames[langruntime.CheckedSubtract(depth, 1)]
+					keyStart = langruntime.CheckedIndex(frame.keyStart)
+					keyEnd = langruntime.CheckedIndex(frame.keyEnd)
+					if frame.tail > 0 {
+						nodes[frame.tail] = copyjsonArrayPathNode(jsonArrayPathNodeNext(nodes[frame.tail], index))
+					} else {
+						nodes[frame.node] = copyjsonArrayPathNode(jsonArrayPathNodeChild(nodes[frame.node], index))
+					}
+					frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonArrayPathFrame(jsonArrayPathFrame{node: frame.node, tail: index, state: 3, keyStart: frame.keyStart, keyEnd: frame.keyEnd})
+				} else {
+					root = langruntime.CheckedIndex(index)
+				}
+				langruntime.CheckedAdd(len(nodes), 1)
+				nodes = append(nodes, copyjsonArrayPathNode(jsonArrayPathNode{kind: kind, start: token.start, end: token.end, child: 0, next: 0, keyStart: keyStart, keyEnd: keyEnd}))
+				if kind == 5 || kind == 6 {
+					state := 0
+					if kind == 5 {
+						state = langruntime.CheckedI32(2)
+					}
+					frame := jsonArrayPathFrame{node: index, tail: 0, state: state, keyStart: 0, keyEnd: 0}
+					if depth < len(frames) {
+						frames[depth] = copyjsonArrayPathFrame(frame)
+					} else {
+						langruntime.CheckedAdd(len(frames), 1)
+						frames = append(frames, copyjsonArrayPathFrame(frame))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+			}
+		}
+		position = langruntime.CheckedIndex(token.end)
+	}
+	return jsonArrayPathDocument{characters: source.characters, names: names, nodes: nodes, root: root, state: 1, error: MakeSqlError(0)}
+}
+func jsonArrayPathKeyMatches(source *jsonArrayPathDocument, node jsonArrayPathNode, key *jsonSyntaxSource) bool {
+	node = copyjsonArrayPathNode(node)
+	if langruntime.CheckedSubtract(node.keyEnd, node.keyStart) != len(key.characters) {
+		return false
+	}
+	position := 0
+	for position < len(key.characters) {
+		if source.names[langruntime.CheckedAdd(node.keyStart, position)] != key.characters[position] {
+			return false
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return true
+}
+func jsonArrayPathNext(source *jsonArrayPathDocument, current jsonArrayPathCandidates, key TextValue) jsonArrayPathCandidates {
+	current = copyjsonArrayPathCandidates(current)
+	output := []int{}
+	if key.Kind == TextValueValue {
+		text := langruntime.CheckedString(key.Value)
+		characters := jsonSyntaxSource{characters: []rune(text)}
+		index := JsonArrayPathIndex(text)
+		position := 0
+		for position < len(current.nodes) {
+			node := source.nodes[current.nodes[position]]
+			if node.kind == 6 {
+				child := node.child
+				for child > 0 {
+					field := source.nodes[child]
+					if jsonArrayPathKeyMatches(source, field, &characters) {
+						langruntime.CheckedAdd(len(output), 1)
+						output = append(output, langruntime.CheckedIndex(child))
+					}
+					child = langruntime.CheckedIndex(field.next)
+				}
+			} else if node.kind == 5 {
+				if index.Kind == Int4ValueValue {
+					number := langruntime.CheckedI32(index.Value)
+					count := int64(0)
+					child := node.child
+					for child > 0 {
+						count = langruntime.CheckedI64Add(count, int64(1))
+						child = langruntime.CheckedIndex(source.nodes[child].next)
+					}
+					wanted := int64(langruntime.CheckedI32(number))
+					if wanted < int64(0) {
+						wanted = langruntime.CheckedI64Add(count, wanted)
+					}
+					offset := int64(0)
+					child = langruntime.CheckedIndex(node.child)
+					for child > 0 {
+						if offset == wanted {
+							langruntime.CheckedAdd(len(output), 1)
+							output = append(output, langruntime.CheckedIndex(child))
+							break
+						}
+						offset = langruntime.CheckedI64Add(offset, int64(1))
+						child = langruntime.CheckedIndex(source.nodes[child].next)
+					}
+				}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		return jsonArrayPathCandidates{nodes: output, state: 1}
+	}
+	position := 0
+	for position < len(current.nodes) {
+		node := source.nodes[current.nodes[position]]
+		if (node.kind == 5 || node.kind == 6) && node.child > 0 {
+			return jsonArrayPathCandidates{nodes: output, state: langruntime.CheckedSignedNegate(1)}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return jsonArrayPathCandidates{nodes: output, state: 1}
+}
+func JsonReadArrayPath(input JsonValue, path ArrayValue, asText bool, utf8 bool) TextValue {
+	if input.Kind == JsonValueError {
+		error := input.Error
+		return TextValue{Kind: TextValueError, Error: error}
+	}
+	pathState := JsonArrayPathState(CopyArrayValue(path))
+	if pathState.Kind == Int4ValueError {
+		error := pathState.Error
+		return TextValue{Kind: TextValueError, Error: error}
+	}
+	if input.Kind == JsonValueNull {
+		return TextValue{Kind: TextValueNull}
+	}
+	if pathState == (Int4Value{Kind: Int4ValueNull}) {
+		return TextValue{Kind: TextValueNull}
+	}
+	if pathState == (Int4Value{Kind: Int4ValueUnknown}) {
+		return TextValue{Kind: TextValueUnknown}
+	}
+	if input.Kind == JsonValueValue {
+		value := input.Value
+		if path.Kind == ArrayValueValue {
+			keys := CopyArrayPayload(path.Value)
+			uncertain := false
+			index := 0
+			for index < len(keys.Elements) {
+				key := CopyArrayElement(keys.Elements[index])
+				if key.Kind == ArrayElementUnknown {
+					uncertain = true
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			document := parseJsonArrayPathDocument(value.Source, utf8)
+			if document.state == langruntime.CheckedSignedNegate(2) {
+				if uncertain {
+					return TextValue{Kind: TextValueUnknown}
+				}
+				return TextValue{Kind: TextValueError, Error: document.error}
+			}
+			if document.state != 1 || document.root == 0 {
+				return TextValue{Kind: TextValueUnknown}
+			}
+			initial := []int{}
+			langruntime.CheckedAdd(len(initial), 1)
+			initial = append(initial, langruntime.CheckedIndex(document.root))
+			candidates := jsonArrayPathCandidates{nodes: initial, state: 1}
+			index = langruntime.CheckedIndex(0)
+			for index < len(keys.Elements) {
+				key := ArrayElementToText(CopyArrayElement(keys.Elements[index]))
+				candidates = copyjsonArrayPathCandidates(jsonArrayPathNext(&document, candidates, key))
+				if candidates.state != 1 {
+					return TextValue{Kind: TextValueUnknown}
+				}
+				if len(candidates.nodes) == 0 {
+					return TextValue{Kind: TextValueNull}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			selected := candidates.nodes[langruntime.CheckedSubtract(len(candidates.nodes), 1)]
+			node := document.nodes[selected]
+			source := jsonSyntaxSource{characters: document.characters}
+			if asText && node.kind == 0 {
+				return TextValue{Kind: TextValueNull}
+			}
+			if asText && node.kind == 4 {
+				token := jsonReadNextToken(&source, node.start)
+				return jsonReadDecodeStringContext(&source, token, utf8)
+			}
+			if len(keys.Elements) == 0 && node.kind < 5 {
+				return jsonReadSlice(&source, 0, node.end)
+			}
+			return jsonReadSlice(&source, node.start, node.end)
+		}
 	}
 	return TextValue{Kind: TextValueUnknown}
 }
@@ -7882,14 +8291,6 @@ func FinishArrayConstructor(input ArrayArguments) ArrayValue {
 	}
 	if input.Kind == ArrayArgumentsValue {
 		value := CopyArrayPayload(input.Value)
-		position := 0
-		for position < len(value.Elements) {
-			element := CopyArrayElement(value.Elements[position])
-			if element.Kind == ArrayElementUnknown {
-				return ArrayValue{Kind: ArrayValueUnknown}
-			}
-			position = langruntime.CheckedAdd(position, 1)
-		}
 		dimensions := []ArrayDimension{}
 		if len(value.Elements) > 0 {
 			langruntime.CheckedAdd(len(dimensions), 1)

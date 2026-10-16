@@ -64,6 +64,14 @@ fn json_read_hex(character: char) -> i32 {
 }
 
 fn json_read_decode_string(source: &JsonSyntaxSource, token: JsonReadToken) -> TextValue {
+    json_read_decode_string_context(source, token, false)
+}
+
+fn json_read_decode_string_context(
+    source: &JsonSyntaxSource,
+    token: JsonReadToken,
+    utf8: bool,
+) -> TextValue {
     let mut position = token.start + 1;
     let mut high: i32 = -1;
     let mut output = String::new();
@@ -117,7 +125,7 @@ fn json_read_decode_string(source: &JsonSyntaxSource, token: JsonReadToken) -> T
                     if code == 0 {
                         return TextValue::Error(make_sql_error(JSON_READ_ZERO));
                     };
-                    if code > 127 {
+                    if code > 127 && utf8 == false {
                         return TextValue::Unknown;
                     };
                     output.push(char::from_u32(code as u32).unwrap_or(' '));
