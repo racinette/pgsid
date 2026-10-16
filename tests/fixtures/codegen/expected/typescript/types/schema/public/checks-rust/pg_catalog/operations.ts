@@ -71,6 +71,15 @@ export function arrayGe2z0c(input: checkruntime.Int4Value): checkruntime.BoolVal
 export function btarraycmpBmnb(input: checkruntime.Int4Value): checkruntime.Int4Value {
     return input;
 }
+export function arraycontainsIpqq(input: checkruntime.BoolValue): checkruntime.BoolValue {
+    return input;
+}
+export function arraycontainedUyb2(input: checkruntime.BoolValue): checkruntime.BoolValue {
+    return input;
+}
+export function arrayoverlapLwrw(input: checkruntime.BoolValue): checkruntime.BoolValue {
+    return input;
+}
 export function arrayIntegerTextElement(input: checkruntime.TextValue, family: number): checkruntime.ArrayElement {
     family = langruntime.checkedI32(family);
     let bits: number = 64;

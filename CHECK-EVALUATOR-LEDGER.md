@@ -242,8 +242,7 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Establish owned transaction snapshot values, portable I/O, binary output, bounds,
       visibility, domains, literals, composition and SQL-coerced public inputs;
       retain active-transaction requirements for current snapshot retrieval.
-- [x] Remove generation-time enum OIDs from emitted literals and public label
-      adapters, and verify hash deferral across independent databases.
+- [x] Remove generation-time enum OIDs from emitted literals and public label adapters, and verify hash deferral across independent databases.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
 - [x] Establish private typed array storage, dimensions/lower bounds, NULL/Unknown elements, independent nested clones and metadata parity.
 - [x] Admit SQL-coerced scalar/enum arrays and domains over arrays, metadata calls, typed builtin NULLs, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
@@ -253,6 +252,7 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Admit array text output, element-specific I/O, dimensions, quoting/escaping, character widths and INSERT parity; retain scalar formatting/catalog deferrals and known empty/NULL-only arrays.
 - [x] Admit multidimensional element fetches and slices, omitted/mixed bounds, integer assignment casts, copied cells, constant preparation and reached-error order; verify raw/stored composition and INSERT parity.
 - [x] Admit array equality/order through catalog-selected element support, NULL cells, dimensional tie-breaks, reached context deferrals, owned snapshots, constant preparation, expression composition and INSERT parity.
+- [x] Admit containment/overlap through default element equality, shape/duplicate independence, nonmatching NULL cells, partial-input recovery, reached errors, constant preparation, collation boundaries and INSERT parity.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.

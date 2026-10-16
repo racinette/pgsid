@@ -76,6 +76,15 @@ func ArrayGe2z0c(input checkruntime.Int4Value) checkruntime.BoolValue {
 func BtarraycmpBmnb(input checkruntime.Int4Value) checkruntime.Int4Value {
 	return input
 }
+func ArraycontainsIpqq(input checkruntime.BoolValue) checkruntime.BoolValue {
+	return input
+}
+func ArraycontainedUyb2(input checkruntime.BoolValue) checkruntime.BoolValue {
+	return input
+}
+func ArrayoverlapLwrw(input checkruntime.BoolValue) checkruntime.BoolValue {
+	return input
+}
 func ArrayIntegerTextElement(input checkruntime.TextValue, family int) checkruntime.ArrayElement {
 	family = langruntime.CheckedI32(family)
 	bits := 64

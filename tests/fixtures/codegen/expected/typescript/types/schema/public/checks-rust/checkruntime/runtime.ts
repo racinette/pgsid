@@ -9177,6 +9177,124 @@ export function finishArrayComparison(input: ArrayComparisonPayload, result: Int
     }
     return result;
 }
+export function prepareArrayMembership(left: ArrayValue, right: ArrayValue, reverse: boolean, available: boolean): ArrayComparisonPayload {
+    left = copyArrayValue(left);
+    right = copyArrayValue(right);
+    reverse = langruntime.checkedBool(reverse);
+    available = langruntime.checkedBool(available);
+    const payload: ArrayComparisonPayload = prepareArrayComparison(left, right, false, available);
+    if (payload.state === 1 && reverse) {
+        return { left: payload.right, right: payload.left, limit: payload.limit, state: payload.state, error: payload.error, tail: payload.tail, value: payload.value };
+    }
+    return payload;
+}
+export function arrayMembershipInitial(input: ArrayComparisonPayload, all: boolean): BoolValue {
+    input = copyArrayComparisonPayload(input);
+    all = langruntime.checkedBool(all);
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === langruntime.checkedSignedNegate(1)) {
+        return { kind: "Unknown" };
+    }
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    return { kind: "Value", value: all };
+}
+export function arrayMembershipContinues(input: ArrayComparisonPayload, index: Int4Value, result: BoolValue, all: boolean): boolean {
+    input = copyArrayComparisonPayload(input);
+    all = langruntime.checkedBool(all);
+    if (!(input.state === 1)) {
+        return false;
+    }
+    const outcome: CheckOutcome = checkFromBool(result);
+    if (all && andStops(outcome)) {
+        return false;
+    }
+    if (all === false && orStops(outcome)) {
+        return false;
+    }
+    if (index.kind === "Value") {
+        const offset: number = langruntime.checkedI32(index.value);
+        return offset >= 0 && (BigInt(langruntime.checkedI32(offset))) < (BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.left.length))))));
+    }
+    return false;
+}
+export function arrayMembershipElementAt(input: ArrayComparisonPayload, index: Int4Value, right: boolean): ArrayElement {
+    input = copyArrayComparisonPayload(input);
+    right = langruntime.checkedBool(right);
+    if (index.kind === "Value") {
+        const offset: number = langruntime.checkedI32(index.value);
+        if (right) {
+            const position: number = langruntime.indexFromI32(offset, input.right.length);
+            if (offset >= 0 && position < input.right.length) {
+                return copyArrayElement(langruntime.indexStruct(input.right, langruntime.checkedIndex(position), copyArrayElement));
+            }
+        }
+        else {
+            const position: number = langruntime.indexFromI32(offset, input.left.length);
+            if (offset >= 0 && position < input.left.length) {
+                return copyArrayElement(langruntime.indexStruct(input.left, langruntime.checkedIndex(position), copyArrayElement));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arrayMembershipMatchInitial(input: ArrayComparisonPayload, index: Int4Value): BoolValue {
+    input = copyArrayComparisonPayload(input);
+    const source: ArrayElement = arrayMembershipElementAt(input, index, false);
+    if (source.kind === "Error") {
+        const error: SqlError = source.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Value", value: false };
+}
+export function arrayMembershipScanContinues(input: ArrayComparisonPayload, sourceIndex: Int4Value, index: Int4Value, matched: BoolValue): boolean {
+    input = copyArrayComparisonPayload(input);
+    if (orStops(checkFromBool(matched))) {
+        return false;
+    }
+    const source: ArrayElement = arrayMembershipElementAt(input, sourceIndex, false);
+    if (source.kind === "Null") {
+        return false;
+    }
+    if (index.kind === "Value") {
+        const offset: number = langruntime.checkedI32(index.value);
+        return offset >= 0 && (BigInt(langruntime.checkedI32(offset))) < (BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.right.length))))));
+    }
+    return false;
+}
+export function arrayMembershipPair(left: ArrayElement, right: ArrayElement): Int4Value {
+    left = copyArrayElement(left);
+    right = copyArrayElement(right);
+    if (left.kind === "Null") {
+        return { kind: "Value", value: 1 };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Value", value: 1 };
+    }
+    return arrayComparisonPair(left, right, true);
+}
+export function arrayMembershipMatchStep(matched: BoolValue, comparison: Int4Value): BoolValue {
+    let value: BoolValue = { kind: "Unknown" };
+    if (comparison.kind === "Value") {
+        const result: number = langruntime.checkedI32(comparison.value);
+        value = { kind: "Value", value: result === 0 };
+    }
+    if (comparison.kind === "Error") {
+        const error: SqlError = comparison.value;
+        value = { kind: "Error", value: error };
+    }
+    return boolFromCheck(orFinish(checkFromBool(matched), checkFromBool(value)));
+}
+export function arrayMembershipFinishStep(result: BoolValue, matched: BoolValue, all: boolean): BoolValue {
+    all = langruntime.checkedBool(all);
+    if (all) {
+        return boolFromCheck(andFinish(checkFromBool(result), checkFromBool(matched)));
+    }
+    return boolFromCheck(orFinish(checkFromBool(result), checkFromBool(matched)));
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);

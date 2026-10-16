@@ -122,3 +122,23 @@ CREATE TABLE lane_document_comparisons (
   bypass boolean,
   CONSTRAINT different_documents CHECK (CASE WHEN bypass THEN true ELSE first_payload::json[] <> second_payload::json[] END)
 );
+
+CREATE TABLE lane_requirements (
+  selected_slots lane_slots,
+  approved_slots integer[],
+  required_slots integer[],
+  forbidden_slots integer[],
+  bypass boolean,
+  CONSTRAINT selected_slots_approved CHECK (selected_slots <@ approved_slots),
+  CONSTRAINT required_slots_selected CHECK (CASE WHEN bypass THEN true ELSE selected_slots @> required_slots END),
+  CONSTRAINT forbidden_slots_absent CHECK (NOT (selected_slots && forbidden_slots))
+);
+
+CREATE TABLE lane_document_membership (
+  first_payload text,
+  second_payload text,
+  bypass boolean,
+  CONSTRAINT documents_contain CHECK (CASE WHEN bypass THEN true ELSE first_payload::json[] @> second_payload::json[] END),
+  CONSTRAINT documents_contained CHECK (CASE WHEN bypass THEN true ELSE first_payload::json[] <@ second_payload::json[] END),
+  CONSTRAINT documents_overlap CHECK (CASE WHEN bypass THEN true ELSE first_payload::json[] && second_payload::json[] END)
+);

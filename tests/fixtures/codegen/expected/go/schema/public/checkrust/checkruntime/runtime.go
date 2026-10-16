@@ -9137,6 +9137,117 @@ func FinishArrayComparison(input *ArrayComparisonPayload, result Int4Value) Int4
 	}
 	return result
 }
+func PrepareArrayMembership(left ArrayValue, right ArrayValue, reverse bool, available bool) ArrayComparisonPayload {
+	left = CopyArrayValue(left)
+	right = CopyArrayValue(right)
+	payload := PrepareArrayComparison(left, right, false, available)
+	if payload.State == 1 && reverse {
+		return ArrayComparisonPayload{Left: payload.Right, Right: payload.Left, Limit: payload.Limit, State: payload.State, Error: payload.Error, Tail: payload.Tail, Value: payload.Value}
+	}
+	return payload
+}
+func ArrayMembershipInitial(input *ArrayComparisonPayload, all bool) BoolValue {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return BoolValue{Kind: BoolValueError, Error: input.Error}
+	}
+	if input.State == langruntime.CheckedSignedNegate(1) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.State == 0 {
+		return BoolValue{Kind: BoolValueNull}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: all}
+}
+func ArrayMembershipContinues(input *ArrayComparisonPayload, index Int4Value, result BoolValue, all bool) bool {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if input.State != 1 {
+		return false
+	}
+	outcome := CheckFromBool(result)
+	if all && AndStops(outcome) {
+		return false
+	}
+	if all == false && OrStops(outcome) {
+		return false
+	}
+	if index.Kind == Int4ValueValue {
+		offset := langruntime.CheckedI32(index.Value)
+		return offset >= 0 && (int64(langruntime.CheckedI32(offset))) < (int64(langruntime.CheckedI32((int(int32(len(input.Left)))))))
+	}
+	return false
+}
+func ArrayMembershipElementAt(input *ArrayComparisonPayload, index Int4Value, right bool) ArrayElement {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if index.Kind == Int4ValueValue {
+		offset := langruntime.CheckedI32(index.Value)
+		if right {
+			position := langruntime.IndexFromI32(offset, len(input.Right))
+			if offset >= 0 && position < len(input.Right) {
+				return CopyArrayElement(input.Right[position])
+			}
+		} else {
+			position := langruntime.IndexFromI32(offset, len(input.Left))
+			if offset >= 0 && position < len(input.Left) {
+				return CopyArrayElement(input.Left[position])
+			}
+		}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayMembershipMatchInitial(input *ArrayComparisonPayload, index Int4Value) BoolValue {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	source := ArrayMembershipElementAt(input, index, false)
+	if source.Kind == ArrayElementError {
+		error := source.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: false}
+}
+func ArrayMembershipScanContinues(input *ArrayComparisonPayload, sourceIndex Int4Value, index Int4Value, matched BoolValue) bool {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if OrStops(CheckFromBool(matched)) {
+		return false
+	}
+	source := ArrayMembershipElementAt(input, sourceIndex, false)
+	if source.Kind == ArrayElementNull {
+		return false
+	}
+	if index.Kind == Int4ValueValue {
+		offset := langruntime.CheckedI32(index.Value)
+		return offset >= 0 && (int64(langruntime.CheckedI32(offset))) < (int64(langruntime.CheckedI32((int(int32(len(input.Right)))))))
+	}
+	return false
+}
+func ArrayMembershipPair(left ArrayElement, right ArrayElement) Int4Value {
+	left = CopyArrayElement(left)
+	right = CopyArrayElement(right)
+	if left.Kind == ArrayElementNull {
+		return Int4Value{Kind: Int4ValueValue, Value: 1}
+	}
+	if right.Kind == ArrayElementNull {
+		return Int4Value{Kind: Int4ValueValue, Value: 1}
+	}
+	return ArrayComparisonPair(left, right, true)
+}
+func ArrayMembershipMatchStep(matched BoolValue, comparison Int4Value) BoolValue {
+	value := BoolValue{Kind: BoolValueUnknown}
+	if comparison.Kind == Int4ValueValue {
+		result := langruntime.CheckedI32(comparison.Value)
+		value = BoolValue{Kind: BoolValueValue, Value: result == 0}
+	}
+	if comparison.Kind == Int4ValueError {
+		error := comparison.Error
+		value = BoolValue{Kind: BoolValueError, Error: error}
+	}
+	return BoolFromCheck(OrFinish(CheckFromBool(matched), CheckFromBool(value)))
+}
+func ArrayMembershipFinishStep(result BoolValue, matched BoolValue, all bool) BoolValue {
+	if all {
+		return BoolFromCheck(AndFinish(CheckFromBool(result), CheckFromBool(matched)))
+	}
+	return BoolFromCheck(OrFinish(CheckFromBool(result), CheckFromBool(matched)))
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

@@ -19,3 +19,9 @@ VALUES ('{1,NULL}', '{1,NULL}', true, 0, '{a}', '{z}', -1, '1', true, true);
 
 INSERT INTO lane_document_comparisons (first_payload, second_payload, bypass)
 VALUES ('{}', '{NULL}', false);
+
+INSERT INTO lane_requirements (selected_slots, approved_slots, required_slots, forbidden_slots, bypass)
+VALUES ('[0:1]={1,2}', '{{1,2,3}}', '{1,1}', '{4,NULL}', false);
+
+INSERT INTO lane_document_membership (first_payload, second_payload, bypass)
+VALUES ('bad', 'bad', true);
