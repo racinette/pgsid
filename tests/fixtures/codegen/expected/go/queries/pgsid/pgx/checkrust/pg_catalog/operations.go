@@ -12364,6 +12364,110 @@ func JsonArrayLength97pw(input checkruntime.JsonValue) checkruntime.Int4Value {
 	return checkruntime.JsonReadLength(input)
 }
 
+type jsonbArrayFrame struct {
+	node      int
+	tail      int
+	dimension int
+	count     int
+}
+
+func copyjsonbArrayFrame(value jsonbArrayFrame) jsonbArrayFrame {
+	return jsonbArrayFrame{node: langruntime.CheckedIndex(value.node), tail: langruntime.CheckedIndex(value.tail), dimension: langruntime.CheckedIndex(value.dimension), count: langruntime.CheckedI32(value.count)}
+}
+func jsonbArrayNode(child int) checkruntime.JsonbNode {
+	child = langruntime.CheckedIndex(child)
+	return checkruntime.JsonbNode{Kind: 5, Child: child, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0}
+}
+func JsonbArrayInputValue(input checkruntime.JsonbArrayInputPayload) checkruntime.JsonbValue {
+	dimensions := []checkruntime.ArrayDimension{}
+	dimension := 0
+	for dimension < len(input.Dimensions) {
+		langruntime.CheckedAdd(len(dimensions), 1)
+		dimensions = append(dimensions, input.Dimensions[dimension])
+		dimension = langruntime.CheckedAdd(dimension, 1)
+	}
+	batch := checkruntime.JsonbArrayInputArguments(input)
+	flat := JsonbBuildArrayGfm5(batch)
+	if len(dimensions) < 2 {
+		return flat
+	}
+	if flat.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(flat.Value)
+		nodes := value.Nodes
+		leaf := nodes[value.Root].Child
+		root := len(nodes)
+		langruntime.CheckedAdd(len(nodes), 1)
+		nodes = append(nodes, jsonbArrayNode(0))
+		frames := []jsonbArrayFrame{}
+		langruntime.CheckedAdd(len(frames), 1)
+		frames = append(frames, copyjsonbArrayFrame(jsonbArrayFrame{node: root, tail: 0, dimension: 0, count: 0}))
+		depth := 1
+		for depth > 0 {
+			frame := frames[langruntime.CheckedSubtract(depth, 1)]
+			if frame.count == dimensions[frame.dimension].Length {
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			} else {
+				child := leaf
+				container := langruntime.CheckedAdd(frame.dimension, 1) < len(dimensions)
+				if container {
+					child = langruntime.CheckedIndex(len(nodes))
+					langruntime.CheckedAdd(len(nodes), 1)
+					nodes = append(nodes, jsonbArrayNode(0))
+				} else {
+					leaf = langruntime.CheckedIndex(nodes[child].Next)
+					node := nodes[child]
+					nodes[child] = jsonbBuildNode(node, 0, node.KeyStart, node.KeyEnd)
+				}
+				if frame.tail == 0 {
+					node := nodes[frame.node]
+					nodes[frame.node] = checkruntime.JsonbNode{Kind: node.Kind, Child: child, Next: node.Next, KeyStart: node.KeyStart, KeyEnd: node.KeyEnd, TextStart: node.TextStart, TextEnd: node.TextEnd}
+				} else {
+					node := nodes[frame.tail]
+					nodes[frame.tail] = jsonbBuildNode(node, child, node.KeyStart, node.KeyEnd)
+				}
+				frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonbArrayFrame(jsonbArrayFrame{node: frame.node, tail: child, dimension: frame.dimension, count: langruntime.CheckedSignedAdd(frame.count, 1)})
+				if container {
+					next := jsonbArrayFrame{node: child, tail: 0, dimension: langruntime.CheckedAdd(frame.dimension, 1), count: 0}
+					if depth < len(frames) {
+						frames[depth] = copyjsonbArrayFrame(next)
+					} else {
+						langruntime.CheckedAdd(len(frames), 1)
+						frames = append(frames, copyjsonbArrayFrame(next))
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+			}
+		}
+		return checkruntime.JsonbRebuild(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: value.Characters, Nodes: nodes, Root: root}}, true)
+	}
+	return flat
+}
+func JsonbArrayKeyInput(input checkruntime.ArrayValue) checkruntime.JsonbInput {
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueUnknown {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
+	}
+	marker := checkruntime.MakeJsonbValue("[]")
+	return checkruntime.JsonbInputFromJsonb(marker)
+}
+func JsonbArrayValueInput(input checkruntime.ArrayValue, converted checkruntime.JsonbValue) checkruntime.JsonbInput {
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	if converted.Kind == checkruntime.JsonbValueError {
+		error := converted.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputConvertedError, ConvertedError: error}
+	}
+	return checkruntime.JsonbInputFromJsonb(converted)
+}
+
 const jsonbScalarCastError = 3452619
 
 func NumericUnkz(input checkruntime.JsonbValue) checkruntime.NumericValue {
@@ -12467,6 +12571,13 @@ func jsonbBuildNode(node checkruntime.JsonbNode, next int, keyStart int, keyEnd 
 }
 func jsonbBuild(input checkruntime.JsonbArguments, object bool) checkruntime.JsonbValue {
 	input = checkruntime.CopyJsonbArguments(input)
+	if input.Kind == checkruntime.JsonbArgumentsError {
+		error := input.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbArgumentsNull {
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
+	}
 	if input.Kind == checkruntime.JsonbArgumentsValues {
 		batch := checkruntime.CopyJsonbArgumentPayload(input.Values)
 		index := 0
@@ -12591,6 +12702,10 @@ func ToJsonb9y7o(input checkruntime.JsonbInput) checkruntime.JsonbValue {
 	input = checkruntime.CopyJsonbInput(input)
 	if input.Kind == checkruntime.JsonbInputError {
 		error := input.Error
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbInputConvertedError {
+		error := input.ConvertedError
 		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: error}
 	}
 	if input.Kind == checkruntime.JsonbInputNull {

@@ -178,7 +178,7 @@ it('matches heterogeneous JSONB builders, scalar keys, eager arguments, normaliz
       )!
       expect(hasUncertain(lowered.expression)).toBe(false)
       expect(JSON.stringify(lowered.expression)).toContain('"variadic":true')
-      expect(hasUncertain(portableCheckAtoms(lowered.expression))).toBe(true)
+      expect(hasUncertain(portableCheckAtoms(lowered.expression))).toBe(false)
     }
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     const oracle: unknown[] = []

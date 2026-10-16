@@ -1550,3 +1550,135 @@ VALUES ('{"a":1,"bad":"\u0000"}', '{"a":1}', '{NULL}', NULL, NULL, NULL, NULL);
 -- name: document_keys_only_null_cells
 INSERT INTO lane_document_keys (document, keys, expected_any, expected_all, bypass)
 VALUES ('{}', '{NULL,NULL}', false, true, true);
+
+-- name: jsonb_arrays_values
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a,1,b,2}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["a","1","b","2"]', '[1,null]', '[1.00,2.5]', '[1,null,2,3]', '{"a":"1","b":"2"}', '[[1,null,2,3],null]', '{"slots":[1,null,2,3]}', false);
+
+-- name: jsonb_arrays_matrix
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('[0:1][3:4]={{1,NULL},{2,3}}', '{{a,1},{b,2}}', '{{1,"null"},{2,3}}', '{{1.00,2.5},{3,4}}', '[[1,null],[2,3]]', '[["a","1"],["b","2"]]', '[[1,null],[2,3]]', '[[1.00,2.5],[3,4]]', '[1,null,2,3]', '{"a":"1","b":"2"}', '[[[1,null],[2,3]],null]', '{"slots":[[1,null],[2,3]]}', false);
+
+-- name: jsonb_arrays_empty
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{}', '{}', '{}', '{}', '[]', '[]', '[]', '[]', '[]', '{}', '[[],null]', '{"slots":[]}', false);
+
+-- name: jsonb_arrays_null
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '[null,null]', '{"slots":null}', true);
+
+-- name: jsonb_arrays_duplicate_keys
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,2}', '{a,1,a,2}', '{}', '{}', '[1,2]', '["a","1","a","2"]', '[]', '[]', '[1,2]', '{"a":"2"}', '[[1,2],null]', '{"slots":[1,2]}', false);
+
+-- name: jsonb_arrays_unicode
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{}', '{雪,😊}', '{}', '{}', '[]', '["雪","😊"]', '[]', '[]', '[]', '{"雪":"😊"}', '[[],null]', '{"slots":[]}', false);
+
+-- name: jsonb_arrays_wrong_slots
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a,1,b,2}', '{1,"null"}', '{1.00,2.5}', '["wrong"]', '["a","1","b","2"]', '[1,null]', '[1.00,2.5]', '[1,null,2,3]', '{"a":"1","b":"2"}', '[[1,null,2,3],null]', '{"slots":[1,null,2,3]}', false);
+
+-- name: jsonb_arrays_wrong_labels
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a,1,b,2}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["wrong"]', '[1,null]', '[1.00,2.5]', '[1,null,2,3]', '{"a":"1","b":"2"}', '[[1,null,2,3],null]', '{"slots":[1,null,2,3]}', false);
+
+-- name: jsonb_arrays_wrong_documents
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a,1,b,2}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["a","1","b","2"]', '["wrong"]', '[1.00,2.5]', '[1,null,2,3]', '{"a":"1","b":"2"}', '[[1,null,2,3],null]', '{"slots":[1,null,2,3]}', false);
+
+-- name: jsonb_arrays_wrong_amounts
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a,1,b,2}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["a","1","b","2"]', '[1,null]', '["wrong"]', '[1,null,2,3]', '{"a":"1","b":"2"}', '[[1,null,2,3],null]', '{"slots":[1,null,2,3]}', false);
+
+-- name: jsonb_arrays_wrong_flattened
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a,1,b,2}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["a","1","b","2"]', '[1,null]', '[1.00,2.5]', '["wrong"]', '{"a":"1","b":"2"}', '[[1,null,2,3],null]', '{"slots":[1,null,2,3]}', false);
+
+-- name: jsonb_arrays_wrong_object
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a,1,b,2}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["a","1","b","2"]', '[1,null]', '[1.00,2.5]', '[1,null,2,3]', '["wrong"]', '[[1,null,2,3],null]', '{"slots":[1,null,2,3]}', false);
+
+-- name: jsonb_arrays_wrong_nested
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a,1,b,2}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["a","1","b","2"]', '[1,null]', '[1.00,2.5]', '[1,null,2,3]', '{"a":"1","b":"2"}', '["wrong"]', '{"slots":[1,null,2,3]}', false);
+
+-- name: jsonb_arrays_wrong_named
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a,1,b,2}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["a","1","b","2"]', '[1,null]', '[1.00,2.5]', '[1,null,2,3]', '{"a":"1","b":"2"}', '[[1,null,2,3],null]', '["wrong"]', false);
+
+-- name: jsonb_arrays_odd_object
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{a}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["a","1","b","2"]', '[1,null]', '[1.00,2.5]', '[1,null,2,3]', '{"a":"1","b":"2"}', '[[1,null,2,3],null]', '{"slots":[1,null,2,3]}', false);
+
+-- name: jsonb_arrays_null_key
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES ('{1,NULL,2,3}', '{NULL,1}', '{1,"null"}', '{1.00,2.5}', '[1,null,2,3]', '["a","1","b","2"]', '[1,null]', '[1.00,2.5]', '[1,null,2,3]', '{"a":"1","b":"2"}', '[[1,null,2,3],null]', '{"slots":[1,null,2,3]}', false);
+
+-- name: jsonb_arrays_null_variadic_required
+INSERT INTO lane_jsonb_arrays (slots, labels, documents, amounts, expected_slots, expected_labels, expected_documents, expected_amounts, expected_flattened, expected_object, expected_nested, expected_named, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '[null,null]', '{"slots":null}', false);
+
+-- name: jsonb_import_values
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES ('{1,"null",2}', '[1,null,2]', '[1,null,2]', 1, false);
+
+-- name: jsonb_import_matrix
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES ('{{1,"null"},{2,3}}', '[[1,null],[2,3]]', '[1,null,2,3]', 1, false);
+
+-- name: jsonb_import_empty
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES ('{}', '[]', '[]', 1, false);
+
+-- name: jsonb_import_null
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES (NULL, NULL, NULL, 1, false);
+
+-- name: jsonb_import_decode_error
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES ('{"\"\\u0000\"",1}', NULL, NULL, 1, false);
+
+-- name: jsonb_import_eager_division
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES ('{"\"\\u0000\"",1}', NULL, NULL, 0, false);
+
+-- name: jsonb_import_bad_array
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES ('bad', NULL, NULL, 1, false);
+
+-- name: jsonb_import_skipped
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES ('bad', NULL, NULL, 0, true);
+
+-- name: jsonb_import_wrong_nested
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES ('{1}', '[2]', '[1]', 1, false);
+
+-- name: jsonb_import_wrong_flattened
+INSERT INTO lane_jsonb_imports (payload, expected_nested, expected_flattened, divisor, bypass)
+VALUES ('{1}', '[1]', '[2]', 1, false);
+
+-- name: jsonb_enum_empty
+INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
+VALUES ('{}', '[]', false);
+
+-- name: jsonb_enum_null
+INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
+VALUES (NULL, NULL, false);
+
+-- name: jsonb_enum_null_cells
+INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
+VALUES ('{NULL,NULL}', '[null,null]', false);
+
+-- name: jsonb_enum_requires_catalog
+INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
+VALUES ('{new,done}', '["new","done"]', false);
+
+-- name: jsonb_enum_skipped
+INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
+VALUES ('{new,done}', NULL, true);
+
+-- name: jsonb_enum_wrong_empty
+INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
+VALUES ('{}', '[1]', false);

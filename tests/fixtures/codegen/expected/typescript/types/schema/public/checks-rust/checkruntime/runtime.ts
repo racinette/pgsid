@@ -872,6 +872,9 @@ export type JsonbInput = {
     readonly kind: "Error";
     readonly value: SqlError;
 } | {
+    readonly kind: "ConvertedError";
+    readonly value: SqlError;
+} | {
     readonly kind: "Boolean";
     readonly value: boolean;
 } | {
@@ -892,6 +895,7 @@ export function copyJsonbInput(value: JsonbInput): JsonbInput {
         case "Unknown": return { kind: "Unknown" };
         case "Null": return { kind: "Null" };
         case "Error": return { kind: "Error", value: value.value };
+        case "ConvertedError": return { kind: "ConvertedError", value: value.value };
         case "Boolean": return { kind: "Boolean", value: langruntime.checkedBool(value.value) };
         case "Number": return { kind: "Number", value: langruntime.checkedString(value.value) };
         case "Text": return { kind: "Text", value: langruntime.checkedString(value.value) };
@@ -906,11 +910,21 @@ export function copyJsonbArgumentPayload(value: JsonbArgumentPayload): JsonbArgu
     return { values: langruntime.checkedStructs(value.values, copyJsonbInput) };
 }
 export type JsonbArguments = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+} | {
     readonly kind: "Values";
     readonly value: JsonbArgumentPayload;
 };
 export function copyJsonbArguments(value: JsonbArguments): JsonbArguments {
     switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Error": return { kind: "Error", value: value.value };
         case "Values": return { kind: "Values", value: copyJsonbArgumentPayload(value.value) };
     }
 }
@@ -5997,6 +6011,72 @@ export function jsonbFromString(input: TextValue): JsonbValue {
         return jsonbRebuild(result, true);
     }
     return { kind: "Unknown" };
+}
+export interface JsonbArrayInputPayload {
+    state: number;
+    error: SqlError;
+    dimensions: ArrayDimension[];
+    elements: ArrayElement[];
+    values: JsonbInput[];
+    position: number;
+}
+function copyJsonbArrayInputPayload(value: JsonbArrayInputPayload): JsonbArrayInputPayload {
+    return { state: langruntime.checkedI32(value.state), error: value.error, dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement), values: langruntime.checkedStructs(value.values, copyJsonbInput), position: langruntime.checkedIndex(value.position) };
+}
+export type JsonbArrayInputPlan = {
+    kind: "Value";
+    value: JsonbArrayInputPayload;
+};
+function copyJsonbArrayInputPlan(value: JsonbArrayInputPlan): JsonbArrayInputPlan {
+    switch (value.kind) {
+        case "Value": return { kind: "Value", value: copyJsonbArrayInputPayload(value.value) };
+    }
+}
+export function prepareJsonbArrayInput(input: ArrayValue): JsonbArrayInputPayload {
+    const prepared: ArrayOutputPayload = prepareArrayOutput(input);
+    const values: JsonbInput[] = [];
+    return { state: prepared.state, error: prepared.error, dimensions: prepared.dimensions, elements: prepared.elements, values: values, position: 0 };
+}
+export function jsonbArrayInputContinues(input: JsonbArrayInputPayload): boolean {
+    return input.state === 1 && input.position < input.elements.length;
+}
+export function jsonbArrayInputIsKey(input: JsonbArrayInputPayload): boolean {
+    return langruntime.checkedSignedRemainder((langruntime.checkedI32(langruntime.checkedIndex(input.position))), 2) === 0;
+}
+export function jsonbArrayInputElement(input: JsonbArrayInputPayload): ArrayElement {
+    if (input.position < input.elements.length) {
+        return copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(input.position), copyArrayElement));
+    }
+    return { kind: "Unknown" };
+}
+export function appendJsonbArrayInput(input: JsonbArrayInputPayload, value: JsonbInput): JsonbArrayInputPayload {
+    let values: JsonbInput[] = input.values;
+    langruntime.pushStruct(values, value, copyJsonbInput);
+    return { state: input.state, error: input.error, dimensions: input.dimensions, elements: input.elements, values: values, position: langruntime.checkedAdd(input.position, 1) };
+}
+export function jsonbArrayInputArguments(input: JsonbArrayInputPayload): JsonbArguments {
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (!(input.state === 1) || !(input.values.length === input.elements.length)) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Values", value: { values: input.values } };
+}
+export function jsonbArrayFloat4Input(input: Float4Value, key: boolean): JsonbInput {
+    if (key) {
+        return jsonbKeyInputFromFloat4(input);
+    }
+    return jsonbInputFromFloat4(input);
+}
+export function jsonbArrayFloat8Input(input: Float8Value, key: boolean): JsonbInput {
+    if (key) {
+        return jsonbKeyInputFromFloat8(input);
+    }
+    return jsonbInputFromFloat8(input);
 }
 interface JsonbStorageSize {
     low: bigint;

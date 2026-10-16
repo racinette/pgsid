@@ -157,6 +157,10 @@ const arraySortContextCases = new Map<string, string>([
 ])
 const jsonValueContextCases = new Map<string, string>([
   ...arraySortContextCases,
+  [
+    '043_lane_allocations/jsonb_enum_requires_catalog/enum_jsonb',
+    'world_043_lane_allocations.lane_jsonb_stage_arrays.enum_jsonb',
+  ],
   ...['clock_exists', 'clock_match', 'clock_results', 'clock_first'].map(
     (name) =>
       [

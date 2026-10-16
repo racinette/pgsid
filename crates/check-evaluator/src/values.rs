@@ -811,6 +811,7 @@ pub enum JsonbInput {
     Unknown,
     Null,
     Error(SqlError),
+    ConvertedError(SqlError),
     Boolean(bool),
     Number(String),
     Text(String),
@@ -825,6 +826,9 @@ pub struct JsonbArgumentPayload {
 
 #[derive(Clone)]
 pub enum JsonbArguments {
+    Unknown,
+    Null,
+    Error(SqlError),
     Values(JsonbArgumentPayload),
 }
 

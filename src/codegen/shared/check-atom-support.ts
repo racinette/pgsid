@@ -4,7 +4,7 @@ import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import type { SqlBindingGroup } from '../../sql-semantics/signatures.js'
 import { checkRustCallableNames } from './check-rust-source.js'
 import {
-  jsonbConversionHelper,
+  supportsJsonbConversion,
   isJsonbBuilder,
   isJsonpathTimezoneCallable,
   isArrayStringIO,
@@ -148,7 +148,7 @@ export function portableCheckAtoms(
                 : operand?.kind === 'regex-count'
                   ? builtinMetadata(operand.signature).result
                   : operand?.type
-          if (!type || !jsonbConversionHelper(type))
+          if (!type || !supportsJsonbConversion(type))
             return { kind: 'uncertain', type: value.call.type }
         }
       }
