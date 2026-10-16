@@ -12293,6 +12293,123 @@ func JsonbExistsAllX510(input checkruntime.JsonbValue, keys checkruntime.ArrayVa
 	keys = checkruntime.CopyArrayValue(keys)
 	return jsonbArrayPathExists(input, keys, true)
 }
+
+const jsonBuildParameter = 3452619
+const jsonBuildNullKey = 3452548
+
+func jsonBuildKey(input checkruntime.JsonbInput) checkruntime.TextValue {
+	input = checkruntime.CopyJsonbInput(input)
+	if input.Kind == checkruntime.JsonbInputNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonBuildNullKey)}
+	}
+	return jsonbBuildKey(input)
+}
+func jsonBuild(input checkruntime.JsonbArguments, object bool, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonbArguments(input)
+	if input.Kind == checkruntime.JsonbArgumentsError {
+		error := input.Error
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbArgumentsNull {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNull}
+	}
+	if input.Kind == checkruntime.JsonbArgumentsValues {
+		batch := checkruntime.CopyJsonbArgumentPayload(input.Values)
+		index := 0
+		odd := false
+		for index < len(batch.Values) {
+			argument := checkruntime.CopyJsonbInput(batch.Values[index])
+			if argument.Kind == checkruntime.JsonbInputError {
+				error := argument.Error
+				return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+			}
+			odd = odd == false
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if object && odd {
+			return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: checkruntime.MakeSqlError(jsonBuildParameter)}
+		}
+		output := langruntime.NewTextBuffer("")
+		if object {
+			output = append(output, string(langruntime.CheckedChar('{'))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar('['))...)
+		}
+		index = langruntime.CheckedIndex(0)
+		for index < len(batch.Values) {
+			if index > 0 {
+				output = append(output, ", "...)
+			}
+			if object {
+				key := jsonBuildKey(checkruntime.CopyJsonbInput(batch.Values[index]))
+				if key.Kind == checkruntime.TextValueError {
+					error := key.Error
+					return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+				}
+				ready := false
+				if key.Kind == checkruntime.TextValueValue {
+					value := langruntime.CheckedString(key.Value)
+					quoted := checkruntime.JsonQuoteString(value)
+					output = append(output, quoted...)
+					output = append(output, " : "...)
+					ready = true
+				}
+				if ready == false {
+					return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			converted := ToJson25lg(checkruntime.CopyJsonbInput(batch.Values[index]), utf8)
+			if converted.Kind == checkruntime.JsonValueError {
+				error := converted.Error
+				return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+			}
+			if converted.Kind == checkruntime.JsonValueUnknown {
+				return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+			}
+			if converted.Kind == checkruntime.JsonValueNull {
+				output = append(output, "null"...)
+			}
+			if converted.Kind == checkruntime.JsonValueValue {
+				value := converted.Value
+				output = append(output, value.Source...)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if object {
+			output = append(output, string(langruntime.CheckedChar('}'))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar(']'))...)
+		}
+		return checkruntime.MakeJsonValue(string(output))
+	}
+	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+}
+func JsonArrayValueInput(input checkruntime.ArrayValue, converted checkruntime.JsonValue) checkruntime.JsonbInput {
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	if converted.Kind == checkruntime.JsonValueError {
+		error := converted.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputConvertedError, ConvertedError: error}
+	}
+	return checkruntime.JsonbInputFromJson(converted)
+}
+func JsonBuildArrayGme1(input checkruntime.JsonbArguments, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonbArguments(input)
+	return jsonBuild(input, false, utf8)
+}
+func JsonBuildArray3khl() checkruntime.JsonValue {
+	return checkruntime.MakeJsonValue("[]")
+}
+func JsonBuildObjectQfmu(input checkruntime.JsonbArguments, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonbArguments(input)
+	return jsonBuild(input, true, utf8)
+}
+func JsonBuildObjectNqz6() checkruntime.JsonValue {
+	return checkruntime.MakeJsonValue("{}")
+}
 func JsonbTextContext(input checkruntime.JsonbValue, utf8 bool) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
 	if utf8 == false {

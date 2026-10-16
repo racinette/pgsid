@@ -688,3 +688,52 @@ CREATE TABLE lane_json_conversion_imports (
   bypass boolean,
   CONSTRAINT converted_imported_json_array CHECK (CASE WHEN bypass THEN true ELSE array_to_json(payload::json[],pretty)::text COLLATE "C" IS NOT DISTINCT FROM expected COLLATE "C" END)
 );
+
+CREATE TABLE lane_raw_document_builders (
+  label text,
+  amount numeric,
+  flag boolean,
+  document json,
+  binary_document jsonb,
+  first_key text,
+  second_key text,
+  run_keys boolean,
+  expected_array text,
+  expected_object text,
+  expected_duplicate text,
+  expected_keys text,
+  expected_empty_array text,
+  expected_empty_object text,
+  bypass boolean,
+  CONSTRAINT raw_built_array CHECK (CASE WHEN bypass THEN true ELSE json_build_array(label,amount,flag,document,binary_document,NULL)::text COLLATE "C" IS NOT DISTINCT FROM expected_array COLLATE "C" END),
+  CONSTRAINT raw_built_object CHECK (CASE WHEN bypass THEN true ELSE json_build_object('label',label,'number',amount,'flag',flag,'document',document,'binary',binary_document)::text COLLATE "C" IS NOT DISTINCT FROM expected_object COLLATE "C" END),
+  CONSTRAINT raw_duplicate_keys CHECK (CASE WHEN bypass OR NOT run_keys THEN true ELSE json_build_object(first_key,1,second_key,2)::text COLLATE "C" IS NOT DISTINCT FROM expected_duplicate COLLATE "C" END),
+  CONSTRAINT raw_scalar_keys CHECK (CASE WHEN bypass OR NOT run_keys THEN true ELSE json_build_object(flag,document,amount,label)::text COLLATE "C" IS NOT DISTINCT FROM expected_keys COLLATE "C" END),
+  CONSTRAINT raw_empty_array CHECK (CASE WHEN bypass THEN true ELSE json_build_array()::text COLLATE "C" IS NOT DISTINCT FROM expected_empty_array COLLATE "C" END),
+  CONSTRAINT raw_empty_object CHECK (CASE WHEN bypass THEN true ELSE json_build_object()::text COLLATE "C" IS NOT DISTINCT FROM expected_empty_object COLLATE "C" END)
+);
+
+CREATE TABLE lane_raw_array_builders (
+  slots integer[],
+  labels text[],
+  documents json[],
+  expected_nested text,
+  expected_flattened text,
+  expected_object text,
+  expected_documents text,
+  bypass boolean,
+  CONSTRAINT raw_nested_slots CHECK (CASE WHEN bypass THEN true ELSE json_build_array(slots,NULL)::text COLLATE "C" IS NOT DISTINCT FROM expected_nested COLLATE "C" END),
+  CONSTRAINT raw_flattened_slots CHECK (CASE WHEN bypass THEN true ELSE json_build_array(VARIADIC slots)::text COLLATE "C" IS NOT DISTINCT FROM expected_flattened COLLATE "C" END),
+  CONSTRAINT raw_variadic_object CHECK (CASE WHEN bypass THEN true ELSE json_build_object(VARIADIC labels)::text COLLATE "C" IS NOT DISTINCT FROM expected_object COLLATE "C" END),
+  CONSTRAINT raw_flattened_documents CHECK (CASE WHEN bypass THEN true ELSE json_build_array(VARIADIC documents)::text COLLATE "C" IS NOT DISTINCT FROM expected_documents COLLATE "C" END)
+);
+
+CREATE TABLE lane_raw_builder_imports (
+  payload text,
+  divisor integer,
+  expected_array text,
+  expected_object text,
+  bypass boolean,
+  CONSTRAINT raw_imported_array CHECK (CASE WHEN bypass THEN true ELSE json_build_array(payload::json[],1/divisor)::text COLLATE "C" IS NOT DISTINCT FROM expected_array COLLATE "C" END),
+  CONSTRAINT raw_imported_object CHECK (CASE WHEN bypass THEN true ELSE json_build_object('values',payload::json[],'count',1/divisor)::text COLLATE "C" IS NOT DISTINCT FROM expected_object COLLATE "C" END)
+);

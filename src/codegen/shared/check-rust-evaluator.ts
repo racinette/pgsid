@@ -160,6 +160,24 @@ export const isJsonbBuilder = (
       item.args[0] === 'pg_catalog."any"' &&
       item.variadic === 'pg_catalog."any"'))
 
+export const isJsonBuilder = (
+  item: ReturnType<typeof builtinMetadata>,
+): item is ReturnType<typeof builtinMetadata> & {
+  kind: 'function'
+  name: 'json_build_array' | 'json_build_object'
+} =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  ['json_build_array', 'json_build_object'].includes(item.name) &&
+  item.result === 'pg_catalog."json"' &&
+  !item.strict &&
+  !item.returnsSet &&
+  item.volatility === 's' &&
+  ((item.args.length === 0 && item.variadic === null) ||
+    (item.args.length === 1 &&
+      item.args[0] === 'pg_catalog."any"' &&
+      item.variadic === 'pg_catalog."any"'))
+
 export class UnsupportedCheckRustExpression extends Error {}
 
 export const isJsonbSetLax = (item: ReturnType<typeof builtinMetadata>): boolean =>
@@ -1093,6 +1111,11 @@ export function emitCheckRustEvaluator(
       const jsonbBuilder =
         isJsonbBuilder(implementation) &&
         (implementation.args.length === 0 ? operands.length === 0 : operands.length > 0)
+      const jsonBuilder =
+        isJsonBuilder(implementation) &&
+        (implementation.args.length === 0 ? operands.length === 0 : operands.length > 0)
+      const builder = jsonbBuilder || jsonBuilder
+      const rawJson = jsonConversion || jsonBuilder
       const jsonpathTimezone = isJsonpathTimezoneCallable(implementation)
       const arraySearch = isArraySearch(implementation)
       const arrayStringIO = isArrayStringIO(implementation)
@@ -1137,6 +1160,7 @@ export function emitCheckRustEvaluator(
           !arrayFill &&
           !arrayStringIO &&
           !jsonbBuilder &&
+          !jsonBuilder &&
           !isJsonbSetLax(implementation) &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
@@ -1145,6 +1169,7 @@ export function emitCheckRustEvaluator(
           !jsonbConversion &&
           !jsonConversion &&
           !jsonbBuilder &&
+          !jsonBuilder &&
           !jsonpathTimezone &&
           !(
             (['namesend', 'textsend'].includes(implementation.name) &&
@@ -1159,7 +1184,7 @@ export function emitCheckRustEvaluator(
                   call.signature))
           )) ||
         implementation.returnsSet ||
-        (!jsonbBuilder && implementation.args.length !== operands.length)
+        (!builder && implementation.args.length !== operands.length)
       )
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK callable: ${call.signature}`,
@@ -1190,7 +1215,7 @@ export function emitCheckRustEvaluator(
           `Rust CHECK enum identity mismatch: ${call.signature}`,
         )
       if (
-        !jsonbBuilder &&
+        !builder &&
         implementation.args.some((type, index) =>
           (arraySearch || arrayTransform || arrayRewrite) &&
           type === 'pg_catalog.anycompatiblearray' &&
@@ -1723,7 +1748,7 @@ export function emitCheckRustEvaluator(
         return { name, type: call.type }
       }
       let arguments_ = operands.map((operand) => ownedOperand(operand))
-      if (jsonbConversion || jsonConversion || (jsonbBuilder && operands.length > 0)) {
+      if (jsonbConversion || jsonConversion || (builder && operands.length > 0)) {
         const scalarInput = (
           original: { name: string; type: string },
           key: boolean | string,
@@ -1776,11 +1801,11 @@ export function emitCheckRustEvaluator(
               )
           }
           const helper =
-            jsonConversion && operand.type === 'pg_catalog."numeric"'
+            rawJson && operand.type === 'pg_catalog."numeric"'
               ? 'json_input_from_numeric'
-              : jsonConversion && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+              : rawJson && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
                 ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
-                : operand.type === 'pg_catalog."json"' && !jsonConversion
+                : operand.type === 'pg_catalog."json"' && !rawJson
                   ? 'jsonb_input_from_json_context'
                   : typeof key === 'string' &&
                       ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
@@ -1794,9 +1819,10 @@ export function emitCheckRustEvaluator(
             )
           const carrier = fresh('jsonb_input')
           const args = [ownedOperand(operand)]
-          if (operand.type === 'pg_catalog."json"' && !jsonConversion)
+          if (operand.type === 'pg_catalog."json"' && !rawJson)
             args.push(String(executionContext.serverEncoding === 'UTF8'))
           if (
+            !rawJson &&
             typeof key === 'string' &&
             ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
           )
@@ -1823,7 +1849,11 @@ export function emitCheckRustEvaluator(
             `let ${scalar} = array_element_to_${rustValuePrefix(rustType(elementType))}(${element});`,
           ]
           let key: boolean | string = false
-          if (object && ['pg_catalog.float4', 'pg_catalog.float8'].includes(elementType)) {
+          if (
+            !rawJson &&
+            object &&
+            ['pg_catalog.float4', 'pg_catalog.float8'].includes(elementType)
+          ) {
             key = fresh('jsonb_array_key')
             body.push(`let ${key} = jsonb_array_input_is_key(&${cursor});`)
           }
@@ -1843,21 +1873,26 @@ export function emitCheckRustEvaluator(
           callables.add(implementation.rustName)
           return { name, type: call.type }
         }
-        const variadic = jsonbBuilder && call.kind !== 'cast' && call.variadic === true
+        const variadic = builder && call.kind !== 'cast' && call.variadic === true
         const carriers: string[] = []
         if (variadic) {
           if (operands.length !== 1 || !operands[0]!.type.startsWith('array:'))
             throw new UnsupportedCheckRustExpression(
               'Explicit JSONB VARIADIC calls require one concrete array',
             )
-          const cursor = arrayInputs(operands[0]!, implementation.name === 'jsonb_build_object'),
+          const cursor = arrayInputs(
+              operands[0]!,
+              ['json_build_object', 'jsonb_build_object'].includes(implementation.name),
+            ),
             batch = fresh('jsonb_array_arguments')
           destination.push(`let ${batch} = jsonb_array_input_arguments(${cursor});`)
           arguments_ = [batch]
         } else
           for (const [index, operand] of operands.entries()) {
             const key =
-              jsonbBuilder && implementation.name === 'jsonb_build_object' && index % 2 === 0
+              builder &&
+              ['json_build_object', 'jsonb_build_object'].includes(implementation.name) &&
+              index % 2 === 0
             if (operand.type.startsWith('array:')) {
               const carrier = fresh('jsonb_array_input')
               if (key)
@@ -1867,12 +1902,12 @@ export function emitCheckRustEvaluator(
               else {
                 const cursor = arrayInputs(operand, false),
                   value = fresh('jsonb_array_value')
-                if (jsonConversion) {
+                if (rawJson) {
                   const compact = fresh('json_array_compact')
                   destination.push(
                     `let ${compact} = make_bool_value(false);`,
                     `let ${value} = json_array_input_value(${cursor}, ${compact}, ${executionContext.serverEncoding === 'UTF8'});`,
-                    `let ${carrier} = jsonb_input_from_json(${value});`,
+                    `let ${carrier} = json_array_value_input(${ownedOperand(operand)}, ${value});`,
                   )
                 } else
                   destination.push(
@@ -1883,7 +1918,7 @@ export function emitCheckRustEvaluator(
               carriers.push(carrier)
             } else carriers.push(scalarInput(operand, key, destination))
           }
-        if (jsonbBuilder && !variadic) {
+        if (builder && !variadic) {
           let batch = fresh('jsonb_arguments')
           destination.push(`let ${batch} = make_jsonb_arguments();`)
           for (const carrier of carriers) {
@@ -1893,7 +1928,7 @@ export function emitCheckRustEvaluator(
           }
           arguments_ = [batch]
         } else if (!variadic) arguments_ = carriers
-        if (jsonConversion) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+        if (rawJson) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       }
       callables.add(implementation.rustName)
       const name = fresh('value')
