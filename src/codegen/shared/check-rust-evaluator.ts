@@ -1308,6 +1308,94 @@ export function emitCheckRustEvaluator(
       destination.push(`let ${name} = ${callable}(${arguments_.join(', ')});`)
       return { name, type: call.type }
     }
+    if (node.kind === 'array-coerce') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const sourceType = `array:${node.sourceElementType}`
+      const family = arrayElementFamily(node.elementType)
+      const castLink = builtinCast(node.sourceElementType, node.elementType)
+      if (
+        operand.type !== sourceType ||
+        node.type !== `array:${node.elementType}` ||
+        family === null ||
+        node.conversion.kind !== 'cast' ||
+        node.conversion.type !== node.elementType ||
+        !Number.isInteger(node.modifier) ||
+        node.modifier < -1 ||
+        node.modifier > 2147483647 ||
+        (node.conversion.signature === null
+          ? castLink?.method !== 'b'
+          : castLink?.method !== 'f' || castLink.implementation !== node.conversion.signature)
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Array coercion requires matching concrete element types',
+        )
+      const payload = bind(`prepare_array_output(${ownedOperand(operand)})`)
+      const initial = bind(
+        `make_array_arguments(${rustStringLiteral(node.elementType)}, ${family})`,
+      )
+      const first = bind('make_int4_value(0)')
+      const builder = fresh('array_coercion_builder'),
+        index = fresh('array_coercion_index'),
+        element = fresh('array_coercion_element')
+      const scalar = fresh('array_coercion_scalar'),
+        converted = fresh('array_coercion_converted')
+      const lines: string[] = []
+      let conversion: string
+      try {
+        if (node.conversion.signature !== null) {
+          const callable = builtinMetadata(node.conversion.signature)
+          if (callable.kind !== 'function' || !checkRustCallableNames().has(callable.rustName))
+            throw new UnsupportedCheckRustExpression(
+              'Array element cast implementation is unavailable',
+            )
+        }
+        const sourcePrefix = rustValuePrefix(rustType(node.sourceElementType))
+        lines.push(`let ${scalar} = array_element_to_${sourcePrefix}(${element}.clone());`)
+        const args = [{ name: scalar, type: node.sourceElementType as string }]
+        const signature =
+          node.conversion.signature === null ? null : builtinMetadata(node.conversion.signature)
+        if (signature && signature.args.length > 1) {
+          const modifier = fresh('array_coercion_modifier')
+          lines.push(`let ${modifier} = make_int4_value(${node.modifier});`)
+          args.push({ name: modifier, type: 'pg_catalog.int4' })
+        }
+        if (signature && signature.args.length > 2) {
+          const explicit = fresh('array_coercion_explicit')
+          lines.push(`let ${explicit} = make_bool_value(${node.explicit});`)
+          args.push({ name: explicit, type: 'pg_catalog.bool' })
+        }
+        const call =
+          signature && signature.args.length > 1
+            ? {
+                kind: 'function' as const,
+                signature: node.conversion.signature!,
+                type: node.elementType,
+              }
+            : node.conversion
+        const value =
+          castLink?.method === 'b' && arrayElementFamily(node.sourceElementType) === family
+            ? { name: scalar, type: node.elementType }
+            : emitCall(call, args, lines)
+        const targetPrefix = rustValuePrefix(rustType(node.elementType))
+        conversion = `array_element_from_${targetPrefix}(${ownedOperand(value)})`
+      } catch (error) {
+        if (!(error instanceof UnsupportedCheckRustExpression)) throw error
+        lines.length = 0
+        conversion = `array_coercion_deferred(${element})`
+      }
+      bindings.push(
+        `let mut ${builder}: ArrayArguments = ${initial};`,
+        `let mut ${index}: Int4Value = ${first};`,
+        `while array_output_has_element(&${payload}, ${index}) {`,
+        `    let ${element} = array_output_element_at(&${payload}, ${index});`,
+        ...indent(lines),
+        `    let ${converted} = ${conversion};`,
+        `    ${builder} = append_array_argument(${builder}, ${converted});`,
+        `    ${index} = array_text_next_index(${index});`,
+        '}',
+      )
+      return { name: bind(`finish_array_coercion(${payload}, ${builder})`), type: node.type }
+    }
     if (node.kind === 'check') {
       if (node.expression.kind === 'eval-scalar')
         return emitScalar(node.expression.expression, bindings, used)

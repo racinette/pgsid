@@ -1704,3 +1704,40 @@ pub fn array_membership_finish_step(result: BoolValue, matched: BoolValue, all: 
     };
     bool_from_check(or_finish(check_from_bool(result), check_from_bool(matched)))
 }
+
+pub fn array_coercion_deferred(input: ArrayElement) -> ArrayElement {
+    if let ArrayElement::Null = input {
+        return ArrayElement::Null;
+    };
+    if let ArrayElement::Error(error) = input {
+        return ArrayElement::Error(error);
+    };
+    ArrayElement::Unknown
+}
+
+pub fn finish_array_coercion(input: ArrayOutputPayload, converted: ArrayArguments) -> ArrayValue {
+    if input.state == -2 {
+        return ArrayValue::Error(input.error);
+    };
+    if input.state == -1 {
+        return ArrayValue::Unknown;
+    };
+    if input.state == 0 {
+        return ArrayValue::Null;
+    };
+    if let ArrayArguments::Error(error) = converted {
+        return ArrayValue::Error(error);
+    };
+    if let ArrayArguments::Value(value) = converted {
+        if value.elements.len() != input.elements.len() {
+            return ArrayValue::Unknown;
+        };
+        return make_array_value(ArrayPayload {
+            element_type: value.element_type,
+            element_kind: value.element_kind,
+            dimensions: input.dimensions,
+            elements: value.elements,
+        });
+    };
+    ArrayValue::Unknown
+}

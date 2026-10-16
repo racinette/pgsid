@@ -25,3 +25,9 @@ VALUES ('[0:1]={1,2}', '{{1,2,3}}', '{1,1}', '{4,NULL}', false);
 
 INSERT INTO lane_document_membership (first_payload, second_payload, bypass)
 VALUES ('bad', 'bad', true);
+
+INSERT INTO lane_promotions (small_slots, big_slots, narrow_slots, expected_fallback, expected_selected, expected_narrow, expected_layout, use_small, bypass)
+VALUES ('{1,2}', '{3,4}', '{1,2}', '{1,2}', '{3,4}', '{1,2}', '[1:2][1:2]', false, false);
+
+INSERT INTO lane_stage_arrays (first_stages, second_stages, expected_stages, require_order)
+VALUES ('{new}', '{new,done}', '{new}', true);

@@ -9248,6 +9248,42 @@ func ArrayMembershipFinishStep(result BoolValue, matched BoolValue, all bool) Bo
 	}
 	return BoolFromCheck(OrFinish(CheckFromBool(result), CheckFromBool(matched)))
 }
+func ArrayCoercionDeferred(input ArrayElement) ArrayElement {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func FinishArrayCoercion(input ArrayOutputPayload, converted ArrayArguments) ArrayValue {
+	input = CopyArrayOutputPayload(input)
+	converted = CopyArrayArguments(converted)
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return ArrayValue{Kind: ArrayValueError, Error: input.Error}
+	}
+	if input.State == langruntime.CheckedSignedNegate(1) {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	if input.State == 0 {
+		return ArrayValue{Kind: ArrayValueNull}
+	}
+	if converted.Kind == ArrayArgumentsError {
+		error := converted.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if converted.Kind == ArrayArgumentsValue {
+		value := CopyArrayPayload(converted.Value)
+		if len(value.Elements) != len(input.Elements) {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		return MakeArrayValue(ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: input.Dimensions, Elements: value.Elements})
+	}
+	return ArrayValue{Kind: ArrayValueUnknown}
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

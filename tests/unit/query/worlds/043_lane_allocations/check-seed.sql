@@ -414,3 +414,75 @@ VALUES ('bad', '{}', false);
 -- name: requirements_document_right_input_error
 INSERT INTO lane_document_membership (first_payload, second_payload, bypass)
 VALUES (NULL, 'bad', false);
+
+-- name: promotion_mixed_integer_arrays
+INSERT INTO lane_promotions (small_slots, big_slots, narrow_slots, expected_fallback, expected_selected, expected_narrow, expected_layout, use_small, bypass)
+VALUES ('{1,2}', '{3,4}', '{1,2}', '{1,2}', '{3,4}', '{1,2}', '[1:2][1:2]', false, false);
+
+-- name: promotion_shifted_bounds
+INSERT INTO lane_promotions (small_slots, big_slots, narrow_slots, expected_fallback, expected_selected, expected_narrow, expected_layout, use_small, bypass)
+VALUES ('[0:1]={1,NULL}', '[0:1]={3,4}', '[0:1]={1,NULL}', '[0:1]={1,NULL}', '[0:1]={1,NULL}', '[0:1]={1,NULL}', '[1:2][0:1]', true, false);
+
+-- name: promotion_null_arrays
+INSERT INTO lane_promotions (small_slots, big_slots, narrow_slots, expected_fallback, expected_selected, expected_narrow, expected_layout, use_small, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, false);
+
+-- name: promotion_empty_arrays
+INSERT INTO lane_promotions (small_slots, big_slots, narrow_slots, expected_fallback, expected_selected, expected_narrow, expected_layout, use_small, bypass)
+VALUES ('{}', '{}', '{}', '{}', '{}', '{}', NULL, true, false);
+
+-- name: promotion_bigint_fallback
+INSERT INTO lane_promotions (small_slots, big_slots, narrow_slots, expected_fallback, expected_selected, expected_narrow, expected_layout, use_small, bypass)
+VALUES (NULL, '{9223372036854775807}', NULL, '{9223372036854775807}', '{9223372036854775807}', NULL, NULL, false, false);
+
+-- name: promotion_wrong_fallback
+INSERT INTO lane_promotions (small_slots, big_slots, narrow_slots, expected_fallback, expected_selected, expected_narrow, expected_layout, use_small, bypass)
+VALUES ('{1,2}', '{3,4}', '{1,2}', '{3,4}', '{3,4}', '{1,2}', '[1:2][1:2]', false, false);
+
+-- name: promotion_wrong_selected
+INSERT INTO lane_promotions (small_slots, big_slots, narrow_slots, expected_fallback, expected_selected, expected_narrow, expected_layout, use_small, bypass)
+VALUES ('{1,2}', '{3,4}', '{1,2}', '{1,2}', '{1,2}', '{1,2}', '[1:2][1:2]', false, false);
+
+-- name: promotion_wrong_narrowed
+INSERT INTO lane_promotions (small_slots, big_slots, narrow_slots, expected_fallback, expected_selected, expected_narrow, expected_layout, use_small, bypass)
+VALUES ('{1,2}', '{3,4}', '{1,2}', '{1,2}', '{3,4}', '{2,1}', '[1:2][1:2]', false, false);
+
+-- name: promotion_narrowing_overflow
+INSERT INTO lane_promotions (narrow_slots, expected_narrow, bypass)
+VALUES ('{32768}', '{32768}', false);
+
+-- name: promotion_guarded_narrowing
+INSERT INTO lane_promotions (narrow_slots, expected_narrow, bypass)
+VALUES ('{32768}', '{32768}', true);
+
+-- name: promotion_nonrectangular_batch
+INSERT INTO lane_promotions (small_slots, big_slots, expected_fallback, expected_selected, expected_layout, use_small)
+VALUES ('{1}', '{2,3}', '{1}', '{2,3}', '[1:2][1:2]', false);
+
+-- name: promotion_wrong_batch_layout
+INSERT INTO lane_promotions (small_slots, big_slots, narrow_slots, expected_fallback, expected_selected, expected_narrow, expected_layout, use_small, bypass)
+VALUES ('{1,2}', '{3,4}', '{1,2}', '{1,2}', '{3,4}', '{1,2}', '[0:1][1:2]', false, false);
+
+-- name: stage_arrays_schema_order
+INSERT INTO lane_stage_arrays (first_stages, second_stages, expected_stages, require_order)
+VALUES ('{new}', '{new,done}', '{new}', true);
+
+-- name: stage_arrays_fallback
+INSERT INTO lane_stage_arrays (first_stages, second_stages, expected_stages, require_order)
+VALUES (NULL, '{done,new}', '{done,new}', true);
+
+-- name: stage_arrays_empty
+INSERT INTO lane_stage_arrays (first_stages, second_stages, expected_stages, require_order)
+VALUES ('{}', '{}', '{}', true);
+
+-- name: stage_arrays_wrong_rendered_label
+INSERT INTO lane_stage_arrays (first_stages, second_stages, expected_stages, require_order)
+VALUES ('{new}', '{new,done}', '{done}', true);
+
+-- name: stage_arrays_wrong_order
+INSERT INTO lane_stage_arrays (first_stages, second_stages, expected_stages, require_order)
+VALUES ('{done}', '{new,done}', '{done}', true);
+
+-- name: stage_arrays_unapproved_label
+INSERT INTO lane_stage_arrays (first_stages, second_stages, expected_stages, require_order)
+VALUES ('{done}', '{new}', '{done}', false);
