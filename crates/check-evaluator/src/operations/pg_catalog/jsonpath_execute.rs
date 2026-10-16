@@ -1070,7 +1070,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     generated_nodes: generated_nodes,
                     generated_characters: generated_characters,
                     generated_ids: generated_ids,
-                    next_generated_id: identity + 1i64,
+                    next_generated_id: jsonpath_keyvalue_next_identity(identity),
                 };
                 pending.push(jsonpath_execution_make_task(
                     0,

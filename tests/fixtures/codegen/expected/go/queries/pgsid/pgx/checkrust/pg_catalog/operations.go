@@ -13492,7 +13492,7 @@ func jsonpathExecutionWalk(input jsonpathExecutionContext, existence bool) jsonp
 					generatedIds = append(generatedIds, jsonpathKeyvalueAddBase(offsets[position], identity))
 					position = langruntime.CheckedAdd(position, 1)
 				}
-				context = copyjsonpathExecutionContext(jsonpathExecutionContext{documentCharacters: context.documentCharacters, documentNodes: context.documentNodes, documentRoot: context.documentRoot, variablesCharacters: context.variablesCharacters, variablesNodes: context.variablesNodes, variablesRoot: context.variablesRoot, literalNodes: context.literalNodes, pathCharacters: context.pathCharacters, pathNodes: context.pathNodes, pathRoot: context.pathRoot, lax: context.lax, utf8: context.utf8, orderedResult: context.orderedResult, documentIds: context.documentIds, variablesIds: context.variablesIds, generatedNodes: generatedNodes, generatedCharacters: generatedCharacters, generatedIds: generatedIds, nextGeneratedId: langruntime.CheckedI64Add(identity, int64(1))})
+				context = copyjsonpathExecutionContext(jsonpathExecutionContext{documentCharacters: context.documentCharacters, documentNodes: context.documentNodes, documentRoot: context.documentRoot, variablesCharacters: context.variablesCharacters, variablesNodes: context.variablesNodes, variablesRoot: context.variablesRoot, literalNodes: context.literalNodes, pathCharacters: context.pathCharacters, pathNodes: context.pathNodes, pathRoot: context.pathRoot, lax: context.lax, utf8: context.utf8, orderedResult: context.orderedResult, documentIds: context.documentIds, variablesIds: context.variablesIds, generatedNodes: generatedNodes, generatedCharacters: generatedCharacters, generatedIds: generatedIds, nextGeneratedId: jsonpathKeyvalueNextIdentity(identity)})
 				langruntime.CheckedAdd(len(pending), 1)
 				pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, context.pathNodes[task.step].Next, jsonpathReference{source: 6, node: root}, context.lax, task.ignore)))
 			}
@@ -14213,9 +14213,49 @@ func jsonpathKeyvalueOffsets(source *checkruntime.JsonbPayload, enabled bool, ut
 	empty := []checkruntime.NumericValue{}
 	return empty
 }
+func jsonpathKeyvalueNextIdentity(identity int64) int64 {
+	if identity == int64(2147483647) {
+		return int64(-2147483648)
+	}
+	return langruntime.CheckedI64Add(identity, int64(1))
+}
 func jsonpathKeyvalueAddBase(offset checkruntime.NumericValue, identity int64) checkruntime.NumericValue {
-	base := NumericMulBj4l(checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(identity)}, checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "10000000000"})
-	return NumericAddO3d7(offset, base)
+	if identity < int64(-2147483648) || identity > int64(2147483647) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	converted := Int8Xy54(offset)
+	if converted.Kind == checkruntime.Int8ValueError {
+		error := converted.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if converted.Kind == checkruntime.Int8ValueNull {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if converted.Kind == checkruntime.Int8ValueValue {
+		number := converted.Value
+		if number < int64(0) || number > int64(4294967295) {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		word := identity
+		if word < int64(0) {
+			word = langruntime.CheckedI64Add(word, int64(4294967296))
+		}
+		product := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(word, int64(1410065408)), number)
+		low := langruntime.CheckedI64Remainder(product, int64(4294967296))
+		high := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(word, int64(2)), langruntime.CheckedI64Divide(product, int64(4294967296)))
+		if identity < int64(0) {
+			high = langruntime.CheckedI64Subtract(high, int64(1410065408))
+		}
+		high = langruntime.CheckedI64Remainder(high, int64(4294967296))
+		if high < int64(0) {
+			high = langruntime.CheckedI64Add(high, int64(4294967296))
+		}
+		if high >= int64(2147483648) {
+			high = langruntime.CheckedI64Subtract(high, int64(4294967296))
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(4294967296)), low))}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
 }
 func jsonpathKeyvalueIdentity(context *jsonpathExecutionContext, reference jsonpathReference) checkruntime.NumericValue {
 	reference = copyjsonpathReference(reference)
