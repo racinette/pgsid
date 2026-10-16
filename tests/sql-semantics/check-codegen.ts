@@ -128,7 +128,7 @@ export function renderGoCheckTests(
                 | { kind: 'Int4'; value: number }
                 | { kind: 'Enum'; value: number }
                 | { kind: 'Int8'; value: bigint }
-                | { kind: 'Text' | 'Numeric' | 'Jsonb'; value: string }
+                | { kind: 'Text' | 'Numeric' | 'Json' | 'Jsonb'; value: string }
                 | { kind: 'Bool'; value: boolean }
               )[]
             }
@@ -162,27 +162,31 @@ export function renderGoCheckTests(
                       ? go.call(runtime('ArrayElementFromEnum'), [
                           go.call(runtime('MakeEnumValue'), [go.number(element.value)]),
                         ])
-                      : element.kind === 'Jsonb'
-                        ? go.call(runtime('ArrayElementFromJsonb'), [
-                            go.call(runtime('MakeJsonbValue'), [go.string(element.value)]),
+                      : element.kind === 'Json'
+                        ? go.call(runtime('ArrayElementFromJson'), [
+                            go.call(runtime('MakeJsonValue'), [go.string(element.value)]),
                           ])
-                        : go.composite(runtime('ArrayElement'), [
-                            go.keyValue('Kind', runtime('ArrayElement' + element.kind)),
-                            ...(element.kind === 'Null'
-                              ? []
-                              : [
-                                  go.keyValue(
-                                    element.kind,
-                                    element.kind === 'Int4' ||
-                                      element.kind === 'Int2' ||
-                                      element.kind === 'Int8'
-                                      ? go.number(element.value)
-                                      : element.kind === 'Bool'
-                                        ? go.ident(String(element.value))
-                                        : go.string(element.value),
-                                  ),
-                                ]),
-                          ]),
+                        : element.kind === 'Jsonb'
+                          ? go.call(runtime('ArrayElementFromJsonb'), [
+                              go.call(runtime('MakeJsonbValue'), [go.string(element.value)]),
+                            ])
+                          : go.composite(runtime('ArrayElement'), [
+                              go.keyValue('Kind', runtime('ArrayElement' + element.kind)),
+                              ...(element.kind === 'Null'
+                                ? []
+                                : [
+                                    go.keyValue(
+                                      element.kind,
+                                      element.kind === 'Int4' ||
+                                        element.kind === 'Int2' ||
+                                        element.kind === 'Int8'
+                                        ? go.number(element.value)
+                                        : element.kind === 'Bool'
+                                          ? go.ident(String(element.value))
+                                          : go.string(element.value),
+                                    ),
+                                  ]),
+                            ]),
                   ),
                 ),
               ),

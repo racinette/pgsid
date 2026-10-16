@@ -789,6 +789,7 @@ describe('world CHECK INSERT parity', () => {
           'pg_catalog.text': { kind: 'Text', family: 8 },
           'pg_catalog.bool': { kind: 'Bool', family: 9 },
           'pg_catalog."numeric"': { kind: 'Numeric', family: 10 },
+          'pg_catalog."json"': { kind: 'Json', family: 11 },
           'pg_catalog.jsonb': { kind: 'Jsonb', family: 12 },
         }
         const definition = catalog.enums.find((item) => enumType(item) === elementType)
@@ -846,11 +847,15 @@ describe('world CHECK INSERT parity', () => {
                 ? jsonbRuntime.arrayElementFromEnum(
                     jsonbRuntime.makeEnumValue(element.value as number),
                   )
-                : element.kind === 'Jsonb'
-                  ? jsonbRuntime.arrayElementFromJsonb(
-                      jsonbRuntime.makeJsonbValue(element.value as string),
+                : element.kind === 'Json'
+                  ? jsonbRuntime.arrayElementFromJson(
+                      jsonbRuntime.makeJsonValue(element.value as string),
                     )
-                  : element,
+                  : element.kind === 'Jsonb'
+                    ? jsonbRuntime.arrayElementFromJsonb(
+                        jsonbRuntime.makeJsonbValue(element.value as string),
+                      )
+                    : element,
             ),
           },
         }

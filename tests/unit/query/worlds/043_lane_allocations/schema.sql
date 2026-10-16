@@ -634,3 +634,57 @@ CREATE TABLE lane_encoded_documents (
   CONSTRAINT encoded_variadic_array CHECK (CASE WHEN bypass THEN true ELSE jsonb_build_array(VARIADIC ARRAY[document]) IS NOT DISTINCT FROM expected_array END),
   CONSTRAINT encoded_eager_document CHECK (CASE WHEN bypass THEN true ELSE jsonb_build_array(document,1/divisor) IS NOT DISTINCT FROM expected_eager END)
 );
+
+CREATE DOMAIN lane_json_conversion_slots AS integer[];
+CREATE TABLE lane_json_conversion_arrays (
+  slots lane_json_conversion_slots,
+  documents json[],
+  binary_documents jsonb[],
+  amounts numeric[],
+  labels text[],
+  pretty boolean,
+  expected_slots text,
+  expected_pretty text,
+  expected_documents text,
+  expected_binary text,
+  expected_amounts text,
+  expected_labels text,
+  bypass boolean,
+  CONSTRAINT converted_json_slots CHECK (CASE WHEN bypass THEN true ELSE to_json(slots)::text COLLATE "C" IS NOT DISTINCT FROM expected_slots COLLATE "C" END),
+  CONSTRAINT formatted_json_slots CHECK (CASE WHEN bypass THEN true ELSE array_to_json(slots)::text COLLATE "C" IS NOT DISTINCT FROM expected_slots COLLATE "C" END),
+  CONSTRAINT pretty_json_slots CHECK (CASE WHEN bypass THEN true ELSE array_to_json(slots,pretty)::text COLLATE "C" IS NOT DISTINCT FROM expected_pretty COLLATE "C" END),
+  CONSTRAINT converted_json_documents CHECK (CASE WHEN bypass THEN true ELSE to_json(documents)::text COLLATE "C" IS NOT DISTINCT FROM expected_documents COLLATE "C" END),
+  CONSTRAINT converted_binary_documents CHECK (CASE WHEN bypass THEN true ELSE to_json(binary_documents)::text COLLATE "C" IS NOT DISTINCT FROM expected_binary COLLATE "C" END),
+  CONSTRAINT converted_json_amounts CHECK (CASE WHEN bypass THEN true ELSE to_json(amounts)::text COLLATE "C" IS NOT DISTINCT FROM expected_amounts COLLATE "C" END),
+  CONSTRAINT converted_json_labels CHECK (CASE WHEN bypass THEN true ELSE array_to_json(labels,true)::text COLLATE "C" IS NOT DISTINCT FROM expected_labels COLLATE "C" END)
+);
+
+CREATE TABLE lane_json_conversion_scalars (
+  document json,
+  binary_document jsonb,
+  amount numeric,
+  label text,
+  flag boolean,
+  clock time,
+  expected_document text,
+  expected_binary text,
+  expected_amount text,
+  expected_label text,
+  expected_flag text,
+  expected_clock text,
+  bypass boolean,
+  CONSTRAINT converted_scalar_document CHECK (CASE WHEN bypass THEN true ELSE to_json(document)::text COLLATE "C" IS NOT DISTINCT FROM expected_document COLLATE "C" END),
+  CONSTRAINT converted_scalar_binary CHECK (CASE WHEN bypass THEN true ELSE to_json(binary_document)::text COLLATE "C" IS NOT DISTINCT FROM expected_binary COLLATE "C" END),
+  CONSTRAINT converted_scalar_amount CHECK (CASE WHEN bypass THEN true ELSE to_json(amount)::text COLLATE "C" IS NOT DISTINCT FROM expected_amount COLLATE "C" END),
+  CONSTRAINT converted_scalar_label CHECK (CASE WHEN bypass THEN true ELSE to_json(label)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT converted_scalar_flag CHECK (CASE WHEN bypass THEN true ELSE to_json(flag)::text COLLATE "C" IS NOT DISTINCT FROM expected_flag COLLATE "C" END),
+  CONSTRAINT converted_scalar_clock CHECK (CASE WHEN bypass THEN true ELSE to_json(clock)::text COLLATE "C" IS NOT DISTINCT FROM expected_clock COLLATE "C" END)
+);
+
+CREATE TABLE lane_json_conversion_imports (
+  payload text,
+  pretty boolean,
+  expected text,
+  bypass boolean,
+  CONSTRAINT converted_imported_json_array CHECK (CASE WHEN bypass THEN true ELSE array_to_json(payload::json[],pretty)::text COLLATE "C" IS NOT DISTINCT FROM expected COLLATE "C" END)
+);

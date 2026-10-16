@@ -12293,6 +12293,206 @@ func JsonbExistsAllX510(input checkruntime.JsonbValue, keys checkruntime.ArrayVa
 	keys = checkruntime.CopyArrayValue(keys)
 	return jsonbArrayPathExists(input, keys, true)
 }
+func JsonbTextContext(input checkruntime.JsonbValue, utf8 bool) checkruntime.TextValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if utf8 == false {
+		return checkruntime.JsonbToText(input)
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		original := checkruntime.CopyJsonbPayload(value)
+		nodes := value.Nodes
+		index := 1
+		for index < len(nodes) {
+			node := original.Nodes[index]
+			if node.Kind == 6 {
+				children := jsonbOrderChildren(&original, node)
+				first := 0
+				position := 0
+				for position < len(children) {
+					if position == 0 {
+						first = langruntime.CheckedIndex(children[position])
+					}
+					next := 0
+					if langruntime.CheckedAdd(position, 1) < len(children) {
+						next = langruntime.CheckedIndex(children[langruntime.CheckedAdd(position, 1)])
+					}
+					child := children[position]
+					nodes[child] = jsonbEditLink(nodes[child], next)
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				nodes[index] = jsonbFormatChild(nodes[index], first)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.JsonbToOrderedText(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: value.Characters, Nodes: nodes, Root: value.Root}})
+	}
+	return checkruntime.JsonbToText(input)
+}
+func JsonInputFromNumeric(input checkruntime.NumericValue) checkruntime.JsonbInput {
+	output := ArrayNumericOutput(input)
+	if output.Kind == checkruntime.TextValueError {
+		error := output.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	if output == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
+	}
+	if output.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(output.Value)
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNumber, Number: value}
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func ToJson25lg(input checkruntime.JsonbInput, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonbInput(input)
+	if input.Kind == checkruntime.JsonbInputError {
+		error := input.Error
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbInputConvertedError {
+		error := input.ConvertedError
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbInputNull {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNull}
+	}
+	if input.Kind == checkruntime.JsonbInputBoolean {
+		value := input.Boolean
+		if value {
+			return checkruntime.MakeJsonValue("true")
+		}
+		return checkruntime.MakeJsonValue("false")
+	}
+	if input.Kind == checkruntime.JsonbInputNumber {
+		value := langruntime.CheckedString(input.Number)
+		if value == "NaN" || value == "Infinity" || value == "-Infinity" {
+			quoted := checkruntime.JsonQuoteString(value)
+			return checkruntime.MakeJsonValue(quoted)
+		}
+		return checkruntime.MakeJsonValue(value)
+	}
+	if input.Kind == checkruntime.JsonbInputText {
+		value := langruntime.CheckedString(input.Text)
+		quoted := checkruntime.JsonQuoteString(value)
+		return checkruntime.MakeJsonValue(quoted)
+	}
+	if input.Kind == checkruntime.JsonbInputJson {
+		value := input.Json
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueValue, Value: value}
+	}
+	if input.Kind == checkruntime.JsonbInputJsonb {
+		value := checkruntime.CopyJsonbPayload(input.Jsonb)
+		output := JsonbTextContext(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value}, utf8)
+		return checkruntime.JsonFromCoercedText(output)
+	}
+	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+}
+
+type jsonOutputArrayFrame struct {
+	dimension int
+	count     int
+}
+
+func copyjsonOutputArrayFrame(value jsonOutputArrayFrame) jsonOutputArrayFrame {
+	return jsonOutputArrayFrame{dimension: langruntime.CheckedIndex(value.dimension), count: langruntime.CheckedI32(value.count)}
+}
+func JsonArrayInputValue(input checkruntime.JsonbArrayInputPayload, pretty checkruntime.BoolValue, utf8 bool) checkruntime.JsonValue {
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: input.Error}
+	}
+	if pretty.Kind == checkruntime.BoolValueError {
+		error := pretty.Error
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+	}
+	if input.State == 0 || pretty == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueNull}
+	}
+	if input.State != 1 || pretty == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+	}
+	if len(input.Values) != len(input.Elements) {
+		return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+	}
+	if len(input.Values) == 0 {
+		return checkruntime.MakeJsonValue("[]")
+	}
+	spaced := false
+	if pretty.Kind == checkruntime.BoolValueValue {
+		value := pretty.Value
+		spaced = value
+	}
+	output := langruntime.NewTextBuffer("[")
+	frames := []jsonOutputArrayFrame{}
+	langruntime.CheckedAdd(len(frames), 1)
+	frames = append(frames, copyjsonOutputArrayFrame(jsonOutputArrayFrame{dimension: 0, count: 0}))
+	depth := 1
+	position := 0
+	for depth > 0 {
+		frame := frames[langruntime.CheckedSubtract(depth, 1)]
+		if frame.count == input.Dimensions[frame.dimension].Length {
+			output = append(output, string(langruntime.CheckedChar(']'))...)
+			depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		} else {
+			if frame.count > 0 {
+				if spaced && frame.dimension == 0 {
+					output = append(output, ",\n "...)
+				} else {
+					output = append(output, string(langruntime.CheckedChar(','))...)
+				}
+			}
+			frames[langruntime.CheckedSubtract(depth, 1)] = copyjsonOutputArrayFrame(jsonOutputArrayFrame{dimension: frame.dimension, count: langruntime.CheckedSignedAdd(frame.count, 1)})
+			if langruntime.CheckedAdd(frame.dimension, 1) < len(input.Dimensions) {
+				output = append(output, string(langruntime.CheckedChar('['))...)
+				next := jsonOutputArrayFrame{dimension: langruntime.CheckedAdd(frame.dimension, 1), count: 0}
+				if depth == len(frames) {
+					langruntime.CheckedAdd(len(frames), 1)
+					frames = append(frames, copyjsonOutputArrayFrame(next))
+				} else {
+					frames[depth] = copyjsonOutputArrayFrame(next)
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			} else {
+				converted := ToJson25lg(checkruntime.CopyJsonbInput(input.Values[position]), utf8)
+				if converted.Kind == checkruntime.JsonValueError {
+					error := converted.Error
+					return checkruntime.JsonValue{Kind: checkruntime.JsonValueError, Error: error}
+				}
+				if converted.Kind == checkruntime.JsonValueUnknown {
+					return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+				}
+				if converted.Kind == checkruntime.JsonValueNull {
+					output = append(output, "null"...)
+				}
+				if converted.Kind == checkruntime.JsonValueValue {
+					value := converted.Value
+					output = append(output, value.Source...)
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
+	}
+	return checkruntime.MakeJsonValue(string(output))
+}
+func JsonArrayInputPlan(input checkruntime.JsonbArrayInputPayload) checkruntime.JsonbArrayInputPlan {
+	return checkruntime.JsonbArrayInputPlan{Kind: checkruntime.JsonbArrayInputPlanValue, Value: input}
+}
+func ArrayToJsonSjq7(input checkruntime.JsonbArrayInputPlan, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonbArrayInputPlan(input)
+	if input.Kind == checkruntime.JsonbArrayInputPlanValue {
+		value := checkruntime.CopyJsonbArrayInputPayload(input.Value)
+		return JsonArrayInputValue(value, checkruntime.MakeBoolValue(false), utf8)
+	}
+	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+}
+func ArrayToJsonFydb(input checkruntime.JsonbArrayInputPlan, pretty checkruntime.BoolValue, utf8 bool) checkruntime.JsonValue {
+	input = checkruntime.CopyJsonbArrayInputPlan(input)
+	if input.Kind == checkruntime.JsonbArrayInputPlanValue {
+		value := checkruntime.CopyJsonbArrayInputPayload(input.Value)
+		return JsonArrayInputValue(value, pretty, utf8)
+	}
+	return checkruntime.JsonValue{Kind: checkruntime.JsonValueUnknown}
+}
 func JsonTypeofVzgr(input checkruntime.JsonValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.JsonValueError {
 		error := input.Error

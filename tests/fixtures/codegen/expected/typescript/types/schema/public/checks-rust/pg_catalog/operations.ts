@@ -12356,6 +12356,210 @@ export function jsonbExistsAllX510(input: checkruntime.JsonbValue, keys: checkru
     keys = checkruntime.copyArrayValue(keys);
     return jsonbArrayPathExists(input, keys, true);
 }
+export function jsonbTextContext(input: checkruntime.JsonbValue, utf8: boolean): checkruntime.TextValue {
+    input = checkruntime.copyJsonbValue(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (utf8 === false) {
+        return checkruntime.jsonbToText(input);
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        const original: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(value);
+        let nodes: checkruntime.JsonbNode[] = value.nodes;
+        let index: number = 1;
+        while (index < nodes.length) {
+            const node: checkruntime.JsonbNode = langruntime.indexStruct(original.nodes, langruntime.checkedIndex(index), checkruntime.copyJsonbNode);
+            if (node.kind === 6) {
+                const children: number[] = jsonbOrderChildren(original, node);
+                let first: number = 0;
+                let position: number = 0;
+                while (position < children.length) {
+                    if (position === 0) {
+                        first = langruntime.checkedIndex(langruntime.indexNumber(children, langruntime.checkedIndex(position)));
+                    }
+                    let next: number = 0;
+                    if (langruntime.checkedAdd(position, 1) < children.length) {
+                        next = langruntime.checkedIndex(langruntime.indexNumber(children, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))));
+                    }
+                    const child: number = langruntime.indexNumber(children, langruntime.checkedIndex(position));
+                    nodes[langruntime.checkedIndexIn(nodes, child)] = jsonbEditLink(langruntime.indexStruct(nodes, langruntime.checkedIndex(child), checkruntime.copyJsonbNode), next);
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                nodes[langruntime.checkedIndexIn(nodes, index)] = jsonbFormatChild(langruntime.indexStruct(nodes, langruntime.checkedIndex(index), checkruntime.copyJsonbNode), first);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return checkruntime.jsonbToOrderedText({ kind: "Value", value: { characters: value.characters, nodes: nodes, root: value.root } });
+    }
+    return checkruntime.jsonbToText(input);
+}
+export function jsonInputFromNumeric(input: checkruntime.NumericValue): checkruntime.JsonbInput {
+    const output: checkruntime.TextValue = arrayNumericOutput(input);
+    if (output.kind === "Error") {
+        const error: checkruntime.SqlError = output.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(output, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (output.kind === "Value") {
+        const value: string = langruntime.checkedString(output.value);
+        return { kind: "Number", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function toJson25lg(input: checkruntime.JsonbInput, utf8: boolean): checkruntime.JsonValue {
+    input = checkruntime.copyJsonbInput(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "ConvertedError") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Boolean") {
+        const value: boolean = langruntime.checkedBool(input.value);
+        if (value) {
+            return checkruntime.makeJsonValue("true");
+        }
+        return checkruntime.makeJsonValue("false");
+    }
+    if (input.kind === "Number") {
+        const value: string = langruntime.checkedString(input.value);
+        if (value === "NaN" || value === "Infinity" || value === "-Infinity") {
+            const quoted: string = checkruntime.jsonQuoteString(value);
+            return checkruntime.makeJsonValue(quoted);
+        }
+        return checkruntime.makeJsonValue(value);
+    }
+    if (input.kind === "Text") {
+        const value: string = langruntime.checkedString(input.value);
+        const quoted: string = checkruntime.jsonQuoteString(value);
+        return checkruntime.makeJsonValue(quoted);
+    }
+    if (input.kind === "Json") {
+        const value: checkruntime.JsonPayload = input.value;
+        return { kind: "Value", value: value };
+    }
+    if (input.kind === "Jsonb") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        const output: checkruntime.TextValue = jsonbTextContext({ kind: "Value", value: value }, utf8);
+        return checkruntime.jsonFromCoercedText(output);
+    }
+    return { kind: "Unknown" };
+}
+interface JsonOutputArrayFrame {
+    dimension: number;
+    count: number;
+}
+function copyJsonOutputArrayFrame(value: JsonOutputArrayFrame): JsonOutputArrayFrame {
+    return { dimension: langruntime.checkedIndex(value.dimension), count: langruntime.checkedI32(value.count) };
+}
+export function jsonArrayInputValue(input: checkruntime.JsonbArrayInputPayload, pretty: checkruntime.BoolValue, utf8: boolean): checkruntime.JsonValue {
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (pretty.kind === "Error") {
+        const error: checkruntime.SqlError = pretty.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.state === 0 || checkruntime.equalBoolValue(pretty, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (!(input.state === 1) || checkruntime.equalBoolValue(pretty, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (!(input.values.length === input.elements.length)) {
+        return { kind: "Unknown" };
+    }
+    if (input.values.length === 0) {
+        return checkruntime.makeJsonValue("[]");
+    }
+    let spaced: boolean = false;
+    if (pretty.kind === "Value") {
+        const value: boolean = langruntime.checkedBool(pretty.value);
+        spaced = langruntime.checkedBool(value);
+    }
+    let output: string = "[";
+    let frames: JsonOutputArrayFrame[] = [];
+    langruntime.pushStruct(frames, { dimension: 0, count: 0 }, copyJsonOutputArrayFrame);
+    let depth: number = 1;
+    let position: number = 0;
+    while (depth > 0) {
+        const frame: JsonOutputArrayFrame = copyJsonOutputArrayFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1)), copyJsonOutputArrayFrame));
+        if (frame.count === langruntime.indexStruct(input.dimensions, langruntime.checkedIndex(frame.dimension), checkruntime.copyArrayDimension).length) {
+            output = output + langruntime.checkedChar("]");
+            depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        }
+        else {
+            if (frame.count > 0) {
+                if (spaced && frame.dimension === 0) {
+                    output = output + ",\n ";
+                }
+                else {
+                    output = output + langruntime.checkedChar(",");
+                }
+            }
+            frames[langruntime.checkedIndexIn(frames, langruntime.checkedSubtract(depth, 1))] = copyJsonOutputArrayFrame({ dimension: frame.dimension, count: langruntime.checkedSignedAdd(frame.count, 1) });
+            if (langruntime.checkedAdd(frame.dimension, 1) < input.dimensions.length) {
+                output = output + langruntime.checkedChar("[");
+                const next: JsonOutputArrayFrame = copyJsonOutputArrayFrame({ dimension: langruntime.checkedAdd(frame.dimension, 1), count: 0 });
+                if (depth === frames.length) {
+                    langruntime.pushStruct(frames, next, copyJsonOutputArrayFrame);
+                }
+                else {
+                    frames[langruntime.checkedIndexIn(frames, depth)] = copyJsonOutputArrayFrame(next);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+            else {
+                const converted: checkruntime.JsonValue = toJson25lg(checkruntime.copyJsonbInput(langruntime.indexStruct(input.values, langruntime.checkedIndex(position), checkruntime.copyJsonbInput)), utf8);
+                if (converted.kind === "Error") {
+                    const error: checkruntime.SqlError = converted.value;
+                    return { kind: "Error", value: error };
+                }
+                if (converted.kind === "Unknown") {
+                    return { kind: "Unknown" };
+                }
+                if (converted.kind === "Null") {
+                    output = output + "null";
+                }
+                if (converted.kind === "Value") {
+                    const value: checkruntime.JsonPayload = converted.value;
+                    output = output + value.source;
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+    }
+    return checkruntime.makeJsonValue(output);
+}
+export function jsonArrayInputPlan(input: checkruntime.JsonbArrayInputPayload): checkruntime.JsonbArrayInputPlan {
+    return { kind: "Value", value: input };
+}
+export function arrayToJsonSjq7(input: checkruntime.JsonbArrayInputPlan, utf8: boolean): checkruntime.JsonValue {
+    input = checkruntime.copyJsonbArrayInputPlan(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbArrayInputPayload = checkruntime.copyJsonbArrayInputPayload(input.value);
+        return jsonArrayInputValue(value, checkruntime.makeBoolValue(false), utf8);
+    }
+    return { kind: "Unknown" };
+}
+export function arrayToJsonFydb(input: checkruntime.JsonbArrayInputPlan, pretty: checkruntime.BoolValue, utf8: boolean): checkruntime.JsonValue {
+    input = checkruntime.copyJsonbArrayInputPlan(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbArrayInputPayload = checkruntime.copyJsonbArrayInputPayload(input.value);
+        return jsonArrayInputValue(value, pretty, utf8);
+    }
+    return { kind: "Unknown" };
+}
 export function jsonTypeofVzgr(input: checkruntime.JsonValue): checkruntime.TextValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;

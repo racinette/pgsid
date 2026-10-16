@@ -5,6 +5,7 @@ import type { SqlBindingGroup } from '../../sql-semantics/signatures.js'
 import { checkRustCallableNames } from './check-rust-source.js'
 import {
   supportsJsonbConversion,
+  isJsonConversion,
   isJsonbBuilder,
   isJsonpathTimezoneCallable,
   isArrayStringIO,
@@ -50,6 +51,7 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         isJsonpathTimezoneCallable(implementation) &&
         rustNames.has(implementation.rustName)) ||
       (rust && isJsonbBuilder(implementation) && rustNames.has(implementation.rustName)) ||
+      (rust && isJsonConversion(implementation) && rustNames.has(implementation.rustName)) ||
       (rust &&
         implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
@@ -137,6 +139,7 @@ export function portableCheckAtoms(
         item.kind === 'function' &&
         item.schema === 'pg_catalog' &&
         ((item.name === 'to_jsonb' && item.args[0] === 'pg_catalog.anyelement') ||
+          isJsonConversion(item) ||
           isJsonbBuilder(item))
       ) {
         for (const operand of value.operands) {
