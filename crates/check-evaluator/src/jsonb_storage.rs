@@ -68,6 +68,7 @@ fn jsonb_storage_padding(current: JsonbStorageSize, ordered: bool) -> JsonbStora
 #[derive(Clone)]
 struct JsonbStorageCharacters {
     non_ascii: Vec<usize>,
+    utf8_extra: Vec<usize>,
 }
 
 fn jsonb_storage_unicode_before(source: &JsonbStorageCharacters, end: usize) -> usize {
@@ -89,12 +90,18 @@ fn jsonb_storage_span(
     source: &JsonbStorageCharacters,
     begin: usize,
     end: usize,
+    utf8: bool,
 ) -> JsonbStorageSize {
     let length = (end - begin) as i32;
     let first = jsonb_storage_unicode_before(source, begin);
     let last = jsonb_storage_unicode_before(source, end);
     let unicode = (last - first) as i32;
     let low = length as i64;
+    if utf8 {
+        let extra = source.utf8_extra[last] - source.utf8_extra[first];
+        let bytes = low + (extra as i32) as i64;
+        return jsonb_storage_bounds(bytes, bytes);
+    };
     jsonb_storage_bounds(low, low + (unicode as i64) * 3i64)
 }
 
@@ -146,18 +153,38 @@ fn jsonb_storage_numeric(source: &JsonbPayload, node: JsonbNode) -> JsonbStorage
     jsonb_storage_bounds(size, size)
 }
 
-fn jsonb_storage_layout(source: &JsonbPayload) -> JsonbStorageSize {
+fn jsonb_storage_character_index(source: &JsonbPayload) -> JsonbStorageCharacters {
     let mut non_ascii: Vec<usize> = Vec::new();
+    let mut utf8_extra: Vec<usize> = Vec::new();
+    let mut total_extra: usize = 0;
+    utf8_extra.push(0);
     let mut position: usize = 0;
     while position < source.characters.len() {
         if source.characters[position] as i32 > 127 {
             non_ascii.push(position);
+            let character = source.characters[position] as i32;
+            total_extra += 1;
+            if character >= 2048 {
+                total_extra += 1;
+            };
+            if character >= 65536 {
+                total_extra += 1;
+            };
+            utf8_extra.push(total_extra);
         };
         position += 1;
     }
-    let characters = JsonbStorageCharacters {
+    JsonbStorageCharacters {
         non_ascii: non_ascii,
-    };
+        utf8_extra: utf8_extra,
+    }
+}
+
+fn jsonb_storage_extents(
+    source: &JsonbPayload,
+    characters: &JsonbStorageCharacters,
+    utf8: bool,
+) -> Vec<JsonbStorageSize> {
     let mut sizes: Vec<JsonbStorageSize> = Vec::new();
     let mut index: usize = 0;
     while index < source.nodes.len() {
@@ -190,7 +217,7 @@ fn jsonb_storage_layout(source: &JsonbPayload) -> JsonbStorageSize {
             if node.kind == 3 {
                 size = jsonb_storage_numeric(source, node);
             } else if node.kind == 4 {
-                size = jsonb_storage_span(&characters, node.text_start, node.text_end);
+                size = jsonb_storage_span(characters, node.text_start, node.text_end, utf8);
             } else if node.kind >= 5 {
                 let mut count: i64 = 0i64;
                 let mut keys = jsonb_storage_bounds(0i64, 0i64);
@@ -202,7 +229,7 @@ fn jsonb_storage_layout(source: &JsonbPayload) -> JsonbStorageSize {
                     if node.kind == 6 {
                         let entry = source.nodes[child];
                         let key =
-                            jsonb_storage_span(&characters, entry.key_start, entry.key_end);
+                            jsonb_storage_span(characters, entry.key_start, entry.key_end, utf8);
                         if key.high != key.low {
                             unicode = true;
                         };
@@ -213,7 +240,7 @@ fn jsonb_storage_layout(source: &JsonbPayload) -> JsonbStorageSize {
                     };
                     child = source.nodes[child].next;
                 }
-                let ordered = unicode == false || nonempty <= 1;
+                let ordered = utf8 || unicode == false || nonempty <= 1;
                 let mut entries: i64 = 4i64;
                 if node.kind == 6 {
                     entries = 8i64;
@@ -234,10 +261,11 @@ fn jsonb_storage_layout(source: &JsonbPayload) -> JsonbStorageSize {
                         );
                         let decision = jsonb_storage_decision(total);
                         if let BoolValue::Error(_) = decision {
-                            return jsonb_storage_bounds(
+                            sizes[source.root] = jsonb_storage_bounds(
                                 JSONB_STORAGE_LIMIT + 1i64,
                                 JSONB_STORAGE_LIMIT + 1i64,
                             );
+                            return sizes;
                         };
                         if let BoolValue::Unknown = decision {
                             uncertain = true;
@@ -248,10 +276,11 @@ fn jsonb_storage_layout(source: &JsonbPayload) -> JsonbStorageSize {
                 }
                 let decision = jsonb_storage_decision(size);
                 if let BoolValue::Error(_) = decision {
-                    return jsonb_storage_bounds(
+                    sizes[source.root] = jsonb_storage_bounds(
                         JSONB_STORAGE_LIMIT + 1i64,
                         JSONB_STORAGE_LIMIT + 1i64,
                     );
+                    return sizes;
                 };
                 if let BoolValue::Unknown = decision {
                     uncertain = true;
@@ -267,7 +296,97 @@ fn jsonb_storage_layout(source: &JsonbPayload) -> JsonbStorageSize {
     if uncertain && root.high <= JSONB_STORAGE_LIMIT {
         root = jsonb_storage_bounds(root.low, JSONB_STORAGE_LIMIT + 1i64);
     };
-    root
+    sizes[source.root] = root;
+    sizes
+}
+
+fn jsonb_storage_layout(source: &JsonbPayload) -> JsonbStorageSize {
+    let characters = jsonb_storage_character_index(source);
+    let sizes = jsonb_storage_extents(source, &characters, false);
+    sizes[source.root]
+}
+
+pub fn jsonb_ordered_object_offsets(source: &JsonbPayload, utf8: bool) -> Vec<NumericValue> {
+    let characters = jsonb_storage_character_index(source);
+    let sizes = jsonb_storage_extents(source, &characters, utf8);
+    let mut offsets: Vec<JsonbStorageSize> = Vec::new();
+    let mut result: Vec<NumericValue> = Vec::new();
+    let mut index: usize = 0;
+    while index < source.nodes.len() {
+        offsets.push(JsonbStorageSize {
+            low: 0i64,
+            high: 0i64,
+            reachable: false,
+        });
+        result.push(NumericValue::Unknown);
+        index += 1;
+    }
+    offsets[source.root] = jsonb_storage_bounds(0i64, 0i64);
+    index = 1;
+    while index < source.nodes.len() {
+        let node = source.nodes[index];
+        let offset = offsets[index];
+        if offset.reachable {
+            if node.kind == 6 && offset.low == offset.high {
+                result[index] = NumericValue::Value(text_signed_number(offset.low));
+            };
+            if node.kind >= 5 {
+                let mut header: i64 = 4i64;
+                let mut keys = jsonb_storage_bounds(0i64, 0i64);
+                let mut nonempty: usize = 0;
+                let mut unicode = false;
+                let mut child = node.child;
+                while child > 0 {
+                    header = header + 4i64;
+                    if node.kind == 6 {
+                        header = header + 4i64;
+                        let entry = source.nodes[child];
+                        if entry.key_end > entry.key_start {
+                            nonempty += 1;
+                        };
+                        let key =
+                            jsonb_storage_span(&characters, entry.key_start, entry.key_end, utf8);
+                        if key.high != key.low {
+                            unicode = true;
+                        };
+                        keys = jsonb_storage_append(keys, key, false, true);
+                    };
+                    child = source.nodes[child].next;
+                }
+                let ordered = utf8 || unicode == false || nonempty <= 1;
+                let mut current = jsonb_storage_bounds(header + keys.low, header + keys.high);
+                child = node.child;
+                while child > 0 {
+                    let entry = source.nodes[child];
+                    let aligned = entry.kind == 3 || entry.kind >= 5;
+                    let mut begin = current;
+                    if aligned {
+                        if ordered {
+                            begin = jsonb_storage_bounds(
+                                jsonb_storage_aligned(current.low),
+                                jsonb_storage_aligned(current.high),
+                            );
+                        } else {
+                            begin = jsonb_storage_bounds(current.low, current.high + 3i64);
+                        };
+                    };
+                    if ordered {
+                        offsets[child] =
+                            jsonb_storage_bounds(offset.low + begin.low, offset.high + begin.high);
+                    } else {
+                        offsets[child] = jsonb_storage_bounds(
+                            offset.low + header + keys.low,
+                            offset.high + sizes[index].high,
+                        );
+                    };
+                    current = jsonb_storage_append(current, sizes[child], aligned, ordered);
+                    child = entry.next;
+                }
+            };
+        };
+        index += 1;
+    }
+    result
 }
 
 fn jsonb_storage_admission(source: &JsonbPayload) -> BoolValue {

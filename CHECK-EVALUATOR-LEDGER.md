@@ -283,9 +283,9 @@ exposes a prerequisite:
 - [x] JSONPath filters/current scopes, three-valued comparisons, starts-with, exists, NOT/is-unknown and lazy AND/OR; preserve suppression, missing-variable errors, known JSON null versus evaluator Unknown, encoding and stored-text grouping requirements.
 - [x] JSONPath type/size and abs/floor/ceiling/double methods; retain strict/lax target handling, numeric display scales, finite-float validation versus string conversion, predicate suppression and INSERT parity.
 - [x] JSONPath integer/bigint/boolean/number/decimal/string conversions, owned string results and chained predicates; preserve parsing, numeric scales, argument validation, suppression and INSERT parity.
+- [x] JSONPath object-offset foundation: shared logical size accounting, exact UTF8 counters and alignment; retain encoding-dependent Unknowns without binary JSONB storage.
 - [ ] JSONPath keyvalue, temporal methods, regex execution and context-sensitive operations.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
-
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
 Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations, expression composition, and world INSERT parity work together. Preserve distinct SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsing, session-dependent behavior, and unimplemented callables visible in the reports; representation support alone does not complete them.
 Assess recursive ownership before arrays, JSON, and composites. JSON evaluation assumes sufficient execution resources; server stack/allocation exhaustion is separate.

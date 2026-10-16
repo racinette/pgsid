@@ -5656,9 +5656,10 @@ function jsonbStoragePadding(current: JsonbStorageSize, ordered: boolean): Jsonb
 }
 interface JsonbStorageCharacters {
     nonAscii: number[];
+    utf8Extra: number[];
 }
 function copyJsonbStorageCharacters(value: JsonbStorageCharacters): JsonbStorageCharacters {
-    return { nonAscii: langruntime.checkedIndices(value.nonAscii) };
+    return { nonAscii: langruntime.checkedIndices(value.nonAscii), utf8Extra: langruntime.checkedIndices(value.utf8Extra) };
 }
 function jsonbStorageUnicodeBefore(source: JsonbStorageCharacters, end: number): number {
     end = langruntime.checkedIndex(end);
@@ -5676,14 +5677,20 @@ function jsonbStorageUnicodeBefore(source: JsonbStorageCharacters, end: number):
     }
     return low;
 }
-function jsonbStorageSpan(source: JsonbStorageCharacters, begin: number, end: number): JsonbStorageSize {
+function jsonbStorageSpan(source: JsonbStorageCharacters, begin: number, end: number, utf8: boolean): JsonbStorageSize {
     begin = langruntime.checkedIndex(begin);
     end = langruntime.checkedIndex(end);
+    utf8 = langruntime.checkedBool(utf8);
     const length: number = langruntime.checkedI32(langruntime.checkedIndex((langruntime.checkedSubtract(end, begin))));
     const first: number = jsonbStorageUnicodeBefore(source, begin);
     const last: number = jsonbStorageUnicodeBefore(source, end);
     const unicode: number = langruntime.checkedI32(langruntime.checkedIndex((langruntime.checkedSubtract(last, first))));
     const low: bigint = BigInt(langruntime.checkedI32(length));
+    if (utf8) {
+        const extra: number = langruntime.checkedSubtract(langruntime.indexNumber(source.utf8Extra, langruntime.checkedIndex(last)), langruntime.indexNumber(source.utf8Extra, langruntime.checkedIndex(first)));
+        const bytes: bigint = langruntime.checkedI64Add(low, BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(extra))))));
+        return jsonbStorageBounds(bytes, bytes);
+    }
     return jsonbStorageBounds(low, langruntime.checkedI64Add(low, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(unicode))), 3n)));
 }
 function jsonbStorageGroup(weight: number): number {
@@ -5733,16 +5740,31 @@ function jsonbStorageNumeric(source: JsonbPayload, node: JsonbNode): JsonbStorag
     const size: bigint = langruntime.checkedI64Add(header, langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(groups))), 2n));
     return jsonbStorageBounds(size, size);
 }
-function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
+function jsonbStorageCharacterIndex(source: JsonbPayload): JsonbStorageCharacters {
     let nonAscii: number[] = [];
+    let utf8Extra: number[] = [];
+    let totalExtra: number = 0;
+    langruntime.pushIndex(utf8Extra, 0);
     let position: number = 0;
     while (position < source.characters.length) {
         if (langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))).codePointAt(0)! > 127) {
             langruntime.pushIndex(nonAscii, position);
+            const character: number = langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(position))).codePointAt(0)!;
+            totalExtra = langruntime.checkedAdd(totalExtra, 1);
+            if (character >= 2048) {
+                totalExtra = langruntime.checkedAdd(totalExtra, 1);
+            }
+            if (character >= 65536) {
+                totalExtra = langruntime.checkedAdd(totalExtra, 1);
+            }
+            langruntime.pushIndex(utf8Extra, totalExtra);
         }
         position = langruntime.checkedAdd(position, 1);
     }
-    const characters: JsonbStorageCharacters = { nonAscii: nonAscii };
+    return { nonAscii: nonAscii, utf8Extra: utf8Extra };
+}
+function jsonbStorageExtents(source: JsonbPayload, characters: JsonbStorageCharacters, utf8: boolean): JsonbStorageSize[] {
+    utf8 = langruntime.checkedBool(utf8);
     let sizes: JsonbStorageSize[] = [];
     let index: number = 0;
     while (index < source.nodes.length) {
@@ -5772,7 +5794,7 @@ function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
                 size = copyJsonbStorageSize(jsonbStorageNumeric(source, node));
             }
             else if (node.kind === 4) {
-                size = copyJsonbStorageSize(jsonbStorageSpan(characters, node.textStart, node.textEnd));
+                size = copyJsonbStorageSize(jsonbStorageSpan(characters, node.textStart, node.textEnd, utf8));
             }
             else if (node.kind >= 5) {
                 let count: bigint = 0n;
@@ -5784,7 +5806,7 @@ function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
                     count = langruntime.checkedI64(langruntime.checkedI64Add(count, 1n));
                     if (node.kind === 6) {
                         const entry: JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), copyJsonbNode);
-                        const key: JsonbStorageSize = copyJsonbStorageSize(jsonbStorageSpan(characters, entry.keyStart, entry.keyEnd));
+                        const key: JsonbStorageSize = copyJsonbStorageSize(jsonbStorageSpan(characters, entry.keyStart, entry.keyEnd, utf8));
                         if (!(key.high === key.low)) {
                             unicode = langruntime.checkedBool(true);
                         }
@@ -5795,7 +5817,7 @@ function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
                     }
                     child = langruntime.checkedIndex(langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), copyJsonbNode).next);
                 }
-                const ordered: boolean = unicode === false || nonempty <= 1;
+                const ordered: boolean = utf8 || unicode === false || nonempty <= 1;
                 let entries: bigint = 4n;
                 if (node.kind === 6) {
                     entries = langruntime.checkedI64(8n);
@@ -5812,7 +5834,8 @@ function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
                         const total: JsonbStorageSize = copyJsonbStorageSize(jsonbStorageBounds(langruntime.checkedI64Add(childSize.low, padding.low), langruntime.checkedI64Add(childSize.high, padding.high)));
                         const decision: BoolValue = jsonbStorageDecision(total);
                         if (decision.kind === "Error") {
-                            return jsonbStorageBounds(langruntime.checkedI64Add(jsonbStorageLimit, 1n), langruntime.checkedI64Add(jsonbStorageLimit, 1n));
+                            sizes[langruntime.checkedIndexIn(sizes, source.root)] = copyJsonbStorageSize(jsonbStorageBounds(langruntime.checkedI64Add(jsonbStorageLimit, 1n), langruntime.checkedI64Add(jsonbStorageLimit, 1n)));
+                            return sizes;
                         }
                         if (decision.kind === "Unknown") {
                             uncertain = langruntime.checkedBool(true);
@@ -5823,7 +5846,8 @@ function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
                 }
                 const decision: BoolValue = jsonbStorageDecision(size);
                 if (decision.kind === "Error") {
-                    return jsonbStorageBounds(langruntime.checkedI64Add(jsonbStorageLimit, 1n), langruntime.checkedI64Add(jsonbStorageLimit, 1n));
+                    sizes[langruntime.checkedIndexIn(sizes, source.root)] = copyJsonbStorageSize(jsonbStorageBounds(langruntime.checkedI64Add(jsonbStorageLimit, 1n), langruntime.checkedI64Add(jsonbStorageLimit, 1n)));
+                    return sizes;
                 }
                 if (decision.kind === "Unknown") {
                     uncertain = langruntime.checkedBool(true);
@@ -5839,7 +5863,87 @@ function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
     if (uncertain && root.high <= jsonbStorageLimit) {
         root = copyJsonbStorageSize(jsonbStorageBounds(root.low, langruntime.checkedI64Add(jsonbStorageLimit, 1n)));
     }
-    return root;
+    sizes[langruntime.checkedIndexIn(sizes, source.root)] = copyJsonbStorageSize(root);
+    return sizes;
+}
+function jsonbStorageLayout(source: JsonbPayload): JsonbStorageSize {
+    const characters: JsonbStorageCharacters = jsonbStorageCharacterIndex(source);
+    const sizes: JsonbStorageSize[] = jsonbStorageExtents(source, characters, false);
+    return langruntime.indexStruct(sizes, langruntime.checkedIndex(source.root), copyJsonbStorageSize);
+}
+export function jsonbOrderedObjectOffsets(source: JsonbPayload, utf8: boolean): NumericValue[] {
+    source = copyJsonbPayload(source);
+    utf8 = langruntime.checkedBool(utf8);
+    const characters: JsonbStorageCharacters = jsonbStorageCharacterIndex(source);
+    const sizes: JsonbStorageSize[] = jsonbStorageExtents(source, characters, utf8);
+    let offsets: JsonbStorageSize[] = [];
+    let result: NumericValue[] = [];
+    let index: number = 0;
+    while (index < source.nodes.length) {
+        langruntime.pushStruct(offsets, { low: 0n, high: 0n, reachable: false }, copyJsonbStorageSize);
+        langruntime.pushStruct(result, { kind: "Unknown" }, copyNumericValue);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    offsets[langruntime.checkedIndexIn(offsets, source.root)] = copyJsonbStorageSize(jsonbStorageBounds(0n, 0n));
+    index = langruntime.checkedIndex(1);
+    while (index < source.nodes.length) {
+        const node: JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(index), copyJsonbNode);
+        const offset: JsonbStorageSize = copyJsonbStorageSize(langruntime.indexStruct(offsets, langruntime.checkedIndex(index), copyJsonbStorageSize));
+        if (offset.reachable) {
+            if (node.kind === 6 && offset.low === offset.high) {
+                result[langruntime.checkedIndexIn(result, index)] = { kind: "Value", value: textSignedNumber(offset.low) };
+            }
+            if (node.kind >= 5) {
+                let header: bigint = 4n;
+                let keys: JsonbStorageSize = copyJsonbStorageSize(jsonbStorageBounds(0n, 0n));
+                let nonempty: number = 0;
+                let unicode: boolean = false;
+                let child: number = node.child;
+                while (child > 0) {
+                    header = langruntime.checkedI64(langruntime.checkedI64Add(header, 4n));
+                    if (node.kind === 6) {
+                        header = langruntime.checkedI64(langruntime.checkedI64Add(header, 4n));
+                        const entry: JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), copyJsonbNode);
+                        if (entry.keyEnd > entry.keyStart) {
+                            nonempty = langruntime.checkedAdd(nonempty, 1);
+                        }
+                        const key: JsonbStorageSize = copyJsonbStorageSize(jsonbStorageSpan(characters, entry.keyStart, entry.keyEnd, utf8));
+                        if (!(key.high === key.low)) {
+                            unicode = langruntime.checkedBool(true);
+                        }
+                        keys = copyJsonbStorageSize(jsonbStorageAppend(keys, key, false, true));
+                    }
+                    child = langruntime.checkedIndex(langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), copyJsonbNode).next);
+                }
+                const ordered: boolean = utf8 || unicode === false || nonempty <= 1;
+                let current: JsonbStorageSize = copyJsonbStorageSize(jsonbStorageBounds(langruntime.checkedI64Add(header, keys.low), langruntime.checkedI64Add(header, keys.high)));
+                child = langruntime.checkedIndex(node.child);
+                while (child > 0) {
+                    const entry: JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(child), copyJsonbNode);
+                    const aligned: boolean = entry.kind === 3 || entry.kind >= 5;
+                    let begin: JsonbStorageSize = copyJsonbStorageSize(current);
+                    if (aligned) {
+                        if (ordered) {
+                            begin = copyJsonbStorageSize(jsonbStorageBounds(jsonbStorageAligned(current.low), jsonbStorageAligned(current.high)));
+                        }
+                        else {
+                            begin = copyJsonbStorageSize(jsonbStorageBounds(current.low, langruntime.checkedI64Add(current.high, 3n)));
+                        }
+                    }
+                    if (ordered) {
+                        offsets[langruntime.checkedIndexIn(offsets, child)] = copyJsonbStorageSize(jsonbStorageBounds(langruntime.checkedI64Add(offset.low, begin.low), langruntime.checkedI64Add(offset.high, begin.high)));
+                    }
+                    else {
+                        offsets[langruntime.checkedIndexIn(offsets, child)] = copyJsonbStorageSize(jsonbStorageBounds(langruntime.checkedI64Add(langruntime.checkedI64Add(offset.low, header), keys.low), langruntime.checkedI64Add(offset.high, langruntime.indexStruct(sizes, langruntime.checkedIndex(index), copyJsonbStorageSize).high)));
+                    }
+                    current = copyJsonbStorageSize(jsonbStorageAppend(current, langruntime.indexStruct(sizes, langruntime.checkedIndex(child), copyJsonbStorageSize), aligned, ordered));
+                    child = langruntime.checkedIndex(entry.next);
+                }
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return result;
 }
 function jsonbStorageAdmission(source: JsonbPayload): BoolValue {
     return jsonbStorageDecision(jsonbStorageLayout(source));

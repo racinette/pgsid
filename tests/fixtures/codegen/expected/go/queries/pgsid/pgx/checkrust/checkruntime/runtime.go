@@ -5485,11 +5485,12 @@ func jsonbStoragePadding(current jsonbStorageSize, ordered bool) jsonbStorageSiz
 }
 
 type jsonbStorageCharacters struct {
-	nonAscii []int
+	nonAscii  []int
+	utf8Extra []int
 }
 
 func copyjsonbStorageCharacters(value jsonbStorageCharacters) jsonbStorageCharacters {
-	return jsonbStorageCharacters{nonAscii: langruntime.CheckedIndices(value.nonAscii)}
+	return jsonbStorageCharacters{nonAscii: langruntime.CheckedIndices(value.nonAscii), utf8Extra: langruntime.CheckedIndices(value.utf8Extra)}
 }
 func jsonbStorageUnicodeBefore(source *jsonbStorageCharacters, end int) int {
 	end = langruntime.CheckedIndex(end)
@@ -5506,7 +5507,7 @@ func jsonbStorageUnicodeBefore(source *jsonbStorageCharacters, end int) int {
 	}
 	return low
 }
-func jsonbStorageSpan(source *jsonbStorageCharacters, begin int, end int) jsonbStorageSize {
+func jsonbStorageSpan(source *jsonbStorageCharacters, begin int, end int, utf8 bool) jsonbStorageSize {
 	begin = langruntime.CheckedIndex(begin)
 	end = langruntime.CheckedIndex(end)
 	length := int(int32((langruntime.CheckedSubtract(end, begin))))
@@ -5514,6 +5515,11 @@ func jsonbStorageSpan(source *jsonbStorageCharacters, begin int, end int) jsonbS
 	last := jsonbStorageUnicodeBefore(source, end)
 	unicode := int(int32((langruntime.CheckedSubtract(last, first))))
 	low := int64(langruntime.CheckedI32(length))
+	if utf8 {
+		extra := langruntime.CheckedSubtract(source.utf8Extra[last], source.utf8Extra[first])
+		bytes := langruntime.CheckedI64Add(low, int64(langruntime.CheckedI32((int(int32(extra))))))
+		return jsonbStorageBounds(bytes, bytes)
+	}
 	return jsonbStorageBounds(low, langruntime.CheckedI64Add(low, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(unicode))), int64(3))))
 }
 func jsonbStorageGroup(weight int) int {
@@ -5563,17 +5569,33 @@ func jsonbStorageNumeric(source *JsonbPayload, node JsonbNode) jsonbStorageSize 
 	size := langruntime.CheckedI64Add(header, langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(groups))), int64(2)))
 	return jsonbStorageBounds(size, size)
 }
-func jsonbStorageLayout(source *JsonbPayload) jsonbStorageSize {
+func jsonbStorageCharacterIndex(source *JsonbPayload) jsonbStorageCharacters {
 	nonAscii := []int{}
+	utf8Extra := []int{}
+	totalExtra := 0
+	langruntime.CheckedAdd(len(utf8Extra), 1)
+	utf8Extra = append(utf8Extra, langruntime.CheckedIndex(0))
 	position := 0
 	for position < len(source.Characters) {
 		if int(langruntime.CheckedChar(source.Characters[position])) > 127 {
 			langruntime.CheckedAdd(len(nonAscii), 1)
 			nonAscii = append(nonAscii, langruntime.CheckedIndex(position))
+			character := int(langruntime.CheckedChar(source.Characters[position]))
+			totalExtra = langruntime.CheckedAdd(totalExtra, 1)
+			if character >= 2048 {
+				totalExtra = langruntime.CheckedAdd(totalExtra, 1)
+			}
+			if character >= 65536 {
+				totalExtra = langruntime.CheckedAdd(totalExtra, 1)
+			}
+			langruntime.CheckedAdd(len(utf8Extra), 1)
+			utf8Extra = append(utf8Extra, langruntime.CheckedIndex(totalExtra))
 		}
 		position = langruntime.CheckedAdd(position, 1)
 	}
-	characters := jsonbStorageCharacters{nonAscii: nonAscii}
+	return jsonbStorageCharacters{nonAscii: nonAscii, utf8Extra: utf8Extra}
+}
+func jsonbStorageExtents(source *JsonbPayload, characters *jsonbStorageCharacters, utf8 bool) []jsonbStorageSize {
 	sizes := []jsonbStorageSize{}
 	index := 0
 	for index < len(source.Nodes) {
@@ -5603,7 +5625,7 @@ func jsonbStorageLayout(source *JsonbPayload) jsonbStorageSize {
 			if node.Kind == 3 {
 				size = copyjsonbStorageSize(jsonbStorageNumeric(source, node))
 			} else if node.Kind == 4 {
-				size = copyjsonbStorageSize(jsonbStorageSpan(&characters, node.TextStart, node.TextEnd))
+				size = copyjsonbStorageSize(jsonbStorageSpan(characters, node.TextStart, node.TextEnd, utf8))
 			} else if node.Kind >= 5 {
 				count := int64(0)
 				keys := jsonbStorageBounds(int64(0), int64(0))
@@ -5614,7 +5636,7 @@ func jsonbStorageLayout(source *JsonbPayload) jsonbStorageSize {
 					count = langruntime.CheckedI64Add(count, int64(1))
 					if node.Kind == 6 {
 						entry := source.Nodes[child]
-						key := jsonbStorageSpan(&characters, entry.KeyStart, entry.KeyEnd)
+						key := jsonbStorageSpan(characters, entry.KeyStart, entry.KeyEnd, utf8)
 						if key.high != key.low {
 							unicode = true
 						}
@@ -5625,7 +5647,7 @@ func jsonbStorageLayout(source *JsonbPayload) jsonbStorageSize {
 					}
 					child = langruntime.CheckedIndex(source.Nodes[child].Next)
 				}
-				ordered := unicode == false || nonempty <= 1
+				ordered := utf8 || unicode == false || nonempty <= 1
 				entries := int64(4)
 				if node.Kind == 6 {
 					entries = int64(8)
@@ -5642,7 +5664,8 @@ func jsonbStorageLayout(source *JsonbPayload) jsonbStorageSize {
 						total := jsonbStorageBounds(langruntime.CheckedI64Add(childSize.low, padding.low), langruntime.CheckedI64Add(childSize.high, padding.high))
 						decision := jsonbStorageDecision(total)
 						if decision.Kind == BoolValueError {
-							return jsonbStorageBounds(langruntime.CheckedI64Add(jsonbStorageLimit, int64(1)), langruntime.CheckedI64Add(jsonbStorageLimit, int64(1)))
+							sizes[source.Root] = copyjsonbStorageSize(jsonbStorageBounds(langruntime.CheckedI64Add(jsonbStorageLimit, int64(1)), langruntime.CheckedI64Add(jsonbStorageLimit, int64(1))))
+							return sizes
 						}
 						if decision.Kind == BoolValueUnknown {
 							uncertain = true
@@ -5653,7 +5676,8 @@ func jsonbStorageLayout(source *JsonbPayload) jsonbStorageSize {
 				}
 				decision := jsonbStorageDecision(size)
 				if decision.Kind == BoolValueError {
-					return jsonbStorageBounds(langruntime.CheckedI64Add(jsonbStorageLimit, int64(1)), langruntime.CheckedI64Add(jsonbStorageLimit, int64(1)))
+					sizes[source.Root] = copyjsonbStorageSize(jsonbStorageBounds(langruntime.CheckedI64Add(jsonbStorageLimit, int64(1)), langruntime.CheckedI64Add(jsonbStorageLimit, int64(1))))
+					return sizes
 				}
 				if decision.Kind == BoolValueUnknown {
 					uncertain = true
@@ -5669,7 +5693,86 @@ func jsonbStorageLayout(source *JsonbPayload) jsonbStorageSize {
 	if uncertain && root.high <= jsonbStorageLimit {
 		root = copyjsonbStorageSize(jsonbStorageBounds(root.low, langruntime.CheckedI64Add(jsonbStorageLimit, int64(1))))
 	}
-	return root
+	sizes[source.Root] = copyjsonbStorageSize(root)
+	return sizes
+}
+func jsonbStorageLayout(source *JsonbPayload) jsonbStorageSize {
+	characters := jsonbStorageCharacterIndex(source)
+	sizes := jsonbStorageExtents(source, &characters, false)
+	return sizes[source.Root]
+}
+func JsonbOrderedObjectOffsets(source *JsonbPayload, utf8 bool) []NumericValue {
+	source = langruntime.CheckedBorrowed(source, CopyJsonbPayload)
+	characters := jsonbStorageCharacterIndex(source)
+	sizes := jsonbStorageExtents(source, &characters, utf8)
+	offsets := []jsonbStorageSize{}
+	result := []NumericValue{}
+	index := 0
+	for index < len(source.Nodes) {
+		langruntime.CheckedAdd(len(offsets), 1)
+		offsets = append(offsets, copyjsonbStorageSize(jsonbStorageSize{low: int64(0), high: int64(0), reachable: false}))
+		langruntime.CheckedAdd(len(result), 1)
+		result = append(result, NumericValue{Kind: NumericValueUnknown})
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	offsets[source.Root] = copyjsonbStorageSize(jsonbStorageBounds(int64(0), int64(0)))
+	index = langruntime.CheckedIndex(1)
+	for index < len(source.Nodes) {
+		node := source.Nodes[index]
+		offset := offsets[index]
+		if offset.reachable {
+			if node.Kind == 6 && offset.low == offset.high {
+				result[index] = NumericValue{Kind: NumericValueValue, Value: TextSignedNumber(offset.low)}
+			}
+			if node.Kind >= 5 {
+				header := int64(4)
+				keys := jsonbStorageBounds(int64(0), int64(0))
+				nonempty := 0
+				unicode := false
+				child := node.Child
+				for child > 0 {
+					header = langruntime.CheckedI64Add(header, int64(4))
+					if node.Kind == 6 {
+						header = langruntime.CheckedI64Add(header, int64(4))
+						entry := source.Nodes[child]
+						if entry.KeyEnd > entry.KeyStart {
+							nonempty = langruntime.CheckedAdd(nonempty, 1)
+						}
+						key := jsonbStorageSpan(&characters, entry.KeyStart, entry.KeyEnd, utf8)
+						if key.high != key.low {
+							unicode = true
+						}
+						keys = copyjsonbStorageSize(jsonbStorageAppend(keys, key, false, true))
+					}
+					child = langruntime.CheckedIndex(source.Nodes[child].Next)
+				}
+				ordered := utf8 || unicode == false || nonempty <= 1
+				current := jsonbStorageBounds(langruntime.CheckedI64Add(header, keys.low), langruntime.CheckedI64Add(header, keys.high))
+				child = langruntime.CheckedIndex(node.Child)
+				for child > 0 {
+					entry := source.Nodes[child]
+					aligned := entry.Kind == 3 || entry.Kind >= 5
+					begin := current
+					if aligned {
+						if ordered {
+							begin = copyjsonbStorageSize(jsonbStorageBounds(jsonbStorageAligned(current.low), jsonbStorageAligned(current.high)))
+						} else {
+							begin = copyjsonbStorageSize(jsonbStorageBounds(current.low, langruntime.CheckedI64Add(current.high, int64(3))))
+						}
+					}
+					if ordered {
+						offsets[child] = copyjsonbStorageSize(jsonbStorageBounds(langruntime.CheckedI64Add(offset.low, begin.low), langruntime.CheckedI64Add(offset.high, begin.high)))
+					} else {
+						offsets[child] = copyjsonbStorageSize(jsonbStorageBounds(langruntime.CheckedI64Add(langruntime.CheckedI64Add(offset.low, header), keys.low), langruntime.CheckedI64Add(offset.high, sizes[index].high)))
+					}
+					current = copyjsonbStorageSize(jsonbStorageAppend(current, sizes[child], aligned, ordered))
+					child = langruntime.CheckedIndex(entry.Next)
+				}
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return result
 }
 func jsonbStorageAdmission(source *JsonbPayload) BoolValue {
 	return jsonbStorageDecision(jsonbStorageLayout(source))
