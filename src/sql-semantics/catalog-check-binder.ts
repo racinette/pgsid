@@ -724,6 +724,7 @@ type ResolvedCallable = {
   operands: EvalExpression[]
   collation?: BoundCollation
   enum?: EnumInfo
+  resultType?: ScalarType
 }
 const boundType = (arg: Bound): ScalarType | null =>
   arg.type ?? (arg.literal?.kind === 'integer' ? 'pg_catalog.int4' : null)
@@ -858,7 +859,11 @@ const candidate = (
       item.kind === kind &&
       item.schema === 'pg_catalog' &&
       item.name === name &&
-      item.args.includes('pg_catalog.anyelement'),
+      (item.args.includes('pg_catalog.anyelement') ||
+        (item.args.length === args.length &&
+          item.args.some((type) =>
+            ['pg_catalog.anycompatiblearray', 'pg_catalog.anycompatible'].includes(type),
+          ))),
   )
   const hasVariadicAny = callables.some(
     ({ item }) =>
@@ -893,7 +898,12 @@ const candidate = (
       item.schema !== 'pg_catalog' ||
       item.name !== name ||
       (variadicAny ? args.length < 1 : item.args.length < args.length) ||
-      (!catalogScalarType(item.result) && item.result !== 'pg_catalog.anyenum')
+      (!catalogScalarType(item.result) &&
+        ![
+          'pg_catalog.anyenum',
+          'pg_catalog.anycompatiblearray',
+          'pg_catalog.anycompatible',
+        ].includes(item.result))
     )
       return []
     let fullArgs = args
@@ -912,7 +922,9 @@ const candidate = (
       if (expanded.some((arg) => !arg.value && !arg.literal)) return []
       fullArgs = [...args, ...expanded]
     }
-    const collation = item.args.some((type) => type === 'pg_catalog.anyarray')
+    const collation = item.args.some(
+      (type) => type === 'pg_catalog.anyarray' || type === 'pg_catalog.anycompatiblearray',
+    )
       ? arrayCollations(fullArgs.map((arg) => arg.collation))
       : combineCollations(fullArgs.map((arg) => arg.collation))
     if (collation?.explicit && collation.identity === 'conflict') return []
@@ -946,8 +958,36 @@ const candidate = (
     )
       return []
     const enumCall = item.args.includes('pg_catalog.anyenum')
+    const compatible = item.args.some(
+      (type) => type === 'pg_catalog.anycompatiblearray' || type === 'pg_catalog.anycompatible',
+    )
+    const compatibleArgs = fullArgs.flatMap((arg, index) => {
+      const type = item.args[index]
+      if (type === 'pg_catalog.anycompatible') return [arg]
+      if (type !== 'pg_catalog.anycompatiblearray') return []
+      const source = boundType(arg)
+      return [
+        {
+          ...arg,
+          type: source?.startsWith('array:') ? (source.slice(6) as ArrayElementType) : null,
+        },
+      ]
+    })
+    if (
+      compatible &&
+      fullArgs.some(
+        (arg, index) =>
+          item.args[index] === 'pg_catalog.anycompatiblearray' &&
+          boundType(arg) !== null &&
+          !boundType(arg)!.startsWith('array:'),
+      )
+    )
+      return []
+    const compatibleType = compatible ? commonType(compatibleArgs) : null
+    if (compatible && (!compatibleType || compatibleType.startsWith('array:'))) return []
+    const compatibleArray = compatibleType ? arrayType(compatibleType as ArrayElementType) : null
     const definition = fullArgs.find(
-      (arg, index) => item.args[index] === 'pg_catalog.anyenum' && arg.enum,
+      (arg, index) => (item.args[index] === 'pg_catalog.anyenum' || compatible) && arg.enum,
     )?.enum
     if (
       (item.result === 'pg_catalog.anyenum' && !enumCall) ||
@@ -964,22 +1004,40 @@ const candidate = (
     const operands = fullArgs.map((arg, index) =>
       variadicAny
         ? materialize(arg, boundType(arg) ?? 'pg_catalog.text', arg.enum)
-        : item.args[index] === 'pg_catalog.anyarray'
-          ? materialize(arg, arrayIdentity!)
-          : item.args[index] === 'pg_catalog.anyelement'
-            ? materialize(arg, elementType!, arg.enum)
-            : isIntegerType(item.args[index]!)
-              ? materializeInteger(arg, item.args[index]! as ScalarType)
-              : materialize(
-                  arg,
-                  item.args[index] === 'pg_catalog.anyenum'
-                    ? enumType(definition!)
-                    : (item.args[index]! as ScalarType),
-                  definition,
-                ),
+        : item.args[index] === 'pg_catalog.anycompatiblearray'
+          ? implicitOperand(arg, compatibleArray!, definition)
+          : item.args[index] === 'pg_catalog.anycompatible'
+            ? implicitOperand(arg, compatibleType!, definition)
+            : item.args[index] === 'pg_catalog.anyarray'
+              ? materialize(arg, arrayIdentity!)
+              : item.args[index] === 'pg_catalog.anyelement'
+                ? materialize(arg, elementType!, arg.enum)
+                : isIntegerType(item.args[index]!)
+                  ? materializeInteger(arg, item.args[index]! as ScalarType)
+                  : materialize(
+                      arg,
+                      item.args[index] === 'pg_catalog.anyenum'
+                        ? enumType(definition!)
+                        : (item.args[index]! as ScalarType),
+                      definition,
+                    ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
-      ? [{ signature, item, operands: operands as EvalExpression[], collation, enum: definition }]
+      ? [
+          {
+            signature,
+            item,
+            operands: operands as EvalExpression[],
+            collation,
+            enum: definition,
+            resultType:
+              item.result === 'pg_catalog.anycompatiblearray'
+                ? compatibleArray!
+                : item.result === 'pg_catalog.anycompatible'
+                  ? compatibleType!
+                  : undefined,
+          },
+        ]
       : []
   })
   const types = args.map(boundType)
@@ -1242,8 +1300,9 @@ const arrayDefaultCollation = (
 ): { collationDefault?: true } => {
   const metadata = builtinMetadata(signature)
   return collation?.default &&
-    metadata.args.length === 2 &&
-    metadata.args.every((type) => type === 'pg_catalog.anyarray')
+    ((metadata.args.length === 2 &&
+      metadata.args.every((type) => type === 'pg_catalog.anyarray')) ||
+      metadata.args.includes('pg_catalog.anycompatiblearray'))
     ? { collationDefault: true }
     : {}
 }
@@ -3398,6 +3457,9 @@ export function bindCatalogCheck(
         arg.value || arg.literal ? arg : bind(nodes[index], enumArgument.type!),
       )
     if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+    args = args.map((arg) =>
+      arg.type?.startsWith('array:enum:') ? { ...arg, enum: resultEnum(arg.type, [arg]) } : arg,
+    )
     const aliasType = catalogScalarType(name)
     if (
       kind === 'function' &&
@@ -3672,21 +3734,26 @@ export function bindCatalogCheck(
       return unknown
     }
     const type =
-      resolved.item.result === 'pg_catalog.anyenum'
+      resolved.resultType ??
+      (resolved.item.result === 'pg_catalog.anyenum'
         ? enumType(resolved.enum!)
-        : (resolved.item.result as ScalarType)
+        : (catalogScalarType(resolved.item.result) ?? (resolved.item.result as ScalarType)))
     const collation = resolved.collation
     return {
       type,
-      ...(resolved.item.result === 'pg_catalog.anyenum' ? { enum: resolved.enum } : {}),
-      collation: [
-        'pg_catalog.name',
-        'pg_catalog.text',
-        'pg_catalog."varchar"',
-        'pg_catalog.bpchar',
-      ].includes(type)
-        ? (collation ?? defaultCollation)
-        : undefined,
+      ...(type.startsWith('enum:') || type.startsWith('array:enum:')
+        ? { enum: resolved.enum }
+        : {}),
+      collation: type.startsWith('array:')
+        ? (collation ?? arrayElementCollation(type.slice(6) as ArrayElementType))
+        : [
+              'pg_catalog.name',
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+            ].includes(type)
+          ? (collation ?? defaultCollation)
+          : undefined,
       value: {
         kind: 'call',
         call: {

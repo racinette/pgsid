@@ -31,3 +31,12 @@ VALUES ('{1,2}', '{3,4}', '{1,2}', '{1,2}', '{3,4}', '{1,2}', '[1:2][1:2]', fals
 
 INSERT INTO lane_stage_arrays (first_stages, second_stages, expected_stages, require_order)
 VALUES ('{new}', '{new,done}', '{new}', true);
+
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('[0:3]={1,NULL,1,2}', 1, 1, 0, 2, '{0,2}', true);
+
+INSERT INTO lane_stage_searches (stages, needle, expected_first, expected_positions)
+VALUES ('[0:2]={new,done,new}', 'new', 0, '{0,2}');
+
+INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
+VALUES ('{}', '{NULL}', NULL, false);

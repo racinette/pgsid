@@ -550,6 +550,16 @@ export function finishArrayOutput(input: checkruntime.ArrayOutputPayload, render
     }
     return { kind: "Unknown" };
 }
+export function arrayPositionZv3u(input: checkruntime.Int4Value): checkruntime.Int4Value {
+    return input;
+}
+export function arrayPositionXcpr(input: checkruntime.Int4Value): checkruntime.Int4Value {
+    return input;
+}
+export function arrayPositionsJonj(input: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return input;
+}
 export function int48lt65ji(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

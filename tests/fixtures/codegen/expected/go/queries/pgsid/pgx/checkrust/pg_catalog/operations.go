@@ -551,6 +551,16 @@ func FinishArrayOutput(input checkruntime.ArrayOutputPayload, rendered checkrunt
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+func ArrayPositionZv3u(input checkruntime.Int4Value) checkruntime.Int4Value {
+	return input
+}
+func ArrayPositionXcpr(input checkruntime.Int4Value) checkruntime.Int4Value {
+	return input
+}
+func ArrayPositionsJonj(input checkruntime.ArrayValue) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return input
+}
 func Int48lt65ji(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error

@@ -486,3 +486,111 @@ VALUES ('{done}', '{new,done}', '{done}', true);
 -- name: stage_arrays_unapproved_label
 INSERT INTO lane_stage_arrays (first_stages, second_stages, expected_stages, require_order)
 VALUES ('{done}', '{new}', '{done}', false);
+
+-- name: search_shifted_duplicate_matches
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('[0:3]={1,NULL,1,2}', 1, 1, 0, 2, '{0,2}', true);
+
+-- name: search_null_cells
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('[-2:1]={NULL,1,NULL,2}', NULL, -1, -2, 0, '{-2,0}', true);
+
+-- name: search_absent_value
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('{1,2}', 9, 1, NULL, NULL, '{}', false);
+
+-- name: search_empty_array_ignores_null_start
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('{}', 1, NULL, NULL, NULL, '{}', false);
+
+-- name: search_null_array_ignores_null_start
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES (NULL, 1, NULL, NULL, NULL, NULL, false);
+
+-- name: search_null_needle_without_nulls_ignores_null_start
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('{1,2}', NULL, NULL, NULL, NULL, '{}', false);
+
+-- name: search_start_after_array
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('{1,1}', 1, 3, 1, NULL, '{1,2}', true);
+
+-- name: search_wrong_first
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('{1,1}', 1, 1, 2, 1, '{1,2}', true);
+
+-- name: search_wrong_start
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('{1,1}', 1, 2, 1, 1, '{1,2}', true);
+
+-- name: search_wrong_positions
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('{1,1}', 1, 1, 1, 1, '{1}', true);
+
+-- name: search_required_absent_value
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('{1,2}', 9, 1, NULL, NULL, '{}', true);
+
+-- name: search_null_start_rejected
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('{NULL,1}', NULL, NULL, 1, NULL, '{1}', true);
+
+-- name: search_multidimensional_rejected
+INSERT INTO lane_searches (slots, needle, start_slot, expected_first, expected_from_start, expected_positions, require_match)
+VALUES ('{{1,2}}', 1, 1, NULL, NULL, NULL, false);
+
+-- name: search_stages_schema_labels
+INSERT INTO lane_stage_searches (stages, needle, expected_first, expected_positions)
+VALUES ('[0:2]={new,done,new}', 'new', 0, '{0,2}');
+
+-- name: search_stages_null_label
+INSERT INTO lane_stage_searches (stages, needle, expected_first, expected_positions)
+VALUES ('{new,NULL,done,NULL}', NULL, 2, '{2,4}');
+
+-- name: search_stages_absent_label
+INSERT INTO lane_stage_searches (stages, needle, expected_first, expected_positions)
+VALUES ('{new}', 'done', NULL, '{}');
+
+-- name: search_stages_null_array
+INSERT INTO lane_stage_searches (stages, needle, expected_first, expected_positions)
+VALUES (NULL, 'done', NULL, NULL);
+
+-- name: search_stages_wrong_first
+INSERT INTO lane_stage_searches (stages, needle, expected_first, expected_positions)
+VALUES ('{new,done,new}', 'new', 2, '{1,3}');
+
+-- name: search_stages_wrong_positions
+INSERT INTO lane_stage_searches (stages, needle, expected_first, expected_positions)
+VALUES ('{new,done,new}', 'new', 1, '{1}');
+
+-- name: search_documents_empty_fast_path
+INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
+VALUES ('{}', '{NULL}', NULL, false);
+
+-- name: search_documents_null_needle_without_nulls
+INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
+VALUES ('{null}', '{NULL}', NULL, false);
+
+-- name: search_documents_missing_equality
+INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
+VALUES ('{NULL}', '{NULL}', 1, false);
+
+-- name: search_documents_null_start_before_equality
+INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
+VALUES ('{NULL}', '{NULL}', NULL, false);
+
+-- name: search_documents_missing_equality_after_end
+INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
+VALUES ('{null}', '{null}', 999, false);
+
+-- name: search_documents_multidimensional_before_equality
+INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
+VALUES ('{{NULL}}', '{NULL}', NULL, false);
+
+-- name: search_documents_needle_error_before_null_source
+INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
+VALUES (NULL, '{bad}', NULL, false);
+
+-- name: search_documents_guarded_input
+INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
+VALUES ('{bad}', '{bad}', NULL, true);
