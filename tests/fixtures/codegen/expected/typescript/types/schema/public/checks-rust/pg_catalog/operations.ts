@@ -12405,6 +12405,463 @@ function jsonpathExecutionLiterals(path: checkruntime.JsonpathPayload): checkrun
     }
     return nodes;
 }
+const jsonpathMethodBigint = 115;
+const jsonpathMethodNumber = 118;
+const jsonpathMethodString = 121;
+const jsonpathMethodBoolean = 122;
+const jsonpathMethodDecimal = 124;
+const jsonpathMethodInteger = 125;
+function jsonpathConversionKind(kind: number): boolean {
+    kind = langruntime.checkedI32(kind);
+    return kind === jsonpathMethodBigint || kind === jsonpathMethodNumber || kind === jsonpathMethodString || kind === jsonpathMethodBoolean || kind === jsonpathMethodDecimal || kind === jsonpathMethodInteger;
+}
+function jsonpathConversionIntegerText(input: checkruntime.TextValue, wide: boolean): checkruntime.NumericValue {
+    wide = langruntime.checkedBool(wide);
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let start: number = 0;
+        let end: number = characters.length;
+        while (start < end && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(start)))) {
+            start = langruntime.checkedAdd(start, 1);
+        }
+        while (end > start && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        let negative: boolean = false;
+        if (start < end && (langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "+" || langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "-")) {
+            negative = langruntime.checkedBool(langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "-");
+            start = langruntime.checkedAdd(start, 1);
+        }
+        let radix: bigint = 10n;
+        let prefixed: boolean = false;
+        if (langruntime.checkedAdd(start, 1) < end && langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "0") {
+            const prefix: string = langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))));
+            if (prefix === "x") {
+                radix = langruntime.checkedI64(16n);
+                prefixed = langruntime.checkedBool(true);
+            }
+            if (prefix === "o") {
+                radix = langruntime.checkedI64(8n);
+                prefixed = langruntime.checkedBool(true);
+            }
+            if (prefix === "b") {
+                radix = langruntime.checkedI64(2n);
+                prefixed = langruntime.checkedBool(true);
+            }
+            if (prefixed) {
+                start = langruntime.checkedAdd(start, 2);
+            }
+        }
+        let minimum: bigint = -2147483647n;
+        if (negative) {
+            minimum = langruntime.checkedI64(-2147483648n);
+        }
+        if (wide) {
+            minimum = langruntime.checkedI64(-9223372036854775807n);
+            if (negative) {
+                minimum = langruntime.checkedI64(-9223372036854775808n);
+            }
+        }
+        let number: bigint = 0n;
+        let digits: boolean = false;
+        let previous: boolean = prefixed;
+        while (start < end) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(start));
+            const digit: bigint = BigInt(langruntime.checkedI32(jsonpathScanHex(character)));
+            if (character === "_") {
+                if (previous === false || langruntime.checkedAdd(start, 1) === end) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+                }
+                const next: bigint = BigInt(langruntime.checkedI32(jsonpathScanHex(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))))));
+                if (next < 0n || next >= radix) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+                }
+                previous = langruntime.checkedBool(false);
+            }
+            else {
+                if (digit < 0n || digit >= radix) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+                }
+                if (number < langruntime.checkedI64Divide((langruntime.checkedI64Add(minimum, digit)), radix)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+                }
+                number = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.checkedI64Multiply(number, radix), digit));
+                digits = langruntime.checkedBool(true);
+                previous = langruntime.checkedBool(true);
+            }
+            start = langruntime.checkedAdd(start, 1);
+        }
+        if (digits === false) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+        }
+        if (negative === false) {
+            number = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, number));
+        }
+        return { kind: "Value", value: checkruntime.textSignedNumber(number) };
+    }
+    return { kind: "Unknown" };
+}
+function jsonpathConversionNumberText(input: checkruntime.TextValue): checkruntime.NumericValue {
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        let start: number = 0;
+        let end: number = characters.length;
+        while (start < end && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(start)))) {
+            start = langruntime.checkedAdd(start, 1);
+        }
+        while (end > start && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        let negative: boolean = false;
+        if (start < end && (langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "+" || langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "-")) {
+            negative = langruntime.checkedBool(langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "-");
+            start = langruntime.checkedAdd(start, 1);
+        }
+        if (start === end) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+        }
+        let radix: number = 10;
+        let prefixEnd: number = start;
+        if (langruntime.checkedAdd(start, 1) < end && langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "0") {
+            const prefix: string = langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))));
+            if (prefix === "x") {
+                radix = langruntime.checkedI32(16);
+                prefixEnd = langruntime.checkedIndex(langruntime.checkedAdd(start, 2));
+            }
+            if (prefix === "o") {
+                radix = langruntime.checkedI32(8);
+                prefixEnd = langruntime.checkedIndex(langruntime.checkedAdd(start, 2));
+            }
+            if (prefix === "b") {
+                radix = langruntime.checkedI32(2);
+                prefixEnd = langruntime.checkedIndex(langruntime.checkedAdd(start, 2));
+            }
+        }
+        let clean: string = "";
+        let position: number = start;
+        while (position < end) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+            if (character === "_") {
+                if (position === start || langruntime.checkedAdd(position, 1) === end) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+                }
+                const before: number = jsonpathScanHex(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1))));
+                const after: number = jsonpathScanHex(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))));
+                if ((!(position === prefixEnd) && (before < 0 || before >= radix)) || after < 0 || after >= radix) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+                }
+            }
+            else {
+                clean = clean + langruntime.checkedChar(character);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        const content: string[] = Array.from(clean);
+        let begin: number = 0;
+        if (radix === 10) {
+            while (langruntime.checkedAdd(begin, 1) < content.length && langruntime.indexChar(content, langruntime.checkedIndex(begin)) === "0" && numericWireDecimalDigit(langruntime.indexChar(content, langruntime.checkedIndex(langruntime.checkedAdd(begin, 1)))) >= 0) {
+                begin = langruntime.checkedAdd(begin, 1);
+            }
+        }
+        let normalized: string = "";
+        position = langruntime.checkedIndex(begin);
+        while (position < content.length) {
+            normalized = normalized + langruntime.checkedChar(langruntime.indexChar(content, langruntime.checkedIndex(position)));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        const source: JsonpathScanSource = { characters: Array.from(normalized) };
+        if (source.characters.length === 0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+        }
+        const first: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(0));
+        if (numericWireDecimalDigit(first) < 0 && !(first === ".")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+        }
+        const token: JsonpathScanRead = jsonpathScanNumber(source, 0);
+        if (!(token.error === 0) || !(token.end === source.characters.length) || (!(token.kind === jsonpathScanInt) && !(token.kind === jsonpathScanNumeric))) {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+        }
+        const parsed: checkruntime.TextValue = jsonpathNumericLiteral(normalized);
+        if (parsed.kind === "Error") {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+        }
+        if (parsed.kind === "Value") {
+            const number: string = langruntime.checkedString(parsed.value);
+            let result: checkruntime.NumericValue = { kind: "Value", value: number };
+            if (negative) {
+                result = numericUminusWcmy(result);
+            }
+            return result;
+        }
+    }
+    return { kind: "Unknown" };
+}
+function jsonpathConversionBooleanText(input: checkruntime.TextValue): checkruntime.BoolValue {
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        const start: number = 0;
+        const end: number = characters.length;
+        if (langruntime.checkedSubtract(end, start) === 1 && langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "1") {
+            return { kind: "Value", value: true };
+        }
+        if (langruntime.checkedSubtract(end, start) === 1 && langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "0") {
+            return { kind: "Value", value: false };
+        }
+        let result: checkruntime.BoolValue = { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+        const words: string[] = Array.from("truefalseyesnoonoff");
+        let word: number = 0;
+        while (word < 6) {
+            let begin: number = 0;
+            let length: number = 4;
+            let minimum: number = 1;
+            let state: boolean = true;
+            if (word === 1) {
+                begin = langruntime.checkedIndex(4);
+                length = langruntime.checkedIndex(5);
+                state = langruntime.checkedBool(false);
+            }
+            if (word === 2) {
+                begin = langruntime.checkedIndex(9);
+                length = langruntime.checkedIndex(3);
+            }
+            if (word === 3) {
+                begin = langruntime.checkedIndex(12);
+                length = langruntime.checkedIndex(2);
+                state = langruntime.checkedBool(false);
+            }
+            if (word === 4) {
+                begin = langruntime.checkedIndex(14);
+                length = langruntime.checkedIndex(2);
+                minimum = langruntime.checkedIndex(2);
+            }
+            if (word === 5) {
+                begin = langruntime.checkedIndex(16);
+                length = langruntime.checkedIndex(3);
+                minimum = langruntime.checkedIndex(2);
+                state = langruntime.checkedBool(false);
+            }
+            if (langruntime.checkedSubtract(end, start) >= minimum && langruntime.checkedSubtract(end, start) <= length) {
+                let offset: number = 0;
+                let equal: boolean = true;
+                while (offset < langruntime.checkedSubtract(end, start)) {
+                    if (!(langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(start, offset)))) === langruntime.indexChar(words, langruntime.checkedIndex(langruntime.checkedAdd(begin, offset))))) {
+                        equal = langruntime.checkedBool(false);
+                    }
+                    offset = langruntime.checkedAdd(offset, 1);
+                }
+                if (equal) {
+                    result = { kind: "Value", value: state };
+                }
+            }
+            word = langruntime.checkedAdd(word, 1);
+        }
+        return result;
+    }
+    return { kind: "Unknown" };
+}
+function jsonpathConversionBooleanValue(number: checkruntime.NumericValue, text: checkruntime.TextValue, valueKind: number): checkruntime.BoolValue {
+    valueKind = langruntime.checkedI32(valueKind);
+    if (valueKind === 1 || valueKind === 2) {
+        return { kind: "Value", value: valueKind === 2 };
+    }
+    if (valueKind === 4) {
+        return jsonpathConversionBooleanText(text);
+    }
+    if (valueKind === 3) {
+        if (number.kind === "Value") {
+            const value: string = langruntime.checkedString(number.value);
+            const parsed: checkruntime.NumericValue = jsonpathConversionIntegerText({ kind: "Value", value: value }, false);
+            if (parsed.kind === "Error") {
+                const error: checkruntime.SqlError = parsed.value;
+                return { kind: "Error", value: error };
+            }
+            if (parsed.kind === "Value") {
+                const value: string = langruntime.checkedString(parsed.value);
+                return { kind: "Value", value: !(value === "0") };
+            }
+        }
+        return { kind: "Unknown" };
+    }
+    return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+}
+function jsonpathConversionStringValue(number: checkruntime.NumericValue, text: checkruntime.TextValue, valueKind: number): checkruntime.TextValue {
+    valueKind = langruntime.checkedI32(valueKind);
+    if (valueKind === 4) {
+        return text;
+    }
+    if (valueKind === 1) {
+        return { kind: "Value", value: "false" };
+    }
+    if (valueKind === 2) {
+        return { kind: "Value", value: "true" };
+    }
+    if (valueKind === 3) {
+        if (number.kind === "Value") {
+            const value: string = langruntime.checkedString(number.value);
+            return { kind: "Value", value: value };
+        }
+        return { kind: "Unknown" };
+    }
+    return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+}
+function jsonpathConversionNumericValue(context: JsonpathExecutionContext, method: checkruntime.JsonpathNode, number: checkruntime.NumericValue, text: checkruntime.TextValue, valueKind: number): checkruntime.NumericValue {
+    valueKind = langruntime.checkedI32(valueKind);
+    if (!(valueKind === 3) && !(valueKind === 4)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+    }
+    let converted: checkruntime.NumericValue = number;
+    if (method.kind === jsonpathMethodInteger || method.kind === jsonpathMethodBigint) {
+        if (valueKind === 4) {
+            return jsonpathConversionIntegerText(text, method.kind === jsonpathMethodBigint);
+        }
+        if (method.kind === jsonpathMethodInteger) {
+            const integer: checkruntime.Int4Value = int4Z4rh(converted);
+            if (integer.kind === "Error") {
+                return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+            }
+            return numericNcrk(integer);
+        }
+        const integer: checkruntime.Int8Value = int8Xy54(converted);
+        if (integer.kind === "Error") {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+        }
+        return numeric11bc(integer);
+    }
+    if (valueKind === 4) {
+        converted = jsonpathConversionNumberText(text);
+    }
+    if (method.kind === jsonpathMethodDecimal && method.left > 0) {
+        if (converted.kind === "Error") {
+            const error: checkruntime.SqlError = converted.value;
+            return { kind: "Error", value: error };
+        }
+        if (converted.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        const precision: checkruntime.Int4Value = int4Z4rh(jsonpathExecutionNumeric(context, { source: 2, node: method.left }));
+        if (precision.kind === "Error") {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+        }
+        let scale: checkruntime.Int4Value = { kind: "Value", value: 0 };
+        if (method.right > 0) {
+            scale = int4Z4rh(jsonpathExecutionNumeric(context, { source: 2, node: method.right }));
+        }
+        if (scale.kind === "Error") {
+            return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+        }
+        if (precision.kind === "Value") {
+            const p: number = langruntime.checkedI32(precision.value);
+            if (scale.kind === "Value") {
+                const s: number = langruntime.checkedI32(scale.value);
+                if (p < 1 || p > 1000 || s < langruntime.checkedSignedNegate(1000) || s > 1000) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(jsonpathExecParameter) };
+                }
+                let packed: number = s;
+                if (packed < 0) {
+                    packed = langruntime.checkedI32(langruntime.checkedSignedAdd(packed, 2048));
+                }
+                return jsonpathConversionRemapNumeric(numeric879l(converted, { kind: "Value", value: langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(p, 65536), packed), 4) }));
+            }
+        }
+        return { kind: "Unknown" };
+    }
+    return converted;
+}
+function jsonpathConversionRemapNumeric(value: checkruntime.NumericValue): checkruntime.NumericValue {
+    if (value.kind === "Error") {
+        return { kind: "Error", value: checkruntime.makeSqlError(jsonpathMethodNonNumeric) };
+    }
+    return value;
+}
+function jsonpathConversionTextPredicate(kind: number, left: checkruntime.TextValue, right: checkruntime.TextValue, utf8: boolean): JsonpathPredicateValue {
+    kind = langruntime.checkedI32(kind);
+    utf8 = langruntime.checkedBool(utf8);
+    if (left.kind === "Value") {
+        const first: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const second: string = langruntime.checkedString(right.value);
+            const a: string[] = Array.from(first);
+            const b: string[] = Array.from(second);
+            let index: number = 0;
+            let unicode: boolean = false;
+            while (index < a.length) {
+                if (langruntime.checkedChar(langruntime.indexChar(a, langruntime.checkedIndex(index))).codePointAt(0)! > 127) {
+                    unicode = langruntime.checkedBool(true);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            index = langruntime.checkedIndex(0);
+            while (index < b.length) {
+                if (langruntime.checkedChar(langruntime.indexChar(b, langruntime.checkedIndex(index))).codePointAt(0)! > 127) {
+                    unicode = langruntime.checkedBool(true);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (unicode && utf8 === false) {
+                return { state: 0, deferred: true };
+            }
+            index = langruntime.checkedIndex(0);
+            let order: number = 0;
+            while (index < a.length && index < b.length && order === 0) {
+                const x: number = langruntime.checkedChar(langruntime.indexChar(a, langruntime.checkedIndex(index))).codePointAt(0)!;
+                const y: number = langruntime.checkedChar(langruntime.indexChar(b, langruntime.checkedIndex(index))).codePointAt(0)!;
+                if (x < y) {
+                    order = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+                }
+                if (x > y) {
+                    order = langruntime.checkedI32(1);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (order === 0) {
+                if (a.length < b.length) {
+                    order = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+                }
+                if (a.length > b.length) {
+                    order = langruntime.checkedI32(1);
+                }
+            }
+            let result: boolean = false;
+            if (kind === checkruntime.jsonpathNodeStarts) {
+                result = langruntime.checkedBool(b.length <= a.length);
+                index = langruntime.checkedIndex(0);
+                while (result && index < b.length) {
+                    if (!(langruntime.indexChar(a, langruntime.checkedIndex(index)) === langruntime.indexChar(b, langruntime.checkedIndex(index)))) {
+                        result = langruntime.checkedBool(false);
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+            }
+            if (kind === checkruntime.jsonpathNodeEq) {
+                result = langruntime.checkedBool(order === 0);
+            }
+            if (kind === checkruntime.jsonpathNodeNe) {
+                result = langruntime.checkedBool(!(order === 0));
+            }
+            if (kind === checkruntime.jsonpathNodeLt) {
+                result = langruntime.checkedBool(order < 0);
+            }
+            if (kind === checkruntime.jsonpathNodeLe) {
+                result = langruntime.checkedBool(order <= 0);
+            }
+            if (kind === checkruntime.jsonpathNodeGt) {
+                result = langruntime.checkedBool(order > 0);
+            }
+            if (kind === checkruntime.jsonpathNodeGe) {
+                result = langruntime.checkedBool(order >= 0);
+            }
+            let state: number = 1;
+            if (result) {
+                state = langruntime.checkedI32(2);
+            }
+            return { state: state, deferred: false };
+        }
+    }
+    return { state: 0, deferred: true };
+}
 const jsonpathExecSubscript = 3452655;
 const jsonpathExecArray = 3452661;
 const jsonpathExecMember = 3452662;
@@ -12457,14 +12914,18 @@ function copyJsonpathExecutionTask(value: JsonpathExecutionTask): JsonpathExecut
 interface JsonpathSequence {
     items: JsonpathReference[];
     numbers: checkruntime.NumericValue[];
+    strings: checkruntime.TextValue[];
     error: number;
     unknown: boolean;
 }
 function copyJsonpathSequence(value: JsonpathSequence): JsonpathSequence {
-    return { items: langruntime.checkedStructs(value.items, copyJsonpathReference), numbers: langruntime.checkedStructs(value.numbers, checkruntime.copyNumericValue), error: langruntime.checkedIndex(value.error), unknown: langruntime.checkedBool(value.unknown) };
+    return { items: langruntime.checkedStructs(value.items, copyJsonpathReference), numbers: langruntime.checkedStructs(value.numbers, checkruntime.copyNumericValue), strings: langruntime.checkedStructs(value.strings, checkruntime.copyTextValue), error: langruntime.checkedIndex(value.error), unknown: langruntime.checkedBool(value.unknown) };
 }
 function jsonpathExecutionNode(context: JsonpathExecutionContext, reference: JsonpathReference): checkruntime.JsonbNode {
     reference = copyJsonpathReference(reference);
+    if (reference.source === 5) {
+        return { kind: 4, child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 };
+    }
     if (reference.source === 4) {
         return { kind: langruntime.checkedI32(langruntime.checkedIndex(reference.node)), child: 0, next: 0, keyStart: 0, keyEnd: 0, textStart: 0, textEnd: 0 };
     }
@@ -12624,6 +13085,7 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
     let items: JsonpathReference[] = [];
     let itemCount: number = 0;
     let numbers: checkruntime.NumericValue[] = [];
+    let strings: checkruntime.TextValue[] = [];
     let operands: JsonpathReference[] = [];
     let collectDepth: number = 0;
     let collectBase: number = 0;
@@ -12642,6 +13104,8 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
         let pending: JsonpathExecutionTask[] = [];
         let computed: checkruntime.NumericValue = { kind: "Unknown" };
         const computedIndex: number = numbers.length;
+        let computedText: checkruntime.TextValue = { kind: "Unknown" };
+        const computedTextIndex: number = strings.length;
         if (task.mode === 1 || task.mode === 3 || task.mode === 5) {
             let following: number = value.next;
             if (task.mode === 5 && task.from >= task.to) {
@@ -12882,7 +13346,15 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                         if (second.source === 3) {
                             rightNumber = langruntime.indexStruct(numbers, langruntime.checkedIndex(second.node), checkruntime.copyNumericValue);
                         }
-                        const result: JsonpathPredicateValue = copyJsonpathPredicateValue(jsonpathPredicatePair(context, step.kind, first, second, leftNumber, rightNumber));
+                        let leftText: checkruntime.TextValue = { kind: "Unknown" };
+                        let rightText: checkruntime.TextValue = { kind: "Unknown" };
+                        if (first.source === 5) {
+                            leftText = langruntime.indexStruct(strings, langruntime.checkedIndex(first.node), checkruntime.copyTextValue);
+                        }
+                        if (second.source === 5) {
+                            rightText = langruntime.indexStruct(strings, langruntime.checkedIndex(second.node), checkruntime.copyTextValue);
+                        }
+                        const result: JsonpathPredicateValue = copyJsonpathPredicateValue(jsonpathPredicatePair(context, step.kind, first, second, leftNumber, rightNumber, leftText, rightText));
                         if (result.deferred) {
                             unknown = langruntime.checkedBool(true);
                         }
@@ -13215,9 +13687,43 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
                     if (task.reference.source === 3) {
                         number = langruntime.indexStruct(numbers, langruntime.checkedIndex(task.reference.node), checkruntime.copyNumericValue);
                     }
-                    const text: checkruntime.TextValue = jsonpathMethodText(context, task.reference);
-                    computed = jsonpathMethodNumeric(step.kind, number, text, value.kind);
-                    langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.next, { source: 3, node: numbers.length }, context.lax, task.ignore), copyJsonpathExecutionTask);
+                    let text: checkruntime.TextValue = jsonpathMethodText(context, task.reference);
+                    if (task.reference.source === 5) {
+                        text = langruntime.indexStruct(strings, langruntime.checkedIndex(task.reference.node), checkruntime.copyTextValue);
+                    }
+                    let source: number = 3;
+                    let node: number = numbers.length;
+                    if (step.kind === jsonpathMethodString) {
+                        computedText = jsonpathConversionStringValue(number, text, value.kind);
+                        source = langruntime.checkedI32(5);
+                        node = langruntime.checkedIndex(strings.length);
+                    }
+                    else if (step.kind === jsonpathMethodBoolean) {
+                        const result: checkruntime.BoolValue = jsonpathConversionBooleanValue(number, text, value.kind);
+                        source = langruntime.checkedI32(4);
+                        node = langruntime.checkedIndex(0);
+                        if (result.kind === "Value") {
+                            const value: boolean = langruntime.checkedBool(result.value);
+                            node = langruntime.checkedIndex(1);
+                            if (value) {
+                                node = langruntime.checkedIndex(2);
+                            }
+                        }
+                        if (result.kind === "Error") {
+                            const failure: checkruntime.SqlError = result.value;
+                            error = langruntime.checkedIndex(failure.state);
+                        }
+                        if (result.kind === "Unknown") {
+                            unknown = langruntime.checkedBool(true);
+                        }
+                    }
+                    else if (jsonpathConversionKind(step.kind)) {
+                        computed = jsonpathConversionNumericValue(context, step, number, text, value.kind);
+                    }
+                    else {
+                        computed = jsonpathMethodNumeric(step.kind, number, text, value.kind);
+                    }
+                    langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, step.next, { source: source, node: node }, context.lax, task.ignore), copyJsonpathExecutionTask);
                 }
             }
             else if (step.kind === checkruntime.jsonpathNodeDescendant) {
@@ -13239,8 +13745,23 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
             const number: string = langruntime.checkedString(computed.value);
             langruntime.pushStruct(numbers, { kind: "Value", value: number }, checkruntime.copyNumericValue);
         }
+        if (computedText.kind === "Error") {
+            const failure: checkruntime.SqlError = computedText.value;
+            error = langruntime.checkedIndex(failure.state);
+        }
+        let textUnknown: boolean = false;
+        if (computedText.kind === "Unknown") {
+            textUnknown = langruntime.checkedBool(true);
+        }
+        if (computedText.kind === "Value") {
+            const value: string = langruntime.checkedString(computedText.value);
+            langruntime.pushStruct(strings, { kind: "Value", value: value }, checkruntime.copyTextValue);
+        }
         let index: number = 0;
         while (index < pending.length) {
+            if (textUnknown && langruntime.indexStruct(pending, langruntime.checkedIndex(index), copyJsonpathExecutionTask).reference.source === 5 && langruntime.indexStruct(pending, langruntime.checkedIndex(index), copyJsonpathExecutionTask).reference.node === computedTextIndex) {
+                unknown = langruntime.checkedBool(true);
+            }
             if (computedUnknown) {
                 if (langruntime.indexStruct(pending, langruntime.checkedIndex(index), copyJsonpathExecutionTask).reference.source === 3 && langruntime.indexStruct(pending, langruntime.checkedIndex(index), copyJsonpathExecutionTask).reference.node === computedIndex) {
                     unknown = langruntime.checkedBool(true);
@@ -13287,7 +13808,7 @@ function jsonpathExecutionWalk(context: JsonpathExecutionContext, existence: boo
         langruntime.pushStruct(selected, langruntime.indexStruct(items, langruntime.checkedIndex(index), copyJsonpathReference), copyJsonpathReference);
         index = langruntime.checkedAdd(index, 1);
     }
-    return { items: selected, numbers: numbers, error: error, unknown: unknown };
+    return { items: selected, numbers: numbers, strings: strings, error: error, unknown: unknown };
 }
 interface JsonpathCopyTask {
     reference: JsonpathReference;
@@ -13340,6 +13861,18 @@ function jsonpathExecutionOutput(context: JsonpathExecutionContext, sequence: Js
                 if (number.kind === "Value") {
                     const text: string = langruntime.checkedString(number.value);
                     const content: string[] = Array.from(text);
+                    let position: number = 0;
+                    while (position < content.length) {
+                        langruntime.pushChar(characters, langruntime.indexChar(content, langruntime.checkedIndex(position)));
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                }
+            }
+            if (task.reference.source === 5) {
+                const text: checkruntime.TextValue = langruntime.indexStruct(sequence.strings, langruntime.checkedIndex(task.reference.node), checkruntime.copyTextValue);
+                if (text.kind === "Value") {
+                    const value: string = langruntime.checkedString(text.value);
+                    const content: string[] = Array.from(value);
                     let position: number = 0;
                     while (position < content.length) {
                         langruntime.pushChar(characters, langruntime.indexChar(content, langruntime.checkedIndex(position)));
@@ -13596,7 +14129,7 @@ const jsonpathMethodNonNumeric = 3452658;
 const jsonpathMethodTypeNames: ReadonlyArray<string> = ["null", "boolean", "boolean", "number", "string", "array", "object"];
 function jsonpathMethodCore(kind: number): boolean {
     kind = langruntime.checkedI32(kind);
-    return kind === jsonpathMethodAbs || kind === jsonpathMethodSize || kind === jsonpathMethodType || kind === jsonpathMethodFloor || kind === jsonpathMethodDouble || kind === jsonpathMethodCeiling;
+    return kind === jsonpathMethodAbs || kind === jsonpathMethodSize || kind === jsonpathMethodType || kind === jsonpathMethodFloor || kind === jsonpathMethodDouble || kind === jsonpathMethodCeiling || jsonpathConversionKind(kind);
 }
 function jsonpathMethodText(context: JsonpathExecutionContext, reference: JsonpathReference): checkruntime.TextValue {
     reference = copyJsonpathReference(reference);
@@ -14730,7 +15263,7 @@ function jsonpathPredicateKind(kind: number): boolean {
     kind = langruntime.checkedI32(kind);
     return kind === checkruntime.jsonpathNodeExists || kind === checkruntime.jsonpathNodeNot || kind === checkruntime.jsonpathNodeIsUnknown || (kind >= checkruntime.jsonpathNodeEq && kind <= checkruntime.jsonpathNodeStarts);
 }
-function jsonpathPredicatePair(context: JsonpathExecutionContext, kind: number, left: JsonpathReference, right: JsonpathReference, leftNumber: checkruntime.NumericValue, rightNumber: checkruntime.NumericValue): JsonpathPredicateValue {
+function jsonpathPredicatePair(context: JsonpathExecutionContext, kind: number, left: JsonpathReference, right: JsonpathReference, leftNumber: checkruntime.NumericValue, rightNumber: checkruntime.NumericValue, leftText: checkruntime.TextValue, rightText: checkruntime.TextValue): JsonpathPredicateValue {
     kind = langruntime.checkedI32(kind);
     left = copyJsonpathReference(left);
     right = copyJsonpathReference(right);
@@ -14774,6 +15307,17 @@ function jsonpathPredicatePair(context: JsonpathExecutionContext, kind: number, 
         }
     }
     if (a.kind === 4) {
+        if (left.source === 5 || right.source === 5) {
+            let first: checkruntime.TextValue = leftText;
+            let second: checkruntime.TextValue = rightText;
+            if (!(left.source === 5)) {
+                first = jsonpathMethodText(context, left);
+            }
+            if (!(right.source === 5)) {
+                second = jsonpathMethodText(context, right);
+            }
+            return jsonpathConversionTextPredicate(kind, first, second, context.utf8);
+        }
         let first: number = a.textStart;
         let second: number = b.textStart;
         let unicode: boolean = false;
