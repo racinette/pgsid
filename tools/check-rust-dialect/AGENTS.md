@@ -27,7 +27,8 @@ update its tests when that boundary changes.
 - Parameters are immutable named values of `Int2Value`, `Int4Value`, `Int8Value`, `Float4Value`, `Float8Value`, `PointValue`, `LineValue`, `LsegValue`, `BoxValue`, `CircleValue`, `PathValue`, `SnapshotValue`, `JsonValue`, `JsonbValue`, `JsonpathValue`, `MoneyValue`, `OidValue`, `XidValue`, `CidValue`, `Xid8Value`, `PgLsnValue`, `TidValue`, `InternalCharValue`, `TimeValue`, `TimetzValue`, `IntervalValue`, `DateValue`, `TimestampValue`, `TimestamptzValue`, `EnumValue`, `NetworkValue`, `MacaddrValue`, `Macaddr8Value`, `UuidValue`, `NumericValue`, `TextValue`, `ByteaValue`,
   `BitValue`, or `BoolValue`. Calls take bound identifiers, in-range signed `int2`/`int4`/`int8` literals,
   string literals, boolean literals, or a bound identifier cloned with `.clone()`
-  for owned immutable wrappers. The `int4` minimum uses
+  for owned immutable wrappers. Calls may borrow a bound record with `&name`;
+  mutable borrows and computed borrow arguments remain rejected. The `int4` minimum uses
   `-2147483647 - 1`. Int8 literals use an explicit `i64` suffix, including
   `-9223372036854775808i64`. Keep integer literals in decimal syntax. Numeric constants pass exact decimal
   strings to `make_numeric_value`; they never become Rust floating-point literals.
@@ -37,9 +38,12 @@ update its tests when that boundary changes.
   assigned a direct call or bound value. `if` and `else` branches may contain
   those same statements; conditions are direct calls or a direct call compared
   with `false`. The final expression is a bound result or direct call.
+- Array text casts iterate events with `while` conditions in the same call form.
+  Loop bodies use the existing bindings, assignments and branches. Internal
+  `ArrayArguments` builders may be mutable locals but cannot be entry parameters.
 - Keep evaluation order visible in statements. A deciding boolean result must
   skip code for the unselected operand.
-- Do not add syntax for convenience. Loops, generics, other methods, nested calls,
+- Do not add syntax for convenience. Generics, other methods, nested calls,
   closures, and extra declarations require a concrete CHECK expression that
   cannot be emitted with the accepted forms.
 

@@ -67,6 +67,19 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
+  if (expression.kind === 'array-text-literal') return constant(expression)
+  if (
+    expression.kind === 'certain' &&
+    expression.expression.kind === 'array' &&
+    expression.expression.elements === null
+  )
+    return constant(expression, true)
+  if (expression.kind === 'text-to-array') {
+    const operand = prepare(expression.operand)
+    return operand
+      ? { constant: false, null: operand.null, expressions: operand.expressions }
+      : null
+  }
   if (expression.kind === 'array-constructor') {
     const operands = prepareAll(expression.operands)
     if (!operands) return null
@@ -149,6 +162,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     return operand.constant ? constant(expression) : { ...operand, null: false }
   }
   if (
+    expression.kind === 'array-typmod' ||
     expression.kind === 'text-to-network' ||
     expression.kind === 'text-to-mac' ||
     expression.kind === 'mac-to-text' ||

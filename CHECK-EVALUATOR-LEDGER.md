@@ -28,8 +28,7 @@ Refresh world outcomes before measuring the surface. Run from the repository roo
 pnpm check-rust:measure
 ```
 
-A prepared evaluator may return Unknown. Count useful support from binding and
-executed outcomes, rather than preparation success alone. Legacy target bindings
+A prepared evaluator may return Unknown. Count useful support from binding and executed outcomes, rather than preparation success alone. Legacy target bindings
 and catalog function counts are separate from Rust CHECK coverage; dedicated
 regex paths can work without a catalog-named implementation.
 
@@ -253,6 +252,7 @@ exposes a prerequisite:
 - [x] Admit SQL-coerced scalar/enum arrays and domains over arrays, metadata calls, typed builtin NULLs, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
 - [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, eager errors, constant preparation and INSERT parity; preserve nominal domain-element deferrals.
 - [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.
+- [x] Admit source/stored array literals and text I/O input, integer/Boolean/numeric/enum input profiles, widths/precision, explicit array_nulls, captured money units and coerced name facets; verify lazy preparation, exact cells and INSERT parity. Array output remains separate.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.

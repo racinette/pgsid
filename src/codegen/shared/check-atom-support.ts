@@ -79,6 +79,8 @@ export function portableCheckAtoms(
   const scalar = (value: EvalExpression): EvalExpression => {
     if (
       value.kind === 'clock-to-text' ||
+      value.kind === 'text-to-array' ||
+      value.kind === 'array-typmod' ||
       value.kind === 'text-to-interval' ||
       value.kind === 'text-to-clock' ||
       value.kind === 'text-to-date' ||

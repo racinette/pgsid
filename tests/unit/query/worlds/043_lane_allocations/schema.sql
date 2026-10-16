@@ -40,3 +40,23 @@ CREATE TABLE lane_candidates (
   CONSTRAINT divided_candidates CHECK (CASE WHEN bypass THEN true ELSE cardinality(ARRAY[first_lane / divisor, second_lane]) = 2 END),
   CONSTRAINT narrowed_candidates CHECK (CASE WHEN bypass THEN true ELSE cardinality(ARRAY[first_lane, second_lane]::smallint[]) = 2 END)
 );
+
+CREATE TABLE lane_imports (
+  payload text,
+  labels text,
+  flags text,
+  amounts text,
+  documents text,
+  regions text,
+  slot_limit integer,
+  expected_layout text,
+  bypass boolean,
+  CONSTRAINT imported_capacity CHECK (CASE WHEN bypass THEN true ELSE cardinality(payload::integer[]) <= slot_limit END),
+  CONSTRAINT imported_layout CHECK (CASE WHEN bypass THEN true ELSE array_dims(payload::lane_slots) COLLATE "C" IS NOT DISTINCT FROM expected_layout COLLATE "C" END),
+  CONSTRAINT imported_labels CHECK (cardinality(labels::text[]) <= slot_limit),
+  CONSTRAINT imported_flags CHECK (cardinality(flags::boolean[]) <= slot_limit),
+  CONSTRAINT imported_amounts CHECK (cardinality(amounts::numeric(4,1)[]) <= slot_limit),
+  CONSTRAINT imported_documents CHECK (cardinality(documents::jsonb[]) <= slot_limit),
+  CONSTRAINT imported_regions CHECK (cardinality(regions::box[]) <= slot_limit),
+  CONSTRAINT imported_fallback CHECK (CASE WHEN bypass THEN true ELSE cardinality(COALESCE(payload::integer[], '{1,NULL}'::integer[])) <= slot_limit END)
+);

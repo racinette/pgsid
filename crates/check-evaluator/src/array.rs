@@ -381,6 +381,7 @@ struct ArrayTextSource {
 
 #[derive(Clone)]
 pub struct ArrayTextPayload {
+    pub state: i32,
     pub dimensions: Vec<ArrayDimension>,
     pub events: Vec<ArrayTextEvent>,
 }
@@ -613,6 +614,7 @@ fn array_text_result(
         events.push(ArrayTextEvent::Error(make_sql_error(error)));
     };
     ArrayTextPlan::Value(ArrayTextPayload {
+        state: 1,
         dimensions: dimensions,
         events: events,
     })
@@ -884,4 +886,58 @@ pub fn finish_array_text(plan: ArrayTextPlan, converted: ArrayArguments) -> Arra
         };
     };
     ArrayValue::Unknown
+}
+
+pub fn prepare_array_text(input: TextValue, box_delimiter: bool, nulls: i32) -> ArrayTextPayload {
+    let mut delimiter = ',';
+    if box_delimiter {
+        delimiter = ';';
+    };
+    let plan = parse_array_text(input, delimiter, nulls);
+    if let ArrayTextPlan::Value(payload) = plan {
+        return payload;
+    };
+    let mut state: i32 = -1;
+    if let ArrayTextPlan::Null = plan {
+        state = 0;
+    };
+    let dimensions: Vec<ArrayDimension> = Vec::new();
+    let events: Vec<ArrayTextEvent> = Vec::new();
+    ArrayTextPayload {
+        state: state,
+        dimensions: dimensions,
+        events: events,
+    }
+}
+
+pub fn array_text_has_event(input: &ArrayTextPayload, index: Int4Value) -> bool {
+    if input.state != 1 {
+        return false;
+    };
+    if let Int4Value::Value(position) = index {
+        return position >= 0 && ((position as i64) < ((input.events.len() as i32) as i64));
+    };
+    false
+}
+
+pub fn array_text_next_index(input: Int4Value) -> Int4Value {
+    if let Int4Value::Value(value) = input {
+        if value < 2147483647 {
+            return Int4Value::Value(value + 1);
+        };
+    };
+    Int4Value::Unknown
+}
+
+pub fn finish_prepared_array_text(
+    input: ArrayTextPayload,
+    converted: ArrayArguments,
+) -> ArrayValue {
+    if input.state == 0 {
+        return ArrayValue::Null;
+    };
+    if input.state != 1 {
+        return ArrayValue::Unknown;
+    };
+    finish_array_text(ArrayTextPlan::Value(input), converted)
 }

@@ -63,7 +63,7 @@ pub fn array_text_ownership_probe()->BoolValue {
  if let ArrayTextPlan::Value(payload)=copied {
   let mut events=payload.events;events[0]=ArrayTextEvent::Text("changed".to_owned());
   let mut dimensions=payload.dimensions;dimensions[0]=ArrayDimension{lower:-10,length:2};
-  let changed=ArrayTextPayload{dimensions:dimensions,events:events};
+  let changed=ArrayTextPayload{state:1,dimensions:dimensions,events:events};
   if array_text_event_at(&changed,Int4Value::Value(0))!=make_text_value("changed") {return BoolValue::Value(false);};
  };
  let retained=original.clone();

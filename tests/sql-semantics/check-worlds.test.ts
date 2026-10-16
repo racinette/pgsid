@@ -334,7 +334,7 @@ describe('world CHECK INSERT parity', () => {
       ).rows,
     ).toEqual([{ datcollate: 'C', datctype: 'C.UTF-8' }])
     expect((await pg.query('SHOW server_encoding')).rows).toEqual([{ server_encoding: 'UTF8' }])
-    await pg.exec("SET TimeZone='UTC'")
+    await pg.exec("SET TimeZone='UTC'; SET array_nulls=on")
     directory = await mkdtemp(join(tmpdir(), 'pgsid-world-checks-'))
     await pg.exec('CREATE EXTENSION plpgsql_check')
     for (const world of worlds) {
@@ -377,14 +377,19 @@ describe('world CHECK INSERT parity', () => {
     }
     await progress('typescript-generation')
     const ts = renderTypescriptSchemaCheckArtifacts(tables, catalog.domains, [], {
-      executionContext: { defaultCollation: 'C', defaultCtype: 'C.UTF-8', serverEncoding: 'UTF8' },
+      executionContext: {
+        defaultCollation: 'C',
+        defaultCtype: 'C.UTF-8',
+        serverEncoding: 'UTF8',
+        arrayNulls: true,
+      },
       enums: catalog.enums,
     })
     await progress('go-generation')
     const go = renderGoSchemaArtifacts(
       { ...catalog, tables, views: [], materializedViews: [] },
       parseConfigString(
-        'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, defaultCtype: C.UTF-8, serverEncoding: UTF8 }\n    go:\n      schema: { outDir: schema }\n',
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, defaultCtype: C.UTF-8, serverEncoding: UTF8, arrayNulls: true }\n    go:\n      schema: { outDir: schema }\n',
       ),
       {},
       join(directory, 'schema'),

@@ -273,6 +273,10 @@ fn call(expr: &Expr, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
             _ if int8_literal(arg) => {}
             Expr::Path(_) if bindings.contains_key(&identifier(arg)?) => {}
             Expr::MethodCall(_) => owned_clone(arg, bindings)?,
+            Expr::Reference(reference)
+                if reference.attrs.is_empty()
+                    && reference.mutability.is_none()
+                    && bindings.contains_key(&identifier(&reference.expr)?) => {}
             Expr::Lit(_) if positive_literal(arg).is_some() => {}
             Expr::Unary(_) if negative_literal(arg).is_some() => {}
             Expr::Binary(_) if int4_minimum(arg) => {}
@@ -351,7 +355,10 @@ fn check_block(
                 let (pattern, mutable) = match &local.pat {
                     Pat::Ident(pattern) if pattern.mutability.is_none() => (pattern, false),
                     Pat::Type(typed) if typed.attrs.is_empty() => {
-                        type_name(&typed.ty)?;
+                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && path.path.is_ident("ArrayArguments"))
+                        {
+                            type_name(&typed.ty)?;
+                        };
                         let Pat::Ident(pattern) = &*typed.pat else {
                             return Err("mutable result must bind an identifier".into());
                         };
@@ -390,6 +397,13 @@ fn check_block(
             }
             Stmt::Expr(Expr::If(branch), _) if !function_body || !last => {
                 check_if(branch, bindings)?;
+            }
+            Stmt::Expr(Expr::While(loop_), _) if !function_body || !last => {
+                if !loop_.attrs.is_empty() || loop_.label.is_some() {
+                    return Err("loop attributes and labels are outside the CHECK subset".into());
+                }
+                condition(&loop_.cond, bindings)?;
+                check_block(&loop_.body, &mut bindings.clone(), false)?;
             }
             Stmt::Expr(expr, None) if function_body && last => value(expr, bindings)?,
             _ => return Err("statement is outside the CHECK subset".into()),
@@ -1133,11 +1147,7 @@ pub fn evaluate_check(input: TimestamptzValue) -> CheckOutcome {
             "flag = or_finish(first, second);"
         ))
         .is_err());
-        assert!(check_source(&VALID.replace(
-            "if or_stops(first) == false",
-            "while or_stops(first) == false"
-        ))
-        .is_err());
+        assert!(check_source(&VALID.replace("if or_stops(first) == false", "while true")).is_err());
         assert!(check_source(
             &VALID.replace("or_stops(first) == false", "or_stops(first) == true")
         )
@@ -1146,6 +1156,41 @@ pub fn evaluate_check(input: TimestamptzValue) -> CheckOutcome {
             &VALID.replace("or_stops(first) == false", "or_stops(first) || true")
         )
         .is_err());
+    }
+
+    #[test]
+    fn array_text_casts_iterate_borrowed_events_with_internal_builders() {
+        let source = r#"
+pub fn evaluate_check(input: TextValue) -> CheckOutcome {
+    let payload = prepare_array_text(input, false, 1);
+    let initial = make_array_arguments("pg_catalog.text", 8);
+    let mut builder: ArrayArguments = initial;
+    let first = make_int4_value(0);
+    let mut index: Int4Value = first;
+    while array_text_has_event(&payload, index) {
+        let event = array_text_event_at(&payload, index);
+        let element = array_element_from_text(event);
+        builder = append_array_argument(builder, element);
+        index = array_text_next_index(index);
+    }
+    let array = finish_prepared_array_text(payload, builder);
+    let result = array_is_null(array);
+    check_from_bool(result)
+}
+"#;
+        check_source(source).unwrap();
+        for invalid in [
+            source.replace("&payload", "&mut payload"),
+            source.replace("&payload", "&missing"),
+            source.replace("&payload", "&prepare_array_text(input, false, 1)"),
+            source.replace(
+                "while array_text_has_event",
+                "'outer: while array_text_has_event",
+            ),
+            source.replace("input: TextValue", "input: ArrayArguments"),
+        ] {
+            assert!(check_source(&invalid).is_err());
+        }
     }
 
     #[test]

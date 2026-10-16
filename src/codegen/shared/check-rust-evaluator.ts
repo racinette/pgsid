@@ -207,6 +207,7 @@ export type CheckExecutionContext = {
   defaultCollation?: 'C'
   defaultCtype?: 'C' | 'C.UTF-8'
   serverEncoding?: 'UTF8'
+  arrayNulls?: boolean
 }
 
 export function emitCheckRustEvaluator(
@@ -353,6 +354,7 @@ export function emitCheckRustEvaluator(
     if (
       valueLiteralDepth === 0 &&
       (node.kind === 'interval-literal' ||
+        node.kind === 'array-text-literal' ||
         (node.kind === 'certain' &&
           (node.expression.kind === 'point' ||
             node.expression.kind === 'json' ||
@@ -433,6 +435,139 @@ export function emitCheckRustEvaluator(
       const name = fresh('value')
       bindings.push(`let ${name} = ${call};`)
       return name
+    }
+    if (node.kind === 'array-typmod') {
+      const conversion = builtinCast(node.elementType, node.elementType)
+      if (conversion?.method !== 'f' || !conversion.implementation)
+        throw new UnsupportedCheckRustExpression(
+          'Array precision requires its element catalog cast',
+        )
+      const operand = emitScalar(node.operand, bindings, used)
+      if (
+        operand.type !== node.type ||
+        !Number.isInteger(node.modifier) ||
+        node.modifier < 0 ||
+        node.modifier > 2147483647
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Array precision requires a matching typed array and int4 modifier',
+        )
+      return {
+        name: bind(`array_with_typmod(${ownedOperand(operand)}, ${node.modifier})`),
+        type: node.type,
+      }
+    }
+    if (node.kind === 'array-text-literal' || node.kind === 'text-to-array') {
+      const family = arrayElementFamily(node.elementType)
+      const input = node.elementType.startsWith('enum:')
+        ? null
+        : builtinTypeIO(node.elementType)?.input
+      if (
+        family === null ||
+        (!node.elementType.startsWith('enum:') &&
+          (!input || builtinMetadata(input).args[0] !== 'pg_catalog.cstring'))
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Array input requires its catalog element I/O identity',
+        )
+      if (family === 6 && (!node.enum || enumType(node.enum) !== node.elementType))
+        throw new UnsupportedCheckRustExpression('Array enum input requires captured labels')
+      const operand =
+        node.kind === 'array-text-literal'
+          ? {
+              name: bind(`make_text_value(${rustStringLiteral(node.value)})`),
+              type: 'pg_catalog.text',
+            }
+          : emitScalar(node.operand, bindings, used)
+      if (
+        ![
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type)
+      )
+        throw new UnsupportedCheckRustExpression('Array input requires a character value')
+      const stored = node.kind === 'array-text-literal' && node.origin === 'stored'
+      const nulls = stored
+        ? 1
+        : executionContext.arrayNulls === true
+          ? 1
+          : executionContext.arrayNulls === false
+            ? 0
+            : -1
+      const payload = bind(
+        `prepare_array_text(${ownedOperand(operand)}, ${family === 27}, ${nulls})`,
+      )
+      const initial = bind(
+        `make_array_arguments(${rustStringLiteral(node.elementType)}, ${family})`,
+      )
+      const builder = fresh('array_builder')
+      const first = bind('make_int4_value(0)')
+      const index = fresh('array_index')
+      const event = fresh('array_event')
+      const element = fresh('array_element')
+      bindings.push(
+        `let mut ${builder}: ArrayArguments = ${initial};`,
+        `let mut ${index}: Int4Value = ${first};`,
+      )
+      let conversion: string
+      const prefix = rustValuePrefix(rustType(node.elementType))
+      if (family <= 3) conversion = `array_integer_text_element(${event}, ${family})`
+      else {
+        let scalar: string
+        if (family === 6)
+          scalar = `scalar_enum_from_text(${event}, ${rustStringLiteral(node.enum!.values.join('\0'))}, ${node.enum!.values.length})`
+        else if (family === 8)
+          scalar =
+            node.elementType === 'pg_catalog.name' && !stored ? `name_from_text(${event})` : event
+        else if (family === 9) scalar = `scalar_boolean_from_text(${event})`
+        else if (family === 10) scalar = `scalar_numeric_from_text(${event})`
+        else if (family === 13)
+          scalar = `${node.elementType === 'pg_catalog.cidr' ? 'cidr' : 'network'}_from_text(${event})`
+        else if (family === 33 && isOidAliasType(node.elementType)) {
+          const dash = !['pg_catalog.regoper', 'pg_catalog.regoperator'].includes(node.elementType)
+          const grammar =
+            node.elementType === 'pg_catalog.regtype'
+              ? 2
+              : ['pg_catalog.regprocedure', 'pg_catalog.regoperator'].includes(node.elementType)
+                ? 1
+                : 0
+          scalar = `oid_alias_from_text(${event}, ${dash}, ${grammar})`
+        } else if (
+          family === 31 &&
+          stored &&
+          node.kind === 'array-text-literal' &&
+          node.moneyLiterals?.length
+        ) {
+          scalar = `money_from_captured_text(${event}, ${rustStringLiteral(node.moneyLiterals.map((value) => value.text).join('\0'))}, ${rustStringLiteral(node.moneyLiterals.map((value) => value.units).join('\0'))}, ${node.moneyLiterals.length})`
+        } else if (family === 40) {
+          if (!stored) requiresRegex = true
+          scalar = stored
+            ? `jsonpath_from_stored_text(${event})`
+            : `jsonpath_from_text(${event}, ${executionContext.defaultCollation === 'C'}, ${executionContext.serverEncoding === 'UTF8'})`
+        } else scalar = `${prefix}_from_text(${event})`
+        const value = fresh('array_scalar')
+        bindings.push(
+          `while array_text_has_event(&${payload}, ${index}) {`,
+          `    let ${event} = array_text_event_at(&${payload}, ${index});`,
+          `    let ${value} = ${scalar};`,
+          `    let ${element} = array_element_from_${prefix}(${value});`,
+        )
+        conversion = ''
+      }
+      if (conversion)
+        bindings.push(
+          `while array_text_has_event(&${payload}, ${index}) {`,
+          `    let ${event} = array_text_event_at(&${payload}, ${index});`,
+          `    let ${element} = ${conversion};`,
+        )
+      bindings.push(
+        `    ${builder} = append_array_argument(${builder}, ${element});`,
+        `    ${index} = array_text_next_index(${index});`,
+        '}',
+      )
+      return { name: bind(`finish_prepared_array_text(${payload}, ${builder})`), type: node.type }
     }
     const emitConstantNull = (
       type: string,
