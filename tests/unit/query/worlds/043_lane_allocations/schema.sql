@@ -201,3 +201,42 @@ CREATE TABLE lane_document_searches (
   bypass boolean,
   CONSTRAINT document_not_found CHECK (CASE WHEN bypass THEN true ELSE array_position(payload::json[], (needle::json[])[1], start_slot) IS NULL END)
 );
+
+CREATE TABLE lane_extensions (
+  slots lane_slots,
+  needle integer,
+  expected_append text,
+  expected_prepend text,
+  bypass boolean,
+  CONSTRAINT appended_slot CHECK (CASE WHEN bypass THEN true ELSE (slots || needle)::text COLLATE "C" IS NOT DISTINCT FROM expected_append COLLATE "C" END),
+  CONSTRAINT prepended_slot CHECK (CASE WHEN bypass THEN true ELSE (needle || slots)::text COLLATE "C" IS NOT DISTINCT FROM expected_prepend COLLATE "C" END)
+);
+
+CREATE TABLE lane_joined_batches (
+  first_slots smallint[],
+  second_slots bigint[],
+  expected_slots text,
+  expected_layout text,
+  CONSTRAINT joined_slots CHECK ((first_slots || second_slots)::text COLLATE "C" IS NOT DISTINCT FROM expected_slots COLLATE "C"),
+  CONSTRAINT joined_layout CHECK (array_dims(array_cat(first_slots, second_slots)) COLLATE "C" IS NOT DISTINCT FROM expected_layout COLLATE "C")
+);
+
+CREATE TABLE lane_stage_extensions (
+  stages lane_stage[],
+  needle lane_stage,
+  extra_stages lane_stage[],
+  expected_append text,
+  expected_prepend text,
+  expected_join text,
+  CONSTRAINT appended_stage CHECK (array_append(stages, needle)::text COLLATE "C" IS NOT DISTINCT FROM expected_append COLLATE "C"),
+  CONSTRAINT prepended_stage CHECK (array_prepend(needle, stages)::text COLLATE "C" IS NOT DISTINCT FROM expected_prepend COLLATE "C"),
+  CONSTRAINT joined_stages CHECK ((stages || extra_stages)::text COLLATE "C" IS NOT DISTINCT FROM expected_join COLLATE "C")
+);
+
+CREATE TABLE lane_document_extensions (
+  payload text,
+  extra_payload text,
+  expected_payload text,
+  bypass boolean,
+  CONSTRAINT joined_documents CHECK (CASE WHEN bypass THEN true ELSE array_cat(payload::json[], extra_payload::json[])::text COLLATE "C" IS NOT DISTINCT FROM expected_payload COLLATE "C" END)
+);

@@ -178,6 +178,23 @@ export const isArraySearch = (item: ReturnType<typeof builtinMetadata>): boolean
       item.result === 'pg_catalog._int4' &&
       item.args.length === 2))
 
+export const isArrayTransform = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  !item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.result === 'pg_catalog.anycompatiblearray' &&
+  item.args.length === 2 &&
+  (item.name === 'array_cat'
+    ? item.args.every((type) => type === 'pg_catalog.anycompatiblearray')
+    : item.name === 'array_append'
+      ? item.args[0] === 'pg_catalog.anycompatiblearray' &&
+        item.args[1] === 'pg_catalog.anycompatible'
+      : item.name === 'array_prepend' &&
+        item.args[0] === 'pg_catalog.anycompatible' &&
+        item.args[1] === 'pg_catalog.anycompatiblearray')
+
 export const isJsonpathTimezoneCallable = (
   item: ReturnType<typeof builtinMetadata>,
 ): item is ReturnType<typeof builtinMetadata> & { kind: 'function' } =>
@@ -922,6 +939,10 @@ export function emitCheckRustEvaluator(
         (implementation.args.length === 0 ? operands.length === 0 : operands.length > 0)
       const jsonpathTimezone = isJsonpathTimezoneCallable(implementation)
       const arraySearch = isArraySearch(implementation)
+      const arrayTransform = isArrayTransform(implementation)
+      const transformArray = arrayTransform
+        ? operands[implementation.name === 'array_prepend' ? 1 : 0]?.type
+        : undefined
       const enumOperands = implementation.args.flatMap((type, index) =>
         type === 'pg_catalog.anyenum' ? [operands[index]?.type] : [],
       )
@@ -930,15 +951,18 @@ export function emitCheckRustEvaluator(
       const resultType =
         arraySearch && implementation.name === 'array_positions'
           ? 'array:pg_catalog.int4'
-          : implementation.result === 'pg_catalog.anyenum'
-            ? enumIdentity
-            : implementation.result
+          : arrayTransform
+            ? transformArray
+            : implementation.result === 'pg_catalog.anyenum'
+              ? enumIdentity
+              : implementation.result
       if (
         metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
         resultType !== call.type ||
         (!implementation.strict &&
           !arraySearch &&
+          !arrayTransform &&
           !jsonbBuilder &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
@@ -991,13 +1015,14 @@ export function emitCheckRustEvaluator(
       if (
         !jsonbBuilder &&
         implementation.args.some((type, index) =>
-          arraySearch &&
+          (arraySearch || arrayTransform) &&
           type === 'pg_catalog.anycompatiblearray' &&
           operands[index]?.type.startsWith('array:')
             ? false
-            : arraySearch &&
+            : (arraySearch || arrayTransform) &&
                 type === 'pg_catalog.anycompatible' &&
-                operands[0]?.type === `array:${operands[index]?.type}`
+                operands[arrayTransform && implementation.name === 'array_prepend' ? 1 : 0]
+                  ?.type === `array:${operands[index]?.type}`
               ? false
               : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
                 ? false
@@ -1019,6 +1044,48 @@ export function emitCheckRustEvaluator(
         )
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
+      if (arrayTransform) {
+        callables.add(implementation.rustName)
+        if (
+          !transformArray?.startsWith('array:') ||
+          operands.some(
+            (operand, index) =>
+              operand.type !==
+              (implementation.args[index] === 'pg_catalog.anycompatiblearray'
+                ? transformArray
+                : transformArray.slice(6)),
+          )
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Array transform requires one concrete element identity',
+          )
+        const name = fresh('array_transform')
+        if (implementation.name === 'array_cat') {
+          destination.push(
+            `let ${name} = ${implementation.rustName}(${ownedOperand(operands[0]!)}, ${ownedOperand(operands[1]!)});`,
+          )
+        } else {
+          const arrayIndex = implementation.name === 'array_prepend' ? 1 : 0,
+            elementIndex = 1 - arrayIndex,
+            elementType = transformArray.slice(6),
+            family = arrayElementFamily(elementType)
+          if (family === null)
+            throw new UnsupportedCheckRustExpression('Unsupported array element family')
+          const element = fresh('array_transform_element'),
+            prefix = rustValuePrefix(rustType(elementType))
+          destination.push(
+            `let ${element} = array_element_from_${prefix}(${ownedOperand(operands[elementIndex]!)});`,
+          )
+          const args =
+            arrayIndex === 0
+              ? [ownedOperand(operands[arrayIndex]!), element]
+              : [element, ownedOperand(operands[arrayIndex]!)]
+          destination.push(
+            `let ${name} = ${implementation.rustName}(${args.join(', ')}, ${rustStringLiteral(elementType)}, ${family});`,
+          )
+        }
+        return { name, type: call.type }
+      }
       if (isArrayComparison(implementation) || arraySearch) {
         const arrayType = operands[0]?.type
         if (

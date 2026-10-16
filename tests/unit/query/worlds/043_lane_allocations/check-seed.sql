@@ -594,3 +594,139 @@ VALUES (NULL, '{bad}', NULL, false);
 -- name: search_documents_guarded_input
 INSERT INTO lane_document_searches (payload, needle, start_slot, bypass)
 VALUES ('{bad}', '{bad}', NULL, true);
+
+-- name: extension_preserves_lower_bound
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES ('[0:1]={1,NULL}', 2, '[0:2]={1,NULL,2}', '[0:2]={2,1,NULL}', false);
+
+-- name: extension_null_array
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES (NULL, NULL, '{NULL}', '{NULL}', false);
+
+-- name: extension_empty_array
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES ('{}', 3, '{3}', '{3}', false);
+
+-- name: extension_null_cell
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES ('{1,2}', NULL, '{1,2,NULL}', '{NULL,1,2}', false);
+
+-- name: extension_wrong_append
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES ('{1}', 2, '{2,1}', '{2,1}', false);
+
+-- name: extension_wrong_prepend
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES ('{1}', 2, '{1,2}', '{1,2}', false);
+
+-- name: extension_rank_error
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES ('{{1,2}}', 3, NULL, NULL, false);
+
+-- name: extension_append_bound_error
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES ('[2147483646:2147483646]={1}', 2, NULL, NULL, false);
+
+-- name: extension_prepend_index_error
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES ('[-2147483648:-2147483648]={1}', 2, '[-2147483648:-2147483647]={1,2}', NULL, false);
+
+-- name: extension_guarded_rank
+INSERT INTO lane_extensions (slots, needle, expected_append, expected_prepend, bypass)
+VALUES ('{{1,2}}', 3, NULL, NULL, true);
+
+-- name: joined_batches_promoted_rows
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('[0:1]={1,2}', '[5:6][0:1]={{3,4},{5,6}}', '[5:7][0:1]={{1,2},{3,4},{5,6}}', '[5:7][0:1]');
+
+-- name: joined_batches_reverse_ranks
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('[5:6][0:1]={{1,2},{3,4}}', '[0:1]={5,6}', '[5:7][0:1]={{1,2},{3,4},{5,6}}', '[5:7][0:1]');
+
+-- name: joined_batches_equal_ranks
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('[0:1]={1,NULL}', '[5:6]={3,4}', '[0:3]={1,NULL,3,4}', '[0:3]');
+
+-- name: joined_batches_empty_identity
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('{}', '[5:6][0:1]={{1,2},{3,4}}', '[5:6][0:1]={{1,2},{3,4}}', '[5:6][0:1]');
+
+-- name: joined_batches_null_identity
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES (NULL, '{9007199254740993}', '{9007199254740993}', '[1:1]');
+
+-- name: joined_batches_both_null
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES (NULL, NULL, NULL, NULL);
+
+-- name: joined_batches_both_empty
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('{}', '{}', '{}', NULL);
+
+-- name: joined_batches_wrong_contents
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('{1}', '{2}', '{2,1}', '[1:2]');
+
+-- name: joined_batches_wrong_layout
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('{1}', '{2}', '{1,2}', '[0:1]');
+
+-- name: joined_batches_rank_error
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('{1}', '{{{2}}}', NULL, NULL);
+
+-- name: joined_batches_length_error
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('{1}', '{{2,3}}', NULL, NULL);
+
+-- name: joined_batches_inner_lower_error
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('[0:1]={1,2}', '{{3,4}}', NULL, NULL);
+
+-- name: joined_batches_bound_error
+INSERT INTO lane_joined_batches (first_slots, second_slots, expected_slots, expected_layout)
+VALUES ('[2147483646:2147483646]={1}', '{2}', NULL, NULL);
+
+-- name: stage_extensions_labels
+INSERT INTO lane_stage_extensions (stages, needle, extra_stages, expected_append, expected_prepend, expected_join)
+VALUES ('{new}', 'done', '{done}', '{new,done}', '{done,new}', '{new,done}');
+
+-- name: stage_extensions_null_array
+INSERT INTO lane_stage_extensions (stages, needle, extra_stages, expected_append, expected_prepend, expected_join)
+VALUES (NULL, NULL, NULL, '{NULL}', '{NULL}', NULL);
+
+-- name: stage_extensions_null_label
+INSERT INTO lane_stage_extensions (stages, needle, extra_stages, expected_append, expected_prepend, expected_join)
+VALUES ('{new}', NULL, '{done}', '{new,NULL}', '{NULL,new}', '{new,done}');
+
+-- name: stage_extensions_wrong_append
+INSERT INTO lane_stage_extensions (stages, needle, extra_stages, expected_append, expected_prepend, expected_join)
+VALUES ('{new}', 'done', '{done}', '{done,new}', '{done,new}', '{new,done}');
+
+-- name: stage_extensions_wrong_prepend
+INSERT INTO lane_stage_extensions (stages, needle, extra_stages, expected_append, expected_prepend, expected_join)
+VALUES ('{new}', 'done', '{done}', '{new,done}', '{new,done}', '{new,done}');
+
+-- name: stage_extensions_wrong_join
+INSERT INTO lane_stage_extensions (stages, needle, extra_stages, expected_append, expected_prepend, expected_join)
+VALUES ('{new}', 'done', '{done}', '{new,done}', '{done,new}', '{done,new}');
+
+-- name: document_extensions_no_equality_required
+INSERT INTO lane_document_extensions (payload, extra_payload, expected_payload, bypass)
+VALUES ('{1}', '{"null",NULL}', '{1,"null",NULL}', false);
+
+-- name: document_extensions_null_identity
+INSERT INTO lane_document_extensions (payload, extra_payload, expected_payload, bypass)
+VALUES (NULL, '{"null"}', '{"null"}', false);
+
+-- name: document_extensions_wrong_contents
+INSERT INTO lane_document_extensions (payload, extra_payload, expected_payload, bypass)
+VALUES ('{1}', '{2}', '{2,1}', false);
+
+-- name: document_extensions_eager_second_input
+INSERT INTO lane_document_extensions (payload, extra_payload, expected_payload, bypass)
+VALUES (NULL, '{bad}', NULL, false);
+
+-- name: document_extensions_guarded_inputs
+INSERT INTO lane_document_extensions (payload, extra_payload, expected_payload, bypass)
+VALUES ('{bad}', '{bad}', NULL, true);

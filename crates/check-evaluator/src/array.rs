@@ -149,7 +149,7 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         };
         let length = dimension.length as i64;
         let end = (dimension.lower as i64) + length;
-        if end > 2147483647i64 || count > 2147483647i64 / length {
+        if end > 2147483648i64 || count > 2147483647i64 / length {
             return ArrayValue::Unknown;
         };
         count = count * length;
@@ -421,6 +421,14 @@ pub fn finish_array_children(input: ArrayChildrenArguments) -> ArrayValue {
         if empty && dimensions.len() > 0 {
             return ArrayValue::Error(make_sql_error(SQL_ERROR_ARRAY_SUBSCRIPT));
         };
+        let mut axis: usize = 0;
+        while axis < dimensions.len() {
+            let dimension = dimensions[axis];
+            if (dimension.lower as i64) + (dimension.length as i64) > 2147483647i64 {
+                return ArrayValue::Error(make_sql_error(SQL_ERROR_PROGRAM_LIMIT));
+            };
+            axis += 1;
+        }
         return make_array_value(ArrayPayload {
             element_type: value.element_type,
             element_kind: value.element_kind,
@@ -1150,6 +1158,9 @@ pub fn array_fetch_subscript(input: ArrayValue, indices: ArraySubscripts) -> Arr
                 let index = bounds.upper[depth];
                 if index.provided == false {
                     return ArrayElement::Unknown;
+                };
+                if (dimension.lower as i64) + (dimension.length as i64) > 2147483647i64 {
+                    return ArrayElement::Null;
                 };
                 let relative = (index.value as i64) - (dimension.lower as i64);
                 if relative < 0i64 || relative >= dimension.length as i64 {

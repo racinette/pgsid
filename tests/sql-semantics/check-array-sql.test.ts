@@ -330,6 +330,31 @@ it('binds public arrays, metadata and owned composition through Rust, Go and Typ
     expect(
       generated.evaluatePublicFamily2Checks({ value: partial, expected_count: 2 })[0].result,
     ).toEqual({ certain: true, value: true })
+    const upperBoundary = {
+      kind: 'Value',
+      value: {
+        elementType: 'pg_catalog.int4',
+        elementKind: 2,
+        dimensions: [{ lower: 2147483646, length: 2 }],
+        elements: [
+          { kind: 'Int4', value: 0 },
+          { kind: 'Int4', value: 1 },
+        ],
+      },
+    }
+    expect(
+      generated.evaluatePublicFamily2Checks({ value: upperBoundary, expected_count: 2 })[0].result,
+    ).toEqual({ certain: true, value: true })
+    expect(
+      (
+        await pg.query<{ value: string }>(
+          "SELECT array_prepend(0,'[2147483646:2147483646]={1}'::int[])::text AS value",
+        )
+      ).rows[0]!.value,
+    ).toBe('[2147483646:2147483647]={0,1}')
+    goCases.push(
+      `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:2147483646,Length:2}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:0},{Kind:checkruntime.ArrayElementInt4,Int4:1}}}};result:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(2))})[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("inclusive upper bound",result)}}`,
+    )
     const composed = generated.evaluatePublicArrayMetadataChecks({
       value: { kind: 'Unknown' },
       fallback: partial,
@@ -411,8 +436,11 @@ it('binds public arrays, metadata and owned composition through Rust, Go and Typ
         value: {
           elementType: 'pg_catalog.int4',
           elementKind: 2,
-          dimensions: [{ lower: 2147483647, length: 1 }],
-          elements: [{ kind: 'Int4', value: 1 }],
+          dimensions: [{ lower: 2147483647, length: 2 }],
+          elements: [
+            { kind: 'Int4', value: 1 },
+            { kind: 'Int4', value: 2 },
+          ],
         },
       },
     ]

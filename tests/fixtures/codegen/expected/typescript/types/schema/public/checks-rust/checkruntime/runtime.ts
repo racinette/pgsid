@@ -7875,7 +7875,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         }
         const length: bigint = BigInt(langruntime.checkedI32(dimension.length));
         const end: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), length);
-        if (end > 2147483647n || count > langruntime.checkedI64Divide(2147483647n, length)) {
+        if (end > 2147483648n || count > langruntime.checkedI64Divide(2147483647n, length)) {
             return { kind: "Unknown" };
         }
         count = langruntime.checkedI64(langruntime.checkedI64Multiply(count, length));
@@ -8133,6 +8133,14 @@ export function finishArrayChildren(input: ArrayChildrenArguments): ArrayValue {
         }
         if (empty && dimensions.length > 0) {
             return { kind: "Error", value: makeSqlError(sqlErrorArraySubscript) };
+        }
+        let axis: number = 0;
+        while (axis < dimensions.length) {
+            const dimension: ArrayDimension = langruntime.indexStruct(dimensions, langruntime.checkedIndex(axis), copyArrayDimension);
+            if (langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), (BigInt(langruntime.checkedI32(dimension.length)))) > 2147483647n) {
+                return { kind: "Error", value: makeSqlError(sqlErrorProgramLimit) };
+            }
+            axis = langruntime.checkedAdd(axis, 1);
         }
         return makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: elements });
     }
@@ -8798,6 +8806,9 @@ export function arrayFetchSubscript(input: ArrayValue, indices: ArraySubscripts)
                 const index: ArraySubscriptBound = copyArraySubscriptBound(langruntime.indexStruct(bounds.upper, langruntime.checkedIndex(depth), copyArraySubscriptBound));
                 if (index.provided === false) {
                     return { kind: "Unknown" };
+                }
+                if (langruntime.checkedI64Add((BigInt(langruntime.checkedI32(dimension.lower))), (BigInt(langruntime.checkedI32(dimension.length)))) > 2147483647n) {
+                    return { kind: "Null" };
                 }
                 const relative: bigint = langruntime.checkedI64Subtract((BigInt(langruntime.checkedI32(index.value))), (BigInt(langruntime.checkedI32(dimension.lower))));
                 if (relative < 0n || relative >= BigInt(langruntime.checkedI32(dimension.length))) {
