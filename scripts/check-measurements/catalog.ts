@@ -82,6 +82,39 @@ export function jsonValueRequirements(item: BuiltinCallable) {
   if (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
+    [
+      'jsonb_path_exists',
+      'jsonb_path_exists_opr',
+      'jsonb_path_match',
+      'jsonb_path_match_opr',
+      'jsonb_path_query_array',
+      'jsonb_path_query_first',
+    ].includes(item.name)
+  )
+    return [
+      {
+        kind: 'representation',
+        requirement:
+          'Execution uses original-source graphs or provably unambiguous stored JSONPath text; lossy PostgreSQL rendering cannot recover arbitrary query identity.',
+        owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
+      },
+      {
+        kind: 'database',
+        setting: 'server_encoding',
+        requirement:
+          'Wildcard and descendant traversal over multiple nonempty object keys containing non-ASCII text requires declared UTF8 to establish sequence order.',
+        owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
+      },
+      {
+        kind: 'implementation',
+        requirement:
+          'Structural traversal, variables, numeric subscripts/ranges and last are implemented. Reached filters, predicates, arithmetic subscript expressions and methods remain deferred.',
+        owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
+      },
+    ]
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
     item.strict &&
     item.volatility === 'i' &&
     !item.returnsSet &&

@@ -37,3 +37,23 @@ CREATE TABLE query_packets (
  CONSTRAINT packet_wire CHECK(CASE WHEN bypass THEN true ELSE jsonpath_send(path) IS NOT DISTINCT FROM recorded_wire END),
  CONSTRAINT packet_version CHECK(CASE WHEN bypass THEN true ELSE get_byte(jsonpath_send(path),0) IS NOT DISTINCT FROM recorded_version END)
 );
+CREATE TABLE query_documents (
+ id integer PRIMARY KEY,
+ path_id integer NOT NULL REFERENCES query_paths(id),
+ label text NOT NULL,
+ document jsonb,
+ path retained_query_path,
+ source_text text,
+ variables jsonb,
+ silent boolean,
+ bypass boolean NOT NULL,
+ expected_exists boolean,
+ expected_match boolean,
+ expected_results jsonb,
+ expected_first jsonb,
+ CONSTRAINT document_exists CHECK(jsonb_path_exists(document,path,variables,silent) IS NOT DISTINCT FROM expected_exists),
+ CONSTRAINT document_match CHECK((document @@ '$.flag'::jsonpath) IS NOT DISTINCT FROM expected_match),
+ CONSTRAINT document_results CHECK(jsonb_path_query_array(document,path,variables,silent) IS NOT DISTINCT FROM expected_results),
+ CONSTRAINT document_first CHECK(jsonb_path_query_first(document,path,variables,silent) IS NOT DISTINCT FROM expected_first),
+ CONSTRAINT document_source CHECK(CASE WHEN bypass THEN true ELSE jsonb_path_query_array(document,source_text::retained_query_path,variables,silent) IS NOT DISTINCT FROM expected_results END)
+);

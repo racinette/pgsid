@@ -475,7 +475,27 @@ const sqlErrorArraySubscript = 3452630;
 const sqlErrorFeatureNotSupported = 466560;
 const sqlErrorProgramLimit = 8584704;
 const sqlErrorInternal = 56966976;
+const sqlErrorJsonSubscript = 3452655;
+const sqlErrorJsonArray = 3452661;
+const sqlErrorJsonMember = 3452662;
+const sqlErrorJsonObject = 3452664;
+const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorJsonSubscript) {
+        return { message: "invalid SQL/JSON subscript" };
+    }
+    if (error.state === sqlErrorJsonArray) {
+        return { message: "SQL/JSON array not found" };
+    }
+    if (error.state === sqlErrorJsonMember) {
+        return { message: "SQL/JSON member not found" };
+    }
+    if (error.state === sqlErrorJsonObject) {
+        return { message: "SQL/JSON object not found" };
+    }
+    if (error.state === sqlErrorJsonSingleton) {
+        return { message: "singleton SQL/JSON item required" };
+    }
     if (error.state === sqlErrorSyntax) {
         return { message: "syntax error" };
     }

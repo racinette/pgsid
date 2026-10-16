@@ -38,3 +38,31 @@ INSERT INTO query_packets(id,path_id,label,path,source_text,recorded_query,recor
 INSERT INTO query_packets(id,path_id,label,path,source_text,recorded_query,recorded_wire,recorded_version,bypass) VALUES(2,1,'wrong version','$'::jsonpath,'$','$','\x0124'::bytea,2,false);
 -- name: packet_invalid_source
 INSERT INTO query_packets(id,path_id,label,path,source_text,recorded_query,recorded_wire,recorded_version,bypass) VALUES(2,1,'syntax error','$'::jsonpath,'(',NULL,'\x0124'::bytea,1,false);
+-- name: document_flags
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'selected flags','{"a":[true,false],"flag":true}'::jsonb,'$.a[*]'::jsonpath,'$.a[*]','{}'::jsonb,false,false,true,true,'[true,false]'::jsonb,'true'::jsonb);
+-- name: document_empty
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'empty array','{"a":[],"flag":false}'::jsonb,'$.a[*]'::jsonpath,'$.a[*]','{}'::jsonb,false,false,false,false,'[]'::jsonb,NULL::jsonb);
+-- name: document_null
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'absent document',NULL::jsonb,'$'::jsonpath,'$','{}'::jsonb,false,false,NULL,NULL,NULL::jsonb,NULL::jsonb);
+-- name: document_silent_prefix
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'silent prefix','{"a":[true],"flag":true}'::jsonb,'strict $.a[0,8]'::jsonpath,'strict $.a[0,8]','{}'::jsonb,true,false,NULL,true,'[true]'::jsonb,'true'::jsonb);
+-- name: document_variable
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'variable selection','{"flag":false}'::jsonb,'$selection[*]'::jsonpath,'$selection[*]','{"selection":[1,2]}'::jsonb,false,false,true,false,'[1,2]'::jsonb,'1'::jsonb);
+-- name: document_bypassed_source
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'unreached invalid source','{"a":[true],"flag":true}'::jsonb,'$.a[*]'::jsonpath,'(','{}'::jsonb,false,true,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: document_wrong_exists
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong existence','{"a":[true],"flag":true}'::jsonb,'$.a[*]'::jsonpath,'$.a[*]','{}'::jsonb,false,false,false,true,'[true]'::jsonb,'true'::jsonb);
+-- name: document_wrong_match
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong flag','{"a":[true],"flag":true}'::jsonb,'$.a[*]'::jsonpath,'$.a[*]','{}'::jsonb,false,false,true,false,'[true]'::jsonb,'true'::jsonb);
+-- name: document_wrong_results
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong results','{"a":[true,false],"flag":true}'::jsonb,'$.a[*]'::jsonpath,'$.a[*]','{}'::jsonb,false,false,true,true,'[false,true]'::jsonb,'true'::jsonb);
+-- name: document_wrong_first
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong first','{"a":[true,false],"flag":true}'::jsonb,'$.a[*]'::jsonpath,'$.a[*]','{}'::jsonb,false,false,true,true,'[true,false]'::jsonb,'false'::jsonb);
+-- name: document_strict_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'strict missing member','{"flag":true}'::jsonb,'strict $.missing'::jsonpath,'strict $.missing','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_variable_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'missing variable','{"flag":true}'::jsonb,'$missing'::jsonpath,'$missing','{}'::jsonb,true,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_vars_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'invalid variable container','{"flag":true}'::jsonb,'$'::jsonpath,'$','[]'::jsonb,true,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_source_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'reached invalid source','{"a":[true],"flag":true}'::jsonb,'$.a[*]'::jsonpath,'(','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);

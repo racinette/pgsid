@@ -429,8 +429,28 @@ const sqlErrorArraySubscript = 3452630
 const sqlErrorFeatureNotSupported = 466560
 const sqlErrorProgramLimit = 8584704
 const sqlErrorInternal = 56966976
+const sqlErrorJsonSubscript = 3452655
+const sqlErrorJsonArray = 3452661
+const sqlErrorJsonMember = 3452662
+const sqlErrorJsonObject = 3452664
+const sqlErrorJsonSingleton = 3452660
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorJsonSubscript {
+		return SqlErrorDescription{Message: "invalid SQL/JSON subscript"}
+	}
+	if error.State == sqlErrorJsonArray {
+		return SqlErrorDescription{Message: "SQL/JSON array not found"}
+	}
+	if error.State == sqlErrorJsonMember {
+		return SqlErrorDescription{Message: "SQL/JSON member not found"}
+	}
+	if error.State == sqlErrorJsonObject {
+		return SqlErrorDescription{Message: "SQL/JSON object not found"}
+	}
+	if error.State == sqlErrorJsonSingleton {
+		return SqlErrorDescription{Message: "singleton SQL/JSON item required"}
+	}
 	if error.State == sqlErrorSyntax {
 		return SqlErrorDescription{Message: "syntax error"}
 	}
@@ -748,7 +768,7 @@ type JsonbNode struct {
 	TextEnd   int
 }
 
-func copyJsonbNode(value JsonbNode) JsonbNode {
+func CopyJsonbNode(value JsonbNode) JsonbNode {
 	return JsonbNode{Kind: langruntime.CheckedI32(value.Kind), Child: langruntime.CheckedIndex(value.Child), Next: langruntime.CheckedIndex(value.Next), KeyStart: langruntime.CheckedIndex(value.KeyStart), KeyEnd: langruntime.CheckedIndex(value.KeyEnd), TextStart: langruntime.CheckedIndex(value.TextStart), TextEnd: langruntime.CheckedIndex(value.TextEnd)}
 }
 
@@ -759,7 +779,7 @@ type JsonbPayload struct {
 }
 
 func CopyJsonbPayload(value JsonbPayload) JsonbPayload {
-	return JsonbPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, copyJsonbNode), Root: langruntime.CheckedIndex(value.Root)}
+	return JsonbPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, CopyJsonbNode), Root: langruntime.CheckedIndex(value.Root)}
 }
 
 type JsonbValueKind uint8
@@ -5671,7 +5691,7 @@ type JsonpathNode struct {
 	Flags     int
 }
 
-func copyJsonpathNode(value JsonpathNode) JsonpathNode {
+func CopyJsonpathNode(value JsonpathNode) JsonpathNode {
 	return JsonpathNode{Kind: langruntime.CheckedI32(value.Kind), Next: langruntime.CheckedIndex(value.Next), Left: langruntime.CheckedIndex(value.Left), Right: langruntime.CheckedIndex(value.Right), TextStart: langruntime.CheckedIndex(value.TextStart), TextEnd: langruntime.CheckedIndex(value.TextEnd), First: langruntime.CheckedI32(value.First), Last: langruntime.CheckedI32(value.Last), Flags: langruntime.CheckedI32(value.Flags)}
 }
 
@@ -5683,7 +5703,7 @@ type JsonpathPayload struct {
 }
 
 func CopyJsonpathPayload(value JsonpathPayload) JsonpathPayload {
-	return JsonpathPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, copyJsonpathNode), Root: langruntime.CheckedIndex(value.Root), Lax: value.Lax}
+	return JsonpathPayload{Characters: langruntime.CheckedChars(value.Characters), Nodes: langruntime.CheckedStructs(value.Nodes, CopyJsonpathNode), Root: langruntime.CheckedIndex(value.Root), Lax: value.Lax}
 }
 
 type JsonpathValueKind uint8

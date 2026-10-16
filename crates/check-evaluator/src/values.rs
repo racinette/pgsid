@@ -389,8 +389,38 @@ const SQL_ERROR_ARRAY_SUBSCRIPT: u32 = 3452630;
 const SQL_ERROR_FEATURE_NOT_SUPPORTED: u32 = 466560;
 const SQL_ERROR_PROGRAM_LIMIT: u32 = 8584704;
 const SQL_ERROR_INTERNAL: u32 = 56966976;
+const SQL_ERROR_JSON_SUBSCRIPT: u32 = 3452655;
+const SQL_ERROR_JSON_ARRAY: u32 = 3452661;
+const SQL_ERROR_JSON_MEMBER: u32 = 3452662;
+const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
+const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_JSON_SUBSCRIPT {
+        return SqlErrorDescription {
+            message: "invalid SQL/JSON subscript",
+        };
+    }
+    if error.state == SQL_ERROR_JSON_ARRAY {
+        return SqlErrorDescription {
+            message: "SQL/JSON array not found",
+        };
+    }
+    if error.state == SQL_ERROR_JSON_MEMBER {
+        return SqlErrorDescription {
+            message: "SQL/JSON member not found",
+        };
+    }
+    if error.state == SQL_ERROR_JSON_OBJECT {
+        return SqlErrorDescription {
+            message: "SQL/JSON object not found",
+        };
+    }
+    if error.state == SQL_ERROR_JSON_SINGLETON {
+        return SqlErrorDescription {
+            message: "singleton SQL/JSON item required",
+        };
+    }
     if error.state == SQL_ERROR_SYNTAX {
         return SqlErrorDescription {
             message: "syntax error",
