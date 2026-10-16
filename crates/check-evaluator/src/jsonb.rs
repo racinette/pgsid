@@ -764,3 +764,7 @@ pub fn jsonb_from_text_context(input: TextValue, utf8: bool) -> JsonbValue {
 fn jsonb_parse_text(input: TextValue, admission: bool) -> JsonbValue {
     jsonb_parse_text_context(input, admission, false)
 }
+
+pub fn jsonb_to_ordered_text(input: JsonbValue) -> TextValue {
+    jsonb_render(input, false, false)
+}

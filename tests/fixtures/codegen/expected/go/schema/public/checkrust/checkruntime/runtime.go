@@ -5908,6 +5908,10 @@ func JsonbFromTextContext(input TextValue, utf8 bool) JsonbValue {
 func jsonbParseText(input TextValue, admission bool) JsonbValue {
 	return jsonbParseTextContext(input, admission, false)
 }
+func JsonbToOrderedText(input JsonbValue) TextValue {
+	input = CopyJsonbValue(input)
+	return jsonbRender(input, false, false)
+}
 func jsonbPreorder(input JsonbPayload) JsonbPayload {
 	input = CopyJsonbPayload(input)
 	links := []int{}
@@ -6020,7 +6024,7 @@ type JsonbArrayInputPayload struct {
 	Position   int
 }
 
-func copyJsonbArrayInputPayload(value JsonbArrayInputPayload) JsonbArrayInputPayload {
+func CopyJsonbArrayInputPayload(value JsonbArrayInputPayload) JsonbArrayInputPayload {
 	return JsonbArrayInputPayload{State: langruntime.CheckedI32(value.State), Error: value.Error, Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement), Values: langruntime.CheckedStructs(value.Values, CopyJsonbInput), Position: langruntime.CheckedIndex(value.Position)}
 }
 
@@ -6035,10 +6039,10 @@ type JsonbArrayInputPlan struct {
 	Value JsonbArrayInputPayload
 }
 
-func copyJsonbArrayInputPlan(value JsonbArrayInputPlan) JsonbArrayInputPlan {
+func CopyJsonbArrayInputPlan(value JsonbArrayInputPlan) JsonbArrayInputPlan {
 	switch value.Kind {
 	case JsonbArrayInputPlanValue:
-		return JsonbArrayInputPlan{Kind: JsonbArrayInputPlanValue, Value: copyJsonbArrayInputPayload(value.Value)}
+		return JsonbArrayInputPlan{Kind: JsonbArrayInputPlanValue, Value: CopyJsonbArrayInputPayload(value.Value)}
 	}
 	panic("unknown enum variant")
 }

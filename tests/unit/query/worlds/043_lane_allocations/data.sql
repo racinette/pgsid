@@ -160,3 +160,17 @@ VALUES (' { "a" : null, "b" : [null,1] } ', true, '{"b":[1]}', false);
 
 INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
 VALUES ('"\u00e9"', '"\u00e9"', 1, '"é"', '["é"]', '["é",1]', false);
+
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, '[1,null,2]', '[1,
+ null,
+ 2]', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', '["a",
+ "雪😊",
+ null]', false);
+
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES (' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', '1.2300', '雪😊', true, '12:34:56.123456', ' { "a":1,"a":2 } ', '{"a": 3, "aa": 2, "é": 1}', '1.2300', '"雪😊"', 'true', '"12:34:56.123456"', false);
+
+INSERT INTO lane_json_conversion_imports (payload, pretty, expected, bypass)
+VALUES ('{" { \"a\":1,\"a\":2 } ",NULL}', true, '[ { "a":1,"a":2 } ,
+ null]', false);

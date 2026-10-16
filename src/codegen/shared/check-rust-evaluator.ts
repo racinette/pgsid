@@ -126,6 +126,22 @@ export const supportsJsonbConversion = (type: string): boolean =>
       jsonbConversionHelper(type.slice(6)) !== undefined
     : jsonbConversionHelper(type) !== undefined
 
+export const isJsonConversion = (
+  item: ReturnType<typeof builtinMetadata>,
+): item is ReturnType<typeof builtinMetadata> & {
+  kind: 'function'
+  name: 'to_json' | 'array_to_json'
+} =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.result === 'pg_catalog."json"' &&
+  item.strict &&
+  !item.returnsSet &&
+  item.volatility === 's' &&
+  ((item.name === 'to_json' && item.args.join(',') === 'pg_catalog.anyelement') ||
+    (item.name === 'array_to_json' &&
+      ['pg_catalog.anyarray', 'pg_catalog.anyarray,pg_catalog.bool'].includes(item.args.join(','))))
+
 export const isJsonbBuilder = (
   item: ReturnType<typeof builtinMetadata>,
 ): item is ReturnType<typeof builtinMetadata> & {
@@ -1073,6 +1089,7 @@ export function emitCheckRustEvaluator(
         implementation.result === 'pg_catalog.jsonb' &&
         implementation.strict &&
         implementation.volatility === 's'
+      const jsonConversion = isJsonConversion(implementation)
       const jsonbBuilder =
         isJsonbBuilder(implementation) &&
         (implementation.args.length === 0 ? operands.length === 0 : operands.length > 0)
@@ -1126,6 +1143,7 @@ export function emitCheckRustEvaluator(
           !arrayBinarySend &&
           !arrayStringIO &&
           !jsonbConversion &&
+          !jsonConversion &&
           !jsonbBuilder &&
           !jsonpathTimezone &&
           !(
@@ -1187,7 +1205,8 @@ export function emitCheckRustEvaluator(
                 ? false
                 : type === 'pg_catalog.anyenum' && enumCall
                   ? !operands[index]?.type.startsWith('enum:')
-                  : type === 'pg_catalog.anyelement' && (jsonbConversion || arrayFill)
+                  : type === 'pg_catalog.anyelement' &&
+                      (jsonbConversion || jsonConversion || arrayFill)
                     ? false
                     : catalogScalarType(type)?.startsWith('array:') &&
                         operands[index]?.type === catalogScalarType(type)
@@ -1704,7 +1723,7 @@ export function emitCheckRustEvaluator(
         return { name, type: call.type }
       }
       let arguments_ = operands.map((operand) => ownedOperand(operand))
-      if (jsonbConversion || (jsonbBuilder && operands.length > 0)) {
+      if (jsonbConversion || jsonConversion || (jsonbBuilder && operands.length > 0)) {
         const scalarInput = (
           original: { name: string; type: string },
           key: boolean | string,
@@ -1757,21 +1776,25 @@ export function emitCheckRustEvaluator(
               )
           }
           const helper =
-            operand.type === 'pg_catalog."json"'
-              ? 'jsonb_input_from_json_context'
-              : typeof key === 'string' &&
-                  ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-                ? 'jsonb_array_' + operand.type.slice('pg_catalog.'.length) + '_input'
-                : key && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
-                  ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
-                  : jsonbConversionHelper(operand.type)
+            jsonConversion && operand.type === 'pg_catalog."numeric"'
+              ? 'json_input_from_numeric'
+              : jsonConversion && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+                ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
+                : operand.type === 'pg_catalog."json"' && !jsonConversion
+                  ? 'jsonb_input_from_json_context'
+                  : typeof key === 'string' &&
+                      ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+                    ? 'jsonb_array_' + operand.type.slice('pg_catalog.'.length) + '_input'
+                    : key && ['pg_catalog.float4', 'pg_catalog.float8'].includes(operand.type)
+                      ? 'jsonb_key_input_from_' + operand.type.slice('pg_catalog.'.length)
+                      : jsonbConversionHelper(operand.type)
           if (!helper)
             throw new UnsupportedCheckRustExpression(
               `JSONB conversion requires a supported concrete input category: ${operand.type}`,
             )
           const carrier = fresh('jsonb_input')
           const args = [ownedOperand(operand)]
-          if (operand.type === 'pg_catalog."json"')
+          if (operand.type === 'pg_catalog."json"' && !jsonConversion)
             args.push(String(executionContext.serverEncoding === 'UTF8'))
           if (
             typeof key === 'string' &&
@@ -1809,6 +1832,17 @@ export function emitCheckRustEvaluator(
           destination.push(`while jsonb_array_input_continues(&${cursor}) {`, ...indent(body), '}')
           return cursor
         }
+        if (jsonConversion && implementation.name === 'array_to_json') {
+          const cursor = arrayInputs(operands[0]!, false)
+          const prepared = fresh('json_array_prepared')
+          const name = fresh('value')
+          destination.push(
+            `let ${prepared} = json_array_input_plan(${cursor});`,
+            `let ${name} = ${implementation.rustName}(${[prepared, ...operands.slice(1).map(ownedOperand), String(executionContext.serverEncoding === 'UTF8')].join(', ')});`,
+          )
+          callables.add(implementation.rustName)
+          return { name, type: call.type }
+        }
         const variadic = jsonbBuilder && call.kind !== 'cast' && call.variadic === true
         const carriers: string[] = []
         if (variadic) {
@@ -1833,10 +1867,18 @@ export function emitCheckRustEvaluator(
               else {
                 const cursor = arrayInputs(operand, false),
                   value = fresh('jsonb_array_value')
-                destination.push(
-                  `let ${value} = jsonb_array_input_value(${cursor});`,
-                  `let ${carrier} = jsonb_array_value_input(${ownedOperand(operand)}, ${value});`,
-                )
+                if (jsonConversion) {
+                  const compact = fresh('json_array_compact')
+                  destination.push(
+                    `let ${compact} = make_bool_value(false);`,
+                    `let ${value} = json_array_input_value(${cursor}, ${compact}, ${executionContext.serverEncoding === 'UTF8'});`,
+                    `let ${carrier} = jsonb_input_from_json(${value});`,
+                  )
+                } else
+                  destination.push(
+                    `let ${value} = jsonb_array_input_value(${cursor});`,
+                    `let ${carrier} = jsonb_array_value_input(${ownedOperand(operand)}, ${value});`,
+                  )
               }
               carriers.push(carrier)
             } else carriers.push(scalarInput(operand, key, destination))
@@ -1851,6 +1893,7 @@ export function emitCheckRustEvaluator(
           }
           arguments_ = [batch]
         } else if (!variadic) arguments_ = carriers
+        if (jsonConversion) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       }
       callables.add(implementation.rustName)
       const name = fresh('value')
@@ -2102,7 +2145,12 @@ export function emitCheckRustEvaluator(
       if (operand.type === 'pg_catalog.jsonpath')
         return { name: bind(`jsonpath_to_text(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog.jsonb')
-        return { name: bind(`jsonb_to_text(${ownedOperand(operand)})`), type: node.type }
+        return {
+          name: bind(
+            `jsonb_text_context(${ownedOperand(operand)}, ${executionContext.serverEncoding === 'UTF8'})`,
+          ),
+          type: node.type,
+        }
       if (operand.type === 'pg_catalog."json"')
         return { name: bind(`json_to_text(${ownedOperand(operand)})`), type: node.type }
       const helper = operand.type.slice('pg_catalog.'.length) + '_to_text'

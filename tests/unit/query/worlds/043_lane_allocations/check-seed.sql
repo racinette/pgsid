@@ -2274,3 +2274,180 @@ VALUES ('"\u00e9"', '"\u00e9"', 1, '"é"', '{}', '["é",1]', false);
 -- name: encoded_wrong_eager
 INSERT INTO lane_encoded_documents (document, payload, divisor, expected, expected_array, expected_eager, bypass)
 VALUES ('"\u00e9"', '"\u00e9"', 1, '"é"', '["é"]', '[]', false);
+
+-- name: json_arrays_source
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, '[1,null,2]', '[1,
+ null,
+ 2]', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', '["a",
+ "雪😊",
+ null]', false);
+
+-- name: json_arrays_compact
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', false, '[1,null,2]', '[1,null,2]', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', '["a",
+ "雪😊",
+ null]', false);
+
+-- name: json_arrays_null_flag
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', NULL, '[1,null,2]', NULL, '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', '["a",
+ "雪😊",
+ null]', false);
+
+-- name: json_arrays_matrix
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[0:1][5:6]={{1,2},{3,NULL}}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, '[[1,2],[3,null]]', '[[1,2],
+ [3,null]]', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', '["a",
+ "雪😊",
+ null]', false);
+
+-- name: json_arrays_rank_six
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('{{{{{{1,2}}}}}}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, '[[[[[[1,2]]]]]]', '[[[[[[1,2]]]]]]', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', '["a",
+ "雪😊",
+ null]', false);
+
+-- name: json_arrays_empty
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('{}', '{}', '{}', '{}', '{}', true, '[]', '[]', '[]', '[]', '[]', '[]', false);
+
+-- name: json_arrays_null
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, true, NULL, NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: json_arrays_null_cells
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('{NULL,NULL}', '{NULL,NULL}', '{NULL,NULL}', '{NULL,NULL}', '{NULL,NULL}', true, '[null,null]', '[null,
+ null]', '[null,null]', '[null,null]', '[null,null]', '[null,
+ null]', false);
+
+-- name: json_arrays_escaped_labels
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"quote\"\\","line
+text"}', true, '[1,null,2]', '[1,
+ null,
+ 2]', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', '["quote\"\\",
+ "line\ntext"]', false);
+
+-- name: json_arrays_skipped
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, 'wrong', 'wrong', 'wrong', 'wrong', 'wrong', 'wrong', true);
+
+-- name: json_arrays_wrong_slots
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, 'wrong', '[1,
+ null,
+ 2]', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', '["a",
+ "雪😊",
+ null]', false);
+
+-- name: json_arrays_wrong_pretty
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, '[1,null,2]', 'wrong', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', '["a",
+ "雪😊",
+ null]', false);
+
+-- name: json_arrays_wrong_documents
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, '[1,null,2]', '[1,
+ null,
+ 2]', 'wrong', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', '["a",
+ "雪😊",
+ null]', false);
+
+-- name: json_arrays_wrong_binary
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, '[1,null,2]', '[1,
+ null,
+ 2]', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', 'wrong', '[1.2300,0.000,"NaN","Infinity"]', '["a",
+ "雪😊",
+ null]', false);
+
+-- name: json_arrays_wrong_amounts
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, '[1,null,2]', '[1,
+ null,
+ 2]', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', 'wrong', '["a",
+ "雪😊",
+ null]', false);
+
+-- name: json_arrays_wrong_labels
+INSERT INTO lane_json_conversion_arrays (slots, documents, binary_documents, amounts, labels, pretty, expected_slots, expected_pretty, expected_documents, expected_binary, expected_amounts, expected_labels, bypass)
+VALUES ('[-1:1]={1,NULL,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\"","1e999999",NULL}', '{"{\"é\":1,\"aa\":2,\"a\":3}","null",NULL}', '{1.2300,-0.000,NaN,Infinity}', '{"a","雪😊",NULL}', true, '[1,null,2]', '[1,
+ null,
+ 2]', '[ { "a":1,"a":2 } ,"\u0000",1e999999,null]', '[{"a": 3, "aa": 2, "é": 1},null,null]', '[1.2300,0.000,"NaN","Infinity"]', 'wrong', false);
+
+-- name: json_scalar_values
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES (' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', '1.2300', '雪😊', true, '12:34:56.123456', ' { "a":1,"a":2 } ', '{"a": 3, "aa": 2, "é": 1}', '1.2300', '"雪😊"', 'true', '"12:34:56.123456"', false);
+
+-- name: json_scalar_null
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: json_scalar_raw_escape
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES ('"\u0000"', 'null', 'NaN', 'null', false, '24:00', '"\u0000"', 'null', '"NaN"', '"null"', 'false', '"24:00:00"', false);
+
+-- name: json_scalar_large_source
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES ('1e999999', '{}', '-0.000', 'line
+text', true, '00:00', '1e999999', '{}', '0.000', '"line\ntext"', 'true', '"00:00:00"', false);
+
+-- name: json_scalar_wrong_document
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES (' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', '1.2300', '雪😊', true, '12:34:56.123456', 'wrong', '{"a": 3, "aa": 2, "é": 1}', '1.2300', '"雪😊"', 'true', '"12:34:56.123456"', false);
+
+-- name: json_scalar_wrong_binary
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES (' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', '1.2300', '雪😊', true, '12:34:56.123456', ' { "a":1,"a":2 } ', 'wrong', '1.2300', '"雪😊"', 'true', '"12:34:56.123456"', false);
+
+-- name: json_scalar_wrong_amount
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES (' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', '1.2300', '雪😊', true, '12:34:56.123456', ' { "a":1,"a":2 } ', '{"a": 3, "aa": 2, "é": 1}', 'wrong', '"雪😊"', 'true', '"12:34:56.123456"', false);
+
+-- name: json_scalar_wrong_label
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES (' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', '1.2300', '雪😊', true, '12:34:56.123456', ' { "a":1,"a":2 } ', '{"a": 3, "aa": 2, "é": 1}', '1.2300', 'wrong', 'true', '"12:34:56.123456"', false);
+
+-- name: json_scalar_wrong_flag
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES (' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', '1.2300', '雪😊', true, '12:34:56.123456', ' { "a":1,"a":2 } ', '{"a": 3, "aa": 2, "é": 1}', '1.2300', '"雪😊"', 'wrong', '"12:34:56.123456"', false);
+
+-- name: json_scalar_wrong_clock
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES (' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', '1.2300', '雪😊', true, '12:34:56.123456', ' { "a":1,"a":2 } ', '{"a": 3, "aa": 2, "é": 1}', '1.2300', '"雪😊"', 'true', 'wrong', false);
+
+-- name: json_scalar_skipped
+INSERT INTO lane_json_conversion_scalars (document, binary_document, amount, label, flag, clock, expected_document, expected_binary, expected_amount, expected_label, expected_flag, expected_clock, bypass)
+VALUES (' { "a":1,"a":2 } ', '{"é":1,"aa":2,"a":3}', '1.2300', '雪😊', true, '12:34:56.123456', 'wrong', '{"a": 3, "aa": 2, "é": 1}', '1.2300', '"雪😊"', 'true', '"12:34:56.123456"', true);
+
+-- name: json_conversion_imported
+INSERT INTO lane_json_conversion_imports (payload, pretty, expected, bypass)
+VALUES ('{" { \"a\":1,\"a\":2 } ",NULL}', true, '[ { "a":1,"a":2 } ,
+ null]', false);
+
+-- name: json_conversion_import_bad
+INSERT INTO lane_json_conversion_imports (payload, pretty, expected, bypass)
+VALUES ('bad', true, NULL, false);
+
+-- name: json_conversion_import_bad_null_flag
+INSERT INTO lane_json_conversion_imports (payload, pretty, expected, bypass)
+VALUES ('bad', NULL, NULL, false);
+
+-- name: json_conversion_import_bad_cell
+INSERT INTO lane_json_conversion_imports (payload, pretty, expected, bypass)
+VALUES ('{"bad"}', true, NULL, false);
+
+-- name: json_conversion_import_skipped
+INSERT INTO lane_json_conversion_imports (payload, pretty, expected, bypass)
+VALUES ('bad', true, NULL, true);
+
+-- name: json_conversion_import_null
+INSERT INTO lane_json_conversion_imports (payload, pretty, expected, bypass)
+VALUES (NULL, true, NULL, false);
+
+-- name: json_conversion_import_wrong
+INSERT INTO lane_json_conversion_imports (payload, pretty, expected, bypass)
+VALUES ('{1,NULL}', false, '[]', false);

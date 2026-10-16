@@ -260,8 +260,8 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.
-- [x] JSONB logical normalization, shared parsing, SQL-coerced public inputs, domains, NULL and lazy composition.
-- [x] JSONB literals, text/JSON I/O casts and stored-format admission; preserve declared Unicode encoding, eager errors and lazy branches.
+- [x] Raw JSON scalar/array conversion: reuse scalar output policies, preserve raw sources/duplicates, numeric scales/signed zero, nested/pretty array layout, strict/partial states, canonical UTF8 JSONB text, owned cursors and INSERT parity.
+- [x] JSONB logical normalization, shared parsing, SQL-coerced values, domains/literals, text/JSON I/O and stored-format admission; preserve declared Unicode encoding, NULL/lazy composition and eager errors.
 - [x] JSONB field/element extraction, decoded text, array length and top-level existence, including scalar indexing.
 - [x] JSONB equality/inequality and iterative containment, exact numeric scalars, NULL-safe composition and public inputs.
 - [x] JSONB C/UTF8 ordering, exact comparator results and container traversal, with declared database defaults and composed/public INSERT parity.

@@ -6104,6 +6104,10 @@ function jsonbParseText(input: TextValue, admission: boolean): JsonbValue {
     admission = langruntime.checkedBool(admission);
     return jsonbParseTextContext(input, admission, false);
 }
+export function jsonbToOrderedText(input: JsonbValue): TextValue {
+    input = copyJsonbValue(input);
+    return jsonbRender(input, false, false);
+}
 function jsonbPreorder(input: JsonbPayload): JsonbPayload {
     input = copyJsonbPayload(input);
     let links: number[] = [];
@@ -6202,21 +6206,21 @@ export function jsonbFromString(input: TextValue): JsonbValue {
     return { kind: "Unknown" };
 }
 export interface JsonbArrayInputPayload {
-    state: number;
-    error: SqlError;
-    dimensions: ArrayDimension[];
-    elements: ArrayElement[];
-    values: JsonbInput[];
-    position: number;
+    readonly state: number;
+    readonly error: SqlError;
+    readonly dimensions: ArrayDimension[];
+    readonly elements: ArrayElement[];
+    readonly values: JsonbInput[];
+    readonly position: number;
 }
-function copyJsonbArrayInputPayload(value: JsonbArrayInputPayload): JsonbArrayInputPayload {
+export function copyJsonbArrayInputPayload(value: JsonbArrayInputPayload): JsonbArrayInputPayload {
     return { state: langruntime.checkedI32(value.state), error: value.error, dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement), values: langruntime.checkedStructs(value.values, copyJsonbInput), position: langruntime.checkedIndex(value.position) };
 }
 export type JsonbArrayInputPlan = {
-    kind: "Value";
-    value: JsonbArrayInputPayload;
+    readonly kind: "Value";
+    readonly value: JsonbArrayInputPayload;
 };
-function copyJsonbArrayInputPlan(value: JsonbArrayInputPlan): JsonbArrayInputPlan {
+export function copyJsonbArrayInputPlan(value: JsonbArrayInputPlan): JsonbArrayInputPlan {
     switch (value.kind) {
         case "Value": return { kind: "Value", value: copyJsonbArrayInputPayload(value.value) };
     }
