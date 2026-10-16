@@ -1000,3 +1000,299 @@ pub fn finish_prepared_array_text(
     };
     finish_array_text(ArrayTextPlan::Value(input), converted)
 }
+
+#[derive(Clone, Copy)]
+pub struct ArraySubscriptBound {
+    pub provided: bool,
+    pub state: i32,
+    pub value: i32,
+}
+
+#[derive(Clone)]
+pub struct ArraySubscriptPayload {
+    pub upper: Vec<ArraySubscriptBound>,
+    pub lower: Vec<ArraySubscriptBound>,
+}
+
+#[derive(Clone)]
+pub enum ArraySubscripts {
+    Error(SqlError),
+    Value(ArraySubscriptPayload),
+}
+
+pub fn make_array_subscripts() -> ArraySubscripts {
+    let upper: Vec<ArraySubscriptBound> = Vec::new();
+    let lower: Vec<ArraySubscriptBound> = Vec::new();
+    ArraySubscripts::Value(ArraySubscriptPayload {
+        upper: upper,
+        lower: lower,
+    })
+}
+
+pub fn append_array_subscript(
+    input: ArraySubscripts,
+    index: Int4Value,
+    is_lower: bool,
+    provided: bool,
+) -> ArraySubscripts {
+    if let ArraySubscripts::Error(_) = input {
+        return input;
+    };
+    if let Int4Value::Error(error) = index {
+        return ArraySubscripts::Error(error);
+    };
+    if let ArraySubscripts::Value(payload) = input {
+        let mut state = -1;
+        let mut value: i32 = 0;
+        if let Int4Value::Null = index {
+            state = 0;
+        };
+        if let Int4Value::Value(number) = index {
+            state = 1;
+            value = number;
+        };
+        let bound = ArraySubscriptBound {
+            provided: provided,
+            state: state,
+            value: value,
+        };
+        let mut upper = payload.upper;
+        let mut lower = payload.lower;
+        if is_lower {
+            lower.push(bound);
+        } else {
+            upper.push(bound);
+        };
+        return ArraySubscripts::Value(ArraySubscriptPayload {
+            upper: upper,
+            lower: lower,
+        });
+    };
+    input
+}
+
+pub fn array_subscript_continues(input: ArrayValue) -> bool {
+    if let ArrayValue::Value(_) = input {
+        return true;
+    };
+    false
+}
+
+pub fn array_subscript_initial(input: ArrayValue) -> ArrayElement {
+    if let ArrayValue::Error(error) = input {
+        return ArrayElement::Error(error);
+    };
+    if let ArrayValue::Null = input {
+        return ArrayElement::Null;
+    };
+    ArrayElement::Unknown
+}
+
+fn array_subscript_state(input: &ArraySubscriptPayload) -> i32 {
+    let mut state: i32 = 1;
+    let mut position: usize = 0;
+    while position < input.upper.len() + input.lower.len() {
+        let mut bound = ArraySubscriptBound {
+            provided: false,
+            state: 1,
+            value: 0,
+        };
+        if position < input.upper.len() {
+            bound = input.upper[position];
+        } else {
+            bound = input.lower[position - input.upper.len()];
+        };
+        if bound.provided {
+            if bound.state == -1 {
+                state = -1;
+            };
+            if bound.state == 0 && state != -1 {
+                state = 0;
+            };
+        };
+        position += 1;
+    }
+    state
+}
+
+pub fn array_fetch_subscript(input: ArrayValue, indices: ArraySubscripts) -> ArrayElement {
+    if let ArrayValue::Error(error) = input {
+        return ArrayElement::Error(error);
+    };
+    if let ArrayValue::Null = input {
+        return ArrayElement::Null;
+    };
+    if let ArrayValue::Unknown = input {
+        return ArrayElement::Unknown;
+    };
+    if let ArraySubscripts::Error(error) = indices {
+        return ArrayElement::Error(error);
+    };
+    if let ArraySubscripts::Value(bounds) = indices {
+        let state = array_subscript_state(&bounds);
+        if state == -1 {
+            return ArrayElement::Unknown;
+        };
+        if state == 0 {
+            return ArrayElement::Null;
+        };
+        if let ArrayValue::Value(payload) = input {
+            if bounds.upper.len() != payload.dimensions.len()
+                || bounds.upper.len() == 0
+                || bounds.lower.len() != 0
+            {
+                return ArrayElement::Null;
+            };
+            let mut offset: i64 = 0i64;
+            let mut depth: usize = 0;
+            while depth < payload.dimensions.len() {
+                let dimension = payload.dimensions[depth];
+                let index = bounds.upper[depth];
+                if index.provided == false {
+                    return ArrayElement::Unknown;
+                };
+                let relative = (index.value as i64) - (dimension.lower as i64);
+                if relative < 0i64 || relative >= dimension.length as i64 {
+                    return ArrayElement::Null;
+                };
+                offset = offset * (dimension.length as i64) + relative;
+                depth += 1;
+            }
+            let position = usize::try_from(offset as i32).unwrap_or(payload.elements.len());
+            if position < payload.elements.len() {
+                return payload.elements[position].clone();
+            };
+        };
+    };
+    ArrayElement::Unknown
+}
+
+#[derive(Clone, Copy)]
+struct ArraySliceAxis {
+    start: i32,
+    length: i32,
+    position: i32,
+}
+
+fn array_empty_like(input: &ArrayPayload) -> ArrayValue {
+    let identity = input.element_type.as_str();
+    let dimensions: Vec<ArrayDimension> = Vec::new();
+    let elements: Vec<ArrayElement> = Vec::new();
+    make_array_value(ArrayPayload {
+        element_type: identity.to_owned(),
+        element_kind: input.element_kind,
+        dimensions: dimensions,
+        elements: elements,
+    })
+}
+
+pub fn array_slice_subscript(input: ArrayValue, indices: ArraySubscripts) -> ArrayValue {
+    if let ArrayValue::Error(_) = input {
+        return input;
+    };
+    if let ArrayValue::Null = input {
+        return input;
+    };
+    if let ArrayValue::Unknown = input {
+        return input;
+    };
+    if let ArraySubscripts::Error(error) = indices {
+        return ArrayValue::Error(error);
+    };
+    if let ArraySubscripts::Value(bounds) = indices {
+        let state = array_subscript_state(&bounds);
+        if state == -1 {
+            return ArrayValue::Unknown;
+        };
+        if state == 0 {
+            return ArrayValue::Null;
+        };
+        if let ArrayValue::Value(payload) = input {
+            if bounds.upper.len() != bounds.lower.len() || bounds.upper.len() == 0 {
+                return ArrayValue::Unknown;
+            };
+            if bounds.upper.len() > payload.dimensions.len() || payload.dimensions.len() == 0 {
+                return array_empty_like(&payload);
+            };
+            let mut axes: Vec<ArraySliceAxis> = Vec::new();
+            let mut dimensions: Vec<ArrayDimension> = Vec::new();
+            let mut depth: usize = 0;
+            let mut count: i32 = 1;
+            while depth < payload.dimensions.len() {
+                let dimension = payload.dimensions[depth];
+                let mut low = dimension.lower as i64;
+                let mut high = low + (dimension.length as i64) - 1i64;
+                if depth < bounds.upper.len() {
+                    let first = bounds.lower[depth];
+                    let last = bounds.upper[depth];
+                    if first.provided && (first.value as i64) > low {
+                        low = first.value as i64;
+                    };
+                    if last.provided && (last.value as i64) < high {
+                        high = last.value as i64;
+                    };
+                };
+                if low > high {
+                    return array_empty_like(&payload);
+                };
+                let length = (high - low + 1i64) as i32;
+                let start = (low - (dimension.lower as i64)) as i32;
+                axes.push(ArraySliceAxis {
+                    start: start,
+                    length: length,
+                    position: 0,
+                });
+                dimensions.push(ArrayDimension {
+                    lower: 1,
+                    length: length,
+                });
+                count = count * length;
+                depth += 1;
+            }
+            let mut elements: Vec<ArrayElement> = Vec::new();
+            let mut position: i32 = 0;
+            while position < count {
+                let mut offset: i64 = 0i64;
+                depth = 0;
+                while depth < axes.len() {
+                    let axis = axes[depth];
+                    offset = offset * (payload.dimensions[depth].length as i64)
+                        + ((axis.start + axis.position) as i64);
+                    depth += 1;
+                }
+                let index = usize::try_from(offset as i32).unwrap_or(payload.elements.len());
+                if index >= payload.elements.len() {
+                    return ArrayValue::Unknown;
+                };
+                elements.push(payload.elements[index].clone());
+                position = position + 1;
+                depth = axes.len();
+                while depth > 0 {
+                    depth = depth - 1;
+                    let axis = axes[depth];
+                    let next = axis.position + 1;
+                    if next < axis.length {
+                        axes[depth] = ArraySliceAxis {
+                            start: axis.start,
+                            length: axis.length,
+                            position: next,
+                        };
+                        break;
+                    };
+                    axes[depth] = ArraySliceAxis {
+                        start: axis.start,
+                        length: axis.length,
+                        position: 0,
+                    };
+                }
+            }
+            return make_array_value(ArrayPayload {
+                element_type: payload.element_type,
+                element_kind: payload.element_kind,
+                dimensions: dimensions,
+                elements: elements,
+            });
+        };
+    };
+    ArrayValue::Unknown
+}

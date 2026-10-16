@@ -436,6 +436,66 @@ export function emitCheckRustEvaluator(
       bindings.push(`let ${name} = ${call};`)
       return name
     }
+    if (node.kind === 'array-subscript') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const family = arrayElementFamily(node.elementType)
+      if (
+        family === null ||
+        operand.type !== 'array:' + node.elementType ||
+        node.upper.length === 0 ||
+        node.upper.length > 6 ||
+        node.lower.length !== (node.slice ? node.upper.length : 0) ||
+        node.type !== (node.slice ? operand.type : node.elementType) ||
+        (!node.slice && node.upper.some((bound) => bound === null))
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Array subscripts require matching concrete array and integer bounds',
+        )
+      const prefix = rustValuePrefix(rustType(node.type))
+      const initial = node.slice
+        ? operand.name
+        : bind(`array_subscript_initial(${ownedOperand(operand)})`)
+      const first = node.slice ? `${initial}.clone()` : `array_element_to_${prefix}(${initial})`
+      const result = fresh('array_subscript_result')
+      bindings.push(`let mut ${result}: ${rustType(node.type)} = ${first};`)
+      const inner: string[] = []
+      const call = (expression: string): string => {
+        const name = fresh('array_bound')
+        inner.push(`let ${name} = ${expression};`)
+        return name
+      }
+      let builder = call('make_array_subscripts()')
+      const omitted =
+        node.upper.includes(null) || node.lower.includes(null) ? call('make_int4_value(0)') : ''
+      for (const [lower, bounds] of [
+        [false, node.upper],
+        [true, node.lower],
+      ] as const)
+        for (const bound of bounds) {
+          const destination =
+            bound && preparationDepth > 0 && constantScalarExpression(bound) ? bindings : inner
+          const value = bound
+            ? emitPreparedOperand(bound, destination, used)
+            : { name: omitted, type: 'pg_catalog.int4' }
+          if (value.type !== 'pg_catalog.int4')
+            throw new UnsupportedCheckRustExpression('Array bound must be SQL-coerced to int4')
+          builder = call(
+            `append_array_subscript(${builder}, ${value.name}, ${lower}, ${bound !== null})`,
+          )
+        }
+      if (node.slice)
+        inner.push(`${result} = array_slice_subscript(${ownedOperand(operand)}, ${builder});`)
+      else {
+        const element = call(`array_fetch_subscript(${ownedOperand(operand)}, ${builder})`)
+        inner.push(`${result} = array_element_to_${prefix}(${element});`)
+      }
+      bindings.push(
+        `if array_subscript_continues(${ownedOperand(operand)}) {`,
+        ...indent(inner),
+        '};',
+      )
+      return { name: result, type: node.type }
+    }
     if (node.kind === 'array-to-text') {
       const operand = emitScalar(node.operand, bindings, used)
       const family = arrayElementFamily(node.elementType)

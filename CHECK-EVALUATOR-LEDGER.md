@@ -4,8 +4,7 @@ This is the implementation queue for the Rust CHECK engine. Work in the order be
 
 ## Baseline and measurements
 
-The starting revision is `027d433` (XML well-formedness predicates). The bounded
-porting effort covered strict, immutable scalar callables on represented values,
+The starting revision is `027d433` (XML well-formedness predicates). The bounded porting effort covered strict, immutable scalar callables on represented values,
 plus represented enum callables. Session-dependent behavior remains separate.
 Completion of that effort does not establish complete expression, coercion,
 collation, input-format, or PostgreSQL type coverage.
@@ -253,6 +252,7 @@ exposes a prerequisite:
 - [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.
 - [x] Admit source/stored array literals and text I/O input, integer/Boolean/numeric/enum input profiles, widths/precision, explicit array_nulls, captured money units and coerced name facets; verify lazy preparation, exact cells and INSERT parity.
 - [x] Admit array text output, element-specific I/O, dimensions, quoting/escaping, character widths and INSERT parity; retain scalar formatting/catalog deferrals and known empty/NULL-only arrays.
+- [x] Admit multidimensional element fetches and slices, omitted/mixed bounds, integer assignment casts, copied cells, constant preparation and reached-error order; verify raw/stored composition and INSERT parity.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.

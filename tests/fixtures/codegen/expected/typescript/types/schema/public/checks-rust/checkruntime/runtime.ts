@@ -8650,6 +8650,278 @@ export function finishPreparedArrayText(input: ArrayTextPayload, converted: Arra
     }
     return finishArrayText({ kind: "Value", value: input }, converted);
 }
+export interface ArraySubscriptBound {
+    provided: boolean;
+    state: number;
+    value: number;
+}
+function copyArraySubscriptBound(value: ArraySubscriptBound): ArraySubscriptBound {
+    return { provided: langruntime.checkedBool(value.provided), state: langruntime.checkedI32(value.state), value: langruntime.checkedI32(value.value) };
+}
+export interface ArraySubscriptPayload {
+    upper: ArraySubscriptBound[];
+    lower: ArraySubscriptBound[];
+}
+function copyArraySubscriptPayload(value: ArraySubscriptPayload): ArraySubscriptPayload {
+    return { upper: langruntime.checkedStructs(value.upper, copyArraySubscriptBound), lower: langruntime.checkedStructs(value.lower, copyArraySubscriptBound) };
+}
+export type ArraySubscripts = {
+    kind: "Error";
+    value: SqlError;
+} | {
+    kind: "Value";
+    value: ArraySubscriptPayload;
+};
+function copyArraySubscripts(value: ArraySubscripts): ArraySubscripts {
+    switch (value.kind) {
+        case "Error": return { kind: "Error", value: value.value };
+        case "Value": return { kind: "Value", value: copyArraySubscriptPayload(value.value) };
+    }
+}
+export function makeArraySubscripts(): ArraySubscripts {
+    const upper: ArraySubscriptBound[] = [];
+    const lower: ArraySubscriptBound[] = [];
+    return { kind: "Value", value: { upper: upper, lower: lower } };
+}
+export function appendArraySubscript(input: ArraySubscripts, index: Int4Value, isLower: boolean, provided: boolean): ArraySubscripts {
+    input = copyArraySubscripts(input);
+    isLower = langruntime.checkedBool(isLower);
+    provided = langruntime.checkedBool(provided);
+    if (input.kind === "Error") {
+        return input;
+    }
+    if (index.kind === "Error") {
+        const error: SqlError = index.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const payload: ArraySubscriptPayload = copyArraySubscriptPayload(input.value);
+        let state: number = langruntime.checkedSignedNegate(1);
+        let value: number = 0;
+        if (index.kind === "Null") {
+            state = langruntime.checkedI32(0);
+        }
+        if (index.kind === "Value") {
+            const number: number = langruntime.checkedI32(index.value);
+            state = langruntime.checkedI32(1);
+            value = langruntime.checkedI32(number);
+        }
+        const bound: ArraySubscriptBound = copyArraySubscriptBound({ provided: provided, state: state, value: value });
+        let upper: ArraySubscriptBound[] = payload.upper;
+        let lower: ArraySubscriptBound[] = payload.lower;
+        if (isLower) {
+            langruntime.pushStruct(lower, bound, copyArraySubscriptBound);
+        }
+        else {
+            langruntime.pushStruct(upper, bound, copyArraySubscriptBound);
+        }
+        return { kind: "Value", value: { upper: upper, lower: lower } };
+    }
+    return input;
+}
+export function arraySubscriptContinues(input: ArrayValue): boolean {
+    input = copyArrayValue(input);
+    if (input.kind === "Value") {
+        return true;
+    }
+    return false;
+}
+export function arraySubscriptInitial(input: ArrayValue): ArrayElement {
+    input = copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+function arraySubscriptState(input: ArraySubscriptPayload): number {
+    let state: number = 1;
+    let position: number = 0;
+    while (position < langruntime.checkedAdd(input.upper.length, input.lower.length)) {
+        let bound: ArraySubscriptBound = copyArraySubscriptBound({ provided: false, state: 1, value: 0 });
+        if (position < input.upper.length) {
+            bound = copyArraySubscriptBound(langruntime.indexStruct(input.upper, langruntime.checkedIndex(position), copyArraySubscriptBound));
+        }
+        else {
+            bound = copyArraySubscriptBound(langruntime.indexStruct(input.lower, langruntime.checkedIndex(langruntime.checkedSubtract(position, input.upper.length)), copyArraySubscriptBound));
+        }
+        if (bound.provided) {
+            if (bound.state === langruntime.checkedSignedNegate(1)) {
+                state = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+            }
+            if (bound.state === 0 && !(state === langruntime.checkedSignedNegate(1))) {
+                state = langruntime.checkedI32(0);
+            }
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return state;
+}
+export function arrayFetchSubscript(input: ArrayValue, indices: ArraySubscripts): ArrayElement {
+    input = copyArrayValue(input);
+    indices = copyArraySubscripts(indices);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (indices.kind === "Error") {
+        const error: SqlError = indices.value;
+        return { kind: "Error", value: error };
+    }
+    if (indices.kind === "Value") {
+        const bounds: ArraySubscriptPayload = copyArraySubscriptPayload(indices.value);
+        const state: number = arraySubscriptState(bounds);
+        if (state === langruntime.checkedSignedNegate(1)) {
+            return { kind: "Unknown" };
+        }
+        if (state === 0) {
+            return { kind: "Null" };
+        }
+        if (input.kind === "Value") {
+            const payload: ArrayPayload = copyArrayPayload(input.value);
+            if (!(bounds.upper.length === payload.dimensions.length) || bounds.upper.length === 0 || !(bounds.lower.length === 0)) {
+                return { kind: "Null" };
+            }
+            let offset: bigint = 0n;
+            let depth: number = 0;
+            while (depth < payload.dimensions.length) {
+                const dimension: ArrayDimension = langruntime.indexStruct(payload.dimensions, langruntime.checkedIndex(depth), copyArrayDimension);
+                const index: ArraySubscriptBound = copyArraySubscriptBound(langruntime.indexStruct(bounds.upper, langruntime.checkedIndex(depth), copyArraySubscriptBound));
+                if (index.provided === false) {
+                    return { kind: "Unknown" };
+                }
+                const relative: bigint = langruntime.checkedI64Subtract((BigInt(langruntime.checkedI32(index.value))), (BigInt(langruntime.checkedI32(dimension.lower))));
+                if (relative < 0n || relative >= BigInt(langruntime.checkedI32(dimension.length))) {
+                    return { kind: "Null" };
+                }
+                offset = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(offset, (BigInt(langruntime.checkedI32(dimension.length)))), relative));
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+            const position: number = langruntime.indexFromI32(Number(BigInt.asIntN(32, langruntime.checkedI64(offset))), payload.elements.length);
+            if (position < payload.elements.length) {
+                return copyArrayElement(langruntime.indexStruct(payload.elements, langruntime.checkedIndex(position), copyArrayElement));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+interface ArraySliceAxis {
+    start: number;
+    length: number;
+    position: number;
+}
+function copyArraySliceAxis(value: ArraySliceAxis): ArraySliceAxis {
+    return { start: langruntime.checkedI32(value.start), length: langruntime.checkedI32(value.length), position: langruntime.checkedI32(value.position) };
+}
+function arrayEmptyLike(input: ArrayPayload): ArrayValue {
+    const identity: string = input.elementType;
+    const dimensions: ArrayDimension[] = [];
+    const elements: ArrayElement[] = [];
+    return makeArrayValue({ elementType: identity, elementKind: input.elementKind, dimensions: dimensions, elements: elements });
+}
+export function arraySliceSubscript(input: ArrayValue, indices: ArraySubscripts): ArrayValue {
+    input = copyArrayValue(input);
+    indices = copyArraySubscripts(indices);
+    if (input.kind === "Error") {
+        return input;
+    }
+    if (input.kind === "Null") {
+        return input;
+    }
+    if (input.kind === "Unknown") {
+        return input;
+    }
+    if (indices.kind === "Error") {
+        const error: SqlError = indices.value;
+        return { kind: "Error", value: error };
+    }
+    if (indices.kind === "Value") {
+        const bounds: ArraySubscriptPayload = copyArraySubscriptPayload(indices.value);
+        const state: number = arraySubscriptState(bounds);
+        if (state === langruntime.checkedSignedNegate(1)) {
+            return { kind: "Unknown" };
+        }
+        if (state === 0) {
+            return { kind: "Null" };
+        }
+        if (input.kind === "Value") {
+            const payload: ArrayPayload = copyArrayPayload(input.value);
+            if (!(bounds.upper.length === bounds.lower.length) || bounds.upper.length === 0) {
+                return { kind: "Unknown" };
+            }
+            if (bounds.upper.length > payload.dimensions.length || payload.dimensions.length === 0) {
+                return arrayEmptyLike(payload);
+            }
+            let axes: ArraySliceAxis[] = [];
+            let dimensions: ArrayDimension[] = [];
+            let depth: number = 0;
+            let count: number = 1;
+            while (depth < payload.dimensions.length) {
+                const dimension: ArrayDimension = langruntime.indexStruct(payload.dimensions, langruntime.checkedIndex(depth), copyArrayDimension);
+                let low: bigint = BigInt(langruntime.checkedI32(dimension.lower));
+                let high: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Add(low, (BigInt(langruntime.checkedI32(dimension.length)))), 1n);
+                if (depth < bounds.upper.length) {
+                    const first: ArraySubscriptBound = copyArraySubscriptBound(langruntime.indexStruct(bounds.lower, langruntime.checkedIndex(depth), copyArraySubscriptBound));
+                    const last: ArraySubscriptBound = copyArraySubscriptBound(langruntime.indexStruct(bounds.upper, langruntime.checkedIndex(depth), copyArraySubscriptBound));
+                    if (first.provided && (BigInt(langruntime.checkedI32(first.value))) > low) {
+                        low = langruntime.checkedI64(BigInt(langruntime.checkedI32(first.value)));
+                    }
+                    if (last.provided && (BigInt(langruntime.checkedI32(last.value))) < high) {
+                        high = langruntime.checkedI64(BigInt(langruntime.checkedI32(last.value)));
+                    }
+                }
+                if (low > high) {
+                    return arrayEmptyLike(payload);
+                }
+                const length: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Add(langruntime.checkedI64Subtract(high, low), 1n)))));
+                const start: number = Number(BigInt.asIntN(32, langruntime.checkedI64((langruntime.checkedI64Subtract(low, (BigInt(langruntime.checkedI32(dimension.lower))))))));
+                langruntime.pushStruct(axes, { start: start, length: length, position: 0 }, copyArraySliceAxis);
+                langruntime.pushStruct(dimensions, { lower: 1, length: length }, copyArrayDimension);
+                count = langruntime.checkedI32(langruntime.checkedSignedMultiply(count, length));
+                depth = langruntime.checkedAdd(depth, 1);
+            }
+            let elements: ArrayElement[] = [];
+            let position: number = 0;
+            while (position < count) {
+                let offset: bigint = 0n;
+                depth = langruntime.checkedIndex(0);
+                while (depth < axes.length) {
+                    const axis: ArraySliceAxis = copyArraySliceAxis(langruntime.indexStruct(axes, langruntime.checkedIndex(depth), copyArraySliceAxis));
+                    offset = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Multiply(offset, (BigInt(langruntime.checkedI32(langruntime.indexStruct(payload.dimensions, langruntime.checkedIndex(depth), copyArrayDimension).length)))), (BigInt(langruntime.checkedI32((langruntime.checkedSignedAdd(axis.start, axis.position)))))));
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+                const index: number = langruntime.indexFromI32(Number(BigInt.asIntN(32, langruntime.checkedI64(offset))), payload.elements.length);
+                if (index >= payload.elements.length) {
+                    return { kind: "Unknown" };
+                }
+                langruntime.pushStruct(elements, copyArrayElement(langruntime.indexStruct(payload.elements, langruntime.checkedIndex(index), copyArrayElement)), copyArrayElement);
+                position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+                depth = langruntime.checkedIndex(axes.length);
+                while (depth > 0) {
+                    depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+                    const axis: ArraySliceAxis = copyArraySliceAxis(langruntime.indexStruct(axes, langruntime.checkedIndex(depth), copyArraySliceAxis));
+                    const next: number = langruntime.checkedSignedAdd(axis.position, 1);
+                    if (next < axis.length) {
+                        axes[langruntime.checkedIndexIn(axes, depth)] = copyArraySliceAxis({ start: axis.start, length: axis.length, position: next });
+                        break;
+                    }
+                    axes[langruntime.checkedIndexIn(axes, depth)] = copyArraySliceAxis({ start: axis.start, length: axis.length, position: 0 });
+                }
+            }
+            return makeArrayValue({ elementType: payload.elementType, elementKind: payload.elementKind, dimensions: dimensions, elements: elements });
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);

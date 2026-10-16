@@ -8584,6 +8584,295 @@ func FinishPreparedArrayText(input ArrayTextPayload, converted ArrayArguments) A
 	}
 	return FinishArrayText(ArrayTextPlan{Kind: ArrayTextPlanValue, Value: input}, converted)
 }
+
+type ArraySubscriptBound struct {
+	Provided bool
+	State    int
+	Value    int
+}
+
+func copyArraySubscriptBound(value ArraySubscriptBound) ArraySubscriptBound {
+	return ArraySubscriptBound{Provided: value.Provided, State: langruntime.CheckedI32(value.State), Value: langruntime.CheckedI32(value.Value)}
+}
+
+type ArraySubscriptPayload struct {
+	Upper []ArraySubscriptBound
+	Lower []ArraySubscriptBound
+}
+
+func copyArraySubscriptPayload(value ArraySubscriptPayload) ArraySubscriptPayload {
+	return ArraySubscriptPayload{Upper: langruntime.CheckedStructs(value.Upper, copyArraySubscriptBound), Lower: langruntime.CheckedStructs(value.Lower, copyArraySubscriptBound)}
+}
+
+type ArraySubscriptsKind uint8
+
+const (
+	ArraySubscriptsError ArraySubscriptsKind = iota
+	ArraySubscriptsValue
+)
+
+type ArraySubscripts struct {
+	Kind  ArraySubscriptsKind
+	Error SqlError
+	Value ArraySubscriptPayload
+}
+
+func copyArraySubscripts(value ArraySubscripts) ArraySubscripts {
+	switch value.Kind {
+	case ArraySubscriptsError:
+		return ArraySubscripts{Kind: ArraySubscriptsError, Error: value.Error}
+	case ArraySubscriptsValue:
+		return ArraySubscripts{Kind: ArraySubscriptsValue, Value: copyArraySubscriptPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func MakeArraySubscripts() ArraySubscripts {
+	upper := []ArraySubscriptBound{}
+	lower := []ArraySubscriptBound{}
+	return ArraySubscripts{Kind: ArraySubscriptsValue, Value: ArraySubscriptPayload{Upper: upper, Lower: lower}}
+}
+func AppendArraySubscript(input ArraySubscripts, index Int4Value, isLower bool, provided bool) ArraySubscripts {
+	input = copyArraySubscripts(input)
+	if input.Kind == ArraySubscriptsError {
+		return input
+	}
+	if index.Kind == Int4ValueError {
+		error := index.Error
+		return ArraySubscripts{Kind: ArraySubscriptsError, Error: error}
+	}
+	if input.Kind == ArraySubscriptsValue {
+		payload := copyArraySubscriptPayload(input.Value)
+		state := langruntime.CheckedSignedNegate(1)
+		value := 0
+		if index.Kind == Int4ValueNull {
+			state = langruntime.CheckedI32(0)
+		}
+		if index.Kind == Int4ValueValue {
+			number := langruntime.CheckedI32(index.Value)
+			state = langruntime.CheckedI32(1)
+			value = langruntime.CheckedI32(number)
+		}
+		bound := ArraySubscriptBound{Provided: provided, State: state, Value: value}
+		upper := payload.Upper
+		lower := payload.Lower
+		if isLower {
+			langruntime.CheckedAdd(len(lower), 1)
+			lower = append(lower, copyArraySubscriptBound(bound))
+		} else {
+			langruntime.CheckedAdd(len(upper), 1)
+			upper = append(upper, copyArraySubscriptBound(bound))
+		}
+		return ArraySubscripts{Kind: ArraySubscriptsValue, Value: ArraySubscriptPayload{Upper: upper, Lower: lower}}
+	}
+	return input
+}
+func ArraySubscriptContinues(input ArrayValue) bool {
+	input = CopyArrayValue(input)
+	if input.Kind == ArrayValueValue {
+		return true
+	}
+	return false
+}
+func ArraySubscriptInitial(input ArrayValue) ArrayElement {
+	input = CopyArrayValue(input)
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == ArrayValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func arraySubscriptState(input *ArraySubscriptPayload) int {
+	state := 1
+	position := 0
+	for position < langruntime.CheckedAdd(len(input.Upper), len(input.Lower)) {
+		bound := ArraySubscriptBound{Provided: false, State: 1, Value: 0}
+		if position < len(input.Upper) {
+			bound = copyArraySubscriptBound(input.Upper[position])
+		} else {
+			bound = copyArraySubscriptBound(input.Lower[langruntime.CheckedSubtract(position, len(input.Upper))])
+		}
+		if bound.Provided {
+			if bound.State == langruntime.CheckedSignedNegate(1) {
+				state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+			}
+			if bound.State == 0 && state != langruntime.CheckedSignedNegate(1) {
+				state = langruntime.CheckedI32(0)
+			}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return state
+}
+func ArrayFetchSubscript(input ArrayValue, indices ArraySubscripts) ArrayElement {
+	input = CopyArrayValue(input)
+	indices = copyArraySubscripts(indices)
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == ArrayValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == ArrayValueUnknown {
+		return ArrayElement{Kind: ArrayElementUnknown}
+	}
+	if indices.Kind == ArraySubscriptsError {
+		error := indices.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if indices.Kind == ArraySubscriptsValue {
+		bounds := copyArraySubscriptPayload(indices.Value)
+		state := arraySubscriptState(&bounds)
+		if state == langruntime.CheckedSignedNegate(1) {
+			return ArrayElement{Kind: ArrayElementUnknown}
+		}
+		if state == 0 {
+			return ArrayElement{Kind: ArrayElementNull}
+		}
+		if input.Kind == ArrayValueValue {
+			payload := CopyArrayPayload(input.Value)
+			if len(bounds.Upper) != len(payload.Dimensions) || len(bounds.Upper) == 0 || len(bounds.Lower) != 0 {
+				return ArrayElement{Kind: ArrayElementNull}
+			}
+			offset := int64(0)
+			depth := 0
+			for depth < len(payload.Dimensions) {
+				dimension := payload.Dimensions[depth]
+				index := bounds.Upper[depth]
+				if index.Provided == false {
+					return ArrayElement{Kind: ArrayElementUnknown}
+				}
+				relative := langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(index.Value))), (int64(langruntime.CheckedI32(dimension.Lower))))
+				if relative < int64(0) || relative >= int64(langruntime.CheckedI32(dimension.Length)) {
+					return ArrayElement{Kind: ArrayElementNull}
+				}
+				offset = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(offset, (int64(langruntime.CheckedI32(dimension.Length)))), relative)
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+			position := langruntime.IndexFromI32(int(int32(offset)), len(payload.Elements))
+			if position < len(payload.Elements) {
+				return CopyArrayElement(payload.Elements[position])
+			}
+		}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+
+type arraySliceAxis struct {
+	start    int
+	length   int
+	position int
+}
+
+func copyarraySliceAxis(value arraySliceAxis) arraySliceAxis {
+	return arraySliceAxis{start: langruntime.CheckedI32(value.start), length: langruntime.CheckedI32(value.length), position: langruntime.CheckedI32(value.position)}
+}
+func arrayEmptyLike(input *ArrayPayload) ArrayValue {
+	identity := input.ElementType
+	dimensions := []ArrayDimension{}
+	elements := []ArrayElement{}
+	return MakeArrayValue(ArrayPayload{ElementType: identity, ElementKind: input.ElementKind, Dimensions: dimensions, Elements: elements})
+}
+func ArraySliceSubscript(input ArrayValue, indices ArraySubscripts) ArrayValue {
+	input = CopyArrayValue(input)
+	indices = copyArraySubscripts(indices)
+	if input.Kind == ArrayValueError {
+		return input
+	}
+	if input.Kind == ArrayValueNull {
+		return input
+	}
+	if input.Kind == ArrayValueUnknown {
+		return input
+	}
+	if indices.Kind == ArraySubscriptsError {
+		error := indices.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if indices.Kind == ArraySubscriptsValue {
+		bounds := copyArraySubscriptPayload(indices.Value)
+		state := arraySubscriptState(&bounds)
+		if state == langruntime.CheckedSignedNegate(1) {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		if state == 0 {
+			return ArrayValue{Kind: ArrayValueNull}
+		}
+		if input.Kind == ArrayValueValue {
+			payload := CopyArrayPayload(input.Value)
+			if len(bounds.Upper) != len(bounds.Lower) || len(bounds.Upper) == 0 {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
+			if len(bounds.Upper) > len(payload.Dimensions) || len(payload.Dimensions) == 0 {
+				return arrayEmptyLike(&payload)
+			}
+			axes := []arraySliceAxis{}
+			dimensions := []ArrayDimension{}
+			depth := 0
+			count := 1
+			for depth < len(payload.Dimensions) {
+				dimension := payload.Dimensions[depth]
+				low := int64(langruntime.CheckedI32(dimension.Lower))
+				high := langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(low, (int64(langruntime.CheckedI32(dimension.Length)))), int64(1))
+				if depth < len(bounds.Upper) {
+					first := bounds.Lower[depth]
+					last := bounds.Upper[depth]
+					if first.Provided && (int64(langruntime.CheckedI32(first.Value))) > low {
+						low = int64(langruntime.CheckedI32(first.Value))
+					}
+					if last.Provided && (int64(langruntime.CheckedI32(last.Value))) < high {
+						high = int64(langruntime.CheckedI32(last.Value))
+					}
+				}
+				if low > high {
+					return arrayEmptyLike(&payload)
+				}
+				length := int(int32((langruntime.CheckedI64Add(langruntime.CheckedI64Subtract(high, low), int64(1)))))
+				start := int(int32((langruntime.CheckedI64Subtract(low, (int64(langruntime.CheckedI32(dimension.Lower)))))))
+				langruntime.CheckedAdd(len(axes), 1)
+				axes = append(axes, copyarraySliceAxis(arraySliceAxis{start: start, length: length, position: 0}))
+				langruntime.CheckedAdd(len(dimensions), 1)
+				dimensions = append(dimensions, ArrayDimension{Lower: 1, Length: length})
+				count = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(count, length))
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+			elements := []ArrayElement{}
+			position := 0
+			for position < count {
+				offset := int64(0)
+				depth = langruntime.CheckedIndex(0)
+				for depth < len(axes) {
+					axis := axes[depth]
+					offset = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(offset, (int64(langruntime.CheckedI32(payload.Dimensions[depth].Length)))), (int64(langruntime.CheckedI32((langruntime.CheckedSignedAdd(axis.start, axis.position))))))
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+				index := langruntime.IndexFromI32(int(int32(offset)), len(payload.Elements))
+				if index >= len(payload.Elements) {
+					return ArrayValue{Kind: ArrayValueUnknown}
+				}
+				langruntime.CheckedAdd(len(elements), 1)
+				elements = append(elements, CopyArrayElement(CopyArrayElement(payload.Elements[index])))
+				position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+				depth = langruntime.CheckedIndex(len(axes))
+				for depth > 0 {
+					depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+					axis := axes[depth]
+					next := langruntime.CheckedSignedAdd(axis.position, 1)
+					if next < axis.length {
+						axes[depth] = copyarraySliceAxis(arraySliceAxis{start: axis.start, length: axis.length, position: next})
+						break
+					}
+					axes[depth] = copyarraySliceAxis(arraySliceAxis{start: axis.start, length: axis.length, position: 0})
+				}
+			}
+			return MakeArrayValue(ArrayPayload{ElementType: payload.ElementType, ElementKind: payload.ElementKind, Dimensions: dimensions, Elements: elements})
+		}
+	}
+	return ArrayValue{Kind: ArrayValueUnknown}
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
