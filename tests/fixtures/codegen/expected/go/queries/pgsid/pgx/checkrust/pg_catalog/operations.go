@@ -12877,19 +12877,24 @@ type jsonpathSequence struct {
 	items               []jsonpathReference
 	numbers             []checkruntime.NumericValue
 	strings             []checkruntime.TextValue
+	temporals           []jsonpathTemporalValue
 	generatedNodes      []checkruntime.JsonbNode
 	generatedCharacters []rune
 	error               int
+	hardError           bool
 	unknown             bool
 }
 
 func copyjsonpathSequence(value jsonpathSequence) jsonpathSequence {
-	return jsonpathSequence{items: langruntime.CheckedStructs(value.items, copyjsonpathReference), numbers: langruntime.CheckedStructs(value.numbers, checkruntime.CopyNumericValue), strings: langruntime.CheckedStructs(value.strings, checkruntime.CopyTextValue), generatedNodes: langruntime.CheckedStructs(value.generatedNodes, checkruntime.CopyJsonbNode), generatedCharacters: langruntime.CheckedChars(value.generatedCharacters), error: langruntime.CheckedIndex(value.error), unknown: value.unknown}
+	return jsonpathSequence{items: langruntime.CheckedStructs(value.items, copyjsonpathReference), numbers: langruntime.CheckedStructs(value.numbers, checkruntime.CopyNumericValue), strings: langruntime.CheckedStructs(value.strings, checkruntime.CopyTextValue), temporals: langruntime.CheckedStructs(value.temporals, copyjsonpathTemporalValue), generatedNodes: langruntime.CheckedStructs(value.generatedNodes, checkruntime.CopyJsonbNode), generatedCharacters: langruntime.CheckedChars(value.generatedCharacters), error: langruntime.CheckedIndex(value.error), hardError: value.hardError, unknown: value.unknown}
 }
 func jsonpathExecutionNode(context *jsonpathExecutionContext, reference jsonpathReference) checkruntime.JsonbNode {
 	reference = copyjsonpathReference(reference)
 	if reference.source == 6 {
 		return context.generatedNodes[reference.node]
+	}
+	if reference.source == 7 {
+		return checkruntime.JsonbNode{Kind: 7, Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0}
 	}
 	if reference.source == 5 {
 		return checkruntime.JsonbNode{Kind: 4, Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0}
@@ -13024,7 +13029,7 @@ func jsonpathExecutionStored(input checkruntime.JsonpathValue) checkruntime.Json
 			index := 1
 			for index < len(path.Nodes) {
 				node := path.Nodes[index]
-				if node.Kind != checkruntime.JsonpathNodeRoot && node.Kind != checkruntime.JsonpathNodeVariable && node.Kind != checkruntime.JsonpathNodeString && node.Kind != checkruntime.JsonpathNodeNumber && node.Kind != checkruntime.JsonpathNodeNull && node.Kind != checkruntime.JsonpathNodeTrue && node.Kind != checkruntime.JsonpathNodeFalse && node.Kind != checkruntime.JsonpathNodeLast && node.Kind != checkruntime.JsonpathNodeKey && node.Kind != checkruntime.JsonpathNodeAnyKey && node.Kind != checkruntime.JsonpathNodeAnyArray && node.Kind != checkruntime.JsonpathNodeIndex && node.Kind != checkruntime.JsonpathNodeSubscript && node.Kind != checkruntime.JsonpathNodeDescendant && node.Kind != checkruntime.JsonpathNodeCurrent && node.Kind != checkruntime.JsonpathNodeFilter && node.Kind != checkruntime.JsonpathNodeExists && node.Kind != checkruntime.JsonpathNodeNot && node.Kind != checkruntime.JsonpathNodeIsUnknown && (node.Kind < checkruntime.JsonpathNodePlus || node.Kind > checkruntime.JsonpathNodeStarts) && jsonpathMethodCore(node.Kind) == false && node.Kind != jsonpathMethodKeyvalue {
+				if node.Kind != checkruntime.JsonpathNodeRoot && node.Kind != checkruntime.JsonpathNodeVariable && node.Kind != checkruntime.JsonpathNodeString && node.Kind != checkruntime.JsonpathNodeNumber && node.Kind != checkruntime.JsonpathNodeNull && node.Kind != checkruntime.JsonpathNodeTrue && node.Kind != checkruntime.JsonpathNodeFalse && node.Kind != checkruntime.JsonpathNodeLast && node.Kind != checkruntime.JsonpathNodeKey && node.Kind != checkruntime.JsonpathNodeAnyKey && node.Kind != checkruntime.JsonpathNodeAnyArray && node.Kind != checkruntime.JsonpathNodeIndex && node.Kind != checkruntime.JsonpathNodeSubscript && node.Kind != checkruntime.JsonpathNodeDescendant && node.Kind != checkruntime.JsonpathNodeCurrent && node.Kind != checkruntime.JsonpathNodeFilter && node.Kind != checkruntime.JsonpathNodeExists && node.Kind != checkruntime.JsonpathNodeNot && node.Kind != checkruntime.JsonpathNodeIsUnknown && (node.Kind < checkruntime.JsonpathNodePlus || node.Kind > checkruntime.JsonpathNodeStarts) && jsonpathMethodCore(node.Kind) == false && jsonpathTemporalMethod(node.Kind) == false && node.Kind != jsonpathMethodKeyvalue {
 					return checkruntime.JsonpathValue{Kind: checkruntime.JsonpathValueUnknown}
 				}
 				if jsonpathPredicateKind(node.Kind) && node.Next > 0 {
@@ -13057,6 +13062,7 @@ func jsonpathExecutionWalk(input jsonpathExecutionContext, existence bool) jsonp
 	itemCount := 0
 	numbers := []checkruntime.NumericValue{}
 	strings := []checkruntime.TextValue{}
+	temporals := []jsonpathTemporalValue{}
 	operands := []jsonpathReference{}
 	collectDepth := 0
 	collectBase := 0
@@ -13067,6 +13073,7 @@ func jsonpathExecutionWalk(input jsonpathExecutionContext, existence bool) jsonp
 	existsDepth := 0
 	caughtError := false
 	error := 0
+	hardError := false
 	unknown := false
 	for count > 0 && error == 0 && unknown == false {
 		count = langruntime.CheckedIndex(langruntime.CheckedSubtract(count, 1))
@@ -13103,7 +13110,7 @@ func jsonpathExecutionWalk(input jsonpathExecutionContext, existence bool) jsonp
 					langruntime.CheckedAdd(len(pending), 1)
 					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionTask{mode: 6, step: task.step, reference: task.reference, level: task.level, unwrap: context.lax, ignore: true, spec: 0, from: 0, to: 0, mark: 0, scope: jsonpathExecutionEmptyScope()}))
 				}
-				eligible := (step.First >= 0 && task.level >= langruntime.IndexFromI32(step.First, 0)) || (step.First < 0 && step.Last < 0 && task.level > 0 && value.Kind < 5)
+				eligible := (step.First >= 0 && task.level >= langruntime.IndexFromI32(step.First, 0)) || (step.First < 0 && step.Last < 0 && task.level > 0 && (value.Kind < 5 || value.Kind == 7))
 				if eligible {
 					langruntime.CheckedAdd(len(pending), 1)
 					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Next, task.reference, context.lax, true)))
@@ -13339,6 +13346,42 @@ func jsonpathExecutionWalk(input jsonpathExecutionContext, existence bool) jsonp
 							rightText = strings[second.node]
 						}
 						result := jsonpathPredicatePair(&context, step.Kind, first, second, leftNumber, rightNumber, leftText, rightText)
+						if first.source == 7 && second.source == 7 && step.Kind != checkruntime.JsonpathNodeStarts {
+							comparison := jsonpathTemporalCompare(temporals[first.node], temporals[second.node])
+							if comparison.Kind == checkruntime.Int4ValueError {
+								failure := comparison.Error
+								error = langruntime.CheckedIndex(failure.State)
+								hardError = true
+								ready = false
+							}
+							if comparison.Kind == checkruntime.Int4ValueValue {
+								order := langruntime.CheckedI32(comparison.Value)
+								matches := false
+								if step.Kind == checkruntime.JsonpathNodeEq {
+									matches = order == 0
+								}
+								if step.Kind == checkruntime.JsonpathNodeNe {
+									matches = order != 0
+								}
+								if step.Kind == checkruntime.JsonpathNodeLt {
+									matches = order < 0
+								}
+								if step.Kind == checkruntime.JsonpathNodeLe {
+									matches = order <= 0
+								}
+								if step.Kind == checkruntime.JsonpathNodeGt {
+									matches = order > 0
+								}
+								if step.Kind == checkruntime.JsonpathNodeGe {
+									matches = order >= 0
+								}
+								state := 1
+								if matches {
+									state = langruntime.CheckedI32(2)
+								}
+								result = copyjsonpathPredicateValue(jsonpathPredicateValue{state: state, deferred: false})
+							}
+						}
 						if result.deferred {
 							unknown = true
 						} else if result.state == 0 {
@@ -13692,10 +13735,41 @@ func jsonpathExecutionWalk(input jsonpathExecutionContext, existence bool) jsonp
 						pending = append(pending, copyjsonpathExecutionTask(jsonpathKeyvalueTask(task.step, task.reference, value.Child, task.ignore)))
 					}
 				}
+			} else if jsonpathTemporalMethod(step.Kind) {
+				if task.unwrap && value.Kind == 5 {
+					if value.Child > 0 {
+						langruntime.CheckedAdd(len(pending), 1)
+						pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(1, task.step, jsonpathReference{source: task.reference.source, node: value.Child}, false, task.ignore)))
+					}
+				} else {
+					text := jsonpathMethodText(&context, task.reference)
+					if task.reference.source == 5 {
+						text = strings[task.reference.node]
+					}
+					temporal := jsonpathTemporalApply(&context, step, text, value.Kind)
+					if temporal.error > 0 {
+						error = langruntime.CheckedIndex(temporal.error)
+						hardError = temporal.hard
+					}
+					if temporal.unknown {
+						unknown = true
+					}
+					if temporal.kind > 0 && temporal.error == 0 && temporal.unknown == false {
+						index := len(temporals)
+						langruntime.CheckedAdd(len(temporals), 1)
+						temporals = append(temporals, copyjsonpathTemporalValue(temporal))
+						langruntime.CheckedAdd(len(pending), 1)
+						pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Next, jsonpathReference{source: 7, node: index}, context.lax, task.ignore)))
+					}
+				}
 			} else if jsonpathMethodCore(step.Kind) {
 				if step.Kind == jsonpathMethodType {
+					typeIndex := value.Kind
+					if task.reference.source == 7 {
+						typeIndex = langruntime.CheckedI32(langruntime.CheckedSignedAdd(6, temporals[task.reference.node].kind))
+					}
 					langruntime.CheckedAdd(len(pending), 1)
-					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Next, jsonpathReference{source: 2, node: langruntime.CheckedAdd(len(context.pathNodes), langruntime.IndexFromI32(value.Kind, 0))}, context.lax, task.ignore)))
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Next, jsonpathReference{source: 2, node: langruntime.CheckedAdd(len(context.pathNodes), langruntime.IndexFromI32(typeIndex, 0))}, context.lax, task.ignore)))
 				} else if step.Kind == jsonpathMethodSize {
 					size := 1
 					if value.Kind == 5 {
@@ -13737,7 +13811,11 @@ func jsonpathExecutionWalk(input jsonpathExecutionContext, existence bool) jsonp
 					source := 3
 					node := len(numbers)
 					if step.Kind == jsonpathMethodString {
-						computedText = jsonpathConversionStringValue(number, text, value.Kind)
+						if task.reference.source == 7 {
+							computedText = jsonpathTemporalRender(temporals[task.reference.node])
+						} else {
+							computedText = jsonpathConversionStringValue(number, text, value.Kind)
+						}
 						source = langruntime.CheckedI32(5)
 						node = langruntime.CheckedIndex(len(strings))
 					} else if step.Kind == jsonpathMethodBoolean {
@@ -13818,7 +13896,7 @@ func jsonpathExecutionWalk(input jsonpathExecutionContext, existence bool) jsonp
 			count = langruntime.CheckedAdd(count, 1)
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		if error > 0 && error != jsonpathExecVariable && error != jsonpathExecInternal && error != jsonpathExecProgramLimit {
+		if error > 0 && hardError == false && error != jsonpathExecVariable && error != jsonpathExecInternal && error != jsonpathExecProgramLimit {
 			position := count
 			handled := false
 			for position > 0 && handled == false {
@@ -13851,7 +13929,7 @@ func jsonpathExecutionWalk(input jsonpathExecutionContext, existence bool) jsonp
 		selected = append(selected, copyjsonpathReference(items[index]))
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return jsonpathSequence{items: selected, numbers: numbers, strings: strings, generatedNodes: context.generatedNodes, generatedCharacters: context.generatedCharacters, error: error, unknown: unknown}
+	return jsonpathSequence{items: selected, numbers: numbers, strings: strings, temporals: temporals, generatedNodes: context.generatedNodes, generatedCharacters: context.generatedCharacters, error: error, hardError: hardError, unknown: unknown}
 }
 
 type jsonpathCopyTask struct {
@@ -13935,6 +14013,26 @@ func jsonpathExecutionOutput(context *jsonpathExecutionContext, sequence *jsonpa
 					}
 				}
 			}
+			if task.reference.source == 7 {
+				rendered := jsonpathTemporalRender(sequence.temporals[task.reference.node])
+				if rendered.Kind == checkruntime.TextValueError {
+					failure := rendered.Error
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: failure}
+				}
+				if rendered.Kind == checkruntime.TextValueUnknown {
+					return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
+				}
+				if rendered.Kind == checkruntime.TextValueValue {
+					text := langruntime.CheckedString(rendered.Value)
+					content := []rune(text)
+					position := 0
+					for position < len(content) {
+						langruntime.CheckedAdd(len(characters), 1)
+						characters = append(characters, langruntime.CheckedChar(content[position]))
+						position = langruntime.CheckedAdd(position, 1)
+					}
+				}
+			}
 			position := node.TextStart
 			for position < node.TextEnd {
 				langruntime.CheckedAdd(len(characters), 1)
@@ -13942,8 +14040,12 @@ func jsonpathExecutionOutput(context *jsonpathExecutionContext, sequence *jsonpa
 				position = langruntime.CheckedAdd(position, 1)
 			}
 			index := len(nodes)
+			outputKind := node.Kind
+			if task.reference.source == 7 {
+				outputKind = langruntime.CheckedI32(4)
+			}
 			langruntime.CheckedAdd(len(nodes), 1)
-			nodes = append(nodes, checkruntime.JsonbNode{Kind: node.Kind, Child: 0, Next: 0, KeyStart: keyStart, KeyEnd: keyEnd, TextStart: textStart, TextEnd: len(characters)})
+			nodes = append(nodes, checkruntime.JsonbNode{Kind: outputKind, Child: 0, Next: 0, KeyStart: keyStart, KeyEnd: keyEnd, TextStart: textStart, TextEnd: len(characters)})
 			langruntime.CheckedAdd(len(tails), 1)
 			tails = append(tails, langruntime.CheckedIndex(0))
 			if task.parent > 0 {
@@ -14039,7 +14141,7 @@ func jsonpathEvaluate(document checkruntime.JsonbValue, path checkruntime.Jsonpa
 					if sequence.unknown {
 						return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 					}
-					if sequence.error > 0 && (suppress == false || sequence.error == jsonpathExecVariable || sequence.error == jsonpathExecProgramLimit) {
+					if sequence.error > 0 && (suppress == false || sequence.hardError || sequence.error == jsonpathExecVariable || sequence.error == jsonpathExecProgramLimit) {
 						return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueError, Error: checkruntime.MakeSqlError(sequence.error)}
 					}
 					if mode == 0 {
@@ -14441,7 +14543,7 @@ const jsonpathMethodDouble = 116
 const jsonpathMethodCeiling = 123
 const jsonpathMethodNonNumeric = 3452658
 
-var jsonpathMethodTypeNames = []string{"null", "boolean", "boolean", "number", "string", "array", "object"}
+var jsonpathMethodTypeNames = []string{"null", "boolean", "boolean", "number", "string", "array", "object", "date", "time without time zone", "time with time zone", "timestamp without time zone", "timestamp with time zone"}
 
 func jsonpathMethodCore(kind int) bool {
 	kind = langruntime.CheckedI32(kind)
@@ -16714,6 +16816,58 @@ func jsonpathTemporalRender(input jsonpathTemporalValue) checkruntime.TextValue 
 		output = append(output, " BC"...)
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+}
+func jsonpathTemporalMethod(kind int) bool {
+	kind = langruntime.CheckedI32(kind)
+	return kind == 104 || kind == 109 || kind == 126 || kind == 128 || kind == 130 || kind == 132
+}
+func jsonpathTemporalApply(context *jsonpathExecutionContext, method checkruntime.JsonpathNode, input checkruntime.TextValue, valueKind int) jsonpathTemporalValue {
+	valueKind = langruntime.CheckedI32(valueKind)
+	if valueKind != 4 {
+		return jsonpathTemporalInvalid()
+	}
+	if method.Kind == 128 && method.Left > 0 {
+		return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+	}
+	precision := langruntime.CheckedSignedNegate(1)
+	if method.Left > 0 {
+		converted := Int4Z4rh(jsonpathExecutionNumeric(context, jsonpathReference{source: 2, node: method.Left}))
+		if converted.Kind == checkruntime.Int4ValueError {
+			return jsonpathTemporalInvalid()
+		}
+		if converted.Kind == checkruntime.Int4ValueValue {
+			number := langruntime.CheckedI32(converted.Value)
+			precision = langruntime.CheckedI32(number)
+		}
+		if converted.Kind == checkruntime.Int4ValueUnknown {
+			return jsonpathTemporalState(0, int64(0), 0, 0, true, false)
+		}
+	}
+	return jsonpathTemporalConvert(input, method.Kind, precision)
+}
+func jsonpathTemporalCompare(left jsonpathTemporalValue, right jsonpathTemporalValue) checkruntime.Int4Value {
+	left = copyjsonpathTemporalValue(left)
+	right = copyjsonpathTemporalValue(right)
+	if left.kind == right.kind {
+		if left.kind == 3 {
+			return TimetzCmpWy50(checkruntime.TimetzValue{Kind: checkruntime.TimetzValueValue, Value: checkruntime.TimetzPayload{Time: left.value, Zone: left.zone}}, checkruntime.TimetzValue{Kind: checkruntime.TimetzValueValue, Value: checkruntime.TimetzPayload{Time: right.value, Zone: right.zone}})
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: temporalCompare(left.value, right.value)}
+	}
+	if left.kind == 1 && right.kind == 4 {
+		return DateCmpTimestampPpmh(checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: int(int32(left.value))}, checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: right.value})
+	}
+	if left.kind == 4 && right.kind == 1 {
+		return TimestampCmpDateRsh8(checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: left.value}, checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: int(int32(right.value))})
+	}
+	leftCalendar := left.kind == 1 || left.kind == 4 || left.kind == 5
+	rightCalendar := right.kind == 1 || right.kind == 4 || right.kind == 5
+	leftClock := left.kind == 2 || left.kind == 3
+	rightClock := right.kind == 2 || right.kind == 3
+	if (leftCalendar && rightCalendar) || (leftClock && rightClock) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(jsonpathTemporalFeature)}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 }
 func jsonpathRadixLiteral(source *jsonpathScanSource, radix int) checkruntime.TextValue {
 	radix = langruntime.CheckedI32(radix)

@@ -26,6 +26,12 @@ it('binds JSONPath execution identities, defaults and expression composition in 
   })
   try {
     const expressions: Record<string, string> = {
+      temporal_type: `(document @@ '"2024-02-29".datetime().type()=="date"') IS TRUE`,
+      temporal_render: `jsonb_path_query_first(document,'"2024-02-29T12:34:56+03:30".datetime().string()') IS NOT DISTINCT FROM '"2024-02-29T12:34:56+03:30"'::jsonb`,
+      temporal_compare: `(document @@ '"2024-02-29".date()<"2024-02-29T00:00:01".timestamp()') IS TRUE`,
+      temporal_filter: `jsonb_path_query_array('["2024-02-29","bad","2024-03-01"]'::jsonb,'$[*]?(@.date()>"2024-02-28".date()).date()') IS NOT DISTINCT FROM '["2024-02-29","2024-03-01"]'::jsonb`,
+      temporal_error: `jsonb_path_query_first(document,'"bad".datetime()','{}',true) IS NULL`,
+      temporal_hard_skip: `CASE WHEN bypass THEN true ELSE jsonb_path_exists(document,'"2024-02-29".timestamp_tz()','{}',true) END`,
       keyvalue_root: `jsonb_path_query_array('{"a":1}'::jsonb,'$.keyvalue()') IS NOT DISTINCT FROM '[{"id":0,"key":"a","value":1}]'::jsonb`,
       keyvalue_keys: `jsonb_path_query_array(document,'$.a.keyvalue().key') IS NOT DISTINCT FROM expected_array`,
       keyvalue_filter: `jsonb_path_query_first(document,'$.a.keyvalue()?(@.key=="selected").value') IS NOT DISTINCT FROM expected_first`,
@@ -133,7 +139,7 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ['{"a":[true],"flag":true}', 'strict $.a[0,8]', '{}', true, false],
       ['{"a":[true],"flag":true}', 'strict $.a[0,$missing]', '{}', true, false],
       ['{"a":[1,2],"flag":true}', '(', '{}', false, true],
-      ['{"a":[1,2],"flag":true}', '$.a.datetime()', '{}', false, true],
+      ['{"a":"2024","flag":true}', '$.a.datetime("YYYY")', '{}', false, true],
       ['{"a":[1,2,3],"flag":true}', '$.a[last-1]', '{}', false, false],
       ['{"a":[1,2],"flag":true}', '$v+1', '{"v":[1]}', false, false],
       ['{"a":[],"flag":true}', 'strict -$v[0,8]', '{"v":[1]}', true, false],
@@ -169,6 +175,17 @@ it('binds JSONPath execution identities, defaults and expression composition in 
         false,
       ],
       ['{"a":[],"flag":true}', '$v.keyvalue()', '{"v":{"x":1}}', false, false],
+      ['{"a":"2024-02-29","flag":true}', '$.a.date()', '{}', false, false],
+      ['{"a":"12:34:56.123456+03:30","flag":true}', '$.a.time_tz(2).string()', '{}', false, false],
+      [
+        '{"a":"2024-02-29T12:34:56+03:30","flag":true}',
+        '$.a.timestamp_tz().type()',
+        '{}',
+        false,
+        false,
+      ],
+      ['{"a":"bad","flag":true}', '$.a.datetime()', '{}', true, false],
+      ['{"a":"2024-02-29","flag":true}', '$.a.timestamp_tz()', '{}', true, false],
     ]
     for (const [document, source, variables, silent, bypass] of cases) {
       const wanted = (
@@ -209,7 +226,7 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       for (const [name, sql] of Object.entries(expressions)) {
         let expected: Outcome
         if (
-          source === '$.a.datetime()' &&
+          source === '$.a.datetime("YYYY")' &&
           ['array_runtime', 'first_runtime', 'exists_runtime', 'runtime_render'].includes(name)
         )
           expected = { kind: 'Unknown' }
