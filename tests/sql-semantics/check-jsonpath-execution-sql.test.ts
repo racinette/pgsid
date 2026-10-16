@@ -26,6 +26,17 @@ it('binds JSONPath execution identities, defaults and expression composition in 
   })
   try {
     const expressions: Record<string, string> = {
+      integer_round: `jsonb_path_query_first(document,'(1.5).integer()') IS NOT DISTINCT FROM '2'::jsonb`,
+      bigint_boundary: `jsonb_path_query_first(document,'"-9223372036854775808".bigint()') IS NOT DISTINCT FROM '-9223372036854775808'::jsonb`,
+      boolean_prefix: `(document @@ '"of".boolean()') IS FALSE`,
+      boolean_fraction: `(document @@ '((1.0).boolean()==true) is unknown') IS TRUE`,
+      number_scale: `jsonb_path_query_array(document,'"001.2300".number()')::text COLLATE "C" IS NOT DISTINCT FROM '[1.2300]' COLLATE "C"`,
+      decimal_scale: `jsonb_path_query_array(document,'"12.345".decimal(4,2)')::text COLLATE "C" IS NOT DISTINCT FROM '[12.35]' COLLATE "C"`,
+      decimal_negative_scale: `jsonb_path_query_array(document,'"1234".decimal(3,-1)')::text COLLATE "C" IS NOT DISTINCT FROM '[1230]' COLLATE "C"`,
+      converted_string: `(document @@ '(1.2300).string()=="1.2300"') IS TRUE`,
+      converted_prefix: `(document @@ '(12).string() starts with "1"') IS TRUE`,
+      converted_pair: `(document @@ '(12).string()==(12).string()') IS TRUE`,
+      conversion_chain: `jsonb_path_query_array(document,'"001.2300".number().string().number()')::text COLLATE "C" IS NOT DISTINCT FROM '[1.2300]' COLLATE "C"`,
       type: `(document @@ '$.a.type()=="array"') IS NOT DISTINCT FROM expected_exists`,
       size: `jsonb_path_query_first(document,'$.a.size()') IS NOT DISTINCT FROM expected_first`,
       numeric_filter: `jsonb_path_query_array(document,'$.a?(@.type()=="number").abs()') IS NOT DISTINCT FROM expected_array`,
@@ -129,6 +140,14 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ['{"a":1.2300,"flag":true}', '$.a.double()', '{}', false, false],
       ['{"a":[-1,2],"flag":true}', '$.a.abs()', '{}', false, false],
       ['{"a":[1,"x",2],"flag":true}', '$.a.double()', '{}', true, false],
+      ['{"a":1.5,"flag":true}', '$.a.integer()', '{}', false, false],
+      ['{"a":"-9223372036854775808","flag":true}', '$.a.bigint()', '{}', false, false],
+      ['{"a":"of","flag":true}', '$.a.boolean()', '{}', false, false],
+      ['{"a":"001.2300","flag":true}', '$.a.number().string()', '{}', false, false],
+      ['{"a":"12.345","flag":true}', '$.a.decimal(4,2)', '{}', false, false],
+      ['{"a":[1,"bad",2],"flag":true}', '$.a.integer()', '{}', true, false],
+      ['{"a":1.0,"flag":true}', '$.a.boolean()', '{}', false, false],
+      ['{"a":12,"flag":true}', '$.a.string() starts with "1"', '{}', false, false],
     ]
     for (const [document, source, variables, silent, bypass] of cases) {
       const wanted = (

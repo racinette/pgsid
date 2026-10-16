@@ -126,3 +126,33 @@ INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables
 INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'non-numeric magnitude','{"a":false,"flag":true}'::jsonb,'$.a.abs()'::jsonpath,'$.a.abs()','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);
 -- name: document_method_float_error
 INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'float range error','{"a":1e309,"flag":true}'::jsonb,'$.a.double()'::jsonpath,'$.a.double()','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_integer_round
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'integer round','{"a":1.5,"flag":true}'::jsonb,'$.a.integer()'::jsonpath,'$.a.integer()','{}'::jsonb,false,false,true,true,'[2]'::jsonb,'2'::jsonb);
+-- name: document_bigint_string
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'bigint string','{"a":"-9223372036854775808","flag":true}'::jsonb,'$.a.bigint()'::jsonpath,'$.a.bigint()','{}'::jsonb,false,false,true,true,'[-9223372036854775808]'::jsonb,'-9223372036854775808'::jsonb);
+-- name: document_boolean_string
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'boolean string','{"a":"of","flag":true}'::jsonb,'$.a.boolean()'::jsonpath,'$.a.boolean()','{}'::jsonb,false,false,true,true,'[false]'::jsonb,'false'::jsonb);
+-- name: document_number_string
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'number string','{"a":"001.2300","flag":true}'::jsonb,'$.a.number()'::jsonpath,'$.a.number()','{}'::jsonb,false,false,true,true,'[1.2300]'::jsonb,'1.2300'::jsonb);
+-- name: document_decimal_round
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'decimal round','{"a":"12.345","flag":true}'::jsonb,'$.a.decimal(4,2)'::jsonpath,'$.a.decimal(4,2)','{}'::jsonb,false,false,true,true,'[12.35]'::jsonb,'12.35'::jsonb);
+-- name: document_decimal_negative_scale
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'decimal negative scale','{"a":1234,"flag":true}'::jsonb,'$.a.decimal(3,-1)'::jsonpath,'$.a.decimal(3,-1)','{}'::jsonb,false,false,true,true,'[1230]'::jsonb,'1230'::jsonb);
+-- name: document_string_chain
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'string chain','{"a":"001.2300","flag":true}'::jsonb,'$.a.number().string()'::jsonpath,'$.a.number().string()','{}'::jsonb,false,false,true,true,'["1.2300"]'::jsonb,'"1.2300"'::jsonb);
+-- name: document_string_predicate
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'string predicate','{"a":12,"flag":true}'::jsonb,'$.a.string() starts with "1"'::jsonpath,'$.a.string() starts with "1"','{}'::jsonb,false,false,true,true,'[true]'::jsonb,'true'::jsonb);
+-- name: document_conversion_prefix
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'conversion prefix','{"a":[1,"bad",2],"flag":true}'::jsonb,'$.a.integer()'::jsonpath,'$.a.integer()','{}'::jsonb,true,false,true,true,'[1]'::jsonb,'1'::jsonb);
+-- name: document_conversion_wrong_result
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'conversion wrong result','{"a":1.5,"flag":true}'::jsonb,'$.a.integer()'::jsonpath,'$.a.integer()','{}'::jsonb,false,false,true,true,'[1]'::jsonb,'2'::jsonb);
+-- name: document_integer_string_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'integer string error','{"a":"1.5","flag":true}'::jsonb,'$.a.integer()'::jsonpath,'$.a.integer()','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_boolean_fraction_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'boolean fraction error','{"a":1.0,"flag":true}'::jsonb,'$.a.boolean()'::jsonpath,'$.a.boolean()','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_decimal_range_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'decimal range error','{"a":12.345,"flag":true}'::jsonb,'$.a.decimal(3,2)'::jsonpath,'$.a.decimal(3,2)','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_decimal_argument_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'decimal argument error','{"a":1,"flag":true}'::jsonb,'$.a.decimal(0)'::jsonpath,'$.a.decimal(0)','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_string_null_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'string null error','{"a":null,"flag":true}'::jsonb,'$.a.string()'::jsonpath,'$.a.string()','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);

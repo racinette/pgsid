@@ -348,6 +348,14 @@ export type TextValue = {
     readonly kind: "Error";
     readonly value: SqlError;
 };
+export function copyTextValue(value: TextValue): TextValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: langruntime.checkedString(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
 export function equalTextValue(left: TextValue, right: TextValue): boolean {
     if (left.kind !== right.kind)
         return false;

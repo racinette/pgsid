@@ -319,6 +319,19 @@ type TextValue struct {
 	Error SqlError
 }
 
+func CopyTextValue(value TextValue) TextValue {
+	switch value.Kind {
+	case TextValueUnknown:
+		return TextValue{Kind: TextValueUnknown}
+	case TextValueNull:
+		return TextValue{Kind: TextValueNull}
+	case TextValueValue:
+		return TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(value.Value)}
+	case TextValueError:
+		return TextValue{Kind: TextValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
 func Int4Unknown() Int4Value {
 	return Int4Value{Kind: Int4ValueUnknown}
 }

@@ -86,6 +86,8 @@ fn jsonpath_predicate_pair(
     right: JsonpathReference,
     left_number: NumericValue,
     right_number: NumericValue,
+    left_text: TextValue,
+    right_text: TextValue,
 ) -> JsonpathPredicateValue {
     let a = jsonpath_execution_node(context, left);
     let b = jsonpath_execution_node(context, right);
@@ -140,6 +142,17 @@ fn jsonpath_predicate_pair(
         };
     };
     if a.kind == 4 {
+        if left.source == 5 || right.source == 5 {
+            let mut first = left_text;
+            let mut second = right_text;
+            if left.source != 5 {
+                first = jsonpath_method_text(context, left);
+            };
+            if right.source != 5 {
+                second = jsonpath_method_text(context, right);
+            };
+            return jsonpath_conversion_text_predicate(kind, first, second, context.utf8);
+        };
         let mut first = a.text_start;
         let mut second = b.text_start;
         let mut unicode = false;

@@ -12352,6 +12352,461 @@ func jsonpathExecutionLiterals(path *checkruntime.JsonpathPayload) []checkruntim
 	return nodes
 }
 
+const jsonpathMethodBigint = 115
+const jsonpathMethodNumber = 118
+const jsonpathMethodString = 121
+const jsonpathMethodBoolean = 122
+const jsonpathMethodDecimal = 124
+const jsonpathMethodInteger = 125
+
+func jsonpathConversionKind(kind int) bool {
+	kind = langruntime.CheckedI32(kind)
+	return kind == jsonpathMethodBigint || kind == jsonpathMethodNumber || kind == jsonpathMethodString || kind == jsonpathMethodBoolean || kind == jsonpathMethodDecimal || kind == jsonpathMethodInteger
+}
+func jsonpathConversionIntegerText(input checkruntime.TextValue, wide bool) checkruntime.NumericValue {
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		start := 0
+		end := len(characters)
+		for start < end && checkruntime.NumericSpace(characters[start]) {
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		for end > start && checkruntime.NumericSpace(characters[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		negative := false
+		if start < end && (characters[start] == '+' || characters[start] == '-') {
+			negative = characters[start] == '-'
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		radix := int64(10)
+		prefixed := false
+		if langruntime.CheckedAdd(start, 1) < end && characters[start] == '0' {
+			prefix := langruntime.AsciiLowercase(characters[langruntime.CheckedAdd(start, 1)])
+			if prefix == 'x' {
+				radix = int64(16)
+				prefixed = true
+			}
+			if prefix == 'o' {
+				radix = int64(8)
+				prefixed = true
+			}
+			if prefix == 'b' {
+				radix = int64(2)
+				prefixed = true
+			}
+			if prefixed {
+				start = langruntime.CheckedAdd(start, 2)
+			}
+		}
+		minimum := int64(-2147483647)
+		if negative {
+			minimum = int64(-2147483648)
+		}
+		if wide {
+			minimum = int64(-9223372036854775807)
+			if negative {
+				minimum = int64(-9223372036854775808)
+			}
+		}
+		number := int64(0)
+		digits := false
+		previous := prefixed
+		for start < end {
+			character := characters[start]
+			digit := int64(langruntime.CheckedI32(jsonpathScanHex(character)))
+			if character == '_' {
+				if previous == false || langruntime.CheckedAdd(start, 1) == end {
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+				}
+				next := int64(langruntime.CheckedI32(jsonpathScanHex(characters[langruntime.CheckedAdd(start, 1)])))
+				if next < int64(0) || next >= radix {
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+				}
+				previous = false
+			} else {
+				if digit < int64(0) || digit >= radix {
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+				}
+				if number < langruntime.CheckedI64Divide((langruntime.CheckedI64Add(minimum, digit)), radix) {
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+				}
+				number = langruntime.CheckedI64Subtract(langruntime.CheckedI64Multiply(number, radix), digit)
+				digits = true
+				previous = true
+			}
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		if digits == false {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+		}
+		if negative == false {
+			number = langruntime.CheckedI64Subtract(int64(0), number)
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: checkruntime.TextSignedNumber(number)}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func jsonpathConversionNumberText(input checkruntime.TextValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		start := 0
+		end := len(characters)
+		for start < end && checkruntime.NumericSpace(characters[start]) {
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		for end > start && checkruntime.NumericSpace(characters[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		negative := false
+		if start < end && (characters[start] == '+' || characters[start] == '-') {
+			negative = characters[start] == '-'
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		if start == end {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+		}
+		radix := 10
+		prefixEnd := start
+		if langruntime.CheckedAdd(start, 1) < end && characters[start] == '0' {
+			prefix := langruntime.AsciiLowercase(characters[langruntime.CheckedAdd(start, 1)])
+			if prefix == 'x' {
+				radix = langruntime.CheckedI32(16)
+				prefixEnd = langruntime.CheckedIndex(langruntime.CheckedAdd(start, 2))
+			}
+			if prefix == 'o' {
+				radix = langruntime.CheckedI32(8)
+				prefixEnd = langruntime.CheckedIndex(langruntime.CheckedAdd(start, 2))
+			}
+			if prefix == 'b' {
+				radix = langruntime.CheckedI32(2)
+				prefixEnd = langruntime.CheckedIndex(langruntime.CheckedAdd(start, 2))
+			}
+		}
+		clean := langruntime.NewTextBuffer("")
+		position := start
+		for position < end {
+			character := characters[position]
+			if character == '_' {
+				if position == start || langruntime.CheckedAdd(position, 1) == end {
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+				}
+				before := jsonpathScanHex(characters[langruntime.CheckedSubtract(position, 1)])
+				after := jsonpathScanHex(characters[langruntime.CheckedAdd(position, 1)])
+				if (position != prefixEnd && (before < 0 || before >= radix)) || after < 0 || after >= radix {
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+				}
+			} else {
+				clean = append(clean, string(langruntime.CheckedChar(character))...)
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		content := []rune(string(clean))
+		begin := 0
+		if radix == 10 {
+			for langruntime.CheckedAdd(begin, 1) < len(content) && content[begin] == '0' && numericWireDecimalDigit(content[langruntime.CheckedAdd(begin, 1)]) >= 0 {
+				begin = langruntime.CheckedAdd(begin, 1)
+			}
+		}
+		normalized := langruntime.NewTextBuffer("")
+		position = langruntime.CheckedIndex(begin)
+		for position < len(content) {
+			normalized = append(normalized, string(langruntime.CheckedChar(content[position]))...)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		source := jsonpathScanSource{characters: []rune(string(normalized))}
+		if len(source.characters) == 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+		}
+		first := source.characters[0]
+		if numericWireDecimalDigit(first) < 0 && first != '.' {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+		}
+		token := jsonpathScanNumber(&source, 0)
+		if token.error != 0 || token.end != len(source.characters) || (token.kind != jsonpathScanInt && token.kind != jsonpathScanNumeric) {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+		}
+		parsed := jsonpathNumericLiteral(string(normalized))
+		if parsed.Kind == checkruntime.TextValueError {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+		}
+		if parsed.Kind == checkruntime.TextValueValue {
+			number := langruntime.CheckedString(parsed.Value)
+			result := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: number}
+			if negative {
+				result = NumericUminusWcmy(result)
+			}
+			return result
+		}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func jsonpathConversionBooleanText(input checkruntime.TextValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		start := 0
+		end := len(characters)
+		if langruntime.CheckedSubtract(end, start) == 1 && characters[start] == '1' {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+		}
+		if langruntime.CheckedSubtract(end, start) == 1 && characters[start] == '0' {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+		}
+		result := checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+		words := []rune("truefalseyesnoonoff")
+		word := 0
+		for word < 6 {
+			begin := 0
+			length := 4
+			minimum := 1
+			state := true
+			if word == 1 {
+				begin = langruntime.CheckedIndex(4)
+				length = langruntime.CheckedIndex(5)
+				state = false
+			}
+			if word == 2 {
+				begin = langruntime.CheckedIndex(9)
+				length = langruntime.CheckedIndex(3)
+			}
+			if word == 3 {
+				begin = langruntime.CheckedIndex(12)
+				length = langruntime.CheckedIndex(2)
+				state = false
+			}
+			if word == 4 {
+				begin = langruntime.CheckedIndex(14)
+				length = langruntime.CheckedIndex(2)
+				minimum = langruntime.CheckedIndex(2)
+			}
+			if word == 5 {
+				begin = langruntime.CheckedIndex(16)
+				length = langruntime.CheckedIndex(3)
+				minimum = langruntime.CheckedIndex(2)
+				state = false
+			}
+			if langruntime.CheckedSubtract(end, start) >= minimum && langruntime.CheckedSubtract(end, start) <= length {
+				offset := 0
+				equal := true
+				for offset < langruntime.CheckedSubtract(end, start) {
+					if langruntime.AsciiLowercase(characters[langruntime.CheckedAdd(start, offset)]) != words[langruntime.CheckedAdd(begin, offset)] {
+						equal = false
+					}
+					offset = langruntime.CheckedAdd(offset, 1)
+				}
+				if equal {
+					result = checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: state}
+				}
+			}
+			word = langruntime.CheckedAdd(word, 1)
+		}
+		return result
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func jsonpathConversionBooleanValue(number checkruntime.NumericValue, text checkruntime.TextValue, valueKind int) checkruntime.BoolValue {
+	valueKind = langruntime.CheckedI32(valueKind)
+	if valueKind == 1 || valueKind == 2 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: valueKind == 2}
+	}
+	if valueKind == 4 {
+		return jsonpathConversionBooleanText(text)
+	}
+	if valueKind == 3 {
+		if number.Kind == checkruntime.NumericValueValue {
+			value := langruntime.CheckedString(number.Value)
+			parsed := jsonpathConversionIntegerText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}, false)
+			if parsed.Kind == checkruntime.NumericValueError {
+				error := parsed.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			if parsed.Kind == checkruntime.NumericValueValue {
+				value := langruntime.CheckedString(parsed.Value)
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value != "0"}
+			}
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+}
+func jsonpathConversionStringValue(number checkruntime.NumericValue, text checkruntime.TextValue, valueKind int) checkruntime.TextValue {
+	valueKind = langruntime.CheckedI32(valueKind)
+	if valueKind == 4 {
+		return text
+	}
+	if valueKind == 1 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "false"}
+	}
+	if valueKind == 2 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: "true"}
+	}
+	if valueKind == 3 {
+		if number.Kind == checkruntime.NumericValueValue {
+			value := langruntime.CheckedString(number.Value)
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+}
+func jsonpathConversionNumericValue(context *jsonpathExecutionContext, method checkruntime.JsonpathNode, number checkruntime.NumericValue, text checkruntime.TextValue, valueKind int) checkruntime.NumericValue {
+	valueKind = langruntime.CheckedI32(valueKind)
+	if valueKind != 3 && valueKind != 4 {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+	}
+	converted := number
+	if method.Kind == jsonpathMethodInteger || method.Kind == jsonpathMethodBigint {
+		if valueKind == 4 {
+			return jsonpathConversionIntegerText(text, method.Kind == jsonpathMethodBigint)
+		}
+		if method.Kind == jsonpathMethodInteger {
+			integer := Int4Z4rh(converted)
+			if integer.Kind == checkruntime.Int4ValueError {
+				return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+			}
+			return NumericNcrk(integer)
+		}
+		integer := Int8Xy54(converted)
+		if integer.Kind == checkruntime.Int8ValueError {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+		}
+		return Numeric11bc(integer)
+	}
+	if valueKind == 4 {
+		converted = jsonpathConversionNumberText(text)
+	}
+	if method.Kind == jsonpathMethodDecimal && method.Left > 0 {
+		if converted.Kind == checkruntime.NumericValueError {
+			error := converted.Error
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+		}
+		if converted.Kind == checkruntime.NumericValueUnknown {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+		}
+		precision := Int4Z4rh(jsonpathExecutionNumeric(context, jsonpathReference{source: 2, node: method.Left}))
+		if precision.Kind == checkruntime.Int4ValueError {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+		}
+		scale := checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		if method.Right > 0 {
+			scale = Int4Z4rh(jsonpathExecutionNumeric(context, jsonpathReference{source: 2, node: method.Right}))
+		}
+		if scale.Kind == checkruntime.Int4ValueError {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+		}
+		if precision.Kind == checkruntime.Int4ValueValue {
+			p := langruntime.CheckedI32(precision.Value)
+			if scale.Kind == checkruntime.Int4ValueValue {
+				s := langruntime.CheckedI32(scale.Value)
+				if p < 1 || p > 1000 || s < langruntime.CheckedSignedNegate(1000) || s > 1000 {
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathExecParameter)}
+				}
+				packed := s
+				if packed < 0 {
+					packed = langruntime.CheckedI32(langruntime.CheckedSignedAdd(packed, 2048))
+				}
+				return jsonpathConversionRemapNumeric(Numeric879l(converted, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(p, 65536), packed), 4)}))
+			}
+		}
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	return converted
+}
+func jsonpathConversionRemapNumeric(value checkruntime.NumericValue) checkruntime.NumericValue {
+	if value.Kind == checkruntime.NumericValueError {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(jsonpathMethodNonNumeric)}
+	}
+	return value
+}
+func jsonpathConversionTextPredicate(kind int, left checkruntime.TextValue, right checkruntime.TextValue, utf8 bool) jsonpathPredicateValue {
+	kind = langruntime.CheckedI32(kind)
+	if left.Kind == checkruntime.TextValueValue {
+		first := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			second := langruntime.CheckedString(right.Value)
+			a := []rune(first)
+			b := []rune(second)
+			index := 0
+			unicode := false
+			for index < len(a) {
+				if int(langruntime.CheckedChar(a[index])) > 127 {
+					unicode = true
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			index = langruntime.CheckedIndex(0)
+			for index < len(b) {
+				if int(langruntime.CheckedChar(b[index])) > 127 {
+					unicode = true
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if unicode && utf8 == false {
+				return jsonpathPredicateValue{state: 0, deferred: true}
+			}
+			index = langruntime.CheckedIndex(0)
+			order := 0
+			for index < len(a) && index < len(b) && order == 0 {
+				x := int(langruntime.CheckedChar(a[index]))
+				y := int(langruntime.CheckedChar(b[index]))
+				if x < y {
+					order = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+				}
+				if x > y {
+					order = langruntime.CheckedI32(1)
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if order == 0 {
+				if len(a) < len(b) {
+					order = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+				}
+				if len(a) > len(b) {
+					order = langruntime.CheckedI32(1)
+				}
+			}
+			result := false
+			if kind == checkruntime.JsonpathNodeStarts {
+				result = len(b) <= len(a)
+				index = langruntime.CheckedIndex(0)
+				for result && index < len(b) {
+					if a[index] != b[index] {
+						result = false
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+			}
+			if kind == checkruntime.JsonpathNodeEq {
+				result = order == 0
+			}
+			if kind == checkruntime.JsonpathNodeNe {
+				result = order != 0
+			}
+			if kind == checkruntime.JsonpathNodeLt {
+				result = order < 0
+			}
+			if kind == checkruntime.JsonpathNodeLe {
+				result = order <= 0
+			}
+			if kind == checkruntime.JsonpathNodeGt {
+				result = order > 0
+			}
+			if kind == checkruntime.JsonpathNodeGe {
+				result = order >= 0
+			}
+			state := 1
+			if result {
+				state = langruntime.CheckedI32(2)
+			}
+			return jsonpathPredicateValue{state: state, deferred: false}
+		}
+	}
+	return jsonpathPredicateValue{state: 0, deferred: true}
+}
+
 const jsonpathExecSubscript = 3452655
 const jsonpathExecArray = 3452661
 const jsonpathExecMember = 3452662
@@ -12411,15 +12866,19 @@ func copyjsonpathExecutionTask(value jsonpathExecutionTask) jsonpathExecutionTas
 type jsonpathSequence struct {
 	items   []jsonpathReference
 	numbers []checkruntime.NumericValue
+	strings []checkruntime.TextValue
 	error   int
 	unknown bool
 }
 
 func copyjsonpathSequence(value jsonpathSequence) jsonpathSequence {
-	return jsonpathSequence{items: langruntime.CheckedStructs(value.items, copyjsonpathReference), numbers: langruntime.CheckedStructs(value.numbers, checkruntime.CopyNumericValue), error: langruntime.CheckedIndex(value.error), unknown: value.unknown}
+	return jsonpathSequence{items: langruntime.CheckedStructs(value.items, copyjsonpathReference), numbers: langruntime.CheckedStructs(value.numbers, checkruntime.CopyNumericValue), strings: langruntime.CheckedStructs(value.strings, checkruntime.CopyTextValue), error: langruntime.CheckedIndex(value.error), unknown: value.unknown}
 }
 func jsonpathExecutionNode(context *jsonpathExecutionContext, reference jsonpathReference) checkruntime.JsonbNode {
 	reference = copyjsonpathReference(reference)
+	if reference.source == 5 {
+		return checkruntime.JsonbNode{Kind: 4, Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0}
+	}
 	if reference.source == 4 {
 		return checkruntime.JsonbNode{Kind: int(int32(reference.node)), Child: 0, Next: 0, KeyStart: 0, KeyEnd: 0, TextStart: 0, TextEnd: 0}
 	}
@@ -12577,6 +13036,7 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 	items := []jsonpathReference{}
 	itemCount := 0
 	numbers := []checkruntime.NumericValue{}
+	strings := []checkruntime.TextValue{}
 	operands := []jsonpathReference{}
 	collectDepth := 0
 	collectBase := 0
@@ -12595,6 +13055,8 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 		pending := []jsonpathExecutionTask{}
 		computed := checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
 		computedIndex := len(numbers)
+		computedText := checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		computedTextIndex := len(strings)
 		if task.mode == 1 || task.mode == 3 || task.mode == 5 {
 			following := value.Next
 			if task.mode == 5 && task.from >= task.to {
@@ -12848,7 +13310,15 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 						if second.source == 3 {
 							rightNumber = numbers[second.node]
 						}
-						result := jsonpathPredicatePair(context, step.Kind, first, second, leftNumber, rightNumber)
+						leftText := checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+						rightText := checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+						if first.source == 5 {
+							leftText = strings[first.node]
+						}
+						if second.source == 5 {
+							rightText = strings[second.node]
+						}
+						result := jsonpathPredicatePair(context, step.Kind, first, second, leftNumber, rightNumber, leftText, rightText)
 						if result.deferred {
 							unknown = true
 						} else if result.state == 0 {
@@ -13169,9 +13639,40 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 						number = numbers[task.reference.node]
 					}
 					text := jsonpathMethodText(context, task.reference)
-					computed = jsonpathMethodNumeric(step.Kind, number, text, value.Kind)
+					if task.reference.source == 5 {
+						text = strings[task.reference.node]
+					}
+					source := 3
+					node := len(numbers)
+					if step.Kind == jsonpathMethodString {
+						computedText = jsonpathConversionStringValue(number, text, value.Kind)
+						source = langruntime.CheckedI32(5)
+						node = langruntime.CheckedIndex(len(strings))
+					} else if step.Kind == jsonpathMethodBoolean {
+						result := jsonpathConversionBooleanValue(number, text, value.Kind)
+						source = langruntime.CheckedI32(4)
+						node = langruntime.CheckedIndex(0)
+						if result.Kind == checkruntime.BoolValueValue {
+							value := result.Value
+							node = langruntime.CheckedIndex(1)
+							if value {
+								node = langruntime.CheckedIndex(2)
+							}
+						}
+						if result.Kind == checkruntime.BoolValueError {
+							failure := result.Error
+							error = langruntime.CheckedIndex(failure.State)
+						}
+						if result.Kind == checkruntime.BoolValueUnknown {
+							unknown = true
+						}
+					} else if jsonpathConversionKind(step.Kind) {
+						computed = jsonpathConversionNumericValue(context, step, number, text, value.Kind)
+					} else {
+						computed = jsonpathMethodNumeric(step.Kind, number, text, value.Kind)
+					}
 					langruntime.CheckedAdd(len(pending), 1)
-					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Next, jsonpathReference{source: 3, node: len(numbers)}, context.lax, task.ignore)))
+					pending = append(pending, copyjsonpathExecutionTask(jsonpathExecutionMakeTask(0, step.Next, jsonpathReference{source: source, node: node}, context.lax, task.ignore)))
 				}
 			} else if step.Kind == checkruntime.JsonpathNodeDescendant {
 				langruntime.CheckedAdd(len(pending), 1)
@@ -13193,8 +13694,24 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 			langruntime.CheckedAdd(len(numbers), 1)
 			numbers = append(numbers, checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: number})
 		}
+		if computedText.Kind == checkruntime.TextValueError {
+			failure := computedText.Error
+			error = langruntime.CheckedIndex(failure.State)
+		}
+		textUnknown := false
+		if computedText.Kind == checkruntime.TextValueUnknown {
+			textUnknown = true
+		}
+		if computedText.Kind == checkruntime.TextValueValue {
+			value := langruntime.CheckedString(computedText.Value)
+			langruntime.CheckedAdd(len(strings), 1)
+			strings = append(strings, checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value})
+		}
 		index := 0
 		for index < len(pending) {
+			if textUnknown && pending[index].reference.source == 5 && pending[index].reference.node == computedTextIndex {
+				unknown = true
+			}
 			if computedUnknown {
 				if pending[index].reference.source == 3 && pending[index].reference.node == computedIndex {
 					unknown = true
@@ -13242,7 +13759,7 @@ func jsonpathExecutionWalk(context *jsonpathExecutionContext, existence bool) js
 		selected = append(selected, copyjsonpathReference(items[index]))
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return jsonpathSequence{items: selected, numbers: numbers, error: error, unknown: unknown}
+	return jsonpathSequence{items: selected, numbers: numbers, strings: strings, error: error, unknown: unknown}
 }
 
 type jsonpathCopyTask struct {
@@ -13302,6 +13819,19 @@ func jsonpathExecutionOutput(context *jsonpathExecutionContext, sequence *jsonpa
 				if number.Kind == checkruntime.NumericValueValue {
 					text := langruntime.CheckedString(number.Value)
 					content := []rune(text)
+					position := 0
+					for position < len(content) {
+						langruntime.CheckedAdd(len(characters), 1)
+						characters = append(characters, langruntime.CheckedChar(content[position]))
+						position = langruntime.CheckedAdd(position, 1)
+					}
+				}
+			}
+			if task.reference.source == 5 {
+				text := sequence.strings[task.reference.node]
+				if text.Kind == checkruntime.TextValueValue {
+					value := langruntime.CheckedString(text.Value)
+					content := []rune(value)
 					position := 0
 					for position < len(content) {
 						langruntime.CheckedAdd(len(characters), 1)
@@ -13564,7 +14094,7 @@ var jsonpathMethodTypeNames = []string{"null", "boolean", "boolean", "number", "
 
 func jsonpathMethodCore(kind int) bool {
 	kind = langruntime.CheckedI32(kind)
-	return kind == jsonpathMethodAbs || kind == jsonpathMethodSize || kind == jsonpathMethodType || kind == jsonpathMethodFloor || kind == jsonpathMethodDouble || kind == jsonpathMethodCeiling
+	return kind == jsonpathMethodAbs || kind == jsonpathMethodSize || kind == jsonpathMethodType || kind == jsonpathMethodFloor || kind == jsonpathMethodDouble || kind == jsonpathMethodCeiling || jsonpathConversionKind(kind)
 }
 func jsonpathMethodText(context *jsonpathExecutionContext, reference jsonpathReference) checkruntime.TextValue {
 	reference = copyjsonpathReference(reference)
@@ -14700,7 +15230,7 @@ func jsonpathPredicateKind(kind int) bool {
 	kind = langruntime.CheckedI32(kind)
 	return kind == checkruntime.JsonpathNodeExists || kind == checkruntime.JsonpathNodeNot || kind == checkruntime.JsonpathNodeIsUnknown || (kind >= checkruntime.JsonpathNodeEq && kind <= checkruntime.JsonpathNodeStarts)
 }
-func jsonpathPredicatePair(context *jsonpathExecutionContext, kind int, left jsonpathReference, right jsonpathReference, leftNumber checkruntime.NumericValue, rightNumber checkruntime.NumericValue) jsonpathPredicateValue {
+func jsonpathPredicatePair(context *jsonpathExecutionContext, kind int, left jsonpathReference, right jsonpathReference, leftNumber checkruntime.NumericValue, rightNumber checkruntime.NumericValue, leftText checkruntime.TextValue, rightText checkruntime.TextValue) jsonpathPredicateValue {
 	kind = langruntime.CheckedI32(kind)
 	left = copyjsonpathReference(left)
 	right = copyjsonpathReference(right)
@@ -14743,6 +15273,17 @@ func jsonpathPredicatePair(context *jsonpathExecutionContext, kind int, left jso
 		}
 	}
 	if a.Kind == 4 {
+		if left.source == 5 || right.source == 5 {
+			first := leftText
+			second := rightText
+			if left.source != 5 {
+				first = jsonpathMethodText(context, left)
+			}
+			if right.source != 5 {
+				second = jsonpathMethodText(context, right)
+			}
+			return jsonpathConversionTextPredicate(kind, first, second, context.utf8)
+		}
 		first := a.TextStart
 		second := b.TextStart
 		unicode := false

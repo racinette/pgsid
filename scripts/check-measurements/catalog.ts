@@ -108,7 +108,7 @@ export function jsonValueRequirements(item: BuiltinCallable) {
       {
         kind: 'implementation',
         requirement:
-          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Core type/size/abs/floor/ceiling/double methods are implemented. Remaining scalar conversions, keyvalue, temporal methods and regex matching are deferred. Platform-dependent float input forms retain Unknown requirements. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
+          'Structural traversal, variables, arithmetic, subscript expressions, filters/current scopes, comparisons, starts-with, exists and three-valued Boolean predicates are implemented. Core type/size/abs/floor/ceiling/double methods and integer/bigint/boolean/number/decimal/string conversions are implemented. Keyvalue, temporal methods and regex matching are deferred. Platform-dependent float input forms retain Unknown requirements. Stored-text inversion conservatively defers complex arithmetic/predicate accessor grouping; exact source graphs preserve query identity.',
         owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
       },
     ]

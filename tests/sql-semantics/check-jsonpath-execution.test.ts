@@ -15,7 +15,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 
-it('executes structural JSONPath sequences, arithmetic, predicates, filters, core methods and silent prefixes in every target', async () => {
+it('executes structural JSONPath sequences, arithmetic, predicates, filters, core methods, scalar conversions and silent prefixes in every target', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonpath-execution-'))
   const value = (input: string | boolean): Input => ({ kind: 'Value', value: input })
@@ -116,6 +116,59 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       requiresRegex: false,
     }
     const cases: [string, string, string?, boolean?][] = [
+      ['1.5', '$.integer()'],
+      ['-1.5', '$.integer()'],
+      ['2.5', '$.bigint()'],
+      ['2147483647.4', '$.integer()'],
+      ['2147483647.5', '$.integer()'],
+      ['9223372036854775807.4', '$.bigint()'],
+      ['9223372036854775807.5', '$.bigint()'],
+      ['-9223372036854775808.4', '$.bigint()'],
+      ['-9223372036854775808.5', '$.bigint()'],
+      ['true', '$.boolean()'],
+      ['false', '$.boolean()'],
+      ['1', '$.boolean()'],
+      ['-2', '$.boolean()'],
+      ['0', '$.boolean()'],
+      ['1.0', '$.boolean()'],
+      ['0.000', '$.boolean()'],
+      ['2147483648', '$.boolean()'],
+      ['1.2300', '$.number()'],
+      ['1.2300', '$.decimal()'],
+      ['12.345', '$.decimal(4,2)'],
+      ['12.345', '$.decimal(3,2)'],
+      ['1234', '$.decimal(3,-1)'],
+      ['1234', '$.decimal(2,-1)'],
+      ['0.0012345', '$.decimal(3,5)'],
+      ['0.009999', '$.decimal(3,5)'],
+      ['1', '$.decimal(0)'],
+      ['1', '$.decimal(1001)'],
+      ['1', '$.decimal(3,1001)'],
+      ['1', '$.decimal(3,-1001)'],
+      ['1', '$.decimal(2147483648)'],
+      ['1', '$.decimal(0,2147483648)'],
+      ['"bad"', '$.decimal(0)'],
+      ['1.2300', '$.string()'],
+      ['true', '$.string()'],
+      ['false', '$.string()'],
+      ['"text"', '$.string()'],
+      ['"é"', '$.string().type()'],
+      ['null', '$.string()'],
+      ['{}', '$.string()'],
+      ['[]', '$.string()'],
+      ['[1,true,null]', '$.string()'],
+      ['[1,true]', 'strict $.string()'],
+      ['1.2300', '$.string()=="1.2300"'],
+      ['1.2300', '$.string() starts with "1."'],
+      ['-12', '$.abs().string().number()'],
+      ['1.8', '$.integer().string().bigint()'],
+      ['"false"', '$.boolean().string()=="false"'],
+      ['1.0', '$.double().string().boolean()'],
+      ['1', '$.string().size()'],
+      ['"1.2300"', '$.number().string()=="1.2300"'],
+      ['{"a":["1","x","2"]}', '$.a.integer()'],
+      ['{"a":["1","x","2"]}', '$.a?((@.integer()==1) is unknown)'],
+      ['"1"', '($.integer()==1) && ($.string()=="1")'],
       ['null', '$.type()'],
       ['true', '$.type()'],
       ['false', '$.type()'],
@@ -373,6 +426,79 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
     for (const left of ['1==1', '1==2', '1=="x"'])
       for (const right of ['1==1', '1==2', '1=="x"'])
         for (const operator of ['&&', '||']) cases.push(['{}', `(${left}) ${operator} (${right})`])
+    for (const text of [
+      '1',
+      '001',
+      '1.5',
+      '1e2',
+      '0x_FF',
+      '0o10',
+      '0b_101',
+      '-9223372036854775808',
+      '9223372036854775808',
+      '0x80000000',
+      '-0x80000000',
+      '1_000',
+      '1__2',
+      '',
+      '+ 1',
+    ])
+      for (const method of ['integer', 'bigint'])
+        cases.push([JSON.stringify(text), `$.${method}()`])
+    for (const text of [
+      't',
+      'tr',
+      'tru',
+      'true',
+      'f',
+      'fa',
+      'false',
+      'y',
+      'ye',
+      'yes',
+      'n',
+      'no',
+      'on',
+      'of',
+      'off',
+      'o',
+      '',
+      '  FALSE  ',
+      '+1',
+      '-0',
+      '1',
+      '0',
+      '2',
+      'truely',
+    ])
+      cases.push([JSON.stringify(text), '$.boolean()'])
+    for (const text of [
+      '001.2300',
+      '+.5',
+      '-.25',
+      '1.',
+      '1e2',
+      '1e-2',
+      '0x_FF',
+      '0o10',
+      '0b_101',
+      '1_000.0_5',
+      '1e1_0',
+      '0x1p0',
+      'NaN',
+      'Infinity',
+      '-Infinity',
+      '1..2',
+      '1__2',
+      '_1',
+      '1_',
+      '0x__FF',
+      '',
+      '1e309',
+      '1e-16384',
+      '0e16384',
+    ])
+      cases.push([JSON.stringify(text), '$.number()'])
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     const references: unknown[] = []
     for (const [document, path, variables = '{}', storedSafe = true] of cases) {
@@ -546,7 +672,15 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       }
     }
     for (const variant of variants) {
-      for (const path of ['$=="é"', '$<"雪"', '$ starts with "é"']) {
+      for (const path of [
+        '$=="é"',
+        '$<"雪"',
+        '$ starts with "é"',
+        '$.string()=="éclair"',
+        '$.string()<"雪"',
+        '$.string() starts with "é"',
+        '$.string()==$.string()',
+      ]) {
         const query =
           variant.mode < 4
             ? `SELECT ${variant.sql}($1::jsonb,$2::jsonpath,'{}',false)::text AS text`

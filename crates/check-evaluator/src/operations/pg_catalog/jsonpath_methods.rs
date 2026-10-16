@@ -16,6 +16,7 @@ fn jsonpath_method_core(kind: i32) -> bool {
         || kind == JSONPATH_METHOD_FLOOR
         || kind == JSONPATH_METHOD_DOUBLE
         || kind == JSONPATH_METHOD_CEILING
+        || jsonpath_conversion_kind(kind)
 }
 
 fn jsonpath_method_text(

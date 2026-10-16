@@ -49,6 +49,7 @@ struct JsonpathExecutionTask {
 struct JsonpathSequence {
     items: Vec<JsonpathReference>,
     numbers: Vec<NumericValue>,
+    strings: Vec<TextValue>,
     error: u32,
     unknown: bool,
 }
@@ -57,6 +58,17 @@ fn jsonpath_execution_node(
     context: &JsonpathExecutionContext,
     reference: JsonpathReference,
 ) -> JsonbNode {
+    if reference.source == 5 {
+        return JsonbNode {
+            kind: 4,
+            child: 0,
+            next: 0,
+            key_start: 0,
+            key_end: 0,
+            text_start: 0,
+            text_end: 0,
+        };
+    };
     if reference.source == 4 {
         return JsonbNode {
             kind: reference.node as i32,
@@ -305,6 +317,7 @@ fn jsonpath_execution_walk(
     let mut items: Vec<JsonpathReference> = Vec::new();
     let mut item_count: usize = 0;
     let mut numbers: Vec<NumericValue> = Vec::new();
+    let mut strings: Vec<TextValue> = Vec::new();
     let mut operands: Vec<JsonpathReference> = Vec::new();
     let mut collect_depth: usize = 0;
     let mut collect_base: usize = 0;
@@ -326,6 +339,8 @@ fn jsonpath_execution_walk(
         let mut pending: Vec<JsonpathExecutionTask> = Vec::new();
         let mut computed = NumericValue::Unknown;
         let computed_index = numbers.len();
+        let mut computed_text = TextValue::Unknown;
+        let computed_text_index = strings.len();
         if task.mode == 1 || task.mode == 3 || task.mode == 5 {
             let mut following = value.next;
             if task.mode == 5 && task.from >= task.to {
@@ -794,6 +809,14 @@ fn jsonpath_execution_walk(
                         if second.source == 3 {
                             right_number = numbers[second.node].clone();
                         };
+                        let mut left_text = TextValue::Unknown;
+                        let mut right_text = TextValue::Unknown;
+                        if first.source == 5 {
+                            left_text = strings[first.node].clone();
+                        };
+                        if second.source == 5 {
+                            right_text = strings[second.node].clone();
+                        };
                         let result = jsonpath_predicate_pair(
                             context,
                             step.kind,
@@ -801,6 +824,8 @@ fn jsonpath_execution_walk(
                             second,
                             left_number,
                             right_number,
+                            left_text,
+                            right_text,
                         );
                         if result.deferred {
                             unknown = true;
@@ -1395,14 +1420,45 @@ fn jsonpath_execution_walk(
                     if task.reference.source == 3 {
                         number = numbers[task.reference.node].clone();
                     };
-                    let text = jsonpath_method_text(context, task.reference);
-                    computed = jsonpath_method_numeric(step.kind, number, text, value.kind);
+                    let mut text = jsonpath_method_text(context, task.reference);
+                    if task.reference.source == 5 {
+                        text = strings[task.reference.node].clone();
+                    };
+                    let mut source: i32 = 3;
+                    let mut node = numbers.len();
+                    if step.kind == JSONPATH_METHOD_STRING {
+                        computed_text = jsonpath_conversion_string_value(number, text, value.kind);
+                        source = 5;
+                        node = strings.len();
+                    } else if step.kind == JSONPATH_METHOD_BOOLEAN {
+                        let result = jsonpath_conversion_boolean_value(number, text, value.kind);
+                        source = 4;
+                        node = 0;
+                        if let BoolValue::Value(value) = result {
+                            node = 1;
+                            if value {
+                                node = 2;
+                            };
+                        };
+                        if let BoolValue::Error(failure) = result {
+                            error = failure.state;
+                        };
+                        if let BoolValue::Unknown = result {
+                            unknown = true;
+                        };
+                    } else if jsonpath_conversion_kind(step.kind) {
+                        computed = jsonpath_conversion_numeric_value(
+                            context, step, number, text, value.kind,
+                        );
+                    } else {
+                        computed = jsonpath_method_numeric(step.kind, number, text, value.kind);
+                    };
                     pending.push(jsonpath_execution_make_task(
                         0,
                         step.next,
                         JsonpathReference {
-                            source: 3,
-                            node: numbers.len(),
+                            source: source,
+                            node: node,
                         },
                         context.lax,
                         task.ignore,
@@ -1430,8 +1486,24 @@ fn jsonpath_execution_walk(
         if let NumericValue::Value(number) = computed {
             numbers.push(NumericValue::Value(number));
         };
+        if let TextValue::Error(failure) = computed_text {
+            error = failure.state;
+        };
+        let mut text_unknown = false;
+        if let TextValue::Unknown = computed_text {
+            text_unknown = true;
+        };
+        if let TextValue::Value(value) = computed_text {
+            strings.push(TextValue::Value(value));
+        };
         let mut index: usize = 0;
         while index < pending.len() {
+            if text_unknown
+                && pending[index].reference.source == 5
+                && pending[index].reference.node == computed_text_index
+            {
+                unknown = true;
+            };
             if computed_unknown {
                 if pending[index].reference.source == 3
                     && pending[index].reference.node == computed_index
@@ -1482,6 +1554,7 @@ fn jsonpath_execution_walk(
     JsonpathSequence {
         items: selected,
         numbers: numbers,
+        strings: strings,
         error: error,
         unknown: unknown,
     }
@@ -1563,6 +1636,17 @@ fn jsonpath_execution_output(
                 let number = sequence.numbers[task.reference.node].clone();
                 if let NumericValue::Value(text) = number {
                     let content: Vec<char> = text.chars().collect();
+                    let mut position: usize = 0;
+                    while position < content.len() {
+                        characters.push(content[position]);
+                        position += 1;
+                    }
+                };
+            };
+            if task.reference.source == 5 {
+                let text = sequence.strings[task.reference.node].clone();
+                if let TextValue::Value(value) = text {
+                    let content: Vec<char> = value.chars().collect();
                     let mut position: usize = 0;
                     while position < content.len() {
                         characters.push(content[position]);
