@@ -15,7 +15,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 
-it('executes structural JSONPath sequences, arithmetic, predicates, filters, core methods, scalar conversions and silent prefixes in every target', async () => {
+it('executes structural JSONPath sequences, arithmetic, predicates, filters, core methods, scalar conversions, keyvalue objects and silent prefixes in every target', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonpath-execution-'))
   const value = (input: string | boolean): Input => ({ kind: 'Value', value: input })
@@ -70,7 +70,7 @@ it('executes structural JSONPath sequences, arithmetic, predicates, filters, cor
     const operations = source.modules.find((module) => module.name === 'pg_catalog')!
     operations.files.find((file) => file.path.endsWith('/jsonpath_execute.rs'))!.source += `
 pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables: TextValue, silent: BoolValue, expected: TextValue, mode: i32, stored: bool, utf8: bool) -> BoolValue {
- let input = jsonb_from_text(document);
+ let input = jsonpath_execution_input(document);
  let vars = jsonb_from_text(variables);
  let mut query = jsonpath_from_coerced_source_utf8(path.clone());
  if stored { query = jsonpath_from_stored_text(path); };
@@ -102,6 +102,35 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
  };
  sql__pg_catalog__jsonb_eq__tfah(result, jsonb_from_text(expected))
 }
+fn jsonpath_execution_input(document:TextValue)->JsonbValue {
+ let copied=document.clone();
+ if let TextValue::Value(name)=copied {
+  let mut delta:i32=0;
+  if name=="compact_keyvalue_47".to_owned(){delta=47;};
+  if name=="compact_keyvalue_48".to_owned(){delta=48;};
+  if delta>0 {
+   let mut characters:Vec<char>=Vec::new();
+   characters.push('a');
+   let mut index:usize=0;
+   while index<1048576 {characters.push('x');index+=1;}
+   let mut nodes:Vec<JsonbNode>=Vec::new();
+   nodes.push(JsonbNode{kind:-1,child:0,next:0,key_start:0,key_end:0,text_start:0,text_end:0});
+   nodes.push(JsonbNode{kind:6,child:2,next:0,key_start:0,key_end:0,text_start:0,text_end:0});
+   nodes.push(JsonbNode{kind:5,child:3,next:0,key_start:0,key_end:1,text_start:0,text_end:0});
+   index=0;
+   while index<256 {
+    let mut end:usize=1048577;
+    let mut next=index+4;
+    if index==255 {end=usize::try_from(1047548-delta).unwrap_or(0);next=0;};
+    nodes.push(JsonbNode{kind:4,child:0,next:next,key_start:0,key_end:0,text_start:1,text_end:end});
+    index+=1;
+   }
+   return JsonbValue::Value(JsonbPayload{characters:characters,nodes:nodes,root:1});
+  };
+ };
+ jsonb_from_text(document)
+}
+
 `
     const inputs = ['document', 'path', 'variables', 'silent', 'expected'].map((name) => ({
       name,
@@ -116,6 +145,60 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       requiresRegex: false,
     }
     const cases: [string, string, string?, boolean?][] = [
+      ['{}', '$.keyvalue()'],
+      ['{"a":1}', '$.keyvalue()'],
+      ['{"a":1}', 'strict $.keyvalue()'],
+      ['{"a":1,"bb":true,"ccc":null}', '$.keyvalue()'],
+      ['{"a":1,"bb":true,"ccc":null}', '$.keyvalue().key'],
+      ['{"a":1,"bb":true,"ccc":null}', '$.keyvalue().value'],
+      ['{"a":1,"bb":true,"ccc":null}', '$.keyvalue().id'],
+      ['{"a":{"x":1},"b":{"y":2}}', '$.*.keyvalue()'],
+      ['{"a":{"x":1},"b":{"y":2}}', '$.keyvalue().value.keyvalue()'],
+      ['{"a":{"x":1},"b":{"y":2}}', '$.keyvalue().value.keyvalue().id'],
+      ['{"a":{"x":1},"b":{"y":2}}', '$.keyvalue().keyvalue()'],
+      ['{"a":{"x":1}}', '$.keyvalue().keyvalue().keyvalue().id'],
+      ['{"a":{"x":1}}', '$.keyvalue().value.keyvalue().value.string()'],
+      ['{"a":[{"x":1},{"y":2}]}', '$.keyvalue().value[*].keyvalue().id'],
+      ['{"a":[true,false]}', '$.keyvalue().value[last]'],
+      ['{"a":[1,2]}', '$.keyvalue().value[0]+1', '{}', false],
+      ['{"a":1,"b":2}', '$.keyvalue()?(@.key=="b").value'],
+      ['{"a":1,"b":2}', '$.keyvalue()?(@.value>1).key'],
+      ['{"a":1}', '$.keyvalue().type()'],
+      ['{"a":1}', '$.keyvalue().id.string()'],
+      ['{"a":1}', '$.keyvalue().id==0'],
+      ['{"a":1}', '$.keyvalue().missing'],
+      ['{"a":1}', 'strict $.keyvalue().missing'],
+      ['{"a":1}', '$.keyvalue().size()'],
+      ['{"a":1}', 'strict $.keyvalue().size()'],
+      ['{"a":1}', 'exists($.keyvalue()) && exists($.keyvalue().keyvalue()?(@.id==20000000000))'],
+      [
+        '{"a":1}',
+        'strict exists($.keyvalue()) && exists($.keyvalue().keyvalue()?(@.id==30000000000))',
+      ],
+      [
+        '{"a":1,"b":2}',
+        '(exists($.keyvalue().key) && exists($.keyvalue().keyvalue()?(@.id==30000000000)))',
+      ],
+      [
+        '{"a":1}',
+        '(exists($.keyvalue().keyvalue()?(@.value=="id")) && exists($.keyvalue().keyvalue().id))',
+      ],
+      ['{"a":1}', '$v.keyvalue()', '{"v":{"x":1}}'],
+      ['{"a":1}', '$v.keyvalue().value.keyvalue()', '{"v":{"x":{"y":1}}}'],
+      ['{"a":1}', '$v.keyvalue().id', '{"before":1.2300,"v":{"x":1}}'],
+      ['{"a":1}', '$v.keyvalue().id', '{"v":{"x":1},"after":1e-64}'],
+      ['{"a":1}', '$missing.keyvalue()'],
+      ['null', '$.keyvalue()'],
+      ['true', '$.keyvalue()'],
+      ['1', '$.keyvalue()'],
+      ['"a"', '$.keyvalue()'],
+      ['[]', '$.keyvalue()'],
+      ['[{"a":1}]', '$.keyvalue()'],
+      ['[{"a":1},{"b":2}]', '$[*].keyvalue()'],
+      ['[{"a":1},2,{"b":2}]', '$[*].keyvalue()'],
+      ['[{"a":1},2,{"b":2}]', 'strict $[*].keyvalue()'],
+      ['[{}, {"a":1}]', '$[*].keyvalue()'],
+      ['{"a":{"x":1},"b":2}', '$.**.keyvalue()'],
       ['1.5', '$.integer()'],
       ['-1.5', '$.integer()'],
       ['2.5', '$.bigint()'],
@@ -583,7 +666,7 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       }
       fixtures.push({
         name: variant.name,
-        row: { ...base, path: value('$.a.keyvalue()') },
+        row: { ...base, path: value('$.a.datetime()') },
         expected: variant.stored
           ? { kind: 'Unknown' }
           : variant.mode === 0 || variant.mode === 4
@@ -598,17 +681,17 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       })
       fixtures.push({
         name: variant.name,
-        row: { ...base, document: value('{"a":1}'), path: value('$.a.keyvalue()') },
+        row: { ...base, document: value('{"a":1}'), path: value('$.a.datetime()') },
         expected: { kind: 'Unknown' },
       })
       fixtures.push({
         name: variant.name,
-        row: { ...base, document: value('{"x":1}'), path: value('(-$.x.keyvalue() == 1)') },
+        row: { ...base, document: value('{"x":1}'), path: value('(-$.x.datetime() == 1)') },
         expected: { kind: 'Unknown' },
       })
     }
     for (const variant of variants) {
-      for (const path of ['$.a.keyvalue()', '$ like_regex "a"'])
+      for (const path of ['$.a.datetime()', '$ like_regex "a"'])
         fixtures.push({
           name: variant.name,
           row: {
@@ -628,7 +711,7 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
     for (const variant of variants.filter((item) => item.mode < 4)) {
       const row: Row = {
         document: value('{}'),
-        path: value('(-$.x.keyvalue() == 1)'),
+        path: value('(-$.x.datetime() == 1)'),
         variables: value('[]'),
         silent: value(true),
         expected: value('true'),
@@ -708,6 +791,47 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       }
     }
     for (const variant of variants) {
+      const document = '{"a":"éé","b":{"v":1}}'
+      for (const [path, deferredModes] of [
+        ['$.b.keyvalue()', [2, 3]],
+        ['$.b.keyvalue().id', [2, 3]],
+        ['$.b.keyvalue().key', []],
+        ['$.b.keyvalue().value', []],
+        ['$.b.keyvalue().id.type()', []],
+        ['$.b.keyvalue().id==null', []],
+        ['$.b.keyvalue().id!=null', []],
+        ['$.b.keyvalue().id==28', [0, 1, 2, 3, 4, 5]],
+        ['$.b.keyvalue().keyvalue().key', []],
+        ['$.b.keyvalue().keyvalue().id', []],
+      ] as const) {
+        const query =
+          variant.mode < 4
+            ? `SELECT ${variant.sql}($1::jsonb,$2::jsonpath,'{}',false)::text AS text`
+            : `SELECT ($1::jsonb ${variant.mode === 4 ? '@?' : '@@'} $2::jsonpath)::text AS text`
+        let output: string | null = null
+        let expected: Outcome = { kind: 'True' }
+        try {
+          output = (await pg.query<{ text: string | null }>(query, [document, path])).rows[0]!.text
+        } catch (failure) {
+          expected = error((failure as { code: string }).code)
+        }
+        if (!variant.utf8 && (deferredModes as readonly number[]).includes(variant.mode))
+          expected = { kind: 'Unknown' }
+        fixtures.push({
+          name: variant.name,
+          row: {
+            document: value(document),
+            path: value(path),
+            variables: value('{}'),
+            silent: value(false),
+            expected: output === null ? { kind: 'Null' } : value(output),
+          },
+          expected,
+        })
+        references.push({ document, path, variant: variant.name, output, expected })
+      }
+    }
+    for (const variant of variants) {
       for (const document of ['"0x1p0"'])
         fixtures.push({
           name: variant.name,
@@ -770,6 +894,77 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
         },
         expected: { kind: 'True' },
       })
+    for (const delta of [47, 48]) {
+      const arrayBytes = 4 + 256 * 4 + 255 * 1048576 + 1047547 - delta
+      expect(arrayBytes + 16).toBeLessThanOrEqual(0x0fffffff)
+      expect(arrayBytes + 48 > 0x0fffffff).toBe(delta === 47)
+      for (const path of [
+        '$.keyvalue().type()',
+        'exists($.keyvalue())',
+        'strict exists($.keyvalue())',
+      ])
+        for (const variant of variants.filter((item) => !item.stored && item.utf8)) {
+          const boolean = path !== '$.keyvalue().type()'
+          let output: string | null =
+            variant.mode === 2 ? (boolean ? '[true]' : '["object"]') : boolean ? 'true' : '"object"'
+          let expected: Outcome = { kind: 'True' }
+          if (!boolean && variant.mode < 2) output = 'true'
+          if (!boolean && variant.mode === 4) output = 'true'
+          if (!boolean && variant.mode === 1) {
+            expected = error('22038')
+            output = null
+          }
+          if (!boolean && variant.mode === 5) output = null
+          if (delta === 47 && path !== 'exists($.keyvalue())') {
+            expected = error('54000')
+            output = null
+          }
+          fixtures.push({
+            name: variant.name,
+            row: {
+              document: value(`compact_keyvalue_${delta}`),
+              path: value(path),
+              variables: value('{}'),
+              silent: value(false),
+              expected: output === null ? { kind: 'Null' } : value(output),
+            },
+            expected,
+          })
+          if (delta === 47 && path === '$.keyvalue().type()' && variant.mode === 2)
+            fixtures.push({
+              name: variant.name,
+              row: {
+                document: value(`compact_keyvalue_${delta}`),
+                path: value(path),
+                variables: value('{}'),
+                silent: value(true),
+                expected: { kind: 'Null' },
+              },
+              expected: error('54000'),
+            })
+        }
+      for (const variant of variants.filter(
+        (item) => !item.stored && item.utf8 && (item.mode === 0 || item.mode === 4),
+      ))
+        fixtures.push({
+          name: variant.name,
+          row: {
+            document: value(`compact_keyvalue_${delta}`),
+            path: value('$.keyvalue()'),
+            variables: value('{}'),
+            silent: value(false),
+            expected: value('true'),
+          },
+          expected: { kind: 'True' },
+        })
+      references.push({
+        compactKeyvalue: delta,
+        arrayBytes,
+        sourceBytes: arrayBytes + 16,
+        generatedBytes: arrayBytes + 48,
+        formatLimit: 0x0fffffff,
+      })
+    }
     await mkdir('artifacts/jsonpath-arithmetic', { recursive: true })
     await writeFile(
       'artifacts/jsonpath-arithmetic/lossy-rendering.json',

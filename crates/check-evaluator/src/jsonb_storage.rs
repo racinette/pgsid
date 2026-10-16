@@ -215,7 +215,11 @@ fn jsonb_storage_extents(
             let node = source.nodes[index];
             let mut size = jsonb_storage_bounds(0i64, 0i64);
             if node.kind == 3 {
-                size = jsonb_storage_numeric(source, node);
+                if node.text_start == node.text_end {
+                    size = jsonb_storage_bounds(6i64, 16i64);
+                } else {
+                    size = jsonb_storage_numeric(source, node);
+                };
             } else if node.kind == 4 {
                 size = jsonb_storage_span(characters, node.text_start, node.text_end, utf8);
             } else if node.kind >= 5 {
@@ -389,6 +393,6 @@ pub fn jsonb_ordered_object_offsets(source: &JsonbPayload, utf8: bool) -> Vec<Nu
     result
 }
 
-fn jsonb_storage_admission(source: &JsonbPayload) -> BoolValue {
+pub fn jsonb_storage_admission(source: &JsonbPayload) -> BoolValue {
     jsonb_storage_decision(jsonb_storage_layout(source))
 }

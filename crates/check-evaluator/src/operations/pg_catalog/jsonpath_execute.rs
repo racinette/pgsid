@@ -6,6 +6,7 @@ const JSONPATH_EXEC_SINGLETON: u32 = 3452660;
 const JSONPATH_EXEC_VARIABLE: u32 = 6820852;
 const JSONPATH_EXEC_PARAMETER: u32 = 3452619;
 const JSONPATH_EXEC_INTERNAL: u32 = 56966976;
+const JSONPATH_EXEC_PROGRAM_LIMIT: u32 = 8584704;
 
 #[derive(Clone, Copy)]
 struct JsonpathReference {
@@ -28,6 +29,12 @@ struct JsonpathExecutionContext {
     lax: bool,
     utf8: bool,
     ordered_result: bool,
+    document_ids: Vec<NumericValue>,
+    variables_ids: Vec<NumericValue>,
+    generated_nodes: Vec<JsonbNode>,
+    generated_characters: Vec<char>,
+    generated_ids: Vec<NumericValue>,
+    next_generated_id: i64,
 }
 
 #[derive(Clone, Copy)]
@@ -50,6 +57,8 @@ struct JsonpathSequence {
     items: Vec<JsonpathReference>,
     numbers: Vec<NumericValue>,
     strings: Vec<TextValue>,
+    generated_nodes: Vec<JsonbNode>,
+    generated_characters: Vec<char>,
     error: u32,
     unknown: bool,
 }
@@ -58,6 +67,9 @@ fn jsonpath_execution_node(
     context: &JsonpathExecutionContext,
     reference: JsonpathReference,
 ) -> JsonbNode {
+    if reference.source == 6 {
+        return context.generated_nodes[reference.node];
+    };
     if reference.source == 5 {
         return JsonbNode {
             kind: 4,
@@ -105,6 +117,9 @@ fn jsonpath_execution_character(
     source: i32,
     index: usize,
 ) -> char {
+    if source == 6 {
+        return context.generated_characters[index];
+    };
     if source == 1 {
         return context.variables_characters[index];
     };
@@ -275,6 +290,7 @@ fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
                     && node.kind != JSONPATH_NODE_IS_UNKNOWN
                     && (node.kind < JSONPATH_NODE_PLUS || node.kind > JSONPATH_NODE_STARTS)
                     && jsonpath_method_core(node.kind) == false
+                    && node.kind != JSONPATH_METHOD_KEYVALUE
                 {
                     return JsonpathValue::Unknown;
                 };
@@ -298,10 +314,8 @@ fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
     input
 }
 
-fn jsonpath_execution_walk(
-    context: &JsonpathExecutionContext,
-    existence: bool,
-) -> JsonpathSequence {
+fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> JsonpathSequence {
+    let mut context = input;
     let mut tasks: Vec<JsonpathExecutionTask> = Vec::new();
     let mut count: usize = 1;
     tasks.push(jsonpath_execution_make_task(
@@ -335,7 +349,7 @@ fn jsonpath_execution_walk(
     while count > 0 && error == 0 && unknown == false {
         count = count - 1;
         let task = tasks[count];
-        let value = jsonpath_execution_node(context, task.reference);
+        let value = jsonpath_execution_node(&context, task.reference);
         let mut pending: Vec<JsonpathExecutionTask> = Vec::new();
         let mut computed = NumericValue::Unknown;
         let computed_index = numbers.len();
@@ -427,7 +441,7 @@ fn jsonpath_execution_walk(
         };
         if task.mode == 6 {
             if jsonpath_execution_ordered(
-                context,
+                &context,
                 task.reference,
                 context.path_nodes[task.step].next,
                 collect_depth > 0,
@@ -512,8 +526,8 @@ fn jsonpath_execution_walk(
             } else {
                 let first = items[task.mark];
                 let second = items[task.level];
-                let mut left = jsonpath_execution_numeric(context, first);
-                let mut right = jsonpath_execution_numeric(context, second);
+                let mut left = jsonpath_execution_numeric(&context, first);
+                let mut right = jsonpath_execution_numeric(&context, second);
                 if first.source == 3 {
                     left = numbers[first.node].clone();
                 };
@@ -579,7 +593,7 @@ fn jsonpath_execution_walk(
                 });
             };
             let selected = operands[task.level];
-            let mut number = jsonpath_execution_numeric(context, selected);
+            let mut number = jsonpath_execution_numeric(&context, selected);
             if selected.source == 3 {
                 number = numbers[selected.node].clone();
             };
@@ -616,7 +630,7 @@ fn jsonpath_execution_walk(
             let mut index = Int4Value::Error(make_sql_error(JSONPATH_EXEC_SUBSCRIPT));
             if item_count - task.mark == 1 {
                 let selected = items[task.mark];
-                let mut number = jsonpath_execution_numeric(context, selected);
+                let mut number = jsonpath_execution_numeric(&context, selected);
                 if selected.source == 3 {
                     number = numbers[selected.node].clone();
                 };
@@ -724,7 +738,7 @@ fn jsonpath_execution_walk(
                         let mut offset: i32 = 0;
                         while child > 0 && offset < from {
                             child = jsonpath_execution_node(
-                                context,
+                                &context,
                                 JsonpathReference {
                                     source: task.reference.source,
                                     node: child,
@@ -801,8 +815,8 @@ fn jsonpath_execution_walk(
                     while right_index < item_count && ready && unknown == false {
                         let first = items[left_index];
                         let second = items[right_index];
-                        let mut left_number = jsonpath_execution_numeric(context, first);
-                        let mut right_number = jsonpath_execution_numeric(context, second);
+                        let mut left_number = jsonpath_execution_numeric(&context, first);
+                        let mut right_number = jsonpath_execution_numeric(&context, second);
                         if first.source == 3 {
                             left_number = numbers[first.node].clone();
                         };
@@ -818,7 +832,7 @@ fn jsonpath_execution_walk(
                             right_text = strings[second.node].clone();
                         };
                         let result = jsonpath_predicate_pair(
-                            context,
+                            &context,
                             step.kind,
                             first,
                             second,
@@ -880,7 +894,7 @@ fn jsonpath_execution_walk(
             let step = context.path_nodes[task.step];
             let mut predicate: i32 = 0;
             if item_count - task.mark == 1 {
-                predicate = jsonpath_execution_node(context, items[task.mark]).kind;
+                predicate = jsonpath_execution_node(&context, items[task.mark]).kind;
             } else {
                 error = JSONPATH_EXEC_INTERNAL;
             };
@@ -973,6 +987,103 @@ fn jsonpath_execution_walk(
                 ));
             };
         };
+        if task.mode == 22 {
+            let entry = jsonpath_execution_node(
+                &context,
+                JsonpathReference {
+                    source: task.reference.source,
+                    node: task.spec,
+                },
+            );
+            if entry.next > 0 {
+                pending.push(jsonpath_keyvalue_task(
+                    task.step,
+                    task.reference,
+                    entry.next,
+                    task.ignore,
+                ));
+            };
+            let payload = jsonpath_keyvalue_build(&context, task.reference, task.spec);
+            let admission = jsonb_storage_admission(&payload);
+            if let BoolValue::Error(failure) = admission {
+                error = failure.state;
+            };
+            if let BoolValue::Unknown = admission {
+                unknown = true;
+            };
+            if error == 0 && unknown == false {
+                let offsets = jsonb_ordered_object_offsets(&payload, context.utf8);
+                let root = context.generated_nodes.len();
+                let base = root - 1;
+                let character_base = context.generated_characters.len();
+                let identity = context.next_generated_id;
+                let mut generated_nodes = context.generated_nodes;
+                let mut generated_characters = context.generated_characters;
+                let mut generated_ids = context.generated_ids;
+                let mut position: usize = 0;
+                while position < payload.characters.len() {
+                    generated_characters.push(payload.characters[position]);
+                    position += 1;
+                }
+                position = 1;
+                while position < payload.nodes.len() {
+                    let node = payload.nodes[position];
+                    let mut child: usize = 0;
+                    let mut next: usize = 0;
+                    if node.child > 0 {
+                        child = node.child + base;
+                    };
+                    if node.next > 0 {
+                        next = node.next + base;
+                    };
+                    generated_nodes.push(JsonbNode {
+                        kind: node.kind,
+                        child: child,
+                        next: next,
+                        key_start: node.key_start + character_base,
+                        key_end: node.key_end + character_base,
+                        text_start: node.text_start + character_base,
+                        text_end: node.text_end + character_base,
+                    });
+                    generated_ids.push(jsonpath_keyvalue_add_base(
+                        offsets[position].clone(),
+                        identity,
+                    ));
+                    position += 1;
+                }
+                context = JsonpathExecutionContext {
+                    document_characters: context.document_characters,
+                    document_nodes: context.document_nodes,
+                    document_root: context.document_root,
+                    variables_characters: context.variables_characters,
+                    variables_nodes: context.variables_nodes,
+                    variables_root: context.variables_root,
+                    literal_nodes: context.literal_nodes,
+                    path_characters: context.path_characters,
+                    path_nodes: context.path_nodes,
+                    path_root: context.path_root,
+                    lax: context.lax,
+                    utf8: context.utf8,
+                    ordered_result: context.ordered_result,
+                    document_ids: context.document_ids,
+                    variables_ids: context.variables_ids,
+                    generated_nodes: generated_nodes,
+                    generated_characters: generated_characters,
+                    generated_ids: generated_ids,
+                    next_generated_id: identity + 1i64,
+                };
+                pending.push(jsonpath_execution_make_task(
+                    0,
+                    context.path_nodes[task.step].next,
+                    JsonpathReference {
+                        source: 6,
+                        node: root,
+                    },
+                    context.lax,
+                    task.ignore,
+                ));
+            };
+        };
         if task.mode == 0 && task.step == 0 {
             if collect_depth > 0 && collect_unwrap && context.lax && task.unwrap && value.kind == 5
             {
@@ -1017,7 +1128,7 @@ fn jsonpath_execution_walk(
                 ));
             } else if step.kind == JSONPATH_NODE_VARIABLE {
                 let selected = jsonpath_execution_member(
-                    context,
+                    &context,
                     JsonpathReference {
                         source: 1,
                         node: context.variables_root,
@@ -1058,7 +1169,7 @@ fn jsonpath_execution_walk(
                 if value.kind == 6 {
                     if step.kind == JSONPATH_NODE_KEY {
                         let selected =
-                            jsonpath_execution_member(context, task.reference, task.step);
+                            jsonpath_execution_member(&context, task.reference, task.step);
                         if selected > 0 {
                             pending.push(jsonpath_execution_make_task(
                                 0,
@@ -1074,7 +1185,7 @@ fn jsonpath_execution_walk(
                             error = JSONPATH_EXEC_MEMBER;
                         };
                     } else if jsonpath_execution_ordered(
-                        context,
+                        &context,
                         task.reference,
                         step.next,
                         collect_depth > 0,
@@ -1146,7 +1257,7 @@ fn jsonpath_execution_walk(
                         while child > 0 {
                             size = size + 1;
                             child = jsonpath_execution_node(
-                                context,
+                                &context,
                                 JsonpathReference {
                                     source: task.reference.source,
                                     node: child,
@@ -1351,6 +1462,52 @@ fn jsonpath_execution_walk(
                         task.ignore,
                     ));
                 };
+            } else if step.kind == JSONPATH_METHOD_KEYVALUE {
+                if value.kind == 5 && task.unwrap {
+                    if value.child > 0 {
+                        pending.push(jsonpath_execution_make_task(
+                            1,
+                            task.step,
+                            JsonpathReference {
+                                source: task.reference.source,
+                                node: value.child,
+                            },
+                            false,
+                            task.ignore,
+                        ));
+                    };
+                } else if value.kind != 6 {
+                    error = JSONPATH_EXEC_OBJECT;
+                } else if value.child > 0 {
+                    let terminal_exists = context.lax
+                        && step.next == 0
+                        && ((existence && collect_depth == 0)
+                            || (exists_stop > 0 && collect_depth == exists_depth));
+                    if terminal_exists {
+                        pending.push(jsonpath_execution_make_task(
+                            0,
+                            0,
+                            task.reference,
+                            false,
+                            task.ignore,
+                        ));
+                    } else if jsonpath_execution_ordered(
+                        &context,
+                        task.reference,
+                        step.next,
+                        collect_depth > 0,
+                    ) == false
+                    {
+                        unknown = true;
+                    } else {
+                        pending.push(jsonpath_keyvalue_task(
+                            task.step,
+                            task.reference,
+                            value.child,
+                            task.ignore,
+                        ));
+                    };
+                };
             } else if jsonpath_method_core(step.kind) {
                 if step.kind == JSONPATH_METHOD_TYPE {
                     pending.push(jsonpath_execution_make_task(
@@ -1372,7 +1529,7 @@ fn jsonpath_execution_walk(
                         while child > 0 {
                             size = size + 1;
                             child = jsonpath_execution_node(
-                                context,
+                                &context,
                                 JsonpathReference {
                                     source: task.reference.source,
                                     node: child,
@@ -1416,11 +1573,11 @@ fn jsonpath_execution_walk(
                         ));
                     };
                 } else {
-                    let mut number = jsonpath_execution_numeric(context, task.reference);
+                    let mut number = jsonpath_execution_numeric(&context, task.reference);
                     if task.reference.source == 3 {
                         number = numbers[task.reference.node].clone();
                     };
-                    let mut text = jsonpath_method_text(context, task.reference);
+                    let mut text = jsonpath_method_text(&context, task.reference);
                     if task.reference.source == 5 {
                         text = strings[task.reference.node].clone();
                     };
@@ -1448,7 +1605,7 @@ fn jsonpath_execution_walk(
                         };
                     } else if jsonpath_conversion_kind(step.kind) {
                         computed = jsonpath_conversion_numeric_value(
-                            context, step, number, text, value.kind,
+                            &context, step, number, text, value.kind,
                         );
                     } else {
                         computed = jsonpath_method_numeric(step.kind, number, text, value.kind);
@@ -1519,7 +1676,11 @@ fn jsonpath_execution_walk(
             count += 1;
             index += 1;
         }
-        if error > 0 && error != JSONPATH_EXEC_VARIABLE && error != JSONPATH_EXEC_INTERNAL {
+        if error > 0
+            && error != JSONPATH_EXEC_VARIABLE
+            && error != JSONPATH_EXEC_INTERNAL
+            && error != JSONPATH_EXEC_PROGRAM_LIMIT
+        {
             let mut position = count;
             let mut handled = false;
             while position > 0 && handled == false {
@@ -1555,6 +1716,8 @@ fn jsonpath_execution_walk(
         items: selected,
         numbers: numbers,
         strings: strings,
+        generated_nodes: context.generated_nodes,
+        generated_characters: context.generated_characters,
         error: error,
         unknown: unknown,
     }
@@ -1617,13 +1780,17 @@ fn jsonpath_execution_output(
         while count > 0 {
             count = count - 1;
             let task = tasks[count];
-            let node = jsonpath_execution_node(context, task.reference);
+            let node = jsonpath_execution_result_node(context, sequence, task.reference);
+            if node.kind == 3 && task.reference.source == 6 && node.text_start == node.text_end {
+                return JsonbValue::Unknown;
+            };
             let key_start = characters.len();
             if task.parent > 0 && nodes[task.parent].kind == 6 {
                 let mut position = node.key_start;
                 while position < node.key_end {
-                    characters.push(jsonpath_execution_character(
+                    characters.push(jsonpath_execution_result_character(
                         context,
+                        sequence,
                         task.reference.source,
                         position,
                     ));
@@ -1656,8 +1823,9 @@ fn jsonpath_execution_output(
             };
             let mut position = node.text_start;
             while position < node.text_end {
-                characters.push(jsonpath_execution_character(
+                characters.push(jsonpath_execution_result_character(
                     context,
+                    sequence,
                     task.reference.source,
                     position,
                 ));
@@ -1742,6 +1910,7 @@ fn jsonpath_evaluate(
     silent: BoolValue,
     mode: i32,
     utf8: bool,
+    operator: bool,
 ) -> JsonbValue {
     if let JsonbValue::Error(error) = document {
         return JsonbValue::Error(error);
@@ -1778,56 +1947,22 @@ fn jsonpath_evaluate(
                 };
                 let resolved = jsonpath_execution_stored(path);
                 if let JsonpathValue::Value(query) = resolved {
-                    let mut nodes = jsonpath_execution_literals(&query);
-                    let mut characters = query.characters;
-                    let mut index: usize = 0;
-                    while index < JSONPATH_METHOD_TYPE_NAMES.len() {
-                        let name = JSONPATH_METHOD_TYPE_NAMES[index];
-                        let content: Vec<char> = name.chars().collect();
-                        let start = characters.len();
-                        let mut position: usize = 0;
-                        while position < content.len() {
-                            characters.push(content[position]);
-                            position += 1;
-                        }
-                        nodes.push(JsonbNode {
-                            kind: 4,
-                            child: 0,
-                            next: 0,
-                            key_start: 0,
-                            key_end: 0,
-                            text_start: start,
-                            text_end: characters.len(),
-                        });
-                        index += 1;
-                    }
-                    let mut document = input;
-                    let mut variables = vars;
-                    if utf8 {
-                        document = jsonpath_execution_utf8_payload(document);
-                        variables = jsonpath_execution_utf8_payload(variables);
-                    };
-                    let context = JsonpathExecutionContext {
-                        document_characters: document.characters,
-                        document_nodes: document.nodes,
-                        document_root: document.root,
-                        variables_characters: variables.characters,
-                        variables_nodes: variables.nodes,
-                        variables_root: variables.root,
-                        literal_nodes: nodes,
-                        path_characters: characters,
-                        path_nodes: query.nodes,
-                        path_root: query.root,
-                        lax: query.lax,
-                        utf8: utf8,
-                        ordered_result: mode >= 2,
-                    };
-                    let sequence = jsonpath_execution_walk(&context, mode == 0);
+                    let context = jsonpath_execution_make_context(
+                        input,
+                        vars,
+                        query,
+                        mode >= 2,
+                        utf8,
+                        operator == false,
+                    );
+                    let sequence = jsonpath_execution_walk(context.clone(), mode == 0);
                     if sequence.unknown {
                         return JsonbValue::Unknown;
                     };
                     if sequence.error > 0
-                        && (suppress == false || sequence.error == JSONPATH_EXEC_VARIABLE)
+                        && (suppress == false
+                            || sequence.error == JSONPATH_EXEC_VARIABLE
+                            || sequence.error == JSONPATH_EXEC_PROGRAM_LIMIT)
                     {
                         return JsonbValue::Error(make_sql_error(sequence.error));
                     };
@@ -1839,7 +1974,11 @@ fn jsonpath_evaluate(
                     };
                     if mode == 1 {
                         if sequence.items.len() == 1 {
-                            let node = jsonpath_execution_node(&context, sequence.items[0]);
+                            let node = jsonpath_execution_result_node(
+                                &context,
+                                &sequence,
+                                sequence.items[0],
+                            );
                             if node.kind == 0 {
                                 return JsonbValue::Null;
                             };
@@ -1880,7 +2019,7 @@ pub fn jsonpath_exists_utf8(
     silent: BoolValue,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate(
-        document, path, variables, silent, 0, true,
+        document, path, variables, silent, 0, true, false,
     ))
 }
 
@@ -1891,7 +2030,7 @@ pub fn sql__pg_catalog__jsonb_path_exists__81t5(
     silent: BoolValue,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate(
-        document, path, variables, silent, 0, false,
+        document, path, variables, silent, 0, false, false,
     ))
 }
 
@@ -1902,7 +2041,7 @@ pub fn jsonpath_match_utf8(
     silent: BoolValue,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate(
-        document, path, variables, silent, 1, true,
+        document, path, variables, silent, 1, true, false,
     ))
 }
 
@@ -1913,7 +2052,7 @@ pub fn sql__pg_catalog__jsonb_path_match__421e(
     silent: BoolValue,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate(
-        document, path, variables, silent, 1, false,
+        document, path, variables, silent, 1, false, false,
     ))
 }
 
@@ -1923,7 +2062,7 @@ pub fn jsonpath_query_array_utf8(
     variables: JsonbValue,
     silent: BoolValue,
 ) -> JsonbValue {
-    jsonpath_evaluate(document, path, variables, silent, 2, true)
+    jsonpath_evaluate(document, path, variables, silent, 2, true, false)
 }
 
 pub fn sql__pg_catalog__jsonb_path_query_array__qidf(
@@ -1932,7 +2071,7 @@ pub fn sql__pg_catalog__jsonb_path_query_array__qidf(
     variables: JsonbValue,
     silent: BoolValue,
 ) -> JsonbValue {
-    jsonpath_evaluate(document, path, variables, silent, 2, false)
+    jsonpath_evaluate(document, path, variables, silent, 2, false, false)
 }
 
 pub fn jsonpath_query_first_utf8(
@@ -1941,7 +2080,7 @@ pub fn jsonpath_query_first_utf8(
     variables: JsonbValue,
     silent: BoolValue,
 ) -> JsonbValue {
-    jsonpath_evaluate(document, path, variables, silent, 3, true)
+    jsonpath_evaluate(document, path, variables, silent, 3, true, false)
 }
 
 pub fn sql__pg_catalog__jsonb_path_query_first__w0y6(
@@ -1950,47 +2089,59 @@ pub fn sql__pg_catalog__jsonb_path_query_first__w0y6(
     variables: JsonbValue,
     silent: BoolValue,
 ) -> JsonbValue {
-    jsonpath_evaluate(document, path, variables, silent, 3, false)
+    jsonpath_evaluate(document, path, variables, silent, 3, false, false)
 }
 
 pub fn jsonpath_exists_opr_utf8(document: JsonbValue, path: JsonpathValue) -> BoolValue {
-    jsonpath_exists_utf8(
+    jsonpath_execution_bool_result(jsonpath_evaluate(
         document,
         path,
         jsonb_from_text(TextValue::Value("{}".to_owned())),
         BoolValue::Value(true),
-    )
+        0,
+        true,
+        true,
+    ))
 }
 
 pub fn sql__pg_catalog__jsonb_path_exists_opr__8snd(
     document: JsonbValue,
     path: JsonpathValue,
 ) -> BoolValue {
-    sql__pg_catalog__jsonb_path_exists__81t5(
+    jsonpath_execution_bool_result(jsonpath_evaluate(
         document,
         path,
         jsonb_from_text(TextValue::Value("{}".to_owned())),
         BoolValue::Value(true),
-    )
+        0,
+        false,
+        true,
+    ))
 }
 
 pub fn jsonpath_match_opr_utf8(document: JsonbValue, path: JsonpathValue) -> BoolValue {
-    jsonpath_match_utf8(
+    jsonpath_execution_bool_result(jsonpath_evaluate(
         document,
         path,
         jsonb_from_text(TextValue::Value("{}".to_owned())),
         BoolValue::Value(true),
-    )
+        1,
+        true,
+        true,
+    ))
 }
 
 pub fn sql__pg_catalog__jsonb_path_match_opr__juo6(
     document: JsonbValue,
     path: JsonpathValue,
 ) -> BoolValue {
-    sql__pg_catalog__jsonb_path_match__421e(
+    jsonpath_execution_bool_result(jsonpath_evaluate(
         document,
         path,
         jsonb_from_text(TextValue::Value("{}".to_owned())),
         BoolValue::Value(true),
-    )
+        1,
+        false,
+        true,
+    ))
 }

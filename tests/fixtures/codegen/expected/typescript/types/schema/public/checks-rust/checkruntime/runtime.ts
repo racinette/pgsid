@@ -5791,7 +5791,12 @@ function jsonbStorageExtents(source: JsonbPayload, characters: JsonbStorageChara
             const node: JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(index), copyJsonbNode);
             let size: JsonbStorageSize = copyJsonbStorageSize(jsonbStorageBounds(0n, 0n));
             if (node.kind === 3) {
-                size = copyJsonbStorageSize(jsonbStorageNumeric(source, node));
+                if (node.textStart === node.textEnd) {
+                    size = copyJsonbStorageSize(jsonbStorageBounds(6n, 16n));
+                }
+                else {
+                    size = copyJsonbStorageSize(jsonbStorageNumeric(source, node));
+                }
             }
             else if (node.kind === 4) {
                 size = copyJsonbStorageSize(jsonbStorageSpan(characters, node.textStart, node.textEnd, utf8));
@@ -5945,7 +5950,8 @@ export function jsonbOrderedObjectOffsets(source: JsonbPayload, utf8: boolean): 
     }
     return result;
 }
-function jsonbStorageAdmission(source: JsonbPayload): BoolValue {
+export function jsonbStorageAdmission(source: JsonbPayload): BoolValue {
+    source = copyJsonbPayload(source);
     return jsonbStorageDecision(jsonbStorageLayout(source));
 }
 export const jsonpathNodeRoot = 1;
