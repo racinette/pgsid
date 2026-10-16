@@ -110,7 +110,9 @@ export function splitCheckTypescript(
       if (
         owner === 'runtime' &&
         item.visibility === 'public' &&
-        item.sourceFile?.endsWith('/values.rs')
+        ['/values.rs', '/array.rs', '/array_elements.rs'].some((file) =>
+          item.sourceFile?.endsWith(file),
+        )
       )
         publicValues.push(name)
     }

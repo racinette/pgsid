@@ -251,7 +251,8 @@ exposes a prerequisite:
 - [x] Remove generation-time enum OIDs from emitted literals and public label
       adapters, and verify hash deferral across independent databases.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
-- [x] Establish private typed array storage, dimensions/lower bounds, NULL/Unknown elements, independent nested clones and metadata parity; public SQL admission remains pending.
+- [x] Establish private typed array storage, dimensions/lower bounds, NULL/Unknown elements, independent nested clones and metadata parity.
+- [x] Admit SQL-coerced scalar/enum arrays and domains over arrays, metadata calls, typed builtin NULLs, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
@@ -290,8 +291,7 @@ exposes a prerequisite:
 
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
 Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations, expression composition, and world INSERT parity work together. Preserve distinct SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsing, session-dependent behavior, and unimplemented callables visible in the reports; representation support alone does not complete them.
-Assess recursive ownership before arrays, JSON, and composites. JSON evaluation assumes sufficient execution resources; server stack/allocation exhaustion is separate.
-Catalog identities and pseudo-types share families; polymorphic signatures resolve to concrete values. Database lookups and internal server interfaces require explicit requirements rather than fabricated local results.
+Assess recursive ownership before arrays, JSON, and composites. JSON evaluation assumes sufficient execution resources; server stack/allocation exhaustion is separate. Catalog identities and pseudo-types share families; polymorphic signatures resolve to concrete values. Database lookups and internal server interfaces require explicit requirements rather than fabricated local results.
 
 ## Completion gate for implementation tasks
 

@@ -1,8 +1,10 @@
+import { arrayElementFamily } from '../../shared/check-array-types.js'
 import type { CatalogSnapshot, ColumnInfo, DomainInfo, TableInfo } from '../../../catalog/types.js'
 import type { Config, GoTypeImport } from '../../../config/schema.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import {
   catalogTemporalType,
+  catalogArrayType,
   catalogNumericType,
   catalogJsonType,
   catalogJsonbType,
@@ -91,6 +93,7 @@ export function renderGoSchemaCheckArtifacts(
   } | null
 } {
   const portableValueType = (name: string, oid: number | undefined): string | null => {
+    if (catalogArrayType(name, oid, domains, catalog.enums)) return 'ArrayValue'
     if (catalogJsonType(name, oid, domains)) return 'JsonValue'
     if (catalogJsonbType(name, oid, domains)) return 'JsonbValue'
     if (catalogJsonpathType(name, oid, domains)) return 'JsonpathValue'
@@ -292,6 +295,7 @@ export function renderGoSchemaCheckArtifacts(
               'JsonValue',
               'JsonbValue',
               'JsonpathValue',
+              'ArrayValue',
               'OidValue',
               'PolygonValue',
               'PathValue',
@@ -316,8 +320,11 @@ export function renderGoSchemaCheckArtifacts(
             ].includes(item.rustType)
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
-          const helper =
-            item.rustType === 'JsonpathValue'
+          const helper = item.type.startsWith('array:')
+            ? item.nullness
+              ? 'checkRustArrayNullness'
+              : 'checkRustArray'
+            : item.rustType === 'JsonpathValue'
               ? 'checkRustJsonpath'
               : item.rustType === 'JsonbValue'
                 ? 'checkRustJsonb'
@@ -419,6 +426,10 @@ export function renderGoSchemaCheckArtifacts(
           if (item.rustType === 'ByteaValue') inputHelpers.add('checkPrimitive')
           if (item.rustType === 'Float4Value' || item.rustType === 'Float8Value')
             inputHelpers.add('checkInputFloat')
+          if (item.type.startsWith('array:')) {
+            rustInputAdapters.add('checkRustArray')
+            rustInputAdapters.add('checkRustArrayElement')
+          }
           if (
             item.rustType !== 'LineValue' &&
             item.rustType !== 'LsegValue' &&
@@ -433,6 +444,7 @@ export function renderGoSchemaCheckArtifacts(
             item.rustType !== 'JsonValue' &&
             item.rustType !== 'JsonbValue' &&
             item.rustType !== 'JsonpathValue' &&
+            item.rustType !== 'ArrayValue' &&
             item.rustType !== 'OidValue' &&
             item.rustType !== 'PolygonValue' &&
             item.rustType !== 'PathValue' &&
@@ -470,6 +482,12 @@ export function renderGoSchemaCheckArtifacts(
             )
           return go.call(go.ident(helper), [
             go.selector(row, goName(item.name)),
+            ...(item.type.startsWith('array:')
+              ? [
+                  go.string(item.type.slice('array:'.length)),
+                  go.number(arrayElementFamily(item.type.slice('array:'.length))!),
+                ]
+              : []),
             ...(item.enum
               ? [
                   go.composite(
@@ -693,7 +711,149 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
   }
 }
 
-const goRustAdapterSource = `func checkRustXid[T any](field CheckOptional[T]) checkruntime.XidValue {
+const goRustAdapterSource = `func checkRustArrayNullness[T any](field CheckOptional[T],elementType string,elementKind int) checkruntime.BoolValue { return checkruntime.ArrayIsNull(checkRustArray(field,elementType,elementKind)) }
+func checkRustArray[T any](field CheckOptional[T], elementType string, elementKind int) checkruntime.ArrayValue {
+  if !field.Set { return checkruntime.ArrayUnknown() }
+  if field.Null { return checkruntime.ArrayNull() }
+  input,ok:=any(field.V).(checkruntime.ArrayValue)
+  if !ok { return checkruntime.ArrayUnknown() }
+  if input.Kind==checkruntime.ArrayValueUnknown || input.Kind==checkruntime.ArrayValueNull || input.Kind==checkruntime.ArrayValueError { return input }
+  if input.Kind!=checkruntime.ArrayValueValue { return checkruntime.ArrayUnknown() }
+  if input.Value.ElementType!=elementType || input.Value.ElementKind!=elementKind || len(input.Value.Dimensions)>6 || len(input.Value.Elements)>2147483647 { return checkruntime.ArrayUnknown() }
+  for _,dimension:=range input.Value.Dimensions { if dimension.Lower < -2147483648 || dimension.Lower > 2147483647 || dimension.Length < -2147483648 || dimension.Length > 2147483647 { return checkruntime.ArrayUnknown() } }
+  for _,cell:=range input.Value.Elements { if !checkRustArrayElement(cell,elementKind) { return checkruntime.ArrayUnknown() } }
+  return checkruntime.ArrayFromCoercedValue(input,elementType,elementKind)
+}
+func checkRustArrayElement(input checkruntime.ArrayElement,family int) bool {
+  if input.Kind==checkruntime.ArrayElementUnknown || input.Kind==checkruntime.ArrayElementNull || input.Kind==checkruntime.ArrayElementError { return true }
+  actual:=checkruntime.ArrayElementFamily(input)
+  if actual==0 || actual!=family { return false }
+  if input.Kind==checkruntime.ArrayElementInt2 {
+  if input.Int2 < -2147483648 || input.Int2 > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementInt4 {
+  if input.Int4 < -2147483648 || input.Int4 > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementEnum {
+  if input.Enum.Ordinal < -2147483648 || input.Enum.Ordinal > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementDate {
+  if input.Date < -2147483648 || input.Date > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementText {
+  if !utf8.ValidString(input.Text) || strings.IndexByte(input.Text,0)>=0 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementNumeric {
+  if !utf8.ValidString(input.Numeric) || strings.IndexByte(input.Numeric,0)>=0 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementJson {
+  if !utf8.ValidString(input.Json.Source) || strings.IndexByte(input.Json.Source,0)>=0 { return false }
+  if input.Json.Kind < -2147483648 || input.Json.Kind > 2147483647 { return false }
+  if input.Json.Depth < 0 || input.Json.Depth > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementJsonb {
+  if len(input.Jsonb.Characters)>2147483647 { return false }
+  for _,element1:=range input.Jsonb.Characters {
+    if !utf8.ValidRune(element1) || element1==0 { return false }
+  }
+  if len(input.Jsonb.Nodes)>2147483647 { return false }
+  for _,element2:=range input.Jsonb.Nodes {
+    if element2.Kind < -2147483648 || element2.Kind > 2147483647 { return false }
+    if element2.Child < 0 || element2.Child > 2147483647 { return false }
+    if element2.Next < 0 || element2.Next > 2147483647 { return false }
+    if element2.KeyStart < 0 || element2.KeyStart > 2147483647 { return false }
+    if element2.KeyEnd < 0 || element2.KeyEnd > 2147483647 { return false }
+    if element2.TextStart < 0 || element2.TextStart > 2147483647 { return false }
+    if element2.TextEnd < 0 || element2.TextEnd > 2147483647 { return false }
+  }
+  if input.Jsonb.Root < 0 || input.Jsonb.Root > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementNetwork {
+  if input.Network.Family < 0 || input.Network.Family > 2147483647 { return false }
+  if input.Network.Prefix < -2147483648 || input.Network.Prefix > 2147483647 { return false }
+  if input.Network.Word0 < -2147483648 || input.Network.Word0 > 2147483647 { return false }
+  if input.Network.Word1 < -2147483648 || input.Network.Word1 > 2147483647 { return false }
+  if input.Network.Word2 < -2147483648 || input.Network.Word2 > 2147483647 { return false }
+  if input.Network.Word3 < -2147483648 || input.Network.Word3 > 2147483647 { return false }
+  if input.Network.Word4 < -2147483648 || input.Network.Word4 > 2147483647 { return false }
+  if input.Network.Word5 < -2147483648 || input.Network.Word5 > 2147483647 { return false }
+  if input.Network.Word6 < -2147483648 || input.Network.Word6 > 2147483647 { return false }
+  if input.Network.Word7 < -2147483648 || input.Network.Word7 > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementBit {
+  if !utf8.ValidString(input.Bit) || strings.IndexByte(input.Bit,0)>=0 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementBytea {
+  if !utf8.ValidString(input.Bytea) || strings.IndexByte(input.Bytea,0)>=0 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementMacaddr {
+  if input.Macaddr.Word0 < -2147483648 || input.Macaddr.Word0 > 2147483647 { return false }
+  if input.Macaddr.Word1 < -2147483648 || input.Macaddr.Word1 > 2147483647 { return false }
+  if input.Macaddr.Word2 < -2147483648 || input.Macaddr.Word2 > 2147483647 { return false }
+  if input.Macaddr.Word3 < -2147483648 || input.Macaddr.Word3 > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementMacaddr8 {
+  if input.Macaddr8.Word0 < -2147483648 || input.Macaddr8.Word0 > 2147483647 { return false }
+  if input.Macaddr8.Word1 < -2147483648 || input.Macaddr8.Word1 > 2147483647 { return false }
+  if input.Macaddr8.Word2 < -2147483648 || input.Macaddr8.Word2 > 2147483647 { return false }
+  if input.Macaddr8.Word3 < -2147483648 || input.Macaddr8.Word3 > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementUuid {
+  if input.Uuid.Word0 < -2147483648 || input.Uuid.Word0 > 2147483647 { return false }
+  if input.Uuid.Word1 < -2147483648 || input.Uuid.Word1 > 2147483647 { return false }
+  if input.Uuid.Word2 < -2147483648 || input.Uuid.Word2 > 2147483647 { return false }
+  if input.Uuid.Word3 < -2147483648 || input.Uuid.Word3 > 2147483647 { return false }
+  if input.Uuid.Word4 < -2147483648 || input.Uuid.Word4 > 2147483647 { return false }
+  if input.Uuid.Word5 < -2147483648 || input.Uuid.Word5 > 2147483647 { return false }
+  if input.Uuid.Word6 < -2147483648 || input.Uuid.Word6 > 2147483647 { return false }
+  if input.Uuid.Word7 < -2147483648 || input.Uuid.Word7 > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementFloat4 {
+  if input.Float4 < -2147483648 || input.Float4 > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementTimetz {
+  if input.Timetz.Zone < -2147483648 || input.Timetz.Zone > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementInterval {
+  if input.Interval.Months < -2147483648 || input.Interval.Months > 2147483647 { return false }
+  if input.Interval.Days < -2147483648 || input.Interval.Days > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementPath {
+  if len(input.Path.Points)>2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementPolygon {
+  if len(input.Polygon.Points)>2147483647 { return false }
+  if input.Polygon.Bounds.Kind!=checkruntime.BoxValueUnknown && input.Polygon.Bounds.Kind!=checkruntime.BoxValueNonNull && input.Polygon.Bounds.Kind!=checkruntime.BoxValueValue { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementInternalChar {
+  if input.InternalChar < -2147483648 || input.InternalChar > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementSnapshot {
+  if len(input.Snapshot.Xip)>2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementJsonpath {
+  if len(input.Jsonpath.Characters)>2147483647 { return false }
+  for _,element6:=range input.Jsonpath.Characters {
+    if !utf8.ValidRune(element6) || element6==0 { return false }
+  }
+  if len(input.Jsonpath.Nodes)>2147483647 { return false }
+  for _,element7:=range input.Jsonpath.Nodes {
+    if element7.Kind < -2147483648 || element7.Kind > 2147483647 { return false }
+    if element7.Next < 0 || element7.Next > 2147483647 { return false }
+    if element7.Left < 0 || element7.Left > 2147483647 { return false }
+    if element7.Right < 0 || element7.Right > 2147483647 { return false }
+    if element7.TextStart < 0 || element7.TextStart > 2147483647 { return false }
+    if element7.TextEnd < 0 || element7.TextEnd > 2147483647 { return false }
+    if element7.First < -2147483648 || element7.First > 2147483647 { return false }
+    if element7.Last < -2147483648 || element7.Last > 2147483647 { return false }
+    if element7.Flags < -2147483648 || element7.Flags > 2147483647 { return false }
+  }
+  if input.Jsonpath.Root < 0 || input.Jsonpath.Root > 2147483647 { return false }
+  }
+  if input.Kind==checkruntime.ArrayElementByteaUnspecified && input.ByteaUnspecified<0 { return false }
+  return true
+}
+func checkRustXid[T any](field CheckOptional[T]) checkruntime.XidValue {
   if !field.Set { return checkruntime.XidUnknown() }
   if field.Null { return checkruntime.XidNull() }
   if value, ok := any(field.V).(checkruntime.XidValue); ok {
