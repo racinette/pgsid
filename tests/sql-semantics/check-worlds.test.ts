@@ -149,7 +149,14 @@ const binaryContextCases = new Map([
   ...sessionDependentCases,
   ...catalogBinaryCases,
 ])
+const arraySortContextCases = new Map<string, string>([
+  [
+    '043_lane_allocations/sorted_precision_ambiguous_ties/sorted_precision_text',
+    'world_043_lane_allocations.lane_sorted_precision.sorted_precision_text',
+  ],
+])
 const jsonValueContextCases = new Map<string, string>([
+  ...arraySortContextCases,
   ...['clock_exists', 'clock_match', 'clock_results', 'clock_first'].map(
     (name) =>
       [

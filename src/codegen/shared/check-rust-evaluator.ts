@@ -296,6 +296,18 @@ export const isArrayBinarySend = (item: ReturnType<typeof builtinMetadata>): boo
   item.args[0] === 'pg_catalog.anyarray' &&
   item.result === 'pg_catalog.bytea'
 
+const isArraySort = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'array_sort' &&
+  item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  [1, 2, 3].includes(item.args.length) &&
+  item.args[0] === 'pg_catalog.anyarray' &&
+  item.args.slice(1).every((type) => type === 'pg_catalog.bool') &&
+  item.result === 'pg_catalog.anyarray'
+
 const isArrayReverse = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
   item.schema === 'pg_catalog' &&
@@ -1052,6 +1064,7 @@ export function emitCheckRustEvaluator(
       const arrayFill = isArrayFill(implementation)
       const arrayTrim = isArrayTrim(implementation)
       const arrayReverse = isArrayReverse(implementation)
+      const arraySort = isArraySort(implementation)
       const arrayBinarySend = isArrayBinarySend(implementation)
       const arrayRewrite = isArrayRewrite(implementation)
       const arrayTransform = isArrayTransform(implementation)
@@ -1073,7 +1086,7 @@ export function emitCheckRustEvaluator(
               ? enumIdentity
               : arrayFill
                 ? `array:${operands[0]?.type}`
-                : arrayTrim || arrayReverse
+                : arrayTrim || arrayReverse || arraySort
                   ? operands[0]?.type
                   : arrayStringIO && implementation.name === 'string_to_array'
                     ? 'array:pg_catalog.text'
@@ -1268,15 +1281,17 @@ export function emitCheckRustEvaluator(
         }
         return { name, type: call.type }
       }
-      if (isArrayComparison(implementation) || arraySearch || arrayRewrite) {
+      if (isArrayComparison(implementation) || arraySearch || arrayRewrite || arraySort) {
         const arrayType = operands[0]?.type
         if (
           !arrayType?.startsWith('array:') ||
-          (arrayRewrite
-            ? operands.slice(1).some((operand) => operand.type !== arrayType.slice(6))
-            : arraySearch
-              ? operands[1]?.type !== arrayType.slice(6)
-              : operands.length !== 2 || operands[1]?.type !== arrayType)
+          (arraySort
+            ? operands.slice(1).some((operand) => operand.type !== 'pg_catalog.bool')
+            : arrayRewrite
+              ? operands.slice(1).some((operand) => operand.type !== arrayType.slice(6))
+              : arraySearch
+                ? operands[1]?.type !== arrayType.slice(6)
+                : operands.length !== 2 || operands[1]?.type !== arrayType)
         )
           throw new UnsupportedCheckRustExpression(
             'Array comparison requires one concrete array identity',
@@ -1387,6 +1402,55 @@ export function emitCheckRustEvaluator(
               scalarLines.push(`${result} = array_order_from_equality(${compared.name});`)
             } else scalarLines.push(`${result} = int4_unknown();`)
           }
+        }
+        if (arraySort) {
+          const initial = fresh('array_sort_initial'),
+            plan = fresh('array_sort_plan')
+          const zero = fresh('array_sort_zero'),
+            result = fresh('array_sort_result')
+          const index = fresh('array_sort_index'),
+            left = fresh('array_sort_left'),
+            right = fresh('array_sort_right')
+          const pair = fresh('array_sort_pair'),
+            compared = fresh('array_sort_compared')
+          const direction = operands[1]?.name ?? fresh('array_sort_direction')
+          if (!operands[1]) destination.push(`let ${direction} = make_bool_value(false);`)
+          const nullsFirst = operands[2]?.name ?? direction
+          destination.push(
+            `let ${initial} = prepare_array_sort(${ownedOperand(operands[0]!)}, ${direction}, ${nullsFirst}, ${selected !== null});`,
+            `let mut ${plan}: ArraySortPayload = ${initial};`,
+            `let ${zero} = make_int4_value(0);`,
+            `while array_sort_continues(&${plan}) {`,
+            `    let mut ${result}: Int4Value = ${zero};`,
+            `    if array_sort_needs_pair(&${plan}) {`,
+            `        let mut ${index}: Int4Value = ${zero};`,
+            `        while array_sort_pair_continues(&${plan}, ${index}, ${result}) {`,
+            `            let ${left} = array_sort_element_at(&${plan}, ${index}, false);`,
+            `            let ${right} = array_sort_element_at(&${plan}, ${index}, true);`,
+            `            let ${pair} = array_sort_cell_pair(&${plan}, ${left}.clone(), ${right}.clone());`,
+            `            let mut ${compared}: Int4Value = ${pair};`,
+            `            if array_pair_requires_scalar(${pair}) {`,
+          )
+          const scalarLines: string[] = []
+          emitPair(left, right, compared, scalarLines)
+          destination.push(
+            ...indent(indent(indent(indent(scalarLines)))),
+            '            };',
+            `            ${result} = ${compared};`,
+            `            ${index} = array_text_next_index(${index});`,
+            '        }',
+            '    };',
+            `    ${plan} = array_sort_step(${plan}, ${result});`,
+            '}',
+          )
+          const sorted = fresh('array_sorted'),
+            name = fresh('array_sort')
+          destination.push(
+            `let ${sorted} = finish_array_sort(${plan});`,
+            `let ${name} = ${implementation.rustName}(${sorted});`,
+          )
+          callables.add(implementation.rustName)
+          return { name, type: call.type }
         }
         if (arrayRewrite) {
           const remove = implementation.name === 'array_remove',

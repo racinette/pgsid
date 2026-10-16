@@ -1843,7 +1843,7 @@ export interface PointPayload {
 export function copyPointPayload(value: PointPayload): PointPayload {
     return { x: langruntime.checkedI64(value.x), y: langruntime.checkedI64(value.y), wireKnown: langruntime.checkedBool(value.wireKnown) };
 }
-function equalPointPayload(left: PointPayload, right: PointPayload): boolean {
+export function equalPointPayload(left: PointPayload, right: PointPayload): boolean {
     return left.x === right.x && left.y === right.y && left.wireKnown === right.wireKnown;
 }
 export type PointValue = {
@@ -9663,6 +9663,40 @@ export function finishArrayRewrite(original: ArrayValue, plan: ArrayComparisonPa
         }
     }
     return { kind: "Unknown" };
+}
+export interface ArraySortPayload {
+    elementType: string;
+    elementKind: number;
+    dimensions: ArrayDimension[];
+    elements: ArrayElement[];
+    order: number[];
+    buffer: number[];
+    ties: number[];
+    rows: number;
+    width: number;
+    run: number;
+    segment: number;
+    left: number;
+    right: number;
+    output: number;
+    phase: number;
+    tie: number;
+    state: number;
+    error: SqlError;
+    descending: boolean;
+    nullsFirst: boolean;
+}
+function copyArraySortPayload(value: ArraySortPayload): ArraySortPayload {
+    return { elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement), order: langruntime.checkedIndices(value.order), buffer: langruntime.checkedIndices(value.buffer), ties: langruntime.checkedIndices(value.ties), rows: langruntime.checkedI32(value.rows), width: langruntime.checkedI32(value.width), run: langruntime.checkedI32(value.run), segment: langruntime.checkedI32(value.segment), left: langruntime.checkedI32(value.left), right: langruntime.checkedI32(value.right), output: langruntime.checkedI32(value.output), phase: langruntime.checkedI32(value.phase), tie: langruntime.checkedI32(value.tie), state: langruntime.checkedI32(value.state), error: value.error, descending: langruntime.checkedBool(value.descending), nullsFirst: langruntime.checkedBool(value.nullsFirst) };
+}
+export type ArraySortPlan = {
+    kind: "Value";
+    value: ArraySortPayload;
+};
+function copyArraySortPlan(value: ArraySortPlan): ArraySortPlan {
+    switch (value.kind) {
+        case "Value": return { kind: "Value", value: copyArraySortPayload(value.value) };
+    }
 }
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);

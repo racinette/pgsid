@@ -405,6 +405,15 @@ func (g *generator) goExpression(value *node) ast.Expr {
 	return nil
 }
 
+func (g *generator) crateRecordTransfer(value *node, destination *node) bool {
+	structure := g.structs[path(destination)]
+	if structure == nil || !hasDerive(structure, "Clone") || hasDerive(structure, "Copy") || value == nil || value.Kind != "call" || value.Callee == nil || len(value.Callee.Segments) != 1 {
+		return false
+	}
+	function := g.functions[value.Callee.Segments[0]]
+	return function != nil && function.Visibility == "crate" && path(function.ReturnType) == path(destination)
+}
+
 func (g *generator) goStatements(statements []*node) []ast.Stmt {
 	result := make([]ast.Stmt, 0, len(statements))
 	for index, statement := range statements {
@@ -448,7 +457,12 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 			if buffer := g.goTextBinding(value.Left); buffer != nil {
 				result = append(result, goAssign(buffer, goTextBuffer(g.goExpression(value.Right)), token.ASSIGN))
 			} else {
-				result = append(result, goAssign(g.goExpression(value.Left), g.goDetach(g.goExpression(value.Right), g.inferType(value.Left)), token.ASSIGN))
+				destination := g.inferType(value.Left)
+				assigned := g.goExpression(value.Right)
+				if !g.crateRecordTransfer(value.Right, destination) {
+					assigned = g.goDetach(assigned, destination)
+				}
+				result = append(result, goAssign(g.goExpression(value.Left), assigned, token.ASSIGN))
 			}
 		case "method-call":
 			if (value.Method == "push" || value.Method == "push_str") && path(g.inferType(value.Receiver)) == "String" {
@@ -661,6 +675,9 @@ func (g *generator) goItem(value *node) []ast.Decl {
 			parameters = append(parameters, &ast.Field{Names: []*ast.Ident{goIdent(name)}, Type: g.goType(parameter.Type)})
 		}
 		for _, parameter := range value.Parameters {
+			if value.Visibility == "crate" {
+				continue
+			}
 			if value.Visibility != "public" && parameter.Type.Kind == "reference" && g.types[path(parameter.Type.Inner)] {
 				continue
 			}

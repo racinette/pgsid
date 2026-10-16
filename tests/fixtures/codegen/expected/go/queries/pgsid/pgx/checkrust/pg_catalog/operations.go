@@ -839,6 +839,492 @@ func ArrayPositionsJonj(input checkruntime.ArrayValue) checkruntime.ArrayValue {
 	input = checkruntime.CopyArrayValue(input)
 	return input
 }
+
+const arraySortMissing = 466560
+const arraySortArrayMissing = 6822435
+
+func arraySortPayload(value checkruntime.ArrayPayload, state int, error checkruntime.SqlError, descending bool, nullsFirst bool) checkruntime.ArraySortPayload {
+	value = checkruntime.CopyArrayPayload(value)
+	state = langruntime.CheckedI32(state)
+	rows := 0
+	width := 0
+	if len(value.Dimensions) > 0 {
+		rows = langruntime.CheckedI32(value.Dimensions[0].Length)
+		width = langruntime.CheckedI32(langruntime.CheckedSignedDivide((int(int32(len(value.Elements)))), rows))
+	}
+	order := []int{}
+	buffer := []int{}
+	ties := []int{}
+	index := 0
+	for index < rows {
+		position := langruntime.IndexFromI32(index, 0)
+		langruntime.CheckedAdd(len(order), 1)
+		order = append(order, langruntime.CheckedIndex(position))
+		langruntime.CheckedAdd(len(buffer), 1)
+		buffer = append(buffer, langruntime.CheckedIndex(position))
+		langruntime.CheckedAdd(len(ties), 1)
+		ties = append(ties, langruntime.CheckedIndex(0))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	right := 0
+	if rows > 0 {
+		right = langruntime.CheckedI32(1)
+	}
+	return checkruntime.ArraySortPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: value.Elements, Order: order, Buffer: buffer, Ties: ties, Rows: rows, Width: width, Run: 1, Segment: 0, Left: 0, Right: right, Output: 0, Phase: 1, Tie: 1, State: state, Error: error, Descending: descending, NullsFirst: nullsFirst}
+}
+func arraySortStatus(state int, error checkruntime.SqlError) checkruntime.ArraySortPayload {
+	state = langruntime.CheckedI32(state)
+	dimensions := []checkruntime.ArrayDimension{}
+	elements := []checkruntime.ArrayElement{}
+	value := checkruntime.ArrayPayload{ElementType: "", ElementKind: 0, Dimensions: dimensions, Elements: elements}
+	return arraySortPayload(value, state, error, false, false)
+}
+func PrepareArraySort(input checkruntime.ArrayValue, descending checkruntime.BoolValue, nullsFirst checkruntime.BoolValue, available bool) checkruntime.ArraySortPayload {
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return arraySortStatus(langruntime.CheckedSignedNegate(2), error)
+	}
+	if descending.Kind == checkruntime.BoolValueError {
+		error := descending.Error
+		return arraySortStatus(langruntime.CheckedSignedNegate(2), error)
+	}
+	if nullsFirst.Kind == checkruntime.BoolValueError {
+		error := nullsFirst.Error
+		return arraySortStatus(langruntime.CheckedSignedNegate(2), error)
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return arraySortStatus(0, checkruntime.MakeSqlError(0))
+	}
+	if descending == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) || nullsFirst == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return arraySortStatus(0, checkruntime.MakeSqlError(0))
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		if descending.Kind == checkruntime.BoolValueValue {
+			reverse := descending.Value
+			if nullsFirst.Kind == checkruntime.BoolValueValue {
+				nullOrder := nullsFirst.Value
+				state := 1
+				error := checkruntime.MakeSqlError(0)
+				if len(value.Dimensions) == 0 || value.Dimensions[0].Length < 2 {
+					state = langruntime.CheckedI32(2)
+				} else if available == false {
+					state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(2))
+					error = checkruntime.MakeSqlError(arraySortMissing)
+					if len(value.Dimensions) > 1 {
+						error = checkruntime.MakeSqlError(arraySortArrayMissing)
+					}
+				}
+				return arraySortPayload(value, state, error, reverse, nullOrder)
+			}
+		}
+	}
+	return arraySortStatus(langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(0))
+}
+func ArraySortContinues(input *checkruntime.ArraySortPayload) bool {
+	return input.State == 1
+}
+func arraySortMiddle(input *checkruntime.ArraySortPayload) int {
+	value := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(input.Segment))), (int64(langruntime.CheckedI32(input.Run))))
+	if value > (int64(langruntime.CheckedI32(input.Rows))) {
+		return input.Rows
+	}
+	return int(int32(value))
+}
+func arraySortEnd(input *checkruntime.ArraySortPayload) int {
+	value := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(input.Segment))), langruntime.CheckedI64Multiply(int64(2), (int64(langruntime.CheckedI32(input.Run)))))
+	if value > (int64(langruntime.CheckedI32(input.Rows))) {
+		return input.Rows
+	}
+	return int(int32(value))
+}
+func ArraySortNeedsPair(input *checkruntime.ArraySortPayload) bool {
+	if input.State != 1 {
+		return false
+	}
+	if input.Phase == 2 {
+		return input.Tie < input.Rows
+	}
+	return input.Left < arraySortMiddle(input) && input.Right < arraySortEnd(input)
+}
+func ArraySortPairContinues(input *checkruntime.ArraySortPayload, index checkruntime.Int4Value, compared checkruntime.Int4Value) bool {
+	if compared != checkruntime.MakeInt4Value(0) {
+		return false
+	}
+	if index.Kind == checkruntime.Int4ValueValue {
+		position := langruntime.CheckedI32(index.Value)
+		return position >= 0 && position < input.Width
+	}
+	return false
+}
+func ArraySortElementAt(input *checkruntime.ArraySortPayload, index checkruntime.Int4Value, right bool) checkruntime.ArrayElement {
+	row := input.Left
+	if right {
+		row = langruntime.CheckedI32(input.Right)
+	}
+	if input.Phase == 2 {
+		row = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(input.Tie, 1))
+		if right {
+			row = langruntime.CheckedI32(input.Tie)
+		}
+	}
+	rowIndex := langruntime.IndexFromI32(row, len(input.Order))
+	if rowIndex >= len(input.Order) {
+		return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
+	}
+	if index.Kind == checkruntime.Int4ValueValue {
+		column := langruntime.CheckedI32(index.Value)
+		offset := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((int(int32(input.Order[rowIndex]))), input.Width), column)
+		position := langruntime.IndexFromI32(offset, len(input.Elements))
+		if column >= 0 && column < input.Width && position < len(input.Elements) {
+			return checkruntime.CopyArrayElement(input.Elements[position])
+		}
+	}
+	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
+}
+func ArraySortCellPair(input *checkruntime.ArraySortPayload, left checkruntime.ArrayElement, right checkruntime.ArrayElement) checkruntime.Int4Value {
+	nullable := false
+	if left.Kind == checkruntime.ArrayElementNull {
+		nullable = true
+	}
+	if right.Kind == checkruntime.ArrayElementNull {
+		nullable = true
+	}
+	compared := checkruntime.ArrayComparisonPair(left, right, false)
+	if nullable && len(input.Dimensions) == 1 && input.NullsFirst != input.Descending {
+		if compared.Kind == checkruntime.Int4ValueValue {
+			value := langruntime.CheckedI32(compared.Value)
+			return checkruntime.MakeInt4Value(langruntime.CheckedSignedSubtract(0, value))
+		}
+	}
+	return compared
+}
+func ArraySortStep(input checkruntime.ArraySortPayload, compared checkruntime.Int4Value) checkruntime.ArraySortPayload {
+	state := input.State
+	error := input.Error
+	run := input.Run
+	segment := input.Segment
+	left := input.Left
+	right := input.Right
+	output := input.Output
+	phase := input.Phase
+	tie := input.Tie
+	middle := arraySortMiddle(&input)
+	end := arraySortEnd(&input)
+	required := ArraySortNeedsPair(&input)
+	order := input.Order
+	buffer := input.Buffer
+	ties := input.Ties
+	if state == 1 {
+		comparison := 0
+		if required {
+			if compared.Kind == checkruntime.Int4ValueError {
+				failed := compared.Error
+				state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(2))
+				error = failed
+			}
+			if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+				state = langruntime.CheckedI32(3)
+			}
+			if compared.Kind == checkruntime.Int4ValueValue {
+				value := langruntime.CheckedI32(compared.Value)
+				comparison = langruntime.CheckedI32(value)
+			}
+		}
+		if state == 1 {
+			if phase == 2 {
+				position := langruntime.IndexFromI32(tie, len(ties))
+				if comparison == 0 {
+					ties[position] = langruntime.CheckedIndex(1)
+				}
+				tie = langruntime.CheckedI32(langruntime.CheckedSignedAdd(tie, 1))
+				if tie >= input.Rows {
+					state = langruntime.CheckedI32(4)
+				}
+			} else {
+				if input.Descending {
+					comparison = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, comparison))
+				}
+				chosen := left
+				if left >= middle || (right < end && comparison > 0) {
+					chosen = langruntime.CheckedI32(right)
+					right = langruntime.CheckedI32(langruntime.CheckedSignedAdd(right, 1))
+				} else {
+					left = langruntime.CheckedI32(langruntime.CheckedSignedAdd(left, 1))
+				}
+				destination := langruntime.IndexFromI32(output, len(buffer))
+				origin := langruntime.IndexFromI32(chosen, len(order))
+				buffer[destination] = langruntime.CheckedIndex(order[origin])
+				output = langruntime.CheckedI32(langruntime.CheckedSignedAdd(output, 1))
+				if output >= end {
+					segment = langruntime.CheckedI32(end)
+					left = langruntime.CheckedI32(segment)
+					next := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(segment))), (int64(langruntime.CheckedI32(run))))
+					right = langruntime.CheckedI32(input.Rows)
+					if next < (int64(langruntime.CheckedI32(input.Rows))) {
+						right = langruntime.CheckedI32(int(int32(next)))
+					}
+					if segment >= input.Rows {
+						nextRun := langruntime.CheckedI64Multiply(int64(2), (int64(langruntime.CheckedI32(run))))
+						run = langruntime.CheckedI32(input.Rows)
+						if nextRun < (int64(langruntime.CheckedI32(input.Rows))) {
+							run = langruntime.CheckedI32(int(int32(nextRun)))
+						}
+						segment = langruntime.CheckedI32(0)
+						left = langruntime.CheckedI32(0)
+						right = langruntime.CheckedI32(run)
+						output = langruntime.CheckedI32(0)
+						if run >= input.Rows {
+							phase = langruntime.CheckedI32(2)
+						}
+						return checkruntime.ArraySortPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements, Order: buffer, Buffer: order, Ties: ties, Rows: input.Rows, Width: input.Width, Run: run, Segment: segment, Left: left, Right: right, Output: output, Phase: phase, Tie: tie, State: state, Error: error, Descending: input.Descending, NullsFirst: input.NullsFirst}
+					}
+				}
+			}
+		}
+	}
+	return checkruntime.ArraySortPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements, Order: order, Buffer: buffer, Ties: ties, Rows: input.Rows, Width: input.Width, Run: run, Segment: segment, Left: left, Right: right, Output: output, Phase: phase, Tie: tie, State: state, Error: error, Descending: input.Descending, NullsFirst: input.NullsFirst}
+}
+func arraySortSameElement(left checkruntime.ArrayElement, right checkruntime.ArrayElement) bool {
+	left = checkruntime.CopyArrayElement(left)
+	right = checkruntime.CopyArrayElement(right)
+	kind := checkruntime.ArrayElementFamily(checkruntime.CopyArrayElement(left))
+	if kind != checkruntime.ArrayElementFamily(checkruntime.CopyArrayElement(right)) {
+		return false
+	}
+	if left.Kind == checkruntime.ArrayElementNull {
+		if right.Kind == checkruntime.ArrayElementNull {
+			return true
+		}
+	}
+	if left.Kind == checkruntime.ArrayElementByteaUnspecified {
+		return false
+	}
+	if kind == 1 {
+		return checkruntime.ArrayElementToInt2(left) == checkruntime.ArrayElementToInt2(right)
+	}
+	if kind == 2 {
+		return checkruntime.ArrayElementToInt4(left) == checkruntime.ArrayElementToInt4(right)
+	}
+	if kind == 3 {
+		return checkruntime.ArrayElementToInt8(left) == checkruntime.ArrayElementToInt8(right)
+	}
+	if kind == 4 {
+		return checkruntime.ArrayElementToTimestamp(left) == checkruntime.ArrayElementToTimestamp(right)
+	}
+	if kind == 5 {
+		return checkruntime.ArrayElementToTimestamptz(left) == checkruntime.ArrayElementToTimestamptz(right)
+	}
+	if kind == 6 {
+		return checkruntime.ArrayElementToEnum(left) == checkruntime.ArrayElementToEnum(right)
+	}
+	if kind == 7 {
+		return checkruntime.ArrayElementToDate(left) == checkruntime.ArrayElementToDate(right)
+	}
+	if kind == 8 {
+		return checkruntime.ArrayElementToText(left) == checkruntime.ArrayElementToText(right)
+	}
+	if kind == 9 {
+		return checkruntime.ArrayElementToBool(left) == checkruntime.ArrayElementToBool(right)
+	}
+	if kind == 10 {
+		return checkruntime.ArrayElementToNumeric(left) == checkruntime.ArrayElementToNumeric(right)
+	}
+	if kind == 13 {
+		return checkruntime.ArrayElementToNetwork(left) == checkruntime.ArrayElementToNetwork(right)
+	}
+	if kind == 14 {
+		return checkruntime.ArrayElementToBit(left) == checkruntime.ArrayElementToBit(right)
+	}
+	if kind == 15 {
+		return checkruntime.ArrayElementToBytea(left) == checkruntime.ArrayElementToBytea(right)
+	}
+	if kind == 16 {
+		return checkruntime.ArrayElementToMacaddr(left) == checkruntime.ArrayElementToMacaddr(right)
+	}
+	if kind == 17 {
+		return checkruntime.ArrayElementToMacaddr8(left) == checkruntime.ArrayElementToMacaddr8(right)
+	}
+	if kind == 18 {
+		return checkruntime.ArrayElementToUuid(left) == checkruntime.ArrayElementToUuid(right)
+	}
+	if kind == 19 {
+		return checkruntime.ArrayElementToFloat4(left) == checkruntime.ArrayElementToFloat4(right)
+	}
+	if kind == 20 {
+		return checkruntime.ArrayElementToFloat8(left) == checkruntime.ArrayElementToFloat8(right)
+	}
+	if kind == 21 {
+		return checkruntime.ArrayElementToTime(left) == checkruntime.ArrayElementToTime(right)
+	}
+	if kind == 22 {
+		return checkruntime.ArrayElementToTimetz(left) == checkruntime.ArrayElementToTimetz(right)
+	}
+	if kind == 23 {
+		return checkruntime.ArrayElementToInterval(left) == checkruntime.ArrayElementToInterval(right)
+	}
+	if kind == 24 {
+		return checkruntime.ArrayElementToPoint(left) == checkruntime.ArrayElementToPoint(right)
+	}
+	if kind == 25 {
+		return checkruntime.ArrayElementToLine(left) == checkruntime.ArrayElementToLine(right)
+	}
+	if kind == 26 {
+		return checkruntime.ArrayElementToLseg(left) == checkruntime.ArrayElementToLseg(right)
+	}
+	if kind == 27 {
+		return checkruntime.ArrayElementToBox(left) == checkruntime.ArrayElementToBox(right)
+	}
+	if kind == 30 {
+		return checkruntime.ArrayElementToCircle(left) == checkruntime.ArrayElementToCircle(right)
+	}
+	if kind == 31 {
+		return checkruntime.ArrayElementToMoney(left) == checkruntime.ArrayElementToMoney(right)
+	}
+	if kind == 32 {
+		return checkruntime.ArrayElementToInternalChar(left) == checkruntime.ArrayElementToInternalChar(right)
+	}
+	if kind == 33 {
+		return checkruntime.ArrayElementToOid(left) == checkruntime.ArrayElementToOid(right)
+	}
+	if kind == 34 {
+		return checkruntime.ArrayElementToXid(left) == checkruntime.ArrayElementToXid(right)
+	}
+	if kind == 35 {
+		return checkruntime.ArrayElementToCid(left) == checkruntime.ArrayElementToCid(right)
+	}
+	if kind == 37 {
+		return checkruntime.ArrayElementToXid8(left) == checkruntime.ArrayElementToXid8(right)
+	}
+	if kind == 38 {
+		return checkruntime.ArrayElementToPgLsn(left) == checkruntime.ArrayElementToPgLsn(right)
+	}
+	if kind == 39 {
+		return checkruntime.ArrayElementToTid(left) == checkruntime.ArrayElementToTid(right)
+	}
+	if kind == 12 {
+		a := checkruntime.JsonbToText(checkruntime.ArrayElementToJsonb(left))
+		b := checkruntime.JsonbToText(checkruntime.ArrayElementToJsonb(right))
+		if a.Kind == checkruntime.TextValueValue {
+			first := langruntime.CheckedString(a.Value)
+			if b.Kind == checkruntime.TextValueValue {
+				second := langruntime.CheckedString(b.Value)
+				return first == second
+			}
+		}
+		return false
+	}
+	if kind == 28 {
+		firstPath := checkruntime.ArrayElementToPath(left)
+		secondPath := checkruntime.ArrayElementToPath(right)
+		if firstPath.Kind == checkruntime.PathValueValue {
+			first := checkruntime.CopyPathPayload(firstPath.Value)
+			if secondPath.Kind == checkruntime.PathValueValue {
+				second := checkruntime.CopyPathPayload(secondPath.Value)
+				if first.Closed != second.Closed || len(first.Points) != len(second.Points) {
+					return false
+				}
+				position := 0
+				for position < len(first.Points) {
+					if first.Points[position] != second.Points[position] {
+						return false
+					}
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				return true
+			}
+		}
+	}
+	return false
+}
+func FinishArraySort(input checkruntime.ArraySortPayload) checkruntime.ArrayValue {
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: input.Error}
+	}
+	if input.State == 0 {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if input.State == langruntime.CheckedSignedNegate(1) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if input.State == 2 {
+		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements})
+	}
+	elements := []checkruntime.ArrayElement{}
+	if input.State == 3 {
+		position := 0
+		for position < len(input.Elements) {
+			langruntime.CheckedAdd(len(elements), 1)
+			elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}))
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	} else if input.State == 4 {
+		start := 0
+		for start < input.Rows {
+			end := langruntime.CheckedSignedAdd(start, 1)
+			for end < input.Rows {
+				position := langruntime.IndexFromI32(end, len(input.Ties))
+				if input.Ties[position] == 0 {
+					break
+				}
+				end = langruntime.CheckedI32(langruntime.CheckedSignedAdd(end, 1))
+			}
+			consensus := []checkruntime.ArrayElement{}
+			column := 0
+			for column < input.Width {
+				first := langruntime.IndexFromI32(start, len(input.Order))
+				offset := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((int(int32(input.Order[first]))), input.Width), column)
+				position := langruntime.IndexFromI32(offset, len(input.Elements))
+				element := checkruntime.CopyArrayElement(input.Elements[position])
+				same := true
+				candidate := langruntime.CheckedSignedAdd(start, 1)
+				for candidate < end {
+					other := langruntime.IndexFromI32(candidate, len(input.Order))
+					otherOffset := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((int(int32(input.Order[other]))), input.Width), column)
+					otherPosition := langruntime.IndexFromI32(otherOffset, len(input.Elements))
+					if arraySortSameElement(checkruntime.CopyArrayElement(element), checkruntime.CopyArrayElement(input.Elements[otherPosition])) == false {
+						same = false
+					}
+					candidate = langruntime.CheckedI32(langruntime.CheckedSignedAdd(candidate, 1))
+				}
+				if same {
+					langruntime.CheckedAdd(len(consensus), 1)
+					consensus = append(consensus, checkruntime.CopyArrayElement(element))
+				} else {
+					langruntime.CheckedAdd(len(consensus), 1)
+					consensus = append(consensus, checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}))
+				}
+				column = langruntime.CheckedI32(langruntime.CheckedSignedAdd(column, 1))
+			}
+			row := start
+			for row < end {
+				cell := 0
+				for cell < len(consensus) {
+					langruntime.CheckedAdd(len(elements), 1)
+					elements = append(elements, checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(consensus[cell])))
+					cell = langruntime.CheckedAdd(cell, 1)
+				}
+				row = langruntime.CheckedI32(langruntime.CheckedSignedAdd(row, 1))
+			}
+			start = langruntime.CheckedI32(end)
+		}
+	} else {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: elements})
+}
+func ArraySortHxzh(input checkruntime.ArrayValue) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return input
+}
+func ArraySortX65f(input checkruntime.ArrayValue) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return input
+}
+func ArraySortF418(input checkruntime.ArrayValue) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return input
+}
 func arrayStringField(input string, marker checkruntime.TextValue, deterministic bool) checkruntime.ArrayElement {
 	input = langruntime.CheckedString(input)
 	if marker == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {

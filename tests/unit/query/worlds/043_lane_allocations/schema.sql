@@ -389,3 +389,44 @@ CREATE TABLE lane_binary_exports (
   bypass boolean,
   CONSTRAINT binary_array_context CHECK (CASE WHEN bypass THEN true ELSE array_send(stages) IS NOT NULL END)
 );
+
+CREATE TABLE lane_sorted_slots (
+  slots lane_slots,
+  descending boolean,
+  nulls_first boolean,
+  expected_default text,
+  expected_order text,
+  expected_flags text,
+  CONSTRAINT sorted_default CHECK (array_sort(slots)::text COLLATE "C" IS NOT DISTINCT FROM expected_default COLLATE "C"),
+  CONSTRAINT sorted_order CHECK (array_sort(slots, descending)::text COLLATE "C" IS NOT DISTINCT FROM expected_order COLLATE "C"),
+  CONSTRAINT sorted_flags CHECK (array_sort(slots, descending, nulls_first)::text COLLATE "C" IS NOT DISTINCT FROM expected_flags COLLATE "C")
+);
+
+CREATE TABLE lane_sorted_stages (
+  stages lane_stage[],
+  expected_stages text,
+  CONSTRAINT sorted_stages CHECK (array_sort(stages)::text COLLATE "C" IS NOT DISTINCT FROM expected_stages COLLATE "C")
+);
+
+CREATE TABLE lane_sorted_documents (
+  payload text,
+  expected_payload text,
+  CONSTRAINT sorted_documents CHECK (array_sort(payload::jsonb[])::text COLLATE "C" IS NOT DISTINCT FROM expected_payload COLLATE "C")
+);
+
+CREATE TABLE lane_unsortable_documents (
+  payload text,
+  bypass boolean,
+  CONSTRAINT document_sort_support CHECK (CASE WHEN bypass THEN true ELSE cardinality(array_sort(payload::json[])) >= 0 END)
+);
+
+CREATE TABLE lane_sorted_precision (
+  payload text,
+  expected_text text,
+  expected_count integer,
+  expected_first numeric,
+  bypass boolean,
+  CONSTRAINT sorted_precision_text CHECK (CASE WHEN bypass THEN true ELSE array_sort(payload::numeric[])::text COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END),
+  CONSTRAINT sorted_precision_count CHECK (CASE WHEN bypass THEN true ELSE cardinality(array_sort(payload::numeric[])) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT sorted_precision_first CHECK (CASE WHEN bypass THEN true ELSE (array_sort(payload::numeric[]))[1] IS NOT DISTINCT FROM expected_first END)
+);

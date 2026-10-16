@@ -40,7 +40,9 @@ update its tests when that boundary changes.
   with `false`. The final expression is a bound result or direct call.
 - Array text casts iterate events with `while` conditions in the same call form.
   Loop bodies use the existing bindings, assignments and branches. Internal
-  `ArrayArguments` builders may be mutable locals but cannot be entry parameters.
+  `ArrayArguments` builders and `ArraySortPayload` merge cursors may be mutable
+  locals but cannot be entry parameters. Sort cursors remain whole-record values;
+  their readonly borrows expose the next comparison without cloning stored cells.
 - Keep evaluation order visible in statements. A deciding boolean result must
   skip code for the unselected operand.
 - Do not add syntax for convenience. Generics, other methods, nested calls,

@@ -253,7 +253,7 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Admit containment/overlap through default element equality, shape/duplicate independence, nonmatching NULL cells, partial-input recovery, reached errors, constant preparation, collation boundaries and INSERT parity.
 - [x] Establish catalog-linked array element casts, precision/width arguments, common CASE/COALESCE/extrema/constructor types, retained bounds and partial cells, nominal enums and INSERT parity; remaining I/O coercions follow.
 - [x] Bind compatible array/element signatures and admit first/all position searches, NULL matching, lower bounds/start positions, support/shape error order, partial-input prefixes, context/preparation boundaries, nominal enums and INSERT parity.
-- [x] Admit fill/trim, append/prepend, concatenation, removal/replacement and first-dimension reversal; verify concrete/polymorphic binding, NULL/partial cells, retained/reset bounds, support/error order, native-count deferral, preparation and INSERT parity.
+- [x] Admit fill/trim, append/prepend, concatenation, removal/replacement, first-dimension reversal and sorting; verify concrete/polymorphic binding, NULL/partial cells, retained/reset bounds, support/error order, representation-sensitive sort ties, native-count deferral, preparation and INSERT parity.
 - [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
@@ -270,7 +270,7 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] JSONB recursive null stripping, default/array flags and pretty layout; preserve renderer encoding requirements and NULL/Unknown/error states.
 - [x] Scalar to_jsonb core values and portable network/MAC/bit, identifier/snapshot, ISO date/timestamp and clock outputs; retain finite-float, TimeZone and custom-cast requirements.
 - [x] Remaining represented to_jsonb types and enums: strict states, catalog/session deferral, interval infinities and invariant geometric output; no catalog or default-setting assumptions.
-- [x] Owned heterogeneous argument batches: Clone value enum vectors, nested payload copies, indexed replacement and split-target ownership; reject cycles and mutable borrows.
+- [x] Owned heterogeneous argument batches and internal cursors: Clone value enum vectors, nested payload copies, indexed replacement, crate-visible moves and readonly borrows; preserve public boundaries/explicit clones and reject cycles or mutable borrows.
 - [x] JSONB scalar-argument builders, empty overloads, non-strict NULLs, scalar keys, duplicate normalization, eager argument errors and owned composition.
 - [x] JSON/JSONB binary send, source/canonical bytes, version framing and strict states; retain encoding requirements and classify receive functions as internal interfaces.
 - [ ] Explicit VARIADIC arrays and path-array access follow arrays.

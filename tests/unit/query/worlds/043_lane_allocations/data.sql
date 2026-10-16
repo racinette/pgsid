@@ -100,3 +100,18 @@ VALUES ('{1,"null",NULL}', '{NULL,"null",1}', false);
 
 INSERT INTO lane_binary_exports (stages, bypass)
 VALUES (NULL, true);
+
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES ('[0:3]={2,NULL,0,1}', true, false, '[0:3]={0,1,2,NULL}', '[0:3]={NULL,2,1,0}', '[0:3]={2,1,0,NULL}');
+
+INSERT INTO lane_sorted_stages (stages, expected_stages)
+VALUES ('{done,NULL,new}', '{new,done,NULL}');
+
+INSERT INTO lane_sorted_documents (payload, expected_payload)
+VALUES ('{2,1,NULL}', '{1,2,NULL}');
+
+INSERT INTO lane_unsortable_documents (payload, bypass)
+VALUES ('{}', false);
+
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES ('{1.00,0,1.00}', '{0,1.00,1.00}', 3, '0', false);

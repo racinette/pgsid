@@ -46,7 +46,14 @@ pub fn parse(source: &str) -> Result<String> {
                 let serialized = item(declaration)?;
                 let symbol = serialized["name"].as_str().unwrap().to_string();
                 if owners
-                    .insert(symbol.clone(), (name, serialized["visibility"] == "public"))
+                    .insert(
+                        symbol.clone(),
+                        (
+                            name,
+                            serialized["visibility"] == "public"
+                                || serialized["visibility"] == "crate",
+                        ),
+                    )
                     .is_some()
                 {
                     return Err(format!("duplicate linked symbol {symbol} in {path}"));
@@ -251,6 +258,14 @@ mod tests {
                 { "path": "positive.rs", "source": "pub fn positive(value: Value) -> bool { value.number > 0 }" }
             ] }
         ] }).to_string()
+    }
+
+    #[test]
+    fn links_crate_visible_helpers_without_exposing_private_symbols() {
+        let graph = modules(&["pg_catalog"]).replace("pub fn positive", "pub(crate) fn positive");
+        let document: serde_json::Value = serde_json::from_str(&parse(&graph).unwrap()).unwrap();
+        assert_eq!(document["items"][2]["visibility"], "crate");
+        assert_eq!(document["items"][2]["module"], "pg_catalog");
     }
 
     #[test]

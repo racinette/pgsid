@@ -19,7 +19,9 @@ change to the regex transpiler unless the regex engine itself changes.
   API contract. Keep copying for vectors and other mutable aggregates at
   ownership transfers and explicit clones. Private helpers borrow declared records
   without copying their storage; Rust forbids mutation or moving fields through
-  those shared references. Public parameters retain boundary validation. XML scans
+  those shared references. Crate-visible functions transfer already checked owned
+  values without boundary copies; their shared borrows retain storage. Public
+  parameters retain boundary validation, and explicit clones always copy. XML scans
   need these borrows to inspect a name-sized buffer without copying it per character.
   Run `check-borrowed-state.test.ts` for bounded scanning and ownership after a borrow.
 - Source groups and generated files must have explicit ownership. PostgreSQL
