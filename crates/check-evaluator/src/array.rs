@@ -1566,3 +1566,141 @@ pub fn finish_array_comparison(input: &ArrayComparisonPayload, result: Int4Value
     };
     result
 }
+
+pub fn prepare_array_membership(
+    left: ArrayValue,
+    right: ArrayValue,
+    reverse: bool,
+    available: bool,
+) -> ArrayComparisonPayload {
+    let payload = prepare_array_comparison(left, right, false, available);
+    if payload.state == 1 && reverse {
+        return ArrayComparisonPayload {
+            left: payload.right,
+            right: payload.left,
+            limit: payload.limit,
+            state: payload.state,
+            error: payload.error,
+            tail: payload.tail,
+            value: payload.value,
+        };
+    };
+    payload
+}
+
+pub fn array_membership_initial(input: &ArrayComparisonPayload, all: bool) -> BoolValue {
+    if input.state == -2 {
+        return BoolValue::Error(input.error);
+    };
+    if input.state == -1 {
+        return BoolValue::Unknown;
+    };
+    if input.state == 0 {
+        return BoolValue::Null;
+    };
+    BoolValue::Value(all)
+}
+
+pub fn array_membership_continues(
+    input: &ArrayComparisonPayload,
+    index: Int4Value,
+    result: BoolValue,
+    all: bool,
+) -> bool {
+    if input.state != 1 {
+        return false;
+    };
+    let outcome = check_from_bool(result);
+    if all && and_stops(outcome) {
+        return false;
+    };
+    if all == false && or_stops(outcome) {
+        return false;
+    };
+    if let Int4Value::Value(offset) = index {
+        return offset >= 0 && (offset as i64) < ((input.left.len() as i32) as i64);
+    };
+    false
+}
+
+pub fn array_membership_element_at(
+    input: &ArrayComparisonPayload,
+    index: Int4Value,
+    right: bool,
+) -> ArrayElement {
+    if let Int4Value::Value(offset) = index {
+        if right {
+            let position = usize::try_from(offset).unwrap_or(input.right.len());
+            if offset >= 0 && position < input.right.len() {
+                return input.right[position].clone();
+            };
+        } else {
+            let position = usize::try_from(offset).unwrap_or(input.left.len());
+            if offset >= 0 && position < input.left.len() {
+                return input.left[position].clone();
+            };
+        };
+    };
+    ArrayElement::Unknown
+}
+
+pub fn array_membership_match_initial(
+    input: &ArrayComparisonPayload,
+    index: Int4Value,
+) -> BoolValue {
+    let source = array_membership_element_at(input, index, false);
+    if let ArrayElement::Error(error) = source {
+        return BoolValue::Error(error);
+    };
+    BoolValue::Value(false)
+}
+
+pub fn array_membership_scan_continues(
+    input: &ArrayComparisonPayload,
+    source_index: Int4Value,
+    index: Int4Value,
+    matched: BoolValue,
+) -> bool {
+    if or_stops(check_from_bool(matched)) {
+        return false;
+    };
+    let source = array_membership_element_at(input, source_index, false);
+    if let ArrayElement::Null = source {
+        return false;
+    };
+    if let Int4Value::Value(offset) = index {
+        return offset >= 0 && (offset as i64) < ((input.right.len() as i32) as i64);
+    };
+    false
+}
+
+pub fn array_membership_pair(left: ArrayElement, right: ArrayElement) -> Int4Value {
+    if let ArrayElement::Null = left {
+        return Int4Value::Value(1);
+    };
+    if let ArrayElement::Null = right {
+        return Int4Value::Value(1);
+    };
+    array_comparison_pair(left, right, true)
+}
+
+pub fn array_membership_match_step(matched: BoolValue, comparison: Int4Value) -> BoolValue {
+    let mut value = BoolValue::Unknown;
+    if let Int4Value::Value(result) = comparison {
+        value = BoolValue::Value(result == 0);
+    };
+    if let Int4Value::Error(error) = comparison {
+        value = BoolValue::Error(error);
+    };
+    bool_from_check(or_finish(check_from_bool(matched), check_from_bool(value)))
+}
+
+pub fn array_membership_finish_step(result: BoolValue, matched: BoolValue, all: bool) -> BoolValue {
+    if all {
+        return bool_from_check(and_finish(
+            check_from_bool(result),
+            check_from_bool(matched),
+        ));
+    };
+    bool_from_check(or_finish(check_from_bool(result), check_from_bool(matched)))
+}

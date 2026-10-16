@@ -49,3 +49,13 @@ pub fn sql__pg_catalog__array_ge__2z0c(input: Int4Value) -> BoolValue {
 pub fn sql__pg_catalog__btarraycmp__bmnb(input: Int4Value) -> Int4Value {
     input
 }
+
+pub fn sql__pg_catalog__arraycontains__ipqq(input: BoolValue) -> BoolValue {
+    input
+}
+pub fn sql__pg_catalog__arraycontained__uyb2(input: BoolValue) -> BoolValue {
+    input
+}
+pub fn sql__pg_catalog__arrayoverlap__lwrw(input: BoolValue) -> BoolValue {
+    input
+}

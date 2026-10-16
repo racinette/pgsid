@@ -151,9 +151,17 @@ export const isArrayComparison = (
   item.args.every((type) => type === 'pg_catalog.anyarray') &&
   (item.name === 'btarraycmp'
     ? item.result === 'pg_catalog.int4'
-    : ['array_eq', 'array_ne', 'array_lt', 'array_le', 'array_gt', 'array_ge'].includes(
-        item.name,
-      ) && item.result === 'pg_catalog.bool')
+    : [
+        'array_eq',
+        'array_ne',
+        'array_lt',
+        'array_le',
+        'array_gt',
+        'array_ge',
+        'arraycontains',
+        'arraycontained',
+        'arrayoverlap',
+      ].includes(item.name) && item.result === 'pg_catalog.bool')
 
 export const isJsonpathTimezoneCallable = (
   item: ReturnType<typeof builtinMetadata>,
@@ -994,7 +1002,10 @@ export function emitCheckRustEvaluator(
           )
         const elementType = arrayType.slice(6),
           family = arrayElementFamily(elementType)
-        const equality = ['array_eq', 'array_ne'].includes(implementation.name)
+        const membership = ['arraycontains', 'arraycontained', 'arrayoverlap'].includes(
+          implementation.name,
+        )
+        const equality = membership || ['array_eq', 'array_ne'].includes(implementation.name)
         const defaults = builtinTypeComparison(
           elementType.startsWith('enum:') ? 'pg_catalog.anyenum' : elementType,
         )
@@ -1003,6 +1014,148 @@ export function emitCheckRustEvaluator(
             'Array comparison requires captured element comparison metadata',
           )
         const selected = equality ? defaults.equality : defaults.comparator
+        const emitPair = (
+          left: string,
+          right: string,
+          result: string,
+          scalarLines: string[],
+        ): void => {
+          const effectiveCollation =
+            call.kind === 'cast'
+              ? undefined
+              : call.collationDefault && executionContext.defaultCollation === 'C'
+                ? 'C'
+                : (call.collation ?? executionContext.defaultCollation)
+          const scalar = selected ? builtinMetadata(selected) : null
+          const actual =
+            scalar?.kind === 'operator' ? builtinMetadata(scalar.implementation) : scalar
+          const text = scalar?.args.some((type) =>
+            [
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+              'pg_catalog.name',
+            ].includes(type),
+          )
+          const deferred =
+            !actual ||
+            actual.kind !== 'function' ||
+            !actual.strict ||
+            actual.returnsSet ||
+            actual.volatility !== 'i' ||
+            !checkRustCallableNames().has(actual.rustName) ||
+            (text && !supportsTextCallableCollation(selected!, effectiveCollation)) ||
+            (!equality &&
+              elementType === 'pg_catalog.jsonb' &&
+              (executionContext.defaultCollation !== 'C' ||
+                executionContext.serverEncoding !== 'UTF8'))
+          const emitElement = (selected: string, scalar: ReturnType<typeof builtinMetadata>) => {
+            const prefix = rustValuePrefix(rustType(elementType))
+            const args = [left, right].map((element, position) => {
+              const name = fresh('array_comparison_scalar')
+              scalarLines.push(`let ${name} = array_element_to_${prefix}(${element});`)
+              const target = scalar.args[position]
+              if (target === elementType || target === 'pg_catalog.anyenum')
+                return { name, type: elementType }
+              if (!target || builtinCast(elementType, target)?.method !== 'b')
+                throw new UnsupportedCheckRustExpression(
+                  'Array element comparison requires its catalog binary relabel',
+                )
+              return emitCall(
+                { kind: 'cast', signature: null, type: target },
+                [{ name, type: elementType }],
+                scalarLines,
+              )
+            })
+            return emitCall(
+              {
+                kind: scalar.kind as 'operator' | 'function',
+                signature: selected,
+                type: scalar.result,
+                collation: effectiveCollation,
+              },
+              args,
+              scalarLines,
+            )
+          }
+          if (!deferred && scalar && selected) {
+            const compared = emitElement(selected, scalar)
+            scalarLines.push(
+              `${result} = ${equality ? 'array_equality_step' : 'array_order_step'}(${compared.name});`,
+            )
+          } else {
+            const eq = defaults.equality ? builtinMetadata(defaults.equality) : null
+            const eqActual = eq?.kind === 'operator' ? builtinMetadata(eq.implementation) : eq
+            if (
+              !equality &&
+              selected &&
+              eq &&
+              defaults.equality &&
+              eqActual?.kind === 'function' &&
+              eqActual.strict &&
+              !eqActual.returnsSet &&
+              eqActual.volatility === 'i' &&
+              checkRustCallableNames().has(eqActual.rustName) &&
+              (!text || supportsTextCallableCollation(defaults.equality, effectiveCollation))
+            ) {
+              const compared = emitElement(defaults.equality, eq)
+              scalarLines.push(`${result} = array_order_from_equality(${compared.name});`)
+            } else scalarLines.push(`${result} = int4_unknown();`)
+          }
+        }
+        if (membership) {
+          const all = implementation.name !== 'arrayoverlap',
+            reverse = implementation.name === 'arraycontains'
+          const payload = fresh('array_membership'),
+            initial = fresh('array_membership_start'),
+            first = fresh('array_membership_first'),
+            result = fresh('array_membership_result'),
+            index = fresh('array_membership_index'),
+            scan = fresh('array_membership_scan'),
+            matched = fresh('array_membership_matched')
+          destination.push(
+            `let ${payload} = prepare_array_membership(${ownedOperand(operands[0]!)}, ${ownedOperand(operands[1]!)}, ${reverse}, ${selected !== null});`,
+            `let ${initial} = array_membership_initial(&${payload}, ${all});`,
+            `let ${first} = make_int4_value(0);`,
+            `let mut ${result}: BoolValue = ${initial};`,
+            `let mut ${index}: Int4Value = ${first};`,
+          )
+          const left = fresh('array_membership_left'),
+            right = fresh('array_membership_right'),
+            pair = fresh('array_membership_pair'),
+            comparison = fresh('array_membership_comparison')
+          const scalarLines: string[] = []
+          emitPair(left, right, comparison, scalarLines)
+          const scanLines = [
+            `let ${left} = array_membership_element_at(&${payload}, ${index}, false);`,
+            `let ${right} = array_membership_element_at(&${payload}, ${scan}, true);`,
+            `let ${pair} = array_membership_pair(${left}.clone(), ${right}.clone());`,
+            `let mut ${comparison}: Int4Value = ${pair};`,
+            `if array_pair_requires_scalar(${pair}) {`,
+            ...indent(scalarLines),
+            '};',
+            `${matched} = array_membership_match_step(${matched}, ${comparison});`,
+            `${scan} = array_text_next_index(${scan});`,
+          ]
+          const body = [
+            `let mut ${scan}: Int4Value = ${first};`,
+            `let mut ${matched}: BoolValue = array_membership_match_initial(&${payload}, ${index});`,
+            `while array_membership_scan_continues(&${payload}, ${index}, ${scan}, ${matched}) {`,
+            ...indent(scanLines),
+            '}',
+            `${result} = array_membership_finish_step(${result}, ${matched}, ${all});`,
+            `${index} = array_text_next_index(${index});`,
+          ]
+          const name = fresh('value')
+          destination.push(
+            `while array_membership_continues(&${payload}, ${index}, ${result}, ${all}) {`,
+            ...indent(body),
+            '}',
+            `let ${name} = ${implementation.rustName}(${result});`,
+          )
+          callables.add(implementation.rustName)
+          return { name, type: call.type }
+        }
         const payload = fresh('array_comparison')
         destination.push(
           `let ${payload} = prepare_array_comparison(${ownedOperand(operands[0]!)}, ${ownedOperand(operands[1]!)}, ${equality}, ${selected !== null});`,
@@ -1026,87 +1179,7 @@ export function emitCheckRustEvaluator(
           `let ${pair} = array_comparison_pair(${left}.clone(), ${right}.clone(), ${equality});`,
         ]
         const scalarLines: string[] = []
-        const effectiveCollation =
-          call.kind === 'cast'
-            ? undefined
-            : call.collationDefault && executionContext.defaultCollation === 'C'
-              ? 'C'
-              : (call.collation ?? executionContext.defaultCollation)
-        const scalar = selected ? builtinMetadata(selected) : null
-        const actual = scalar?.kind === 'operator' ? builtinMetadata(scalar.implementation) : scalar
-        const text = scalar?.args.some((type) =>
-          [
-            'pg_catalog.text',
-            'pg_catalog."varchar"',
-            'pg_catalog.bpchar',
-            'pg_catalog.name',
-          ].includes(type),
-        )
-        const deferred =
-          !actual ||
-          actual.kind !== 'function' ||
-          !actual.strict ||
-          actual.returnsSet ||
-          actual.volatility !== 'i' ||
-          !checkRustCallableNames().has(actual.rustName) ||
-          (text && !supportsTextCallableCollation(selected!, effectiveCollation)) ||
-          (!equality &&
-            elementType === 'pg_catalog.jsonb' &&
-            (executionContext.defaultCollation !== 'C' ||
-              executionContext.serverEncoding !== 'UTF8'))
-        const emitElement = (selected: string, scalar: ReturnType<typeof builtinMetadata>) => {
-          const prefix = rustValuePrefix(rustType(elementType))
-          const args = [left, right].map((element, position) => {
-            const name = fresh('array_comparison_scalar')
-            scalarLines.push(`let ${name} = array_element_to_${prefix}(${element});`)
-            const target = scalar.args[position]
-            if (target === elementType || target === 'pg_catalog.anyenum')
-              return { name, type: elementType }
-            if (!target || builtinCast(elementType, target)?.method !== 'b')
-              throw new UnsupportedCheckRustExpression(
-                'Array element comparison requires its catalog binary relabel',
-              )
-            return emitCall(
-              { kind: 'cast', signature: null, type: target },
-              [{ name, type: elementType }],
-              scalarLines,
-            )
-          })
-          return emitCall(
-            {
-              kind: scalar.kind as 'operator' | 'function',
-              signature: selected,
-              type: scalar.result,
-              collation: effectiveCollation,
-            },
-            args,
-            scalarLines,
-          )
-        }
-        if (!deferred && scalar && selected) {
-          const compared = emitElement(selected, scalar)
-          scalarLines.push(
-            `${result} = ${equality ? 'array_equality_step' : 'array_order_step'}(${compared.name});`,
-          )
-        } else {
-          const eq = defaults.equality ? builtinMetadata(defaults.equality) : null
-          const eqActual = eq?.kind === 'operator' ? builtinMetadata(eq.implementation) : eq
-          if (
-            !equality &&
-            selected &&
-            eq &&
-            defaults.equality &&
-            eqActual?.kind === 'function' &&
-            eqActual.strict &&
-            !eqActual.returnsSet &&
-            eqActual.volatility === 'i' &&
-            checkRustCallableNames().has(eqActual.rustName) &&
-            (!text || supportsTextCallableCollation(defaults.equality, effectiveCollation))
-          ) {
-            const compared = emitElement(defaults.equality, eq)
-            scalarLines.push(`${result} = array_order_from_equality(${compared.name});`)
-          } else scalarLines.push(`${result} = int4_unknown();`)
-        }
+        emitPair(left, right, result, scalarLines)
         body.push(
           `if array_pair_requires_scalar(${pair}) {`,
           ...indent(scalarLines),

@@ -350,3 +350,67 @@ VALUES ('{NULL}', '{NULL}', false);
 -- name: comparison_document_null_array
 INSERT INTO lane_document_comparisons (first_payload, second_payload, bypass)
 VALUES (NULL, '{}', false);
+
+-- name: requirements_ignore_shape_and_duplicates
+INSERT INTO lane_requirements (selected_slots, approved_slots, required_slots, forbidden_slots, bypass)
+VALUES ('[0:1]={1,2}', '{{1,2,3}}', '{1,1}', '{4,NULL}', false);
+
+-- name: requirements_empty_arrays
+INSERT INTO lane_requirements (selected_slots, approved_slots, required_slots, forbidden_slots, bypass)
+VALUES ('{}', '{}', '{}', '{}', false);
+
+-- name: requirements_null_arrays
+INSERT INTO lane_requirements (selected_slots, approved_slots, required_slots, forbidden_slots, bypass)
+VALUES (NULL, NULL, NULL, NULL, false);
+
+-- name: requirements_unapproved_selection
+INSERT INTO lane_requirements (selected_slots, approved_slots, required_slots, forbidden_slots, bypass)
+VALUES ('{1,2}', '{1}', '{1}', '{3}', false);
+
+-- name: requirements_missing_required_slot
+INSERT INTO lane_requirements (selected_slots, approved_slots, required_slots, forbidden_slots, bypass)
+VALUES ('{1}', '{1,2}', '{2}', '{3}', false);
+
+-- name: requirements_forbidden_selection
+INSERT INTO lane_requirements (selected_slots, approved_slots, required_slots, forbidden_slots, bypass)
+VALUES ('{1,2}', '{1,2}', '{1}', '{NULL,2,2}', false);
+
+-- name: requirements_null_cell_is_not_a_member
+INSERT INTO lane_requirements (selected_slots, approved_slots, required_slots, forbidden_slots, bypass)
+VALUES ('{1,NULL}', '{1,NULL}', '{1}', '{NULL}', false);
+
+-- name: requirements_null_cell_cannot_be_required
+INSERT INTO lane_requirements (selected_slots, approved_slots, required_slots, forbidden_slots, bypass)
+VALUES ('{1}', '{1}', '{NULL}', '{NULL}', false);
+
+-- name: requirements_guarded_missing_slot
+INSERT INTO lane_requirements (selected_slots, approved_slots, required_slots, forbidden_slots, bypass)
+VALUES ('{1}', '{1}', '{2}', '{NULL}', true);
+
+-- name: requirements_guarded_document_input
+INSERT INTO lane_document_membership (first_payload, second_payload, bypass)
+VALUES ('bad', 'bad', true);
+
+-- name: requirements_document_empty_missing_equality
+INSERT INTO lane_document_membership (first_payload, second_payload, bypass)
+VALUES ('{}', '{}', false);
+
+-- name: requirements_document_null_cells_missing_equality
+INSERT INTO lane_document_membership (first_payload, second_payload, bypass)
+VALUES ('{NULL}', '{NULL}', false);
+
+-- name: requirements_document_shape_missing_equality
+INSERT INTO lane_document_membership (first_payload, second_payload, bypass)
+VALUES ('{}', '{NULL}', false);
+
+-- name: requirements_document_null_array
+INSERT INTO lane_document_membership (first_payload, second_payload, bypass)
+VALUES (NULL, '{}', false);
+
+-- name: requirements_document_left_input_error
+INSERT INTO lane_document_membership (first_payload, second_payload, bypass)
+VALUES ('bad', '{}', false);
+
+-- name: requirements_document_right_input_error
+INSERT INTO lane_document_membership (first_payload, second_payload, bypass)
+VALUES (NULL, 'bad', false);
