@@ -475,6 +475,7 @@ const sqlErrorArraySubscript = 3452630;
 const sqlErrorFeatureNotSupported = 466560;
 const sqlErrorProgramLimit = 8584704;
 const sqlErrorInternal = 56966976;
+const sqlErrorJsonNonNumeric = 3452658;
 const sqlErrorJsonSubscript = 3452655;
 const sqlErrorJsonArray = 3452661;
 const sqlErrorJsonMember = 3452662;
@@ -482,6 +483,9 @@ const sqlErrorJsonNumber = 3452663;
 const sqlErrorJsonObject = 3452664;
 const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorJsonNonNumeric) {
+        return { message: "non-numeric SQL/JSON item" };
+    }
     if (error.state === sqlErrorJsonSubscript) {
         return { message: "invalid SQL/JSON subscript" };
     }
