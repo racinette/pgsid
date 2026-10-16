@@ -99,12 +99,48 @@ fn jsonpath_keyvalue_offsets(
     empty
 }
 
+fn jsonpath_keyvalue_next_identity(identity: i64) -> i64 {
+    if identity == 2147483647i64 {
+        return -2147483648i64;
+    };
+    identity + 1i64
+}
+
 fn jsonpath_keyvalue_add_base(offset: NumericValue, identity: i64) -> NumericValue {
-    let base = sql__pg_catalog__numeric_mul__bj4l(
-        NumericValue::Value(text_signed_number(identity)),
-        NumericValue::Value("10000000000".to_owned()),
-    );
-    sql__pg_catalog__numeric_add__o3d7(offset, base)
+    if identity < -2147483648i64 || identity > 2147483647i64 {
+        return NumericValue::Unknown;
+    };
+    let converted = sql__pg_catalog__int8__xy54(offset);
+    if let Int8Value::Error(error) = converted {
+        return NumericValue::Error(error);
+    };
+    if let Int8Value::Null = converted {
+        return NumericValue::Null;
+    };
+    if let Int8Value::Value(number) = converted {
+        if number < 0i64 || number > 4294967295i64 {
+            return NumericValue::Unknown;
+        };
+        let mut word = identity;
+        if word < 0i64 {
+            word = word + 4294967296i64;
+        };
+        let product = word * 1410065408i64 + number;
+        let low = product % 4294967296i64;
+        let mut high = word * 2i64 + product / 4294967296i64;
+        if identity < 0i64 {
+            high = high - 1410065408i64;
+        };
+        high = high % 4294967296i64;
+        if high < 0i64 {
+            high = high + 4294967296i64;
+        };
+        if high >= 2147483648i64 {
+            high = high - 4294967296i64;
+        };
+        return NumericValue::Value(text_signed_number(high * 4294967296i64 + low));
+    };
+    NumericValue::Unknown
 }
 
 fn jsonpath_keyvalue_identity(

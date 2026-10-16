@@ -283,7 +283,7 @@ exposes a prerequisite:
 - [x] JSONPath filters/current scopes, three-valued comparisons, starts-with, exists, NOT/is-unknown and lazy AND/OR; preserve suppression, missing-variable errors, known JSON null versus evaluator Unknown, encoding and stored-text grouping requirements.
 - [x] JSONPath type/size and abs/floor/ceiling/double methods; retain strict/lax target handling, numeric display scales, finite-float validation versus string conversion, predicate suppression and INSERT parity.
 - [x] JSONPath integer/bigint/boolean/number/decimal/string conversions, owned string results and chained predicates; preserve parsing, numeric scales, argument validation, suppression and INSERT parity.
-- [x] JSONPath keyvalue objects: owned logical nodes, document/variable/generated IDs and offsets, partially unknown identities, strict/lax prefixes, format limits and INSERT parity.
+- [x] JSONPath keyvalue objects: owned logical nodes, document/variable/generated IDs, wrapping counters and offsets, partially unknown identities, strict/lax prefixes, format limits and INSERT parity.
 - [ ] JSONPath temporal methods, regex execution and context-sensitive operations.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 

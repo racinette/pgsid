@@ -13531,7 +13531,7 @@ function jsonpathExecutionWalk(input: JsonpathExecutionContext, existence: boole
                     langruntime.pushStruct(generatedIds, jsonpathKeyvalueAddBase(langruntime.indexStruct(offsets, langruntime.checkedIndex(position), checkruntime.copyNumericValue), identity), checkruntime.copyNumericValue);
                     position = langruntime.checkedAdd(position, 1);
                 }
-                context = copyJsonpathExecutionContext({ documentCharacters: context.documentCharacters, documentNodes: context.documentNodes, documentRoot: context.documentRoot, variablesCharacters: context.variablesCharacters, variablesNodes: context.variablesNodes, variablesRoot: context.variablesRoot, literalNodes: context.literalNodes, pathCharacters: context.pathCharacters, pathNodes: context.pathNodes, pathRoot: context.pathRoot, lax: context.lax, utf8: context.utf8, orderedResult: context.orderedResult, documentIds: context.documentIds, variablesIds: context.variablesIds, generatedNodes: generatedNodes, generatedCharacters: generatedCharacters, generatedIds: generatedIds, nextGeneratedId: langruntime.checkedI64Add(identity, 1n) });
+                context = copyJsonpathExecutionContext({ documentCharacters: context.documentCharacters, documentNodes: context.documentNodes, documentRoot: context.documentRoot, variablesCharacters: context.variablesCharacters, variablesNodes: context.variablesNodes, variablesRoot: context.variablesRoot, literalNodes: context.literalNodes, pathCharacters: context.pathCharacters, pathNodes: context.pathNodes, pathRoot: context.pathRoot, lax: context.lax, utf8: context.utf8, orderedResult: context.orderedResult, documentIds: context.documentIds, variablesIds: context.variablesIds, generatedNodes: generatedNodes, generatedCharacters: generatedCharacters, generatedIds: generatedIds, nextGeneratedId: jsonpathKeyvalueNextIdentity(identity) });
                 langruntime.pushStruct(pending, jsonpathExecutionMakeTask(0, langruntime.indexStruct(context.pathNodes, langruntime.checkedIndex(task.step), checkruntime.copyJsonpathNode).next, { source: 6, node: root }, context.lax, task.ignore), copyJsonpathExecutionTask);
             }
         }
@@ -14250,10 +14250,51 @@ function jsonpathKeyvalueOffsets(source: checkruntime.JsonbPayload, enabled: boo
     const empty: checkruntime.NumericValue[] = [];
     return empty;
 }
+function jsonpathKeyvalueNextIdentity(identity: bigint): bigint {
+    identity = langruntime.checkedI64(identity);
+    if (identity === 2147483647n) {
+        return -2147483648n;
+    }
+    return langruntime.checkedI64Add(identity, 1n);
+}
 function jsonpathKeyvalueAddBase(offset: checkruntime.NumericValue, identity: bigint): checkruntime.NumericValue {
     identity = langruntime.checkedI64(identity);
-    const base: checkruntime.NumericValue = numericMulBj4l({ kind: "Value", value: checkruntime.textSignedNumber(identity) }, { kind: "Value", value: "10000000000" });
-    return numericAddO3d7(offset, base);
+    if (identity < -2147483648n || identity > 2147483647n) {
+        return { kind: "Unknown" };
+    }
+    const converted: checkruntime.Int8Value = int8Xy54(offset);
+    if (converted.kind === "Error") {
+        const error: checkruntime.SqlError = converted.value;
+        return { kind: "Error", value: error };
+    }
+    if (converted.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (converted.kind === "Value") {
+        const number: bigint = langruntime.checkedI64(converted.value);
+        if (number < 0n || number > 4294967295n) {
+            return { kind: "Unknown" };
+        }
+        let word: bigint = identity;
+        if (word < 0n) {
+            word = langruntime.checkedI64(langruntime.checkedI64Add(word, 4294967296n));
+        }
+        const product: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(word, 1410065408n), number);
+        const low: bigint = langruntime.checkedI64Remainder(product, 4294967296n);
+        let high: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(word, 2n), langruntime.checkedI64Divide(product, 4294967296n));
+        if (identity < 0n) {
+            high = langruntime.checkedI64(langruntime.checkedI64Subtract(high, 1410065408n));
+        }
+        high = langruntime.checkedI64(langruntime.checkedI64Remainder(high, 4294967296n));
+        if (high < 0n) {
+            high = langruntime.checkedI64(langruntime.checkedI64Add(high, 4294967296n));
+        }
+        if (high >= 2147483648n) {
+            high = langruntime.checkedI64(langruntime.checkedI64Subtract(high, 4294967296n));
+        }
+        return { kind: "Value", value: checkruntime.textSignedNumber(langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 4294967296n), low)) };
+    }
+    return { kind: "Unknown" };
 }
 function jsonpathKeyvalueIdentity(context: JsonpathExecutionContext, reference: JsonpathReference): checkruntime.NumericValue {
     reference = copyJsonpathReference(reference);
