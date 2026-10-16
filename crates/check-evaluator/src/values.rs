@@ -389,6 +389,7 @@ const SQL_ERROR_ARRAY_SUBSCRIPT: u32 = 3452630;
 const SQL_ERROR_FEATURE_NOT_SUPPORTED: u32 = 466560;
 const SQL_ERROR_PROGRAM_LIMIT: u32 = 8584704;
 const SQL_ERROR_INTERNAL: u32 = 56966976;
+const SQL_ERROR_JSON_NON_NUMERIC: u32 = 3452658;
 const SQL_ERROR_JSON_SUBSCRIPT: u32 = 3452655;
 const SQL_ERROR_JSON_ARRAY: u32 = 3452661;
 const SQL_ERROR_JSON_MEMBER: u32 = 3452662;
@@ -397,6 +398,11 @@ const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
 const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_JSON_NON_NUMERIC {
+        return SqlErrorDescription {
+            message: "non-numeric SQL/JSON item",
+        };
+    }
     if error.state == SQL_ERROR_JSON_SUBSCRIPT {
         return SqlErrorDescription {
             message: "invalid SQL/JSON subscript",

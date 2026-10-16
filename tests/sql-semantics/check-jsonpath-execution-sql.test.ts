@@ -26,6 +26,13 @@ it('binds JSONPath execution identities, defaults and expression composition in 
   })
   try {
     const expressions: Record<string, string> = {
+      type: `(document @@ '$.a.type()=="array"') IS NOT DISTINCT FROM expected_exists`,
+      size: `jsonb_path_query_first(document,'$.a.size()') IS NOT DISTINCT FROM expected_first`,
+      numeric_filter: `jsonb_path_query_array(document,'$.a?(@.type()=="number").abs()') IS NOT DISTINCT FROM expected_array`,
+      runtime_render: `jsonb_path_query_first(document,source::jsonpath,variables,silent)::text COLLATE "C" IS NOT DISTINCT FROM expected_first::text COLLATE "C"`,
+      method_scales: `jsonb_path_query_array(document,'(1.2300).abs()')::text COLLATE "C" IS NOT DISTINCT FROM '[1.2300]' COLLATE "C"`,
+      double_number_scale: `jsonb_path_query_array(document,'(1.2300).double()')::text COLLATE "C" IS NOT DISTINCT FROM '[1.2300]' COLLATE "C"`,
+      double_string_scale: `jsonb_path_query_array(document,'"1.234567890123456789".double()')::text COLLATE "C" IS NOT DISTINCT FROM '[1.23456789012346]' COLLATE "C"`,
       predicate: `(document @@ '$.flag==true') IS NOT DISTINCT FROM expected_match`,
       filter_exists: `(document @? '$.a?(@>1)') IS NOT DISTINCT FROM expected_exists`,
       filter_array: `jsonb_path_query_array(document,'$.a?(@>1)') IS NOT DISTINCT FROM expected_array`,
@@ -111,7 +118,7 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ['{"a":[true],"flag":true}', 'strict $.a[0,8]', '{}', true, false],
       ['{"a":[true],"flag":true}', 'strict $.a[0,$missing]', '{}', true, false],
       ['{"a":[1,2],"flag":true}', '(', '{}', false, true],
-      ['{"a":[1,2],"flag":true}', '$.a.type()', '{}', false, true],
+      ['{"a":[1,2],"flag":true}', '$.a.keyvalue()', '{}', false, true],
       ['{"a":[1,2,3],"flag":true}', '$.a[last-1]', '{}', false, false],
       ['{"a":[1,2],"flag":true}', '$v+1', '{"v":[1]}', false, false],
       ['{"a":[],"flag":true}', 'strict -$v[0,8]', '{"v":[1]}', true, false],
@@ -119,6 +126,9 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       ['{"a":[1,2],"flag":true}', '$.a?(@>$limit)', '{"limit":1}', false, false],
       ['{"a":[],"flag":true}', 'strict $.missing==1', '{}', false, false],
       ['{"a":[1,2],"flag":true}', '$.a?(@==$missing)', '{}', true, false],
+      ['{"a":1.2300,"flag":true}', '$.a.double()', '{}', false, false],
+      ['{"a":[-1,2],"flag":true}', '$.a.abs()', '{}', false, false],
+      ['{"a":[1,"x",2],"flag":true}', '$.a.double()', '{}', true, false],
     ]
     for (const [document, source, variables, silent, bypass] of cases) {
       const wanted = (
@@ -159,8 +169,8 @@ it('binds JSONPath execution identities, defaults and expression composition in 
       for (const [name, sql] of Object.entries(expressions)) {
         let expected: Outcome
         if (
-          source === '$.a.type()' &&
-          ['array_runtime', 'first_runtime', 'exists_runtime'].includes(name)
+          source === '$.a.keyvalue()' &&
+          ['array_runtime', 'first_runtime', 'exists_runtime', 'runtime_render'].includes(name)
         )
           expected = { kind: 'Unknown' }
         else {

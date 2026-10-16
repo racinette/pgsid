@@ -281,12 +281,12 @@ exposes a prerequisite:
 - [x] JSONPath structural execution: roots, members/wildcards, variables, numeric subscripts/ranges, last and descendants; strict/lax, silent prefixes, existence/match/query calls, safe stored-text recovery, UTF8 object order and INSERT parity.
 - [x] JSONPath sequence arithmetic and subscript expressions: numeric signs/operators, single-number operands, last scopes, one-level lax result unwrapping, error order and silent prefixes; preserve stored-text grouping requirements and INSERT parity.
 - [x] JSONPath filters/current scopes, three-valued comparisons, starts-with, exists, NOT/is-unknown and lazy AND/OR; preserve suppression, missing-variable errors, known JSON null versus evaluator Unknown, encoding and stored-text grouping requirements.
-- [ ] JSONPath methods, regex execution and context-sensitive operations.
+- [x] JSONPath type/size and abs/floor/ceiling/double methods; retain strict/lax target handling, numeric display scales, finite-float validation versus string conversion, predicate suppression and INSERT parity.
+- [ ] JSONPath scalar conversions, keyvalue, temporal methods, regex execution and context-sensitive operations.
 - [ ] Classify remaining internal and pseudo-types with tested requirements or exclusion from the public value contract.
 
 Use the type audit for the remaining surface, including internals; defer ACL/full-text behind common CHECK families, arrays and JSON.
-Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations,
-expression composition, and world INSERT parity work together. Preserve distinct SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsing,
+Done per family when its portable values, SQL-coerced row input conversion, literals, catalog-resolved casts, applicable comparisons, core operations, expression composition, and world INSERT parity work together. Preserve distinct SQL NULL, Unknown, and SQL error outcomes in every target. Keep raw input parsing,
 session-dependent behavior, and unimplemented callables visible in the reports; representation support alone does not complete them.
 Assess recursive ownership before arrays, JSON, and composites. JSON evaluation assumes sufficient execution resources; server stack/allocation exhaustion is separate.
 Catalog identities and pseudo-types share families; polymorphic signatures resolve to concrete values. Database lookups and internal server interfaces require explicit requirements rather than fabricated local results.

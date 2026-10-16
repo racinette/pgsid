@@ -106,3 +106,23 @@ INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables
 INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong filtered numbers','{"a":[1,2,3],"flag":true}'::jsonb,'$.a?(@>1)'::jsonpath,'$.a?(@>1)','{}'::jsonb,false,false,true,true,'[1,2,3]'::jsonb,'2'::jsonb);
 -- name: document_filter_missing_variable
 INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'missing filter variable','{"a":[1,2],"flag":true}'::jsonb,'$.a?(@==$missing)'::jsonpath,'$.a?(@==$missing)','{}'::jsonb,true,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_type
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'array type','{"a":[1,2],"flag":true}'::jsonb,'$.a.type()'::jsonpath,'$.a.type()','{}'::jsonb,false,false,true,true,'["array"]'::jsonb,'"array"'::jsonb);
+-- name: document_size
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'array size','{"a":[1,2,3],"flag":true}'::jsonb,'$.a.size()'::jsonpath,'$.a.size()','{}'::jsonb,false,false,true,true,'[3]'::jsonb,'3'::jsonb);
+-- name: document_numeric_methods
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'numeric filter and magnitude','{"a":[1,"x",-2.5],"flag":true}'::jsonb,'$.a?(@.type()=="number").abs()'::jsonpath,'$.a?(@.type()=="number").abs()','{}'::jsonb,false,false,true,true,'[1,2.5]'::jsonb,'1'::jsonb);
+-- name: document_method_prefix
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'method silent prefix','{"a":[1,"x",2],"flag":true}'::jsonb,'$.a.abs()'::jsonpath,'$.a.abs()','{}'::jsonb,true,false,true,true,'[1]'::jsonb,'1'::jsonb);
+-- name: document_double_number
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'retain decimal number','{"a":1.234567890123456789,"flag":true}'::jsonb,'$.a.double()'::jsonpath,'$.a.double()','{}'::jsonb,false,false,true,true,'[1.234567890123456789]'::jsonb,'1.234567890123456789'::jsonb);
+-- name: document_double_string
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'convert decimal string','{"a":"1.234567890123456789","flag":true}'::jsonb,'$.a.double()'::jsonpath,'$.a.double()','{}'::jsonb,false,false,true,true,'[1.23456789012346]'::jsonb,'1.23456789012346'::jsonb);
+-- name: document_method_original_source
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'original method grouping','{"a":1,"flag":true}'::jsonb,'$.a.abs()'::jsonpath,'(-2+3).abs()','{}'::jsonb,false,false,true,true,'[1]'::jsonb,'1'::jsonb);
+-- name: document_method_wrong_size
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'wrong method result','{"a":[1,2,3],"flag":true}'::jsonb,'$.a.size()'::jsonpath,'$.a.size()','{}'::jsonb,false,false,true,true,'[2]'::jsonb,'3'::jsonb);
+-- name: document_method_type_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'non-numeric magnitude','{"a":false,"flag":true}'::jsonb,'$.a.abs()'::jsonpath,'$.a.abs()','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);
+-- name: document_method_float_error
+INSERT INTO query_documents(id,path_id,label,document,path,source_text,variables,silent,bypass,expected_exists,expected_match,expected_results,expected_first) VALUES(2,1,'float range error','{"a":1e309,"flag":true}'::jsonb,'$.a.double()'::jsonpath,'$.a.double()','{}'::jsonb,false,false,NULL,true,'[]'::jsonb,NULL::jsonb);

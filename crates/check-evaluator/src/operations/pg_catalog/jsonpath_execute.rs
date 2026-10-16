@@ -262,6 +262,7 @@ fn jsonpath_execution_stored(input: JsonpathValue) -> JsonpathValue {
                     && node.kind != JSONPATH_NODE_NOT
                     && node.kind != JSONPATH_NODE_IS_UNKNOWN
                     && (node.kind < JSONPATH_NODE_PLUS || node.kind > JSONPATH_NODE_STARTS)
+                    && jsonpath_method_core(node.kind) == false
                 {
                     return JsonpathValue::Unknown;
                 };
@@ -373,7 +374,8 @@ fn jsonpath_execution_walk(
                 scope: jsonpath_execution_empty_scope(),
             };
             pending.push(selected);
-        } else if task.mode == 2 {
+        };
+        if task.mode == 2 {
             let step = context.path_nodes[task.step];
             let within = step.last < 0 || task.level <= usize::try_from(step.last).unwrap_or(0);
             if within {
@@ -407,7 +409,8 @@ fn jsonpath_execution_walk(
                     ));
                 };
             };
-        } else if task.mode == 6 {
+        };
+        if task.mode == 6 {
             if jsonpath_execution_ordered(
                 context,
                 task.reference,
@@ -434,7 +437,8 @@ fn jsonpath_execution_walk(
                     scope: jsonpath_execution_empty_scope(),
                 });
             };
-        } else if task.mode == 4 {
+        };
+        if task.mode == 4 {
             let spec = context.path_nodes[task.spec];
             pending.push(JsonpathExecutionTask {
                 mode: 11,
@@ -461,7 +465,8 @@ fn jsonpath_execution_walk(
                 context.lax,
                 task.ignore,
             ));
-        } else if task.mode == 7 {
+        };
+        if task.mode == 7 {
             let step = context.path_nodes[task.step];
             pending.push(JsonpathExecutionTask {
                 mode: 8,
@@ -483,7 +488,8 @@ fn jsonpath_execution_walk(
                 context.lax,
                 task.ignore,
             ));
-        } else if task.mode == 8 {
+        };
+        if task.mode == 8 {
             collect_depth = collect_depth - 1;
             collect_unwrap = task.unwrap;
             if task.level - task.mark != 1 || item_count - task.level != 1 {
@@ -513,7 +519,8 @@ fn jsonpath_execution_walk(
                 ));
             };
             item_count = task.mark;
-        } else if task.mode == 9 {
+        };
+        if task.mode == 9 {
             collect_depth = collect_depth - 1;
             collect_unwrap = task.unwrap;
             let start = operands.len();
@@ -538,7 +545,8 @@ fn jsonpath_execution_walk(
                     scope: jsonpath_execution_empty_scope(),
                 });
             };
-        } else if task.mode == 10 {
+        };
+        if task.mode == 10 {
             let step = context.path_nodes[task.step];
             if task.level + 1 < task.spec {
                 pending.push(JsonpathExecutionTask {
@@ -586,7 +594,8 @@ fn jsonpath_execution_walk(
             {
                 error = JSONPATH_EXEC_NUMBER;
             };
-        } else if task.mode == 11 || task.mode == 12 {
+        };
+        if task.mode == 11 || task.mode == 12 {
             collect_depth = collect_depth - 1;
             collect_unwrap = task.unwrap;
             let mut index = Int4Value::Error(make_sql_error(JSONPATH_EXEC_SUBSCRIPT));
@@ -662,7 +671,8 @@ fn jsonpath_execution_walk(
                     });
                 };
             };
-        } else if task.mode == 13 {
+        };
+        if task.mode == 13 {
             let step = context.path_nodes[task.step];
             let spec = context.path_nodes[task.spec];
             let size = task.level as i32;
@@ -731,9 +741,11 @@ fn jsonpath_execution_walk(
                     });
                 };
             };
-        } else if task.mode == 14 {
+        };
+        if task.mode == 14 {
             innermost_size = task.from;
-        } else if task.mode == 15 || task.mode == 16 || task.mode == 17 {
+        };
+        if task.mode == 15 || task.mode == 16 || task.mode == 17 {
             let step = context.path_nodes[task.step];
             let mut predicate: i32 = 1;
             let mut ready = true;
@@ -838,7 +850,8 @@ fn jsonpath_execution_walk(
                     task.ignore,
                 ));
             };
-        } else if task.mode == 18 || task.mode == 19 || task.mode == 20 || task.mode == 21 {
+        };
+        if task.mode == 18 || task.mode == 19 || task.mode == 20 || task.mode == 21 {
             let step = context.path_nodes[task.step];
             let mut predicate: i32 = 0;
             if item_count - task.mark == 1 {
@@ -934,7 +947,8 @@ fn jsonpath_execution_walk(
                     task.ignore,
                 ));
             };
-        } else if task.step == 0 {
+        };
+        if task.mode == 0 && task.step == 0 {
             if collect_depth > 0 && collect_unwrap && context.lax && task.unwrap && value.kind == 5
             {
                 if value.child > 0 {
@@ -962,7 +976,8 @@ fn jsonpath_execution_walk(
                     count = 0;
                 };
             };
-        } else {
+        };
+        if task.mode == 0 && task.step > 0 {
             let step = context.path_nodes[task.step];
             if step.kind == JSONPATH_NODE_ROOT {
                 pending.push(jsonpath_execution_make_task(
@@ -1311,6 +1326,88 @@ fn jsonpath_execution_walk(
                         task.ignore,
                     ));
                 };
+            } else if jsonpath_method_core(step.kind) {
+                if step.kind == JSONPATH_METHOD_TYPE {
+                    pending.push(jsonpath_execution_make_task(
+                        0,
+                        step.next,
+                        JsonpathReference {
+                            source: 2,
+                            node: context.path_nodes.len()
+                                + usize::try_from(value.kind).unwrap_or(0),
+                        },
+                        context.lax,
+                        task.ignore,
+                    ));
+                } else if step.kind == JSONPATH_METHOD_SIZE {
+                    let mut size: i32 = 1;
+                    if value.kind == 5 {
+                        size = 0;
+                        let mut child = value.child;
+                        while child > 0 {
+                            size = size + 1;
+                            child = jsonpath_execution_node(
+                                context,
+                                JsonpathReference {
+                                    source: task.reference.source,
+                                    node: child,
+                                },
+                            )
+                            .next;
+                        }
+                    } else if context.lax == false {
+                        if task.ignore == false {
+                            error = JSONPATH_EXEC_ARRAY;
+                        };
+                        size = -1;
+                    };
+                    if size >= 0 {
+                        let text = int4_to_text(Int4Value::Value(size));
+                        if let TextValue::Value(number) = text {
+                            computed = NumericValue::Value(number);
+                        };
+                        pending.push(jsonpath_execution_make_task(
+                            0,
+                            step.next,
+                            JsonpathReference {
+                                source: 3,
+                                node: numbers.len(),
+                            },
+                            context.lax,
+                            task.ignore,
+                        ));
+                    };
+                } else if task.unwrap && value.kind == 5 {
+                    if value.child > 0 {
+                        pending.push(jsonpath_execution_make_task(
+                            1,
+                            task.step,
+                            JsonpathReference {
+                                source: task.reference.source,
+                                node: value.child,
+                            },
+                            false,
+                            task.ignore,
+                        ));
+                    };
+                } else {
+                    let mut number = jsonpath_execution_numeric(context, task.reference);
+                    if task.reference.source == 3 {
+                        number = numbers[task.reference.node].clone();
+                    };
+                    let text = jsonpath_method_text(context, task.reference);
+                    computed = jsonpath_method_numeric(step.kind, number, text, value.kind);
+                    pending.push(jsonpath_execution_make_task(
+                        0,
+                        step.next,
+                        JsonpathReference {
+                            source: 3,
+                            node: numbers.len(),
+                        },
+                        context.lax,
+                        task.ignore,
+                    ));
+                };
             } else if step.kind == JSONPATH_NODE_DESCENDANT {
                 pending.push(jsonpath_execution_make_task(
                     2,
@@ -1597,7 +1694,29 @@ fn jsonpath_evaluate(
                 };
                 let resolved = jsonpath_execution_stored(path);
                 if let JsonpathValue::Value(query) = resolved {
-                    let nodes = jsonpath_execution_literals(&query);
+                    let mut nodes = jsonpath_execution_literals(&query);
+                    let mut characters = query.characters;
+                    let mut index: usize = 0;
+                    while index < JSONPATH_METHOD_TYPE_NAMES.len() {
+                        let name = JSONPATH_METHOD_TYPE_NAMES[index];
+                        let content: Vec<char> = name.chars().collect();
+                        let start = characters.len();
+                        let mut position: usize = 0;
+                        while position < content.len() {
+                            characters.push(content[position]);
+                            position += 1;
+                        }
+                        nodes.push(JsonbNode {
+                            kind: 4,
+                            child: 0,
+                            next: 0,
+                            key_start: 0,
+                            key_end: 0,
+                            text_start: start,
+                            text_end: characters.len(),
+                        });
+                        index += 1;
+                    }
                     let mut document = input;
                     let mut variables = vars;
                     if utf8 {
@@ -1612,7 +1731,7 @@ fn jsonpath_evaluate(
                         variables_nodes: variables.nodes,
                         variables_root: variables.root,
                         literal_nodes: nodes,
-                        path_characters: query.characters,
+                        path_characters: characters,
                         path_nodes: query.nodes,
                         path_root: query.root,
                         lax: query.lax,

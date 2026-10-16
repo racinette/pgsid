@@ -15,7 +15,7 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 
-it('executes structural JSONPath sequences, arithmetic, predicates, filters and silent prefixes in every target', async () => {
+it('executes structural JSONPath sequences, arithmetic, predicates, filters, core methods and silent prefixes in every target', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-jsonpath-execution-'))
   const value = (input: string | boolean): Input => ({ kind: 'Value', value: input })
@@ -116,6 +116,73 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       requiresRegex: false,
     }
     const cases: [string, string, string?, boolean?][] = [
+      ['null', '$.type()'],
+      ['true', '$.type()'],
+      ['false', '$.type()'],
+      ['1.2300', '$.type()'],
+      ['"x"', '$.type()'],
+      ['"é"', '$.type()'],
+      ['[]', '$.type()'],
+      ['{}', '$.type()'],
+      ['[[1,2],[3]]', '$.type()'],
+      ['[[1,2],[3]]', '$[*].type()'],
+      ['[]', '$.size()'],
+      ['[1,2,3]', '$.size()'],
+      ['[[1,2],[3]]', '$.size()'],
+      ['[[1,2],[3]]', '$[*].size()'],
+      ['{}', '$.size()'],
+      ['{}', 'strict $.size()'],
+      ['null', '$.size()'],
+      ['null', 'strict $.size()'],
+      ['[1,2]', '$.size().type()'],
+      ['[]', '$.type().type()'],
+      ['-1.2300', '$.abs()'],
+      ['-1.2300', '$.floor()'],
+      ['-1.2300', '$.ceiling()'],
+      ['0.0000', '$.abs()'],
+      ['[1,-2.5]', '$.abs()'],
+      ['[1,-2.5]', 'strict $.abs()'],
+      ['[[1],-2]', '$.abs()'],
+      ['[]', '$.abs()'],
+      ['[1,"x",2]', '$.abs()'],
+      ['[1,"x",2]', '$.floor()'],
+      ['["x",1]', '$.abs()'],
+      ['"1"', '$.abs()'],
+      ['true', '$.floor()'],
+      ['{}', 'exists($.abs())'],
+      ['{}', '($.abs()==1) is unknown'],
+      ['{"a":[]}', 'strict $.**.size()'],
+      ['{"a":["x",-1,2],"b":1}', '$.a?(@.type()=="number").abs()'],
+      ['{"x":-1}', '((-$.x).abs()) == 1', '{}', false],
+      ['{"x":-1}', '(-$.x.abs() == 1)', '{}', false],
+      ['{}', '(exists($)).type()', '{}', false],
+      ['{}', '(1=="x").type()', '{}', false],
+      ['{}', '(1+2).type()', '{}', false],
+      ['{}', '(-2).abs().type()'],
+      ['1.234567890123456789', '$.double()'],
+      ['"1.234567890123456789"', '$.double()'],
+      ['9007199254740993', '$.double()'],
+      ['"9007199254740993"', '$.double()'],
+      ['"-0.0"', '$.double()'],
+      ['"NaN"', '$.double()'],
+      ['"NaN(payload)"', '$.double()'],
+      ['"+NaN"', '$.double()'],
+      ['"-NaN"', '$.double()'],
+      ['"nanX"', '$.double()'],
+      ['"Infinity"', '$.double()'],
+      ['"-Infinity"', '$.double()'],
+      ['"1e309"', '$.double()'],
+      ['"1e-400"', '$.double()'],
+      ['1e309', '$.double()'],
+      ['1e-400', '$.double()'],
+      ['"garbage"', '$.double()'],
+      ['"1_2"', '$.double()'],
+      ['"  +1.25  "', '$.double()'],
+      ['["1.25",2.50]', '$.double()'],
+      ['["1.25",2.50]', 'strict $.double()'],
+      ['true', '$.double()'],
+      ['null', '$.double()'],
+      ['{"x":"NaN"}', '($.x.double()==1) is unknown'],
       ['1', '$==1'],
       ['1.0', '$==1.00'],
       ['1', '$!=2'],
@@ -390,7 +457,7 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       }
       fixtures.push({
         name: variant.name,
-        row: { ...base, path: value('$.a.type()') },
+        row: { ...base, path: value('$.a.keyvalue()') },
         expected: variant.stored
           ? { kind: 'Unknown' }
           : variant.mode === 0 || variant.mode === 4
@@ -405,17 +472,17 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
       })
       fixtures.push({
         name: variant.name,
-        row: { ...base, document: value('{"a":1}'), path: value('$.a.type()') },
+        row: { ...base, document: value('{"a":1}'), path: value('$.a.keyvalue()') },
         expected: { kind: 'Unknown' },
       })
       fixtures.push({
         name: variant.name,
-        row: { ...base, document: value('{"x":1}'), path: value('(-$.x.abs() == 1)') },
+        row: { ...base, document: value('{"x":1}'), path: value('(-$.x.keyvalue() == 1)') },
         expected: { kind: 'Unknown' },
       })
     }
     for (const variant of variants) {
-      for (const path of ['$.a.size()', '$ like_regex "a"'])
+      for (const path of ['$.a.keyvalue()', '$ like_regex "a"'])
         fixtures.push({
           name: variant.name,
           row: {
@@ -435,7 +502,7 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
     for (const variant of variants.filter((item) => item.mode < 4)) {
       const row: Row = {
         document: value('{}'),
-        path: value('(-$.x.abs() == 1)'),
+        path: value('(-$.x.keyvalue() == 1)'),
         variables: value('[]'),
         silent: value(true),
         expected: value('true'),
@@ -505,6 +572,20 @@ pub fn jsonpath_execution_probe(document: TextValue, path: TextValue, variables:
           expected,
         })
       }
+    }
+    for (const variant of variants) {
+      for (const document of ['"0x1p0"'])
+        fixtures.push({
+          name: variant.name,
+          row: {
+            document: value(document),
+            path: value('$.double()'),
+            variables: value('{}'),
+            silent: value(false),
+            expected: value('true'),
+          },
+          expected: { kind: 'Unknown' },
+        })
     }
     const original = '(-$v)[0]+2'
     const printed = (
