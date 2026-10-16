@@ -53,6 +53,29 @@ export type EvalExpression =
     }
   | { kind: 'coalesce'; type: ScalarType; operands: readonly EvalExpression[] }
   | {
+      kind: 'array-text-literal'
+      moneyLiterals?: readonly { text: string; units: string }[]
+      type: ArrayType
+      elementType: ArrayElementType
+      value: string
+      enum?: EnumDefinition
+      origin?: 'source' | 'stored'
+    }
+  | {
+      kind: 'text-to-array'
+      type: ArrayType
+      elementType: ArrayElementType
+      operand: EvalExpression
+      enum?: EnumDefinition
+    }
+  | {
+      kind: 'array-typmod'
+      type: ArrayType
+      elementType: ArrayElementType
+      modifier: number
+      operand: EvalExpression
+    }
+  | {
       kind: 'array-constructor'
       type: ArrayType
       elementType: ArrayElementType
@@ -307,7 +330,13 @@ export function emitEvalExpression<Ast>(
       include(result.helpers)
       return { ...result.value, effect: 'total' }
     }
-    if (node.kind === 'uncertain' || node.kind === 'array-constructor') {
+    if (
+      node.kind === 'uncertain' ||
+      node.kind === 'array-constructor' ||
+      node.kind === 'array-text-literal' ||
+      node.kind === 'text-to-array' ||
+      node.kind === 'array-typmod'
+    ) {
       const result = backend.uncertain(node.type)
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }

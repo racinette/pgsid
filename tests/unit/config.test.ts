@@ -8,6 +8,12 @@ describe('config schema', () => {
       'schema: schema.sql\nsql:\n  codegen:\n    checks: { defaultCollation: C, serverEncoding: UTF8 }\n',
     )
     expect(config.sql.codegen?.checks).toEqual({ defaultCollation: 'C', serverEncoding: 'UTF8' })
+    for (const arrayNulls of [true, false])
+      expect(
+        parseConfigString(
+          `schema: schema.sql\nsql:\n  codegen:\n    checks: { arrayNulls: ${arrayNulls} }\n`,
+        ).sql.codegen?.checks,
+      ).toEqual({ arrayNulls })
     for (const defaultCtype of ['C', 'C.UTF-8'])
       expect(
         parseConfigString(
@@ -23,6 +29,8 @@ describe('config schema', () => {
       '{ serverEncoding: LATIN1 }',
       '{ defaultCtype: en_US.UTF-8 }',
       '{ unknown: C }',
+      '{ arrayNulls: on }',
+      '{ arrayNulls: unknown }',
     ])
       expect(() =>
         parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    checks: ' + checks + '\n'),

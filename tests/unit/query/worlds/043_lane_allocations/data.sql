@@ -4,3 +4,6 @@ INSERT INTO lane_batches (first_batch, second_batch, expected_layout, slot_limit
 VALUES ('[0:1]={1,NULL}'::integer[], '[0:1]={3,4}'::integer[], '[1:2][0:1]', 4);
 INSERT INTO lane_candidates (first_lane, second_lane, divisor, expected_count, expected_layout, bypass)
 VALUES (1, NULL, 1, 3, '[1:2][1:2]', false);
+
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1,2}', '{a,b}', '{yes,no}', '{1.25,2.5}', '{"{\"a\":1}"}', '{(1,1),(0,0)}', 3, '[1:2]', false);

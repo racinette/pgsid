@@ -528,22 +528,23 @@ async function withCatalogRendering<T>(pg: PGlite, read: () => Promise<T>): Prom
       float_digits: string
       interval_style: string
       monetary_locale: string
+      array_nulls: string
     }>(
       `SELECT current_setting('search_path') AS search_path,
       current_setting('DateStyle') AS date_style,current_setting('TimeZone') AS time_zone,
-      current_setting('extra_float_digits') AS float_digits, current_setting('IntervalStyle') AS interval_style, current_setting('lc_monetary') AS monetary_locale`,
+      current_setting('extra_float_digits') AS float_digits, current_setting('IntervalStyle') AS interval_style, current_setting('lc_monetary') AS monetary_locale, current_setting('array_nulls') AS array_nulls`,
     )
   ).rows[0]!
   await pg.query(`SELECT set_config('search_path','',false),
     set_config('DateStyle','ISO, MDY',false),set_config('TimeZone','UTC',false),
-    set_config('extra_float_digits','3',false), set_config('IntervalStyle','iso_8601',false), set_config('lc_monetary','C',false)`)
+    set_config('extra_float_digits','3',false), set_config('IntervalStyle','iso_8601',false), set_config('lc_monetary','C',false), set_config('array_nulls','on',false)`)
   try {
     return await read()
   } finally {
     await pg.query(
       `SELECT set_config('search_path',$1,false),
       set_config('DateStyle',$2,false),set_config('TimeZone',$3,false),
-      set_config('extra_float_digits',$4,false), set_config('IntervalStyle',$5,false), set_config('lc_monetary',$6,false)`,
+      set_config('extra_float_digits',$4,false), set_config('IntervalStyle',$5,false), set_config('lc_monetary',$6,false), set_config('array_nulls',$7,false)`,
       [
         saved.search_path,
         saved.date_style,
@@ -551,6 +552,7 @@ async function withCatalogRendering<T>(pg: PGlite, read: () => Promise<T>): Prom
         saved.float_digits,
         saved.interval_style,
         saved.monetary_locale,
+        saved.array_nulls,
       ],
     )
   }

@@ -6312,7 +6312,7 @@ export type ArrayElement = {
 } | {
     readonly kind: "BoxNonNull";
 };
-function copyArrayElement(value: ArrayElement): ArrayElement {
+export function copyArrayElement(value: ArrayElement): ArrayElement {
     switch (value.kind) {
         case "Unknown": return { kind: "Unknown" };
         case "Null": return { kind: "Null" };
@@ -8088,11 +8088,12 @@ function copyArrayTextSource(value: ArrayTextSource): ArrayTextSource {
     return { characters: langruntime.checkedChars(value.characters) };
 }
 export interface ArrayTextPayload {
+    state: number;
     dimensions: ArrayDimension[];
     events: ArrayTextEvent[];
 }
 function copyArrayTextPayload(value: ArrayTextPayload): ArrayTextPayload {
-    return { dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), events: langruntime.checkedStructs(value.events, copyArrayTextEvent) };
+    return { state: langruntime.checkedI32(value.state), dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), events: langruntime.checkedStructs(value.events, copyArrayTextEvent) };
 }
 export type ArrayTextPlan = {
     kind: "Unknown";
@@ -8283,7 +8284,7 @@ function arrayTextResult(dimensions: ArrayDimension[], input: ArrayTextEvent[], 
     if (!(error === 0)) {
         langruntime.pushStruct(events, { kind: "Error", value: makeSqlError(error) }, copyArrayTextEvent);
     }
-    return { kind: "Value", value: { dimensions: dimensions, events: events } };
+    return { kind: "Value", value: { state: 1, dimensions: dimensions, events: events } };
 }
 export function parseArrayText(input: TextValue, delimiter: string, nulls: number): ArrayTextPlan {
     delimiter = langruntime.checkedChar(delimiter);
@@ -8539,6 +8540,57 @@ export function finishArrayText(plan: ArrayTextPlan, converted: ArrayArguments):
         }
     }
     return { kind: "Unknown" };
+}
+export function prepareArrayText(input: TextValue, boxDelimiter: boolean, nulls: number): ArrayTextPayload {
+    boxDelimiter = langruntime.checkedBool(boxDelimiter);
+    nulls = langruntime.checkedI32(nulls);
+    let delimiter: string = ",";
+    if (boxDelimiter) {
+        delimiter = langruntime.checkedChar(";");
+    }
+    const plan: ArrayTextPlan = parseArrayText(input, delimiter, nulls);
+    if (plan.kind === "Value") {
+        const payload: ArrayTextPayload = copyArrayTextPayload(plan.value);
+        return payload;
+    }
+    let state: number = langruntime.checkedSignedNegate(1);
+    if (plan.kind === "Null") {
+        state = langruntime.checkedI32(0);
+    }
+    const dimensions: ArrayDimension[] = [];
+    const events: ArrayTextEvent[] = [];
+    return { state: state, dimensions: dimensions, events: events };
+}
+export function arrayTextHasEvent(input: ArrayTextPayload, index: Int4Value): boolean {
+    input = copyArrayTextPayload(input);
+    if (!(input.state === 1)) {
+        return false;
+    }
+    if (index.kind === "Value") {
+        const position: number = langruntime.checkedI32(index.value);
+        return position >= 0 && ((BigInt(langruntime.checkedI32(position))) < (BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.events.length)))))));
+    }
+    return false;
+}
+export function arrayTextNextIndex(input: Int4Value): Int4Value {
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        if (value < 2147483647) {
+            return { kind: "Value", value: langruntime.checkedSignedAdd(value, 1) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function finishPreparedArrayText(input: ArrayTextPayload, converted: ArrayArguments): ArrayValue {
+    input = copyArrayTextPayload(input);
+    converted = copyArrayArguments(converted);
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (!(input.state === 1)) {
+        return { kind: "Unknown" };
+    }
+    return finishArrayText({ kind: "Value", value: input }, converted);
 }
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);

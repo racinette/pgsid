@@ -101,171 +101,27 @@ fn jsonpath_conversion_integer_text(input: TextValue, wide: bool) -> NumericValu
 
 fn jsonpath_conversion_number_text(input: TextValue) -> NumericValue {
     if let TextValue::Value(value) = input {
-        let characters: Vec<char> = value.chars().collect();
-        let mut start: usize = 0;
-        let mut end = characters.len();
-        while start < end && numeric_space(characters[start]) {
-            start += 1;
-        }
-        while end > start && numeric_space(characters[end - 1]) {
-            end = end - 1;
-        }
-        let mut negative = false;
-        if start < end && (characters[start] == '+' || characters[start] == '-') {
-            negative = characters[start] == '-';
-            start += 1;
-        };
-        if start == end {
+        let parsed = scalar_numeric_from_text(TextValue::Value(value));
+        if let NumericValue::Error(_) = parsed {
             return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
         };
-        let mut radix: i32 = 10;
-        let mut prefix_end = start;
-        if start + 1 < end && characters[start] == '0' {
-            let prefix = characters[start + 1].to_ascii_lowercase();
-            if prefix == 'x' {
-                radix = 16;
-                prefix_end = start + 2;
+        if let NumericValue::Value(number) = parsed {
+            let parts = numeric_parts(number.as_str());
+            if parts.valid && parts.special == 1 {
+                return NumericValue::Value(number);
             };
-            if prefix == 'o' {
-                radix = 8;
-                prefix_end = start + 2;
-            };
-            if prefix == 'b' {
-                radix = 2;
-                prefix_end = start + 2;
-            };
-        };
-        let mut clean = String::new();
-        let mut position = start;
-        while position < end {
-            let character = characters[position];
-            if character == '_' {
-                if position == start || position + 1 == end {
-                    return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
-                };
-                let before = jsonpath_scan_hex(characters[position - 1]);
-                let after = jsonpath_scan_hex(characters[position + 1]);
-                if (position != prefix_end && (before < 0 || before >= radix))
-                    || after < 0
-                    || after >= radix
-                {
-                    return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
-                };
-            } else {
-                clean.push(character);
-            };
-            position += 1;
-        }
-        let content: Vec<char> = clean.chars().collect();
-        let mut begin: usize = 0;
-        if radix == 10 {
-            while begin + 1 < content.len()
-                && content[begin] == '0'
-                && numeric_wire_decimal_digit(content[begin + 1]) >= 0
-            {
-                begin += 1;
-            }
-        };
-        let mut normalized = String::new();
-        position = begin;
-        while position < content.len() {
-            normalized.push(content[position]);
-            position += 1;
-        }
-        let source = JsonpathScanSource {
-            characters: normalized.chars().collect(),
-        };
-        if source.characters.len() == 0 {
             return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
-        };
-        let first = source.characters[0];
-        if numeric_wire_decimal_digit(first) < 0 && first != '.' {
-            return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
-        };
-        let token = jsonpath_scan_number(&source, 0);
-        if token.error != 0
-            || token.end != source.characters.len()
-            || (token.kind != JSONPATH_SCAN_INT && token.kind != JSONPATH_SCAN_NUMERIC)
-        {
-            return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
-        };
-        let parsed = jsonpath_numeric_literal(normalized.as_str());
-        if let TextValue::Error(_) = parsed {
-            return NumericValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
-        };
-        if let TextValue::Value(number) = parsed {
-            let mut result = NumericValue::Value(number);
-            if negative {
-                result = sql__pg_catalog__numeric_uminus__wcmy(result);
-            };
-            return result;
         };
     };
     NumericValue::Unknown
 }
 
 fn jsonpath_conversion_boolean_text(input: TextValue) -> BoolValue {
-    if let TextValue::Value(value) = input {
-        let characters: Vec<char> = value.chars().collect();
-        let start: usize = 0;
-        let end = characters.len();
-        if end - start == 1 && characters[start] == '1' {
-            return BoolValue::Value(true);
-        };
-        if end - start == 1 && characters[start] == '0' {
-            return BoolValue::Value(false);
-        };
-        let mut result = BoolValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
-        let words: Vec<char> = "truefalseyesnoonoff".chars().collect();
-        let mut word: usize = 0;
-        while word < 6 {
-            let mut begin: usize = 0;
-            let mut length: usize = 4;
-            let mut minimum: usize = 1;
-            let mut state = true;
-            if word == 1 {
-                begin = 4;
-                length = 5;
-                state = false;
-            };
-            if word == 2 {
-                begin = 9;
-                length = 3;
-            };
-            if word == 3 {
-                begin = 12;
-                length = 2;
-                state = false;
-            };
-            if word == 4 {
-                begin = 14;
-                length = 2;
-                minimum = 2;
-            };
-            if word == 5 {
-                begin = 16;
-                length = 3;
-                minimum = 2;
-                state = false;
-            };
-            if end - start >= minimum && end - start <= length {
-                let mut offset: usize = 0;
-                let mut equal = true;
-                while offset < end - start {
-                    if characters[start + offset].to_ascii_lowercase() != words[begin + offset] {
-                        equal = false;
-                    };
-                    offset += 1;
-                }
-                if equal {
-                    result = BoolValue::Value(state);
-                };
-            };
-            word += 1;
-        }
-        return result;
+    let result = scalar_boolean_word(input);
+    if let BoolValue::Error(_) = result {
+        return BoolValue::Error(make_sql_error(JSONPATH_METHOD_NON_NUMERIC));
     };
-    BoolValue::Unknown
+    result
 }
 
 fn jsonpath_conversion_boolean_value(

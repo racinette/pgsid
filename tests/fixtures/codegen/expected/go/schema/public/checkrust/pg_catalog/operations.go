@@ -22,6 +22,96 @@ func addressAndWord(left int, right int) int {
 	}
 	return result
 }
+func ArrayIntegerTextElement(input checkruntime.TextValue, family int) checkruntime.ArrayElement {
+	family = langruntime.CheckedI32(family)
+	bits := 64
+	if family == 1 {
+		bits = langruntime.CheckedI32(16)
+	}
+	if family == 2 {
+		bits = langruntime.CheckedI32(32)
+	}
+	number := ScalarIntegerFromText(input, bits)
+	if number.Kind == checkruntime.Int8ValueValue {
+		value := number.Value
+		if family == 1 {
+			return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementInt2, Int2: int(int32(value))}
+		}
+		if family == 2 {
+			return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementInt4, Int4: int(int32(value))}
+		}
+		return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementInt8, Int8: value}
+	}
+	return checkruntime.ArrayElementFromInt8(number)
+}
+func arrayElementTypmod(input checkruntime.ArrayElement, identity string, modifier int) checkruntime.ArrayElement {
+	input = checkruntime.CopyArrayElement(input)
+	identity = langruntime.CheckedString(identity)
+	modifier = langruntime.CheckedI32(modifier)
+	width := checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: modifier}
+	explicit := checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+	if identity == "pg_catalog.\"varchar\"" {
+		return checkruntime.ArrayElementFromText(Varchar2rhn(checkruntime.ArrayElementToText(input), width, explicit))
+	}
+	if identity == "pg_catalog.bpchar" {
+		return checkruntime.ArrayElementFromText(Bpchar2uas(checkruntime.ArrayElementToText(input), width, explicit))
+	}
+	if identity == "pg_catalog.\"numeric\"" {
+		return checkruntime.ArrayElementFromNumeric(Numeric879l(checkruntime.ArrayElementToNumeric(input), width))
+	}
+	if identity == "pg_catalog.\"bit\"" {
+		return checkruntime.ArrayElementFromBit(BitEqck(checkruntime.ArrayElementToBit(input), width, explicit))
+	}
+	if identity == "pg_catalog.varbit" {
+		return checkruntime.ArrayElementFromBit(Varbit7ap7(checkruntime.ArrayElementToBit(input), width, explicit))
+	}
+	if identity == "pg_catalog.\"time\"" {
+		return checkruntime.ArrayElementFromTime(TimeBg2r(checkruntime.ArrayElementToTime(input), width))
+	}
+	if identity == "pg_catalog.timetz" {
+		return checkruntime.ArrayElementFromTimetz(Timetz7slr(checkruntime.ArrayElementToTimetz(input), width))
+	}
+	if identity == "pg_catalog.\"timestamp\"" {
+		return checkruntime.ArrayElementFromTimestamp(TimestampAkly(checkruntime.ArrayElementToTimestamp(input), width))
+	}
+	if identity == "pg_catalog.timestamptz" {
+		return checkruntime.ArrayElementFromTimestamptz(TimestamptzUwsx(checkruntime.ArrayElementToTimestamptz(input), width))
+	}
+	if identity == "pg_catalog.\"interval\"" {
+		return checkruntime.ArrayElementFromInterval(IntervalDrcl(checkruntime.ArrayElementToInterval(input), width))
+	}
+	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
+}
+func ArrayWithTypmod(input checkruntime.ArrayValue, modifier int) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	modifier = langruntime.CheckedI32(modifier)
+	if modifier < 0 {
+		return input
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		payload := checkruntime.CopyArrayPayload(input.Value)
+		elements := payload.Elements
+		position := 0
+		unknown := false
+		for position < len(elements) {
+			converted := arrayElementTypmod(checkruntime.CopyArrayElement(elements[position]), payload.ElementType, modifier)
+			if converted.Kind == checkruntime.ArrayElementError {
+				error := converted.Error
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+			}
+			if converted.Kind == checkruntime.ArrayElementUnknown {
+				unknown = true
+			}
+			elements[position] = checkruntime.CopyArrayElement(converted)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if unknown {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+		}
+		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: payload.ElementType, ElementKind: payload.ElementKind, Dimensions: payload.Dimensions, Elements: elements})
+	}
+	return input
+}
 func CardinalityM1rn(input checkruntime.ArrayValue) checkruntime.Int4Value {
 	input = checkruntime.CopyArrayValue(input)
 	if input.Kind == checkruntime.ArrayValueError {
@@ -25370,6 +25460,393 @@ func PolygonFromText(input checkruntime.TextValue) checkruntime.PolygonValue {
 		return polygonParse(value)
 	}
 	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
+}
+
+const scalarInputInvalid = 3484946
+const scalarInputRange = 3452547
+
+func MoneyFromCapturedText(input checkruntime.TextValue, texts string, units string, count int) checkruntime.MoneyValue {
+	texts = langruntime.CheckedString(texts)
+	units = langruntime.CheckedString(units)
+	count = langruntime.CheckedI32(count)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueNull}
+	}
+	selected := ScalarEnumFromText(input, texts, count)
+	if selected.Kind == checkruntime.EnumValueValue {
+		encoded := EnumToText(selected, units, count)
+		parsed := ScalarIntegerFromText(encoded, 64)
+		if parsed.Kind == checkruntime.Int8ValueValue {
+			value := parsed.Value
+			return checkruntime.MakeMoneyValue(value)
+		}
+	}
+	return checkruntime.MoneyValue{Kind: checkruntime.MoneyValueUnknown}
+}
+func scalarInputDigit(ch rune) int {
+	ch = langruntime.CheckedChar(ch)
+	code := int(langruntime.CheckedChar(ch))
+	if code >= 48 && code <= 57 {
+		return langruntime.CheckedSignedSubtract(code, 48)
+	}
+	if code >= 65 && code <= 70 {
+		return langruntime.CheckedSignedSubtract(code, 55)
+	}
+	if code >= 97 && code <= 102 {
+		return langruntime.CheckedSignedSubtract(code, 87)
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func ScalarIntegerFromText(input checkruntime.TextValue, bits int) checkruntime.Int8Value {
+	bits = langruntime.CheckedI32(bits)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		position := 0
+		for position < len(chars) && checkruntime.NumericSpace(chars[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		negative := false
+		if position < len(chars) && (chars[position] == '+' || chars[position] == '-') {
+			negative = chars[position] == '-'
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		radix := int64(10)
+		prefixed := false
+		if langruntime.CheckedAdd(position, 1) < len(chars) && chars[position] == '0' {
+			prefix := langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(position, 1)])
+			if prefix == 'x' {
+				radix = int64(16)
+				prefixed = true
+			}
+			if prefix == 'o' {
+				radix = int64(8)
+				prefixed = true
+			}
+			if prefix == 'b' {
+				radix = int64(2)
+				prefixed = true
+			}
+			if prefixed {
+				position = langruntime.CheckedAdd(position, 2)
+			}
+		}
+		minimum := int64(-9223372036854775808)
+		if bits == 16 {
+			minimum = int64(-32768)
+		}
+		if bits == 32 {
+			minimum = int64(-2147483648)
+		}
+		first := position
+		number := int64(0)
+		over := false
+		digits := false
+		finished := false
+		for position < len(chars) && finished == false {
+			character := chars[position]
+			digit := int64(langruntime.CheckedI32(scalarInputDigit(character)))
+			if digit >= int64(0) && digit < radix {
+				if over || number < langruntime.CheckedI64Divide(minimum, radix) {
+					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(scalarInputRange)}
+				}
+				if number == langruntime.CheckedI64Divide(minimum, radix) && digit > langruntime.CheckedI64Subtract(int64(0), langruntime.CheckedI64Remainder(minimum, radix)) {
+					over = true
+					number = minimum
+				} else {
+					number = langruntime.CheckedI64Subtract(langruntime.CheckedI64Multiply(number, radix), digit)
+				}
+				digits = true
+				position = langruntime.CheckedAdd(position, 1)
+			} else if character == '_' {
+				if (position == first && prefixed == false) || langruntime.CheckedAdd(position, 1) >= len(chars) {
+					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+				}
+				next := int64(langruntime.CheckedI32(scalarInputDigit(chars[langruntime.CheckedAdd(position, 1)])))
+				if next < int64(0) || next >= radix {
+					return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			} else {
+				finished = true
+			}
+		}
+		if digits == false {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+		}
+		for position < len(chars) && checkruntime.NumericSpace(chars[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if position != len(chars) {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+		}
+		if over || (negative == false && number == minimum) {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(scalarInputRange)}
+		}
+		if negative == false {
+			number = langruntime.CheckedI64Subtract(int64(0), number)
+		}
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: number}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func ScalarBooleanFromText(input checkruntime.TextValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		first := 0
+		end := len(chars)
+		for first < end && checkruntime.NumericSpace(chars[first]) {
+			first = langruntime.CheckedAdd(first, 1)
+		}
+		for end > first && checkruntime.NumericSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		clean := langruntime.NewTextBuffer("")
+		for first < end {
+			clean = append(clean, string(langruntime.CheckedChar(chars[first]))...)
+			first = langruntime.CheckedAdd(first, 1)
+		}
+		result := scalarBooleanWord(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(clean)})
+		if result.Kind == checkruntime.BoolValueError {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+		}
+		return result
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func ScalarEnumFromText(input checkruntime.TextValue, labels string, count int) checkruntime.EnumValue {
+	labels = langruntime.CheckedString(labels)
+	count = langruntime.CheckedI32(count)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.EnumValue{Kind: checkruntime.EnumValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(labels)
+		position := 0
+		ordinal := 0
+		label := langruntime.NewTextBuffer("")
+		for position < len(chars) {
+			if chars[position] == '\x00' {
+				if ordinal < count && string(label) == value {
+					return checkruntime.MakeEnumValue(ordinal)
+				}
+				ordinal = langruntime.CheckedI32(langruntime.CheckedSignedAdd(ordinal, 1))
+				label = langruntime.NewTextBuffer("")
+			} else {
+				label = append(label, string(langruntime.CheckedChar(chars[position]))...)
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if ordinal < count && string(label) == value {
+			return checkruntime.MakeEnumValue(ordinal)
+		}
+		return checkruntime.EnumValue{Kind: checkruntime.EnumValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+	}
+	return checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}
+}
+func ScalarNumericFromText(input checkruntime.TextValue) checkruntime.NumericValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		parts := checkruntime.NumericParts(value)
+		if parts.Valid && parts.Special != 1 {
+			if parts.Special == 0 {
+				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "-Infinity"}
+			}
+			if parts.Special == 2 {
+				return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "Infinity"}
+			}
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: "NaN"}
+		}
+		characters := []rune(value)
+		start := 0
+		end := len(characters)
+		for start < end && checkruntime.NumericSpace(characters[start]) {
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		for end > start && checkruntime.NumericSpace(characters[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		negative := false
+		if start < end && (characters[start] == '+' || characters[start] == '-') {
+			negative = characters[start] == '-'
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		if start == end {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+		}
+		radix := 10
+		prefixEnd := start
+		if langruntime.CheckedAdd(start, 1) < end && characters[start] == '0' {
+			prefix := langruntime.AsciiLowercase(characters[langruntime.CheckedAdd(start, 1)])
+			if prefix == 'x' {
+				radix = langruntime.CheckedI32(16)
+				prefixEnd = langruntime.CheckedIndex(langruntime.CheckedAdd(start, 2))
+			}
+			if prefix == 'o' {
+				radix = langruntime.CheckedI32(8)
+				prefixEnd = langruntime.CheckedIndex(langruntime.CheckedAdd(start, 2))
+			}
+			if prefix == 'b' {
+				radix = langruntime.CheckedI32(2)
+				prefixEnd = langruntime.CheckedIndex(langruntime.CheckedAdd(start, 2))
+			}
+		}
+		clean := langruntime.NewTextBuffer("")
+		position := start
+		for position < end {
+			character := characters[position]
+			if character == '_' {
+				if position == start || langruntime.CheckedAdd(position, 1) == end {
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+				}
+				before := jsonpathScanHex(characters[langruntime.CheckedSubtract(position, 1)])
+				after := jsonpathScanHex(characters[langruntime.CheckedAdd(position, 1)])
+				if (position != prefixEnd && (before < 0 || before >= radix)) || after < 0 || after >= radix {
+					return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+				}
+			} else {
+				clean = append(clean, string(langruntime.CheckedChar(character))...)
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		content := []rune(string(clean))
+		begin := 0
+		if radix == 10 {
+			for langruntime.CheckedAdd(begin, 1) < len(content) && content[begin] == '0' && numericWireDecimalDigit(content[langruntime.CheckedAdd(begin, 1)]) >= 0 {
+				begin = langruntime.CheckedAdd(begin, 1)
+			}
+		}
+		normalized := langruntime.NewTextBuffer("")
+		position = langruntime.CheckedIndex(begin)
+		for position < len(content) {
+			normalized = append(normalized, string(langruntime.CheckedChar(content[position]))...)
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		source := jsonpathScanSource{characters: []rune(string(normalized))}
+		if len(source.characters) == 0 {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+		}
+		first := source.characters[0]
+		if first == '.' && (len(source.characters) < 2 || numericWireDecimalDigit(source.characters[1]) < 0) {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+		}
+		if numericWireDecimalDigit(first) < 0 && first != '.' {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+		}
+		token := jsonpathScanNumber(&source, 0)
+		if token.error != 0 || token.end != len(source.characters) || (token.kind != jsonpathScanInt && token.kind != jsonpathScanNumeric) {
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+		}
+		parsed := jsonpathNumericLiteral(string(normalized))
+		if parsed.Kind == checkruntime.TextValueError {
+			error := parsed.Error
+			return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+		}
+		if parsed.Kind == checkruntime.TextValueValue {
+			number := langruntime.CheckedString(parsed.Value)
+			result := checkruntime.NumericValue{Kind: checkruntime.NumericValueValue, Value: number}
+			if negative {
+				result = NumericUminusWcmy(result)
+			}
+			return result
+		}
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
+func scalarBooleanWord(input checkruntime.TextValue) checkruntime.BoolValue {
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		characters := []rune(value)
+		start := 0
+		end := len(characters)
+		if langruntime.CheckedSubtract(end, start) == 1 && characters[start] == '1' {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+		}
+		if langruntime.CheckedSubtract(end, start) == 1 && characters[start] == '0' {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+		}
+		result := checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(scalarInputInvalid)}
+		words := []rune("truefalseyesnoonoff")
+		word := 0
+		for word < 6 {
+			begin := 0
+			length := 4
+			minimum := 1
+			state := true
+			if word == 1 {
+				begin = langruntime.CheckedIndex(4)
+				length = langruntime.CheckedIndex(5)
+				state = false
+			}
+			if word == 2 {
+				begin = langruntime.CheckedIndex(9)
+				length = langruntime.CheckedIndex(3)
+			}
+			if word == 3 {
+				begin = langruntime.CheckedIndex(12)
+				length = langruntime.CheckedIndex(2)
+				state = false
+			}
+			if word == 4 {
+				begin = langruntime.CheckedIndex(14)
+				length = langruntime.CheckedIndex(2)
+				minimum = langruntime.CheckedIndex(2)
+			}
+			if word == 5 {
+				begin = langruntime.CheckedIndex(16)
+				length = langruntime.CheckedIndex(3)
+				minimum = langruntime.CheckedIndex(2)
+				state = false
+			}
+			if langruntime.CheckedSubtract(end, start) >= minimum && langruntime.CheckedSubtract(end, start) <= length {
+				offset := 0
+				equal := true
+				for offset < langruntime.CheckedSubtract(end, start) {
+					if langruntime.AsciiLowercase(characters[langruntime.CheckedAdd(start, offset)]) != words[langruntime.CheckedAdd(begin, offset)] {
+						equal = false
+					}
+					offset = langruntime.CheckedAdd(offset, 1)
+				}
+				if equal {
+					result = checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: state}
+				}
+			}
+			word = langruntime.CheckedAdd(word, 1)
+		}
+		return result
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int24eqCfkl(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	leftWide := checkruntime.Int2ToInt4(left)

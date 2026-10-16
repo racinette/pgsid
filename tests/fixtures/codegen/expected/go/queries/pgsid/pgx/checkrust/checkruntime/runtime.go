@@ -6111,7 +6111,7 @@ type ArrayElement struct {
 	ByteaUnspecified   int
 }
 
-func copyArrayElement(value ArrayElement) ArrayElement {
+func CopyArrayElement(value ArrayElement) ArrayElement {
 	switch value.Kind {
 	case ArrayElementUnknown:
 		return ArrayElement{Kind: ArrayElementUnknown}
@@ -6213,7 +6213,7 @@ func copyArrayElement(value ArrayElement) ArrayElement {
 	panic("unknown enum variant")
 }
 func ArrayElementFamily(input ArrayElement) int {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementInt2 {
 		return 1
 	}
@@ -6366,7 +6366,7 @@ func ArrayElementFromInt2(input Int2Value) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToInt2(input ArrayElement) Int2Value {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Int2Value{Kind: Int2ValueError, Error: error}
@@ -6395,7 +6395,7 @@ func ArrayElementFromInt4(input Int4Value) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToInt4(input ArrayElement) Int4Value {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Int4Value{Kind: Int4ValueError, Error: error}
@@ -6424,7 +6424,7 @@ func ArrayElementFromInt8(input Int8Value) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToInt8(input ArrayElement) Int8Value {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
@@ -6453,7 +6453,7 @@ func ArrayElementFromTimestamp(input TimestampValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToTimestamp(input ArrayElement) TimestampValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TimestampValue{Kind: TimestampValueError, Error: error}
@@ -6482,7 +6482,7 @@ func ArrayElementFromTimestamptz(input TimestamptzValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToTimestamptz(input ArrayElement) TimestamptzValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TimestamptzValue{Kind: TimestamptzValueError, Error: error}
@@ -6511,7 +6511,7 @@ func ArrayElementFromEnum(input EnumValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToEnum(input ArrayElement) EnumValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return EnumValue{Kind: EnumValueError, Error: error}
@@ -6540,7 +6540,7 @@ func ArrayElementFromDate(input DateValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToDate(input ArrayElement) DateValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return DateValue{Kind: DateValueError, Error: error}
@@ -6569,7 +6569,7 @@ func ArrayElementFromText(input TextValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToText(input ArrayElement) TextValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -6598,7 +6598,7 @@ func ArrayElementFromBool(input BoolValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToBool(input ArrayElement) BoolValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -6627,7 +6627,7 @@ func ArrayElementFromNumeric(input NumericValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToNumeric(input ArrayElement) NumericValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return NumericValue{Kind: NumericValueError, Error: error}
@@ -6656,7 +6656,7 @@ func ArrayElementFromJson(input JsonValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToJson(input ArrayElement) JsonValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return JsonValue{Kind: JsonValueError, Error: error}
@@ -6686,7 +6686,7 @@ func ArrayElementFromJsonb(input JsonbValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToJsonb(input ArrayElement) JsonbValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return JsonbValue{Kind: JsonbValueError, Error: error}
@@ -6715,7 +6715,7 @@ func ArrayElementFromNetwork(input NetworkValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToNetwork(input ArrayElement) NetworkValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return NetworkValue{Kind: NetworkValueError, Error: error}
@@ -6744,7 +6744,7 @@ func ArrayElementFromBit(input BitValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToBit(input ArrayElement) BitValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return BitValue{Kind: BitValueError, Error: error}
@@ -6777,7 +6777,7 @@ func ArrayElementFromBytea(input ByteaValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToBytea(input ArrayElement) ByteaValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return ByteaValue{Kind: ByteaValueError, Error: error}
@@ -6810,7 +6810,7 @@ func ArrayElementFromMacaddr(input MacaddrValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToMacaddr(input ArrayElement) MacaddrValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return MacaddrValue{Kind: MacaddrValueError, Error: error}
@@ -6839,7 +6839,7 @@ func ArrayElementFromMacaddr8(input Macaddr8Value) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToMacaddr8(input ArrayElement) Macaddr8Value {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Macaddr8Value{Kind: Macaddr8ValueError, Error: error}
@@ -6868,7 +6868,7 @@ func ArrayElementFromUuid(input UuidValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToUuid(input ArrayElement) UuidValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return UuidValue{Kind: UuidValueError, Error: error}
@@ -6900,7 +6900,7 @@ func ArrayElementFromFloat4(input Float4Value) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToFloat4(input ArrayElement) Float4Value {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Float4Value{Kind: Float4ValueError, Error: error}
@@ -6935,7 +6935,7 @@ func ArrayElementFromFloat8(input Float8Value) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToFloat8(input ArrayElement) Float8Value {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Float8Value{Kind: Float8ValueError, Error: error}
@@ -6967,7 +6967,7 @@ func ArrayElementFromTime(input TimeValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToTime(input ArrayElement) TimeValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TimeValue{Kind: TimeValueError, Error: error}
@@ -6996,7 +6996,7 @@ func ArrayElementFromTimetz(input TimetzValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToTimetz(input ArrayElement) TimetzValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TimetzValue{Kind: TimetzValueError, Error: error}
@@ -7025,7 +7025,7 @@ func ArrayElementFromInterval(input IntervalValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToInterval(input ArrayElement) IntervalValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return IntervalValue{Kind: IntervalValueError, Error: error}
@@ -7054,7 +7054,7 @@ func ArrayElementFromPoint(input PointValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToPoint(input ArrayElement) PointValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return PointValue{Kind: PointValueError, Error: error}
@@ -7083,7 +7083,7 @@ func ArrayElementFromLine(input LineValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToLine(input ArrayElement) LineValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return LineValue{Kind: LineValueError, Error: error}
@@ -7112,7 +7112,7 @@ func ArrayElementFromLseg(input LsegValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToLseg(input ArrayElement) LsegValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return LsegValue{Kind: LsegValueError, Error: error}
@@ -7144,7 +7144,7 @@ func ArrayElementFromBox(input BoxValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToBox(input ArrayElement) BoxValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return BoxValue{Kind: BoxValueError, Error: error}
@@ -7177,7 +7177,7 @@ func ArrayElementFromPath(input PathValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToPath(input ArrayElement) PathValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return PathValue{Kind: PathValueError, Error: error}
@@ -7207,7 +7207,7 @@ func ArrayElementFromPolygon(input PolygonValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToPolygon(input ArrayElement) PolygonValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return PolygonValue{Kind: PolygonValueError, Error: error}
@@ -7236,7 +7236,7 @@ func ArrayElementFromCircle(input CircleValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToCircle(input ArrayElement) CircleValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return CircleValue{Kind: CircleValueError, Error: error}
@@ -7265,7 +7265,7 @@ func ArrayElementFromMoney(input MoneyValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToMoney(input ArrayElement) MoneyValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return MoneyValue{Kind: MoneyValueError, Error: error}
@@ -7294,7 +7294,7 @@ func ArrayElementFromInternalChar(input InternalCharValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToInternalChar(input ArrayElement) InternalCharValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return InternalCharValue{Kind: InternalCharValueError, Error: error}
@@ -7323,7 +7323,7 @@ func ArrayElementFromOid(input OidValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToOid(input ArrayElement) OidValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return OidValue{Kind: OidValueError, Error: error}
@@ -7352,7 +7352,7 @@ func ArrayElementFromXid(input XidValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToXid(input ArrayElement) XidValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return XidValue{Kind: XidValueError, Error: error}
@@ -7381,7 +7381,7 @@ func ArrayElementFromCid(input CidValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToCid(input ArrayElement) CidValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return CidValue{Kind: CidValueError, Error: error}
@@ -7411,7 +7411,7 @@ func ArrayElementFromSnapshot(input SnapshotValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToSnapshot(input ArrayElement) SnapshotValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return SnapshotValue{Kind: SnapshotValueError, Error: error}
@@ -7440,7 +7440,7 @@ func ArrayElementFromXid8(input Xid8Value) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToXid8(input ArrayElement) Xid8Value {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return Xid8Value{Kind: Xid8ValueError, Error: error}
@@ -7469,7 +7469,7 @@ func ArrayElementFromPgLsn(input PgLsnValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToPgLsn(input ArrayElement) PgLsnValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return PgLsnValue{Kind: PgLsnValueError, Error: error}
@@ -7498,7 +7498,7 @@ func ArrayElementFromTid(input TidValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToTid(input ArrayElement) TidValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return TidValue{Kind: TidValueError, Error: error}
@@ -7532,7 +7532,7 @@ func ArrayElementFromJsonpath(input JsonpathValue) ArrayElement {
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
 func ArrayElementToJsonpath(input ArrayElement) JsonpathValue {
-	input = copyArrayElement(input)
+	input = CopyArrayElement(input)
 	if input.Kind == ArrayElementError {
 		error := input.Error
 		return JsonpathValue{Kind: JsonpathValueError, Error: error}
@@ -7568,7 +7568,7 @@ type ArrayPayload struct {
 }
 
 func CopyArrayPayload(value ArrayPayload) ArrayPayload {
-	return ArrayPayload{ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, copyArrayElement)}
+	return ArrayPayload{ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement)}
 }
 
 type ArrayValueKind uint8
@@ -7656,7 +7656,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 	input = CopyArrayPayload(input)
 	position := 0
 	for position < len(input.Elements) {
-		element := copyArrayElement(input.Elements[position])
+		element := CopyArrayElement(input.Elements[position])
 		if element.Kind == ArrayElementError {
 			error := element.Error
 			return ArrayValue{Kind: ArrayValueError, Error: error}
@@ -7700,7 +7700,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 	}
 	position = langruntime.CheckedIndex(0)
 	for position < len(input.Elements) {
-		kind := ArrayElementFamily(copyArrayElement(input.Elements[position]))
+		kind := ArrayElementFamily(CopyArrayElement(input.Elements[position]))
 		if kind != 0 && kind != input.ElementKind {
 			return ArrayValue{Kind: ArrayValueUnknown}
 		}
@@ -7743,7 +7743,7 @@ func AppendArrayDimension(input ArrayArguments, lower int, length int) ArrayArgu
 }
 func AppendArrayArgument(input ArrayArguments, element ArrayElement) ArrayArguments {
 	input = copyArrayArguments(input)
-	element = copyArrayElement(element)
+	element = CopyArrayElement(element)
 	if input.Kind == ArrayArgumentsError {
 		return input
 	}
@@ -7755,7 +7755,7 @@ func AppendArrayArgument(input ArrayArguments, element ArrayElement) ArrayArgume
 		value := CopyArrayPayload(input.Value)
 		elements := value.Elements
 		langruntime.CheckedAdd(len(elements), 1)
-		elements = append(elements, copyArrayElement(element))
+		elements = append(elements, CopyArrayElement(element))
 		return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements}}
 	}
 	return input
@@ -7799,7 +7799,7 @@ func ArrayFlatElement(input ArrayValue, offset Int4Value) ArrayElement {
 			if position >= len(value.Elements) {
 				return ArrayElement{Kind: ArrayElementNull}
 			}
-			return copyArrayElement(value.Elements[position])
+			return CopyArrayElement(value.Elements[position])
 		}
 	}
 	return ArrayElement{Kind: ArrayElementUnknown}
@@ -7814,7 +7814,7 @@ func FinishArrayConstructor(input ArrayArguments) ArrayValue {
 		value := CopyArrayPayload(input.Value)
 		position := 0
 		for position < len(value.Elements) {
-			element := copyArrayElement(value.Elements[position])
+			element := CopyArrayElement(value.Elements[position])
 			if element.Kind == ArrayElementUnknown {
 				return ArrayValue{Kind: ArrayValueUnknown}
 			}
@@ -7955,7 +7955,7 @@ func FinishArrayChildren(input ArrayChildrenArguments) ArrayValue {
 					index := 0
 					for index < len(array.Elements) {
 						langruntime.CheckedAdd(len(elements), 1)
-						elements = append(elements, copyArrayElement(copyArrayElement(array.Elements[index])))
+						elements = append(elements, CopyArrayElement(CopyArrayElement(array.Elements[index])))
 						index = langruntime.CheckedAdd(index, 1)
 					}
 				}
@@ -7981,12 +7981,13 @@ func copyarrayTextSource(value arrayTextSource) arrayTextSource {
 }
 
 type ArrayTextPayload struct {
+	State      int
 	Dimensions []ArrayDimension
 	Events     []ArrayTextEvent
 }
 
 func copyArrayTextPayload(value ArrayTextPayload) ArrayTextPayload {
-	return ArrayTextPayload{Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Events: langruntime.CheckedStructs(value.Events, copyArrayTextEvent)}
+	return ArrayTextPayload{State: langruntime.CheckedI32(value.State), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Events: langruntime.CheckedStructs(value.Events, copyArrayTextEvent)}
 }
 
 type ArrayTextPlanKind uint8
@@ -8201,7 +8202,7 @@ func arrayTextResult(dimensions []ArrayDimension, input []ArrayTextEvent, error 
 		langruntime.CheckedAdd(len(events), 1)
 		events = append(events, copyArrayTextEvent(ArrayTextEvent{Kind: ArrayTextEventError, Error: MakeSqlError(error)}))
 	}
-	return ArrayTextPlan{Kind: ArrayTextPlanValue, Value: ArrayTextPayload{Dimensions: dimensions, Events: events}}
+	return ArrayTextPlan{Kind: ArrayTextPlanValue, Value: ArrayTextPayload{State: 1, Dimensions: dimensions, Events: events}}
 }
 func ParseArrayText(input TextValue, delimiter rune, nulls int) ArrayTextPlan {
 	delimiter = langruntime.CheckedChar(delimiter)
@@ -8452,7 +8453,7 @@ func FinishArrayText(plan ArrayTextPlan, converted ArrayArguments) ArrayValue {
 			value := CopyArrayPayload(converted.Value)
 			index = langruntime.CheckedIndex(0)
 			for index < len(value.Elements) {
-				element := copyArrayElement(value.Elements[index])
+				element := CopyArrayElement(value.Elements[index])
 				if element.Kind == ArrayElementUnknown {
 					return ArrayValue{Kind: ArrayValueUnknown}
 				}
@@ -8462,6 +8463,56 @@ func FinishArrayText(plan ArrayTextPlan, converted ArrayArguments) ArrayValue {
 		}
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
+}
+func PrepareArrayText(input TextValue, boxDelimiter bool, nulls int) ArrayTextPayload {
+	nulls = langruntime.CheckedI32(nulls)
+	delimiter := ','
+	if boxDelimiter {
+		delimiter = langruntime.CheckedChar(';')
+	}
+	plan := ParseArrayText(input, delimiter, nulls)
+	if plan.Kind == ArrayTextPlanValue {
+		payload := copyArrayTextPayload(plan.Value)
+		return payload
+	}
+	state := langruntime.CheckedSignedNegate(1)
+	if plan.Kind == ArrayTextPlanNull {
+		state = langruntime.CheckedI32(0)
+	}
+	dimensions := []ArrayDimension{}
+	events := []ArrayTextEvent{}
+	return ArrayTextPayload{State: state, Dimensions: dimensions, Events: events}
+}
+func ArrayTextHasEvent(input *ArrayTextPayload, index Int4Value) bool {
+	input = langruntime.CheckedBorrowed(input, copyArrayTextPayload)
+	if input.State != 1 {
+		return false
+	}
+	if index.Kind == Int4ValueValue {
+		position := langruntime.CheckedI32(index.Value)
+		return position >= 0 && ((int64(langruntime.CheckedI32(position))) < (int64(langruntime.CheckedI32((int(int32(len(input.Events))))))))
+	}
+	return false
+}
+func ArrayTextNextIndex(input Int4Value) Int4Value {
+	if input.Kind == Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		if value < 2147483647 {
+			return Int4Value{Kind: Int4ValueValue, Value: langruntime.CheckedSignedAdd(value, 1)}
+		}
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func FinishPreparedArrayText(input ArrayTextPayload, converted ArrayArguments) ArrayValue {
+	input = copyArrayTextPayload(input)
+	converted = copyArrayArguments(converted)
+	if input.State == 0 {
+		return ArrayValue{Kind: ArrayValueNull}
+	}
+	if input.State != 1 {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	return FinishArrayText(ArrayTextPlan{Kind: ArrayTextPlanValue, Value: input}, converted)
 }
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)

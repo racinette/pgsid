@@ -622,6 +622,18 @@ const materialize = (
   }
   if (bound.literal) {
     if (
+      type.startsWith('array:') &&
+      bound.literal.kind === 'string' &&
+      bound.literal.value !== null
+    )
+      return {
+        kind: 'array-text-literal',
+        type: type as ArrayType,
+        elementType: type.slice(6) as ArrayElementType,
+        value: bound.literal.value,
+        ...(definition ? { enum: definition } : {}),
+      }
+    if (
       (type === 'pg_catalog.float4' || type === 'pg_catalog.float8') &&
       bound.literal.kind !== 'null'
     )
@@ -1262,6 +1274,10 @@ export function bindCatalogCheck(
       value: { kind: 'array-constructor', type, elementType: element, multidimensional, operands },
     }
   }
+  const resultEnum = (type: ScalarType, args: readonly Bound[]): EnumInfo | undefined =>
+    type.startsWith('array:enum:')
+      ? enums.find((item) => enumType(item) === type.slice(6))
+      : args.find((arg) => arg.enum)?.enum
   const bind = (node: unknown, expectedType?: ScalarType): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
@@ -1285,7 +1301,7 @@ export function bindCatalogCheck(
       if (args.some((arg) => !arg.value && !arg.literal)) return unknown
       const type = commonType(args)
       if (!type) return unknown
-      const definition = args.find((arg) => arg.enum)?.enum
+      const definition = resultEnum(type, args)
       const operands = args.map((arg, index) =>
         type === 'pg_catalog.bool' && arg.type === 'pg_catalog.bool'
           ? { kind: 'check' as const, type, expression: lower(nodes[index]) }
@@ -1312,7 +1328,7 @@ export function bindCatalogCheck(
         return unknown
       return {
         type,
-        enum: definition,
+        enum: type.startsWith('enum:') ? definition : undefined,
         enumDomain: commonEnumDomain(args),
         nominalDomain: commonNominalDomain(args),
         collation,
@@ -1371,7 +1387,7 @@ export function bindCatalogCheck(
         )
       )
         return unknown
-      const definition = args.find((arg) => arg.enum)?.enum
+      const definition = resultEnum(type, args)
       const operands = args.map((arg, index): EvalExpression | null =>
         type === 'pg_catalog.bool' && arg.type === 'pg_catalog.bool'
           ? { kind: 'check', type, expression: lower(nodes[index]) }
@@ -1384,7 +1400,7 @@ export function bindCatalogCheck(
       if (!operands.every((value): value is EvalExpression => value !== null)) return unknown
       return {
         type,
-        ...(definition ? { enum: definition } : {}),
+        ...(definition && type.startsWith('enum:') ? { enum: definition } : {}),
         enumDomain: commonEnumDomain(args),
         nominalDomain: commonNominalDomain(args),
         ...([
@@ -1442,7 +1458,7 @@ export function bindCatalogCheck(
         typed.some((other) => other !== type)
       )
         return unknown
-      const definition = arms.find((arm) => arm.enum)?.enum
+      const definition = resultEnum(type, arms)
       const values = arms.map((arm) =>
         coercedType !== undefined
           ? implicitOperand(arm, type, definition)
@@ -1496,7 +1512,7 @@ export function bindCatalogCheck(
       }
       return {
         type,
-        ...(definition ? { enum: definition } : {}),
+        ...(definition && type.startsWith('enum:') ? { enum: definition } : {}),
         enumDomain: commonEnumDomain(arms),
         nominalDomain: commonNominalDomain(arms),
         collation,
@@ -1556,14 +1572,97 @@ export function bindCatalogCheck(
             : null) ?? (definition ? enumType(definition) : null)
         if (!element || element.startsWith('array:')) return unknown
         const type = arrayType(element as ArrayElementType)
+        const modifiers = castType?.['typmods']
+        const values = Array.isArray(modifiers)
+          ? modifiers.map((modifier) => {
+              const integer = fields(fields(fields(modifier)?.['A_Const'])?.['ival'])
+              return integer ? (integer['ival'] ?? 0) : undefined
+            })
+          : []
+        let modifier = -1
+        if (values.length) {
+          if (!values.every((value) => typeof value === 'number' && Number.isInteger(value)))
+            return unknown
+          const width = values[0] as number
+          if (element === 'pg_catalog."varchar"' || element === 'pg_catalog.bpchar') {
+            if (values.length !== 1 || width < 1 || width > 10485760) return unknown
+            modifier = width + 4
+          } else if (element === 'pg_catalog."bit"' || element === 'pg_catalog.varbit') {
+            if (values.length !== 1 || width < 1 || width > 2147483640) return unknown
+            modifier = width
+          } else if (element === 'pg_catalog."numeric"') {
+            const scale = (values[1] ?? 0) as number
+            if (values.length > 2 || width < 1 || width > 1000 || scale < -1000 || scale > 1000)
+              return unknown
+            modifier = width * 65536 + (scale < 0 ? scale + 2048 : scale) + 4
+          } else if (
+            [
+              'pg_catalog."time"',
+              'pg_catalog.timetz',
+              'pg_catalog."timestamp"',
+              'pg_catalog.timestamptz',
+            ].includes(element)
+          ) {
+            if (values.length !== 1 || width < 0) return unknown
+            modifier = Math.min(width, 6)
+          } else if (element === 'pg_catalog."interval"') {
+            const precision = (values[1] ?? 65535) as number
+            if (
+              values.length > 2 ||
+              ![4, 2, 6, 8, 1024, 1032, 2048, 3072, 3080, 32767, 4096, 6144, 7168, 7176].includes(
+                width,
+              ) ||
+              precision < 0
+            )
+              return unknown
+            modifier = width * 65536 + (precision === 65535 ? 65535 : Math.min(precision, 6))
+          } else return unknown
+        }
+        let bound: Bound
         if (fields(fields(cast['arg'])?.['A_ArrayExpr']))
           return bindArray(cast['arg'], {
             type: element as ArrayElementType,
             name: { ...castType, arrayBounds: [] },
           })
-        const operand = bind(cast['arg'])
-        const value = materialize(operand, type)
-        return value ? { type, value } : unknown
+        else {
+          const operand = bind(cast['arg'])
+          let value = materialize(operand, type, definition)
+          if (
+            !value &&
+            operand.value &&
+            [
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+              'pg_catalog.name',
+            ].includes(operand.type ?? '')
+          ) {
+            const text =
+              operand.type === 'pg_catalog.bpchar' || operand.type === 'pg_catalog.name'
+                ? operand.value
+                : materialize(operand, 'pg_catalog.text')
+            if (text)
+              value = {
+                kind: 'text-to-array',
+                type,
+                elementType: element as ArrayElementType,
+                operand: text,
+                ...(definition ? { enum: definition } : {}),
+              }
+          }
+          bound = value ? { type, value } : unknown
+        }
+        if (!bound.value || modifier < 0) return bound
+        return {
+          type,
+          value: {
+            kind: 'array-typmod',
+            type,
+            elementType: element as ArrayElementType,
+            modifier,
+            operand: bound.value,
+          },
+        }
       }
       if (
         names?.at(-1) === 'unknown' &&
@@ -1594,7 +1693,10 @@ export function bindCatalogCheck(
       if (castDomains.length && !(names?.length === 1 && catalogScalarType(names[0]!) !== null)) {
         if (castDomains.length !== 1) return unknown
         let domain: DomainInfo | undefined = castDomains[0]!
-        const domainType = catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
+        const domainType =
+          catalogArrayType(domain.baseTypeName, domain.baseTypeOid, domains, enums) ??
+          catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
+        if (!domainType) return unknown
         if (
           domainType !== 'pg_catalog.bool' &&
           domainType !== 'pg_catalog.int2' &&
@@ -1622,7 +1724,8 @@ export function bindCatalogCheck(
           domainType !== 'pg_catalog.polygon' &&
           domainType !== 'pg_catalog.path' &&
           domainType !== 'pg_catalog.circle' &&
-          domainType !== 'pg_catalog.box'
+          domainType !== 'pg_catalog.box' &&
+          !domainType.startsWith('array:')
         )
           return unknown
         const seen = new Set<number>()
@@ -1636,7 +1739,9 @@ export function bindCatalogCheck(
             return unknown
           seen.add(domain.oid)
           if (
-            catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains) !== domainType
+            (catalogArrayType(domain.baseTypeName, domain.baseTypeOid, domains, enums) ??
+              catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)) !==
+            domainType
           )
             return unknown
           domain = domains.find((item) => item.oid === domain!.baseTypeOid)
@@ -1644,13 +1749,20 @@ export function bindCatalogCheck(
         const base = bind({
           TypeCast: {
             ...cast,
-            typeName: {
-              ...castType,
-              names: [
-                { String: { sval: 'pg_catalog' } },
-                { String: { sval: domainType.slice('pg_catalog.'.length).replaceAll('"', '') } },
-              ],
-            },
+            typeName: domainType.startsWith('array:')
+              ? {
+                  ...elementTypeName(domainType.slice(6) as ArrayElementType),
+                  arrayBounds: [{ Integer: { ival: -1 } }],
+                }
+              : {
+                  ...castType,
+                  names: [
+                    { String: { sval: 'pg_catalog' } },
+                    {
+                      String: { sval: domainType.slice('pg_catalog.'.length).replaceAll('"', '') },
+                    },
+                  ],
+                },
           },
         })
         return {
@@ -3401,9 +3513,17 @@ export function bindCatalogCheck(
     if (!value || typeof value !== 'object') return value
     const record = value as Record<string, unknown>
     const entries = Object.entries(record).map(([key, item]) => [key, annotate(item)] as const)
-    const isJsonpath = record['kind'] === 'jsonpath' && record['type'] === 'pg_catalog.jsonpath'
+    const isJsonpath =
+      (record['kind'] === 'jsonpath' && record['type'] === 'pg_catalog.jsonpath') ||
+      record['kind'] === 'array-text-literal'
     if (!isJsonpath && entries.every(([key, item]) => item === record[key])) return value
-    return { ...Object.fromEntries(entries), ...(isJsonpath ? { origin: literalOrigin } : {}) }
+    return {
+      ...Object.fromEntries(entries),
+      ...(isJsonpath ? { origin: literalOrigin } : {}),
+      ...(record['kind'] === 'array-text-literal' && record['elementType'] === 'pg_catalog.money'
+        ? { moneyLiterals: [...moneyUnits].map(([text, units]) => ({ text, units })) }
+        : {}),
+    }
   }
   const expression = lower(root)
   return {

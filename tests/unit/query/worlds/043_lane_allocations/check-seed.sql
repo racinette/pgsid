@@ -109,3 +109,75 @@ VALUES (32768, 2, 1, 3, '[1:2][1:2]', false);
 -- name: candidate_guarded_errors
 INSERT INTO lane_candidates (first_lane, second_lane, divisor, expected_count, expected_layout, bypass)
 VALUES (32768, 2, 0, 3, '[1:2][1:2]', true);
+
+-- name: import_values
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1,2}', '{a,b}', '{yes,no}', '{1.25,2.5}', '{null}', '{(1,1),(0,0)}', 3, '[1:2]', false);
+
+-- name: import_nested_bounds
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('[0:1][-2:-1]={{1,NULL},{3,4}}', '{a}', '{t}', '{1}', '{null}', '{(1,1),(0,0)}', 4, '[0:1][-2:-1]', false);
+
+-- name: import_empty
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{}', '{}', '{}', '{}', '{}', '{}', 0, NULL, false);
+
+-- name: import_null_inputs
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, NULL, 3, NULL, false);
+
+-- name: import_quoted_nulls
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1,NULL}', '{"NULL",NULL,"a,b"}', '{NULL,yes}', '{NULL,1}', '{null}', '{"(1,1),(0,0)";NULL}', 3, '[1:2]', false);
+
+-- name: import_boolean_prefixes
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1}', '{a}', '{TR,of,YES,no,1,0}', '{1}', '{null}', '{(1,1),(0,0)}', 6, '[1:1]', false);
+
+-- name: import_wrong_layout
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1,2}', NULL, NULL, NULL, NULL, NULL, 3, '[0:1]', false);
+
+-- name: import_over_capacity
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1,2,3}', NULL, NULL, NULL, NULL, NULL, 2, '[1:3]', false);
+
+-- name: import_integer_range
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{2147483648}', NULL, NULL, NULL, NULL, NULL, 3, NULL, false);
+
+-- name: import_bad_integer_before_brace
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{bad,}', NULL, NULL, NULL, NULL, NULL, 3, NULL, false);
+
+-- name: import_bad_shape
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{{1},{2,3}}', NULL, NULL, NULL, NULL, NULL, 3, NULL, false);
+
+-- name: import_bad_boolean
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1}', NULL, '{o}', NULL, NULL, NULL, 3, '[1:1]', false);
+
+-- name: import_numeric_precision
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1}', NULL, NULL, '{1000}', NULL, NULL, 3, '[1:1]', false);
+
+-- name: import_numeric_input_before_precision
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1}', NULL, NULL, '{999999,bad}', NULL, NULL, 3, '[1:1]', false);
+
+-- name: import_bad_jsonb
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1}', NULL, NULL, NULL, '{bad}', NULL, 3, '[1:1]', false);
+
+-- name: import_bad_box
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{1}', NULL, NULL, NULL, NULL, '{bad}', 3, '[1:1]', false);
+
+-- name: import_guarded_bad_payload
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES ('{bad}', NULL, NULL, NULL, NULL, NULL, 3, NULL, true);
+
+-- name: import_null_fallback_exceeds_capacity
+INSERT INTO lane_imports (payload, labels, flags, amounts, documents, regions, slot_limit, expected_layout, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, NULL, 1, NULL, false);

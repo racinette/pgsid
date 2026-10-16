@@ -17,6 +17,96 @@ function addressAndWord(left: number, right: number): number {
     }
     return result;
 }
+export function arrayIntegerTextElement(input: checkruntime.TextValue, family: number): checkruntime.ArrayElement {
+    family = langruntime.checkedI32(family);
+    let bits: number = 64;
+    if (family === 1) {
+        bits = langruntime.checkedI32(16);
+    }
+    if (family === 2) {
+        bits = langruntime.checkedI32(32);
+    }
+    const number: checkruntime.Int8Value = scalarIntegerFromText(input, bits);
+    if (number.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(number.value);
+        if (family === 1) {
+            return { kind: "Int2", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) };
+        }
+        if (family === 2) {
+            return { kind: "Int4", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) };
+        }
+        return { kind: "Int8", value: value };
+    }
+    return checkruntime.arrayElementFromInt8(number);
+}
+function arrayElementTypmod(input: checkruntime.ArrayElement, identity: string, modifier: number): checkruntime.ArrayElement {
+    input = checkruntime.copyArrayElement(input);
+    identity = langruntime.checkedString(identity);
+    modifier = langruntime.checkedI32(modifier);
+    const width: checkruntime.Int4Value = { kind: "Value", value: modifier };
+    const explicit: checkruntime.BoolValue = { kind: "Value", value: true };
+    if (identity === "pg_catalog.\"varchar\"") {
+        return checkruntime.arrayElementFromText(varchar2rhn(checkruntime.arrayElementToText(input), width, explicit));
+    }
+    if (identity === "pg_catalog.bpchar") {
+        return checkruntime.arrayElementFromText(bpchar2uas(checkruntime.arrayElementToText(input), width, explicit));
+    }
+    if (identity === "pg_catalog.\"numeric\"") {
+        return checkruntime.arrayElementFromNumeric(numeric879l(checkruntime.arrayElementToNumeric(input), width));
+    }
+    if (identity === "pg_catalog.\"bit\"") {
+        return checkruntime.arrayElementFromBit(bitEqck(checkruntime.arrayElementToBit(input), width, explicit));
+    }
+    if (identity === "pg_catalog.varbit") {
+        return checkruntime.arrayElementFromBit(varbit7ap7(checkruntime.arrayElementToBit(input), width, explicit));
+    }
+    if (identity === "pg_catalog.\"time\"") {
+        return checkruntime.arrayElementFromTime(timeBg2r(checkruntime.arrayElementToTime(input), width));
+    }
+    if (identity === "pg_catalog.timetz") {
+        return checkruntime.arrayElementFromTimetz(timetz7slr(checkruntime.arrayElementToTimetz(input), width));
+    }
+    if (identity === "pg_catalog.\"timestamp\"") {
+        return checkruntime.arrayElementFromTimestamp(timestampAkly(checkruntime.arrayElementToTimestamp(input), width));
+    }
+    if (identity === "pg_catalog.timestamptz") {
+        return checkruntime.arrayElementFromTimestamptz(timestamptzUwsx(checkruntime.arrayElementToTimestamptz(input), width));
+    }
+    if (identity === "pg_catalog.\"interval\"") {
+        return checkruntime.arrayElementFromInterval(intervalDrcl(checkruntime.arrayElementToInterval(input), width));
+    }
+    return { kind: "Unknown" };
+}
+export function arrayWithTypmod(input: checkruntime.ArrayValue, modifier: number): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    modifier = langruntime.checkedI32(modifier);
+    if (modifier < 0) {
+        return input;
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        let elements: checkruntime.ArrayElement[] = payload.elements;
+        let position: number = 0;
+        let unknown: boolean = false;
+        while (position < elements.length) {
+            const converted: checkruntime.ArrayElement = arrayElementTypmod(checkruntime.copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)), payload.elementType, modifier);
+            if (converted.kind === "Error") {
+                const error: checkruntime.SqlError = converted.value;
+                return { kind: "Error", value: error };
+            }
+            if (converted.kind === "Unknown") {
+                unknown = langruntime.checkedBool(true);
+            }
+            elements[langruntime.checkedIndexIn(elements, position)] = checkruntime.copyArrayElement(converted);
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (unknown) {
+            return { kind: "Unknown" };
+        }
+        return checkruntime.makeArrayValue({ elementType: payload.elementType, elementKind: payload.elementKind, dimensions: payload.dimensions, elements: elements });
+    }
+    return input;
+}
 export function cardinalityM1rn(input: checkruntime.ArrayValue): checkruntime.Int4Value {
     input = checkruntime.copyArrayValue(input);
     if (input.kind === "Error") {
@@ -25436,6 +25526,396 @@ export function polygonFromText(input: checkruntime.TextValue): checkruntime.Pol
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         return polygonParse(value);
+    }
+    return { kind: "Unknown" };
+}
+const scalarInputInvalid = 3484946;
+const scalarInputRange = 3452547;
+export function moneyFromCapturedText(input: checkruntime.TextValue, texts: string, units: string, count: number): checkruntime.MoneyValue {
+    texts = langruntime.checkedString(texts);
+    units = langruntime.checkedString(units);
+    count = langruntime.checkedI32(count);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    const selected: checkruntime.EnumValue = scalarEnumFromText(input, texts, count);
+    if (selected.kind === "Value") {
+        const encoded: checkruntime.TextValue = enumToText(selected, units, count);
+        const parsed: checkruntime.Int8Value = scalarIntegerFromText(encoded, 64);
+        if (parsed.kind === "Value") {
+            const value: bigint = langruntime.checkedI64(parsed.value);
+            return checkruntime.makeMoneyValue(value);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function scalarInputDigit(ch: string): number {
+    ch = langruntime.checkedChar(ch);
+    const code: number = langruntime.checkedChar(ch).codePointAt(0)!;
+    if (code >= 48 && code <= 57) {
+        return langruntime.checkedSignedSubtract(code, 48);
+    }
+    if (code >= 65 && code <= 70) {
+        return langruntime.checkedSignedSubtract(code, 55);
+    }
+    if (code >= 97 && code <= 102) {
+        return langruntime.checkedSignedSubtract(code, 87);
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+export function scalarIntegerFromText(input: checkruntime.TextValue, bits: number): checkruntime.Int8Value {
+    bits = langruntime.checkedI32(bits);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        let position: number = 0;
+        while (position < chars.length && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        let negative: boolean = false;
+        if (position < chars.length && (langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "+" || langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "-")) {
+            negative = langruntime.checkedBool(langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "-");
+            position = langruntime.checkedAdd(position, 1);
+        }
+        let radix: bigint = 10n;
+        let prefixed: boolean = false;
+        if (langruntime.checkedAdd(position, 1) < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "0") {
+            const prefix: string = langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))));
+            if (prefix === "x") {
+                radix = langruntime.checkedI64(16n);
+                prefixed = langruntime.checkedBool(true);
+            }
+            if (prefix === "o") {
+                radix = langruntime.checkedI64(8n);
+                prefixed = langruntime.checkedBool(true);
+            }
+            if (prefix === "b") {
+                radix = langruntime.checkedI64(2n);
+                prefixed = langruntime.checkedBool(true);
+            }
+            if (prefixed) {
+                position = langruntime.checkedAdd(position, 2);
+            }
+        }
+        let minimum: bigint = -9223372036854775808n;
+        if (bits === 16) {
+            minimum = langruntime.checkedI64(-32768n);
+        }
+        if (bits === 32) {
+            minimum = langruntime.checkedI64(-2147483648n);
+        }
+        const first: number = position;
+        let number: bigint = 0n;
+        let over: boolean = false;
+        let digits: boolean = false;
+        let finished: boolean = false;
+        while (position < chars.length && finished === false) {
+            const character: string = langruntime.indexChar(chars, langruntime.checkedIndex(position));
+            const digit: bigint = BigInt(langruntime.checkedI32(scalarInputDigit(character)));
+            if (digit >= 0n && digit < radix) {
+                if (over || number < langruntime.checkedI64Divide(minimum, radix)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(scalarInputRange) };
+                }
+                if (number === langruntime.checkedI64Divide(minimum, radix) && digit > langruntime.checkedI64Subtract(0n, langruntime.checkedI64Remainder(minimum, radix))) {
+                    over = langruntime.checkedBool(true);
+                    number = langruntime.checkedI64(minimum);
+                }
+                else {
+                    number = langruntime.checkedI64(langruntime.checkedI64Subtract(langruntime.checkedI64Multiply(number, radix), digit));
+                }
+                digits = langruntime.checkedBool(true);
+                position = langruntime.checkedAdd(position, 1);
+            }
+            else if (character === "_") {
+                if ((position === first && prefixed === false) || langruntime.checkedAdd(position, 1) >= chars.length) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+                }
+                const next: bigint = BigInt(langruntime.checkedI32(scalarInputDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))))));
+                if (next < 0n || next >= radix) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+            else {
+                finished = langruntime.checkedBool(true);
+            }
+        }
+        if (digits === false) {
+            return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+        }
+        while (position < chars.length && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (!(position === chars.length)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+        }
+        if (over || (negative === false && number === minimum)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(scalarInputRange) };
+        }
+        if (negative === false) {
+            number = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, number));
+        }
+        return { kind: "Value", value: number };
+    }
+    return { kind: "Unknown" };
+}
+export function scalarBooleanFromText(input: checkruntime.TextValue): checkruntime.BoolValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        let first: number = 0;
+        let end: number = chars.length;
+        while (first < end && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(first)))) {
+            first = langruntime.checkedAdd(first, 1);
+        }
+        while (end > first && checkruntime.numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        let clean: string = "";
+        while (first < end) {
+            clean = clean + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(first)));
+            first = langruntime.checkedAdd(first, 1);
+        }
+        const result: checkruntime.BoolValue = scalarBooleanWord({ kind: "Value", value: clean });
+        if (result.kind === "Error") {
+            return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+        }
+        return result;
+    }
+    return { kind: "Unknown" };
+}
+export function scalarEnumFromText(input: checkruntime.TextValue, labels: string, count: number): checkruntime.EnumValue {
+    labels = langruntime.checkedString(labels);
+    count = langruntime.checkedI32(count);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(labels);
+        let position: number = 0;
+        let ordinal: number = 0;
+        let label: string = "";
+        while (position < chars.length) {
+            if (langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "\0") {
+                if (ordinal < count && label === value) {
+                    return checkruntime.makeEnumValue(ordinal);
+                }
+                ordinal = langruntime.checkedI32(langruntime.checkedSignedAdd(ordinal, 1));
+                label = langruntime.checkedString("");
+            }
+            else {
+                label = label + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (ordinal < count && label === value) {
+            return checkruntime.makeEnumValue(ordinal);
+        }
+        return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+    }
+    return { kind: "Unknown" };
+}
+export function scalarNumericFromText(input: checkruntime.TextValue): checkruntime.NumericValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const parts: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(value));
+        if (parts.valid && !(parts.special === 1)) {
+            if (parts.special === 0) {
+                return { kind: "Value", value: "-Infinity" };
+            }
+            if (parts.special === 2) {
+                return { kind: "Value", value: "Infinity" };
+            }
+            return { kind: "Value", value: "NaN" };
+        }
+        const characters: string[] = Array.from(value);
+        let start: number = 0;
+        let end: number = characters.length;
+        while (start < end && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(start)))) {
+            start = langruntime.checkedAdd(start, 1);
+        }
+        while (end > start && checkruntime.numericSpace(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        let negative: boolean = false;
+        if (start < end && (langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "+" || langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "-")) {
+            negative = langruntime.checkedBool(langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "-");
+            start = langruntime.checkedAdd(start, 1);
+        }
+        if (start === end) {
+            return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+        }
+        let radix: number = 10;
+        let prefixEnd: number = start;
+        if (langruntime.checkedAdd(start, 1) < end && langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "0") {
+            const prefix: string = langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(start, 1))));
+            if (prefix === "x") {
+                radix = langruntime.checkedI32(16);
+                prefixEnd = langruntime.checkedIndex(langruntime.checkedAdd(start, 2));
+            }
+            if (prefix === "o") {
+                radix = langruntime.checkedI32(8);
+                prefixEnd = langruntime.checkedIndex(langruntime.checkedAdd(start, 2));
+            }
+            if (prefix === "b") {
+                radix = langruntime.checkedI32(2);
+                prefixEnd = langruntime.checkedIndex(langruntime.checkedAdd(start, 2));
+            }
+        }
+        let clean: string = "";
+        let position: number = start;
+        while (position < end) {
+            const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+            if (character === "_") {
+                if (position === start || langruntime.checkedAdd(position, 1) === end) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+                }
+                const before: number = jsonpathScanHex(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1))));
+                const after: number = jsonpathScanHex(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))));
+                if ((!(position === prefixEnd) && (before < 0 || before >= radix)) || after < 0 || after >= radix) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+                }
+            }
+            else {
+                clean = clean + langruntime.checkedChar(character);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        const content: string[] = Array.from(clean);
+        let begin: number = 0;
+        if (radix === 10) {
+            while (langruntime.checkedAdd(begin, 1) < content.length && langruntime.indexChar(content, langruntime.checkedIndex(begin)) === "0" && numericWireDecimalDigit(langruntime.indexChar(content, langruntime.checkedIndex(langruntime.checkedAdd(begin, 1)))) >= 0) {
+                begin = langruntime.checkedAdd(begin, 1);
+            }
+        }
+        let normalized: string = "";
+        position = langruntime.checkedIndex(begin);
+        while (position < content.length) {
+            normalized = normalized + langruntime.checkedChar(langruntime.indexChar(content, langruntime.checkedIndex(position)));
+            position = langruntime.checkedAdd(position, 1);
+        }
+        const source: JsonpathScanSource = { characters: Array.from(normalized) };
+        if (source.characters.length === 0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+        }
+        const first: string = langruntime.indexChar(source.characters, langruntime.checkedIndex(0));
+        if (first === "." && (source.characters.length < 2 || numericWireDecimalDigit(langruntime.indexChar(source.characters, langruntime.checkedIndex(1))) < 0)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+        }
+        if (numericWireDecimalDigit(first) < 0 && !(first === ".")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+        }
+        const token: JsonpathScanRead = jsonpathScanNumber(source, 0);
+        if (!(token.error === 0) || !(token.end === source.characters.length) || (!(token.kind === jsonpathScanInt) && !(token.kind === jsonpathScanNumeric))) {
+            return { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+        }
+        const parsed: checkruntime.TextValue = jsonpathNumericLiteral(normalized);
+        if (parsed.kind === "Error") {
+            const error: checkruntime.SqlError = parsed.value;
+            return { kind: "Error", value: error };
+        }
+        if (parsed.kind === "Value") {
+            const number: string = langruntime.checkedString(parsed.value);
+            let result: checkruntime.NumericValue = { kind: "Value", value: number };
+            if (negative) {
+                result = numericUminusWcmy(result);
+            }
+            return result;
+        }
+    }
+    return { kind: "Unknown" };
+}
+function scalarBooleanWord(input: checkruntime.TextValue): checkruntime.BoolValue {
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const characters: string[] = Array.from(value);
+        const start: number = 0;
+        const end: number = characters.length;
+        if (langruntime.checkedSubtract(end, start) === 1 && langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "1") {
+            return { kind: "Value", value: true };
+        }
+        if (langruntime.checkedSubtract(end, start) === 1 && langruntime.indexChar(characters, langruntime.checkedIndex(start)) === "0") {
+            return { kind: "Value", value: false };
+        }
+        let result: checkruntime.BoolValue = { kind: "Error", value: checkruntime.makeSqlError(scalarInputInvalid) };
+        const words: string[] = Array.from("truefalseyesnoonoff");
+        let word: number = 0;
+        while (word < 6) {
+            let begin: number = 0;
+            let length: number = 4;
+            let minimum: number = 1;
+            let state: boolean = true;
+            if (word === 1) {
+                begin = langruntime.checkedIndex(4);
+                length = langruntime.checkedIndex(5);
+                state = langruntime.checkedBool(false);
+            }
+            if (word === 2) {
+                begin = langruntime.checkedIndex(9);
+                length = langruntime.checkedIndex(3);
+            }
+            if (word === 3) {
+                begin = langruntime.checkedIndex(12);
+                length = langruntime.checkedIndex(2);
+                state = langruntime.checkedBool(false);
+            }
+            if (word === 4) {
+                begin = langruntime.checkedIndex(14);
+                length = langruntime.checkedIndex(2);
+                minimum = langruntime.checkedIndex(2);
+            }
+            if (word === 5) {
+                begin = langruntime.checkedIndex(16);
+                length = langruntime.checkedIndex(3);
+                minimum = langruntime.checkedIndex(2);
+                state = langruntime.checkedBool(false);
+            }
+            if (langruntime.checkedSubtract(end, start) >= minimum && langruntime.checkedSubtract(end, start) <= length) {
+                let offset: number = 0;
+                let equal: boolean = true;
+                while (offset < langruntime.checkedSubtract(end, start)) {
+                    if (!(langruntime.asciiLowercase(langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(start, offset)))) === langruntime.indexChar(words, langruntime.checkedIndex(langruntime.checkedAdd(begin, offset))))) {
+                        equal = langruntime.checkedBool(false);
+                    }
+                    offset = langruntime.checkedAdd(offset, 1);
+                }
+                if (equal) {
+                    result = { kind: "Value", value: state };
+                }
+            }
+            word = langruntime.checkedAdd(word, 1);
+        }
+        return result;
     }
     return { kind: "Unknown" };
 }
