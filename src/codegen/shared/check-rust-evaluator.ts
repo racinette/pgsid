@@ -712,7 +712,20 @@ export function emitCheckRustEvaluator(
       }
       callables.add(implementation.rustName)
       const name = fresh('value')
-      destination.push(`let ${name} = ${implementation.rustName}(${arguments_.join(', ')});`)
+      const callable =
+        executionContext.serverEncoding === 'UTF8' &&
+        implementation.schema === 'pg_catalog' &&
+        [
+          'jsonb_path_exists',
+          'jsonb_path_exists_opr',
+          'jsonb_path_match',
+          'jsonb_path_match_opr',
+          'jsonb_path_query_array',
+          'jsonb_path_query_first',
+        ].includes(implementation.name)
+          ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_utf8'
+          : implementation.rustName
+      destination.push(`let ${name} = ${callable}(${arguments_.join(', ')});`)
       return { name, type: call.type }
     }
     if (node.kind === 'check') {
