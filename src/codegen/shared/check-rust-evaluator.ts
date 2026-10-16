@@ -1,3 +1,4 @@
+import { arrayElementFamily } from './check-array-types.js'
 import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-names.js'
 import { builtinCast, builtinMetadata, builtinTypeIO } from '../../postgres/builtins/inventory.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
@@ -1613,6 +1614,32 @@ export function emitCheckRustEvaluator(
         node.call,
         node.operands.map((operand) => emitScalar(operand, bindings, used)),
       )
+    }
+    if (node.kind === 'array-constructor') {
+      const family = arrayElementFamily(node.elementType)
+      if (family === null)
+        throw new UnsupportedCheckRustExpression(
+          'Missing array element carrier: ' + node.elementType,
+        )
+      const operands = node.operands.map((operand) => emitScalar(operand, bindings, used))
+      let builder = bind(
+        `${node.multidimensional ? 'make_array_children' : 'make_array_arguments'}(${rustStringLiteral(node.elementType)}, ${family})`,
+      )
+      for (const operand of operands) {
+        if (node.multidimensional)
+          builder = bind(`append_array_child(${builder}, ${ownedOperand(operand)})`)
+        else {
+          const prefix = rustValuePrefix(rustType(node.elementType))
+          const element = bind(`array_element_from_${prefix}(${ownedOperand(operand)})`)
+          builder = bind(`append_array_argument(${builder}, ${element})`)
+        }
+      }
+      return {
+        name: bind(
+          `${node.multidimensional ? 'finish_array_children' : 'finish_array_constructor'}(${builder})`,
+        ),
+        type: node.type,
+      }
     }
     if (node.kind === 'boolean-logic') {
       const outcome = emit({

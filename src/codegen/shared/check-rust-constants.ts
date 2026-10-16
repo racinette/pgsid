@@ -22,7 +22,11 @@ export function constantCheckExpression(expression: EvalBoolExpression): boolean
 export function constantScalarExpression(expression: EvalExpression): boolean {
   if (expression.kind === 'check') return constantCheckExpression(expression.expression)
   if (expression.kind === 'null-test') return constantScalarExpression(expression.operand)
-  if (expression.kind === 'boolean-logic' || expression.kind === 'coalesce')
+  if (
+    expression.kind === 'boolean-logic' ||
+    expression.kind === 'coalesce' ||
+    expression.kind === 'array-constructor'
+  )
     return expression.operands.every(constantScalarExpression)
   if (expression.kind === 'case')
     return (
@@ -63,6 +67,17 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
+  if (expression.kind === 'array-constructor') {
+    const operands = prepareAll(expression.operands)
+    if (!operands) return null
+    return operands.every((operand) => operand.constant)
+      ? constant(expression)
+      : {
+          constant: false,
+          null: false,
+          expressions: operands.flatMap((operand) => operand.expressions),
+        }
+  }
   if (expression.kind === 'interval-literal') return constant(expression)
   if (expression.kind === 'input' || expression.kind === 'input-null-test')
     return { constant: false, null: false, expressions: [] }

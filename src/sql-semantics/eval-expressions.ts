@@ -7,6 +7,8 @@ import {
   type SqlCallableExpression,
   type SqlExpression,
   type ScalarType,
+  type ArrayType,
+  type ArrayElementType,
   type OidType,
   type SnapshotType,
   type EnumDefinition,
@@ -50,6 +52,13 @@ export type EvalExpression =
       comparison: SqlCallableExpression
     }
   | { kind: 'coalesce'; type: ScalarType; operands: readonly EvalExpression[] }
+  | {
+      kind: 'array-constructor'
+      type: ArrayType
+      elementType: ArrayElementType
+      multidimensional: boolean
+      operands: readonly EvalExpression[]
+    }
   | {
       kind: 'row-compare'
       type: 'pg_catalog.bool'
@@ -298,7 +307,7 @@ export function emitEvalExpression<Ast>(
       include(result.helpers)
       return { ...result.value, effect: 'total' }
     }
-    if (node.kind === 'uncertain') {
+    if (node.kind === 'uncertain' || node.kind === 'array-constructor') {
       const result = backend.uncertain(node.type)
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }

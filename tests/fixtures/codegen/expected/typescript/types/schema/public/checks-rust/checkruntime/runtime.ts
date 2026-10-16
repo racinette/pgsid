@@ -6300,6 +6300,9 @@ export type ArrayElement = {
     readonly kind: "Jsonpath";
     readonly value: JsonpathPayload;
 } | {
+    readonly kind: "JsonpathStoredText";
+    readonly value: string;
+} | {
     readonly kind: "Float4UnspecifiedNan";
 } | {
     readonly kind: "Float8UnspecifiedNan";
@@ -6354,6 +6357,7 @@ function copyArrayElement(value: ArrayElement): ArrayElement {
         case "PgLsn": return { kind: "PgLsn", value: langruntime.checkedI64(value.value) };
         case "Tid": return { kind: "Tid", value: langruntime.checkedI64(value.value) };
         case "Jsonpath": return { kind: "Jsonpath", value: copyJsonpathPayload(value.value) };
+        case "JsonpathStoredText": return { kind: "JsonpathStoredText", value: langruntime.checkedString(value.value) };
         case "Float4UnspecifiedNan": return { kind: "Float4UnspecifiedNan" };
         case "Float8UnspecifiedNan": return { kind: "Float8UnspecifiedNan" };
         case "ByteaUnspecified": return { kind: "ByteaUnspecified", value: langruntime.checkedI32(value.value) };
@@ -6478,6 +6482,9 @@ export function arrayElementFamily(input: ArrayElement): number {
     }
     if (input.kind === "Tid") {
         return 39;
+    }
+    if (input.kind === "JsonpathStoredText") {
+        return 40;
     }
     if (input.kind === "Jsonpath") {
         return 40;
@@ -7666,6 +7673,10 @@ export function arrayElementFromJsonpath(input: JsonpathValue): ArrayElement {
     if (input.kind === "Null") {
         return { kind: "Null" };
     }
+    if (input.kind === "StoredText") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "JsonpathStoredText", value: value };
+    }
     if (input.kind === "Value") {
         const value: JsonpathPayload = copyJsonpathPayload(input.value);
         return { kind: "Jsonpath", value: value };
@@ -7680,6 +7691,10 @@ export function arrayElementToJsonpath(input: ArrayElement): JsonpathValue {
     }
     if (input.kind === "Null") {
         return { kind: "Null" };
+    }
+    if (input.kind === "JsonpathStoredText") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "StoredText", value: value };
     }
     if (input.kind === "Jsonpath") {
         const value: JsonpathPayload = copyJsonpathPayload(input.value);
@@ -7915,6 +7930,157 @@ export function arrayFlatElement(input: ArrayValue, offset: Int4Value): ArrayEle
     }
     return { kind: "Unknown" };
 }
+export function finishArrayConstructor(input: ArrayArguments): ArrayValue {
+    input = copyArrayArguments(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        let position: number = 0;
+        while (position < value.elements.length) {
+            const element: ArrayElement = copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(position), copyArrayElement));
+            if (element.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        let dimensions: ArrayDimension[] = [];
+        if (value.elements.length > 0) {
+            langruntime.pushStruct(dimensions, { lower: 1, length: langruntime.checkedI32(langruntime.checkedIndex(value.elements.length)) }, copyArrayDimension);
+        }
+        return makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: value.elements });
+    }
+    return { kind: "Unknown" };
+}
+export interface ArrayChildrenPayload {
+    elementType: string;
+    elementKind: number;
+    arrays: ArrayValue[];
+}
+function copyArrayChildrenPayload(value: ArrayChildrenPayload): ArrayChildrenPayload {
+    return { elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), arrays: langruntime.checkedStructs(value.arrays, copyArrayValue) };
+}
+export type ArrayChildrenArguments = {
+    kind: "Unknown";
+} | {
+    kind: "Error";
+    value: SqlError;
+} | {
+    kind: "Value";
+    value: ArrayChildrenPayload;
+};
+function copyArrayChildrenArguments(value: ArrayChildrenArguments): ArrayChildrenArguments {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Value": return { kind: "Value", value: copyArrayChildrenPayload(value.value) };
+    }
+}
+export function makeArrayChildren(elementType: string, elementKind: number): ArrayChildrenArguments {
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    const arrays: ArrayValue[] = [];
+    return { kind: "Value", value: { elementType: elementType, elementKind: elementKind, arrays: arrays } };
+}
+export function appendArrayChild(input: ArrayChildrenArguments, child: ArrayValue): ArrayChildrenArguments {
+    input = copyArrayChildrenArguments(input);
+    child = copyArrayValue(child);
+    if (input.kind === "Error") {
+        return input;
+    }
+    if (child.kind === "Error") {
+        const error: SqlError = child.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: ArrayChildrenPayload = copyArrayChildrenPayload(input.value);
+        let arrays: ArrayValue[] = value.arrays;
+        langruntime.pushStruct(arrays, child, copyArrayValue);
+        return { kind: "Value", value: { elementType: value.elementType, elementKind: value.elementKind, arrays: arrays } };
+    }
+    return input;
+}
+export function finishArrayChildren(input: ArrayChildrenArguments): ArrayValue {
+    input = copyArrayChildrenArguments(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: ArrayChildrenPayload = copyArrayChildrenPayload(input.value);
+        let position: number = 0;
+        while (position < value.arrays.length) {
+            const child: ArrayValue = copyArrayValue(langruntime.indexStruct(value.arrays, langruntime.checkedIndex(position), copyArrayValue));
+            if (child.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        let dimensions: ArrayDimension[] = [];
+        let elements: ArrayElement[] = [];
+        let empty: boolean = false;
+        position = langruntime.checkedIndex(0);
+        while (position < value.arrays.length) {
+            const child: ArrayValue = copyArrayValue(langruntime.indexStruct(value.arrays, langruntime.checkedIndex(position), copyArrayValue));
+            if (child.kind === "Null") {
+                empty = langruntime.checkedBool(true);
+            }
+            if (child.kind === "Value") {
+                const array: ArrayPayload = copyArrayPayload(child.value);
+                if (!(array.elementType === value.elementType) || !(array.elementKind === value.elementKind)) {
+                    return { kind: "Error", value: makeSqlError(arrayConstructorTypeMismatch) };
+                }
+                if (array.dimensions.length === 0) {
+                    empty = langruntime.checkedBool(true);
+                }
+                else {
+                    if (dimensions.length === 0) {
+                        if (array.dimensions.length >= 6) {
+                            return { kind: "Error", value: makeSqlError(sqlErrorProgramLimit) };
+                        }
+                        langruntime.pushStruct(dimensions, { lower: 1, length: langruntime.checkedI32(langruntime.checkedIndex(value.arrays.length)) }, copyArrayDimension);
+                        let index: number = 0;
+                        while (index < array.dimensions.length) {
+                            langruntime.pushStruct(dimensions, langruntime.indexStruct(array.dimensions, langruntime.checkedIndex(index), copyArrayDimension), copyArrayDimension);
+                            index = langruntime.checkedAdd(index, 1);
+                        }
+                    }
+                    else {
+                        if (!(dimensions.length === langruntime.checkedAdd(array.dimensions.length, 1))) {
+                            return { kind: "Error", value: makeSqlError(sqlErrorArraySubscript) };
+                        }
+                        let index: number = 0;
+                        while (index < array.dimensions.length) {
+                            const expected: ArrayDimension = langruntime.indexStruct(dimensions, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)), copyArrayDimension);
+                            const actual: ArrayDimension = langruntime.indexStruct(array.dimensions, langruntime.checkedIndex(index), copyArrayDimension);
+                            if (!(expected.lower === actual.lower) || !(expected.length === actual.length)) {
+                                return { kind: "Error", value: makeSqlError(sqlErrorArraySubscript) };
+                            }
+                            index = langruntime.checkedAdd(index, 1);
+                        }
+                    }
+                    if (langruntime.checkedI64Add(BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(elements.length))))), BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(array.elements.length)))))) > 2147483647n) {
+                        return { kind: "Error", value: makeSqlError(sqlErrorProgramLimit) };
+                    }
+                    let index: number = 0;
+                    while (index < array.elements.length) {
+                        langruntime.pushStruct(elements, copyArrayElement(langruntime.indexStruct(array.elements, langruntime.checkedIndex(index), copyArrayElement)), copyArrayElement);
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                }
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (empty && dimensions.length > 0) {
+            return { kind: "Error", value: makeSqlError(sqlErrorArraySubscript) };
+        }
+        return makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: elements });
+    }
+    return { kind: "Unknown" };
+}
+const arrayConstructorTypeMismatch = 6822148;
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);

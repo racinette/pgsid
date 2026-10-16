@@ -361,6 +361,34 @@ it('binds public arrays, metadata and owned composition through Rust, Go and Typ
     goCases.push(
       `{for _,value:=range []checkruntime.ArrayValue{checkruntime.ArrayNull(),checkruntime.ArrayUnknown(),{Kind:checkruntime.ArrayValueError,Error:checkruntime.SqlError{State:3452558}}} {result:=EvaluatePublicNullArraysChecks(PublicNullArraysCheckInput{Value:KnownCheckValue(value)})[0].Result;if value.Kind==checkruntime.ArrayValueNull && (!result.Certain || !result.Value.Valid || result.Value.Value) {t.Fatal("NULL array",result)};if value.Kind==checkruntime.ArrayValueUnknown && result.Certain {t.Fatal("Unknown array",result)};if value.Kind==checkruntime.ArrayValueError && (!result.Certain || result.Value.Error=="") {t.Fatal("array error",result)}}}`,
     )
+    const storedPathArray = {
+      kind: 'Value',
+      value: {
+        elementType: 'pg_catalog.jsonpath',
+        elementKind: 40,
+        dimensions: [{ lower: 1, length: 1 }],
+        elements: [{ kind: 'JsonpathStoredText', value: '$.a' }],
+      },
+    }
+    expect(
+      generated.evaluatePublicFamily40Checks({ value: storedPathArray, expected_count: 1 })[0]
+        .result,
+    ).toEqual({ certain: true, value: true })
+    expect(
+      generated.evaluatePublicFamily40Checks({
+        value: {
+          ...storedPathArray,
+          value: {
+            ...storedPathArray.value,
+            elements: [{ kind: 'JsonpathStoredText', value: '' }],
+          },
+        },
+        expected_count: 1,
+      })[0].result.certain,
+    ).toBe(false)
+    goCases.push(
+      `{value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.jsonpath",ElementKind:40,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementJsonpathStoredText,JsonpathStoredText:"$.a"}}}};result:=EvaluatePublicFamily40Checks(PublicFamily40CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))})[0].Result;if !result.Certain || !result.Value.Valid || !result.Value.Value {t.Fatal("stored JSONPath array",result)}}`,
+    )
     const invalid = [
       {},
       [],

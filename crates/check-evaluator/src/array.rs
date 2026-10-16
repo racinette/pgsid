@@ -209,3 +209,167 @@ pub fn array_flat_element(input: ArrayValue, offset: Int4Value) -> ArrayElement 
     };
     ArrayElement::Unknown
 }
+
+pub fn finish_array_constructor(input: ArrayArguments) -> ArrayValue {
+    if let ArrayArguments::Error(error) = input {
+        return ArrayValue::Error(error);
+    };
+    if let ArrayArguments::Value(value) = input {
+        let mut position: usize = 0;
+        while position < value.elements.len() {
+            let element = value.elements[position].clone();
+            if let ArrayElement::Unknown = element {
+                return ArrayValue::Unknown;
+            };
+            position += 1;
+        }
+        let mut dimensions: Vec<ArrayDimension> = Vec::new();
+        if value.elements.len() > 0 {
+            dimensions.push(ArrayDimension {
+                lower: 1,
+                length: value.elements.len() as i32,
+            });
+        };
+        return make_array_value(ArrayPayload {
+            element_type: value.element_type,
+            element_kind: value.element_kind,
+            dimensions: dimensions,
+            elements: value.elements,
+        });
+    };
+    ArrayValue::Unknown
+}
+
+#[derive(Clone)]
+pub struct ArrayChildrenPayload {
+    pub element_type: String,
+    pub element_kind: i32,
+    pub arrays: Vec<ArrayValue>,
+}
+
+#[derive(Clone)]
+pub enum ArrayChildrenArguments {
+    Unknown,
+    Error(SqlError),
+    Value(ArrayChildrenPayload),
+}
+
+pub fn make_array_children(element_type: &str, element_kind: i32) -> ArrayChildrenArguments {
+    let arrays: Vec<ArrayValue> = Vec::new();
+    ArrayChildrenArguments::Value(ArrayChildrenPayload {
+        element_type: element_type.to_owned(),
+        element_kind: element_kind,
+        arrays: arrays,
+    })
+}
+
+pub fn append_array_child(
+    input: ArrayChildrenArguments,
+    child: ArrayValue,
+) -> ArrayChildrenArguments {
+    if let ArrayChildrenArguments::Error(_) = input {
+        return input;
+    };
+    if let ArrayValue::Error(error) = child {
+        return ArrayChildrenArguments::Error(error);
+    };
+    if let ArrayChildrenArguments::Value(value) = input {
+        let mut arrays = value.arrays;
+        arrays.push(child);
+        return ArrayChildrenArguments::Value(ArrayChildrenPayload {
+            element_type: value.element_type,
+            element_kind: value.element_kind,
+            arrays: arrays,
+        });
+    };
+    input
+}
+
+pub fn finish_array_children(input: ArrayChildrenArguments) -> ArrayValue {
+    if let ArrayChildrenArguments::Error(error) = input {
+        return ArrayValue::Error(error);
+    };
+    if let ArrayChildrenArguments::Value(value) = input {
+        let mut position: usize = 0;
+        while position < value.arrays.len() {
+            let child = value.arrays[position].clone();
+            if let ArrayValue::Unknown = child {
+                return ArrayValue::Unknown;
+            };
+            position += 1;
+        }
+        let mut dimensions: Vec<ArrayDimension> = Vec::new();
+        let mut elements: Vec<ArrayElement> = Vec::new();
+        let mut empty = false;
+        position = 0;
+        while position < value.arrays.len() {
+            let child = value.arrays[position].clone();
+            if let ArrayValue::Null = child {
+                empty = true;
+            };
+            if let ArrayValue::Value(array) = child {
+                if array.element_type != value.element_type
+                    || array.element_kind != value.element_kind
+                {
+                    return ArrayValue::Error(make_sql_error(ARRAY_CONSTRUCTOR_TYPE_MISMATCH));
+                };
+                if array.dimensions.len() == 0 {
+                    empty = true;
+                } else {
+                    if dimensions.len() == 0 {
+                        if array.dimensions.len() >= 6 {
+                            return ArrayValue::Error(make_sql_error(SQL_ERROR_PROGRAM_LIMIT));
+                        };
+                        dimensions.push(ArrayDimension {
+                            lower: 1,
+                            length: value.arrays.len() as i32,
+                        });
+                        let mut index: usize = 0;
+                        while index < array.dimensions.len() {
+                            dimensions.push(array.dimensions[index]);
+                            index += 1;
+                        }
+                    } else {
+                        if dimensions.len() != array.dimensions.len() + 1 {
+                            return ArrayValue::Error(make_sql_error(SQL_ERROR_ARRAY_SUBSCRIPT));
+                        };
+                        let mut index: usize = 0;
+                        while index < array.dimensions.len() {
+                            let expected = dimensions[index + 1];
+                            let actual = array.dimensions[index];
+                            if expected.lower != actual.lower || expected.length != actual.length {
+                                return ArrayValue::Error(make_sql_error(
+                                    SQL_ERROR_ARRAY_SUBSCRIPT,
+                                ));
+                            };
+                            index += 1;
+                        }
+                    };
+                    if (elements.len() as i32) as i64 + (array.elements.len() as i32) as i64
+                        > 2147483647i64
+                    {
+                        return ArrayValue::Error(make_sql_error(SQL_ERROR_PROGRAM_LIMIT));
+                    };
+                    let mut index: usize = 0;
+                    while index < array.elements.len() {
+                        elements.push(array.elements[index].clone());
+                        index += 1;
+                    }
+                };
+            };
+            position += 1;
+        }
+        if empty && dimensions.len() > 0 {
+            return ArrayValue::Error(make_sql_error(SQL_ERROR_ARRAY_SUBSCRIPT));
+        };
+        return make_array_value(ArrayPayload {
+            element_type: value.element_type,
+            element_kind: value.element_kind,
+            dimensions: dimensions,
+            elements: elements,
+        });
+    };
+    ArrayValue::Unknown
+}
+
+const ARRAY_CONSTRUCTOR_TYPE_MISMATCH: u32 = 6822148;

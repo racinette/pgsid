@@ -22,6 +22,7 @@ import {
   enumType,
   arrayType,
   type ArrayType,
+  type ArrayElementType,
   isOidType,
   isOidAliasType,
   isSnapshotType,
@@ -445,8 +446,15 @@ type Bound = {
   collation?: BoundCollation
   enum?: EnumInfo
   enumDomain?: number
+  nominalDomain?: string
 }
 
+const commonNominalDomain = (args: readonly Bound[]): string | undefined => {
+  const domain = args[0]?.nominalDomain
+  return domain !== undefined && args.every((arg) => arg.nominalDomain === domain)
+    ? domain
+    : undefined
+}
 const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
   const domain = args[0]?.enumDomain
   return domain !== undefined && args.every((arg) => arg.enumDomain === domain) ? domain : undefined
@@ -1196,9 +1204,77 @@ export function bindCatalogCheck(
       moneyUnits.set(literal.text, value.toString())
   }
   const inputs = new Set<string>()
+  const elementTypeName = (type: ArrayElementType): Fields => ({
+    names: type.startsWith('enum:')
+      ? (JSON.parse(type.slice(5)) as string[]).map((sval) => ({ String: { sval } }))
+      : [
+          { String: { sval: 'pg_catalog' } },
+          { String: { sval: type.slice('pg_catalog.'.length).replaceAll('"', '') } },
+        ],
+  })
+  const bindArray = (node: unknown, target?: { type: ArrayElementType; name: Fields }): Bound => {
+    const array = fields(fields(node)?.['A_ArrayExpr'])
+    if (!array) return unknown
+    const members = Array.isArray(array['elements']) ? array['elements'] : []
+    if (members.length === 0 && !target) return unknown
+    const args = members.map((member) =>
+      fields(fields(member)?.['A_ArrayExpr']) ? bindArray(member, target) : bind(member),
+    )
+    const multidimensional =
+      args.some((arg) => arg.nominalDomain === undefined && arg.type?.startsWith('array:')) ||
+      members.some((member) => fields(fields(member)?.['A_ArrayExpr']))
+    if (
+      !multidimensional &&
+      (args.some((arg) => arg.type?.startsWith('array:')) ||
+        (!target && commonNominalDomain(args) !== undefined))
+    )
+      return unknown
+    const candidates = multidimensional
+      ? args.map((arg) => ({
+          ...arg,
+          type: arg.type?.startsWith('array:') ? (arg.type.slice(6) as ArrayElementType) : null,
+        }))
+      : args
+    if (multidimensional && !target && candidates.every((arg) => arg.type === null)) return unknown
+    const inferred = target?.type ?? commonType(candidates)
+    if (!inferred || inferred.startsWith('array:')) return unknown
+    const element = inferred as ArrayElementType
+    const type = arrayType(element)
+    const definition = element.startsWith('enum:')
+      ? enums.find((item) => enumType(item) === element)
+      : undefined
+    const operands = members.map((member, index) => {
+      let arg = args[index]!
+      if (multidimensional) {
+        if (!arg.value && fields(fields(member)?.['A_ArrayExpr']))
+          arg = bindArray(member, { type: element, name: elementTypeName(element) })
+        return materialize(arg, type)
+      }
+      if (target) arg = bind({ TypeCast: { arg: member, typeName: target.name } })
+      if (arg.literal?.kind === 'string' && element !== 'pg_catalog.text')
+        arg = bind({ TypeCast: { arg: member, typeName: elementTypeName(element) } })
+      return implicitOperand(arg, element, definition)
+    })
+    if (!operands.every((operand): operand is EvalExpression => operand !== null)) return unknown
+    return {
+      type,
+      collation: combineCollations(args.map((arg) => arg.collation)),
+      value: { kind: 'array-constructor', type, elementType: element, multidimensional, operands },
+    }
+  }
   const bind = (node: unknown, expectedType?: ScalarType): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    if (fields(wrapper['A_ArrayExpr']))
+      return bindArray(
+        node,
+        expectedType?.startsWith('array:')
+          ? {
+              type: expectedType.slice(6) as ArrayElementType,
+              name: elementTypeName(expectedType.slice(6) as ArrayElementType),
+            }
+          : undefined,
+      )
     const minmax = fields(wrapper['MinMaxExpr'])
     if (minmax) {
       const nodes = minmax['args']
@@ -1238,6 +1314,7 @@ export function bindCatalogCheck(
         type,
         enum: definition,
         enumDomain: commonEnumDomain(args),
+        nominalDomain: commonNominalDomain(args),
         collation,
         value: allNull
           ? operands[0]!
@@ -1309,6 +1386,7 @@ export function bindCatalogCheck(
         type,
         ...(definition ? { enum: definition } : {}),
         enumDomain: commonEnumDomain(args),
+        nominalDomain: commonNominalDomain(args),
         ...([
           'pg_catalog.name',
           'pg_catalog.text',
@@ -1420,6 +1498,7 @@ export function bindCatalogCheck(
         type,
         ...(definition ? { enum: definition } : {}),
         enumDomain: commonEnumDomain(arms),
+        nominalDomain: commonNominalDomain(arms),
         collation,
         value: {
           kind: 'case',
@@ -1464,10 +1543,24 @@ export function bindCatalogCheck(
       const names = strings(castType?.['names'])
       const bounds = castType?.['arrayBounds']
       if (Array.isArray(bounds) && bounds.length) {
-        if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unknown
-        const element = catalogScalarType(names.at(-1)!)
+        if (!names) return unknown
+        const definitions = enums.filter((item) =>
+          names.length === 2
+            ? item.schema === names[0] && item.name === names[1]
+            : names.length === 1 && item.name === names[0],
+        )
+        const definition = definitions.length === 1 ? definitions[0] : undefined
+        const element =
+          (names.length === 1 || (names.length === 2 && names[0] === 'pg_catalog')
+            ? catalogScalarType(names.at(-1)!)
+            : null) ?? (definition ? enumType(definition) : null)
         if (!element || element.startsWith('array:')) return unknown
-        const type = arrayType(element as Exclude<ScalarType, ArrayType>)
+        const type = arrayType(element as ArrayElementType)
+        if (fields(fields(cast['arg'])?.['A_ArrayExpr']))
+          return bindArray(cast['arg'], {
+            type: element as ArrayElementType,
+            name: { ...castType, arrayBounds: [] },
+          })
         const operand = bind(cast['arg'])
         const value = materialize(operand, type)
         return value ? { type, value } : unknown
@@ -1548,7 +1641,7 @@ export function bindCatalogCheck(
             return unknown
           domain = domains.find((item) => item.oid === domain!.baseTypeOid)
         }
-        return bind({
+        const base = bind({
           TypeCast: {
             ...cast,
             typeName: {
@@ -1560,6 +1653,10 @@ export function bindCatalogCheck(
             },
           },
         })
+        return {
+          ...base,
+          nominalDomain: JSON.stringify([castDomains[0]!.schema, castDomains[0]!.name]),
+        }
       }
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
       const type = names ? catalogScalarType(names.at(-1)!) : null
@@ -2482,6 +2579,8 @@ export function bindCatalogCheck(
     const names = strings(fields(wrapper['ColumnRef'])?.['fields'])
     if (names?.length === 1) {
       const column = columns.find((item) => item.name === names[0])
+      const domain = column && domains.find((item) => item.oid === column.typeOid)
+      const nominalDomain = domain ? JSON.stringify([domain.schema, domain.name]) : undefined
       const definition =
         column && catalogEnumDefinition(column.typeName, enums, column.typeOid, domains)
       if (definition) {
@@ -2491,6 +2590,7 @@ export function bindCatalogCheck(
           type,
           enum: definition,
           enumDomain: domains.find((domain) => domain.oid === column.typeOid)?.oid,
+          nominalDomain,
           value: { kind: 'input', type, name: column.name, enum: definition },
         }
       }
@@ -2503,6 +2603,7 @@ export function bindCatalogCheck(
         return {
           type,
           value: { kind: 'input', type, name: column.name },
+          nominalDomain,
           ...(type === 'pg_catalog.name' ||
           type === 'pg_catalog.text' ||
           type === 'pg_catalog."varchar"' ||

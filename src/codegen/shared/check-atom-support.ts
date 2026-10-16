@@ -140,7 +140,11 @@ export function portableCheckAtoms(
       return value.call.signature !== null && portable(value.call.signature, rustNames, rust)
         ? { ...value, operands: value.operands.map(scalar) }
         : { kind: 'uncertain', type: value.call.type }
-    if (value.kind === 'boolean-logic' || value.kind === 'coalesce')
+    if (
+      value.kind === 'boolean-logic' ||
+      value.kind === 'coalesce' ||
+      value.kind === 'array-constructor'
+    )
       return { ...value, operands: value.operands.map(scalar) }
     if (value.kind === 'membership')
       return {
