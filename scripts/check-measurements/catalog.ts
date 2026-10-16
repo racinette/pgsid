@@ -83,12 +83,36 @@ export function jsonValueRequirements(item: BuiltinCallable) {
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
     [
+      'jsonb_path_query',
+      'jsonb_path_query_tz',
+      'jsonpath_in',
+      'jsonpath_out',
+      'jsonpath_recv',
+    ].includes(item.name)
+  )
+    return [
+      {
+        kind: 'interface',
+        requirement: item.returnsSet
+          ? 'Set-returning JSONPath query functions produce SQL rows and are forbidden in CHECK expressions. Scalar query_array and query_first calls retain sequence semantics within the value contract.'
+          : 'JSONPath input/output use cstring and receive uses an internal server buffer. These are PostgreSQL interfaces, not portable SQL row types. Public JSONPath values, text I/O casts and binary send have separate value operations.',
+        owner: 'tests/sql-semantics/check-jsonpath-context.test.ts',
+      },
+    ]
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    [
       'jsonb_path_exists',
       'jsonb_path_exists_opr',
       'jsonb_path_match',
       'jsonb_path_match_opr',
       'jsonb_path_query_array',
       'jsonb_path_query_first',
+      'jsonb_path_exists_tz',
+      'jsonb_path_match_tz',
+      'jsonb_path_query_array_tz',
+      'jsonb_path_query_first_tz',
     ].includes(item.name)
   )
     return [
@@ -140,8 +164,8 @@ export function jsonValueRequirements(item: BuiltinCallable) {
       {
         kind: 'session',
         requirement:
-          'Alphabetic datetime timezone suffixes require the session timezone and abbreviation registry. Timestamp-with-zone to time_tz conversion requires session TimeZone. Non-_tz conversions and comparisons that PostgreSQL forbids without timezone usage retain hard errors even when silent.',
-        owner: 'tests/sql-semantics/check-jsonpath-execution.test.ts',
+          'Alphabetic datetime timezone suffixes require the session timezone and abbreviation registry. Timestamp-with-zone to time_tz conversion requires session TimeZone. Scalar _tz calls execute context-independent paths; timezone-dependent conversions and cross-type comparisons defer when reached. Dropping a time-with-zone offset in _tz time() preserves the local clock without session lookup. Non-_tz forbidden conversions/comparisons retain hard errors even when silent.',
+        owner: 'tests/sql-semantics/check-jsonpath-context.test.ts',
       },
     ]
   if (

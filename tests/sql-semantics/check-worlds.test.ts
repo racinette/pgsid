@@ -138,6 +138,13 @@ const sessionDependentCases = new Map<string, string>([
 ])
 const binaryContextCases = new Map([...platformDependentCases, ...sessionDependentCases])
 const jsonValueContextCases = new Map<string, string>([
+  ...['clock_exists', 'clock_match', 'clock_results', 'clock_first'].map(
+    (name) =>
+      [
+        `042_query_paths/clock_zone_context/${name}`,
+        `world_042_query_paths.query_clock_rules.${name}`,
+      ] as const,
+  ),
   ...['field_source', 'field_text', 'field_presence'].map(
     (name) =>
       [
@@ -326,6 +333,7 @@ describe('world CHECK INSERT parity', () => {
       ).rows,
     ).toEqual([{ datcollate: 'C', datctype: 'C.UTF-8' }])
     expect((await pg.query('SHOW server_encoding')).rows).toEqual([{ server_encoding: 'UTF8' }])
+    await pg.exec("SET TimeZone='UTC'")
     directory = await mkdtemp(join(tmpdir(), 'pgsid-world-checks-'))
     await pg.exec('CREATE EXTENSION plpgsql_check')
     for (const world of worlds) {

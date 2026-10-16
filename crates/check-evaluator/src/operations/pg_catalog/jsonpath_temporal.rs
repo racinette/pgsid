@@ -284,6 +284,22 @@ fn jsonpath_temporal_convert(
     method: i32,
     precision: i32,
 ) -> JsonpathTemporalValue {
+    jsonpath_temporal_convert_mode(input, method, precision, false)
+}
+
+fn jsonpath_temporal_timezone(use_timezone: bool) -> JsonpathTemporalValue {
+    if use_timezone {
+        return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
+    };
+    jsonpath_temporal_state(0, 0i64, 0, JSONPATH_TEMPORAL_FEATURE, false, true)
+}
+
+fn jsonpath_temporal_convert_mode(
+    input: TextValue,
+    method: i32,
+    precision: i32,
+    use_timezone: bool,
+) -> JsonpathTemporalValue {
     let parsed = jsonpath_temporal_decode(input);
     if parsed.unknown && parsed.kind == 3 && (method == 104 || method == 130 || method == 132) {
         return jsonpath_temporal_invalid();
@@ -296,7 +312,7 @@ fn jsonpath_temporal_convert(
     let mut zone = parsed.zone;
     if method == 104 {
         if kind == 5 {
-            return jsonpath_temporal_state(0, 0i64, 0, JSONPATH_TEMPORAL_FEATURE, false, true);
+            return jsonpath_temporal_timezone(use_timezone);
         };
         if kind == 2 || kind == 3 {
             return jsonpath_temporal_invalid();
@@ -311,8 +327,8 @@ fn jsonpath_temporal_convert(
         zone = 0;
     };
     if method == 109 {
-        if kind == 3 || kind == 5 {
-            return jsonpath_temporal_state(0, 0i64, 0, JSONPATH_TEMPORAL_FEATURE, false, true);
+        if kind == 5 || (kind == 3 && use_timezone == false) {
+            return jsonpath_temporal_timezone(use_timezone);
         };
         if kind == 1 {
             return jsonpath_temporal_invalid();
@@ -324,13 +340,14 @@ fn jsonpath_temporal_convert(
             };
         };
         kind = 2;
+        zone = 0;
     };
     if method == 126 {
         if kind == 1 || kind == 4 {
             return jsonpath_temporal_invalid();
         };
         if kind == 2 {
-            return jsonpath_temporal_state(0, 0i64, 0, JSONPATH_TEMPORAL_FEATURE, false, true);
+            return jsonpath_temporal_timezone(use_timezone);
         };
         if kind == 5 {
             return jsonpath_temporal_state(0, 0i64, 0, 0, true, false);
@@ -342,7 +359,7 @@ fn jsonpath_temporal_convert(
             return jsonpath_temporal_invalid();
         };
         if kind == 5 {
-            return jsonpath_temporal_state(0, 0i64, 0, JSONPATH_TEMPORAL_FEATURE, false, true);
+            return jsonpath_temporal_timezone(use_timezone);
         };
         if kind == 1 {
             let timestamp = sql__pg_catalog__timestamp__swxj(DateValue::Value(value as i32));
@@ -360,7 +377,7 @@ fn jsonpath_temporal_convert(
             return jsonpath_temporal_invalid();
         };
         if kind == 1 || kind == 4 {
-            return jsonpath_temporal_state(0, 0i64, 0, JSONPATH_TEMPORAL_FEATURE, false, true);
+            return jsonpath_temporal_timezone(use_timezone);
         };
         kind = 5;
     };
@@ -460,6 +477,14 @@ fn jsonpath_temporal_compare(
     left: JsonpathTemporalValue,
     right: JsonpathTemporalValue,
 ) -> Int4Value {
+    jsonpath_temporal_compare_mode(left, right, false)
+}
+
+fn jsonpath_temporal_compare_mode(
+    left: JsonpathTemporalValue,
+    right: JsonpathTemporalValue,
+    use_timezone: bool,
+) -> Int4Value {
     if left.kind == right.kind {
         if left.kind == 3 {
             return sql__pg_catalog__timetz_cmp__wy50(
@@ -492,6 +517,9 @@ fn jsonpath_temporal_compare(
     let left_clock = left.kind == 2 || left.kind == 3;
     let right_clock = right.kind == 2 || right.kind == 3;
     if (left_calendar && right_calendar) || (left_clock && right_clock) {
+        if use_timezone {
+            return Int4Value::Unknown;
+        };
         return Int4Value::Error(make_sql_error(JSONPATH_TEMPORAL_FEATURE));
     };
     Int4Value::Null

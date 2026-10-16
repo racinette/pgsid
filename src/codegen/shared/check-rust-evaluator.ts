@@ -132,6 +132,22 @@ export const isJsonbBuilder = (
 
 export class UnsupportedCheckRustExpression extends Error {}
 
+export const isJsonpathTimezoneCallable = (
+  item: ReturnType<typeof builtinMetadata>,
+): item is ReturnType<typeof builtinMetadata> & { kind: 'function' } =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  [
+    'jsonb_path_exists_tz',
+    'jsonb_path_match_tz',
+    'jsonb_path_query_array_tz',
+    'jsonb_path_query_first_tz',
+  ].includes(item.name) &&
+  item.volatility === 's' &&
+  item.strict &&
+  !item.returnsSet &&
+  item.args.join(',') === 'pg_catalog.jsonb,pg_catalog.jsonpath,pg_catalog.jsonb,pg_catalog.bool'
+
 const rustType = (type: string): string => {
   if (type === 'pg_catalog."json"') return 'JsonValue'
   if (type === 'pg_catalog.jsonb') return 'JsonbValue'
@@ -555,6 +571,7 @@ export function emitCheckRustEvaluator(
       const jsonbBuilder =
         isJsonbBuilder(implementation) &&
         (implementation.args.length === 0 ? operands.length === 0 : operands.length > 0)
+      const jsonpathTimezone = isJsonpathTimezoneCallable(implementation)
       const enumOperands = implementation.args.flatMap((type, index) =>
         type === 'pg_catalog.anyenum' ? [operands[index]?.type] : [],
       )
@@ -572,6 +589,7 @@ export function emitCheckRustEvaluator(
         (implementation.volatility !== 'i' &&
           !jsonbConversion &&
           !jsonbBuilder &&
+          !jsonpathTimezone &&
           !(
             (['namesend', 'textsend'].includes(implementation.name) &&
               implementation.schema === 'pg_catalog' &&
@@ -714,15 +732,16 @@ export function emitCheckRustEvaluator(
       callables.add(implementation.rustName)
       const name = fresh('value')
       const jsonpathExecution =
-        implementation.schema === 'pg_catalog' &&
-        [
-          'jsonb_path_exists',
-          'jsonb_path_exists_opr',
-          'jsonb_path_match',
-          'jsonb_path_match_opr',
-          'jsonb_path_query_array',
-          'jsonb_path_query_first',
-        ].includes(implementation.name)
+        jsonpathTimezone ||
+        (implementation.schema === 'pg_catalog' &&
+          [
+            'jsonb_path_exists',
+            'jsonb_path_exists_opr',
+            'jsonb_path_match',
+            'jsonb_path_match_opr',
+            'jsonb_path_query_array',
+            'jsonb_path_query_first',
+          ].includes(implementation.name))
       const callable = jsonpathExecution
         ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
         : implementation.rustName

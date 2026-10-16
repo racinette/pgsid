@@ -15042,6 +15042,19 @@ function jsonpathTemporalDecode(input: checkruntime.TextValue): JsonpathTemporal
 function jsonpathTemporalConvert(input: checkruntime.TextValue, method: number, precision: number): JsonpathTemporalValue {
     method = langruntime.checkedI32(method);
     precision = langruntime.checkedI32(precision);
+    return jsonpathTemporalConvertMode(input, method, precision, false);
+}
+function jsonpathTemporalTimezone(useTimezone: boolean): JsonpathTemporalValue {
+    useTimezone = langruntime.checkedBool(useTimezone);
+    if (useTimezone) {
+        return jsonpathTemporalState(0, 0n, 0, 0, true, false);
+    }
+    return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+}
+function jsonpathTemporalConvertMode(input: checkruntime.TextValue, method: number, precision: number, useTimezone: boolean): JsonpathTemporalValue {
+    method = langruntime.checkedI32(method);
+    precision = langruntime.checkedI32(precision);
+    useTimezone = langruntime.checkedBool(useTimezone);
     const parsed: JsonpathTemporalValue = copyJsonpathTemporalValue(jsonpathTemporalDecode(input));
     if (parsed.unknown && parsed.kind === 3 && (method === 104 || method === 130 || method === 132)) {
         return jsonpathTemporalInvalid();
@@ -15054,7 +15067,7 @@ function jsonpathTemporalConvert(input: checkruntime.TextValue, method: number, 
     let zone: number = parsed.zone;
     if (method === 104) {
         if (kind === 5) {
-            return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+            return jsonpathTemporalTimezone(useTimezone);
         }
         if (kind === 2 || kind === 3) {
             return jsonpathTemporalInvalid();
@@ -15070,8 +15083,8 @@ function jsonpathTemporalConvert(input: checkruntime.TextValue, method: number, 
         zone = langruntime.checkedI32(0);
     }
     if (method === 109) {
-        if (kind === 3 || kind === 5) {
-            return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+        if (kind === 5 || (kind === 3 && useTimezone === false)) {
+            return jsonpathTemporalTimezone(useTimezone);
         }
         if (kind === 1) {
             return jsonpathTemporalInvalid();
@@ -15083,13 +15096,14 @@ function jsonpathTemporalConvert(input: checkruntime.TextValue, method: number, 
             }
         }
         kind = langruntime.checkedI32(2);
+        zone = langruntime.checkedI32(0);
     }
     if (method === 126) {
         if (kind === 1 || kind === 4) {
             return jsonpathTemporalInvalid();
         }
         if (kind === 2) {
-            return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+            return jsonpathTemporalTimezone(useTimezone);
         }
         if (kind === 5) {
             return jsonpathTemporalState(0, 0n, 0, 0, true, false);
@@ -15101,7 +15115,7 @@ function jsonpathTemporalConvert(input: checkruntime.TextValue, method: number, 
             return jsonpathTemporalInvalid();
         }
         if (kind === 5) {
-            return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+            return jsonpathTemporalTimezone(useTimezone);
         }
         if (kind === 1) {
             const timestamp: checkruntime.TimestampValue = timestampSwxj({ kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) });
@@ -15121,7 +15135,7 @@ function jsonpathTemporalConvert(input: checkruntime.TextValue, method: number, 
             return jsonpathTemporalInvalid();
         }
         if (kind === 1 || kind === 4) {
-            return jsonpathTemporalState(0, 0n, 0, jsonpathTemporalFeature, false, true);
+            return jsonpathTemporalTimezone(useTimezone);
         }
         kind = langruntime.checkedI32(5);
     }
@@ -15222,6 +15236,12 @@ function jsonpathTemporalMethod(kind: number): boolean {
 function jsonpathTemporalCompare(left: JsonpathTemporalValue, right: JsonpathTemporalValue): checkruntime.Int4Value {
     left = copyJsonpathTemporalValue(left);
     right = copyJsonpathTemporalValue(right);
+    return jsonpathTemporalCompareMode(left, right, false);
+}
+function jsonpathTemporalCompareMode(left: JsonpathTemporalValue, right: JsonpathTemporalValue, useTimezone: boolean): checkruntime.Int4Value {
+    left = copyJsonpathTemporalValue(left);
+    right = copyJsonpathTemporalValue(right);
+    useTimezone = langruntime.checkedBool(useTimezone);
     if (left.kind === right.kind) {
         if (left.kind === 3) {
             return timetzCmpWy50({ kind: "Value", value: { time: left.value, zone: left.zone } }, { kind: "Value", value: { time: right.value, zone: right.zone } });
@@ -15239,6 +15259,9 @@ function jsonpathTemporalCompare(left: JsonpathTemporalValue, right: JsonpathTem
     const leftClock: boolean = left.kind === 2 || left.kind === 3;
     const rightClock: boolean = right.kind === 2 || right.kind === 3;
     if ((leftCalendar && rightCalendar) || (leftClock && rightClock)) {
+        if (useTimezone) {
+            return { kind: "Unknown" };
+        }
         return { kind: "Error", value: checkruntime.makeSqlError(jsonpathTemporalFeature) };
     }
     return { kind: "Null" };

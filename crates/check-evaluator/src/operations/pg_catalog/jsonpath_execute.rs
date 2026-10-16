@@ -30,6 +30,7 @@ struct JsonpathExecutionContext {
     utf8: bool,
     c_collation: bool,
     ctype: i32,
+    use_timezone: bool,
     ordered_result: bool,
     document_ids: Vec<NumericValue>,
     variables_ids: Vec<NumericValue>,
@@ -911,10 +912,15 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                             && second.source == 7
                             && step.kind != JSONPATH_NODE_STARTS
                         {
-                            let comparison = jsonpath_temporal_compare(
+                            let comparison = jsonpath_temporal_compare_mode(
                                 temporals[first.node],
                                 temporals[second.node],
+                                context.use_timezone,
                             );
+                            if let Int4Value::Unknown = comparison {
+                                unknown = true;
+                                ready = false;
+                            };
                             if let Int4Value::Error(failure) = comparison {
                                 error = failure.state;
                                 hard_error = true;
@@ -1175,6 +1181,7 @@ fn jsonpath_execution_walk(input: JsonpathExecutionContext, existence: bool) -> 
                     utf8: context.utf8,
                     c_collation: context.c_collation,
                     ctype: context.ctype,
+                    use_timezone: context.use_timezone,
                     ordered_result: context.ordered_result,
                     document_ids: context.document_ids,
                     variables_ids: context.variables_ids,
@@ -2104,6 +2111,7 @@ fn jsonpath_evaluate(
     operator: bool,
     c_collation: bool,
     ctype: i32,
+    use_timezone: bool,
 ) -> JsonbValue {
     if let JsonbValue::Error(error) = document {
         return JsonbValue::Error(error);
@@ -2149,6 +2157,7 @@ fn jsonpath_evaluate(
                         operator == false,
                         c_collation,
                         ctype,
+                        use_timezone,
                     );
                     let sequence = jsonpath_execution_walk(context.clone(), mode == 0);
                     if sequence.unknown {
@@ -2215,7 +2224,7 @@ pub fn jsonpath_exists_utf8(
     silent: BoolValue,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate(
-        document, path, variables, silent, 0, true, false, false, 0,
+        document, path, variables, silent, 0, true, false, false, 0, false,
     ))
 }
 
@@ -2226,7 +2235,7 @@ pub fn sql__pg_catalog__jsonb_path_exists__81t5(
     silent: BoolValue,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate(
-        document, path, variables, silent, 0, false, false, false, 0,
+        document, path, variables, silent, 0, false, false, false, 0, false,
     ))
 }
 
@@ -2237,7 +2246,7 @@ pub fn jsonpath_match_utf8(
     silent: BoolValue,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate(
-        document, path, variables, silent, 1, true, false, false, 0,
+        document, path, variables, silent, 1, true, false, false, 0, false,
     ))
 }
 
@@ -2248,7 +2257,7 @@ pub fn sql__pg_catalog__jsonb_path_match__421e(
     silent: BoolValue,
 ) -> BoolValue {
     jsonpath_execution_bool_result(jsonpath_evaluate(
-        document, path, variables, silent, 1, false, false, false, 0,
+        document, path, variables, silent, 1, false, false, false, 0, false,
     ))
 }
 
@@ -2258,7 +2267,9 @@ pub fn jsonpath_query_array_utf8(
     variables: JsonbValue,
     silent: BoolValue,
 ) -> JsonbValue {
-    jsonpath_evaluate(document, path, variables, silent, 2, true, false, false, 0)
+    jsonpath_evaluate(
+        document, path, variables, silent, 2, true, false, false, 0, false,
+    )
 }
 
 pub fn sql__pg_catalog__jsonb_path_query_array__qidf(
@@ -2267,7 +2278,9 @@ pub fn sql__pg_catalog__jsonb_path_query_array__qidf(
     variables: JsonbValue,
     silent: BoolValue,
 ) -> JsonbValue {
-    jsonpath_evaluate(document, path, variables, silent, 2, false, false, false, 0)
+    jsonpath_evaluate(
+        document, path, variables, silent, 2, false, false, false, 0, false,
+    )
 }
 
 pub fn jsonpath_query_first_utf8(
@@ -2276,7 +2289,9 @@ pub fn jsonpath_query_first_utf8(
     variables: JsonbValue,
     silent: BoolValue,
 ) -> JsonbValue {
-    jsonpath_evaluate(document, path, variables, silent, 3, true, false, false, 0)
+    jsonpath_evaluate(
+        document, path, variables, silent, 3, true, false, false, 0, false,
+    )
 }
 
 pub fn sql__pg_catalog__jsonb_path_query_first__w0y6(
@@ -2285,7 +2300,9 @@ pub fn sql__pg_catalog__jsonb_path_query_first__w0y6(
     variables: JsonbValue,
     silent: BoolValue,
 ) -> JsonbValue {
-    jsonpath_evaluate(document, path, variables, silent, 3, false, false, false, 0)
+    jsonpath_evaluate(
+        document, path, variables, silent, 3, false, false, false, 0, false,
+    )
 }
 
 pub fn jsonpath_exists_opr_utf8(document: JsonbValue, path: JsonpathValue) -> BoolValue {
@@ -2299,6 +2316,7 @@ pub fn jsonpath_exists_opr_utf8(document: JsonbValue, path: JsonpathValue) -> Bo
         true,
         false,
         0,
+        false,
     ))
 }
 
@@ -2316,6 +2334,7 @@ pub fn sql__pg_catalog__jsonb_path_exists_opr__8snd(
         true,
         false,
         0,
+        false,
     ))
 }
 
@@ -2330,6 +2349,7 @@ pub fn jsonpath_match_opr_utf8(document: JsonbValue, path: JsonpathValue) -> Boo
         true,
         false,
         0,
+        false,
     ))
 }
 
@@ -2347,6 +2367,7 @@ pub fn sql__pg_catalog__jsonb_path_match_opr__juo6(
         true,
         false,
         0,
+        false,
     ))
 }
 
@@ -2369,6 +2390,7 @@ pub fn jsonpath_exists_context(
         false,
         c_collation,
         ctype,
+        false,
     ))
 }
 
@@ -2391,6 +2413,7 @@ pub fn jsonpath_match_context(
         false,
         c_collation,
         ctype,
+        false,
     ))
 }
 
@@ -2413,6 +2436,7 @@ pub fn jsonpath_query_array_context(
         false,
         c_collation,
         ctype,
+        false,
     )
 }
 
@@ -2435,6 +2459,7 @@ pub fn jsonpath_query_first_context(
         false,
         c_collation,
         ctype,
+        false,
     )
 }
 
@@ -2455,6 +2480,7 @@ pub fn jsonpath_exists_opr_context(
         true,
         c_collation,
         ctype,
+        false,
     ))
 }
 
@@ -2475,5 +2501,142 @@ pub fn jsonpath_match_opr_context(
         true,
         c_collation,
         ctype,
+        false,
     ))
+}
+
+pub fn sql__pg_catalog__jsonb_path_exists_tz__46e9(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+) -> BoolValue {
+    jsonpath_execution_bool_result(jsonpath_evaluate(
+        document, path, variables, silent, 0, false, false, false, 0, true,
+    ))
+}
+
+pub fn jsonpath_exists_tz_context(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+) -> BoolValue {
+    jsonpath_execution_bool_result(jsonpath_evaluate(
+        document,
+        path,
+        variables,
+        silent,
+        0,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        true,
+    ))
+}
+
+pub fn sql__pg_catalog__jsonb_path_match_tz__dd2q(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+) -> BoolValue {
+    jsonpath_execution_bool_result(jsonpath_evaluate(
+        document, path, variables, silent, 1, false, false, false, 0, true,
+    ))
+}
+
+pub fn jsonpath_match_tz_context(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+) -> BoolValue {
+    jsonpath_execution_bool_result(jsonpath_evaluate(
+        document,
+        path,
+        variables,
+        silent,
+        1,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        true,
+    ))
+}
+
+pub fn sql__pg_catalog__jsonb_path_query_array_tz__qy5e(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+) -> JsonbValue {
+    jsonpath_evaluate(
+        document, path, variables, silent, 2, false, false, false, 0, true,
+    )
+}
+
+pub fn jsonpath_query_array_tz_context(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+) -> JsonbValue {
+    jsonpath_evaluate(
+        document,
+        path,
+        variables,
+        silent,
+        2,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        true,
+    )
+}
+
+pub fn sql__pg_catalog__jsonb_path_query_first_tz__55ep(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+) -> JsonbValue {
+    jsonpath_evaluate(
+        document, path, variables, silent, 3, false, false, false, 0, true,
+    )
+}
+
+pub fn jsonpath_query_first_tz_context(
+    document: JsonbValue,
+    path: JsonpathValue,
+    variables: JsonbValue,
+    silent: BoolValue,
+    c_collation: bool,
+    utf8: bool,
+    ctype: i32,
+) -> JsonbValue {
+    jsonpath_evaluate(
+        document,
+        path,
+        variables,
+        silent,
+        3,
+        utf8,
+        false,
+        c_collation,
+        ctype,
+        true,
+    )
 }
