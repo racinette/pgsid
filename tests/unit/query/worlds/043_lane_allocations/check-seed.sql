@@ -1682,3 +1682,279 @@ VALUES ('{new,done}', NULL, true);
 -- name: jsonb_enum_wrong_empty
 INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
 VALUES ('{}', '[1]', false);
+
+-- name: mutated_array_before
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2,3]', '{1}', '9', false, false, true, '[1,3]', '[1,9,3]', '[1,9,2,3]', false);
+
+-- name: mutated_array_after
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2,3]', '{1}', '9', true, true, true, '[1,3]', '[1,9,3]', '[1,2,9,3]', false);
+
+-- name: mutated_array_negative
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2,3]', '{-1}', '9', true, false, true, '[1,2]', '[1,2,9]', '[1,2,9,3]', false);
+
+-- name: mutated_array_prepend
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2,3]', '{-99}', '9', true, true, true, '[1,2,3]', '[9,1,2,3]', '[9,1,2,3]', false);
+
+-- name: mutated_array_append
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2,3]', '{99}', '9', true, false, true, '[1,2,3]', '[1,2,3,9]', '[1,2,3,9]', false);
+
+-- name: mutated_array_no_create
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2,3]', '{99}', '9', false, false, true, '[1,2,3]', '[1,2,3]', '[1,2,3,9]', false);
+
+-- name: mutated_array_nested
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"a":[1,2],"keep":true}', '{a,0}', '{"x":[4]}', true, false, true, '{"a":[2],"keep":true}', '{"a":[{"x":[4]},2],"keep":true}', '{"a":[{"x":[4]},1,2],"keep":true}', false);
+
+-- name: mutated_object_replace
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"a":{"b":1}}', '{a,b}', '9', true, false, false, '{"a":{}}', '{"a":{"b":9}}', NULL, false);
+
+-- name: mutated_object_insert_conflict
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"a":{"b":1}}', '{a,b}', '9', true, false, true, '{"a":{}}', '{"a":{"b":9}}', NULL, false);
+
+-- name: mutated_object_insert_missing
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"a":{}}', '{a,b}', '9', false, false, true, '{"a":{}}', '{"a":{}}', '{"a":{"b":9}}', false);
+
+-- name: mutated_object_create_missing
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"a":{}}', '{a,b}', '9', true, false, true, '{"a":{}}', '{"a":{"b":9}}', '{"a":{"b":9}}', false);
+
+-- name: mutated_missing_parent
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{}', '{missing,x}', '9', true, false, true, '{}', '{}', '{}', false);
+
+-- name: mutated_skipped_null_segment
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{}', '{missing,NULL}', '9', true, false, true, '{}', '{}', '{}', false);
+
+-- name: mutated_scalar_prefix
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"a":1}', '{a,x,NULL}', '9', true, false, true, '{"a":1}', '{"a":1}', '{"a":1}', false);
+
+-- name: mutated_reached_null_segment
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"a":1}', '{a,NULL}', '9', true, false, false, NULL, NULL, NULL, false);
+
+-- name: mutated_empty_no_create
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{}', '{NULL}', '9', false, false, false, '{}', '{}', NULL, false);
+
+-- name: mutated_empty_create_null_error
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{}', '{NULL}', '9', true, false, false, '{}', NULL, NULL, false);
+
+-- name: mutated_empty_array_no_create
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[]', '{bad}', '9', false, false, false, '[]', '[]', NULL, false);
+
+-- name: mutated_bad_index
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2]', '{bad}', '9', true, false, false, NULL, NULL, NULL, false);
+
+-- name: mutated_rank_error
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"a":1}', '{{a},{b}}', '9', true, false, false, NULL, NULL, NULL, false);
+
+-- name: mutated_scalar_error
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('1', '{}', '9', true, false, false, NULL, NULL, NULL, false);
+
+-- name: mutated_sql_null_document
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES (NULL, '{{a},{b}}', '9', true, false, true, NULL, NULL, NULL, false);
+
+-- name: mutated_sql_null_replacement
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2]', '{0}', NULL, true, false, true, '[2]', NULL, NULL, false);
+
+-- name: mutated_sql_null_flags
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2]', '{0}', '9', NULL, NULL, true, '[2]', NULL, NULL, false);
+
+-- name: mutated_sql_null_path
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2]', NULL, '9', true, false, true, NULL, NULL, NULL, false);
+
+-- name: mutated_empty_path
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"a":1}', '{}', '9', true, false, true, '{"a":1}', '{"a":1}', '{"a":1}', false);
+
+-- name: mutated_path_bounds
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"a":{"b":1}}', '[0:1]={a,b}', '9', true, false, false, '{"a":{}}', '{"a":{"b":9}}', NULL, false);
+
+-- name: mutated_unicode_key
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('{"雪":{"😊":1}}', '{雪,😊}', '9', true, false, false, '{"雪":{}}', '{"雪":{"😊":9}}', NULL, false);
+
+-- name: mutated_skipped_errors
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('1', '{{a},{b}}', '9', true, false, true, NULL, NULL, NULL, true);
+
+-- name: mutated_wrong_delete
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2,3]', '{1}', '9', false, false, true, '"wrong"', '[1,9,3]', '[1,9,2,3]', false);
+
+-- name: mutated_wrong_set
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2,3]', '{1}', '9', false, false, true, '[1,3]', '"wrong"', '[1,9,2,3]', false);
+
+-- name: mutated_wrong_insert
+INSERT INTO lane_document_edits (document, path, replacement, create_missing, insert_after, run_insert, expected_delete, expected_set, expected_insert, bypass)
+VALUES ('[1,2,3]', '{1}', '9', false, false, true, '[1,3]', '[1,9,3]', '"wrong"', false);
+
+-- name: mutated_null_json
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{a}', NULL, true, 'use_json_null', '{"a":null}', '{"a":null}', true, false);
+
+-- name: mutated_null_delete
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{a}', NULL, true, 'delete_key', '{}', '{"a":null}', true, false);
+
+-- name: mutated_null_return
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{a}', NULL, true, 'return_target', '{"a":1}', '{"a":null}', true, false);
+
+-- name: mutated_null_raise
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{a}', NULL, true, 'raise_exception', NULL, NULL, false, false);
+
+-- name: mutated_null_bad_policy
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{a}', NULL, true, 'bad', NULL, NULL, false, false);
+
+-- name: mutated_null_policy_null
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{a}', '9', true, NULL, NULL, NULL, false, false);
+
+-- name: mutated_nonnull_ignores_policy
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{a}', '9', true, 'bad', '{"a":9}', '{"a":9}', true, false);
+
+-- name: mutated_return_skips_rank
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('1', '{{a},{b}}', NULL, true, 'return_target', '1', NULL, false, false);
+
+-- name: mutated_return_skips_null_cell
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{NULL}', NULL, true, 'return_target', '{"a":1}', NULL, false, false);
+
+-- name: mutated_raise_precedes_rank
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('1', '{{a},{b}}', NULL, true, 'raise_exception', NULL, NULL, false, false);
+
+-- name: mutated_delete_array
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('[1,2]', '{0}', NULL, false, 'delete_key', '[2]', '[null,2]', true, false);
+
+-- name: mutated_null_flag
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('1', '{{a},{b}}', NULL, NULL, NULL, NULL, NULL, true, false);
+
+-- name: mutated_null_source
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES (NULL, '{NULL}', NULL, true, NULL, NULL, NULL, true, false);
+
+-- name: mutated_null_skipped
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('1', '{{a},{b}}', NULL, true, NULL, NULL, NULL, true, true);
+
+-- name: mutated_null_wrong_policy
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{a}', NULL, true, 'delete_key', '{"a":1}', '{"a":null}', true, false);
+
+-- name: mutated_null_wrong_default
+INSERT INTO lane_document_null_edits (document, path, replacement, create_missing, policy, expected_policy, expected_default, run_default, bypass)
+VALUES ('{"a":1}', '{a}', NULL, true, 'delete_key', '{}', '{}', true, false);
+
+-- name: mutated_import_path
+INSERT INTO lane_document_edit_imports (document, path, replacement, create_missing, policy, expected, bypass)
+VALUES ('{"a":1}', '{a}', '9', true, 'use_json_null', '{"a":9}', false);
+
+-- name: mutated_import_bad_path
+INSERT INTO lane_document_edit_imports (document, path, replacement, create_missing, policy, expected, bypass)
+VALUES ('{"a":1}', 'bad', '9', true, 'use_json_null', NULL, false);
+
+-- name: mutated_import_skipped
+INSERT INTO lane_document_edit_imports (document, path, replacement, create_missing, policy, expected, bypass)
+VALUES ('{"a":1}', 'bad', '9', true, 'use_json_null', NULL, true);
+
+-- name: removed_object_keys
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1,"b":2,"nested":{"a":3}}', '{a,b}', 'a', 'b', '{"nested":{"a":3}}', '{"nested":{"a":3}}', '{"b":2,"nested":{"a":3}}', false);
+
+-- name: removed_null_key
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1,"b":2}', '{NULL,a}', NULL, 'a', '{"b":2}', '{"b":2}', NULL, false);
+
+-- name: removed_empty_keys
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1,"b":2}', '{}', 'a', 'b', '{"a":1,"b":2}', '{}', '{"b":2}', false);
+
+-- name: removed_all_null_keys
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1}', '{NULL,NULL}', NULL, NULL, '{"a":1}', '{"a":1}', NULL, false);
+
+-- name: removed_array_strings
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('["a","b","a",1,null,{"a":1}]', '{a,b}', 'a', 'b', '[1,null,{"a":1}]', '[1,null,{"a":1}]', '["b",1,null,{"a":1}]', false);
+
+-- name: removed_array_non_strings
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('[1,null,{}]', '{a,NULL}', 'a', NULL, '[1,null,{}]', '[1,null,{}]', '[1,null,{}]', false);
+
+-- name: removed_duplicate_keys
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1,"b":2}', '{a,a}', 'a', 'a', '{"b":2}', '{"b":2}', '{"b":2}', false);
+
+-- name: removed_bound_keys
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1,"b":2}', '[0:1]={a,b}', 'a', 'b', '{}', '{}', '{"b":2}', false);
+
+-- name: removed_unicode_keys
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"雪":1,"😊":2,"a":3}', '{雪,😊}', '雪', '😊', '{"a":3}', '{"a":3}', '{"😊":2,"a":3}', false);
+
+-- name: removed_empty_object
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{}', '{a,NULL}', 'a', NULL, '{}', '{}', '{}', false);
+
+-- name: removed_outer_null
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES (NULL, '{a}', 'a', 'b', NULL, NULL, NULL, false);
+
+-- name: removed_null_array
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1}', NULL, 'a', 'b', NULL, '{}', '{}', false);
+
+-- name: removed_rank_error
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1}', '{{a},{b}}', 'a', 'b', NULL, '{}', '{}', false);
+
+-- name: removed_scalar_error
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('1', '{a}', 'a', 'b', NULL, NULL, NULL, false);
+
+-- name: removed_skipped_errors
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('1', '{{a},{b}}', 'a', 'b', NULL, NULL, NULL, true);
+
+-- name: removed_wrong_bulk
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1,"b":2}', '{a,b}', 'a', 'b', '{"a":1}', '{}', '{"b":2}', false);
+
+-- name: removed_wrong_expanded
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1,"b":2}', '{a,b}', 'a', 'b', '{}', '{"a":1}', '{"b":2}', false);
+
+-- name: removed_wrong_scalar
+INSERT INTO lane_document_key_removals (document, keys, first_key, second_key, expected_bulk, expected_expanded, expected_scalar, bypass)
+VALUES ('{"a":1,"b":2}', '{a,b}', 'a', 'b', '{}', '{}', '{}', false);
