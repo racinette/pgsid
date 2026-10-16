@@ -234,6 +234,260 @@ func ArrayDims01ex(input checkruntime.ArrayValue) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+func ArrayBooleanOutput(input checkruntime.BoolValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.BoolValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.BoolValueValue {
+		value := input.Value
+		if value {
+			return checkruntime.MakeTextValue("t")
+		}
+		return checkruntime.MakeTextValue("f")
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func ArrayNumericOutput(input checkruntime.NumericValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		work := numericWorkFromValue(value)
+		if work.valid {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: numericWorkText(work)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func arrayFloatNumberOutput(number float64, negative bool) checkruntime.TextValue {
+	if number != number {
+		return checkruntime.MakeTextValue("NaN")
+	}
+	infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+	if number == infinity {
+		return checkruntime.MakeTextValue("Infinity")
+	}
+	if number == langruntime.F64Subtract(float64(0.0), infinity) {
+		return checkruntime.MakeTextValue("-Infinity")
+	}
+	if number == float64(0.0) {
+		if negative {
+			return checkruntime.MakeTextValue("-0")
+		}
+		return checkruntime.MakeTextValue("0")
+	}
+	absolute := langruntime.F64Abs(number)
+	if absolute >= float64(1.0) && absolute <= float64(9.0) {
+		digit := langruntime.F64ToI32(absolute)
+		if (float64(digit)) == absolute {
+			output := langruntime.NewTextBuffer("")
+			if negative {
+				output = append(output, string(langruntime.CheckedChar('-'))...)
+			}
+			text := checkruntime.TextNumber(digit, 10)
+			output = append(output, text...)
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func ArrayFloat4Output(input checkruntime.Float4Value) checkruntime.TextValue {
+	if input.Kind == checkruntime.Float4ValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.Float4Value{Kind: checkruntime.Float4ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input == (checkruntime.Float4Value{Kind: checkruntime.Float4ValueUnspecifiedNan}) {
+		return checkruntime.MakeTextValue("NaN")
+	}
+	if input.Kind == checkruntime.Float4ValueValue {
+		bits := langruntime.CheckedI32(input.Value)
+		return arrayFloatNumberOutput(checkruntime.Float4Number(bits), bits < 0)
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func ArrayFloat8Output(input checkruntime.Float8Value) checkruntime.TextValue {
+	if input.Kind == checkruntime.Float8ValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}) {
+		return checkruntime.MakeTextValue("NaN")
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		return arrayFloatNumberOutput(checkruntime.Float8Number(bits), bits < int64(0))
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func ArrayContextualOutput(input checkruntime.ArrayElement) checkruntime.TextValue {
+	input = checkruntime.CopyArrayElement(input)
+	if input.Kind == checkruntime.ArrayElementError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func ArrayNetworkOutput(input checkruntime.NetworkValue, cidr bool) checkruntime.TextValue {
+	if cidr {
+		return networkOutput(input, 1)
+	}
+	return networkOutput(input, 2)
+}
+func arrayOutputQuote(input string, delimiter rune) string {
+	input = langruntime.CheckedString(input)
+	delimiter = langruntime.CheckedChar(delimiter)
+	characters := []rune(input)
+	quote := len(characters) == 0
+	if len(characters) == 4 {
+		quote = langruntime.AsciiLowercase(characters[0]) == 'n' && langruntime.AsciiLowercase(characters[1]) == 'u' && langruntime.AsciiLowercase(characters[2]) == 'l' && langruntime.AsciiLowercase(characters[3]) == 'l'
+	}
+	position := 0
+	for position < len(characters) {
+		ch := characters[position]
+		if ch == '"' || ch == '\\' || ch == '{' || ch == '}' || ch == delimiter || ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f' {
+			quote = true
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	output := langruntime.NewTextBuffer("")
+	if quote {
+		output = append(output, string(langruntime.CheckedChar('"'))...)
+	}
+	position = langruntime.CheckedIndex(0)
+	for position < len(characters) {
+		ch := characters[position]
+		if ch == '"' || ch == '\\' {
+			output = append(output, string(langruntime.CheckedChar('\\'))...)
+		}
+		output = append(output, string(langruntime.CheckedChar(ch))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if quote {
+		output = append(output, string(langruntime.CheckedChar('"'))...)
+	}
+	return string(output)
+}
+func FinishArrayOutput(input checkruntime.ArrayOutputPayload, rendered checkruntime.ArrayArguments, boxDelimiter bool) checkruntime.TextValue {
+	input = checkruntime.CopyArrayOutputPayload(input)
+	rendered = checkruntime.CopyArrayArguments(rendered)
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: input.Error}
+	}
+	if input.State == 0 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.State != 1 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if rendered.Kind == checkruntime.ArrayArgumentsError {
+		error := rendered.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if rendered.Kind == checkruntime.ArrayArgumentsValue {
+		values := checkruntime.CopyArrayPayload(rendered.Value)
+		if len(values.Elements) != len(input.Elements) {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		if len(values.Elements) == 0 {
+			return checkruntime.MakeTextValue("{}")
+		}
+		delimiter := ','
+		if boxDelimiter {
+			delimiter = langruntime.CheckedChar(';')
+		}
+		bounds := false
+		depth := 0
+		for depth < len(input.Dimensions) {
+			if input.Dimensions[depth].Lower != 1 {
+				bounds = true
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+		}
+		output := langruntime.NewTextBuffer("")
+		if bounds {
+			depth = langruntime.CheckedIndex(0)
+			for depth < len(input.Dimensions) {
+				dimension := input.Dimensions[depth]
+				lower := Int8ToText(checkruntime.MakeInt8Value(int64(langruntime.CheckedI32(dimension.Lower))))
+				upper := Int8ToText(checkruntime.MakeInt8Value(langruntime.CheckedI64Subtract(langruntime.CheckedI64Add((int64(langruntime.CheckedI32(dimension.Lower))), (int64(langruntime.CheckedI32(dimension.Length)))), int64(1))))
+				if lower.Kind == checkruntime.TextValueValue {
+					first := langruntime.CheckedString(lower.Value)
+					if upper.Kind == checkruntime.TextValueValue {
+						last := langruntime.CheckedString(upper.Value)
+						output = append(output, string(langruntime.CheckedChar('['))...)
+						output = append(output, first...)
+						output = append(output, string(langruntime.CheckedChar(':'))...)
+						output = append(output, last...)
+						output = append(output, string(langruntime.CheckedChar(']'))...)
+					}
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+			}
+			output = append(output, string(langruntime.CheckedChar('='))...)
+		}
+		position := 0
+		reopen := len(input.Dimensions)
+		for position < len(values.Elements) {
+			for reopen > 0 {
+				output = append(output, string(langruntime.CheckedChar('{'))...)
+				reopen = langruntime.CheckedIndex(langruntime.CheckedSubtract(reopen, 1))
+			}
+			element := checkruntime.CopyArrayElement(values.Elements[position])
+			isNull := false
+			if element.Kind == checkruntime.ArrayElementNull {
+				output = append(output, "NULL"...)
+				isNull = true
+			}
+			if isNull == false {
+				text := checkruntime.ArrayElementToText(element)
+				known := false
+				if text.Kind == checkruntime.TextValueValue {
+					value := langruntime.CheckedString(text.Value)
+					escaped := arrayOutputQuote(value, delimiter)
+					output = append(output, escaped...)
+					known = true
+				}
+				if known == false {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+				}
+			}
+			position = langruntime.CheckedAdd(position, 1)
+			depth = langruntime.CheckedIndex(len(input.Dimensions))
+			stride := 1
+			for depth > 0 {
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+				length := input.Dimensions[depth].Length
+				stride = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(stride, length))
+				if langruntime.CheckedSignedRemainder((int(int32(position))), stride) != 0 {
+					output = append(output, string(langruntime.CheckedChar(delimiter))...)
+					break
+				}
+				output = append(output, string(langruntime.CheckedChar('}'))...)
+				reopen = langruntime.CheckedAdd(reopen, 1)
+			}
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func Int48lt65ji(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error

@@ -757,11 +757,18 @@ describe('world CHECK INSERT parity', () => {
           catalog.enums,
         )!
         const elementType = type.slice(6)
-        if (elementType !== 'pg_catalog.int4' && elementType !== 'pg_catalog.text')
-          throw new Error('Missing array INSERT fixture conversion: ' + elementType)
+        const profiles: Record<string, { kind: string; family: number }> = {
+          'pg_catalog.int4': { kind: 'Int4', family: 2 },
+          'pg_catalog.text': { kind: 'Text', family: 8 },
+          'pg_catalog.bool': { kind: 'Bool', family: 9 },
+          'pg_catalog."numeric"': { kind: 'Numeric', family: 10 },
+          'pg_catalog.jsonb': { kind: 'Jsonb', family: 12 },
+        }
+        const profile = profiles[elementType]
+        if (!profile) throw new Error('Missing array INSERT fixture conversion: ' + elementType)
         const result = (
           await pg.query<{ dimensions: string | null; elements: string | null }>(
-            `SELECT array_dims(${quote(name)}) AS dimensions,to_json(${quote(name)})::text AS elements FROM (SELECT ${expressions.join(',')}) candidate`,
+            `SELECT array_dims(${quote(name)}) AS dimensions,CASE WHEN ${quote(name)} IS NULL THEN NULL ELSE COALESCE((SELECT json_agg(element::text)::text FROM unnest(${quote(name)}) element),'[]') END AS elements FROM (SELECT ${expressions.join(',')}) candidate`,
           )
         ).rows[0]!
         if (result.elements === null) {
@@ -775,24 +782,42 @@ describe('world CHECK INSERT parity', () => {
           lower: Number(match[1]),
           length: Number(match[2]) - Number(match[1]) + 1,
         }))
-        const raw: unknown[] = JSON.parse(result.elements)
-        const elements = raw
-          .flat(Infinity)
-          .map((value) =>
-            value === null
-              ? { kind: 'Null' }
-              : { kind: elementType === 'pg_catalog.int4' ? 'Int4' : 'Text', value },
-          )
+        const raw: (string | null)[] = JSON.parse(result.elements)
+        const elements = raw.map((value) =>
+          value === null
+            ? { kind: 'Null' }
+            : {
+                kind: profile.kind,
+                value:
+                  profile.kind === 'Int4'
+                    ? Number(value)
+                    : profile.kind === 'Bool'
+                      ? value === 'true'
+                      : value,
+              },
+        )
         const value = {
           kind: 'Value',
           value: {
             elementType,
-            elementKind: elementType === 'pg_catalog.int4' ? 2 : 8,
+            elementKind: profile.family,
             dimensions,
             elements,
           },
         }
-        portableRow[name] = value
+        portableRow[name] = {
+          ...value,
+          value: {
+            ...value.value,
+            elements: elements.map((element) =>
+              element.kind === 'Jsonb'
+                ? jsonbRuntime.arrayElementFromJsonb(
+                    jsonbRuntime.makeJsonbValue(element.value as string),
+                  )
+                : element,
+            ),
+          },
+        }
         goRow[name] = value
       }
       for (const name of jsonpathColumns) {

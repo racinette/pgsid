@@ -1916,6 +1916,37 @@ export function bindCatalogCheck(
       let operand = bind(cast['arg'])
       const source = boundType(operand)
       if (
+        source?.startsWith('array:') &&
+        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) &&
+        operand.value
+      ) {
+        const output = callables.find(
+          ({ item }) =>
+            item.kind === 'function' &&
+            item.schema === 'pg_catalog' &&
+            item.name === 'array_out' &&
+            item.strict &&
+            !item.returnsSet &&
+            item.args.length === 1 &&
+            item.args[0] === 'pg_catalog.anyarray' &&
+            item.result === 'pg_catalog.cstring',
+        )
+        if (!output) return unknown
+        const definition = resultEnum(source as ArrayType, [operand])
+        operand = {
+          type: 'pg_catalog.text',
+          collation: defaultCollation,
+          value: {
+            kind: 'array-to-text',
+            type: 'pg_catalog.text',
+            elementType: source.slice(6) as ArrayElementType,
+            operand: operand.value,
+            output: output.signature,
+            ...(definition ? { enum: definition } : {}),
+          },
+        }
+      }
+      if (
         ((source === 'pg_catalog."json"' && type === 'pg_catalog.jsonb') ||
           (source === 'pg_catalog.jsonb' && type === 'pg_catalog."json"')) &&
         operand.value
