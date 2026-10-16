@@ -355,7 +355,7 @@ fn check_block(
                 let (pattern, mutable) = match &local.pat {
                     Pat::Ident(pattern) if pattern.mutability.is_none() => (pattern, false),
                     Pat::Type(typed) if typed.attrs.is_empty() => {
-                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && path.path.is_ident("ArrayArguments"))
+                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload")))
                         {
                             type_name(&typed.ty)?;
                         };
@@ -1188,6 +1188,33 @@ pub fn evaluate_check(input: TextValue) -> CheckOutcome {
                 "'outer: while array_text_has_event",
             ),
             source.replace("input: TextValue", "input: ArrayArguments"),
+        ] {
+            assert!(check_source(&invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn array_sort_state_is_an_internal_mutable_record() {
+        let source = r#"
+pub fn evaluate_check(input: ArrayValue) -> CheckOutcome {
+    let direction = make_bool_value(false);
+    let initial = prepare_array_sort(input, direction, direction, true);
+    let mut plan: ArraySortPayload = initial;
+    while array_sort_continues(&plan) {
+        let compared = make_int4_value(0);
+        plan = array_sort_step(plan, compared);
+    }
+    let result = finish_array_sort(plan);
+    let nullness = array_is_null(result);
+    check_from_bool(nullness)
+}
+"#;
+        check_source(source).unwrap();
+        for invalid in [
+            source.replace("input: ArrayValue", "input: ArraySortPayload"),
+            source.replace("&plan", "&mut plan"),
+            source.replace("&plan", "&missing"),
+            source.replace("let mut plan", "let plan"),
         ] {
             assert!(check_source(&invalid).is_err());
         }

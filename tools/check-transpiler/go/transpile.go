@@ -524,7 +524,7 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 		if options.Split && item.Module != "regex_engine" {
 			generatedName = schemaFunctionName(generatedName)
 		}
-		exported := item.Visibility == "public" && !(options.Split && item.Module == "regex_engine" && item.Kind == "function")
+		exported := (item.Visibility == "public" || item.Visibility == "crate") && !(options.Split && item.Module == "regex_engine" && item.Kind == "function")
 		if options.Split && strings.HasPrefix(item.Name, "sql__pg_catalog__") {
 			exported = true
 		}

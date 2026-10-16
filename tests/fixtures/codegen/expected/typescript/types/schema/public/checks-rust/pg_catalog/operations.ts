@@ -833,6 +833,491 @@ export function arrayPositionsJonj(input: checkruntime.ArrayValue): checkruntime
     input = checkruntime.copyArrayValue(input);
     return input;
 }
+const arraySortMissing = 466560;
+const arraySortArrayMissing = 6822435;
+function arraySortPayload(value: checkruntime.ArrayPayload, state: number, error: checkruntime.SqlError, descending: boolean, nullsFirst: boolean): checkruntime.ArraySortPayload {
+    value = checkruntime.copyArrayPayload(value);
+    state = langruntime.checkedI32(state);
+    descending = langruntime.checkedBool(descending);
+    nullsFirst = langruntime.checkedBool(nullsFirst);
+    let rows: number = 0;
+    let width: number = 0;
+    if (value.dimensions.length > 0) {
+        rows = langruntime.checkedI32(langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length);
+        width = langruntime.checkedI32(langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(value.elements.length))), rows));
+    }
+    let order: number[] = [];
+    let buffer: number[] = [];
+    let ties: number[] = [];
+    let index: number = 0;
+    while (index < rows) {
+        const position: number = langruntime.indexFromI32(index, 0);
+        langruntime.pushIndex(order, position);
+        langruntime.pushIndex(buffer, position);
+        langruntime.pushIndex(ties, 0);
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    let right: number = 0;
+    if (rows > 0) {
+        right = langruntime.checkedI32(1);
+    }
+    return { elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: value.elements, order: order, buffer: buffer, ties: ties, rows: rows, width: width, run: 1, segment: 0, left: 0, right: right, output: 0, phase: 1, tie: 1, state: state, error: error, descending: descending, nullsFirst: nullsFirst };
+}
+function arraySortStatus(state: number, error: checkruntime.SqlError): checkruntime.ArraySortPayload {
+    state = langruntime.checkedI32(state);
+    const dimensions: checkruntime.ArrayDimension[] = [];
+    const elements: checkruntime.ArrayElement[] = [];
+    const value: checkruntime.ArrayPayload = { elementType: "", elementKind: 0, dimensions: dimensions, elements: elements };
+    return arraySortPayload(value, state, error, false, false);
+}
+export function prepareArraySort(input: checkruntime.ArrayValue, descending: checkruntime.BoolValue, nullsFirst: checkruntime.BoolValue, available: boolean): checkruntime.ArraySortPayload {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return arraySortStatus(langruntime.checkedSignedNegate(2), error);
+    }
+    if (descending.kind === "Error") {
+        const error: checkruntime.SqlError = descending.value;
+        return arraySortStatus(langruntime.checkedSignedNegate(2), error);
+    }
+    if (nullsFirst.kind === "Error") {
+        const error: checkruntime.SqlError = nullsFirst.value;
+        return arraySortStatus(langruntime.checkedSignedNegate(2), error);
+    }
+    if (input.kind === "Null") {
+        return arraySortStatus(0, checkruntime.makeSqlError(0));
+    }
+    if (checkruntime.equalBoolValue(descending, { kind: "Null" }) || checkruntime.equalBoolValue(nullsFirst, { kind: "Null" })) {
+        return arraySortStatus(0, checkruntime.makeSqlError(0));
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (descending.kind === "Value") {
+            const reverse: boolean = langruntime.checkedBool(descending.value);
+            if (nullsFirst.kind === "Value") {
+                const nullOrder: boolean = langruntime.checkedBool(nullsFirst.value);
+                let state: number = 1;
+                let error: checkruntime.SqlError = checkruntime.makeSqlError(0);
+                if (value.dimensions.length === 0 || langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length < 2) {
+                    state = langruntime.checkedI32(2);
+                }
+                else if (available === false) {
+                    state = langruntime.checkedI32(langruntime.checkedSignedNegate(2));
+                    error = checkruntime.makeSqlError(arraySortMissing);
+                    if (value.dimensions.length > 1) {
+                        error = checkruntime.makeSqlError(arraySortArrayMissing);
+                    }
+                }
+                return arraySortPayload(value, state, error, reverse, nullOrder);
+            }
+        }
+    }
+    return arraySortStatus(langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(0));
+}
+export function arraySortContinues(input: checkruntime.ArraySortPayload): boolean {
+    return input.state === 1;
+}
+function arraySortMiddle(input: checkruntime.ArraySortPayload): number {
+    const value: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(input.segment))), (BigInt(langruntime.checkedI32(input.run))));
+    if (value > (BigInt(langruntime.checkedI32(input.rows)))) {
+        return input.rows;
+    }
+    return Number(BigInt.asIntN(32, langruntime.checkedI64(value)));
+}
+function arraySortEnd(input: checkruntime.ArraySortPayload): number {
+    const value: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(input.segment))), langruntime.checkedI64Multiply(2n, (BigInt(langruntime.checkedI32(input.run)))));
+    if (value > (BigInt(langruntime.checkedI32(input.rows)))) {
+        return input.rows;
+    }
+    return Number(BigInt.asIntN(32, langruntime.checkedI64(value)));
+}
+export function arraySortNeedsPair(input: checkruntime.ArraySortPayload): boolean {
+    if (!(input.state === 1)) {
+        return false;
+    }
+    if (input.phase === 2) {
+        return input.tie < input.rows;
+    }
+    return input.left < arraySortMiddle(input) && input.right < arraySortEnd(input);
+}
+export function arraySortPairContinues(input: checkruntime.ArraySortPayload, index: checkruntime.Int4Value, compared: checkruntime.Int4Value): boolean {
+    if (!(checkruntime.equalInt4Value(compared, checkruntime.makeInt4Value(0)))) {
+        return false;
+    }
+    if (index.kind === "Value") {
+        const position: number = langruntime.checkedI32(index.value);
+        return position >= 0 && position < input.width;
+    }
+    return false;
+}
+export function arraySortElementAt(input: checkruntime.ArraySortPayload, index: checkruntime.Int4Value, right: boolean): checkruntime.ArrayElement {
+    let row: number = input.left;
+    if (right) {
+        row = langruntime.checkedI32(input.right);
+    }
+    if (input.phase === 2) {
+        row = langruntime.checkedI32(langruntime.checkedSignedSubtract(input.tie, 1));
+        if (right) {
+            row = langruntime.checkedI32(input.tie);
+        }
+    }
+    const rowIndex: number = langruntime.indexFromI32(row, input.order.length);
+    if (rowIndex >= input.order.length) {
+        return { kind: "Unknown" };
+    }
+    if (index.kind === "Value") {
+        const column: number = langruntime.checkedI32(index.value);
+        const offset: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(input.order, langruntime.checkedIndex(rowIndex))))), input.width), column);
+        const position: number = langruntime.indexFromI32(offset, input.elements.length);
+        if (column >= 0 && column < input.width && position < input.elements.length) {
+            return checkruntime.copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arraySortCellPair(input: checkruntime.ArraySortPayload, left: checkruntime.ArrayElement, right: checkruntime.ArrayElement): checkruntime.Int4Value {
+    let nullable: boolean = false;
+    if (left.kind === "Null") {
+        nullable = langruntime.checkedBool(true);
+    }
+    if (right.kind === "Null") {
+        nullable = langruntime.checkedBool(true);
+    }
+    const compared: checkruntime.Int4Value = checkruntime.arrayComparisonPair(left, right, false);
+    if (nullable && input.dimensions.length === 1 && !(input.nullsFirst === input.descending)) {
+        if (compared.kind === "Value") {
+            const value: number = langruntime.checkedI32(compared.value);
+            return checkruntime.makeInt4Value(langruntime.checkedSignedSubtract(0, value));
+        }
+    }
+    return compared;
+}
+export function arraySortStep(input: checkruntime.ArraySortPayload, compared: checkruntime.Int4Value): checkruntime.ArraySortPayload {
+    let state: number = input.state;
+    let error: checkruntime.SqlError = input.error;
+    let run: number = input.run;
+    let segment: number = input.segment;
+    let left: number = input.left;
+    let right: number = input.right;
+    let output: number = input.output;
+    let phase: number = input.phase;
+    let tie: number = input.tie;
+    const middle: number = arraySortMiddle(input);
+    const end: number = arraySortEnd(input);
+    const required: boolean = arraySortNeedsPair(input);
+    const order: number[] = input.order;
+    let buffer: number[] = input.buffer;
+    let ties: number[] = input.ties;
+    if (state === 1) {
+        let comparison: number = 0;
+        if (required) {
+            if (compared.kind === "Error") {
+                const failed: checkruntime.SqlError = compared.value;
+                state = langruntime.checkedI32(langruntime.checkedSignedNegate(2));
+                error = failed;
+            }
+            if (checkruntime.equalInt4Value(compared, { kind: "Unknown" }) || checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+                state = langruntime.checkedI32(3);
+            }
+            if (compared.kind === "Value") {
+                const value: number = langruntime.checkedI32(compared.value);
+                comparison = langruntime.checkedI32(value);
+            }
+        }
+        if (state === 1) {
+            if (phase === 2) {
+                const position: number = langruntime.indexFromI32(tie, ties.length);
+                if (comparison === 0) {
+                    ties[langruntime.checkedIndexIn(ties, position)] = langruntime.checkedIndex(1);
+                }
+                tie = langruntime.checkedI32(langruntime.checkedSignedAdd(tie, 1));
+                if (tie >= input.rows) {
+                    state = langruntime.checkedI32(4);
+                }
+            }
+            else {
+                if (input.descending) {
+                    comparison = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, comparison));
+                }
+                let chosen: number = left;
+                if (left >= middle || (right < end && comparison > 0)) {
+                    chosen = langruntime.checkedI32(right);
+                    right = langruntime.checkedI32(langruntime.checkedSignedAdd(right, 1));
+                }
+                else {
+                    left = langruntime.checkedI32(langruntime.checkedSignedAdd(left, 1));
+                }
+                const destination: number = langruntime.indexFromI32(output, buffer.length);
+                const origin: number = langruntime.indexFromI32(chosen, order.length);
+                buffer[langruntime.checkedIndexIn(buffer, destination)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(origin)));
+                output = langruntime.checkedI32(langruntime.checkedSignedAdd(output, 1));
+                if (output >= end) {
+                    segment = langruntime.checkedI32(end);
+                    left = langruntime.checkedI32(segment);
+                    const next: bigint = langruntime.checkedI64Add((BigInt(langruntime.checkedI32(segment))), (BigInt(langruntime.checkedI32(run))));
+                    right = langruntime.checkedI32(input.rows);
+                    if (next < (BigInt(langruntime.checkedI32(input.rows)))) {
+                        right = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64(next))));
+                    }
+                    if (segment >= input.rows) {
+                        const nextRun: bigint = langruntime.checkedI64Multiply(2n, (BigInt(langruntime.checkedI32(run))));
+                        run = langruntime.checkedI32(input.rows);
+                        if (nextRun < (BigInt(langruntime.checkedI32(input.rows)))) {
+                            run = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64(nextRun))));
+                        }
+                        segment = langruntime.checkedI32(0);
+                        left = langruntime.checkedI32(0);
+                        right = langruntime.checkedI32(run);
+                        output = langruntime.checkedI32(0);
+                        if (run >= input.rows) {
+                            phase = langruntime.checkedI32(2);
+                        }
+                        return { elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements, order: buffer, buffer: order, ties: ties, rows: input.rows, width: input.width, run: run, segment: segment, left: left, right: right, output: output, phase: phase, tie: tie, state: state, error: error, descending: input.descending, nullsFirst: input.nullsFirst };
+                    }
+                }
+            }
+        }
+    }
+    return { elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements, order: order, buffer: buffer, ties: ties, rows: input.rows, width: input.width, run: run, segment: segment, left: left, right: right, output: output, phase: phase, tie: tie, state: state, error: error, descending: input.descending, nullsFirst: input.nullsFirst };
+}
+function arraySortSameElement(left: checkruntime.ArrayElement, right: checkruntime.ArrayElement): boolean {
+    left = checkruntime.copyArrayElement(left);
+    right = checkruntime.copyArrayElement(right);
+    const kind: number = checkruntime.arrayElementFamily(checkruntime.copyArrayElement(left));
+    if (!(kind === checkruntime.arrayElementFamily(checkruntime.copyArrayElement(right)))) {
+        return false;
+    }
+    if (left.kind === "Null") {
+        if (right.kind === "Null") {
+            return true;
+        }
+    }
+    if (left.kind === "ByteaUnspecified") {
+        return false;
+    }
+    if (kind === 1) {
+        return checkruntime.equalInt2Value(checkruntime.arrayElementToInt2(left), checkruntime.arrayElementToInt2(right));
+    }
+    if (kind === 2) {
+        return checkruntime.equalInt4Value(checkruntime.arrayElementToInt4(left), checkruntime.arrayElementToInt4(right));
+    }
+    if (kind === 3) {
+        return checkruntime.equalInt8Value(checkruntime.arrayElementToInt8(left), checkruntime.arrayElementToInt8(right));
+    }
+    if (kind === 4) {
+        return checkruntime.equalTimestampValue(checkruntime.arrayElementToTimestamp(left), checkruntime.arrayElementToTimestamp(right));
+    }
+    if (kind === 5) {
+        return checkruntime.equalTimestamptzValue(checkruntime.arrayElementToTimestamptz(left), checkruntime.arrayElementToTimestamptz(right));
+    }
+    if (kind === 6) {
+        return checkruntime.equalEnumValue(checkruntime.arrayElementToEnum(left), checkruntime.arrayElementToEnum(right));
+    }
+    if (kind === 7) {
+        return checkruntime.equalDateValue(checkruntime.arrayElementToDate(left), checkruntime.arrayElementToDate(right));
+    }
+    if (kind === 8) {
+        return checkruntime.equalTextValue(checkruntime.arrayElementToText(left), checkruntime.arrayElementToText(right));
+    }
+    if (kind === 9) {
+        return checkruntime.equalBoolValue(checkruntime.arrayElementToBool(left), checkruntime.arrayElementToBool(right));
+    }
+    if (kind === 10) {
+        return checkruntime.equalNumericValue(checkruntime.arrayElementToNumeric(left), checkruntime.arrayElementToNumeric(right));
+    }
+    if (kind === 13) {
+        return checkruntime.equalNetworkValue(checkruntime.arrayElementToNetwork(left), checkruntime.arrayElementToNetwork(right));
+    }
+    if (kind === 14) {
+        return checkruntime.equalBitValue(checkruntime.arrayElementToBit(left), checkruntime.arrayElementToBit(right));
+    }
+    if (kind === 15) {
+        return checkruntime.equalByteaValue(checkruntime.arrayElementToBytea(left), checkruntime.arrayElementToBytea(right));
+    }
+    if (kind === 16) {
+        return checkruntime.equalMacaddrValue(checkruntime.arrayElementToMacaddr(left), checkruntime.arrayElementToMacaddr(right));
+    }
+    if (kind === 17) {
+        return checkruntime.equalMacaddr8Value(checkruntime.arrayElementToMacaddr8(left), checkruntime.arrayElementToMacaddr8(right));
+    }
+    if (kind === 18) {
+        return checkruntime.equalUuidValue(checkruntime.arrayElementToUuid(left), checkruntime.arrayElementToUuid(right));
+    }
+    if (kind === 19) {
+        return checkruntime.equalFloat4Value(checkruntime.arrayElementToFloat4(left), checkruntime.arrayElementToFloat4(right));
+    }
+    if (kind === 20) {
+        return checkruntime.equalFloat8Value(checkruntime.arrayElementToFloat8(left), checkruntime.arrayElementToFloat8(right));
+    }
+    if (kind === 21) {
+        return checkruntime.equalTimeValue(checkruntime.arrayElementToTime(left), checkruntime.arrayElementToTime(right));
+    }
+    if (kind === 22) {
+        return checkruntime.equalTimetzValue(checkruntime.arrayElementToTimetz(left), checkruntime.arrayElementToTimetz(right));
+    }
+    if (kind === 23) {
+        return checkruntime.equalIntervalValue(checkruntime.arrayElementToInterval(left), checkruntime.arrayElementToInterval(right));
+    }
+    if (kind === 24) {
+        return checkruntime.equalPointValue(checkruntime.arrayElementToPoint(left), checkruntime.arrayElementToPoint(right));
+    }
+    if (kind === 25) {
+        return checkruntime.equalLineValue(checkruntime.arrayElementToLine(left), checkruntime.arrayElementToLine(right));
+    }
+    if (kind === 26) {
+        return checkruntime.equalLsegValue(checkruntime.arrayElementToLseg(left), checkruntime.arrayElementToLseg(right));
+    }
+    if (kind === 27) {
+        return checkruntime.equalBoxValue(checkruntime.arrayElementToBox(left), checkruntime.arrayElementToBox(right));
+    }
+    if (kind === 30) {
+        return checkruntime.equalCircleValue(checkruntime.arrayElementToCircle(left), checkruntime.arrayElementToCircle(right));
+    }
+    if (kind === 31) {
+        return checkruntime.equalMoneyValue(checkruntime.arrayElementToMoney(left), checkruntime.arrayElementToMoney(right));
+    }
+    if (kind === 32) {
+        return checkruntime.equalInternalCharValue(checkruntime.arrayElementToInternalChar(left), checkruntime.arrayElementToInternalChar(right));
+    }
+    if (kind === 33) {
+        return checkruntime.equalOidValue(checkruntime.arrayElementToOid(left), checkruntime.arrayElementToOid(right));
+    }
+    if (kind === 34) {
+        return checkruntime.equalXidValue(checkruntime.arrayElementToXid(left), checkruntime.arrayElementToXid(right));
+    }
+    if (kind === 35) {
+        return checkruntime.equalCidValue(checkruntime.arrayElementToCid(left), checkruntime.arrayElementToCid(right));
+    }
+    if (kind === 37) {
+        return checkruntime.equalXid8Value(checkruntime.arrayElementToXid8(left), checkruntime.arrayElementToXid8(right));
+    }
+    if (kind === 38) {
+        return checkruntime.equalPgLsnValue(checkruntime.arrayElementToPgLsn(left), checkruntime.arrayElementToPgLsn(right));
+    }
+    if (kind === 39) {
+        return checkruntime.equalTidValue(checkruntime.arrayElementToTid(left), checkruntime.arrayElementToTid(right));
+    }
+    if (kind === 12) {
+        const a: checkruntime.TextValue = checkruntime.jsonbToText(checkruntime.arrayElementToJsonb(left));
+        const b: checkruntime.TextValue = checkruntime.jsonbToText(checkruntime.arrayElementToJsonb(right));
+        if (a.kind === "Value") {
+            const first: string = langruntime.checkedString(a.value);
+            if (b.kind === "Value") {
+                const second: string = langruntime.checkedString(b.value);
+                return first === second;
+            }
+        }
+        return false;
+    }
+    if (kind === 28) {
+        const firstPath: checkruntime.PathValue = checkruntime.arrayElementToPath(left);
+        const secondPath: checkruntime.PathValue = checkruntime.arrayElementToPath(right);
+        if (firstPath.kind === "Value") {
+            const first: checkruntime.PathPayload = checkruntime.copyPathPayload(firstPath.value);
+            if (secondPath.kind === "Value") {
+                const second: checkruntime.PathPayload = checkruntime.copyPathPayload(secondPath.value);
+                if (!(first.closed === second.closed) || !(first.points.length === second.points.length)) {
+                    return false;
+                }
+                let position: number = 0;
+                while (position < first.points.length) {
+                    if (!(checkruntime.equalPointPayload(langruntime.indexStruct(first.points, langruntime.checkedIndex(position), checkruntime.copyPointPayload), langruntime.indexStruct(second.points, langruntime.checkedIndex(position), checkruntime.copyPointPayload)))) {
+                        return false;
+                    }
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                return true;
+            }
+        }
+    }
+    return false;
+}
+export function finishArraySort(input: checkruntime.ArraySortPayload): checkruntime.ArrayValue {
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (input.state === langruntime.checkedSignedNegate(1)) {
+        return { kind: "Unknown" };
+    }
+    if (input.state === 2) {
+        return checkruntime.makeArrayValue({ elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements });
+    }
+    let elements: checkruntime.ArrayElement[] = [];
+    if (input.state === 3) {
+        let position: number = 0;
+        while (position < input.elements.length) {
+            langruntime.pushStruct(elements, { kind: "Unknown" }, checkruntime.copyArrayElement);
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    else if (input.state === 4) {
+        let start: number = 0;
+        while (start < input.rows) {
+            let end: number = langruntime.checkedSignedAdd(start, 1);
+            while (end < input.rows) {
+                const position: number = langruntime.indexFromI32(end, input.ties.length);
+                if (langruntime.indexNumber(input.ties, langruntime.checkedIndex(position)) === 0) {
+                    break;
+                }
+                end = langruntime.checkedI32(langruntime.checkedSignedAdd(end, 1));
+            }
+            let consensus: checkruntime.ArrayElement[] = [];
+            let column: number = 0;
+            while (column < input.width) {
+                const first: number = langruntime.indexFromI32(start, input.order.length);
+                const offset: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(input.order, langruntime.checkedIndex(first))))), input.width), column);
+                const position: number = langruntime.indexFromI32(offset, input.elements.length);
+                const element: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement));
+                let same: boolean = true;
+                let candidate: number = langruntime.checkedSignedAdd(start, 1);
+                while (candidate < end) {
+                    const other: number = langruntime.indexFromI32(candidate, input.order.length);
+                    const otherOffset: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedI32(langruntime.checkedIndex(langruntime.indexNumber(input.order, langruntime.checkedIndex(other))))), input.width), column);
+                    const otherPosition: number = langruntime.indexFromI32(otherOffset, input.elements.length);
+                    if (arraySortSameElement(checkruntime.copyArrayElement(element), checkruntime.copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(otherPosition), checkruntime.copyArrayElement))) === false) {
+                        same = langruntime.checkedBool(false);
+                    }
+                    candidate = langruntime.checkedI32(langruntime.checkedSignedAdd(candidate, 1));
+                }
+                if (same) {
+                    langruntime.pushStruct(consensus, element, checkruntime.copyArrayElement);
+                }
+                else {
+                    langruntime.pushStruct(consensus, { kind: "Unknown" }, checkruntime.copyArrayElement);
+                }
+                column = langruntime.checkedI32(langruntime.checkedSignedAdd(column, 1));
+            }
+            let row: number = start;
+            while (row < end) {
+                let cell: number = 0;
+                while (cell < consensus.length) {
+                    langruntime.pushStruct(elements, checkruntime.copyArrayElement(langruntime.indexStruct(consensus, langruntime.checkedIndex(cell), checkruntime.copyArrayElement)), checkruntime.copyArrayElement);
+                    cell = langruntime.checkedAdd(cell, 1);
+                }
+                row = langruntime.checkedI32(langruntime.checkedSignedAdd(row, 1));
+            }
+            start = langruntime.checkedI32(end);
+        }
+    }
+    else {
+        return { kind: "Unknown" };
+    }
+    return checkruntime.makeArrayValue({ elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: elements });
+}
+export function arraySortHxzh(input: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return input;
+}
+export function arraySortX65f(input: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return input;
+}
+export function arraySortF418(input: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return input;
+}
 function arrayStringField(input: string, marker: checkruntime.TextValue, deterministic: boolean): checkruntime.ArrayElement {
     input = langruntime.checkedString(input);
     deterministic = langruntime.checkedBool(deterministic);

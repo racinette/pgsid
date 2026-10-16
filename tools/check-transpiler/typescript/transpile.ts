@@ -125,7 +125,9 @@ const object = (fields: [string, ts.Expression][]): ts.Expression =>
 const parameter = (name: string, type: ts.TypeNode): ts.ParameterDeclaration =>
   f.createParameterDeclaration(undefined, undefined, name, undefined, type)
 const exported = (visibility: string): ts.Modifier[] | undefined =>
-  visibility === 'public' ? [f.createModifier(ts.SyntaxKind.ExportKeyword)] : undefined
+  visibility === 'public' || visibility === 'crate'
+    ? [f.createModifier(ts.SyntaxKind.ExportKeyword)]
+    : undefined
 const comparison = (
   left: ts.Expression,
   operator: ts.BinaryOperator,
@@ -264,6 +266,20 @@ class Transpiler {
     if (this.structs.has(name) || this.enums.has(name))
       return f.createTypeReferenceNode(this.names.get(name)!)
     throw new Error(`type outside TypeScript lowering: ${name}`)
+  }
+
+  private crateRecordTransfer(value: Expr, destination: string): boolean {
+    const structure = this.structs.get(destination)
+    if (
+      !structure?.derives.includes('Clone') ||
+      structure.derives.includes('Copy') ||
+      value.kind !== 'call' ||
+      value.callee.kind !== 'path' ||
+      value.callee.segments.length !== 1
+    )
+      return false
+    const fn = this.functions.get(value.callee.segments[0]!)
+    return fn?.visibility === 'crate' && this.path(fn.returnType) === destination
   }
 
   private clone(value: ts.Expression, type: TypeNode | string): ts.Expression {
@@ -730,7 +746,9 @@ class Transpiler {
             comparison(
               left,
               ts.SyntaxKind.EqualsToken,
-              this.detach(this.expression(value.right, locals), type),
+              this.crateRecordTransfer(value.right, type)
+                ? this.expression(value.right, locals)
+                : this.detach(this.expression(value.right, locals), type),
             ),
           ),
         )
@@ -1080,6 +1098,7 @@ class Transpiler {
           )
           const body: ts.Statement[] = []
           for (const parameter of item.parameters) {
+            if (item.visibility === 'crate') continue
             const name = camelCase(parameter.name)
             if (
               item.visibility !== 'public' &&

@@ -28,6 +28,19 @@ fn visibility(value: &Visibility) -> Result<&'static str> {
     }
 }
 
+fn function_visibility(node: &syn::ItemFn) -> Result<&'static str> {
+    if let Visibility::Restricted(restricted) = &node.vis {
+        if restricted.in_token.is_none() && restricted.path.is_ident("crate") {
+            let name = node.sig.ident.to_string();
+            if name.starts_with("sql__") || name.starts_with("evaluate_check") {
+                return Err("SQL and CHECK entry points require public visibility".into());
+            }
+            return Ok("crate");
+        }
+    }
+    visibility(&node.vis)
+}
+
 fn check_type(
     value: &Type,
     declarations: &BTreeSet<String>,
@@ -634,7 +647,7 @@ pub(crate) fn item(value: &Item) -> Result<Value> {
             };
             Ok(json!({
                 "kind": "function",
-                "visibility": visibility(&node.vis)?,
+                "visibility": function_visibility(node)?,
                 "name": node.sig.ident.to_string(),
                 "parameters": parameters,
                 "returnType": ty(output)?,
@@ -669,6 +682,24 @@ mod tests {
 
     mod smoke {
         include!("../transpiler_smoke.rs");
+    }
+
+    #[test]
+    fn crate_visible_functions_retain_internal_transfer_visibility() {
+        let parsed: serde_json::Value = serde_json::from_str(
+            &parse("pub(crate) fn advance(value: i32) -> i32 { value + 1 }").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(parsed["items"][0]["visibility"], "crate");
+        for source in [
+            "pub(super) fn advance(value: i32) -> i32 { value }",
+            "pub(self) fn advance(value: i32) -> i32 { value }",
+            "pub(crate) struct Cursor { value: i32 }",
+            "pub(crate) fn evaluate_check(value: i32) -> i32 { value }",
+            "pub(crate) fn sql__pg_catalog__probe(value: i32) -> i32 { value }",
+        ] {
+            assert!(parse(source).is_err(), "{source}");
+        }
     }
 
     #[test]

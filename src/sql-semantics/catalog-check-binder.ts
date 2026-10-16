@@ -1325,8 +1325,7 @@ const arrayDefaultCollation = (
 ): { collationDefault?: true } => {
   const metadata = builtinMetadata(signature)
   return collation?.default &&
-    ((metadata.args.length === 2 &&
-      metadata.args.every((type) => type === 'pg_catalog.anyarray')) ||
+    (metadata.args.includes('pg_catalog.anyarray') ||
       metadata.args.includes('pg_catalog.anycompatiblearray'))
     ? { collationDefault: true }
     : {}

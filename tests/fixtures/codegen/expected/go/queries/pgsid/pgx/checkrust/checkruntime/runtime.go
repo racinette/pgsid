@@ -9616,6 +9616,52 @@ func FinishArrayRewrite(original ArrayValue, plan *ArrayComparisonPayload, value
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
 }
+
+type ArraySortPayload struct {
+	ElementType string
+	ElementKind int
+	Dimensions  []ArrayDimension
+	Elements    []ArrayElement
+	Order       []int
+	Buffer      []int
+	Ties        []int
+	Rows        int
+	Width       int
+	Run         int
+	Segment     int
+	Left        int
+	Right       int
+	Output      int
+	Phase       int
+	Tie         int
+	State       int
+	Error       SqlError
+	Descending  bool
+	NullsFirst  bool
+}
+
+func copyArraySortPayload(value ArraySortPayload) ArraySortPayload {
+	return ArraySortPayload{ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement), Order: langruntime.CheckedIndices(value.Order), Buffer: langruntime.CheckedIndices(value.Buffer), Ties: langruntime.CheckedIndices(value.Ties), Rows: langruntime.CheckedI32(value.Rows), Width: langruntime.CheckedI32(value.Width), Run: langruntime.CheckedI32(value.Run), Segment: langruntime.CheckedI32(value.Segment), Left: langruntime.CheckedI32(value.Left), Right: langruntime.CheckedI32(value.Right), Output: langruntime.CheckedI32(value.Output), Phase: langruntime.CheckedI32(value.Phase), Tie: langruntime.CheckedI32(value.Tie), State: langruntime.CheckedI32(value.State), Error: value.Error, Descending: value.Descending, NullsFirst: value.NullsFirst}
+}
+
+type ArraySortPlanKind uint8
+
+const (
+	ArraySortPlanValue ArraySortPlanKind = iota
+)
+
+type ArraySortPlan struct {
+	Kind  ArraySortPlanKind
+	Value ArraySortPayload
+}
+
+func copyArraySortPlan(value ArraySortPlan) ArraySortPlan {
+	switch value.Kind {
+	case ArraySortPlanValue:
+		return ArraySortPlan{Kind: ArraySortPlanValue, Value: copyArraySortPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

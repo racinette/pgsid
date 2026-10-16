@@ -1230,3 +1230,143 @@ VALUES (NULL, false);
 -- name: binary_exports_null_skipped
 INSERT INTO lane_binary_exports (stages, bypass)
 VALUES (NULL, true);
+
+-- name: sorted_slots_orders
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES ('[0:3]={2,NULL,0,1}', true, false, '[0:3]={0,1,2,NULL}', '[0:3]={NULL,2,1,0}', '[0:3]={2,1,0,NULL}');
+
+-- name: sorted_slots_nulls_first
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES ('{2,NULL,1}', false, true, '{1,2,NULL}', '{1,2,NULL}', '{NULL,1,2}');
+
+-- name: sorted_slots_matrix
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES ('[0:1][2:3]={{NULL,1},{2,NULL}}', true, true, '[0:1][2:3]={{2,NULL},{NULL,1}}', '[0:1][2:3]={{NULL,1},{2,NULL}}', '[0:1][2:3]={{NULL,1},{2,NULL}}');
+
+-- name: sorted_slots_empty
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES ('{}', false, false, '{}', '{}', '{}');
+
+-- name: sorted_slots_null
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES (NULL, true, false, NULL, NULL, NULL);
+
+-- name: sorted_slots_null_direction
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES ('{2,1}', NULL, false, '{1,2}', NULL, NULL);
+
+-- name: sorted_slots_null_null_order
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES ('{2,1}', false, NULL, '{1,2}', '{1,2}', NULL);
+
+-- name: sorted_slots_wrong_default
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES ('{2,1}', false, false, '{2,1}', '{1,2}', '{1,2}');
+
+-- name: sorted_slots_wrong_order
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES ('{2,1}', true, false, '{1,2}', '{1,2}', '{2,1}');
+
+-- name: sorted_slots_wrong_null_placement
+INSERT INTO lane_sorted_slots (slots, descending, nulls_first, expected_default, expected_order, expected_flags)
+VALUES ('{2,NULL,1}', false, true, '{1,2,NULL}', '{1,2,NULL}', '{1,2,NULL}');
+
+-- name: sorted_stages_labels
+INSERT INTO lane_sorted_stages (stages, expected_stages)
+VALUES ('{done,NULL,new}', '{new,done,NULL}');
+
+-- name: sorted_stages_empty
+INSERT INTO lane_sorted_stages (stages, expected_stages)
+VALUES ('{}', '{}');
+
+-- name: sorted_stages_null
+INSERT INTO lane_sorted_stages (stages, expected_stages)
+VALUES (NULL, NULL);
+
+-- name: sorted_stages_wrong_labels
+INSERT INTO lane_sorted_stages (stages, expected_stages)
+VALUES ('{done,new}', '{done,new}');
+
+-- name: sorted_documents_numbers
+INSERT INTO lane_sorted_documents (payload, expected_payload)
+VALUES ('{2,1,NULL}', '{1,2,NULL}');
+
+-- name: sorted_documents_json_null
+INSERT INTO lane_sorted_documents (payload, expected_payload)
+VALUES ('{1,"null",NULL}', '{"null",1,NULL}');
+
+-- name: sorted_documents_empty
+INSERT INTO lane_sorted_documents (payload, expected_payload)
+VALUES ('{}', '{}');
+
+-- name: sorted_documents_null
+INSERT INTO lane_sorted_documents (payload, expected_payload)
+VALUES (NULL, NULL);
+
+-- name: sorted_documents_wrong_order
+INSERT INTO lane_sorted_documents (payload, expected_payload)
+VALUES ('{2,1}', '{2,1}');
+
+-- name: unsortable_documents_empty
+INSERT INTO lane_unsortable_documents (payload, bypass)
+VALUES ('{}', false);
+
+-- name: unsortable_documents_singleton
+INSERT INTO lane_unsortable_documents (payload, bypass)
+VALUES ('{1}', false);
+
+-- name: unsortable_documents_null
+INSERT INTO lane_unsortable_documents (payload, bypass)
+VALUES (NULL, false);
+
+-- name: unsortable_documents_no_comparator
+INSERT INTO lane_unsortable_documents (payload, bypass)
+VALUES ('{NULL,NULL}', false);
+
+-- name: unsortable_documents_matrix_no_comparator
+INSERT INTO lane_unsortable_documents (payload, bypass)
+VALUES ('{{NULL},{NULL}}', false);
+
+-- name: unsortable_documents_skipped
+INSERT INTO lane_unsortable_documents (payload, bypass)
+VALUES ('{1,2}', true);
+
+-- name: sorted_precision_exact_duplicates
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES ('{1.00,0,1.00}', '{0,1.00,1.00}', 3, '0', false);
+
+-- name: sorted_precision_ambiguous_ties
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES ('{0,1.0,1.00,2}', '{0,1.0,1.00,2}', 4, '0', false);
+
+-- name: sorted_precision_distinct
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES ('{2,0,1}', '{0,1,2}', 3, '0', false);
+
+-- name: sorted_precision_empty
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES ('{}', '{}', 0, NULL, false);
+
+-- name: sorted_precision_null
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES (NULL, NULL, NULL, NULL, false);
+
+-- name: sorted_precision_wrong_count
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES ('{2,0,1}', '{0,1,2}', 2, '0', false);
+
+-- name: sorted_precision_wrong_first
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES ('{2,0,1}', '{0,1,2}', 3, '1', false);
+
+-- name: sorted_precision_wrong_text
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES ('{2,0,1}', '{2,0,1}', 3, '0', false);
+
+-- name: sorted_precision_reached_error
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES ('bad', NULL, NULL, NULL, false);
+
+-- name: sorted_precision_skipped_error
+INSERT INTO lane_sorted_precision (payload, expected_text, expected_count, expected_first, bypass)
+VALUES ('bad', NULL, NULL, NULL, true);

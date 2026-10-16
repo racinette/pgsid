@@ -2108,3 +2108,32 @@ pub fn finish_array_rewrite(
     };
     ArrayValue::Unknown
 }
+
+#[derive(Clone)]
+pub struct ArraySortPayload {
+    pub element_type: String,
+    pub element_kind: i32,
+    pub dimensions: Vec<ArrayDimension>,
+    pub elements: Vec<ArrayElement>,
+    pub order: Vec<usize>,
+    pub buffer: Vec<usize>,
+    pub ties: Vec<usize>,
+    pub rows: i32,
+    pub width: i32,
+    pub run: i32,
+    pub segment: i32,
+    pub left: i32,
+    pub right: i32,
+    pub output: i32,
+    pub phase: i32,
+    pub tie: i32,
+    pub state: i32,
+    pub error: SqlError,
+    pub descending: bool,
+    pub nulls_first: bool,
+}
+
+#[derive(Clone)]
+pub enum ArraySortPlan {
+    Value(ArraySortPayload),
+}
