@@ -211,6 +211,12 @@ it('joins every represented scalar and enum using the shared catalog output rend
     await pg.exec(
       "SET TIME ZONE 'UTC';SET DateStyle='ISO, MDY';SET IntervalStyle='iso_8601';CREATE TYPE array_stage AS ENUM ('new','done');CREATE TABLE join_families(source text,separator text,marker text,expected text)",
     )
+    expect(
+      (await pg.query('SELECT array_to_string($1::money[],NULL) value', ['{$0.00,NULL}'])).rows,
+    ).toEqual([{ value: null }])
+    await expect(
+      pg.query('SELECT array_to_string($1::money[],NULL) value', ['{not-money}']),
+    ).rejects.toMatchObject({ code: '22P02' })
     const deferred = new Set([
       'timestamp',
       'timestamptz',
@@ -284,7 +290,10 @@ it('joins every represented scalar and enum using the shared catalog output rend
             form.marked ? [source, separator, marker] : [source, separator],
           )
         ).rows[0]!.value
-        const needsContext = source === form.array && separator !== null && deferred.has(form.type)
+        const needsInputContext = source === form.array && form.type === 'money'
+        const needsContext =
+          needsInputContext ||
+          (source === form.array && separator !== null && deferred.has(form.type))
         references.push({
           name: form.name,
           type: form.type,
@@ -292,7 +301,11 @@ it('joins every represented scalar and enum using the shared catalog output rend
           separator,
           marker,
           output,
-          deferral: needsContext ? 'element output requires execution context' : null,
+          deferral: needsInputContext
+            ? 'element input requires monetary context'
+            : needsContext
+              ? 'element output requires execution context'
+              : null,
         })
         for (const origin of ['source', 'stored'])
           fixtures.push({
@@ -446,6 +459,12 @@ it('preserves qualified enum rendering, strict states, preparation and reached c
     await pg.exec(
       "CREATE SCHEMA io_first;CREATE SCHEMA io_second;CREATE TYPE io_first.stage AS ENUM ('new','done');CREATE TYPE io_second.stage AS ENUM ('done','new');CREATE TABLE io_context(source text,separator text,marker text,bypass boolean)",
     )
+    expect((await pg.query('SELECT array_to_string($1::text[],NULL) value', ['{a}'])).rows).toEqual(
+      [{ value: null }],
+    )
+    await expect(
+      pg.query('SELECT array_to_string($1::text[],NULL) value', ['bad']),
+    ).rejects.toMatchObject({ code: '22P02' })
     const forms = {
       split_count: 'cardinality(string_to_array(source,separator,marker))>=0',
       split_values:
@@ -575,7 +594,7 @@ it('preserves qualified enum rendering, strict states, preparation and reached c
       [
         'joined',
         { source: { kind: 'Unknown' }, separator: known(null), marker: { kind: 'Unknown' } },
-        { kind: 'False' },
+        { kind: 'Unknown' },
       ],
       [
         'split_count',

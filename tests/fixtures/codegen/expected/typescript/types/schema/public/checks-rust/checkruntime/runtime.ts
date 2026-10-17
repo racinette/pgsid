@@ -9447,7 +9447,9 @@ export function finishArrayText(plan: ArrayTextPlan, converted: ArrayArguments):
             while (index < value.elements.length) {
                 const element: ArrayElement = copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(index), copyArrayElement));
                 if (element.kind === "Unknown") {
-                    return { kind: "Unknown" };
+                    if (!(value.elementType === "pg_catalog.name")) {
+                        return { kind: "Unknown" };
+                    }
                 }
                 index = langruntime.checkedAdd(index, 1);
             }

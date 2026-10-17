@@ -543,6 +543,19 @@ describe('CHECK measurement boundaries', () => {
     expect(float.probe!.raw.fullyBound).toBe(true)
     expect(float.probe!.stored!.fullyBound).toBe(true)
     const floatInput = report.textInput.find((entry) => entry.type === 'pg_catalog.float4')!
+    for (const type of ['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8']) {
+      const integer = report.textInput.find((entry) => entry.type === type)!.probe
+      expect(integer.postgres.accepted).toBe(true)
+      expect(integer.raw.fullyBound).toBe(true)
+      expect(integer.raw.preparation.kind).toBe('supported')
+      expect(integer.stored!.fullyBound).toBe(true)
+      expect(integer.stored!.preparation.kind).toBe('supported')
+      expect(report.inputForms.types.find((forms) => forms.type === type)).toMatchObject({
+        suite: 'tests/sql-semantics/check-integer-scalar-input.test.ts',
+        deferred: [],
+        unimplementedGrammar: [],
+      })
+    }
     expect(floatInput.probe.raw.fullyBound).toBe(true)
     expect(floatInput.probe.stored!.fullyBound).toBe(true)
     const jsonInput = report.textInput.find((entry) => entry.type === 'pg_catalog."json"')!.probe
@@ -746,9 +759,10 @@ describe('CHECK measurement boundaries', () => {
     expect(input.cast).toBeNull()
     expect(input.input).toBe('function:["pg_catalog","int4in"](pg_catalog.cstring)')
     expect(input.probe.postgres.accepted).toBe(true)
-    expect(input.probe.raw.fullyBound).toBe(false)
+    expect(input.probe.raw.fullyBound).toBe(true)
     expect(input.probe.raw.preparation.kind).toBe('supported')
-    expect(input.probe.stored!.fullyBound).toBe(false)
+    expect(input.probe.stored!.fullyBound).toBe(true)
+    expect(input.probe.stored!.preparation.kind).toBe('supported')
     const integer = report.textOutput.find((entry) => entry.type === 'pg_catalog.int8')!
     expect(integer.cast).toBeNull()
     expect(integer.output).toBe('function:["pg_catalog","int8out"](pg_catalog.int8)')

@@ -299,7 +299,23 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       generated
         .evaluatePublicJsonbConversionInputsChecks(conversionInput)
         .find((c: { constraint: string }) => c.constraint === 'converted_json').result,
-    ).toEqual({ certain: false })
+    ).toEqual({ certain: true, value: false })
+    await expect(
+      pg.query(
+        'INSERT INTO jsonb_conversion_inputs(source_json,expected_json,bypass) VALUES($1::json,$2::jsonb,false)',
+        ['"\\u96ea"', 'null'],
+      ),
+    ).rejects.toMatchObject({ code: '23514' })
+    conversionInput.expected_json = runtime.makeJsonbValue('"雪"')
+    expect(
+      generated
+        .evaluatePublicJsonbConversionInputsChecks(conversionInput)
+        .find((c: { constraint: string }) => c.constraint === 'converted_json').result,
+    ).toEqual({ certain: true, value: true })
+    await pg.query(
+      'INSERT INTO jsonb_conversion_inputs(source_json,expected_json,bypass) VALUES($1::json,$2::jsonb,false)',
+      ['"\\u96ea"', '"雪"'],
+    )
     for (const source of [
       undefined,
       { kind: 'Unknown' },
@@ -323,7 +339,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         })
         .find((c: { constraint: string }) => c.constraint === 'converted_number').result,
     ).toEqual({ certain: true, error: '22003' })
-    for (const [source, context] of [
+    for (const [source, unimplementedPrettyRendering] of [
       [null, false],
       ['null', false],
       ['{"a":null,"b":[null,1]}', false],
@@ -358,7 +374,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         const before = JSON.stringify(input)
         for (const c of generated.evaluatePublicJsonbFormatInputsChecks(input))
           expect(c.result).toEqual(
-            c.constraint === 'pretty_layout' && context && arrays !== null
+            c.constraint === 'pretty_layout' && unimplementedPrettyRendering && arrays !== null
               ? { certain: false }
               : { certain: true, value: true },
           )
@@ -795,10 +811,19 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       certain: true,
       error: '22023',
     })
-    const uncertainSubtree = runtime.makeJsonbValue('{"a":{"aa":1,"é":2},"plain":"known"}')
-    expect(evaluateReads(uncertainSubtree).field_source).toEqual({ certain: false })
+    const unicodeSource = '{"a":{"aa":1,"é":2},"plain":"known"}',
+      unicodeSubtree = runtime.makeJsonbValue(unicodeSource),
+      subtreeSource = (
+        await pg.query<{ value: string }>("SELECT ($1::jsonb->'a')::text value", [unicodeSource])
+      ).rows[0]!.value
+    expect(evaluateReads(unicodeSubtree).field_source).toEqual({ certain: true, value: false })
+    expect(evaluateReads(unicodeSubtree, { expected_json: subtreeSource }).field_source).toEqual({
+      certain: true,
+      value: true,
+    })
+    expect(evaluateReads(unicodeSubtree).field_text).toEqual({ certain: false })
     expect(
-      evaluateReads(uncertainSubtree, { field_name: 'plain', expected_text: 'known' }).field_text,
+      evaluateReads(unicodeSubtree, { field_name: 'plain', expected_text: 'known' }).field_text,
     ).toEqual({ certain: true, value: true })
     const evaluateText = (
       source_text: unknown,
@@ -827,8 +852,16 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       ).rejects.toMatchObject({ code: state })
       await pg.query('INSERT INTO jsonb_text_inputs VALUES($1,$2,true)', [input, '{}'])
     }
-    for (const input of deferredJsonbEncodingForms)
-      expect(evaluateText(input), input).toEqual({ certain: false })
+    for (const input of deferredJsonbEncodingForms) {
+      const source = (await pg.query<{ source: string }>('SELECT $1::jsonb::text source', [input]))
+        .rows[0]!.source
+      expect(evaluateText(input, source), input).toEqual({ certain: true, value: true })
+      await pg.query('INSERT INTO jsonb_text_inputs VALUES($1,$2,false)', [input, source])
+      expect(evaluateText(input, 'wrong'), input).toEqual({ certain: true, value: false })
+      await expect(
+        pg.query('INSERT INTO jsonb_text_inputs VALUES($1,$2,false)', [input, 'wrong']),
+      ).rejects.toMatchObject({ code: '23514' })
+    }
     expect(evaluateText('{}', '[]')).toEqual({ certain: true, value: false })
     expect(evaluateText(null)).toEqual({ certain: true, value: null })
     for (const input of ['"a\0b"', '"\ud800"', undefined, 123, {}])
@@ -889,7 +922,14 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
     }
     const ambiguity = runtime.makeJsonbValue('{"aa":1,"é":2}')
     expect(evaluate(ambiguity).shape).toEqual({ certain: true, value: true })
-    expect(evaluate(ambiguity).source).toEqual({ certain: false })
+    expect(evaluate(ambiguity).source).toEqual({ certain: true, value: false })
+    const unicodeObjectSource = (
+      await pg.query<{ source: string }>('SELECT $1::jsonb::text source', ['{"aa":1,"é":2}'])
+    ).rows[0]!.source
+    expect(evaluate(ambiguity, 'object', unicodeObjectSource).source).toEqual({
+      certain: true,
+      value: true,
+    })
     expect(evaluate(ambiguity).present).toEqual({ certain: true, value: true })
     const bad: unknown[] = [
       undefined,

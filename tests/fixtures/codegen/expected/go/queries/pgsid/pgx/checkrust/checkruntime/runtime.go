@@ -9385,7 +9385,9 @@ func FinishArrayText(plan ArrayTextPlan, converted ArrayArguments) ArrayValue {
 			for index < len(value.Elements) {
 				element := CopyArrayElement(value.Elements[index])
 				if element.Kind == ArrayElementUnknown {
-					return ArrayValue{Kind: ArrayValueUnknown}
+					if value.ElementType != "pg_catalog.name" {
+						return ArrayValue{Kind: ArrayValueUnknown}
+					}
 				}
 				index = langruntime.CheckedAdd(index, 1)
 			}

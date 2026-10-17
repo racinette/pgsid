@@ -1156,7 +1156,9 @@ pub fn finish_array_text(plan: ArrayTextPlan, converted: ArrayArguments) -> Arra
             while index < value.elements.len() {
                 let element = value.elements[index].clone();
                 if let ArrayElement::Unknown = element {
-                    return ArrayValue::Unknown;
+                    if value.element_type != "pg_catalog.name" {
+                        return ArrayValue::Unknown;
+                    };
                 };
                 index += 1;
             }

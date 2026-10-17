@@ -125,7 +125,27 @@ describe('NULL-safe equality in CHECK evaluators', () => {
     await expect(pg.query("SELECT 1 IS DISTINCT FROM '1.5'")).rejects.toMatchObject({
       code: '22P02',
     })
-    expect(hasUncertain(lower('coercion', "1 IS DISTINCT FROM '1.5'"))).toBe(true)
+    const malformed = lower('coercion', "1 IS DISTINCT FROM '1.5'")
+    expect(hasUncertain(malformed)).toBe(false)
+    const malformedGroup = prepareCheckRustGroup([
+      {
+        expression: malformed,
+        identity: {
+          schema: 'public',
+          kind: 'table',
+          owner: table.name,
+          constraint: 'malformed_integer_literal',
+        },
+      },
+    ])
+    expect(malformedGroup.checks[0]?.kind).toBe('supported')
+    await runCheckParity(
+      await mkdtemp(join(directory, 'literal-')),
+      'distinctliteral',
+      malformedGroup,
+      ['malformed_integer_literal'],
+      [{ name: 'malformed_integer_literal', row: {}, expected: error('22P02') }],
+    )
     await expect(pg.query('SELECT NULL::json IS DISTINCT FROM NULL::json')).rejects.toMatchObject({
       code: '42883',
     })
@@ -164,7 +184,7 @@ describe('NULL-safe equality in CHECK evaluators', () => {
         true,
       )
     }
-  })
+  }, 120_000)
 
   it('matches raw/stored PostgreSQL semantics across values, NULL, Unknown, errors and composition', async () => {
     const entries = table.constraints

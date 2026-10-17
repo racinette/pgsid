@@ -1066,3 +1066,71 @@ VALUES (2, 1, 1, 1, true, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 -- name: stock_hash_null_inputs
 INSERT INTO stock_hash_records (id, small_count, ordinary_count, bulk_count, selected, hash_seed, small_hash, ordinary_hash, bulk_hash, boolean_hash, small_seeded_hash, ordinary_seeded_hash, bulk_seeded_hash, boolean_seeded_hash)
 VALUES (2, NULL, NULL, NULL, NULL, 0, -1905060026, -1905060026, -1905060026, -1905060026, -3670598878359251130, -3670598878359251130, -3670598878359251130, -3670598878359251130);
+
+-- name: encoded_counts_radix
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'0x_7fff','0b1_000','-0o10','+42',32767,8,-8,42,false);
+-- name: encoded_counts_limits
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'-32768','2147483647','-9223372036854775808','-2147483648',-32768,2147483647,-9223372036854775808,-2147483648,false);
+-- name: encoded_counts_wrong_small
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'10','10','10','10',9,10,10,10,false);
+-- name: encoded_counts_wrong_ordinary
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'10','10','10','10',10,9,10,10,false);
+-- name: encoded_counts_wrong_bulk
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'10','10','10','10',10,10,9,10,false);
+-- name: encoded_counts_wrong_padded
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'10','10','10','10',10,10,10,9,false);
+-- name: encoded_counts_nulls
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: encoded_counts_small_range
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'32768','10','10','10',NULL,10,10,10,false);
+-- name: encoded_counts_ordinary_range
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'10','2147483648','10','10',10,NULL,10,10,false);
+-- name: encoded_counts_bulk_range
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'10','10','9223372036854775808','10',10,10,NULL,10,false);
+-- name: encoded_counts_padded_syntax
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'10','10','10','1__0',10,10,10,NULL,false);
+-- name: encoded_counts_unicode_syntax
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'١','10','10','10',NULL,10,10,10,false);
+-- name: encoded_counts_skipped
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(2,'bad','bad','bad','bad',NULL,NULL,NULL,NULL,true);
+-- name: encoded_shapes_accepted
+INSERT INTO stock_encoded_shapes(id,payload,fallback_count,expected_count,bypass) VALUES(2,'0x10',0,1,false);
+-- name: encoded_shapes_wrong_count
+INSERT INTO stock_encoded_shapes(id,payload,fallback_count,expected_count,bypass) VALUES(2,'10',0,9,false);
+-- name: encoded_shapes_null_input
+INSERT INTO stock_encoded_shapes(id,payload,fallback_count,expected_count,bypass) VALUES(2,NULL,0,1,false);
+-- name: encoded_shapes_all_null
+INSERT INTO stock_encoded_shapes(id,payload,fallback_count,expected_count,bypass) VALUES(2,NULL,NULL,1,false);
+-- name: encoded_shapes_null_expectation
+INSERT INTO stock_encoded_shapes(id,payload,fallback_count,expected_count,bypass) VALUES(2,'10',0,NULL,false);
+-- name: encoded_shapes_syntax
+INSERT INTO stock_encoded_shapes(id,payload,fallback_count,expected_count,bypass) VALUES(2,'bad',0,1,false);
+-- name: encoded_shapes_range
+INSERT INTO stock_encoded_shapes(id,payload,fallback_count,expected_count,bypass) VALUES(2,'2147483648',0,1,false);
+-- name: encoded_shapes_skipped
+INSERT INTO stock_encoded_shapes(id,payload,fallback_count,expected_count,bypass) VALUES(2,'bad',0,9,true);
+
+-- name: encoded_labels_accepted
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'{crate,pallet}',2,true,1);
+-- name: encoded_labels_empty
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'{}',0,true,1);
+-- name: encoded_labels_bounded
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'[-2:-1]={crate,pallet}',2,true,1);
+-- name: encoded_labels_unicode
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'{雪,箱}',2,true,1);
+-- name: encoded_labels_unknown_width
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'{abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzab}',1,true,1);
+-- name: encoded_labels_wrong_count
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'{crate,pallet}',3,true,1);
+-- name: encoded_labels_calculation_false
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'{}',0,true,2);
+-- name: encoded_labels_null
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,NULL,NULL,true,1);
+-- name: encoded_labels_grammar_before_division
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'bad',NULL,true,0);
+-- name: encoded_labels_division
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'{crate,pallet}',2,true,0);
+-- name: encoded_labels_null_division
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,NULL,NULL,true,0);
+-- name: encoded_labels_skipped
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'bad',9,false,0);

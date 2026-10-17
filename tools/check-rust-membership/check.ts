@@ -115,6 +115,13 @@ try {
       }
     }
   }
+  for (const [sql, accepted] of [
+    ['0 = ANY(ARRAY[0,$1::integer+1])', true],
+    ['0 <> ALL(ARRAY[0,$1::integer+1])', false],
+  ] as const) {
+    assert.deepEqual((await pg.query(`SELECT ${sql} AS value`, [0])).rows, [{ value: accepted }])
+    await assert.rejects(pg.query(`SELECT ${sql} AS value`, [2147483647]), { code: '22003' })
+  }
 } finally {
   await pg.close()
 }
@@ -143,8 +150,8 @@ add(
   { ...row(0, 0, true, 'a'), other: error },
   { kind: 'Error', value: error.value },
 )
-add('eager_in', { ...row(0, 0, true, 'a'), other: unknown }, { kind: 'True' })
-add('eager_not_in', { ...row(0, 0, true, 'a'), other: unknown }, { kind: 'False' })
+add('eager_in', { ...row(0, 0, true, 'a'), other: unknown }, { kind: 'Unknown' })
+add('eager_not_in', { ...row(0, 0, true, 'a'), other: unknown }, { kind: 'Unknown' })
 add(
   'eager_in',
   { ...row(0, 0, true, 'a'), amount: error, other: otherError },

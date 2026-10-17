@@ -246,7 +246,7 @@ describe('portable Rust CHECK numeric comparisons', () => {
     await runCheckParity(directory, 'numericchecks', group, [...names, 'domain'], fixtures)
   }, 120_000)
 
-  it('unwraps numeric domains and nested domains without applying new coercions', async () => {
+  it('unwraps numeric domain inputs, applies explicit precision and preserves constrained-domain coercions', async () => {
     const domainTable = catalog.tables.find((table) => table.name === 'domain_numeric_checks')!
     const names = Object.keys(domainExpressions)
     const plans = names.map((name) =>
@@ -299,15 +299,14 @@ describe('portable Rust CHECK numeric comparisons', () => {
     const domainDirectory = join(directory, 'domains')
     await mkdir(domainDirectory)
     await runCheckParity(domainDirectory, 'numericdomains', group, names, fixtures)
-    for (const sql of ['a::numeric(10,2) = b', 'a::exact_amount = b'])
-      expect(
-        lowerTableCheck(
-          domainTable,
-          { name: 'unsupported', type: 'check', definition: `CHECK (${sql})` },
-          [],
-          catalog.domains,
-        )!.expression,
-      ).toEqual({ kind: 'uncertain' })
+    expect(
+      lowerTableCheck(
+        domainTable,
+        { name: 'constrained', type: 'check', definition: 'CHECK (a::exact_amount = b)' },
+        [],
+        catalog.domains,
+      )!.expression,
+    ).toEqual({ kind: 'uncertain' })
     const cast = lowerTableCheck(
       domainTable,
       { name: 'numeric_cast', type: 'check', definition: 'CHECK (a::int4 = 0)' },
@@ -315,18 +314,30 @@ describe('portable Rust CHECK numeric comparisons', () => {
       catalog.domains,
     )!
     expect(cast.expression.kind).toBe('eval-scalar')
-    const castGroup = prepareCheckRustGroup([
+    const precision = lowerTableCheck(
+      domainTable,
       {
-        expression: cast.expression,
+        name: 'numeric_precision',
+        type: 'check',
+        definition: 'CHECK (a::numeric(10,2) = a)',
+      },
+      [],
+      catalog.domains,
+    )!
+    expect(JSON.stringify(precision.expression)).not.toContain('"kind":"uncertain"')
+    const castPlans = [cast, precision]
+    const castGroup = prepareCheckRustGroup(
+      castPlans.map((plan) => ({
+        expression: plan.expression,
         identity: {
           schema: domainTable.schema,
-          kind: 'table',
+          kind: 'table' as const,
           owner: domainTable.name,
-          constraint: cast.name,
+          constraint: plan.name,
         },
-      },
-    ])
-    expect(castGroup.checks[0]!.kind).toBe('supported')
+      })),
+    )
+    for (const check of castGroup.checks) expect(check.kind).toBe('supported')
     const castFixtures: { name: string; row: Row; expected: Outcome }[] = []
     for (const source of [null, '-1.5', '-0.5', '-0.001', '0', '0.001', '0.5', '1.5', 'NaN']) {
       const candidate = (
@@ -347,10 +358,27 @@ describe('portable Rust CHECK numeric comparisons', () => {
         expected = { kind: 'Error', value: { state: parseInt(code, 36) } }
       }
       castFixtures.push({ name: cast.name, row: { a: value(candidate.a) }, expected })
+      const rounded = (
+        await pg.query<{ value: boolean | null }>(
+          'SELECT ($1::measured_amount)::numeric(10,2) = $1::measured_amount AS value',
+          [source],
+        )
+      ).rows[0]!.value
+      castFixtures.push({
+        name: precision.name,
+        row: { a: value(candidate.a) },
+        expected: outcome(rounded),
+      })
     }
     const castDirectory = join(directory, 'domain-cast')
     await mkdir(castDirectory)
-    await runCheckParity(castDirectory, 'numericdomaincast', castGroup, [cast.name], castFixtures)
+    await runCheckParity(
+      castDirectory,
+      'numericdomaincast',
+      castGroup,
+      castPlans.map((plan) => plan.name),
+      castFixtures,
+    )
     await expect(pg.query("SELECT '-0.001'::measured_amount::exact_amount")).rejects.toThrow()
   }, 120_000)
 
@@ -427,15 +455,29 @@ describe('portable Rust CHECK numeric comparisons', () => {
       })
   })
 
-  it('keeps unsupported precision coercion and arithmetic outside generated numeric comparisons', () => {
-    for (const sql of ['a::numeric(10,2) = b', '(a + b) > 0', "('1.234'::numeric(3,1)) = a"])
+  it('admits numeric precision coercion and arithmetic through catalog bindings', async () => {
+    for (const [sql, expected] of [
+      ['a::numeric(10,2) = b', true],
+      ['(a + b) > 0', true],
+      ["('1.234'::numeric(3,1)) = a", false],
+    ] as const) {
+      expect(
+        (
+          await pg.query<{ value: boolean }>(
+            `SELECT ${sql} AS value FROM (SELECT 1.234::numeric a,1.23::numeric b) candidate`,
+          )
+        ).rows[0]!.value,
+      ).toBe(expected)
+      const expression = bind(sql)
+      expect(JSON.stringify(expression)).not.toContain('"kind":"uncertain"')
       expect(
         prepareCheckRustGroup([
           {
-            expression: bind(sql),
+            expression,
             identity: { schema: 'public', kind: 'table', owner: table.name, constraint: 'probe' },
           },
-        ]).evaluatorSource ?? '',
-      ).not.toContain('sql__pg_catalog__numeric_eq__')
+        ]).checks[0]!.kind,
+      ).toBe('supported')
+    }
   })
 })

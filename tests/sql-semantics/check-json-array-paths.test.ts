@@ -178,15 +178,10 @@ it('extracts raw/stored JSON and JSONB text-array paths through operators, expli
             expected = errorOutcome(error)
           }
           references.push({ name, document, binary, path, first, second, output, expected })
-          const renderingContext =
+          const unimplementedPathRendering =
             document?.includes('雪') &&
             path === '{}' &&
-            [
-              'jsonb_operator',
-              'jsonb_text_operator',
-              'jsonb_variadic',
-              'jsonb_variadic_text',
-            ].includes(name)
+            ['jsonb_text_operator', 'jsonb_variadic_text'].includes(name)
           for (const origin of ['source', 'stored'])
             fixtures.push({
               name: name + '_' + origin,
@@ -199,7 +194,7 @@ it('extracts raw/stored JSON and JSONB text-array paths through operators, expli
                 expected: known(output),
                 bypass: known(false),
               },
-              expected: renderingContext ? { kind: 'Unknown' } : expected,
+              expected: unimplementedPathRendering ? { kind: 'Unknown' } : expected,
             })
         }
       }
@@ -681,8 +676,27 @@ it('matches JSONB any/all text-array existence, flattened bounds, NULL cells and
     add(
       'all_plain',
       { ...base, document: known(null), path: { kind: 'Unknown' } },
-      { kind: 'Null' },
+      { kind: 'Unknown' },
     )
+    for (const path of ['{}', 'bad']) {
+      await pg.exec('TRUNCATE existence_oracle')
+      await pg.query('INSERT INTO existence_oracle(document,path) VALUES(NULL,$1)', [path])
+      let expected: Outcome
+      try {
+        expected = outcome(
+          (
+            await pg.query<{ value: boolean | null }>(
+              `SELECT ${forms.all_plain} value FROM existence_oracle`,
+            )
+          ).rows[0]!.value,
+        )
+      } catch (error) {
+        expected = errorOutcome(error)
+      }
+      expect(expected).toEqual(path === '{}' ? { kind: 'Null' } : errorOutcome({ code: '22P02' }))
+      add('all_plain', { ...base, document: known(null), path: known(path) }, expected)
+      references.push({ name: 'all_plain', document: null, path, expected })
+    }
     add('any_plain', { ...base, document: { kind: 'Unknown' } }, { kind: 'Unknown' })
     add(
       'guarded',

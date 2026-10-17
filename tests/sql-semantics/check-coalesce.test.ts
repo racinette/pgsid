@@ -177,10 +177,19 @@ describe('COALESCE CHECK control flow', () => {
   })
 
   it('defers unavailable conversions and rejects incompatible types without selecting an implementation', async () => {
-    for (const sql of ['COALESCE(small, amount)', "COALESCE(small, '7')", 'COALESCE(code, note)']) {
+    for (const sql of ['COALESCE(small, amount)', 'COALESCE(code, note)']) {
       await pg.query(`SELECT ${sql} FROM coalesce_checks`)
       expect(lower(`(${sql}) IS NULL`)).toEqual({ kind: 'uncertain' })
     }
+    await pg.query("SELECT COALESCE(small, '7') FROM coalesce_checks")
+    expect(operand("COALESCE(small, '7')")).toMatchObject({
+      kind: 'coalesce',
+      type: 'pg_catalog.int2',
+      operands: [
+        { kind: 'input' },
+        { kind: 'text-to-integer', type: 'pg_catalog.int2', literal: true },
+      ],
+    })
     const floating = prepareCheckRustGroup([
       {
         expression: lower('COALESCE(wide, 1::float8) IS NULL'),

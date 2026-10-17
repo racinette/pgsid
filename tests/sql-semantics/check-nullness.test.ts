@@ -14,6 +14,7 @@ import { parseSql } from '../../src/ast.js'
 import { emitCheckRustEvaluator } from '../../src/codegen/shared/check-rust-evaluator.js'
 import { assembleCheckRust } from '../../src/codegen/shared/check-rust-source.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
+import { renderGoSchemaChecks } from '../../src/codegen/go/sql/catalog-checks.js'
 import {
   renderTypescriptSchemaCheckArtifacts,
   renderTypescriptSchemaChecks,
@@ -23,6 +24,20 @@ import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
 
 const run = promisify(execFile)
+const portableItems = (value: unknown) =>
+  Array.isArray(value)
+    ? {
+        kind: 'Value',
+        value: {
+          elementType: 'pg_catalog.int4',
+          elementKind: 2,
+          dimensions: value.length ? [{ lower: 1, length: value.length }] : [],
+          elements: value.map((value: number | null) =>
+            value === null ? { kind: 'Null' } : { kind: 'Int4', value },
+          ),
+        },
+      }
+    : value
 const fields = [
   { name: 'amount', type: 'numeric', literal: '12.50' },
   { name: 'day', type: 'date', literal: "'2026-01-02'" },
@@ -188,6 +203,42 @@ describe('CHECK input nullness', () => {
     fallback = (await import(pathToFileURL(join(directory, 'js/fallback.js')).href))
       .evaluatePublicNullInputsChecks
 
+    const arrayFallback = join(directory, 'array-fallback')
+    await mkdir(arrayFallback)
+    const arrayTable = {
+      ...table,
+      columns: table.columns.filter((column) => column.name === 'items'),
+      constraints: table.constraints.filter((constraint) => constraint.name.startsWith('items_')),
+    }
+    await writeFile(
+      join(arrayFallback, 'checks.go'),
+      renderGoSchemaChecks(
+        [arrayTable],
+        'arrayfallback',
+        [],
+        [],
+        catalog,
+        parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go:\n      nulls: pointers\n'),
+      ),
+    )
+    await writeFile(join(arrayFallback, 'go.mod'), 'module arrayfallback\n\ngo 1.25\n')
+    await writeFile(
+      join(arrayFallback, 'checks_test.go'),
+      renderGoCheckTests(
+        'arrayfallback',
+        cases.map((item) => ({
+          ...item,
+          table: arrayTable,
+          row: Object.hasOwn(item.row, 'items') ? { items: item.row['items'] } : {},
+          results: item.results.filter((result) => result.constraint.startsWith('items_')),
+        })),
+      ),
+    )
+    await run('go', ['test', './...'], {
+      cwd: arrayFallback,
+      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+    })
+
     for (const nulls of ['pointers', 'structs']) {
       const root = join(directory, nulls)
       await mkdir(root)
@@ -222,6 +273,9 @@ describe('CHECK input nullness', () => {
             ...item,
             row: {
               ...item.row,
+              ...(Object.hasOwn(item.row, 'items')
+                ? { items: portableItems(item.row['items']) }
+                : {}),
               ...(item.row['day'] instanceof Date
                 ? { day: item.row['day'].toISOString().slice(0, 10) }
                 : {}),
@@ -248,6 +302,7 @@ describe('CHECK input nullness', () => {
               ),
             },
             numericColumns: ['amount', 'price', 'nested_price'],
+            arrayColumns: ['items'],
             intervalColumns: ['duration', 'domain_duration'],
             timeColumns: ['clock'],
             timetzColumns: ['zoned_clock', 'domain_clock'],
@@ -328,6 +383,11 @@ fn nullness() {
     it(name, () => {
       const item = cases.find((item) => item.name === name)!
       const portable = { ...item.row }
+      if (Object.hasOwn(portable, 'items'))
+        portable['items'] =
+          portable['items'] === null && item.nullViaValue
+            ? { kind: 'Null' }
+            : portableItems(portable['items'])
       for (const name of ['day', 'instant', 'local_time']) {
         const value = portable[name]
         if (value instanceof Date) {

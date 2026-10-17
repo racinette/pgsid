@@ -56,6 +56,7 @@ const compositions: Record<string, string> = {
   runtime_ordered: 'ROW(first,amount / divisor) < ROW(other_first,0)',
   runtime_equal: 'ROW(first,amount / divisor) = ROW(other_first,0)',
   runtime_distinct: 'ROW(first,amount / divisor) IS DISTINCT FROM ROW(other_first,0)',
+  runtime_same: 'ROW(first,amount / divisor) IS NOT DISTINCT FROM ROW(other_first,0)',
   constant_ordered: 'ROW(1,1 / 0) < ROW(2,0)',
   constant_equal: 'ROW(1,1 / 0) = ROW(2,0)',
   constant_ne: 'ROW(1,1 / 0) <> ROW(2,0)',
@@ -259,7 +260,7 @@ describe('fixed ROW constructor comparisons in CHECKs', () => {
             amount: error('22003'),
             divisor: input(0),
           },
-          ordered.has(label) ? { kind: 'Unknown' } : error('22003'),
+          label === 'eq' || label === 'ne' ? error('22003') : { kind: 'Unknown' },
         )
         add(
           `${family.name}_${label}`,
@@ -306,6 +307,7 @@ describe('fixed ROW constructor comparisons in CHECKs', () => {
       [1, 1, 1, 0, false],
       [2, 1, 1, 0, null],
       [null, 1, 1, 0, true],
+      [null, null, 1, 0, false],
       [1, null, null, 0, false],
       [1, 1, -2147483648, -1, true],
       [1, 1, 0, 1, false],

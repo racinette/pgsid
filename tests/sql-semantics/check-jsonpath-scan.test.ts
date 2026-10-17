@@ -15,7 +15,6 @@ import {
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
 import { assembleCheckRust } from '../../src/codegen/shared/check-rust-source.js'
-import { valueRepresentation } from '../../scripts/check-measurements/probes.js'
 
 type Token = [kind: string, raw: string, decoded?: string]
 type Fixture = { input: string; tokens?: Token[]; error?: string }
@@ -301,7 +300,6 @@ describe('CHECK JSONPath lexical foundation', () => {
         .flatMap((module) => module.files)
         .find((file) => file.path.endsWith('/jsonpath_scan.rs'))?.source,
     ).toBe(scanner)
-    expect(valueRepresentation('pg_catalog.jsonpath').represented).toBe(false)
     const source = scanner + projection
     const generated = transpileCheckRust(source)
     const context = createContext({ exports: {} })

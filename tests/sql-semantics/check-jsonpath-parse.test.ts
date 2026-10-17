@@ -15,7 +15,6 @@ import {
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import { writeCheckRustSources } from '../../tools/check-rust/sources.js'
 import { assembleCheckRust } from '../../src/codegen/shared/check-rust-source.js'
-import { valueRepresentation } from '../../scripts/check-measurements/probes.js'
 
 import {
   expressions,
@@ -115,6 +114,11 @@ pub fn parse_probe_shape(input: &str) -> String {
 
 describe('CHECK JSONPath grammar and query graph foundation', () => {
   it('matches PostgreSQL grammar and scope while retaining deferred literal validation', async () => {
+    const values = await readFile('crates/check-evaluator/src/jsonpath.rs', 'utf8'),
+      constants = [...values.matchAll(/^pub const JSONPATH_NODE_.*;$/gmu)]
+        .map(([declaration]) => declaration)
+        .join('\n')
+    expect(constants).not.toBe('')
     const scanner = await readFile(
       'crates/check-evaluator/src/operations/pg_catalog/jsonpath_scan.rs',
       'utf8',
@@ -131,9 +135,10 @@ describe('CHECK JSONPath grammar and query graph foundation', () => {
       'tools/check-jsonpath-grammar/generate.mjs',
       '--check',
     ])
-    const source = scanner + tables + parser + projection
+    const source = constants + '\n' + scanner + tables + parser + projection
     const packaged = assembleCheckRust({ source: '', callables: [] })
     for (const [name, text] of [
+      ['jsonpath.rs', values],
       ['jsonpath_scan.rs', scanner],
       ['jsonpath_tables.generated.rs', tables],
       ['jsonpath_parse.rs', parser],
@@ -144,7 +149,6 @@ describe('CHECK JSONPath grammar and query graph foundation', () => {
           .find((file) => file.path.endsWith('/' + name))?.source,
       ).toBe(text)
     }
-    expect(valueRepresentation('pg_catalog.jsonpath').represented).toBe(false)
     const generated = transpileCheckRust(source)
     const context = createContext({ exports: {} })
     runInContext(
@@ -284,6 +288,7 @@ ${rustExtra}
             name: 'checkruntime',
             dependencies: [],
             files: [
+              { path: 'jsonpath_node_constants.rs', source: constants },
               { path: 'jsonpath_scan.rs', source: scanner },
               { path: 'jsonpath_tables.generated.rs', source: tables },
               { path: 'jsonpath_parse.rs', source: parser },

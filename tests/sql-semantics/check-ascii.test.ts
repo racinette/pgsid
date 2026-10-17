@@ -58,6 +58,7 @@ describe('Rust CHECK Unicode character codes', () => {
     if (directory) await rm(directory, { recursive: true, force: true })
   })
   it('matches UTF8 code points, empty strings, NULLs, errors and lazy branches in Rust and both targets', async () => {
+    expect((await pg.query('SHOW server_encoding')).rows[0]).toEqual({ server_encoding: 'UTF8' })
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find((table) => table.name === 'ascii_checks')!
     const names = Object.keys(expressions)
@@ -85,6 +86,7 @@ describe('Rust CHECK Unicode character codes', () => {
           }
         }),
       ),
+      { serverEncoding: 'UTF8' },
     )
     for (const [index, check] of group.checks.entries())
       expect(
@@ -199,5 +201,58 @@ describe('Rust CHECK Unicode character codes', () => {
           name + ': ' + kind,
         ).toBe(true)
     await runCheckParity(directory, 'asciichecks', group, fixtureNames, fixtures)
+    const unconfiguredForms = {
+      unconfigured_scalar: expressions['label']!,
+      unconfigured_branch: '(CASE WHEN skip THEN ascii(label)>0 ELSE true END) AND expected>0',
+    }
+    const unconfigured = prepareCheckRustGroup(
+      Object.entries(unconfiguredForms).map(([name, sql]) => ({
+        expression: lowerTableCheck(
+          table,
+          { name, type: 'check', definition: `CHECK (${sql})` },
+          [],
+          catalog.domains,
+        )!.expression,
+        identity: { schema: 'public', kind: 'table' as const, owner: table.name, constraint: name },
+      })),
+    )
+    await runCheckParity(
+      await mkdtemp(join(directory, 'unconfigured-')),
+      'asciiencoding',
+      unconfigured,
+      Object.keys(unconfiguredForms),
+      [
+        {
+          name: 'unconfigured_scalar',
+          row: { ...known, label: unknown, expected: error },
+          expected: { kind: 'Unknown' },
+        },
+        {
+          name: 'unconfigured_scalar',
+          row: { ...known, label: input('A'), expected: error },
+          expected: error as Outcome,
+        },
+        {
+          name: 'unconfigured_scalar',
+          row: { ...known, label: input(null), expected: error },
+          expected: error as Outcome,
+        },
+        {
+          name: 'unconfigured_scalar',
+          row: { ...known, label: error, expected: other },
+          expected: error as Outcome,
+        },
+        {
+          name: 'unconfigured_branch',
+          row: { ...known, label: unknown, expected: input(0), skip: unknown },
+          expected: { kind: 'Unknown' },
+        },
+        {
+          name: 'unconfigured_branch',
+          row: { ...known, label: input('A'), expected: input(0), skip: unknown },
+          expected: { kind: 'False' },
+        },
+      ],
+    )
   }, 180000)
 })

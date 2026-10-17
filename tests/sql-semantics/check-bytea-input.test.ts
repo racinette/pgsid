@@ -207,7 +207,24 @@ describe('Rust CHECK bytea input casts', () => {
           : 'label'
       record(name, { ...known, [column]: unknown }, { kind: 'Unknown' })
       record(name, { ...known, [column]: error }, error as Outcome)
-      record(name, { ...known, [column]: unknown, recorded_payload: error }, error as Outcome)
+      record(name, { ...known, [column]: unknown, recorded_payload: error }, { kind: 'Unknown' })
+      record(name, { ...known, recorded_payload: error }, error as Outcome)
+      record(name, { ...known, [column]: input(null), recorded_payload: error }, error as Outcome)
+      record(
+        name,
+        { ...known, [column]: input('\\xgg'), recorded_payload: error },
+        { kind: 'Error', value: { state: parseInt('22023', 36) } },
+      )
+      for (const label of ['a', '\\xgg', null]) {
+        const candidate = `WITH candidate AS MATERIALIZED (SELECT $1::stored_label label,
+          $1::varchar varying_label,$1::character(4) fixed_label,1::integer amount,0::integer divisor)`
+        await expect(
+          pg.query(
+            `${candidate} SELECT (${transforms[name]}) = int4send(amount/divisor) FROM candidate`,
+            [label],
+          ),
+        ).rejects.toMatchObject({ code: label === '\\xgg' ? '22023' : '22012' })
+      }
     }
     record(
       'selected',

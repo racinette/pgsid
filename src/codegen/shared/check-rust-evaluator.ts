@@ -4,7 +4,7 @@ import {
   rustArrayCastAlwaysValid,
   rustScalarOwnCanFail,
   rustExpressionCanFail,
-  rustExpressionInputs,
+  rustExpressionValidityProbes,
 } from './check-rust-validity.js'
 import { arrayElementFamily } from './check-array-types.js'
 import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-names.js'
@@ -676,34 +676,33 @@ export function emitCheckRustEvaluator(
   ): void => {
     if (arrayValidityScope === null || preparationDepth > 0 || valueLiteralDepth > 0) return
     const lines: string[] = []
-    let potential: string
-    if (nodes.some(rustExpressionCanFail)) {
+    const initial = fresh('array_choice_start'),
       potential = fresh('array_choice_potential')
-      lines.push(`let ${potential} = check_unknown();`)
-    } else {
-      const initial = fresh('array_choice_start')
-      potential = fresh('array_choice_potential')
-      lines.push(
-        `let ${initial} = make_bool_value(true);`,
-        `let mut ${potential}: CheckOutcome = check_from_bool(${initial});`,
-      )
-      for (const input of rustExpressionInputs(nodes)) {
-        const outer: string | null = arrayValidityScope
-        arrayValidityScope = null
-        let value: { name: string; type: string }
-        try {
-          value = emitScalar(input, lines, used)
-        } finally {
-          arrayValidityScope = outer
-        }
-        const nullness = fresh('array_choice_nullness'),
-          state = fresh('array_choice_input')
-        lines.push(
-          `let ${nullness} = ${rustValuePrefix(rustType(value.type))}_is_null(${ownedOperand(value)});`,
-          `let ${state} = array_value_validity(${nullness}, true);`,
-          `${potential} = array_validity_finish(${potential}, ${state});`,
-        )
+    lines.push(
+      `let ${initial} = make_bool_value(true);`,
+      `let mut ${potential}: CheckOutcome = check_from_bool(${initial});`,
+    )
+    for (const probe of rustExpressionValidityProbes(nodes, executionContext)) {
+      if (probe.kind === 'uncertain') {
+        lines.push(`${potential} = check_unknown();`)
+        continue
       }
+      if (constantScalarExpression(probe)) continue
+      const outer: string | null = arrayValidityScope
+      arrayValidityScope = null
+      let value: { name: string; type: string }
+      try {
+        value = emitScalar(probe, lines, used)
+      } finally {
+        arrayValidityScope = outer
+      }
+      const nullness = fresh('array_choice_nullness'),
+        state = fresh('array_choice_input')
+      lines.push(
+        `let ${nullness} = ${rustValuePrefix(rustType(value.type))}_is_null(${ownedOperand(value)});`,
+        `let ${state} = array_value_validity(${nullness}, ${!rustScalarOwnCanFail(probe, executionContext)});`,
+        `${potential} = array_validity_finish(${potential}, ${state});`,
+      )
     }
     const possible = fresh('array_choice_possible')
     lines.push(
@@ -835,6 +834,7 @@ export function emitCheckRustEvaluator(
       (node.kind === 'interval-literal' ||
         node.kind === 'array-text-literal' ||
         (node.kind === 'text-to-numeric' && node.literal === true) ||
+        (node.kind === 'text-to-integer' && node.literal === true) ||
         (node.kind === 'certain' &&
           (node.expression.kind === 'point' ||
             node.expression.kind === 'json' ||
@@ -943,7 +943,7 @@ export function emitCheckRustEvaluator(
       value,
       node.kind === 'call'
         ? true
-        : node.kind !== 'array-constructor' && !rustScalarOwnCanFail(node),
+        : node.kind !== 'array-constructor' && !rustScalarOwnCanFail(node, executionContext),
       bindings,
     )
     if (preparationDepth > 0) {
@@ -952,7 +952,7 @@ export function emitCheckRustEvaluator(
       const state = fresh('prepared_value_state')
       bindings.push(
         `let ${nullness} = ${prefix}_is_null(${ownedOperand(value)});`,
-        `let ${state} = array_value_validity(${nullness}, ${node.kind !== 'certain' && valueLiteralDepth === 0 && !rustScalarOwnCanFail(node)});`,
+        `let ${state} = array_value_validity(${nullness}, ${node.kind !== 'certain' && valueLiteralDepth === 0 && !rustScalarOwnCanFail(node, executionContext)});`,
         `${preparationState} = constant_finish(${preparationState}, ${state});`,
       )
     }
@@ -1236,6 +1236,40 @@ export function emitCheckRustEvaluator(
       destination = bindings,
       folded?: { name: string; type: string },
     ): { name: string; type: string } => {
+      if (node.kind === 'call' && node.strictNull && call === node.call && !folded) {
+        const metadata = call.signature === null ? null : builtinMetadata(call.signature)
+        const implementation =
+          metadata?.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+        if (implementation?.kind === 'function' && implementation.strict) {
+          const guard = fresh('strict_call_null')
+          const initial = fresh('strict_call_start')
+          destination.push(
+            `let ${initial} = make_bool_value(false);`,
+            `let mut ${guard}: CheckOutcome = check_from_bool(${initial});`,
+          )
+          for (const operand of operands) {
+            const nullness = fresh('strict_argument_null')
+            const outcome = fresh('strict_argument_state')
+            destination.push(
+              `let ${nullness} = ${rustValuePrefix(rustType(operand.type))}_is_null(${ownedOperand(operand)});`,
+              `let ${outcome} = check_from_bool(${nullness});`,
+              `${guard} = or_finish(${guard}, ${outcome});`,
+            )
+          }
+          const lines: string[] = []
+          const value = emitCallInner(call, operands, lines)
+          appendArrayValidity(value, !rustScalarOwnCanFail(node, executionContext), lines)
+          const name = fresh('strict_call')
+          destination.push(
+            `let mut ${name}: ${rustType(value.type)} = ${rustValuePrefix(rustType(value.type))}_null();`,
+            `if case_guard_takes(${guard}) == false {`,
+            ...indent(lines),
+            `    ${name} = ${ownedOperand(value)};`,
+            '};',
+          )
+          return { name, type: value.type }
+        }
+      }
       const value = emitCallInner(call, operands, destination, folded)
       if (!folded)
         appendArrayValidity(
@@ -1243,8 +1277,11 @@ export function emitCheckRustEvaluator(
           !rustCallCanFail(
             call,
             operands.map((operand) => operand.type),
+            executionContext,
           ) ||
-            (node.kind === 'call' && call === node.call && !rustScalarOwnCanFail(node)),
+            (node.kind === 'call' &&
+              call === node.call &&
+              !rustScalarOwnCanFail(node, executionContext)),
           destination,
         )
       return value
@@ -1452,7 +1489,7 @@ export function emitCheckRustEvaluator(
           String(
             node.kind === 'call' &&
               node.call === call &&
-              !rustExpressionCanFail(node.operands[index]),
+              !rustExpressionCanFail(node.operands[index], executionContext),
           ),
         )
         const args = [
@@ -2601,7 +2638,7 @@ export function emitCheckRustEvaluator(
         arrayValidityScope = outerValidity
       }
       const validity = fresh('array_cast_validity')
-      const alwaysValid = rustArrayCastAlwaysValid(node)
+      const alwaysValid = rustArrayCastAlwaysValid(node, executionContext)
       bindings.push(
         `let mut ${builder}: ArrayOutputPayload = ${initial};`,
         `let mut ${index}: Int4Value = ${first};`,
@@ -2948,6 +2985,47 @@ export function emitCheckRustEvaluator(
                     ? 'line_from_text'
                     : 'point_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-integer') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      const input = io ? builtinMetadata(io) : null
+      const output = builtinTypeIO(operand.type)?.output
+      const source = output ? builtinMetadata(output) : null
+      if (
+        ![
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type) ||
+        input?.kind !== 'function' ||
+        input.args.join(',') !== 'pg_catalog.cstring' ||
+        input.result !== node.type ||
+        !input.strict ||
+        input.volatility !== 'i' ||
+        source?.kind !== 'function' ||
+        source.args.length !== 1 ||
+        source.args[0] !== operand.type ||
+        source.result !== 'pg_catalog.cstring' ||
+        !source.strict ||
+        source.volatility !== 'i'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Integer input requires its catalog I/O identities',
+        )
+      const bits = node.type === 'pg_catalog.int2' ? 16 : node.type === 'pg_catalog.int4' ? 32 : 64
+      const parsed = {
+        name: bind(`scalar_integer_from_text(${ownedOperand(operand)}, ${bits})`),
+        type: 'pg_catalog.int8',
+      }
+      if (node.type === 'pg_catalog.int8') return parsed
+      const cast = builtinCast('pg_catalog.int8', node.type)
+      if (cast?.method !== 'f' || !cast.implementation)
+        throw new UnsupportedCheckRustExpression(
+          'Integer input requires a catalog width conversion',
+        )
+      return emitCall({ kind: 'cast', signature: cast.implementation, type: node.type }, [parsed])
     }
     if (node.kind === 'text-to-numeric') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -3686,7 +3764,11 @@ export function emitCheckRustEvaluator(
         `let mut ${pair}: BoolValue = array_quantifier_cell(${cellNull}, ${metadata.strict});`,
       ]
       const comparisonLines: string[] = []
-      const safe = !rustCallCanFail(node.comparison, [subject.type, node.elementType])
+      const safe = !rustCallCanFail(
+        node.comparison,
+        [subject.type, node.elementType],
+        executionContext,
+      )
       arrayValidityScope = validity
       try {
         if (!checkRustCallableNames().has(implementation.rustName))
@@ -4079,7 +4161,14 @@ export function emitCheckRustEvaluator(
       }
       if (node.operands.length !== 2)
         throw new UnsupportedCheckRustExpression('Expected binary Boolean operation')
-      const left = emit(node.operands[0]!)
+      const operand = (expression: EvalBoolExpression): Emitted =>
+        expression.kind === 'eval-scalar' && expression.expression.kind === 'call'
+          ? emit({
+              ...expression,
+              expression: { ...expression.expression, strictNull: true },
+            })
+          : emit(expression)
+      const left = operand(node.operands[0]!)
       const name = fresh(node.operation === 'and' ? 'and_result' : 'or_result')
       const outerValidity: string | null = arrayValidityScope
       const rightValidity =
@@ -4087,7 +4176,7 @@ export function emitCheckRustEvaluator(
       if (rightValidity) arrayValidityScope = rightValidity
       let rightPreparation: ReturnType<typeof capturePreparation<Emitted>>
       try {
-        rightPreparation = capturePreparation(() => emit(node.operands[1]!))
+        rightPreparation = capturePreparation(() => operand(node.operands[1]!))
       } finally {
         arrayValidityScope = outerValidity
       }
@@ -4264,7 +4353,25 @@ export function emitCheckRustEvaluator(
     throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK expression: ${node.kind}`)
   }
 
-  const entry = emit(expression)
+  const validityStart = fresh('expression_validity_start')
+  const validity = fresh('expression_validity')
+  arrayValidityScope = validity
+  const emitted = emit(expression)
+  arrayValidityScope = null
+  const validated = fresh('validated_expression')
+  const entry = {
+    ...emitted,
+    name: validated,
+    lines: [
+      `let ${validityStart} = make_bool_value(true);`,
+      `let mut ${validity}: CheckOutcome = check_from_bool(${validityStart});`,
+      ...emitted.lines,
+      `let mut ${validated}: CheckOutcome = ${emitted.name};`,
+      `if case_guard_stops(${validity}) {`,
+      `    ${validated} = ${validity};`,
+      '};',
+    ],
+  }
   let lines = entry.lines
   let resultName = entry.name
   if (constantLines.length || literalLines.length) {

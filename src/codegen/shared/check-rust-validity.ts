@@ -116,11 +116,62 @@ const orderedElement = (type: string): boolean => {
       ?.btreeClass != null
   )
 }
-export function rustCallCanFail(call: SqlCallableExpression, types: readonly string[]): boolean {
+type ValidityContext = { serverEncoding?: 'UTF8' }
+export function rustCallCanFail(
+  call: SqlCallableExpression,
+  types: readonly string[],
+  context: ValidityContext = {},
+): boolean {
   if (call.kind === 'cast' && call.signature === null) return false
   if (!call.signature) return true
   if (nativeHashContext(builtinMetadata(call.signature))) return false
   const hash = builtinMetadata(call.signature)
+  if (
+    hash.kind === 'function' &&
+    hash.schema === 'pg_catalog' &&
+    hash.strict &&
+    hash.volatility === 'i' &&
+    !hash.returnsSet &&
+    hash.args.length === 1 &&
+    types.length === 1
+  ) {
+    const inputType = hash.args[0]
+    const bitSend =
+      hash.result === 'pg_catalog.bytea' &&
+      ((hash.name === 'bit_send' && inputType === 'pg_catalog."bit"') ||
+        (hash.name === 'varbit_send' && inputType === 'pg_catalog.varbit'))
+    const networkSend =
+      hash.result === 'pg_catalog.bytea' &&
+      ((hash.name === 'inet_send' && inputType === 'pg_catalog.inet') ||
+        (hash.name === 'cidr_send' && inputType === 'pg_catalog.cidr'))
+    const bitCount =
+      hash.name === 'bit_count' &&
+      hash.result === 'pg_catalog.int8' &&
+      ['pg_catalog."bit"', 'pg_catalog.bytea'].includes(inputType!)
+    const numericSend =
+      hash.name === 'numeric_send' &&
+      inputType === 'pg_catalog."numeric"' &&
+      hash.result === 'pg_catalog.bytea'
+    const ascii =
+      hash.name === 'ascii' &&
+      inputType === 'pg_catalog.text' &&
+      hash.result === 'pg_catalog.int4' &&
+      context.serverEncoding === 'UTF8'
+    const uuidTimestamp =
+      hash.name === 'uuid_extract_timestamp' &&
+      inputType === 'pg_catalog.uuid' &&
+      hash.result === 'pg_catalog.timestamptz'
+    const md5 =
+      hash.name === 'md5' &&
+      hash.result === 'pg_catalog.text' &&
+      (inputType === 'pg_catalog.bytea' || inputType === 'pg_catalog.text')
+    const sha2 =
+      ['sha224', 'sha256', 'sha384', 'sha512'].includes(hash.name) &&
+      inputType === 'pg_catalog.bytea' &&
+      hash.result === 'pg_catalog.bytea'
+    if (bitSend || networkSend || bitCount || numericSend || ascii || uuidTimestamp || md5 || sha2)
+      return false
+  }
   if (isArrayHash(hash) && types[0]?.startsWith('array:')) {
     const element = types[0].slice(6),
       support = builtinTypeComparison(element.startsWith('enum:') ? 'pg_catalog.anyenum' : element)
@@ -168,8 +219,9 @@ export function rustCallCanFail(call: SqlCallableExpression, types: readonly str
 
 export function rustArrayCastAlwaysValid(
   node: Extract<EvalExpression, { kind: 'array-coerce' }>,
+  context: ValidityContext = {},
 ): boolean {
-  if (!rustCallCanFail(node.conversion, [node.sourceElementType])) return true
+  if (!rustCallCanFail(node.conversion, [node.sourceElementType], context)) return true
   const from = node.sourceElementType,
     to = node.elementType
   if (
@@ -185,7 +237,61 @@ export function rustArrayCastAlwaysValid(
   )
 }
 
-export function rustScalarOwnCanFail(node: EvalExpression): boolean {
+const zeroOrNonfiniteFloat = (node: EvalExpression): boolean => {
+  if (
+    node.kind === 'certain' &&
+    node.expression.kind === 'float' &&
+    node.expression.type === 'pg_catalog.float8'
+  ) {
+    const bits = node.expression.bits
+    if (bits === null) return false
+    const magnitude = BigInt('0x' + bits) & 0x7fffffffffffffffn
+    return magnitude === 0n || (magnitude & 0x7ff0000000000000n) === 0x7ff0000000000000n
+  }
+  return (
+    node.kind === 'text-to-float' &&
+    node.type === 'pg_catalog.float8' &&
+    node.operand.kind === 'certain' &&
+    node.operand.expression.kind === 'text' &&
+    node.operand.expression.value !== null &&
+    /^[\t\n\v\f\r ]*[+-]?(?:nan|inf(?:inity)?|(?:0+(?:\.0*)?|\.0+)(?:e[+-]?\d+)?)[\t\n\v\f\r ]*$/i.test(
+      node.operand.expression.value,
+    )
+  )
+}
+const safePathTranslation = (node: Extract<EvalExpression, { kind: 'call' }>): boolean => {
+  if (!node.call.signature || node.operands.length !== 2) return false
+  const metadata = builtinMetadata(node.call.signature)
+  const implementation =
+    metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+  if (
+    implementation.kind !== 'function' ||
+    implementation.schema !== 'pg_catalog' ||
+    !implementation.strict ||
+    implementation.volatility !== 'i' ||
+    implementation.returnsSet ||
+    !['path_add_pt', 'path_sub_pt'].includes(implementation.name) ||
+    implementation.result !== 'pg_catalog.path' ||
+    implementation.args.join(',') !== 'pg_catalog.path,pg_catalog.point'
+  )
+    return false
+  const vector = node.operands[1]!
+  if (vector.kind !== 'call' || !vector.call.signature || vector.operands.length !== 2) return false
+  const point = builtinMetadata(vector.call.signature)
+  return (
+    point.kind === 'function' &&
+    point.schema === 'pg_catalog' &&
+    point.name === 'point' &&
+    point.strict &&
+    point.volatility === 'i' &&
+    !point.returnsSet &&
+    point.result === 'pg_catalog.point' &&
+    point.args.join(',') === 'pg_catalog.float8,pg_catalog.float8' &&
+    vector.operands.every(zeroOrNonfiniteFloat)
+  )
+}
+
+export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityContext = {}): boolean {
   switch (node.kind) {
     case 'input':
     case 'input-null-test':
@@ -205,6 +311,7 @@ export function rustScalarOwnCanFail(node: EvalExpression): boolean {
     case 'array-subscript':
       return false
     case 'call': {
+      if (safePathTranslation(node)) return false
       const thresholds = node.operands[1]
       if (
         node.call.signature &&
@@ -220,7 +327,7 @@ export function rustScalarOwnCanFail(node: EvalExpression): boolean {
         )
       )
         return false
-      return rustCallCanFail(node.call, node.operands.map(typeOf))
+      return rustCallCanFail(node.call, node.operands.map(typeOf), context)
     }
     case 'array-constructor':
       return node.multidimensional
@@ -230,18 +337,20 @@ export function rustScalarOwnCanFail(node: EvalExpression): boolean {
         (node.sourceElementType === 'pg_catalog.jsonb' && node.elementType === 'pg_catalog."json"')
       )
     case 'array-coerce':
-      return !rustArrayCastAlwaysValid(node)
+      return !rustArrayCastAlwaysValid(node, context)
     case 'distinct':
     case 'nullif':
-      return rustCallCanFail(node.comparison, node.operands.map(typeOf))
+      return rustCallCanFail(node.comparison, node.operands.map(typeOf), context)
     case 'minmax':
-      return rustCallCanFail(node.comparison, [node.type, node.type])
+      return rustCallCanFail(node.comparison, [node.type, node.type], context)
     case 'membership':
-      return rustCallCanFail(node.comparison, [typeOf(node.subject), typeOf(node.subject)])
+      return rustCallCanFail(node.comparison, [typeOf(node.subject), typeOf(node.subject)], context)
     case 'array-quantifier':
-      return rustCallCanFail(node.comparison, [typeOf(node.operands[0]), node.elementType])
+      return rustCallCanFail(node.comparison, [typeOf(node.operands[0]), node.elementType], context)
     case 'row-compare':
-      return node.pairs.some((pair) => rustCallCanFail(pair.comparison, pair.operands.map(typeOf)))
+      return node.pairs.some((pair) =>
+        rustCallCanFail(pair.comparison, pair.operands.map(typeOf), context),
+      )
     default:
       return true
   }
@@ -312,20 +421,26 @@ const reachableChildren = (value: Record<string, unknown>): unknown[] => {
   }
   return children.map((key) => value[key])
 }
-export function rustExpressionCanFail(node: unknown): boolean {
+export function rustExpressionCanFail(node: unknown, context: ValidityContext = {}): boolean {
   if (!node || typeof node !== 'object') return false
-  if (Array.isArray(node)) return node.some(rustExpressionCanFail)
+  if (Array.isArray(node)) return node.some((node) => rustExpressionCanFail(node, context))
   const value = node as Record<string, unknown>
   if (value.kind === 'certain') return false
   const boolKind = typeof value.kind === 'string' && value.kind.startsWith('eval-')
-  if (!boolKind && typeof value.kind === 'string' && rustScalarOwnCanFail(value as EvalExpression))
+  if (
+    !boolKind &&
+    typeof value.kind === 'string' &&
+    rustScalarOwnCanFail(value as EvalExpression, context)
+  )
     return true
-  return reachableChildren(value).some(rustExpressionCanFail)
+  return reachableChildren(value).some((node) => rustExpressionCanFail(node, context))
 }
-export function rustExpressionInputs(
+export function rustExpressionValidityProbes(
   nodes: readonly unknown[],
-): Extract<EvalExpression, { kind: 'input' | 'input-null-test' }>[] {
-  const result = new Map<string, Extract<EvalExpression, { kind: 'input' | 'input-null-test' }>>()
+  context: ValidityContext = {},
+): EvalExpression[] {
+  const inputs = new Map<string, EvalExpression>()
+  const computations = new Set<EvalExpression>()
   const visit = (node: unknown): void => {
     if (!node || typeof node !== 'object') return
     if (Array.isArray(node)) {
@@ -335,11 +450,20 @@ export function rustExpressionInputs(
     const value = node as Record<string, unknown>
     if (value.kind === 'input' || value.kind === 'input-null-test') {
       const input = value as Extract<EvalExpression, { kind: 'input' | 'input-null-test' }>
-      result.set(input.name, input)
+      inputs.set(input.name, input)
+      return
+    }
+    if (value.kind === 'certain') return
+    if (
+      typeof value.kind === 'string' &&
+      !value.kind.startsWith('eval-') &&
+      rustScalarOwnCanFail(value as EvalExpression, context)
+    ) {
+      computations.add(value as EvalExpression)
       return
     }
     reachableChildren(value).forEach(visit)
   }
   nodes.forEach(visit)
-  return [...result.values()]
+  return [...computations, ...inputs.values()]
 }
