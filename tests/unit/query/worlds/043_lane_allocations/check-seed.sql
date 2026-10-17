@@ -3619,3 +3619,97 @@ INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('
 INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('bad',false,'{2,8,4,1,2,2,4,1,1,2,0}',false);
 -- name: lane_binary_statistics_skipped
 INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('bad',false,NULL,true);
+
+-- name: lane_float4_updates_accepted
+INSERT INTO lane_float4_updates(payload,reading,expected,bypass) VALUES('{0,0,0}',2,'{1,2,0}',false);
+-- name: lane_float4_updates_wrong_result
+INSERT INTO lane_float4_updates(payload,reading,expected,bypass) VALUES('{0,0,0}',2,'{0,0,0}',false);
+-- name: lane_float4_updates_null_state
+INSERT INTO lane_float4_updates(payload,reading,expected,bypass) VALUES(NULL,2,NULL,false);
+-- name: lane_float4_updates_empty_shape
+INSERT INTO lane_float4_updates(payload,reading,expected,bypass) VALUES('{}',2,NULL,false);
+-- name: lane_float4_updates_skipped
+INSERT INTO lane_float4_updates(payload,reading,expected,bypass) VALUES('bad',2,NULL,true);
+-- name: lane_float4_updates_null_reading
+INSERT INTO lane_float4_updates(payload,reading,expected,bypass) VALUES('{2,4,8}',NULL,NULL,false);
+-- name: lane_float4_updates_nonfinite_first
+INSERT INTO lane_float4_updates(payload,reading,expected,bypass) VALUES('{0,0,0}','Infinity','{1,Infinity,NaN}',false);
+-- name: lane_float8_updates_accepted
+INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('{0,0,0}',2,'{1,2,0}',false);
+-- name: lane_float8_updates_wrong_result
+INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('{0,0,0}',2,'{0,0,0}',false);
+-- name: lane_float8_updates_null_state
+INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES(NULL,2,NULL,false);
+-- name: lane_float8_updates_empty_shape
+INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('{}',2,NULL,false);
+-- name: lane_float8_updates_skipped
+INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('bad',2,NULL,true);
+-- name: lane_float8_updates_null_reading
+INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('{2,4,8}',NULL,NULL,false);
+-- name: lane_float8_updates_nonfinite_first
+INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('{0,0,0}','Infinity','{1,Infinity,NaN}',false);
+-- name: lane_regression_updates_accepted
+INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0,0,0,0}',3,2,'{1,2,0,3,0,0}',false);
+-- name: lane_regression_updates_wrong_result
+INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0,0,0,0}',3,2,'{0,0,0,0,0,0}',false);
+-- name: lane_regression_updates_null_state
+INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES(NULL,3,2,NULL,false);
+-- name: lane_regression_updates_empty_shape
+INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('{}',3,2,NULL,false);
+-- name: lane_regression_updates_skipped
+INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('bad',3,2,NULL,true);
+-- name: lane_regression_updates_null_reading
+INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('{2,4,8,6,18,12}',NULL,NULL,NULL,false);
+-- name: lane_regression_updates_nonfinite_first
+INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0,0,0,0}',3,'Infinity','{1,Infinity,NaN,3,0,NaN}',false);
+-- name: lane_unary_merges_accepted
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0}','{2,4,8}','{2,4,8}',false);
+-- name: lane_unary_merges_wrong_result
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0}','{2,4,8}','{0,0,0}',false);
+-- name: lane_unary_merges_null_state
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES(NULL,'{2,4,8}',NULL,false);
+-- name: lane_unary_merges_empty_shape
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('{}','{2,4,8}',NULL,false);
+-- name: lane_unary_merges_skipped
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('bad','{2,4,8}',NULL,true);
+-- name: lane_unary_merges_both_empty
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0}','{0,0,0}','{0,0,0}',false);
+-- name: lane_unary_merges_right_null
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('{2,4,8}',NULL,NULL,false);
+-- name: lane_unary_merges_invalid_right
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0}','{}',NULL,false);
+-- name: lane_unary_merges_overflow
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('{2,1e308,8}','{2,1e308,8}',NULL,false);
+-- name: lane_regression_merges_accepted
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0,0,0,0}','{2,4,8,6,18,12}','{2,4,8,6,18,12}',false);
+-- name: lane_regression_merges_wrong_result
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0,0,0,0}','{2,4,8,6,18,12}','{0,0,0,0,0,0}',false);
+-- name: lane_regression_merges_null_state
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES(NULL,'{2,4,8,6,18,12}',NULL,false);
+-- name: lane_regression_merges_empty_shape
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('{}','{2,4,8,6,18,12}',NULL,false);
+-- name: lane_regression_merges_skipped
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('bad','{2,4,8,6,18,12}',NULL,true);
+-- name: lane_regression_merges_both_empty
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0,0,0,0}','{0,0,0,0,0,0}','{0,0,0,0,0,0}',false);
+-- name: lane_regression_merges_right_null
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('{2,4,8,6,18,12}',NULL,NULL,false);
+-- name: lane_regression_merges_invalid_right
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0,0,0,0}','{}',NULL,false);
+-- name: lane_regression_merges_overflow
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('{2,1e308,8,6,18,12}','{2,1e308,8,6,18,12}',NULL,false);
+
+-- name: lane_float4_updates_positive_count
+INSERT INTO lane_float4_updates(payload,reading,expected,bypass) VALUES('{2,4,8}',3,'{3,7,8.666666666666666}',false);
+-- name: lane_float8_updates_positive_count
+INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('{2,4,8}',3,'{3,7,8.666666666666666}',false);
+-- name: lane_regression_updates_positive_count
+INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('{2,4,8,6,18,12}',7,3,'{3,7,8.666666666666666,13,28.666666666666664,14.666666666666666}',false);
+-- name: lane_unary_merges_positive_counts
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('{2,4,8}','{2,4,8}','{4,8,16}',false);
+-- name: lane_regression_merges_positive_counts
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('{2,4,8,6,18,12}','{2,4,8,6,18,12}','{4,8,16,12,36,24}',false);
+-- name: lane_float8_updates_overflow
+INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('{2,1e308,0}',1e308,NULL,false);
+-- name: lane_regression_updates_overflow
+INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('{2,1,0,1e308,0,0}',1e308,1,NULL,false);

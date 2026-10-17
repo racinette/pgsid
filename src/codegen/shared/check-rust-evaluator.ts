@@ -898,16 +898,25 @@ export function emitCheckRustEvaluator(
       node.kind === 'call' &&
       implementation?.kind === 'function' &&
       implementation.schema === 'pg_catalog' &&
-      (implementation.name === 'int4_avg_combine' ||
+      (((implementation.name === 'int4_avg_combine' ||
         ['int2_avg_accum', 'int2_avg_accum_inv', 'int4_avg_accum', 'int4_avg_accum_inv'].includes(
           implementation.name,
         )) &&
-      implementation.args.length === 2 &&
-      implementation.args[0] === 'pg_catalog._int8' &&
-      ['pg_catalog._int8', 'pg_catalog.int2', 'pg_catalog.int4'].includes(
-        implementation.args[1]!,
-      ) &&
-      implementation.result === 'pg_catalog._int8'
+        implementation.args.length === 2 &&
+        implementation.args[0] === 'pg_catalog._int8' &&
+        ['pg_catalog._int8', 'pg_catalog.int2', 'pg_catalog.int4'].includes(
+          implementation.args[1]!,
+        ) &&
+        implementation.result === 'pg_catalog._int8') ||
+        ([
+          'float4_accum',
+          'float8_accum',
+          'float8_regr_accum',
+          'float8_combine',
+          'float8_regr_combine',
+        ].includes(implementation.name) &&
+          implementation.args[0] === 'pg_catalog._float8' &&
+          implementation.result === 'pg_catalog._float8'))
     ) {
       const initial = fresh('aggregate_argument_valid'),
         validity = fresh('aggregate_argument_validity')

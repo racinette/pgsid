@@ -644,6 +644,330 @@ func Float8RegrInterceptM3ss(input checkruntime.ArrayValue) checkruntime.Float8V
 	input = checkruntime.CopyArrayValue(input)
 	return floatArrayFinal(input, 15)
 }
+func floatTransitionTest(input checkruntime.Float8Value, operation int) checkruntime.CheckOutcome {
+	operation = langruntime.CheckedI32(operation)
+	value := checkruntime.Float8Semantic(input)
+	if value.Kind == checkruntime.Float8ValueValue {
+		bits := value.Value
+		number := checkruntime.Float8Number(bits)
+		infinity := langruntime.F64Divide(float64(1.0), float64(0.0))
+		if operation == 0 {
+			return checkruntime.CheckFromBool(checkruntime.MakeBoolValue(number > float64(0.0)))
+		}
+		if operation == 1 {
+			return checkruntime.CheckFromBool(checkruntime.MakeBoolValue(number == float64(0.0)))
+		}
+		if operation == 2 {
+			return checkruntime.CheckFromBool(checkruntime.MakeBoolValue(langruntime.F64Abs(number) == infinity))
+		}
+		return checkruntime.CheckFromBool(checkruntime.MakeBoolValue(number != number || langruntime.F64Abs(number) == infinity))
+	}
+	return checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+}
+func floatTransitionNan(input checkruntime.Float8Value, condition checkruntime.CheckOutcome) checkruntime.Float8Value {
+	if condition == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	if condition == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeFalse}) {
+		return input
+	}
+	value := checkruntime.Float8Semantic(input)
+	if value.Kind == checkruntime.Float8ValueValue {
+		bits := value.Value
+		number := checkruntime.Float8Number(bits)
+		if number != number {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+		}
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func floatTransitionOutput(n checkruntime.Float8Value, sx checkruntime.Float8Value, sxx checkruntime.Float8Value, sy checkruntime.Float8Value, syy checkruntime.Float8Value, sxy checkruntime.Float8Value, regression bool) checkruntime.ArrayValue {
+	elements := []checkruntime.ArrayElement{}
+	langruntime.CheckedAdd(len(elements), 1)
+	elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromFloat8(n)))
+	langruntime.CheckedAdd(len(elements), 1)
+	elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromFloat8(sx)))
+	langruntime.CheckedAdd(len(elements), 1)
+	elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromFloat8(sxx)))
+	width := 3
+	if regression {
+		width = langruntime.CheckedIndex(6)
+		langruntime.CheckedAdd(len(elements), 1)
+		elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromFloat8(sy)))
+		langruntime.CheckedAdd(len(elements), 1)
+		elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromFloat8(syy)))
+		langruntime.CheckedAdd(len(elements), 1)
+		elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromFloat8(sxy)))
+	}
+	dimensions := []checkruntime.ArrayDimension{}
+	langruntime.CheckedAdd(len(dimensions), 1)
+	dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: 1, Length: width})
+	return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: "pg_catalog.float8", ElementKind: 20, Dimensions: dimensions, Elements: elements, NullBitmap: checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}})
+}
+func floatTransitionOverflow(infinite checkruntime.CheckOutcome, old checkruntime.Float8Value, incoming checkruntime.Float8Value) checkruntime.CheckOutcome {
+	finiteOld := checkruntime.NotFinish(floatTransitionTest(old, 2))
+	finiteNew := checkruntime.NotFinish(floatTransitionTest(incoming, 2))
+	return checkruntime.AndFinish(infinite, checkruntime.AndFinish(finiteOld, finiteNew))
+}
+func floatArrayAccumulate(input checkruntime.ArrayValue, y checkruntime.Float8Value, x checkruntime.Float8Value, regression bool) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if y.Kind == checkruntime.Float8ValueError {
+		error := y.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if x.Kind == checkruntime.Float8ValueError {
+		error := x.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if x == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || y == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if x == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || y == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		width := 3
+		if regression {
+			width = langruntime.CheckedIndex(6)
+		}
+		validity := floatArrayStateValid(&value, width)
+		if validity.Kind == checkruntime.BoolValueError {
+			error := validity.Error
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+		}
+		if validity != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+		}
+		oldN := floatStateField(&value, 0)
+		positive := floatTransitionTest(oldN, 0)
+		if positive == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}) {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+		}
+		oldSx := floatStateField(&value, 1)
+		n := floatStateArithmetic(oldN, checkruntime.MakeFloat8Value(float64(1.0)), 0)
+		sx := floatStateArithmetic(oldSx, x, 0)
+		sxx := floatStateField(&value, 2)
+		oldSy := checkruntime.MakeFloat8Value(float64(0.0))
+		sy := oldSy
+		syy := oldSy
+		sxy := oldSy
+		if regression {
+			oldSy = floatStateField(&value, 3)
+			sy = floatStateArithmetic(oldSy, y, 0)
+			syy = floatStateField(&value, 4)
+			sxy = floatStateField(&value, 5)
+		}
+		if positive == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+			tx := floatStateArithmetic(floatStateArithmetic(x, n, 2), sx, 1)
+			denominator := floatStateArithmetic(n, oldN, 2)
+			square := floatStateArithmetic(tx, tx, 2)
+			correction := floatStateArithmetic(square, denominator, 3)
+			scale := checkruntime.MakeFloat8Value(float64(0.0))
+			if regression {
+				scale = floatStateArithmetic(checkruntime.MakeFloat8Value(float64(1.0)), denominator, 3)
+				correction = floatStateArithmetic(square, scale, 2)
+			}
+			sxx = floatStateArithmetic(sxx, correction, 0)
+			xInfinite := checkruntime.OrFinish(floatTransitionTest(sx, 2), floatTransitionTest(sxx, 2))
+			overflow := floatTransitionOverflow(xInfinite, oldSx, x)
+			if regression {
+				ty := floatStateArithmetic(floatStateArithmetic(y, n, 2), sy, 1)
+				ySquare := floatStateArithmetic(ty, ty, 2)
+				syy = floatStateArithmetic(syy, floatStateArithmetic(ySquare, scale, 2), 0)
+				product := floatStateArithmetic(tx, ty, 2)
+				sxy = floatStateArithmetic(sxy, floatStateArithmetic(product, scale, 2), 0)
+				yInfinite := checkruntime.OrFinish(floatTransitionTest(sy, 2), floatTransitionTest(syy, 2))
+				overflow = checkruntime.OrFinish(overflow, floatTransitionOverflow(yInfinite, oldSy, y))
+				xyOverflow := floatTransitionOverflow(floatTransitionTest(sxy, 2), oldSx, x)
+				overflow = checkruntime.OrFinish(overflow, floatTransitionOverflow(xyOverflow, oldSy, y))
+				syy = floatTransitionNan(syy, floatTransitionTest(syy, 2))
+				sxy = floatTransitionNan(sxy, floatTransitionTest(sxy, 2))
+				sxx = floatTransitionNan(sxx, floatTransitionTest(sxx, 2))
+			} else {
+				sxx = floatTransitionNan(sxx, xInfinite)
+			}
+			if overflow == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+			}
+			if overflow != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeFalse}) {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+			}
+		} else {
+			specialX := floatTransitionTest(x, 3)
+			sxx = floatTransitionNan(sxx, specialX)
+			if regression {
+				specialY := floatTransitionTest(y, 3)
+				syy = floatTransitionNan(syy, specialY)
+				sxy = floatTransitionNan(sxy, checkruntime.OrFinish(specialX, specialY))
+			}
+		}
+		return floatTransitionOutput(n, sx, sxx, sy, syy, sxy, regression)
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
+func floatTransitionCopy(input *checkruntime.ArrayPayload, regression bool) checkruntime.ArrayValue {
+	sy := checkruntime.MakeFloat8Value(float64(0.0))
+	syy := sy
+	sxy := sy
+	if regression {
+		sy = floatStateField(input, 3)
+		syy = floatStateField(input, 4)
+		sxy = floatStateField(input, 5)
+	}
+	return floatTransitionOutput(floatStateField(input, 0), floatStateField(input, 1), floatStateField(input, 2), sy, syy, sxy, regression)
+}
+func floatCombineVariance(first checkruntime.Float8Value, second checkruntime.Float8Value, counts checkruntime.Float8Value, tx checkruntime.Float8Value, ty checkruntime.Float8Value, n checkruntime.Float8Value) checkruntime.Float8Value {
+	product := floatStateArithmetic(floatStateArithmetic(counts, tx, 2), ty, 2)
+	correction := floatStateArithmetic(product, n, 3)
+	sum := floatStateArithmetic(first, second, 0)
+	result := floatStateArithmetic(sum, correction, 0)
+	overflow := floatTransitionOverflow(floatTransitionTest(result, 2), first, second)
+	if overflow == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: checkruntime.MakeSqlError(floatCoreRange)}
+	}
+	if overflow != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeFalse}) {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+	}
+	return result
+}
+func floatArrayCombine(left checkruntime.ArrayValue, right checkruntime.ArrayValue, regression bool) checkruntime.ArrayValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	if left.Kind == checkruntime.ArrayValueError {
+		error := left.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if right.Kind == checkruntime.ArrayValueError {
+		error := right.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if left.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if right.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if left.Kind == checkruntime.ArrayValueValue {
+		first := checkruntime.CopyArrayPayload(left.Value)
+		if right.Kind == checkruntime.ArrayValueValue {
+			second := checkruntime.CopyArrayPayload(right.Value)
+			width := 3
+			if regression {
+				width = langruntime.CheckedIndex(6)
+			}
+			firstValid := floatArrayStateValid(&first, width)
+			secondValid := floatArrayStateValid(&second, width)
+			if firstValid.Kind == checkruntime.BoolValueError {
+				error := firstValid.Error
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+			}
+			if secondValid.Kind == checkruntime.BoolValueError {
+				error := secondValid.Error
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+			}
+			if firstValid != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) || secondValid != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+			}
+			n1 := floatStateField(&first, 0)
+			n2 := floatStateField(&second, 0)
+			firstEmpty := floatTransitionTest(n1, 1)
+			if firstEmpty == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+				return floatTransitionCopy(&second, regression)
+			}
+			if firstEmpty != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeFalse}) {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+			}
+			secondEmpty := floatTransitionTest(n2, 1)
+			if secondEmpty == (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+				return floatTransitionCopy(&first, regression)
+			}
+			if secondEmpty != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeFalse}) {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+			}
+			n := floatStateArithmetic(n1, n2, 0)
+			counts := floatStateArithmetic(n1, n2, 2)
+			results := []checkruntime.Float8Value{}
+			tx := checkruntime.MakeFloat8Value(float64(0.0))
+			ty := tx
+			index := 1
+			for index < width {
+				a := floatStateField(&first, index)
+				b := floatStateField(&second, index)
+				result := checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+				if index == 1 || index == 3 {
+					result = Float8plG3ou(a, b)
+					difference := floatStateArithmetic(floatStateArithmetic(a, n1, 3), floatStateArithmetic(b, n2, 3), 1)
+					if index == 1 {
+						tx = difference
+					} else {
+						ty = difference
+					}
+				} else {
+					x := tx
+					y := tx
+					if index == 4 {
+						x = ty
+						y = ty
+					}
+					if index == 5 {
+						y = ty
+					}
+					result = floatCombineVariance(a, b, counts, x, y, n)
+				}
+				if result.Kind == checkruntime.Float8ValueError {
+					error := result.Error
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+				}
+				if result == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) {
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+				}
+				langruntime.CheckedAdd(len(results), 1)
+				results = append(results, result)
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			sy := checkruntime.MakeFloat8Value(float64(0.0))
+			syy := sy
+			sxy := sy
+			if regression {
+				sy = results[2]
+				syy = results[3]
+				sxy = results[4]
+			}
+			return floatTransitionOutput(n, results[0], results[1], sy, syy, sxy, regression)
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
+func Float4AccumNnxi(input checkruntime.ArrayValue, amount checkruntime.Float4Value) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayAccumulate(input, checkruntime.MakeFloat8Value(float64(0.0)), float4Widen(amount), false)
+}
+func Float8AccumMa58(input checkruntime.ArrayValue, amount checkruntime.Float8Value) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayAccumulate(input, checkruntime.MakeFloat8Value(float64(0.0)), amount, false)
+}
+func Float8RegrAccumIufl(input checkruntime.ArrayValue, y checkruntime.Float8Value, x checkruntime.Float8Value) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayAccumulate(input, y, x, true)
+}
+func Float8Combine5got(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.ArrayValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	return floatArrayCombine(left, right, false)
+}
+func Float8RegrCombineNbvr(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.ArrayValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	return floatArrayCombine(left, right, true)
+}
 func arrayHashWordLow(value int64) int64 {
 	low := langruntime.CheckedI64Remainder(value, int64(4294967296))
 	if low < int64(0) {

@@ -1105,3 +1105,44 @@ CREATE TABLE lane_binary_statistics (
   CONSTRAINT float8_regr_slope_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_slope(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[10] END),
   CONSTRAINT float8_regr_intercept_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_intercept(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[11] END)
 );
+
+CREATE TABLE lane_float4_updates (
+  payload text,
+  reading real,
+  expected float8[],
+  bypass boolean,
+  CONSTRAINT float4_accum_state CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float4_accum(payload::float8[],reading) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_float8_updates (
+  payload text,
+  reading float8,
+  expected float8[],
+  bypass boolean,
+  CONSTRAINT float8_accum_state CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_accum(payload::float8[],reading) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_regression_updates (
+  payload text,
+  reading_y float8,
+  reading_x float8,
+  expected float8[],
+  bypass boolean,
+  CONSTRAINT float8_regr_accum_state CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_accum(payload::float8[],reading_y,reading_x) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_unary_merges (
+  payload text,
+  other_payload text,
+  expected float8[],
+  bypass boolean,
+  CONSTRAINT float8_combine_state CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_combine(payload::float8[],other_payload::float8[]) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_regression_merges (
+  payload text,
+  other_payload text,
+  expected float8[],
+  bypass boolean,
+  CONSTRAINT float8_regr_combine_state CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_combine(payload::float8[],other_payload::float8[]) IS NOT DISTINCT FROM expected END)
+);

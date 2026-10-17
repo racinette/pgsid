@@ -637,6 +637,330 @@ export function float8RegrInterceptM3ss(input: checkruntime.ArrayValue): checkru
     input = checkruntime.copyArrayValue(input);
     return floatArrayFinal(input, 15);
 }
+function floatTransitionTest(input: checkruntime.Float8Value, operation: number): checkruntime.CheckOutcome {
+    operation = langruntime.checkedI32(operation);
+    const value: checkruntime.Float8Value = checkruntime.float8Semantic(input);
+    if (value.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(value.value);
+        const number: number = checkruntime.float8Number(bits);
+        const infinity: number = langruntime.f64Divide(1.0, 0.0);
+        if (operation === 0) {
+            return checkruntime.checkFromBool(checkruntime.makeBoolValue(number > 0.0));
+        }
+        if (operation === 1) {
+            return checkruntime.checkFromBool(checkruntime.makeBoolValue(number === 0.0));
+        }
+        if (operation === 2) {
+            return checkruntime.checkFromBool(checkruntime.makeBoolValue(langruntime.f64Abs(number) === infinity));
+        }
+        return checkruntime.checkFromBool(checkruntime.makeBoolValue(!(number === number) || langruntime.f64Abs(number) === infinity));
+    }
+    return { kind: "Unknown" };
+}
+function floatTransitionNan(input: checkruntime.Float8Value, condition: checkruntime.CheckOutcome): checkruntime.Float8Value {
+    if (checkruntime.equalCheckOutcome(condition, { kind: "True" })) {
+        return { kind: "UnspecifiedNan" };
+    }
+    if (checkruntime.equalCheckOutcome(condition, { kind: "False" })) {
+        return input;
+    }
+    const value: checkruntime.Float8Value = checkruntime.float8Semantic(input);
+    if (value.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(value.value);
+        const number: number = checkruntime.float8Number(bits);
+        if (!(number === number)) {
+            return { kind: "UnspecifiedNan" };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function floatTransitionOutput(n: checkruntime.Float8Value, sx: checkruntime.Float8Value, sxx: checkruntime.Float8Value, sy: checkruntime.Float8Value, syy: checkruntime.Float8Value, sxy: checkruntime.Float8Value, regression: boolean): checkruntime.ArrayValue {
+    regression = langruntime.checkedBool(regression);
+    let elements: checkruntime.ArrayElement[] = [];
+    langruntime.pushStruct(elements, checkruntime.arrayElementFromFloat8(n), checkruntime.copyArrayElement);
+    langruntime.pushStruct(elements, checkruntime.arrayElementFromFloat8(sx), checkruntime.copyArrayElement);
+    langruntime.pushStruct(elements, checkruntime.arrayElementFromFloat8(sxx), checkruntime.copyArrayElement);
+    let width: number = 3;
+    if (regression) {
+        width = langruntime.checkedIndex(6);
+        langruntime.pushStruct(elements, checkruntime.arrayElementFromFloat8(sy), checkruntime.copyArrayElement);
+        langruntime.pushStruct(elements, checkruntime.arrayElementFromFloat8(syy), checkruntime.copyArrayElement);
+        langruntime.pushStruct(elements, checkruntime.arrayElementFromFloat8(sxy), checkruntime.copyArrayElement);
+    }
+    let dimensions: checkruntime.ArrayDimension[] = [];
+    langruntime.pushStruct(dimensions, { lower: 1, length: width }, checkruntime.copyArrayDimension);
+    return checkruntime.makeArrayValue({ elementType: "pg_catalog.float8", elementKind: 20, dimensions: dimensions, elements: elements, nullBitmap: { kind: "Value", value: false } });
+}
+function floatTransitionOverflow(infinite: checkruntime.CheckOutcome, old: checkruntime.Float8Value, incoming: checkruntime.Float8Value): checkruntime.CheckOutcome {
+    const finiteOld: checkruntime.CheckOutcome = checkruntime.notFinish(floatTransitionTest(old, 2));
+    const finiteNew: checkruntime.CheckOutcome = checkruntime.notFinish(floatTransitionTest(incoming, 2));
+    return checkruntime.andFinish(infinite, checkruntime.andFinish(finiteOld, finiteNew));
+}
+function floatArrayAccumulate(input: checkruntime.ArrayValue, y: checkruntime.Float8Value, x: checkruntime.Float8Value, regression: boolean): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    regression = langruntime.checkedBool(regression);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (y.kind === "Error") {
+        const error: checkruntime.SqlError = y.value;
+        return { kind: "Error", value: error };
+    }
+    if (x.kind === "Error") {
+        const error: checkruntime.SqlError = x.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalFloat8Value(x, { kind: "Null" }) || checkruntime.equalFloat8Value(y, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalFloat8Value(x, { kind: "Unknown" }) || checkruntime.equalFloat8Value(y, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        let width: number = 3;
+        if (regression) {
+            width = langruntime.checkedIndex(6);
+        }
+        const validity: checkruntime.BoolValue = floatArrayStateValid(value, width);
+        if (validity.kind === "Error") {
+            const error: checkruntime.SqlError = validity.value;
+            return { kind: "Error", value: error };
+        }
+        if (!(checkruntime.equalBoolValue(validity, { kind: "Value", value: true }))) {
+            return { kind: "Unknown" };
+        }
+        const oldN: checkruntime.Float8Value = floatStateField(value, 0);
+        const positive: checkruntime.CheckOutcome = floatTransitionTest(oldN, 0);
+        if (checkruntime.equalCheckOutcome(positive, { kind: "Unknown" })) {
+            return { kind: "Unknown" };
+        }
+        const oldSx: checkruntime.Float8Value = floatStateField(value, 1);
+        const n: checkruntime.Float8Value = floatStateArithmetic(oldN, checkruntime.makeFloat8Value(1.0), 0);
+        const sx: checkruntime.Float8Value = floatStateArithmetic(oldSx, x, 0);
+        let sxx: checkruntime.Float8Value = floatStateField(value, 2);
+        let oldSy: checkruntime.Float8Value = checkruntime.makeFloat8Value(0.0);
+        let sy: checkruntime.Float8Value = oldSy;
+        let syy: checkruntime.Float8Value = oldSy;
+        let sxy: checkruntime.Float8Value = oldSy;
+        if (regression) {
+            oldSy = floatStateField(value, 3);
+            sy = floatStateArithmetic(oldSy, y, 0);
+            syy = floatStateField(value, 4);
+            sxy = floatStateField(value, 5);
+        }
+        if (checkruntime.equalCheckOutcome(positive, { kind: "True" })) {
+            const tx: checkruntime.Float8Value = floatStateArithmetic(floatStateArithmetic(x, n, 2), sx, 1);
+            const denominator: checkruntime.Float8Value = floatStateArithmetic(n, oldN, 2);
+            const square: checkruntime.Float8Value = floatStateArithmetic(tx, tx, 2);
+            let correction: checkruntime.Float8Value = floatStateArithmetic(square, denominator, 3);
+            let scale: checkruntime.Float8Value = checkruntime.makeFloat8Value(0.0);
+            if (regression) {
+                scale = floatStateArithmetic(checkruntime.makeFloat8Value(1.0), denominator, 3);
+                correction = floatStateArithmetic(square, scale, 2);
+            }
+            sxx = floatStateArithmetic(sxx, correction, 0);
+            const xInfinite: checkruntime.CheckOutcome = checkruntime.orFinish(floatTransitionTest(sx, 2), floatTransitionTest(sxx, 2));
+            let overflow: checkruntime.CheckOutcome = floatTransitionOverflow(xInfinite, oldSx, x);
+            if (regression) {
+                const ty: checkruntime.Float8Value = floatStateArithmetic(floatStateArithmetic(y, n, 2), sy, 1);
+                const ySquare: checkruntime.Float8Value = floatStateArithmetic(ty, ty, 2);
+                syy = floatStateArithmetic(syy, floatStateArithmetic(ySquare, scale, 2), 0);
+                const product: checkruntime.Float8Value = floatStateArithmetic(tx, ty, 2);
+                sxy = floatStateArithmetic(sxy, floatStateArithmetic(product, scale, 2), 0);
+                const yInfinite: checkruntime.CheckOutcome = checkruntime.orFinish(floatTransitionTest(sy, 2), floatTransitionTest(syy, 2));
+                overflow = checkruntime.orFinish(overflow, floatTransitionOverflow(yInfinite, oldSy, y));
+                const xyOverflow: checkruntime.CheckOutcome = floatTransitionOverflow(floatTransitionTest(sxy, 2), oldSx, x);
+                overflow = checkruntime.orFinish(overflow, floatTransitionOverflow(xyOverflow, oldSy, y));
+                syy = floatTransitionNan(syy, floatTransitionTest(syy, 2));
+                sxy = floatTransitionNan(sxy, floatTransitionTest(sxy, 2));
+                sxx = floatTransitionNan(sxx, floatTransitionTest(sxx, 2));
+            }
+            else {
+                sxx = floatTransitionNan(sxx, xInfinite);
+            }
+            if (checkruntime.equalCheckOutcome(overflow, { kind: "True" })) {
+                return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+            }
+            if (!(checkruntime.equalCheckOutcome(overflow, { kind: "False" }))) {
+                return { kind: "Unknown" };
+            }
+        }
+        else {
+            const specialX: checkruntime.CheckOutcome = floatTransitionTest(x, 3);
+            sxx = floatTransitionNan(sxx, specialX);
+            if (regression) {
+                const specialY: checkruntime.CheckOutcome = floatTransitionTest(y, 3);
+                syy = floatTransitionNan(syy, specialY);
+                sxy = floatTransitionNan(sxy, checkruntime.orFinish(specialX, specialY));
+            }
+        }
+        return floatTransitionOutput(n, sx, sxx, sy, syy, sxy, regression);
+    }
+    return { kind: "Unknown" };
+}
+function floatTransitionCopy(input: checkruntime.ArrayPayload, regression: boolean): checkruntime.ArrayValue {
+    regression = langruntime.checkedBool(regression);
+    let sy: checkruntime.Float8Value = checkruntime.makeFloat8Value(0.0);
+    let syy: checkruntime.Float8Value = sy;
+    let sxy: checkruntime.Float8Value = sy;
+    if (regression) {
+        sy = floatStateField(input, 3);
+        syy = floatStateField(input, 4);
+        sxy = floatStateField(input, 5);
+    }
+    return floatTransitionOutput(floatStateField(input, 0), floatStateField(input, 1), floatStateField(input, 2), sy, syy, sxy, regression);
+}
+function floatCombineVariance(first: checkruntime.Float8Value, second: checkruntime.Float8Value, counts: checkruntime.Float8Value, tx: checkruntime.Float8Value, ty: checkruntime.Float8Value, n: checkruntime.Float8Value): checkruntime.Float8Value {
+    const product: checkruntime.Float8Value = floatStateArithmetic(floatStateArithmetic(counts, tx, 2), ty, 2);
+    const correction: checkruntime.Float8Value = floatStateArithmetic(product, n, 3);
+    const sum: checkruntime.Float8Value = floatStateArithmetic(first, second, 0);
+    const result: checkruntime.Float8Value = floatStateArithmetic(sum, correction, 0);
+    const overflow: checkruntime.CheckOutcome = floatTransitionOverflow(floatTransitionTest(result, 2), first, second);
+    if (checkruntime.equalCheckOutcome(overflow, { kind: "True" })) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatCoreRange) };
+    }
+    if (!(checkruntime.equalCheckOutcome(overflow, { kind: "False" }))) {
+        return { kind: "Unknown" };
+    }
+    return result;
+}
+function floatArrayCombine(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue, regression: boolean): checkruntime.ArrayValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    regression = langruntime.checkedBool(regression);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const first: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(left.value);
+        if (right.kind === "Value") {
+            const second: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(right.value);
+            let width: number = 3;
+            if (regression) {
+                width = langruntime.checkedIndex(6);
+            }
+            const firstValid: checkruntime.BoolValue = floatArrayStateValid(first, width);
+            const secondValid: checkruntime.BoolValue = floatArrayStateValid(second, width);
+            if (firstValid.kind === "Error") {
+                const error: checkruntime.SqlError = firstValid.value;
+                return { kind: "Error", value: error };
+            }
+            if (secondValid.kind === "Error") {
+                const error: checkruntime.SqlError = secondValid.value;
+                return { kind: "Error", value: error };
+            }
+            if (!(checkruntime.equalBoolValue(firstValid, { kind: "Value", value: true })) || !(checkruntime.equalBoolValue(secondValid, { kind: "Value", value: true }))) {
+                return { kind: "Unknown" };
+            }
+            const n1: checkruntime.Float8Value = floatStateField(first, 0);
+            const n2: checkruntime.Float8Value = floatStateField(second, 0);
+            const firstEmpty: checkruntime.CheckOutcome = floatTransitionTest(n1, 1);
+            if (checkruntime.equalCheckOutcome(firstEmpty, { kind: "True" })) {
+                return floatTransitionCopy(second, regression);
+            }
+            if (!(checkruntime.equalCheckOutcome(firstEmpty, { kind: "False" }))) {
+                return { kind: "Unknown" };
+            }
+            const secondEmpty: checkruntime.CheckOutcome = floatTransitionTest(n2, 1);
+            if (checkruntime.equalCheckOutcome(secondEmpty, { kind: "True" })) {
+                return floatTransitionCopy(first, regression);
+            }
+            if (!(checkruntime.equalCheckOutcome(secondEmpty, { kind: "False" }))) {
+                return { kind: "Unknown" };
+            }
+            const n: checkruntime.Float8Value = floatStateArithmetic(n1, n2, 0);
+            const counts: checkruntime.Float8Value = floatStateArithmetic(n1, n2, 2);
+            let results: checkruntime.Float8Value[] = [];
+            let tx: checkruntime.Float8Value = checkruntime.makeFloat8Value(0.0);
+            let ty: checkruntime.Float8Value = tx;
+            let index: number = 1;
+            while (index < width) {
+                const a: checkruntime.Float8Value = floatStateField(first, index);
+                const b: checkruntime.Float8Value = floatStateField(second, index);
+                let result: checkruntime.Float8Value = { kind: "Unknown" };
+                if (index === 1 || index === 3) {
+                    result = float8plG3ou(a, b);
+                    const difference: checkruntime.Float8Value = floatStateArithmetic(floatStateArithmetic(a, n1, 3), floatStateArithmetic(b, n2, 3), 1);
+                    if (index === 1) {
+                        tx = difference;
+                    }
+                    else {
+                        ty = difference;
+                    }
+                }
+                else {
+                    let x: checkruntime.Float8Value = tx;
+                    let y: checkruntime.Float8Value = tx;
+                    if (index === 4) {
+                        x = ty;
+                        y = ty;
+                    }
+                    if (index === 5) {
+                        y = ty;
+                    }
+                    result = floatCombineVariance(a, b, counts, x, y, n);
+                }
+                if (result.kind === "Error") {
+                    const error: checkruntime.SqlError = result.value;
+                    return { kind: "Error", value: error };
+                }
+                if (checkruntime.equalFloat8Value(result, { kind: "Unknown" })) {
+                    return { kind: "Unknown" };
+                }
+                langruntime.pushStruct(results, result, checkruntime.copyFloat8Value);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            let sy: checkruntime.Float8Value = checkruntime.makeFloat8Value(0.0);
+            let syy: checkruntime.Float8Value = sy;
+            let sxy: checkruntime.Float8Value = sy;
+            if (regression) {
+                sy = langruntime.indexStruct(results, langruntime.checkedIndex(2), checkruntime.copyFloat8Value);
+                syy = langruntime.indexStruct(results, langruntime.checkedIndex(3), checkruntime.copyFloat8Value);
+                sxy = langruntime.indexStruct(results, langruntime.checkedIndex(4), checkruntime.copyFloat8Value);
+            }
+            return floatTransitionOutput(n, langruntime.indexStruct(results, langruntime.checkedIndex(0), checkruntime.copyFloat8Value), langruntime.indexStruct(results, langruntime.checkedIndex(1), checkruntime.copyFloat8Value), sy, syy, sxy, regression);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function float4AccumNnxi(input: checkruntime.ArrayValue, amount: checkruntime.Float4Value): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayAccumulate(input, checkruntime.makeFloat8Value(0.0), float4Widen(amount), false);
+}
+export function float8AccumMa58(input: checkruntime.ArrayValue, amount: checkruntime.Float8Value): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayAccumulate(input, checkruntime.makeFloat8Value(0.0), amount, false);
+}
+export function float8RegrAccumIufl(input: checkruntime.ArrayValue, y: checkruntime.Float8Value, x: checkruntime.Float8Value): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayAccumulate(input, y, x, true);
+}
+export function float8Combine5got(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    return floatArrayCombine(left, right, false);
+}
+export function float8RegrCombineNbvr(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    return floatArrayCombine(left, right, true);
+}
 function arrayHashWordLow(value: bigint): bigint {
     value = langruntime.checkedI64(value);
     let low: bigint = langruntime.checkedI64Remainder(value, 4294967296n);

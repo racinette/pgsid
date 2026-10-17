@@ -52,8 +52,8 @@ export function arrayValueRequirements(item: BuiltinCallable, aggregateSupport =
       {
         kind: 'native-storage',
         requirement:
-          'Floating transition/combine state validation inspects one-dimensional state width and NULL-bitmap presence, including retained bitmaps with no NULL cells. Logical dimensions and elements do not establish that storage facet; it requires supplied metadata or verified construction provenance.',
-        owner: 'tests/sql-semantics/check-array-aggregate-requirements.test.ts',
+          'Floating transition/combine states require the catalog one-dimensional width and known NULL-bitmap absence. Retained bitmaps and definite shape errors raise XX000; missing metadata defers. Direct calls return fresh lower-bound-one arrays, preserve empty-state selection and use distinct accumulation/combine overflow guards. Computed NaN payload bytes defer independently of semantic values.',
+        owner: 'tests/sql-semantics/check-array-float-transition.test.ts',
       },
     ]
   if (
