@@ -1030,3 +1030,14 @@ CREATE TABLE lane_label_tokens (
   CONSTRAINT captured_label_parts CHECK (CASE WHEN bypass THEN true WHEN use_flags THEN regexp_match(label,separator,flags) IS NOT DISTINCT FROM expected_captures ELSE regexp_match(label,separator) IS NOT DISTINCT FROM expected_captures END),
   CONSTRAINT split_label_parts CHECK (CASE WHEN bypass THEN true WHEN use_flags THEN regexp_split_to_array(label,separator,flags) IS NOT DISTINCT FROM expected_tokens ELSE regexp_split_to_array(label,separator) IS NOT DISTINCT FROM expected_tokens END)
 );
+
+CREATE TABLE lane_object_names (
+  qualified_name text,
+  strict_mode boolean,
+  use_default boolean,
+  expected_parts text[],
+  part_limit integer,
+  bypass boolean,
+  CONSTRAINT parsed_object_name CHECK (CASE WHEN bypass THEN true WHEN use_default THEN parse_ident(qualified_name) IS NOT DISTINCT FROM expected_parts ELSE parse_ident(qualified_name,strict_mode) IS NOT DISTINCT FROM expected_parts END),
+  CONSTRAINT bounded_object_name CHECK (CASE WHEN bypass THEN true WHEN use_default THEN cardinality(parse_ident(qualified_name)) <= part_limit ELSE cardinality(parse_ident(qualified_name,strict_mode)) <= part_limit END)
+);

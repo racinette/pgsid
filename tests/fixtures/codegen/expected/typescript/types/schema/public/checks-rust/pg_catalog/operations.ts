@@ -475,6 +475,114 @@ export function hashArrayBk1m(input: checkruntime.Int4Value): checkruntime.Int4V
 export function hashArrayExtended8jvn(input: checkruntime.Int8Value): checkruntime.Int8Value {
     return input;
 }
+const identifierParseError = 3452619;
+function identifierSpace(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    return code === 32 || code === 9 || code === 10 || code === 11 || code === 12 || code === 13;
+}
+function identifierStart(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    return character === "_" || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code >= 128;
+}
+function identifierContinuation(character: string): boolean {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    return identifierStart(character) || character === "$" || (code >= 48 && code <= 57);
+}
+export function parseIdentUh6p(input: checkruntime.TextValue, strict: checkruntime.BoolValue, utf8: boolean): checkruntime.ArrayValue {
+    utf8 = langruntime.checkedBool(utf8);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (strict.kind === "Error") {
+        const error: checkruntime.SqlError = strict.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" }) || checkruntime.equalBoolValue(strict, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        if (strict.kind === "Value") {
+            const strictMode: boolean = langruntime.checkedBool(strict.value);
+            const characters: string[] = Array.from(text);
+            let position: number = 0;
+            let count: number = 0;
+            let output: checkruntime.ArrayArguments = checkruntime.makeArrayArguments("pg_catalog.text", 8);
+            while (position < characters.length && identifierSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+                position = langruntime.checkedAdd(position, 1);
+            }
+            while (position <= characters.length) {
+                if (position === characters.length) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(identifierParseError) };
+                }
+                let part: string = "";
+                if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\"") {
+                    position = langruntime.checkedAdd(position, 1);
+                    let closed: boolean = false;
+                    while (position < characters.length) {
+                        const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+                        position = langruntime.checkedAdd(position, 1);
+                        if (character === "\"") {
+                            if (position < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "\"") {
+                                part = part + langruntime.checkedChar("\"");
+                                position = langruntime.checkedAdd(position, 1);
+                            }
+                            else {
+                                closed = langruntime.checkedBool(true);
+                                break;
+                            }
+                        }
+                        else {
+                            part = part + langruntime.checkedChar(character);
+                        }
+                    }
+                    if (closed === false || part === "") {
+                        return { kind: "Error", value: checkruntime.makeSqlError(identifierParseError) };
+                    }
+                }
+                else if (identifierStart(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+                    while (position < characters.length && identifierContinuation(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+                        const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+                        if ((langruntime.checkedChar(character).codePointAt(0)!) >= 128 && utf8 === false) {
+                            return { kind: "Unknown" };
+                        }
+                        part = part + langruntime.checkedChar(langruntime.asciiLowercase(character));
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                }
+                else {
+                    return { kind: "Error", value: checkruntime.makeSqlError(identifierParseError) };
+                }
+                const element: checkruntime.ArrayElement = checkruntime.arrayElementFromText({ kind: "Value", value: part });
+                output = checkruntime.copyArrayArguments(checkruntime.appendArrayArgument(output, element));
+                count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+                while (position < characters.length && identifierSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                if (position === characters.length) {
+                    return arrayStringFinish(output, count);
+                }
+                if (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === ".") {
+                    position = langruntime.checkedAdd(position, 1);
+                    while (position < characters.length && identifierSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+                        position = langruntime.checkedAdd(position, 1);
+                    }
+                }
+                else if (strictMode) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(identifierParseError) };
+                }
+                else {
+                    return arrayStringFinish(output, count);
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function arrayIntegerTextElement(input: checkruntime.TextValue, family: number): checkruntime.ArrayElement {
     family = langruntime.checkedI32(family);
     let bits: number = 64;

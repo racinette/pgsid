@@ -3430,3 +3430,34 @@ INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,
 INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('a','a','g',true,'{a}','{"",""}',false);
 -- name: label_tokens_skipped
 INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('a','[','g',true,NULL,NULL,true);
+
+-- name: object_name_default
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('Warehouse."Item.Label"',true,true,'{warehouse,Item.Label}',2,false);
+-- name: object_name_explicit
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('Warehouse.Item',true,false,'{warehouse,item}',2,false);
+-- name: object_name_wrong_parts
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('Warehouse.Item',true,false,'{Warehouse,Item}',2,false);
+-- name: object_name_too_many_parts
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('Warehouse.Item',true,true,'{warehouse,item}',1,false);
+-- name: object_name_relaxed_suffix
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('Warehouse.Item(integer)',false,false,'{warehouse,item}',2,false);
+-- name: object_name_strict_suffix
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('Warehouse.Item(integer)',true,false,'{warehouse,item}',2,false);
+-- name: object_name_default_suffix
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('Warehouse.Item(integer)',false,true,'{warehouse,item}',2,false);
+-- name: object_name_quoted_unicode
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('"雪🙂".ABC',true,true,'{雪🙂,abc}',2,false);
+-- name: object_name_unquoted_unicode
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('ÉTÉ.ABC',true,false,'{ÉtÉ,abc}',2,false);
+-- name: object_name_escaped_quote
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('"a""b".C',true,false,'{"a\"b",c}',2,false);
+-- name: object_name_empty_quoted
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('""',false,false,'{}',2,false);
+-- name: object_name_trailing_dot
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('Warehouse.',false,false,'{warehouse}',2,false);
+-- name: object_name_null_name
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES(NULL,true,true,NULL,0,false);
+-- name: object_name_null_strict
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('"',NULL,false,NULL,0,false);
+-- name: object_name_skipped
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('"',true,true,'{}',0,true);

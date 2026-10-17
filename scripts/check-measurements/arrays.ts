@@ -12,6 +12,19 @@ import type { BuiltinCallable } from '../../src/postgres/builtins/taxonomy.js'
 export function arrayValueRequirements(item: BuiltinCallable) {
   if (item.kind !== 'function' || item.schema !== 'pg_catalog') return null
   if (
+    item.name === 'parse_ident' &&
+    item.args.join(',') === 'pg_catalog.text,pg_catalog.bool' &&
+    item.result === 'pg_catalog._text'
+  )
+    return [
+      {
+        kind: 'encoding',
+        requirement:
+          'Unquoted non-ASCII identifier parts require declared UTF8 encoding for portable downcasing. ASCII identifiers, quoted contents, strict syntax errors reached before that boundary, SQL NULL and incoming errors remain available independently of collation.',
+        owner: 'tests/sql-semantics/check-array-identifiers.test.ts',
+      },
+    ]
+  if (
     item.name === 'array_send' &&
     item.args.join(',') === 'pg_catalog.anyarray' &&
     item.result === 'pg_catalog.bytea'
