@@ -480,6 +480,109 @@ func HashArrayBk1m(input checkruntime.Int4Value) checkruntime.Int4Value {
 func HashArrayExtended8jvn(input checkruntime.Int8Value) checkruntime.Int8Value {
 	return input
 }
+
+const identifierParseError = 3452619
+
+func identifierSpace(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return code == 32 || code == 9 || code == 10 || code == 11 || code == 12 || code == 13
+}
+func identifierStart(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return character == '_' || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code >= 128
+}
+func identifierContinuation(character rune) bool {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	return identifierStart(character) || character == '$' || (code >= 48 && code <= 57)
+}
+func ParseIdentUh6p(input checkruntime.TextValue, strict checkruntime.BoolValue, utf8 bool) checkruntime.ArrayValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if strict.Kind == checkruntime.BoolValueError {
+		error := strict.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || strict == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		if strict.Kind == checkruntime.BoolValueValue {
+			strictMode := strict.Value
+			characters := []rune(text)
+			position := 0
+			count := 0
+			output := checkruntime.MakeArrayArguments("pg_catalog.text", 8)
+			for position < len(characters) && identifierSpace(characters[position]) {
+				position = langruntime.CheckedAdd(position, 1)
+			}
+			for position <= len(characters) {
+				if position == len(characters) {
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(identifierParseError)}
+				}
+				part := langruntime.NewTextBuffer("")
+				if characters[position] == '"' {
+					position = langruntime.CheckedAdd(position, 1)
+					closed := false
+					for position < len(characters) {
+						character := characters[position]
+						position = langruntime.CheckedAdd(position, 1)
+						if character == '"' {
+							if position < len(characters) && characters[position] == '"' {
+								part = append(part, string(langruntime.CheckedChar('"'))...)
+								position = langruntime.CheckedAdd(position, 1)
+							} else {
+								closed = true
+								break
+							}
+						} else {
+							part = append(part, string(langruntime.CheckedChar(character))...)
+						}
+					}
+					if closed == false || string(part) == "" {
+						return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(identifierParseError)}
+					}
+				} else if identifierStart(characters[position]) {
+					for position < len(characters) && identifierContinuation(characters[position]) {
+						character := characters[position]
+						if (int(langruntime.CheckedChar(character))) >= 128 && utf8 == false {
+							return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+						}
+						part = append(part, string(langruntime.CheckedChar(langruntime.AsciiLowercase(character)))...)
+						position = langruntime.CheckedAdd(position, 1)
+					}
+				} else {
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(identifierParseError)}
+				}
+				element := checkruntime.ArrayElementFromText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(part)})
+				output = checkruntime.CopyArrayArguments(checkruntime.AppendArrayArgument(output, element))
+				count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+				for position < len(characters) && identifierSpace(characters[position]) {
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				if position == len(characters) {
+					return arrayStringFinish(output, count)
+				}
+				if characters[position] == '.' {
+					position = langruntime.CheckedAdd(position, 1)
+					for position < len(characters) && identifierSpace(characters[position]) {
+						position = langruntime.CheckedAdd(position, 1)
+					}
+				} else if strictMode {
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(identifierParseError)}
+				} else {
+					return arrayStringFinish(output, count)
+				}
+			}
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
 func ArrayIntegerTextElement(input checkruntime.TextValue, family int) checkruntime.ArrayElement {
 	family = langruntime.CheckedI32(family)
 	bits := 64

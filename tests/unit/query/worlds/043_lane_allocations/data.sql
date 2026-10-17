@@ -231,3 +231,6 @@ INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES(1,1,false);
 
 INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass)
 VALUES('a,b','(,)','',false,'{","}','{a,b}',false);
+
+INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass)
+VALUES('Warehouse."Item.Label"',true,true,'{warehouse,Item.Label}',2,false);

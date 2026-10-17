@@ -20,6 +20,7 @@ import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.j
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import {
   isRegexArrayCallable,
+  isIdentifierParseCallable,
   supportsTextCallableCollation,
 } from '../../sql-semantics/collation.js'
 import { rustStringLiteral } from './rust-literals.js'
@@ -2126,6 +2127,8 @@ export function emitCheckRustEvaluator(
         return { name, type: call.type }
       }
       let arguments_ = operands.map((operand) => ownedOperand(operand))
+      if (isIdentifierParseCallable(call.signature))
+        arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (arrayRegex)
         arguments_.push(
           String(

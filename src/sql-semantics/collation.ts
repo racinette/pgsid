@@ -15,6 +15,20 @@ export function isRegexArrayCallable(signature: string): boolean {
   )
 }
 
+export function isIdentifierParseCallable(signature: string): boolean {
+  const metadata = builtinMetadata(signature)
+  return (
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    metadata.name === 'parse_ident' &&
+    metadata.args.join(',') === 'pg_catalog.text,pg_catalog.bool' &&
+    metadata.result === 'pg_catalog._text' &&
+    metadata.strict &&
+    metadata.volatility === 'i' &&
+    !metadata.returnsSet
+  )
+}
+
 export function equalityOperation(signature: string, argumentType: string): '=' | '<>' | null {
   const metadata = builtinMetadata(signature)
   if (
@@ -388,6 +402,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         implementation.strict === (implementation.args.length === 2) &&
         implementation.volatility === 's'))
   return (
+    isIdentifierParseCallable(signature) ||
     (implementation.kind === 'function' &&
       implementation.schema === 'pg_catalog' &&
       implementation.name === 'jsonb_set_lax' &&
