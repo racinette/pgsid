@@ -59,3 +59,46 @@ pub fn sql__pg_catalog__arraycontained__uyb2(input: BoolValue) -> BoolValue {
 pub fn sql__pg_catalog__arrayoverlap__lwrw(input: BoolValue) -> BoolValue {
     input
 }
+
+fn array_select_extreme(
+    left: ArrayValue,
+    right: ArrayValue,
+    ordering: Int4Value,
+    larger: bool,
+) -> ArrayValue {
+    if let ArrayValue::Error(error) = left {
+        return ArrayValue::Error(error);
+    };
+    if let ArrayValue::Error(error) = right {
+        return ArrayValue::Error(error);
+    };
+    if let Int4Value::Error(error) = ordering {
+        return ArrayValue::Error(error);
+    };
+    if let Int4Value::Null = ordering {
+        return ArrayValue::Null;
+    };
+    if let Int4Value::Value(order) = ordering {
+        if (larger && order > 0) || (larger == false && order < 0) {
+            return left;
+        };
+        return right;
+    };
+    ArrayValue::Unknown
+}
+
+pub fn sql__pg_catalog__array_larger__9l3m(
+    left: ArrayValue,
+    right: ArrayValue,
+    ordering: Int4Value,
+) -> ArrayValue {
+    array_select_extreme(left, right, ordering, true)
+}
+
+pub fn sql__pg_catalog__array_smaller__xp88(
+    left: ArrayValue,
+    right: ArrayValue,
+    ordering: Int4Value,
+) -> ArrayValue {
+    array_select_extreme(left, right, ordering, false)
+}

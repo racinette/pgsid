@@ -9347,11 +9347,9 @@ export function parseArrayText(input: TextValue, delimiter: string, nulls: numbe
     return { kind: "Unknown" };
 }
 export function arrayTextEventCount(input: ArrayTextPayload): Int4Value {
-    input = copyArrayTextPayload(input);
     return { kind: "Value", value: langruntime.checkedI32(langruntime.checkedIndex(input.events.length)) };
 }
 export function arrayTextEventAt(input: ArrayTextPayload, index: Int4Value): TextValue {
-    input = copyArrayTextPayload(input);
     if (index.kind === "Error") {
         const error: SqlError = index.value;
         return { kind: "Error", value: error };
@@ -9437,7 +9435,6 @@ export function prepareArrayText(input: TextValue, boxDelimiter: boolean, nulls:
     return { state: state, dimensions: dimensions, events: events };
 }
 export function arrayTextHasEvent(input: ArrayTextPayload, index: Int4Value): boolean {
-    input = copyArrayTextPayload(input);
     if (!(input.state === 1)) {
         return false;
     }
@@ -9856,7 +9853,6 @@ export function prepareArrayComparison(left: ArrayValue, right: ArrayValue, equa
     return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
 }
 export function arrayComparisonInitial(input: ArrayComparisonPayload): Int4Value {
-    input = copyArrayComparisonPayload(input);
     if (input.state === langruntime.checkedSignedNegate(2)) {
         return { kind: "Error", value: input.error };
     }
@@ -9869,7 +9865,6 @@ export function arrayComparisonInitial(input: ArrayComparisonPayload): Int4Value
     return { kind: "Value", value: input.value };
 }
 export function arrayComparisonContinues(input: ArrayComparisonPayload, index: Int4Value, result: Int4Value): boolean {
-    input = copyArrayComparisonPayload(input);
     if (result.kind === "Value") {
         const comparison: number = langruntime.checkedI32(result.value);
         if (index.kind === "Value") {
@@ -9880,8 +9875,6 @@ export function arrayComparisonContinues(input: ArrayComparisonPayload, index: I
     return false;
 }
 export function arrayComparisonElementAt(input: ArrayComparisonPayload, index: Int4Value, right: boolean): ArrayElement {
-    input = copyArrayComparisonPayload(input);
-    right = langruntime.checkedBool(right);
     if (index.kind === "Value") {
         const offset: number = langruntime.checkedI32(index.value);
         const position: number = langruntime.indexFromI32(offset, input.limit);
@@ -9986,7 +9979,6 @@ export function arrayOrderFromEquality(input: BoolValue): Int4Value {
     return { kind: "Unknown" };
 }
 export function finishArrayComparison(input: ArrayComparisonPayload, result: Int4Value): Int4Value {
-    input = copyArrayComparisonPayload(input);
     if (input.state === 1) {
         if (result.kind === "Value") {
             const value: number = langruntime.checkedI32(result.value);

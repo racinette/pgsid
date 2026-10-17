@@ -46,6 +46,32 @@ for (const item of operators) {
     target.add(item.implementation)
   }
 }
+const arrayMetadata = new Set<string>()
+for (const item of builtinCallables()) {
+  if (
+    item.kind !== 'function' ||
+    item.schema !== 'pg_catalog' ||
+    !item.strict ||
+    item.volatility !== 'i' ||
+    item.returnsSet ||
+    item.args[0] !== 'pg_catalog.anyarray'
+  )
+    continue
+  if (
+    ['array_larger', 'array_smaller'].includes(item.name) &&
+    item.args.length === 2 &&
+    item.args[1] === 'pg_catalog.anyarray' &&
+    item.result === 'pg_catalog.anyarray'
+  )
+    arrayComparisons.add(callableIdentity(item))
+  if (
+    (['array_dims', 'array_ndims', 'cardinality'].includes(item.name) && item.args.length === 1) ||
+    (['array_length', 'array_lower', 'array_upper'].includes(item.name) &&
+      item.args.length === 2 &&
+      item.args[1] === 'pg_catalog.int4')
+  )
+    arrayMetadata.add(callableIdentity(item))
+}
 const widths: Readonly<Record<string, number>> = {
   'pg_catalog.int2': 16,
   'pg_catalog.int4': 32,
@@ -70,7 +96,7 @@ const orderedElement = (type: string): boolean => {
 export function rustCallCanFail(call: SqlCallableExpression, types: readonly string[]): boolean {
   if (call.kind === 'cast' && call.signature === null) return false
   if (!call.signature) return true
-  if (scalarComparisons.has(call.signature)) return false
+  if (scalarComparisons.has(call.signature) || arrayMetadata.has(call.signature)) return false
   if (arrayComparisons.has(call.signature) && types.every(orderedElement)) return false
   if (types.length !== 1) return true
   const from = types[0]!,

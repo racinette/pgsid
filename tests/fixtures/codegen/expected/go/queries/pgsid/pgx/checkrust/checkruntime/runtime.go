@@ -9279,11 +9279,9 @@ func ParseArrayText(input TextValue, delimiter rune, nulls int) ArrayTextPlan {
 	return ArrayTextPlan{Kind: ArrayTextPlanUnknown}
 }
 func ArrayTextEventCount(input *ArrayTextPayload) Int4Value {
-	input = langruntime.CheckedBorrowed(input, copyArrayTextPayload)
 	return Int4Value{Kind: Int4ValueValue, Value: int(int32(len(input.Events)))}
 }
 func ArrayTextEventAt(input *ArrayTextPayload, index Int4Value) TextValue {
-	input = langruntime.CheckedBorrowed(input, copyArrayTextPayload)
 	if index.Kind == Int4ValueError {
 		error := index.Error
 		return TextValue{Kind: TextValueError, Error: error}
@@ -9368,7 +9366,6 @@ func PrepareArrayText(input TextValue, boxDelimiter bool, nulls int) ArrayTextPa
 	return ArrayTextPayload{State: state, Dimensions: dimensions, Events: events}
 }
 func ArrayTextHasEvent(input *ArrayTextPayload, index Int4Value) bool {
-	input = langruntime.CheckedBorrowed(input, copyArrayTextPayload)
 	if input.State != 1 {
 		return false
 	}
@@ -9815,7 +9812,6 @@ func PrepareArrayComparison(left ArrayValue, right ArrayValue, equality bool, av
 	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
 }
 func ArrayComparisonInitial(input *ArrayComparisonPayload) Int4Value {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
 	if input.State == langruntime.CheckedSignedNegate(2) {
 		return Int4Value{Kind: Int4ValueError, Error: input.Error}
 	}
@@ -9828,7 +9824,6 @@ func ArrayComparisonInitial(input *ArrayComparisonPayload) Int4Value {
 	return Int4Value{Kind: Int4ValueValue, Value: input.Value}
 }
 func ArrayComparisonContinues(input *ArrayComparisonPayload, index Int4Value, result Int4Value) bool {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
 	if result.Kind == Int4ValueValue {
 		comparison := langruntime.CheckedI32(result.Value)
 		if index.Kind == Int4ValueValue {
@@ -9839,7 +9834,6 @@ func ArrayComparisonContinues(input *ArrayComparisonPayload, index Int4Value, re
 	return false
 }
 func ArrayComparisonElementAt(input *ArrayComparisonPayload, index Int4Value, right bool) ArrayElement {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
 	if index.Kind == Int4ValueValue {
 		offset := langruntime.CheckedI32(index.Value)
 		position := langruntime.IndexFromI32(offset, input.Limit)
@@ -9943,7 +9937,6 @@ func ArrayOrderFromEquality(input BoolValue) Int4Value {
 	return Int4Value{Kind: Int4ValueUnknown}
 }
 func FinishArrayComparison(input *ArrayComparisonPayload, result Int4Value) Int4Value {
-	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
 	if input.State == 1 {
 		if result.Kind == Int4ValueValue {
 			value := langruntime.CheckedI32(result.Value)

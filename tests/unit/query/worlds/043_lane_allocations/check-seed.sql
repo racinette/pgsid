@@ -2840,3 +2840,127 @@ VALUES (1,2,'label','2000-01-01',false,'[1:1]',false);
 -- name: cast_slots_missing_shape
 INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
 VALUES (1,2,'label','2000-01-01',false,NULL,true);
+
+-- name: extrema_value_order
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('{1}','{2}','{2}','{1}','[1:1]','[1:1]',false);
+
+-- name: extrema_null_cells
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('{NULL}','{1}','{NULL}','{1}','[1:1]','[1:1]',false);
+
+-- name: extrema_bounds
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('[0:1]={1,2}','{1,2}','{1,2}','[0:1]={1,2}','[1:2]','[0:1]',false);
+
+-- name: extrema_rank
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('{1,2}','{{1,2}}','{{1,2}}','{1,2}','[1:1][1:2]','[1:2]',false);
+
+-- name: extrema_empty
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('{}','{}','{}','{}',NULL,NULL,false);
+
+-- name: extrema_null_left
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES (NULL,'{1}',NULL,NULL,NULL,NULL,false);
+
+-- name: extrema_null_right
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('{1}',NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: extrema_skipped
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('{1}','{2}','{}','{}','wrong','wrong',true);
+
+-- name: extrema_wrong_larger
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('{1}','{2}','{1}','{1}','[1:1]','[1:1]',false);
+
+-- name: extrema_wrong_smaller
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('{1}','{2}','{2}','{2}','[1:1]','[1:1]',false);
+
+-- name: extrema_wrong_larger_bounds
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('{1}','{2}','{2}','{1}','wrong','[1:1]',false);
+
+-- name: extrema_wrong_smaller_bounds
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('{1}','{2}','{2}','{1}','[1:1]','wrong',false);
+
+-- name: extrema_precision_tie
+INSERT INTO lane_extreme_precision (amounts, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1.00}','{1.0}','{1.0}','{1.0}',false);
+
+-- name: extrema_precision_reverse_tie
+INSERT INTO lane_extreme_precision (amounts, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1.0}','{1.00}','{1.00}','{1.00}',false);
+
+-- name: extrema_precision_order
+INSERT INTO lane_extreme_precision (amounts, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1.00}','{2.000}','{2.000}','{1.00}',false);
+
+-- name: extrema_precision_null
+INSERT INTO lane_extreme_precision (amounts, alternate, expected_larger, expected_smaller, bypass)
+VALUES (NULL,'{2.000}',NULL,NULL,false);
+
+-- name: extrema_precision_nan
+INSERT INTO lane_extreme_precision (amounts, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{NaN}','{Infinity}','{NaN}','{Infinity}',false);
+
+-- name: extrema_precision_wrong_larger_tie
+INSERT INTO lane_extreme_precision (amounts, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1.00}','{1.0}','{1.00}','{1.0}',false);
+
+-- name: extrema_precision_wrong_smaller_tie
+INSERT INTO lane_extreme_precision (amounts, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1.00}','{1.0}','{1.0}','{1.00}',false);
+
+-- name: extrema_precision_skipped
+INSERT INTO lane_extreme_precision (amounts, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1.00}','{1.0}','wrong','wrong',true);
+
+-- name: extrema_documents
+INSERT INTO lane_extreme_documents (documents, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1}','{2}','{2}','{1}',false);
+
+-- name: extrema_document_null
+INSERT INTO lane_extreme_documents (documents, alternate, expected_larger, expected_smaller, bypass)
+VALUES (NULL,'{2}',NULL,NULL,false);
+
+-- name: extrema_documents_arrays
+INSERT INTO lane_extreme_documents (documents, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{"[1,2]"}','{"[3,4]"}','{"[3,4]"}','{"[1,2]"}',false);
+
+-- name: extrema_documents_wrong_larger
+INSERT INTO lane_extreme_documents (documents, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1}','{2}','{1}','{1}',false);
+
+-- name: extrema_documents_wrong_smaller
+INSERT INTO lane_extreme_documents (documents, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1}','{2}','{2}','{2}',false);
+
+-- name: extrema_documents_skipped
+INSERT INTO lane_extreme_documents (documents, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1}','{2}','{}','{}',true);
+
+-- name: extrema_unordered_null
+INSERT INTO lane_unordered_extrema (documents, alternate, bypass)
+VALUES (NULL,'{}',false);
+
+-- name: extrema_unordered_empty
+INSERT INTO lane_unordered_extrema (documents, alternate, bypass)
+VALUES ('{}','{}',false);
+
+-- name: extrema_unordered_values
+INSERT INTO lane_unordered_extrema (documents, alternate, bypass)
+VALUES ('{1}','{2}',false);
+
+-- name: extrema_unordered_null_cells
+INSERT INTO lane_unordered_extrema (documents, alternate, bypass)
+VALUES ('{NULL}','{NULL}',false);
+
+-- name: extrema_unordered_skipped
+INSERT INTO lane_unordered_extrema (documents, alternate, bypass)
+VALUES ('{1}','{2}',true);

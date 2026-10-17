@@ -96,6 +96,43 @@ func ArraycontainedUyb2(input checkruntime.BoolValue) checkruntime.BoolValue {
 func ArrayoverlapLwrw(input checkruntime.BoolValue) checkruntime.BoolValue {
 	return input
 }
+func arraySelectExtreme(left checkruntime.ArrayValue, right checkruntime.ArrayValue, ordering checkruntime.Int4Value, larger bool) checkruntime.ArrayValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	if left.Kind == checkruntime.ArrayValueError {
+		error := left.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if right.Kind == checkruntime.ArrayValueError {
+		error := right.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if ordering.Kind == checkruntime.Int4ValueError {
+		error := ordering.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if ordering.Kind == checkruntime.Int4ValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if ordering.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(ordering.Value)
+		if (larger && order > 0) || (larger == false && order < 0) {
+			return left
+		}
+		return right
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
+func ArrayLarger9l3m(left checkruntime.ArrayValue, right checkruntime.ArrayValue, ordering checkruntime.Int4Value) checkruntime.ArrayValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	return arraySelectExtreme(left, right, ordering, true)
+}
+func ArraySmallerXp88(left checkruntime.ArrayValue, right checkruntime.ArrayValue, ordering checkruntime.Int4Value) checkruntime.ArrayValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	return arraySelectExtreme(left, right, ordering, false)
+}
 
 const arrayFillNull = 3452548
 const arrayFillShape = 3452630
