@@ -3760,3 +3760,19 @@ INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VAL
 INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VALUES('{1e9999,0,0}',NULL,0,false);
 -- name: coerced_shape_skipped
 INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VALUES('bad',2,9,true);
+
+-- name: document_path_utf8_container
+INSERT INTO lane_document_paths (document,binary_document,path,expected_json,expected_text,expected_binary,expected_binary_text)
+VALUES ('{"selected":{"aa":1,"é":2}}','{"selected":{"aa":1,"é":2}}','{selected}','{"aa":1,"é":2}','{"aa":1,"é":2}','{"aa":1,"é":2}','{"aa": 1, "é": 2}');
+-- name: document_path_utf8_wrong_text
+INSERT INTO lane_document_paths (document,binary_document,path,expected_json,expected_text,expected_binary,expected_binary_text)
+VALUES ('{"selected":{"aa":1,"é":2}}','{"selected":{"aa":1,"é":2}}','{selected}','{"aa":1,"é":2}','{"aa":1,"é":2}','{"aa":1,"é":2}','wrong');
+-- name: document_path_utf8_null
+INSERT INTO lane_document_paths (document,binary_document,path,expected_json,expected_text,expected_binary,expected_binary_text)
+VALUES (NULL,NULL,'{selected}',NULL,NULL,NULL,NULL);
+-- name: document_path_utf8_empty
+INSERT INTO lane_document_paths (document,binary_document,path,expected_json,expected_text,expected_binary,expected_binary_text)
+VALUES ('{"aa":1,"é":2}','{"aa":1,"é":2}','{}','{"aa":1,"é":2}','{"aa":1,"é":2}','{"aa":1,"é":2}','{"aa": 1, "é": 2}');
+-- name: expanded_path_utf8_container
+INSERT INTO lane_expanded_paths (document,binary_document,first_key,second_key,expected_text,expected_binary_text)
+VALUES ('{"selected":[{"aa":1,"é":2}]}','{"selected":[{"aa":1,"é":2}]}','selected','0','{"aa":1,"é":2}','{"aa": 1, "é": 2}');

@@ -178,10 +178,6 @@ it('extracts raw/stored JSON and JSONB text-array paths through operators, expli
             expected = errorOutcome(error)
           }
           references.push({ name, document, binary, path, first, second, output, expected })
-          const unimplementedPathRendering =
-            document?.includes('雪') &&
-            path === '{}' &&
-            ['jsonb_text_operator', 'jsonb_variadic_text'].includes(name)
           for (const origin of ['source', 'stored'])
             fixtures.push({
               name: name + '_' + origin,
@@ -194,7 +190,7 @@ it('extracts raw/stored JSON and JSONB text-array paths through operators, expli
                 expected: known(output),
                 bypass: known(false),
               },
-              expected: unimplementedPathRendering ? { kind: 'Unknown' } : expected,
+              expected,
             })
         }
       }

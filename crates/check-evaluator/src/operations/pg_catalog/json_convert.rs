@@ -1,7 +1,4 @@
-pub fn jsonb_text_context(input: JsonbValue, utf8: bool) -> TextValue {
-    if utf8 == false {
-        return jsonb_to_text(input);
-    };
+fn jsonb_ordered_value(input: JsonbValue) -> JsonbValue {
     if let JsonbValue::Value(value) = input {
         let original = value.clone();
         let mut nodes = value.nodes;
@@ -28,13 +25,27 @@ pub fn jsonb_text_context(input: JsonbValue, utf8: bool) -> TextValue {
             };
             index += 1;
         }
-        return jsonb_to_ordered_text(JsonbValue::Value(JsonbPayload {
+        return JsonbValue::Value(JsonbPayload {
             characters: value.characters,
             nodes: nodes,
             root: value.root,
-        }));
+        });
+    };
+    input
+}
+
+pub fn jsonb_text_context(input: JsonbValue, utf8: bool) -> TextValue {
+    if utf8 {
+        return jsonb_to_ordered_text(jsonb_ordered_value(input));
     };
     jsonb_to_text(input)
+}
+
+fn jsonb_pretty_context(input: JsonbValue, utf8: bool) -> TextValue {
+    if utf8 {
+        return jsonb_to_ordered_pretty_text(jsonb_ordered_value(input));
+    };
+    jsonb_to_pretty_text(input)
 }
 
 pub fn json_input_from_numeric(input: NumericValue) -> JsonbInput {

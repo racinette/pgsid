@@ -768,3 +768,7 @@ fn jsonb_parse_text(input: TextValue, admission: bool) -> JsonbValue {
 pub fn jsonb_to_ordered_text(input: JsonbValue) -> TextValue {
     jsonb_render(input, false, false)
 }
+
+pub fn jsonb_to_ordered_pretty_text(input: JsonbValue) -> TextValue {
+    jsonb_render(input, false, true)
+}

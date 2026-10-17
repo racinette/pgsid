@@ -6125,6 +6125,10 @@ export function jsonbToOrderedText(input: JsonbValue): TextValue {
     input = copyJsonbValue(input);
     return jsonbRender(input, false, false);
 }
+export function jsonbToOrderedPrettyText(input: JsonbValue): TextValue {
+    input = copyJsonbValue(input);
+    return jsonbRender(input, false, true);
+}
 function jsonbPreorder(input: JsonbPayload): JsonbPayload {
     input = copyJsonbPayload(input);
     let links: number[] = [];

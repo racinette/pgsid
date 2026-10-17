@@ -13518,11 +13518,12 @@ export function jsonbExtractPath6gn0(input: checkruntime.JsonbValue, path: check
     path = checkruntime.copyArrayValue(path);
     return jsonbArrayPathSelect(input, path);
 }
-export function jsonbExtractPathTextW3ff(input: checkruntime.JsonbValue, path: checkruntime.ArrayValue): checkruntime.TextValue {
+export function jsonbExtractPathTextW3ff(input: checkruntime.JsonbValue, path: checkruntime.ArrayValue, utf8: boolean): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
     path = checkruntime.copyArrayValue(path);
+    utf8 = langruntime.checkedBool(utf8);
     const selected: checkruntime.JsonbValue = jsonbArrayPathSelect(input, path);
-    return jsonbExtractText(selected);
+    return jsonbExtractText(selected, utf8);
 }
 function jsonbArrayPathExistsKey(source: checkruntime.JsonbPayload, key: JsonbExtractKey): boolean {
     const node: checkruntime.JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(source.root), checkruntime.copyJsonbNode);
@@ -13734,12 +13735,8 @@ export function jsonBuildObjectQfmu(input: checkruntime.JsonbArguments, utf8: bo
 export function jsonBuildObjectNqz6(): checkruntime.JsonValue {
     return checkruntime.makeJsonValue("{}");
 }
-export function jsonbTextContext(input: checkruntime.JsonbValue, utf8: boolean): checkruntime.TextValue {
+function jsonbOrderedValue(input: checkruntime.JsonbValue): checkruntime.JsonbValue {
     input = checkruntime.copyJsonbValue(input);
-    utf8 = langruntime.checkedBool(utf8);
-    if (utf8 === false) {
-        return checkruntime.jsonbToText(input);
-    }
     if (input.kind === "Value") {
         const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
         const original: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(value);
@@ -13767,9 +13764,25 @@ export function jsonbTextContext(input: checkruntime.JsonbValue, utf8: boolean):
             }
             index = langruntime.checkedAdd(index, 1);
         }
-        return checkruntime.jsonbToOrderedText({ kind: "Value", value: { characters: value.characters, nodes: nodes, root: value.root } });
+        return { kind: "Value", value: { characters: value.characters, nodes: nodes, root: value.root } };
+    }
+    return input;
+}
+export function jsonbTextContext(input: checkruntime.JsonbValue, utf8: boolean): checkruntime.TextValue {
+    input = checkruntime.copyJsonbValue(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (utf8) {
+        return checkruntime.jsonbToOrderedText(jsonbOrderedValue(input));
     }
     return checkruntime.jsonbToText(input);
+}
+function jsonbPrettyContext(input: checkruntime.JsonbValue, utf8: boolean): checkruntime.TextValue {
+    input = checkruntime.copyJsonbValue(input);
+    utf8 = langruntime.checkedBool(utf8);
+    if (utf8) {
+        return checkruntime.jsonbToOrderedPrettyText(jsonbOrderedValue(input));
+    }
+    return checkruntime.jsonbToPrettyText(input);
 }
 export function jsonInputFromNumeric(input: checkruntime.NumericValue): checkruntime.JsonbInput {
     const output: checkruntime.TextValue = arrayNumericOutput(input);
@@ -15298,8 +15311,9 @@ function jsonbExtractMember(source: checkruntime.JsonbPayload, key: JsonbExtract
     }
     return 0;
 }
-function jsonbExtractText(input: checkruntime.JsonbValue): checkruntime.TextValue {
+function jsonbExtractText(input: checkruntime.JsonbValue, utf8: boolean): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
+    utf8 = langruntime.checkedBool(utf8);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -15322,7 +15336,7 @@ function jsonbExtractText(input: checkruntime.JsonbValue): checkruntime.TextValu
             }
             return { kind: "Value", value: text };
         }
-        return checkruntime.jsonbToText({ kind: "Value", value: value });
+        return jsonbTextContext({ kind: "Value", value: value }, utf8);
     }
     return { kind: "Unknown" };
 }
@@ -15355,10 +15369,11 @@ export function jsonbObjectField4uf3(input: checkruntime.JsonbValue, key: checkr
     }
     return { kind: "Null" };
 }
-export function jsonbObjectFieldTextJpuz(input: checkruntime.JsonbValue, key: checkruntime.TextValue): checkruntime.TextValue {
+export function jsonbObjectFieldTextJpuz(input: checkruntime.JsonbValue, key: checkruntime.TextValue, utf8: boolean): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
+    utf8 = langruntime.checkedBool(utf8);
     const selected: checkruntime.JsonbValue = jsonbObjectField4uf3(input, key);
-    return jsonbExtractText(selected);
+    return jsonbExtractText(selected, utf8);
 }
 export function jsonbArrayElement08oi(input: checkruntime.JsonbValue, index: checkruntime.Int4Value): checkruntime.JsonbValue {
     input = checkruntime.copyJsonbValue(input);
@@ -15415,10 +15430,11 @@ export function jsonbArrayElement08oi(input: checkruntime.JsonbValue, index: che
     }
     return { kind: "Null" };
 }
-export function jsonbArrayElementText83ql(input: checkruntime.JsonbValue, index: checkruntime.Int4Value): checkruntime.TextValue {
+export function jsonbArrayElementText83ql(input: checkruntime.JsonbValue, index: checkruntime.Int4Value, utf8: boolean): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
+    utf8 = langruntime.checkedBool(utf8);
     const selected: checkruntime.JsonbValue = jsonbArrayElement08oi(input, index);
-    return jsonbExtractText(selected);
+    return jsonbExtractText(selected, utf8);
 }
 export function jsonbArrayLength1gng(input: checkruntime.JsonbValue): checkruntime.Int4Value {
     input = checkruntime.copyJsonbValue(input);
@@ -15577,9 +15593,10 @@ export function jsonbStripNullsRuwp(input: checkruntime.JsonbValue, arrays: chec
     }
     return { kind: "Unknown" };
 }
-export function jsonbPrettyGz4i(input: checkruntime.JsonbValue): checkruntime.TextValue {
+export function jsonbPrettyGz4i(input: checkruntime.JsonbValue, utf8: boolean): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
-    return checkruntime.jsonbToPrettyText(input);
+    utf8 = langruntime.checkedBool(utf8);
+    return jsonbPrettyContext(input, utf8);
 }
 interface JsonbHashFrame {
     node: number;

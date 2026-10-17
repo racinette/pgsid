@@ -339,16 +339,16 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         })
         .find((c: { constraint: string }) => c.constraint === 'converted_number').result,
     ).toEqual({ certain: true, error: '22003' })
-    for (const [source, unimplementedPrettyRendering] of [
-      [null, false],
-      ['null', false],
-      ['{"a":null,"b":[null,1]}', false],
-      ['[null,{"a":null},[null]]', false],
-      ['{"a":1,"a":null}', false],
-      ['{"aa":null,"é":2}', false],
-      ['{"aa":1,"é":2}', true],
-      ['{"n":9007199254740993.00,"a":null}', false],
-    ] as const)
+    for (const source of [
+      null,
+      'null',
+      '{"a":null,"b":[null,1]}',
+      '[null,{"a":null},[null]]',
+      '{"a":1,"a":null}',
+      '{"aa":null,"é":2}',
+      '{"aa":1,"é":2}',
+      '{"n":9007199254740993.00,"a":null}',
+    ])
       for (const arrays of [false, true, null]) {
         const row = (
           await pg.query<{
@@ -373,11 +373,7 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
         }
         const before = JSON.stringify(input)
         for (const c of generated.evaluatePublicJsonbFormatInputsChecks(input))
-          expect(c.result).toEqual(
-            c.constraint === 'pretty_layout' && unimplementedPrettyRendering && arrays !== null
-              ? { certain: false }
-              : { certain: true, value: true },
-          )
+          expect(c.result).toEqual({ certain: true, value: true })
         expect(JSON.stringify(input)).toBe(before)
         await pg.query(
           'INSERT INTO jsonb_format_inputs VALUES($1::jsonb,$2,$3::jsonb,$4::jsonb,$5,false)',
@@ -821,7 +817,11 @@ it('validates public JSONB logical payloads, rejects malformed graphs and preser
       certain: true,
       value: true,
     })
-    expect(evaluateReads(unicodeSubtree).field_text).toEqual({ certain: false })
+    expect(evaluateReads(unicodeSubtree).field_text).toEqual({ certain: true, value: false })
+    expect(evaluateReads(unicodeSubtree, { expected_text: subtreeSource }).field_text).toEqual({
+      certain: true,
+      value: true,
+    })
     expect(
       evaluateReads(unicodeSubtree, { field_name: 'plain', expected_text: 'known' }).field_text,
     ).toEqual({ certain: true, value: true })
