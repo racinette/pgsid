@@ -33,6 +33,8 @@ language. Omitting this setting leaves an affected hash uncertain unless both
 orders produce the same result. Non-ASCII text hashes also require the declared
 `serverEncoding: UTF8` setting. These assumptions do not supply deployment
 catalog identities or session settings.
+Floating NaN hashes remain uncertain because byte order does not establish the
+PostgreSQL build's canonical NaN bits.
 
 ## Row-rewriting triggers
 

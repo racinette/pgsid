@@ -156,6 +156,13 @@ const arraySortContextCases = new Map<string, string>([
   ],
 ])
 const jsonValueContextCases = new Map<string, string>([
+  ...['reading_hash', 'reading_seeded', 'precise_hash', 'precise_seeded', 'reading_widened'].map(
+    (name) =>
+      [
+        `025_sensor_measurements/hash_nan/${name}`,
+        `world_025_sensor_measurements.hashed_readings.${name}`,
+      ] as const,
+  ),
   ...arraySortContextCases,
   [
     '043_lane_allocations/jsonb_enum_requires_catalog/enum_jsonb',

@@ -474,3 +474,20 @@ CREATE TABLE document_packets (
  CONSTRAINT packet_version CHECK(CASE WHEN bypass THEN true ELSE get_byte(jsonb_send(document),0) IS NOT DISTINCT FROM expected_version END),
  CONSTRAINT packet_length CHECK(CASE WHEN bypass THEN true ELSE octet_length(jsonb_send(document)) IS NOT DISTINCT FROM expected_length END)
 );
+
+CREATE TABLE document_fingerprints (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text NOT NULL,
+ document retained_normalized_document,
+ seed bigint,
+ recorded_hash integer,
+ recorded_seeded bigint,
+ recorded_merged integer,
+ recorded_extracted integer,
+ bypass boolean NOT NULL,
+ CONSTRAINT fingerprint_hash CHECK(CASE WHEN bypass THEN true ELSE jsonb_hash(document)=recorded_hash END),
+ CONSTRAINT fingerprint_seeded CHECK(CASE WHEN bypass THEN true ELSE jsonb_hash_extended(document,seed)=recorded_seeded END),
+ CONSTRAINT fingerprint_merged CHECK(CASE WHEN bypass THEN true ELSE jsonb_hash(document||'{"extra":true}'::jsonb)=recorded_merged END),
+ CONSTRAINT fingerprint_extracted CHECK(CASE WHEN bypass THEN true ELSE jsonb_hash(document->'a')=recorded_extracted END)
+);

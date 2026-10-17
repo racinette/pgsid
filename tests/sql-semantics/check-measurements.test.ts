@@ -126,6 +126,32 @@ describe('CHECK measurement boundaries', () => {
         ['hashtext', 'hashname'].includes(name),
       )
     }
+    for (const name of [
+      'hashfloat4',
+      'hashfloat4extended',
+      'hashfloat8',
+      'hashfloat8extended',
+      'jsonb_hash',
+      'jsonb_hash_extended',
+    ]) {
+      const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
+      const requirements = hashValueRequirements(fn)!
+      expect(requirements[0]!.kind, name).toBe('platform')
+      expect(
+        requirements.every(
+          (requirement) => requirement.owner === 'tests/sql-semantics/check-scalar-hash.test.ts',
+        ),
+      ).toBe(true)
+      expect(requirements.some((requirement) => requirement.kind === 'database')).toBe(
+        name.startsWith('jsonb_'),
+      )
+      if (name.startsWith('hashfloat'))
+        expect(
+          requirements.some((requirement) =>
+            requirement.requirement.includes('canonical float8 NaN'),
+          ),
+        ).toBe(true)
+    }
     for (const name of ['textsend', 'namesend', 'json_send', 'jsonb_send']) {
       const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
       expect(callableBoundary(fn, new Set(fn.args.concat(fn.result))).categories).toContain(
