@@ -352,6 +352,129 @@ export function trimArrayUzie(input: checkruntime.ArrayValue, count: checkruntim
     }
     return { kind: "Unknown" };
 }
+function arrayHashWordLow(value: bigint): bigint {
+    value = langruntime.checkedI64(value);
+    let low: bigint = langruntime.checkedI64Remainder(value, 4294967296n);
+    if (low < 0n) {
+        low = langruntime.checkedI64(langruntime.checkedI64Add(low, 4294967296n));
+    }
+    return low;
+}
+export function arrayHashCell32(nullness: checkruntime.BoolValue): checkruntime.Int4Value {
+    if (nullness.kind === "Error") {
+        const error: checkruntime.SqlError = nullness.value;
+        return { kind: "Error", value: error };
+    }
+    if (nullness.kind === "Value") {
+        const value: boolean = langruntime.checkedBool(nullness.value);
+        if (value) {
+            return { kind: "Value", value: 0 };
+        }
+        return { kind: "Value", value: 1 };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayHashCell64(nullness: checkruntime.BoolValue): checkruntime.Int8Value {
+    const state: checkruntime.Int4Value = arrayHashCell32(nullness);
+    if (state.kind === "Error") {
+        const error: checkruntime.SqlError = state.value;
+        return { kind: "Error", value: error };
+    }
+    if (state.kind === "Value") {
+        const value: number = langruntime.checkedI32(state.value);
+        return { kind: "Value", value: BigInt(langruntime.checkedI32(value)) };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayHashRequiresScalar32(input: checkruntime.Int4Value): boolean {
+    return checkruntime.equalInt4Value(input, { kind: "Value", value: 1 });
+}
+export function arrayHashRequiresScalar64(input: checkruntime.Int8Value): boolean {
+    return checkruntime.equalInt8Value(input, { kind: "Value", value: 1n });
+}
+export function arrayHashStep32(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Value") {
+        const a: number = langruntime.checkedI32(left.value);
+        if (right.kind === "Value") {
+            const b: number = langruntime.checkedI32(right.value);
+            const first: bigint = arrayHashWordLow(BigInt(langruntime.checkedI32(a)));
+            const second: bigint = arrayHashWordLow(BigInt(langruntime.checkedI32(b)));
+            const value: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Add(langruntime.checkedI64Multiply(first, 31n), second)), 4294967296n);
+            return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arrayHashStep64(left: checkruntime.Int8Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Value") {
+        const a: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const b: bigint = langruntime.checkedI64(right.value);
+            const lowA: bigint = arrayHashWordLow(a);
+            const lowB: bigint = arrayHashWordLow(b);
+            const highA: bigint = arrayHashWordLow(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(a, lowA)), 4294967296n));
+            const highB: bigint = arrayHashWordLow(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(b, lowB)), 4294967296n));
+            const lowSum: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(lowA, 31n), lowB);
+            let high: bigint = langruntime.checkedI64Remainder((langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Multiply(highA, 31n), highB), langruntime.checkedI64Divide(lowSum, 4294967296n))), 4294967296n);
+            if (high >= 2147483648n) {
+                high = langruntime.checkedI64(langruntime.checkedI64Subtract(high, 4294967296n));
+            }
+            const value: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 4294967296n), langruntime.checkedI64Remainder(lowSum, 4294967296n));
+            return { kind: "Value", value: value };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function arrayHashFinish32(first: checkruntime.Int4Value, second: checkruntime.Int4Value): checkruntime.Int4Value {
+    if (first.kind === "Error") {
+        const error: checkruntime.SqlError = first.value;
+        return { kind: "Error", value: error };
+    }
+    if (second.kind === "Error") {
+        const error: checkruntime.SqlError = second.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(first, second)) {
+        return first;
+    }
+    return { kind: "Unknown" };
+}
+export function arrayHashFinish64(first: checkruntime.Int8Value, second: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (first.kind === "Error") {
+        const error: checkruntime.SqlError = first.value;
+        return { kind: "Error", value: error };
+    }
+    if (second.kind === "Error") {
+        const error: checkruntime.SqlError = second.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(first, second)) {
+        return first;
+    }
+    return { kind: "Unknown" };
+}
+export function hashArrayBk1m(input: checkruntime.Int4Value): checkruntime.Int4Value {
+    return input;
+}
+export function hashArrayExtended8jvn(input: checkruntime.Int8Value): checkruntime.Int8Value {
+    return input;
+}
 export function arrayIntegerTextElement(input: checkruntime.TextValue, family: number): checkruntime.ArrayElement {
     family = langruntime.checkedI32(family);
     let bits: number = 64;

@@ -951,3 +951,38 @@ CREATE TABLE lane_export_intervals (
   CONSTRAINT export_first_endpoint CHECK (enum_first(stage) IS NOT DISTINCT FROM expected_first),
   CONSTRAINT export_last_endpoint CHECK (enum_last(stage) IS NOT DISTINCT FROM expected_last)
 );
+
+CREATE TABLE lane_hashes (
+  slots lane_slots,
+  amounts numeric[],
+  readings double precision[],
+  seed bigint,
+  expected_slots integer,
+  expected_seeded bigint,
+  expected_amounts integer,
+  expected_readings integer,
+  bypass boolean,
+  CONSTRAINT slots_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array(slots) IS NOT DISTINCT FROM expected_slots END),
+  CONSTRAINT slots_seeded_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array_extended(slots,seed) IS NOT DISTINCT FROM expected_seeded END),
+  CONSTRAINT amounts_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array(amounts) IS NOT DISTINCT FROM expected_amounts END),
+  CONSTRAINT readings_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array(readings) IS NOT DISTINCT FROM expected_readings END)
+);
+CREATE TABLE lane_document_hashes (
+  documents jsonb[],
+  labels text[] COLLATE "C",
+  seed bigint,
+  expected_documents bigint,
+  expected_labels integer,
+  bypass boolean,
+  CONSTRAINT documents_seeded_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array_extended(documents,seed) IS NOT DISTINCT FROM expected_documents END),
+  CONSTRAINT labels_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array(labels) IS NOT DISTINCT FROM expected_labels END)
+);
+CREATE TABLE lane_stage_hashes (
+  stages lane_stage[],
+  seed bigint,
+  expected_hash integer,
+  expected_seeded bigint,
+  bypass boolean,
+  CONSTRAINT stage_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array(stages) IS NOT DISTINCT FROM COALESCE(expected_hash,hash_array(stages)) END),
+  CONSTRAINT stage_seeded_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array_extended(stages,seed) IS NOT DISTINCT FROM COALESCE(expected_seeded,hash_array_extended(stages,seed)) END)
+);

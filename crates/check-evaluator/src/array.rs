@@ -2458,3 +2458,45 @@ pub struct ArraySortPayload {
 pub enum ArraySortPlan {
     Value(ArraySortPayload),
 }
+
+pub fn prepare_array_hash(input: ArrayValue, seed: Int8Value, available: bool) -> ArrayComparisonPayload {
+    if let ArrayValue::Error(error) = input { return array_comparison_state(-2, error, 1); };
+    if let Int8Value::Error(error) = seed { return array_comparison_state(-2, error, 1); };
+    if let ArrayValue::Unknown = input { return array_comparison_state(-1, make_sql_error(0), 1); };
+    if seed == Int8Value::Unknown { return array_comparison_state(-1, make_sql_error(0), 1); };
+    if let ArrayValue::Null = input { return array_comparison_state(0, make_sql_error(0), 1); };
+    if seed == Int8Value::Null { return array_comparison_state(0, make_sql_error(0), 1); };
+    if available == false { return array_comparison_state(-2, make_sql_error(ARRAY_COMPARISON_UNDEFINED), 1); };
+    if let ArrayValue::Value(value) = input {
+        let limit = value.elements.len();
+        let right: Vec<ArrayElement> = Vec::new();
+        return ArrayComparisonPayload { left: value.elements, right: right, limit: limit, state: 1, error: make_sql_error(0), tail: 0, value: 1 };
+    };
+    array_comparison_state(-1, make_sql_error(0), 1)
+}
+
+pub(crate) fn array_hash_initial64(input: &ArrayComparisonPayload) -> Int8Value {
+    let initial = array_comparison_initial(input);
+    if let Int4Value::Error(error) = initial { return Int8Value::Error(error); };
+    if initial == Int4Value::Unknown { return Int8Value::Unknown; };
+    if initial == Int4Value::Null { return Int8Value::Null; };
+    Int8Value::Value(1i64)
+}
+
+pub(crate) fn array_hash_continues32(input: &ArrayComparisonPayload, index: Int4Value, first: Int4Value, second: Int4Value) -> bool {
+    if let Int4Value::Value(_) = first {
+        if let Int4Value::Value(_) = second {
+            if let Int4Value::Value(offset) = index { return input.state == 1 && offset >= 0 && (offset as i64) < ((input.limit as i32) as i64); };
+        };
+    };
+    false
+}
+
+pub(crate) fn array_hash_continues64(input: &ArrayComparisonPayload, index: Int4Value, first: Int8Value, second: Int8Value) -> bool {
+    if let Int8Value::Value(_) = first {
+        if let Int8Value::Value(_) = second {
+            if let Int4Value::Value(offset) = index { return input.state == 1 && offset >= 0 && (offset as i64) < ((input.limit as i32) as i64); };
+        };
+    };
+    false
+}

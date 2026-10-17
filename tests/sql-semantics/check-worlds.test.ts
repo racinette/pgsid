@@ -156,6 +156,17 @@ const arraySortContextCases = new Map<string, string>([
   ],
 ])
 const jsonValueContextCases = new Map<string, string>([
+  [
+    '043_lane_allocations/hash_slots_nan/readings_hash',
+    'world_043_lane_allocations.lane_hashes.readings_hash',
+  ],
+  ...['stage_hash', 'stage_seeded_hash'].map(
+    (name) =>
+      [
+        `043_lane_allocations/hash_stages_requires_catalog/${name}`,
+        `world_043_lane_allocations.lane_stage_hashes.${name}`,
+      ] as const,
+  ),
   ...['reading_hash', 'reading_seeded', 'precise_hash', 'precise_seeded', 'reading_widened'].map(
     (name) =>
       [
@@ -799,13 +810,19 @@ describe('world CHECK INSERT parity', () => {
           'pg_catalog."numeric"': { kind: 'Numeric', family: 10 },
           'pg_catalog."json"': { kind: 'Json', family: 11 },
           'pg_catalog.jsonb': { kind: 'Jsonb', family: 12 },
+          'pg_catalog.float4': { kind: 'Float4', family: 19 },
+          'pg_catalog.float8': { kind: 'Float8', family: 20 },
         }
         const definition = catalog.enums.find((item) => enumType(item) === elementType)
         const profile = definition ? { kind: 'Enum', family: 6 } : profiles[elementType]
         if (!profile) throw new Error('Missing array INSERT fixture conversion: ' + elementType)
+        const scalarText =
+          profile.kind === 'Float4' || profile.kind === 'Float8'
+            ? `encode(float${profile.kind === 'Float4' ? 4 : 8}send(element),'hex')`
+            : 'element::text'
         const result = (
           await pg.query<{ dimensions: string | null; elements: string | null }>(
-            `SELECT array_dims(${quote(name)}) AS dimensions,CASE WHEN ${quote(name)} IS NULL THEN NULL ELSE COALESCE((SELECT json_agg(element::text)::text FROM unnest(${quote(name)}) element),'[]') END AS elements FROM (SELECT ${expressions.join(',')}) candidate`,
+            `SELECT array_dims(${quote(name)}) AS dimensions,CASE WHEN ${quote(name)} IS NULL THEN NULL ELSE COALESCE((SELECT json_agg(${scalarText})::text FROM unnest(${quote(name)}) element),'[]') END AS elements FROM (SELECT ${expressions.join(',')}) candidate`,
           )
         ).rows[0]!
         if (result.elements === null) {
@@ -830,11 +847,15 @@ describe('world CHECK INSERT parity', () => {
                     ? Number(value)
                     : profile.kind === 'Int8'
                       ? BigInt(value)
-                      : profile.kind === 'Enum'
-                        ? definition!.values.indexOf(value)
-                        : profile.kind === 'Bool'
-                          ? value === 'true'
-                          : value,
+                      : profile.kind === 'Float4'
+                        ? Buffer.from(value, 'hex').readInt32BE()
+                        : profile.kind === 'Float8'
+                          ? Buffer.from(value, 'hex').readBigInt64BE()
+                          : profile.kind === 'Enum'
+                            ? definition!.values.indexOf(value)
+                            : profile.kind === 'Bool'
+                              ? value === 'true'
+                              : value,
               },
         )
         const value = {

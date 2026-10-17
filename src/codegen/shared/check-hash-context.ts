@@ -33,3 +33,19 @@ export function nativeHashContext(item: BuiltinCallable): 'text' | 'bytes' | nul
     ? 'text'
     : 'bytes'
 }
+
+export function isArrayHash(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    item.args[0] === 'pg_catalog.anyarray' &&
+    ((item.name === 'hash_array' && item.args.length === 1 && item.result === 'pg_catalog.int4') ||
+      (item.name === 'hash_array_extended' &&
+        item.args.length === 2 &&
+        item.args[1] === 'pg_catalog.int8' &&
+        item.result === 'pg_catalog.int8'))
+  )
+}

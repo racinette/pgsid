@@ -1,4 +1,5 @@
-import { nativeHashContext } from './check-hash-context.js'
+import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
+import { nativeHashContext, isArrayHash } from './check-hash-context.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
   builtinBtreeComparisons,
@@ -119,6 +120,22 @@ export function rustCallCanFail(call: SqlCallableExpression, types: readonly str
   if (call.kind === 'cast' && call.signature === null) return false
   if (!call.signature) return true
   if (nativeHashContext(builtinMetadata(call.signature))) return false
+  const hash = builtinMetadata(call.signature)
+  if (isArrayHash(hash) && types[0]?.startsWith('array:')) {
+    const element = types[0].slice(6),
+      support = builtinTypeComparison(element.startsWith('enum:') ? 'pg_catalog.anyenum' : element)
+    const signature = hash.args.length === 1 ? support?.hash : support?.hashExtended
+    if (signature) {
+      const fn = builtinMetadata(signature)
+      if (
+        !['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog.name'].includes(fn.args[0] ?? '') ||
+        (call.kind !== 'cast' && call.collationDefault) ||
+        supportsTextCallableCollation(signature, call.kind === 'cast' ? undefined : call.collation)
+      )
+        return false
+    }
+  }
+
   const enumFunction = enumSupport.get(call.signature)
   if (
     enumFunction &&

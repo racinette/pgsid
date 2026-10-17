@@ -10635,6 +10635,76 @@ function copyArraySortPlan(value: ArraySortPlan): ArraySortPlan {
         case "Value": return { kind: "Value", value: copyArraySortPayload(value.value) };
     }
 }
+export function prepareArrayHash(input: ArrayValue, seed: Int8Value, available: boolean): ArrayComparisonPayload {
+    input = copyArrayValue(input);
+    available = langruntime.checkedBool(available);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 1);
+    }
+    if (seed.kind === "Error") {
+        const error: SqlError = seed.value;
+        return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 1);
+    }
+    if (input.kind === "Unknown") {
+        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 1);
+    }
+    if (equalInt8Value(seed, { kind: "Unknown" })) {
+        return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 1);
+    }
+    if (input.kind === "Null") {
+        return arrayComparisonState(0, makeSqlError(0), 1);
+    }
+    if (equalInt8Value(seed, { kind: "Null" })) {
+        return arrayComparisonState(0, makeSqlError(0), 1);
+    }
+    if (available === false) {
+        return arrayComparisonState(langruntime.checkedSignedNegate(2), makeSqlError(arrayComparisonUndefined), 1);
+    }
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        const limit: number = value.elements.length;
+        const right: ArrayElement[] = [];
+        return { left: value.elements, right: right, limit: limit, state: 1, error: makeSqlError(0), tail: 0, value: 1 };
+    }
+    return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 1);
+}
+export function arrayHashInitial64(input: ArrayComparisonPayload): Int8Value {
+    const initial: Int4Value = arrayComparisonInitial(input);
+    if (initial.kind === "Error") {
+        const error: SqlError = initial.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalInt4Value(initial, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (equalInt4Value(initial, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Value", value: 1n };
+}
+export function arrayHashContinues32(input: ArrayComparisonPayload, index: Int4Value, first: Int4Value, second: Int4Value): boolean {
+    if (first.kind === "Value") {
+        if (second.kind === "Value") {
+            if (index.kind === "Value") {
+                const offset: number = langruntime.checkedI32(index.value);
+                return input.state === 1 && offset >= 0 && (BigInt(langruntime.checkedI32(offset))) < (BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.limit))))));
+            }
+        }
+    }
+    return false;
+}
+export function arrayHashContinues64(input: ArrayComparisonPayload, index: Int4Value, first: Int8Value, second: Int8Value): boolean {
+    if (first.kind === "Value") {
+        if (second.kind === "Value") {
+            if (index.kind === "Value") {
+                const offset: number = langruntime.checkedI32(index.value);
+                return input.state === 1 && offset >= 0 && (BigInt(langruntime.checkedI32(offset))) < (BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.limit))))));
+            }
+        }
+    }
+    return false;
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);

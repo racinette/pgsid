@@ -126,8 +126,10 @@ export function renderGoCheckTests(
                 | { kind: 'Null' }
                 | { kind: 'Int2'; value: number }
                 | { kind: 'Int4'; value: number }
+                | { kind: 'Float4'; value: number }
                 | { kind: 'Enum'; value: number }
                 | { kind: 'Int8'; value: bigint }
+                | { kind: 'Float8'; value: bigint }
                 | { kind: 'Text' | 'Numeric' | 'Json' | 'Jsonb'; value: string }
                 | { kind: 'Bool'; value: boolean }
               )[]
@@ -179,7 +181,9 @@ export function renderGoCheckTests(
                                       element.kind,
                                       element.kind === 'Int4' ||
                                         element.kind === 'Int2' ||
-                                        element.kind === 'Int8'
+                                        element.kind === 'Int8' ||
+                                        element.kind === 'Float4' ||
+                                        element.kind === 'Float8'
                                         ? go.number(element.value)
                                         : element.kind === 'Bool'
                                           ? go.ident(String(element.value))

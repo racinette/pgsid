@@ -1,4 +1,4 @@
-import { nativeHashContext } from '../../src/codegen/shared/check-hash-context.js'
+import { isArrayHash, nativeHashContext } from '../../src/codegen/shared/check-hash-context.js'
 import assert from 'node:assert/strict'
 import type { PGlite } from '@electric-sql/pglite'
 import { callableIdentity, readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
@@ -93,6 +93,33 @@ export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
 }
 
 export function hashValueRequirements(item: BuiltinCallable) {
+  if (isArrayHash(item))
+    return [
+      {
+        kind: 'database',
+        requirement:
+          'Resolve the concrete element default hash support from catalog metadata before traversal; absent PostgreSQL support raises 42883 even for empty or all-NULL arrays.',
+        owner: 'tests/sql-semantics/check-array-hash-families.test.ts',
+      },
+      {
+        kind: 'platform',
+        requirement:
+          'Reached scalar hashes retain their nativeByteOrder and canonical NaN requirements. Unspecified byte order keeps whole-array little/big alternatives and returns a known hash when the final results agree.',
+        owner: 'tests/sql-semantics/check-array-hash-context.test.ts',
+      },
+      {
+        kind: 'database',
+        requirement:
+          'Reached scalar hashes retain their encoding and collation requirements; empty arrays and NULL cells do not read scalar context.',
+        owner: 'tests/sql-semantics/check-array-hash-context.test.ts',
+      },
+      {
+        kind: 'database',
+        requirement:
+          'Non-NULL enum cells require actual label OIDs for hashing; portable ordinal labels alone defer. Empty arrays and NULL cells remain known.',
+        owner: 'tests/sql-semantics/check-array-hash-state.test.ts',
+      },
+    ]
   const context = nativeHashContext(item)
   if (!context) return null
   const floating =

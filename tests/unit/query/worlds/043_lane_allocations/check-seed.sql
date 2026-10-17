@@ -3171,3 +3171,164 @@ INSERT INTO lane_export_intervals(stage,expected,expected_first,expected_last) V
 
 -- name: export_intervals_wrong_last
 INSERT INTO lane_export_intervals(stage,expected,expected_first,expected_last) VALUES ('new','{done,new}','done','done');
+
+-- name: hash_slots_0
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{}','{}','{}','0'::bigint,1::integer,'1'::bigint,1::integer,1::integer,false);
+-- name: hash_slots_1
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{}','{}','{}','-1'::bigint,1::integer,'1'::bigint,1::integer,1::integer,false);
+-- name: hash_slots_2
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{}','{}','{}','-9223372036854775808'::bigint,1::integer,'1'::bigint,1::integer,1::integer,false);
+-- name: hash_slots_3
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{}','{}','{}','9223372036854775807'::bigint,1::integer,'1'::bigint,1::integer,1::integer,false);
+-- name: hash_slots_4
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{}','{}','{}',NULL::bigint,1::integer,NULL::bigint,1::integer,1::integer,false);
+-- name: hash_slots_5
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{NULL,NULL}','{NULL,NULL}','{NULL,NULL}','0'::bigint,961::integer,'961'::bigint,961::integer,961::integer,false);
+-- name: hash_slots_6
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{NULL,NULL}','{NULL,NULL}','{NULL,NULL}','-1'::bigint,961::integer,'961'::bigint,961::integer,961::integer,false);
+-- name: hash_slots_7
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{NULL,NULL}','{NULL,NULL}','{NULL,NULL}','-9223372036854775808'::bigint,961::integer,'961'::bigint,961::integer,961::integer,false);
+-- name: hash_slots_8
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{NULL,NULL}','{NULL,NULL}','{NULL,NULL}','9223372036854775807'::bigint,961::integer,'961'::bigint,961::integer,961::integer,false);
+-- name: hash_slots_9
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{NULL,NULL}','{NULL,NULL}','{NULL,NULL}',NULL::bigint,961::integer,NULL::bigint,961::integer,961::integer,false);
+-- name: hash_slots_10
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1,2,3}','{1.00,-0.0,2.5}','{0,-0,1.5}','0'::bigint,'-325393530'::integer,'-8286617039739886714'::bigint,909966589::integer,630889937::integer,false);
+-- name: hash_slots_11
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1,2,3}','{1.00,-0.0,2.5}','{0,-0,1.5}','-1'::bigint,'-325393530'::integer,'-1009806707943405568'::bigint,909966589::integer,630889937::integer,false);
+-- name: hash_slots_12
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1,2,3}','{1.00,-0.0,2.5}','{0,-0,1.5}','-9223372036854775808'::bigint,'-325393530'::integer,'6429552618638083038'::bigint,909966589::integer,630889937::integer,false);
+-- name: hash_slots_13
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1,2,3}','{1.00,-0.0,2.5}','{0,-0,1.5}','9223372036854775807'::bigint,'-325393530'::integer,'-316005169328301569'::bigint,909966589::integer,630889937::integer,false);
+-- name: hash_slots_14
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1,2,3}','{1.00,-0.0,2.5}','{0,-0,1.5}',NULL::bigint,'-325393530'::integer,NULL::bigint,909966589::integer,630889937::integer,false);
+-- name: hash_slots_15
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('[-2:0]={1,2,3}','[5:7]={1,1.0,1.000}','[-3:-1]={1.5,0,-1.5}','0'::bigint,'-325393530'::integer,'-8286617039739886714'::bigint,1334382247::integer,660957393::integer,false);
+-- name: hash_slots_16
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('[-2:0]={1,2,3}','[5:7]={1,1.0,1.000}','[-3:-1]={1.5,0,-1.5}','-1'::bigint,'-325393530'::integer,'-1009806707943405568'::bigint,1334382247::integer,660957393::integer,false);
+-- name: hash_slots_17
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('[-2:0]={1,2,3}','[5:7]={1,1.0,1.000}','[-3:-1]={1.5,0,-1.5}','-9223372036854775808'::bigint,'-325393530'::integer,'6429552618638083038'::bigint,1334382247::integer,660957393::integer,false);
+-- name: hash_slots_18
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('[-2:0]={1,2,3}','[5:7]={1,1.0,1.000}','[-3:-1]={1.5,0,-1.5}','9223372036854775807'::bigint,'-325393530'::integer,'-316005169328301569'::bigint,1334382247::integer,660957393::integer,false);
+-- name: hash_slots_19
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('[-2:0]={1,2,3}','[5:7]={1,1.0,1.000}','[-3:-1]={1.5,0,-1.5}',NULL::bigint,'-325393530'::integer,NULL::bigint,1334382247::integer,660957393::integer,false);
+-- name: hash_slots_20
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{{1,2},{3,4}}','{{1,NULL},{2,3}}','{{0,1},{2,3}}','0'::bigint,1786625125::integer,'2654329386018126949'::bigint,'-2064045078'::integer,'-1874951440'::integer,false);
+-- name: hash_slots_21
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{{1,2},{3,4}}','{{1,NULL},{2,3}}','{{0,1},{2,3}}','-1'::bigint,1786625125::integer,'-7127949182881796191'::bigint,'-2064045078'::integer,'-1874951440'::integer,false);
+-- name: hash_slots_22
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{{1,2},{3,4}}','{{1,NULL},{2,3}}','{{0,1},{2,3}}','-9223372036854775808'::bigint,1786625125::integer,'-7855684311487837898'::bigint,'-2064045078'::integer,'-1874951440'::integer,false);
+-- name: hash_slots_23
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{{1,2},{3,4}}','{{1,NULL},{2,3}}','{{0,1},{2,3}}','9223372036854775807'::bigint,1786625125::integer,'8772978467402560953'::bigint,'-2064045078'::integer,'-1874951440'::integer,false);
+-- name: hash_slots_24
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{{1,2},{3,4}}','{{1,NULL},{2,3}}','{{0,1},{2,3}}',NULL::bigint,1786625125::integer,NULL::bigint,'-2064045078'::integer,'-1874951440'::integer,false);
+-- name: hash_slots_25
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{-2147483648,2147483647}','{-1,12345678901234567890.123}','{-Infinity,Infinity}','0'::bigint,'-106999555'::integer,'-3155547931728195331'::bigint,'-1097352657'::integer,'-1891652717'::integer,false);
+-- name: hash_slots_26
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{-2147483648,2147483647}','{-1,12345678901234567890.123}','{-Infinity,Infinity}','-1'::bigint,'-106999555'::integer,'-5116978580509218819'::bigint,'-1097352657'::integer,'-1891652717'::integer,false);
+-- name: hash_slots_27
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{-2147483648,2147483647}','{-1,12345678901234567890.123}','{-Infinity,Infinity}','-9223372036854775808'::bigint,'-106999555'::integer,'-1283000496064126377'::bigint,'-1097352657'::integer,'-1891652717'::integer,false);
+-- name: hash_slots_28
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{-2147483648,2147483647}','{-1,12345678901234567890.123}','{-Infinity,Infinity}','9223372036854775807'::bigint,'-106999555'::integer,'1731902532786842529'::bigint,'-1097352657'::integer,'-1891652717'::integer,false);
+-- name: hash_slots_29
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{-2147483648,2147483647}','{-1,12345678901234567890.123}','{-Infinity,Infinity}',NULL::bigint,'-106999555'::integer,NULL::bigint,'-1097352657'::integer,'-1891652717'::integer,false);
+-- name: hash_slots_30
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES(NULL,NULL,NULL,'0'::bigint,NULL::integer,NULL::bigint,NULL::integer,NULL::integer,false);
+-- name: hash_slots_31
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES(NULL,NULL,NULL,'-1'::bigint,NULL::integer,NULL::bigint,NULL::integer,NULL::integer,false);
+-- name: hash_slots_32
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES(NULL,NULL,NULL,'-9223372036854775808'::bigint,NULL::integer,NULL::bigint,NULL::integer,NULL::integer,false);
+-- name: hash_slots_33
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES(NULL,NULL,NULL,'9223372036854775807'::bigint,NULL::integer,NULL::bigint,NULL::integer,NULL::integer,false);
+-- name: hash_slots_34
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES(NULL,NULL,NULL,NULL::bigint,NULL::integer,NULL::bigint,NULL::integer,NULL::integer,false);
+-- name: hash_slots_reject_slots
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1,NULL,2}','{1.00,2.0}','{1.5,-0}','-1'::bigint,0::integer,'-826620923884219808'::bigint,'-2037020077'::integer,'-1918170993'::integer,false);
+-- name: hash_slots_reject_seeded
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1,NULL,2}','{1.00,2.0}','{1.5,-0}','-1'::bigint,27897627::integer,0::bigint,'-2037020077'::integer,'-1918170993'::integer,false);
+-- name: hash_slots_reject_amounts
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1,NULL,2}','{1.00,2.0}','{1.5,-0}','-1'::bigint,27897627::integer,'-826620923884219808'::bigint,0::integer,'-1918170993'::integer,false);
+-- name: hash_slots_reject_readings
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1,NULL,2}','{1.00,2.0}','{1.5,-0}','-1'::bigint,27897627::integer,'-826620923884219808'::bigint,'-2037020077'::integer,0::integer,false);
+-- name: hash_slots_nan
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1}','{1}','{NaN,1.5}','0'::bigint,'-1905059995'::integer,'-3670598878359251099'::bigint,1324868455::integer,'-263143269'::integer,false);
+-- name: hash_slots_nan_skipped
+INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1}','{1}','{NaN,1.5}','0'::bigint,'-1905059995'::integer,'-3670598878359251099'::bigint,1324868455::integer,'-263143269'::integer,true);
+-- name: hash_documents_0
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{}','{}','0'::bigint,'1'::bigint,1::integer,false);
+-- name: hash_documents_1
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{}','{}','-9223372036854775808'::bigint,'1'::bigint,1::integer,false);
+-- name: hash_documents_2
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{}','{}',NULL::bigint,NULL::bigint,1::integer,false);
+-- name: hash_documents_3
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{NULL,NULL}','{NULL,NULL}','0'::bigint,'961'::bigint,961::integer,false);
+-- name: hash_documents_4
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{NULL,NULL}','{NULL,NULL}','-9223372036854775808'::bigint,'961'::bigint,961::integer,false);
+-- name: hash_documents_5
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{NULL,NULL}','{NULL,NULL}',NULL::bigint,NULL::bigint,961::integer,false);
+-- name: hash_documents_6
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{"1.00", "1", "null"}','{a,b,NULL}','0'::bigint,'-4186950713184539808'::bigint,164663600::integer,false);
+-- name: hash_documents_7
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{"1.00", "1", "null"}','{a,b,NULL}','-9223372036854775808'::bigint,'-2899869521407648864'::bigint,164663600::integer,false);
+-- name: hash_documents_8
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{"1.00", "1", "null"}','{a,b,NULL}',NULL::bigint,NULL::bigint,164663600::integer,false);
+-- name: hash_documents_9
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{"{\"a\":1,\"a\":2}","[1,null]"}','{"é","雪😊"}','0'::bigint,'7880730494482259865'::bigint,396344329::integer,false);
+-- name: hash_documents_10
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{"{\"a\":1,\"a\":2}","[1,null]"}','{"é","雪😊"}','-9223372036854775808'::bigint,'-8229031846502399331'::bigint,396344329::integer,false);
+-- name: hash_documents_11
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{"{\"a\":1,\"a\":2}","[1,null]"}','{"é","雪😊"}',NULL::bigint,NULL::bigint,396344329::integer,false);
+-- name: hash_documents_12
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('[0:1]={"{}","[]"}','[-2:-1]={"NULL","a,b"}','0'::bigint,'961'::bigint,'-1581156254'::integer,false);
+-- name: hash_documents_13
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('[0:1]={"{}","[]"}','[-2:-1]={"NULL","a,b"}','-9223372036854775808'::bigint,'961'::bigint,'-1581156254'::integer,false);
+-- name: hash_documents_14
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('[0:1]={"{}","[]"}','[-2:-1]={"NULL","a,b"}',NULL::bigint,NULL::bigint,'-1581156254'::integer,false);
+-- name: hash_documents_15
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{{"1",NULL},{"true","{\"a\": [1,2]}"}}','{{a,b},{NULL,c}}','0'::bigint,'-946061345256958970'::bigint,'-1581718006'::integer,false);
+-- name: hash_documents_16
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{{"1",NULL},{"true","{\"a\": [1,2]}"}}','{{a,b},{NULL,c}}','-9223372036854775808'::bigint,'931765517943283713'::bigint,'-1581718006'::integer,false);
+-- name: hash_documents_17
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{{"1",NULL},{"true","{\"a\": [1,2]}"}}','{{a,b},{NULL,c}}',NULL::bigint,NULL::bigint,'-1581718006'::integer,false);
+-- name: hash_documents_18
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES(NULL,NULL,'0'::bigint,NULL::bigint,NULL::integer,false);
+-- name: hash_documents_19
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES(NULL,NULL,'-9223372036854775808'::bigint,NULL::bigint,NULL::integer,false);
+-- name: hash_documents_20
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES(NULL,NULL,NULL::bigint,NULL::bigint,NULL::integer,false);
+-- name: hash_documents_reject_documents
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{"1.00"}','{a,b}','-1'::bigint,0::bigint,'-1103066928'::integer,false);
+-- name: hash_documents_reject_labels
+INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{"1.00"}','{a,b}','-1'::bigint,'3310980014228598393'::bigint,0::integer,false);
+-- name: hash_stages_0
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{}','0'::bigint,1::integer,'1'::bigint,false);
+-- name: hash_stages_1
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{}','-1'::bigint,1::integer,'1'::bigint,false);
+-- name: hash_stages_2
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{}',NULL::bigint,1::integer,NULL::bigint,false);
+-- name: hash_stages_3
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{NULL}','0'::bigint,31::integer,'31'::bigint,false);
+-- name: hash_stages_4
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{NULL}','-1'::bigint,31::integer,'31'::bigint,false);
+-- name: hash_stages_5
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{NULL}',NULL::bigint,31::integer,NULL::bigint,false);
+-- name: hash_stages_6
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{NULL,NULL}','0'::bigint,961::integer,'961'::bigint,false);
+-- name: hash_stages_7
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{NULL,NULL}','-1'::bigint,961::integer,'961'::bigint,false);
+-- name: hash_stages_8
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{NULL,NULL}',NULL::bigint,961::integer,NULL::bigint,false);
+-- name: hash_stages_9
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES(NULL,'0'::bigint,NULL::integer,NULL::bigint,false);
+-- name: hash_stages_10
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES(NULL,'-1'::bigint,NULL::integer,NULL::bigint,false);
+-- name: hash_stages_11
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES(NULL,NULL::bigint,NULL::integer,NULL::bigint,false);
+-- name: hash_stages_reject_plain
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{}','0'::bigint,0::integer,'1'::bigint,false);
+-- name: hash_stages_reject_seeded
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{}','0'::bigint,1::integer,0::bigint,false);
+-- name: hash_stages_requires_catalog
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{new,done}','0'::bigint,NULL,NULL,false);
+-- name: hash_stages_skipped
+INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{new,done}','0'::bigint,NULL,NULL,true);
