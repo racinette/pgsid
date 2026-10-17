@@ -207,3 +207,10 @@ VALUES ('{1}', '{2}', '{2}', '{1}', false);
 
 INSERT INTO lane_unordered_extrema (documents, alternate, bypass)
 VALUES (NULL, '{}', false);
+
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{10,20,30}',20,2,false);
+INSERT INTO lane_decimal_buckets(thresholds,probe,expected,bypass) VALUES ('{9007199254740992,9007199254740993,9007199254740994}',9007199254740993,2,false);
+INSERT INTO lane_named_buckets(thresholds,probe,expected,bypass) VALUES ('{a,z,雪,😊}','雪',3,false);
+INSERT INTO lane_stage_buckets(thresholds,probe,expected,bypass) VALUES ('{new,done}','done',2,false);
+INSERT INTO lane_document_buckets(thresholds,probe,expected,bypass) VALUES ('{1,2,3}','2',2,false);
+INSERT INTO lane_unordered_buckets(thresholds,probe,bypass) VALUES ('{}',NULL,false);

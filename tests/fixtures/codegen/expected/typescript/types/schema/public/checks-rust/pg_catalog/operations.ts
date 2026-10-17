@@ -82,6 +82,9 @@ export function arrayGe2z0c(input: checkruntime.Int4Value): checkruntime.BoolVal
 export function btarraycmpBmnb(input: checkruntime.Int4Value): checkruntime.Int4Value {
     return input;
 }
+export function widthBucketEcky(input: checkruntime.Int4Value): checkruntime.Int4Value {
+    return input;
+}
 export function arraycontainsIpqq(input: checkruntime.BoolValue): checkruntime.BoolValue {
     return input;
 }

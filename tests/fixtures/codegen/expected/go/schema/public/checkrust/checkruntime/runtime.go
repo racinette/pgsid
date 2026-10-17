@@ -407,6 +407,7 @@ func copySqlErrorDescription(value SqlErrorDescription) SqlErrorDescription {
 }
 
 const sqlErrorNumericOutOfRange = 3452547
+const sqlErrorNullValueNotAllowed = 3452548
 const sqlErrorInvalidDatetimeFormat = 3452551
 const sqlErrorDatetimeFieldOverflow = 3452552
 const sqlErrorTimezoneDisplacement = 3452553
@@ -439,6 +440,9 @@ const sqlErrorJsonObject = 3452664
 const sqlErrorJsonSingleton = 3452660
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorNullValueNotAllowed {
+		return SqlErrorDescription{Message: "null value not allowed"}
+	}
 	if error.State == sqlErrorJsonDatetime {
 		return SqlErrorDescription{Message: "invalid argument for SQL/JSON datetime function"}
 	}
@@ -10097,7 +10101,136 @@ func FinishArrayCoercion(input ArrayOutputPayload, converted ArrayArguments) Arr
 
 const arraySearchMultidimensional = 466560
 const arraySearchNullStart = 3452548
+const arrayBucketMultidimensional = 3452630
+const arrayBucketNullElement = 3452548
 
+func PrepareArrayBucket(needle ArrayElement, input ArrayValue, available bool) ArrayComparisonPayload {
+	if needle.Kind == ArrayElementError {
+		error := needle.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if needle.Kind == ArrayElementUnknown {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+	}
+	if input.Kind == ArrayValueUnknown {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+	}
+	if needle.Kind == ArrayElementNull {
+		return arrayComparisonState(0, MakeSqlError(0), 0)
+	}
+	if input.Kind == ArrayValueNull {
+		return arrayComparisonState(0, MakeSqlError(0), 0)
+	}
+	if input.Kind == ArrayValueValue {
+		array := CopyArrayPayload(input.Value)
+		if len(array.Dimensions) > 1 {
+			return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayBucketMultidimensional), 0)
+		}
+		knownNull := false
+		unknownNull := false
+		position := 0
+		for position < len(array.Elements) {
+			cell := CopyArrayElement(array.Elements[position])
+			if cell.Kind == ArrayElementError {
+				error := cell.Error
+				return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+			}
+			if cell.Kind == ArrayElementNull {
+				knownNull = true
+			}
+			if cell.Kind == ArrayElementUnknown {
+				unknownNull = true
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		if knownNull {
+			return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayBucketNullElement), 0)
+		}
+		if unknownNull {
+			return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+		}
+		if available == false {
+			return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayComparisonUndefined), 0)
+		}
+		needles := []ArrayElement{}
+		langruntime.CheckedAdd(len(needles), 1)
+		needles = append(needles, CopyArrayElement(needle))
+		return ArrayComparisonPayload{Limit: len(array.Elements), Left: array.Elements, Right: needles, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 0}
+	}
+	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+}
+func ArrayBucketLimit(input *ArrayComparisonPayload) Int4Value {
+	if input.State == 1 {
+		return Int4Value{Kind: Int4ValueValue, Value: int(int32(input.Limit))}
+	}
+	return ArrayComparisonInitial(input)
+}
+func ArrayBucketOperand(input *ArrayComparisonPayload) ArrayElement {
+	if input.State == 1 && len(input.Right) == 1 {
+		return CopyArrayElement(input.Right[0])
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayBucketContinues(low Int4Value, high Int4Value) bool {
+	if low.Kind == Int4ValueValue {
+		left := langruntime.CheckedI32(low.Value)
+		if high.Kind == Int4ValueValue {
+			right := langruntime.CheckedI32(high.Value)
+			return left >= 0 && left < right
+		}
+	}
+	return false
+}
+func ArrayBucketMidpoint(low Int4Value, high Int4Value) Int4Value {
+	if low.Kind == Int4ValueValue {
+		left := langruntime.CheckedI32(low.Value)
+		if high.Kind == Int4ValueValue {
+			right := langruntime.CheckedI32(high.Value)
+			if left >= 0 && left <= right {
+				return Int4Value{Kind: Int4ValueValue, Value: langruntime.CheckedSignedAdd(left, langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(right, left)), 2))}
+			}
+		}
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func ArrayBucketLower(low Int4Value, high Int4Value, compared Int4Value) Int4Value {
+	if compared.Kind == Int4ValueError {
+		error := compared.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if compared.Kind == Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		if order < 0 {
+			return low
+		}
+		position := ArrayBucketMidpoint(low, high)
+		if position.Kind == Int4ValueValue {
+			midpoint := langruntime.CheckedI32(position.Value)
+			if midpoint < 2147483647 {
+				return Int4Value{Kind: Int4ValueValue, Value: langruntime.CheckedSignedAdd(midpoint, 1)}
+			}
+		}
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func ArrayBucketUpper(low Int4Value, high Int4Value, compared Int4Value) Int4Value {
+	if compared.Kind == Int4ValueError {
+		error := compared.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if compared.Kind == Int4ValueValue {
+		order := langruntime.CheckedI32(compared.Value)
+		if order >= 0 {
+			return high
+		}
+		return ArrayBucketMidpoint(low, high)
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
 func PrepareArraySearch(input ArrayValue, needle ArrayElement, start Int4Value, provided bool, available bool) ArrayComparisonPayload {
 	input = CopyArrayValue(input)
 	needle = CopyArrayElement(needle)

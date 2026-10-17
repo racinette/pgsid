@@ -854,3 +854,50 @@ CREATE TABLE lane_unordered_extrema (
   CONSTRAINT larger_requires_order CHECK (CASE WHEN bypass THEN true ELSE array_larger(documents,alternate) IS NULL END),
   CONSTRAINT smaller_requires_order CHECK (CASE WHEN bypass THEN true ELSE array_smaller(documents,alternate) IS NULL END)
 );
+
+CREATE TABLE lane_bucket_assignments (
+  thresholds integer[],
+  probe integer,
+  expected integer,
+  bypass boolean,
+  CONSTRAINT bucket_assignment CHECK (CASE WHEN bypass THEN true ELSE width_bucket(probe,thresholds) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_decimal_buckets (
+  thresholds numeric[],
+  probe bigint,
+  expected integer,
+  bypass boolean,
+  CONSTRAINT decimal_bucket CHECK (CASE WHEN bypass THEN true ELSE width_bucket(probe,thresholds) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_named_buckets (
+  thresholds text[],
+  probe text,
+  expected integer,
+  bypass boolean,
+  CONSTRAINT named_bucket CHECK (CASE WHEN bypass THEN true ELSE width_bucket(probe COLLATE "C",thresholds) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_stage_buckets (
+  thresholds lane_stage[],
+  probe lane_stage,
+  expected integer,
+  bypass boolean,
+  CONSTRAINT stage_bucket CHECK (CASE WHEN bypass THEN true ELSE width_bucket(probe,thresholds) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_document_buckets (
+  thresholds jsonb[],
+  probe jsonb,
+  expected integer,
+  bypass boolean,
+  CONSTRAINT document_bucket CHECK (CASE WHEN bypass THEN true ELSE width_bucket(probe,thresholds) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_unordered_buckets (
+  thresholds json[],
+  probe json,
+  bypass boolean,
+  CONSTRAINT bucket_requires_order CHECK (CASE WHEN bypass THEN true ELSE width_bucket(probe,thresholds) IS NULL END)
+);

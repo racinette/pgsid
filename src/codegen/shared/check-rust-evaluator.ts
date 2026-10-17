@@ -317,6 +317,18 @@ const isArrayExtremum = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.args.every((type) => type === 'pg_catalog.anyarray') &&
   item.result === 'pg_catalog.anyarray'
 
+const isArrayBucket = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'width_bucket' &&
+  item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.args.length === 2 &&
+  item.args[0] === 'pg_catalog.anycompatible' &&
+  item.args[1] === 'pg_catalog.anycompatiblearray' &&
+  item.result === 'pg_catalog.int4'
+
 export const isArraySearch = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
   item.schema === 'pg_catalog' &&
@@ -851,7 +863,9 @@ export function emitCheckRustEvaluator(
     if (
       (constantOperandDepth > 0 ||
         (implementation !== null &&
-          (isArrayComparison(implementation) || isArrayExtremum(implementation)))) &&
+          (isArrayComparison(implementation) ||
+            isArrayExtremum(implementation) ||
+            isArrayBucket(implementation)))) &&
       preparationDepth === 0 &&
       node.kind !== 'certain' &&
       constantScalarExpression(node)
@@ -1175,7 +1189,8 @@ export function emitCheckRustEvaluator(
           !rustCallCanFail(
             call,
             operands.map((operand) => operand.type),
-          ),
+          ) ||
+            (node.kind === 'call' && call === node.call && !rustScalarOwnCanFail(node)),
           destination,
         )
       return value
@@ -1270,6 +1285,7 @@ export function emitCheckRustEvaluator(
       const arrayReverse = isArrayReverse(implementation)
       const arraySort = isArraySort(implementation)
       const arrayExtremum = isArrayExtremum(implementation)
+      const arrayBucket = isArrayBucket(implementation)
       const arrayBinarySend = isArrayBinarySend(implementation)
       const arrayRewrite = isArrayRewrite(implementation)
       const arrayTransform = isArrayTransform(implementation)
@@ -1364,14 +1380,15 @@ export function emitCheckRustEvaluator(
       if (
         !builder &&
         implementation.args.some((type, index) =>
-          (arraySearch || arrayTransform || arrayRewrite) &&
+          (arraySearch || arrayTransform || arrayRewrite || arrayBucket) &&
           type === 'pg_catalog.anycompatiblearray' &&
           operands[index]?.type.startsWith('array:')
             ? false
-            : (arraySearch || arrayTransform || arrayRewrite) &&
+            : (arraySearch || arrayTransform || arrayRewrite || arrayBucket) &&
                 type === 'pg_catalog.anycompatible' &&
-                operands[arrayTransform && implementation.name === 'array_prepend' ? 1 : 0]
-                  ?.type === `array:${operands[index]?.type}`
+                operands[
+                  arrayBucket || (arrayTransform && implementation.name === 'array_prepend') ? 1 : 0
+                ]?.type === `array:${operands[index]?.type}`
               ? false
               : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
                 ? false
@@ -1493,20 +1510,23 @@ export function emitCheckRustEvaluator(
       if (
         isArrayComparison(implementation) ||
         arrayExtremum ||
+        arrayBucket ||
         arraySearch ||
         arrayRewrite ||
         arraySort
       ) {
-        const arrayType = operands[0]?.type
+        const arrayType = operands[arrayBucket ? 1 : 0]?.type
         if (
           !arrayType?.startsWith('array:') ||
-          (arraySort
-            ? operands.slice(1).some((operand) => operand.type !== 'pg_catalog.bool')
-            : arrayRewrite
-              ? operands.slice(1).some((operand) => operand.type !== arrayType.slice(6))
-              : arraySearch
-                ? operands[1]?.type !== arrayType.slice(6)
-                : operands.length !== 2 || operands[1]?.type !== arrayType)
+          (arrayBucket
+            ? operands.length !== 2 || operands[0]?.type !== arrayType.slice(6)
+            : arraySort
+              ? operands.slice(1).some((operand) => operand.type !== 'pg_catalog.bool')
+              : arrayRewrite
+                ? operands.slice(1).some((operand) => operand.type !== arrayType.slice(6))
+                : arraySearch
+                  ? operands[1]?.type !== arrayType.slice(6)
+                  : operands.length !== 2 || operands[1]?.type !== arrayType)
         )
           throw new UnsupportedCheckRustExpression(
             'Array comparison requires one concrete array identity',
@@ -1617,6 +1637,47 @@ export function emitCheckRustEvaluator(
               scalarLines.push(`${result} = array_order_from_equality(${compared.name});`)
             } else scalarLines.push(`${result} = int4_unknown();`)
           }
+        }
+        if (arrayBucket) {
+          const needle = fresh('array_bucket_needle'),
+            prefix = rustValuePrefix(rustType(elementType)),
+            payload = fresh('array_bucket'),
+            low = fresh('array_bucket_low'),
+            high = fresh('array_bucket_high'),
+            midpoint = fresh('array_bucket_midpoint'),
+            left = fresh('array_bucket_operand'),
+            right = fresh('array_bucket_threshold'),
+            compared = fresh('array_bucket_compared')
+          destination.push(
+            `let ${needle} = array_element_from_${prefix}(${ownedOperand(operands[0]!)});`,
+            `let ${payload} = prepare_array_bucket(${needle}, ${ownedOperand(operands[1]!)}, ${selected !== null});`,
+            `let mut ${low}: Int4Value = array_comparison_initial(&${payload});`,
+            `let mut ${high}: Int4Value = array_bucket_limit(&${payload});`,
+          )
+          const scalarLines: string[] = []
+          emitPair(left, right, compared, scalarLines)
+          const pair = fresh('array_bucket_pair')
+          const body = [
+            `let ${midpoint} = array_bucket_midpoint(${low}, ${high});`,
+            `let ${left} = array_bucket_operand(&${payload});`,
+            `let ${right} = array_comparison_element_at(&${payload}, ${midpoint}, false);`,
+            `let ${pair} = array_comparison_pair(${left}.clone(), ${right}.clone(), false);`,
+            `let mut ${compared}: Int4Value = ${pair};`,
+            `if array_pair_requires_scalar(${pair}) {`,
+            ...indent(scalarLines),
+            '};',
+            `${low} = array_bucket_lower(${low}, ${high}, ${compared});`,
+            `${high} = array_bucket_upper(${low}, ${high}, ${compared});`,
+          ]
+          const name = fresh('value')
+          destination.push(
+            `while array_bucket_continues(${low}, ${high}) {`,
+            ...indent(body),
+            '}',
+            `let ${name} = ${implementation.rustName}(${low});`,
+          )
+          callables.add(implementation.rustName)
+          return { name, type: call.type }
         }
         if (arraySort) {
           const initial = fresh('array_sort_initial'),

@@ -2964,3 +2964,126 @@ VALUES ('{NULL}','{NULL}',false);
 -- name: extrema_unordered_skipped
 INSERT INTO lane_unordered_extrema (documents, alternate, bypass)
 VALUES ('{1}','{2}',true);
+
+-- name: bucket_assignments_below
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{10,20,30}',5,0,false);
+
+-- name: bucket_assignments_first
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{10,20,30}',10,1,false);
+
+-- name: bucket_assignments_middle
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{10,20,30}',25,2,false);
+
+-- name: bucket_assignments_last
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{10,20,30}',30,3,false);
+
+-- name: bucket_assignments_above
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{10,20,30}',40,3,false);
+
+-- name: bucket_assignments_duplicate
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{1,2,2,2,3}',2,4,false);
+
+-- name: bucket_assignments_unsorted
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{30,10,20}',15,2,false);
+
+-- name: bucket_assignments_lower_bounds
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('[-3:-1]={10,20,30}',20,2,false);
+
+-- name: bucket_assignments_empty
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{}',1,0,false);
+
+-- name: bucket_assignments_null_probe
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{1,NULL}',NULL,NULL,false);
+
+-- name: bucket_assignments_null_array
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES (NULL,1,NULL,false);
+
+-- name: bucket_assignments_null_cell
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{1,NULL}',1,0,false);
+
+-- name: bucket_assignments_multidimensional
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{{1,NULL}}',1,0,false);
+
+-- name: bucket_assignments_wrong
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{10,20,30}',20,1,false);
+
+-- name: bucket_assignments_bypass
+INSERT INTO lane_bucket_assignments(thresholds,probe,expected,bypass) VALUES ('{{1,NULL}}',1,0,true);
+
+-- name: decimal_buckets_wide
+INSERT INTO lane_decimal_buckets(thresholds,probe,expected,bypass) VALUES ('{9007199254740992,9007199254740993,9007199254740994}',9007199254740993,2,false);
+
+-- name: decimal_buckets_scales
+INSERT INTO lane_decimal_buckets(thresholds,probe,expected,bypass) VALUES ('{1.00,1.0,2.00}',1,2,false);
+
+-- name: decimal_buckets_infinities
+INSERT INTO lane_decimal_buckets(thresholds,probe,expected,bypass) VALUES ('{-Infinity,0,Infinity,NaN}',0,2,false);
+
+-- name: decimal_buckets_wrong
+INSERT INTO lane_decimal_buckets(thresholds,probe,expected,bypass) VALUES ('{1,2,3}',2,1,false);
+
+-- name: decimal_buckets_null_probe
+INSERT INTO lane_decimal_buckets(thresholds,probe,expected,bypass) VALUES ('{1,NULL}',NULL,NULL,false);
+
+-- name: named_buckets_unicode
+INSERT INTO lane_named_buckets(thresholds,probe,expected,bypass) VALUES ('{a,z,雪,😊}','雪',3,false);
+
+-- name: named_buckets_equal
+INSERT INTO lane_named_buckets(thresholds,probe,expected,bypass) VALUES ('{same,same,same}','same',3,false);
+
+-- name: named_buckets_empty
+INSERT INTO lane_named_buckets(thresholds,probe,expected,bypass) VALUES ('{}','x',0,false);
+
+-- name: named_buckets_wrong
+INSERT INTO lane_named_buckets(thresholds,probe,expected,bypass) VALUES ('{a,z}','z',1,false);
+
+-- name: named_buckets_null_cell
+INSERT INTO lane_named_buckets(thresholds,probe,expected,bypass) VALUES ('{a,NULL}','z',0,false);
+
+-- name: stage_buckets_first
+INSERT INTO lane_stage_buckets(thresholds,probe,expected,bypass) VALUES ('{new,done}','new',1,false);
+
+-- name: stage_buckets_last
+INSERT INTO lane_stage_buckets(thresholds,probe,expected,bypass) VALUES ('{new,done}','done',2,false);
+
+-- name: stage_buckets_duplicates
+INSERT INTO lane_stage_buckets(thresholds,probe,expected,bypass) VALUES ('{new,new,done}','new',2,false);
+
+-- name: stage_buckets_wrong
+INSERT INTO lane_stage_buckets(thresholds,probe,expected,bypass) VALUES ('{new,done}','done',1,false);
+
+-- name: stage_buckets_null_probe
+INSERT INTO lane_stage_buckets(thresholds,probe,expected,bypass) VALUES ('{new,NULL}',NULL,NULL,false);
+
+-- name: document_buckets_numbers
+INSERT INTO lane_document_buckets(thresholds,probe,expected,bypass) VALUES ('{1,2,3}','2',2,false);
+
+-- name: document_buckets_json_null
+INSERT INTO lane_document_buckets(thresholds,probe,expected,bypass) VALUES ('{"null",1}','null',1,false);
+
+-- name: document_buckets_numeric_equivalence
+INSERT INTO lane_document_buckets(thresholds,probe,expected,bypass) VALUES ('{1.00,1.0,2}','1',2,false);
+
+-- name: document_buckets_wrong
+INSERT INTO lane_document_buckets(thresholds,probe,expected,bypass) VALUES ('{1,2,3}','2',1,false);
+
+-- name: document_buckets_sql_null
+INSERT INTO lane_document_buckets(thresholds,probe,expected,bypass) VALUES ('{1,NULL}','2',0,false);
+
+-- name: unordered_buckets_null
+INSERT INTO lane_unordered_buckets(thresholds,probe,bypass) VALUES ('{}',NULL,false);
+
+-- name: unordered_buckets_empty
+INSERT INTO lane_unordered_buckets(thresholds,probe,bypass) VALUES ('{}','1',false);
+
+-- name: unordered_buckets_null_cell
+INSERT INTO lane_unordered_buckets(thresholds,probe,bypass) VALUES ('{NULL}','1',false);
+
+-- name: unordered_buckets_multidimensional
+INSERT INTO lane_unordered_buckets(thresholds,probe,bypass) VALUES ('{{NULL}}','1',false);
+
+-- name: unordered_buckets_values
+INSERT INTO lane_unordered_buckets(thresholds,probe,bypass) VALUES ('{1,2}','1',false);
+
+-- name: unordered_buckets_bypass
+INSERT INTO lane_unordered_buckets(thresholds,probe,bypass) VALUES ('{NULL}','1',true);
