@@ -100,6 +100,7 @@ export function portableCheckAtoms(
       value.kind === 'array-to-text' ||
       value.kind === 'array-typmod' ||
       value.kind === 'array-coerce' ||
+      value.kind === 'array-io-coerce' ||
       value.kind === 'text-to-interval' ||
       value.kind === 'text-to-clock' ||
       value.kind === 'text-to-date' ||

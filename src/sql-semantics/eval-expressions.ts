@@ -86,6 +86,18 @@ export type EvalExpression =
       enum?: EnumDefinition
     }
   | {
+      kind: 'array-io-coerce'
+      type: ArrayType
+      sourceElementType: ArrayElementType
+      elementType: ArrayElementType
+      input: string
+      output: string
+      sourceEnum?: EnumDefinition
+      enum?: EnumDefinition
+      modifier: number
+      operand: EvalExpression
+    }
+  | {
       kind: 'array-coerce'
       type: ArrayType
       sourceElementType: ArrayElementType
@@ -371,6 +383,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'array-to-text' ||
       node.kind === 'array-subscript' ||
       node.kind === 'array-coerce' ||
+      node.kind === 'array-io-coerce' ||
       node.kind === 'array-typmod'
     ) {
       const result = backend.uncertain(node.type)

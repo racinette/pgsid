@@ -67,6 +67,17 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
+  if (expression.kind === 'array-io-coerce') {
+    const operand = prepare(expression.operand)
+    if (!operand) return null
+    const immutable = [expression.input, expression.output].every((signature) => {
+      const metadata = builtinMetadata(signature)
+      return metadata.kind === 'function' && metadata.volatility === 'i'
+    })
+    return immutable && operand.constant
+      ? constant(expression, operand.null)
+      : { constant: false, null: operand.null, expressions: operand.expressions }
+  }
   if (expression.kind === 'array-coerce') {
     const operand = prepare(expression.operand)
     if (!operand) return null

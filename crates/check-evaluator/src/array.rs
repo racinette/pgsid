@@ -40,6 +40,66 @@ pub enum ArrayOutputPlan {
     Value(ArrayOutputPayload),
 }
 
+pub(crate) fn make_array_conversion() -> ArrayOutputPayload {
+    let dimensions: Vec<ArrayDimension> = Vec::new();
+    let elements: Vec<ArrayElement> = Vec::new();
+    ArrayOutputPayload {
+        state: 1,
+        error: make_sql_error(0),
+        dimensions: dimensions,
+        elements: elements,
+    }
+}
+
+pub(crate) fn append_array_conversion(
+    input: ArrayOutputPayload,
+    element: ArrayElement,
+    unknown_valid: bool,
+) -> ArrayOutputPayload {
+    let mut state = input.state;
+    let mut error = input.error;
+    if state == 1 {
+        if let ArrayElement::Error(value) = element {
+            state = -2;
+            error = value;
+        };
+    };
+    if state == 1 && unknown_valid == false {
+        if let ArrayElement::Unknown = element {
+            state = -1;
+        };
+    };
+    let mut elements = input.elements;
+    if state == 1 {
+        elements.push(element);
+    };
+    ArrayOutputPayload {
+        state: state,
+        error: error,
+        dimensions: input.dimensions,
+        elements: elements,
+    }
+}
+
+pub(crate) fn array_conversion_arguments(
+    input: ArrayOutputPayload,
+    element_type: &str,
+    element_kind: i32,
+) -> ArrayArguments {
+    if input.state == -2 {
+        return ArrayArguments::Error(input.error);
+    };
+    if input.state != 1 {
+        return ArrayArguments::Unknown;
+    };
+    ArrayArguments::Value(ArrayPayload {
+        element_type: element_type.to_owned(),
+        element_kind: element_kind,
+        dimensions: input.dimensions,
+        elements: input.elements,
+    })
+}
+
 pub fn prepare_array_output(input: ArrayValue) -> ArrayOutputPayload {
     if let ArrayValue::Value(value) = input {
         return ArrayOutputPayload {
@@ -68,7 +128,7 @@ pub fn prepare_array_output(input: ArrayValue) -> ArrayOutputPayload {
     }
 }
 
-pub fn array_output_has_element(input: &ArrayOutputPayload, index: Int4Value) -> bool {
+pub(crate) fn array_output_has_element(input: &ArrayOutputPayload, index: Int4Value) -> bool {
     if let Int4Value::Value(offset) = index {
         let position = usize::try_from(offset).unwrap_or(input.elements.len());
         return input.state == 1 && offset >= 0 && position < input.elements.len();
@@ -76,7 +136,10 @@ pub fn array_output_has_element(input: &ArrayOutputPayload, index: Int4Value) ->
     false
 }
 
-pub fn array_output_element_at(input: &ArrayOutputPayload, index: Int4Value) -> ArrayElement {
+pub(crate) fn array_output_element_at(
+    input: &ArrayOutputPayload,
+    index: Int4Value,
+) -> ArrayElement {
     if let Int4Value::Value(offset) = index {
         let position = usize::try_from(offset).unwrap_or(input.elements.len());
         if offset >= 0 && position < input.elements.len() {

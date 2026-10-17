@@ -251,10 +251,10 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Admit multidimensional element fetches and slices, omitted/mixed bounds, integer assignment casts, copied cells, constant preparation and reached-error order; verify raw/stored composition and INSERT parity.
 - [x] Admit array equality/order through catalog-selected element support, NULL cells, dimensional tie-breaks, reached context deferrals, owned snapshots, constant preparation, expression composition and INSERT parity.
 - [x] Admit containment/overlap through default element equality, shape/duplicate independence, nonmatching NULL cells, partial-input recovery, reached errors, constant preparation, collation boundaries and INSERT parity.
-- [x] Establish catalog-linked array element casts, precision/width arguments, common CASE/COALESCE/extrema/constructor types, retained bounds and partial cells, nominal enums and INSERT parity; remaining I/O coercions follow.
+- [x] Establish catalog-linked binary/function/I/O array element casts, actual callable parameters/results, precision/width, common CASE/COALESCE/extrema/constructor types, retained bounds/partial cells and nominal enums; verify stored constructor typing, owned loops, context/validity states and INSERT parity.
 - [x] Bind compatible array/element signatures and admit first/all position searches, NULL matching, lower bounds/start positions, support/shape error order, partial-input prefixes, context/preparation boundaries, nominal enums and INSERT parity.
 - [x] Admit fill/trim, append/prepend, concatenation, removal/replacement, first-dimension reversal and sorting; verify concrete/polymorphic binding, NULL/partial cells, retained/reset bounds, support/error order, representation-sensitive sort ties, native-count deferral, preparation and INSERT parity.
-- [ ] Arrays, including dimensions, lower bounds, NULL elements, and polymorphism.
+- [ ] Arrays, including dimensions, lower bounds, NULL elements, polymorphism, and validity of potentially failing computed elements.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

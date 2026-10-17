@@ -333,10 +333,7 @@ export function arrayIntegerTextElement(input: checkruntime.TextValue, family: n
     }
     return checkruntime.arrayElementFromInt8(number);
 }
-function arrayElementTypmod(input: checkruntime.ArrayElement, identity: string, modifier: number): checkruntime.ArrayElement {
-    input = checkruntime.copyArrayElement(input);
-    identity = langruntime.checkedString(identity);
-    modifier = langruntime.checkedI32(modifier);
+export function arrayElementTypmod(input: checkruntime.ArrayElement, identity: string, modifier: number): checkruntime.ArrayElement {
     const width: checkruntime.Int4Value = { kind: "Value", value: modifier };
     const explicit: checkruntime.BoolValue = { kind: "Value", value: true };
     if (identity === "pg_catalog.\"varchar\"") {

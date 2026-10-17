@@ -19,7 +19,11 @@ pub fn array_integer_text_element(input: TextValue, family: i32) -> ArrayElement
     array_element_from_int8(number)
 }
 
-fn array_element_typmod(input: ArrayElement, identity: &str, modifier: i32) -> ArrayElement {
+pub(crate) fn array_element_typmod(
+    input: ArrayElement,
+    identity: &str,
+    modifier: i32,
+) -> ArrayElement {
     let width = Int4Value::Value(modifier);
     let explicit = BoolValue::Value(true);
     if identity == "pg_catalog.\"varchar\"" {

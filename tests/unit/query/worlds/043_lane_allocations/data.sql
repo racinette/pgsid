@@ -186,3 +186,6 @@ VALUES ('{"\"\\u0000\"",NULL}', 1, '[["\u0000",null], 1]', '{"values" : ["\u0000
 
 INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
 VALUES ('+1.2300', '2.500', '1.2300', '[1.2300,2.500,null]', '[1.23,2.5,null]', '1.23', '[1.2300, 2.500, null]', false);
+
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('[0:1]={0x_FF,1.2300}', '[0:1]={1.2300,-0.000}', '[0:1]={new,done}', '[0:1]={255,1.2300}', '[0:1]={1.2300,0.000}', '[0:1]={new,done}', '[0:1]={255.0,1.2}', '[0:1]', false);

@@ -8332,6 +8332,42 @@ func copyArrayOutputPlan(value ArrayOutputPlan) ArrayOutputPlan {
 	}
 	panic("unknown enum variant")
 }
+func MakeArrayConversion() ArrayOutputPayload {
+	dimensions := []ArrayDimension{}
+	elements := []ArrayElement{}
+	return ArrayOutputPayload{State: 1, Error: MakeSqlError(0), Dimensions: dimensions, Elements: elements}
+}
+func AppendArrayConversion(input ArrayOutputPayload, element ArrayElement, unknownValid bool) ArrayOutputPayload {
+	state := input.State
+	error := input.Error
+	if state == 1 {
+		if element.Kind == ArrayElementError {
+			value := element.Error
+			state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(2))
+			error = value
+		}
+	}
+	if state == 1 && unknownValid == false {
+		if element.Kind == ArrayElementUnknown {
+			state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		}
+	}
+	elements := input.Elements
+	if state == 1 {
+		langruntime.CheckedAdd(len(elements), 1)
+		elements = append(elements, CopyArrayElement(element))
+	}
+	return ArrayOutputPayload{State: state, Error: error, Dimensions: input.Dimensions, Elements: elements}
+}
+func ArrayConversionArguments(input ArrayOutputPayload, elementType string, elementKind int) ArrayArguments {
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return ArrayArguments{Kind: ArrayArgumentsError, Error: input.Error}
+	}
+	if input.State != 1 {
+		return ArrayArguments{Kind: ArrayArgumentsUnknown}
+	}
+	return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: input.Dimensions, Elements: input.Elements}}
+}
 func PrepareArrayOutput(input ArrayValue) ArrayOutputPayload {
 	input = CopyArrayValue(input)
 	if input.Kind == ArrayValueValue {
@@ -8353,7 +8389,6 @@ func PrepareArrayOutput(input ArrayValue) ArrayOutputPayload {
 	return ArrayOutputPayload{State: state, Error: error, Dimensions: dimensions, Elements: elements}
 }
 func ArrayOutputHasElement(input *ArrayOutputPayload, index Int4Value) bool {
-	input = langruntime.CheckedBorrowed(input, CopyArrayOutputPayload)
 	if index.Kind == Int4ValueValue {
 		offset := langruntime.CheckedI32(index.Value)
 		position := langruntime.IndexFromI32(offset, len(input.Elements))
@@ -8362,7 +8397,6 @@ func ArrayOutputHasElement(input *ArrayOutputPayload, index Int4Value) bool {
 	return false
 }
 func ArrayOutputElementAt(input *ArrayOutputPayload, index Int4Value) ArrayElement {
-	input = langruntime.CheckedBorrowed(input, CopyArrayOutputPayload)
 	if index.Kind == Int4ValueValue {
 		offset := langruntime.CheckedI32(index.Value)
 		position := langruntime.IndexFromI32(offset, len(input.Elements))
