@@ -38,7 +38,7 @@ fn numeric_hash_digits(value: &str) -> Vec<HashByte> {
     bytes
 }
 
-pub fn sql__pg_catalog__hash_numeric__0e7w(input: NumericValue) -> Int4Value {
+pub fn sql__pg_catalog__hash_numeric__0e7w(input: NumericValue, byte_order: i32) -> Int4Value {
     if let NumericValue::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -64,8 +64,8 @@ pub fn sql__pg_catalog__hash_numeric__0e7w(input: NumericValue) -> Int4Value {
             weight = weight - 1;
         }
         let bytes = numeric_hash_digits(value.as_str());
-        let hash = hash_bytes32(bytes);
-        return sql__pg_catalog__int4xor__6j8h(Int4Value::Value(hash), Int4Value::Value(weight));
+        let hash = hash_native32(bytes, byte_order, 2);
+        return sql__pg_catalog__int4xor__6j8h(hash, Int4Value::Value(weight));
     }
     Int4Value::Unknown
 }
@@ -73,6 +73,7 @@ pub fn sql__pg_catalog__hash_numeric__0e7w(input: NumericValue) -> Int4Value {
 pub fn sql__pg_catalog__hash_numeric_extended__oglu(
     input: NumericValue,
     seed: Int8Value,
+    byte_order: i32,
 ) -> Int8Value {
     if let NumericValue::Error(error) = input {
         return Int8Value::Error(error);
@@ -107,11 +108,8 @@ pub fn sql__pg_catalog__hash_numeric_extended__oglu(
             }
             let wide_weight = weight as i64;
             let bytes = numeric_hash_digits(value.as_str());
-            let hash = hash_bytes64(bytes, salt);
-            return sql__pg_catalog__int8xor__4v56(
-                Int8Value::Value(hash),
-                Int8Value::Value(wide_weight),
-            );
+            let hash = hash_native64(bytes, salt, byte_order, 2);
+            return sql__pg_catalog__int8xor__4v56(hash, Int8Value::Value(wide_weight));
         }
     }
     Int8Value::Unknown

@@ -48,8 +48,7 @@ fingerprint differs from the current corpus.
 - [x] Verify catalog identity checks and separate classifications for pure
       callables, session dependencies, new representations, and expression gaps.
 
-Done when a fresh checkout can regenerate the reports without recovering scripts
-from ignored artifacts. Keep generated results separate from maintained sources.
+Done when a fresh checkout can regenerate the reports without recovering scripts from ignored artifacts. Keep generated results separate from maintained sources.
 
 ## Close expression gaps on represented values
 
@@ -254,7 +253,8 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Establish catalog-linked binary/function/I/O array element casts, actual callable parameters/results, precision/width, common CASE/COALESCE/extrema/constructor types, retained bounds/partial cells and nominal enums; verify stored constructor typing, owned loops, narrowing/typmod validity, safe context bounds, preparation and INSERT parity.
 - [x] Bind compatible array/element signatures; admit first/all position searches and threshold bucketing; verify NULL matching/rejection, lower bounds/start positions, binary search/duplicates, support/shape error order, partial states, context/preparation, nominal enums and INSERT parity.
 - [x] Admit fill/trim, append/prepend, concatenation, removal/replacement, first-dimension reversal, sorting and array extrema; verify concrete/polymorphic binding, NULL/partial cells, retained/reset bounds, support/error order, representation-sensitive sort/extrema ties, borrowed comparison cursors, native-count deferral, preparation and INSERT parity.
-- [ ] Arrays: finish the callable/cast inventory and composed-validity audit across dimensions, lower bounds, NULL elements and polymorphism.
+- [x] Declare PostgreSQL byte order for existing byte hashes through settings; verify both orders, native numeric/TID layouts, UTF8 text requirements, safe Unknown composition, catalog hash links and INSERT parity.
+- [ ] Arrays: finish the callable/cast inventory and composed-validity audit across dimensions, lower bounds, NULL elements and polymorphism. Array hashes still require scalar float/JSONB hash support.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

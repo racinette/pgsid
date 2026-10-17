@@ -66,6 +66,7 @@ describe('portable PostgreSQL network hashes', () => {
           },
         })),
       ),
+      { nativeByteOrder: 'little', serverEncoding: 'UTF8' },
     )
     expect(group.checks.filter((check) => check.kind !== 'supported')).toEqual([])
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []

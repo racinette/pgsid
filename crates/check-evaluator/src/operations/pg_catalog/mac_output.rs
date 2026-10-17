@@ -87,7 +87,7 @@ pub fn sql__pg_catalog__macaddr_send__fk4p(input: MacaddrValue) -> ByteaValue {
     ByteaValue::Unknown
 }
 
-pub fn sql__pg_catalog__hashmacaddr__ih2y(input: MacaddrValue) -> Int4Value {
+pub fn sql__pg_catalog__hashmacaddr__ih2y(input: MacaddrValue, byte_order: i32) -> Int4Value {
     if let MacaddrValue::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -99,13 +99,16 @@ pub fn sql__pg_catalog__hashmacaddr__ih2y(input: MacaddrValue) -> Int4Value {
     }
     if let MacaddrValue::Value(address) = input {
         let bytes = mac_hash_bytes(address, 6);
-        let result = hash_bytes32(bytes);
-        return Int4Value::Value(result);
+        return hash_native32(bytes, byte_order, 1);
     }
     Int4Value::Unknown
 }
 
-pub fn sql__pg_catalog__hashmacaddrextended__94rh(left: MacaddrValue, right: Int8Value) -> Int8Value {
+pub fn sql__pg_catalog__hashmacaddrextended__94rh(
+    left: MacaddrValue,
+    right: Int8Value,
+    byte_order: i32,
+) -> Int8Value {
     if let MacaddrValue::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -121,8 +124,7 @@ pub fn sql__pg_catalog__hashmacaddrextended__94rh(left: MacaddrValue, right: Int
     if let MacaddrValue::Value(address) = left {
         if let Int8Value::Value(seed) = right {
             let bytes = mac_hash_bytes(address, 6);
-            let result = hash_bytes64(bytes, seed);
-            return Int8Value::Value(result);
+            return hash_native64(bytes, seed, byte_order, 1);
         }
     }
     Int8Value::Unknown
@@ -162,7 +164,7 @@ pub fn sql__pg_catalog__macaddr8_send__qten(input: Macaddr8Value) -> ByteaValue 
     ByteaValue::Unknown
 }
 
-pub fn sql__pg_catalog__hashmacaddr8__72kw(input: Macaddr8Value) -> Int4Value {
+pub fn sql__pg_catalog__hashmacaddr8__72kw(input: Macaddr8Value, byte_order: i32) -> Int4Value {
     if let Macaddr8Value::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -174,13 +176,16 @@ pub fn sql__pg_catalog__hashmacaddr8__72kw(input: Macaddr8Value) -> Int4Value {
     }
     if let Macaddr8Value::Value(address) = input {
         let bytes = mac_hash_bytes(address, 8);
-        let result = hash_bytes32(bytes);
-        return Int4Value::Value(result);
+        return hash_native32(bytes, byte_order, 1);
     }
     Int4Value::Unknown
 }
 
-pub fn sql__pg_catalog__hashmacaddr8extended__63o8(left: Macaddr8Value, right: Int8Value) -> Int8Value {
+pub fn sql__pg_catalog__hashmacaddr8extended__63o8(
+    left: Macaddr8Value,
+    right: Int8Value,
+    byte_order: i32,
+) -> Int8Value {
     if let Macaddr8Value::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -196,10 +201,8 @@ pub fn sql__pg_catalog__hashmacaddr8extended__63o8(left: Macaddr8Value, right: I
     if let Macaddr8Value::Value(address) = left {
         if let Int8Value::Value(seed) = right {
             let bytes = mac_hash_bytes(address, 8);
-            let result = hash_bytes64(bytes, seed);
-            return Int8Value::Value(result);
+            return hash_native64(bytes, seed, byte_order, 1);
         }
     }
     Int8Value::Unknown
 }
-

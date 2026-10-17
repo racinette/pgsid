@@ -10843,9 +10843,10 @@ function hashFinal(state: HashState): HashState {
     c = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(c, rotated6)));
     return { a: a, b: b, c: c };
 }
-function hashBytesState(bytes: HashByte[], seed: bigint): HashState {
+function hashBytesState(bytes: HashByte[], seed: bigint, bigEndian: boolean): HashState {
     bytes = langruntime.checkedStructs(bytes, copyHashByte);
     seed = langruntime.checkedI64(seed);
+    bigEndian = langruntime.checkedBool(bigEndian);
     let length: bigint = 0n;
     let scan: number = 0;
     while (scan < bytes.length) {
@@ -10877,6 +10878,9 @@ function hashBytesState(bytes: HashByte[], seed: bigint): HashState {
         let c: bigint = stateC;
         let position: number = 0;
         let place: bigint = 1n;
+        if (bigEndian) {
+            place = langruntime.checkedI64(16777216n);
+        }
         while (position < 12) {
             const value: bigint = langruntime.checkedI64Multiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(index), copyHashByte).value, place);
             if (position < 4) {
@@ -10890,9 +10894,19 @@ function hashBytesState(bytes: HashByte[], seed: bigint): HashState {
             }
             position = langruntime.checkedAdd(position, 1);
             index = langruntime.checkedAdd(index, 1);
-            place = langruntime.checkedI64(langruntime.checkedI64Multiply(place, 256n));
+            if (bigEndian) {
+                place = langruntime.checkedI64(langruntime.checkedI64Divide(place, 256n));
+            }
+            else {
+                place = langruntime.checkedI64(langruntime.checkedI64Multiply(place, 256n));
+            }
             if (position === 4 || position === 8) {
-                place = langruntime.checkedI64(1n);
+                if (bigEndian) {
+                    place = langruntime.checkedI64(16777216n);
+                }
+                else {
+                    place = langruntime.checkedI64(1n);
+                }
             }
         }
         const mixed: HashState = copyHashState(hashMix({ a: a, b: b, c: c }));
@@ -10906,6 +10920,9 @@ function hashBytesState(bytes: HashByte[], seed: bigint): HashState {
     let c: bigint = stateC;
     let position: number = 0;
     let place: bigint = 1n;
+    if (bigEndian) {
+        place = langruntime.checkedI64(16777216n);
+    }
     while (index < bytes.length) {
         const value: bigint = langruntime.checkedI64Multiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(index), copyHashByte).value, place);
         if (position < 4) {
@@ -10919,30 +10936,107 @@ function hashBytesState(bytes: HashByte[], seed: bigint): HashState {
         }
         position = langruntime.checkedAdd(position, 1);
         index = langruntime.checkedAdd(index, 1);
-        place = langruntime.checkedI64(langruntime.checkedI64Multiply(place, 256n));
-        if (position === 4) {
-            place = langruntime.checkedI64(1n);
+        if (bigEndian) {
+            place = langruntime.checkedI64(langruntime.checkedI64Divide(place, 256n));
+            if (position === 4 || position === 8) {
+                place = langruntime.checkedI64(16777216n);
+            }
         }
-        if (position === 8) {
-            place = langruntime.checkedI64(256n);
+        else {
+            place = langruntime.checkedI64(langruntime.checkedI64Multiply(place, 256n));
+            if (position === 4) {
+                place = langruntime.checkedI64(1n);
+            }
+            if (position === 8) {
+                place = langruntime.checkedI64(256n);
+            }
         }
     }
     return hashFinal({ a: a, b: b, c: c });
 }
 export function hashBytes32(bytes: HashByte[]): number {
     bytes = langruntime.checkedStructs(bytes, copyHashByte);
-    const state: HashState = copyHashState(hashBytesState(bytes, 0n));
+    const state: HashState = copyHashState(hashBytesState(bytes, 0n, false));
     return Number(BigInt.asIntN(32, langruntime.checkedI64(state.c)));
 }
 export function hashBytes64(bytes: HashByte[], seed: bigint): bigint {
     bytes = langruntime.checkedStructs(bytes, copyHashByte);
     seed = langruntime.checkedI64(seed);
-    const state: HashState = copyHashState(hashBytesState(bytes, seed));
+    const state: HashState = copyHashState(hashBytesState(bytes, seed, false));
+    return hashState64(state);
+}
+function hashState64(state: HashState): bigint {
+    state = copyHashState(state);
     let high: bigint = state.b;
     if (high >= 2147483648n) {
         high = langruntime.checkedI64(langruntime.checkedI64Subtract(high, 4294967296n));
     }
     return langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 4294967296n), state.c);
+}
+function hashBigEndianBytes(bytes: HashBytes): HashByte[] {
+    let result: HashByte[] = [];
+    let index: number = 0;
+    while (index < bytes.bytes.length) {
+        let end: number = langruntime.checkedAdd(index, 1);
+        if (bytes.unit > 1) {
+            end = langruntime.checkedIndex(langruntime.checkedAdd(index, bytes.unit));
+        }
+        let source: number = end;
+        while (source > index) {
+            source = langruntime.checkedIndex(langruntime.checkedSubtract(source, 1));
+            langruntime.pushStruct(result, langruntime.indexStruct(bytes.bytes, langruntime.checkedIndex(source), copyHashByte), copyHashByte);
+        }
+        index = langruntime.checkedIndex(end);
+    }
+    return result;
+}
+interface HashBytes {
+    bytes: HashByte[];
+    unit: number;
+}
+function copyHashBytes(value: HashBytes): HashBytes {
+    return { bytes: langruntime.checkedStructs(value.bytes, copyHashByte), unit: langruntime.checkedIndex(value.unit) };
+}
+export function hashNative32(bytes: HashByte[], byteOrder: number, unit: number): Int4Value {
+    bytes = langruntime.checkedStructs(bytes, copyHashByte);
+    byteOrder = langruntime.checkedI32(byteOrder);
+    unit = langruntime.checkedIndex(unit);
+    if (byteOrder === 1) {
+        return { kind: "Value", value: hashBytes32(bytes) };
+    }
+    const input: HashBytes = { bytes: bytes, unit: unit };
+    const bigBytes: HashByte[] = hashBigEndianBytes(input);
+    const bigState: HashState = copyHashState(hashBytesState(bigBytes, 0n, true));
+    const big: number = Number(BigInt.asIntN(32, langruntime.checkedI64(bigState.c)));
+    if (byteOrder === 2) {
+        return { kind: "Value", value: big };
+    }
+    const little: number = hashBytes32(input.bytes);
+    if (byteOrder === 0 && little === big) {
+        return { kind: "Value", value: little };
+    }
+    return { kind: "Unknown" };
+}
+export function hashNative64(bytes: HashByte[], seed: bigint, byteOrder: number, unit: number): Int8Value {
+    bytes = langruntime.checkedStructs(bytes, copyHashByte);
+    seed = langruntime.checkedI64(seed);
+    byteOrder = langruntime.checkedI32(byteOrder);
+    unit = langruntime.checkedIndex(unit);
+    if (byteOrder === 1) {
+        return { kind: "Value", value: hashBytes64(bytes, seed) };
+    }
+    const input: HashBytes = { bytes: bytes, unit: unit };
+    const bigBytes: HashByte[] = hashBigEndianBytes(input);
+    const bigState: HashState = copyHashState(hashBytesState(bigBytes, seed, true));
+    const big: bigint = hashState64(bigState);
+    if (byteOrder === 2) {
+        return { kind: "Value", value: big };
+    }
+    const little: bigint = hashBytes64(input.bytes, seed);
+    if (byteOrder === 0 && little === big) {
+        return { kind: "Value", value: little };
+    }
+    return { kind: "Unknown" };
 }
 export function textNumber(value: number, base: number): string {
     value = langruntime.checkedI32(value);

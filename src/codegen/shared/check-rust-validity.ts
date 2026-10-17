@@ -1,8 +1,10 @@
+import { nativeHashContext } from './check-hash-context.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
   builtinBtreeComparisons,
   builtinCallables,
   builtinCast,
+  builtinMetadata,
   builtinTypeComparison,
   builtinTypeResolution,
 } from '../../postgres/builtins/inventory.js'
@@ -116,6 +118,7 @@ const orderedElement = (type: string): boolean => {
 export function rustCallCanFail(call: SqlCallableExpression, types: readonly string[]): boolean {
   if (call.kind === 'cast' && call.signature === null) return false
   if (!call.signature) return true
+  if (nativeHashContext(builtinMetadata(call.signature))) return false
   const enumFunction = enumSupport.get(call.signature)
   if (
     enumFunction &&

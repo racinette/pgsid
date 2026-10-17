@@ -200,6 +200,7 @@ describe('Rust CHECK numeric hashes', () => {
           }
         }),
       ),
+      { nativeByteOrder: 'little', serverEncoding: 'UTF8' },
     )
     for (const [index, check] of group.checks.entries())
       expect(

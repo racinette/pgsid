@@ -105,7 +105,7 @@ fn hash_final(state: HashState) -> HashState {
     HashState { a: a, b: b, c: c }
 }
 
-fn hash_bytes_state(bytes: Vec<HashByte>, seed: i64) -> HashState {
+fn hash_bytes_state(bytes: Vec<HashByte>, seed: i64, big_endian: bool) -> HashState {
     let mut length: i64 = 0i64;
     let mut scan: usize = 0;
     while scan < bytes.len() {
@@ -141,6 +141,9 @@ fn hash_bytes_state(bytes: Vec<HashByte>, seed: i64) -> HashState {
         let mut c = state_c;
         let mut position: usize = 0;
         let mut place: i64 = 1i64;
+        if big_endian {
+            place = 16777216i64;
+        };
         while position < 12 {
             let value = bytes[index].value * place;
             if position < 4 {
@@ -152,9 +155,17 @@ fn hash_bytes_state(bytes: Vec<HashByte>, seed: i64) -> HashState {
             };
             position += 1;
             index += 1;
-            place = place * 256i64;
+            if big_endian {
+                place = place / 256i64;
+            } else {
+                place = place * 256i64;
+            };
             if position == 4 || position == 8 {
-                place = 1i64;
+                if big_endian {
+                    place = 16777216i64;
+                } else {
+                    place = 1i64;
+                };
             }
         }
         let mixed = hash_mix(HashState { a: a, b: b, c: c });
@@ -168,6 +179,9 @@ fn hash_bytes_state(bytes: Vec<HashByte>, seed: i64) -> HashState {
     let mut c = state_c;
     let mut position: usize = 0;
     let mut place: i64 = 1i64;
+    if big_endian {
+        place = 16777216i64;
+    };
     while index < bytes.len() {
         let value = bytes[index].value * place;
         if position < 4 {
@@ -179,27 +193,104 @@ fn hash_bytes_state(bytes: Vec<HashByte>, seed: i64) -> HashState {
         };
         position += 1;
         index += 1;
-        place = place * 256i64;
-        if position == 4 {
-            place = 1i64;
-        }
-        if position == 8 {
-            place = 256i64;
-        }
+        if big_endian {
+            place = place / 256i64;
+            if position == 4 || position == 8 {
+                place = 16777216i64;
+            };
+        } else {
+            place = place * 256i64;
+            if position == 4 {
+                place = 1i64;
+            };
+            if position == 8 {
+                place = 256i64;
+            };
+        };
     }
     hash_final(HashState { a: a, b: b, c: c })
 }
 
 pub fn hash_bytes32(bytes: Vec<HashByte>) -> i32 {
-    let state = hash_bytes_state(bytes, 0i64);
+    let state = hash_bytes_state(bytes, 0i64, false);
     state.c as i32
 }
 
 pub fn hash_bytes64(bytes: Vec<HashByte>, seed: i64) -> i64 {
-    let state = hash_bytes_state(bytes, seed);
+    let state = hash_bytes_state(bytes, seed, false);
+    hash_state64(state)
+}
+
+fn hash_state64(state: HashState) -> i64 {
     let mut high = state.b;
     if high >= 2147483648i64 {
         high = high - 4294967296i64;
     }
     high * 4294967296i64 + state.c
+}
+
+fn hash_big_endian_bytes(bytes: &HashBytes) -> Vec<HashByte> {
+    let mut result: Vec<HashByte> = Vec::new();
+    let mut index: usize = 0;
+    while index < bytes.bytes.len() {
+        let mut end = index + 1;
+        if bytes.unit > 1 {
+            end = index + bytes.unit;
+        };
+        let mut source = end;
+        while source > index {
+            source = source - 1;
+            result.push(bytes.bytes[source]);
+        }
+        index = end;
+    }
+    result
+}
+
+#[derive(Clone)]
+struct HashBytes {
+    bytes: Vec<HashByte>,
+    unit: usize,
+}
+
+pub fn hash_native32(bytes: Vec<HashByte>, byte_order: i32, unit: usize) -> Int4Value {
+    if byte_order == 1 {
+        return Int4Value::Value(hash_bytes32(bytes));
+    };
+    let input = HashBytes {
+        bytes: bytes,
+        unit: unit,
+    };
+    let big_bytes = hash_big_endian_bytes(&input);
+    let big_state = hash_bytes_state(big_bytes, 0i64, true);
+    let big = big_state.c as i32;
+    if byte_order == 2 {
+        return Int4Value::Value(big);
+    };
+    let little = hash_bytes32(input.bytes);
+    if byte_order == 0 && little == big {
+        return Int4Value::Value(little);
+    };
+    Int4Value::Unknown
+}
+
+pub fn hash_native64(bytes: Vec<HashByte>, seed: i64, byte_order: i32, unit: usize) -> Int8Value {
+    if byte_order == 1 {
+        return Int8Value::Value(hash_bytes64(bytes, seed));
+    };
+    let input = HashBytes {
+        bytes: bytes,
+        unit: unit,
+    };
+    let big_bytes = hash_big_endian_bytes(&input);
+    let big_state = hash_bytes_state(big_bytes, seed, true);
+    let big = hash_state64(big_state);
+    if byte_order == 2 {
+        return Int8Value::Value(big);
+    };
+    let little = hash_bytes64(input.bytes, seed);
+    if byte_order == 0 && little == big {
+        return Int8Value::Value(little);
+    };
+    Int8Value::Unknown
 }

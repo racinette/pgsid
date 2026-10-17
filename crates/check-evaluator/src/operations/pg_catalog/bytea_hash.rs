@@ -12,7 +12,7 @@ fn bytea_hash_bytes(value: &str) -> Vec<HashByte> {
     bytes
 }
 
-pub fn sql__pg_catalog__hashbytea__mypt(input: ByteaValue) -> Int4Value {
+pub fn sql__pg_catalog__hashbytea__mypt(input: ByteaValue, byte_order: i32) -> Int4Value {
     if let ByteaValue::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -24,13 +24,16 @@ pub fn sql__pg_catalog__hashbytea__mypt(input: ByteaValue) -> Int4Value {
     }
     if let ByteaValue::Value(value) = input {
         let bytes = bytea_hash_bytes(value.as_str());
-        let hash = hash_bytes32(bytes);
-        return Int4Value::Value(hash);
+        return hash_native32(bytes, byte_order, 1);
     }
     Int4Value::Unknown
 }
 
-pub fn sql__pg_catalog__hashbyteaextended__u1vz(input: ByteaValue, seed: Int8Value) -> Int8Value {
+pub fn sql__pg_catalog__hashbyteaextended__u1vz(
+    input: ByteaValue,
+    seed: Int8Value,
+    byte_order: i32,
+) -> Int8Value {
     if let ByteaValue::Error(error) = input {
         return Int8Value::Error(error);
     }
@@ -46,8 +49,7 @@ pub fn sql__pg_catalog__hashbyteaextended__u1vz(input: ByteaValue, seed: Int8Val
     if let ByteaValue::Value(value) = input {
         if let Int8Value::Value(salt) = seed {
             let bytes = bytea_hash_bytes(value.as_str());
-            let hash = hash_bytes64(bytes, salt);
-            return Int8Value::Value(hash);
+            return hash_native64(bytes, salt, byte_order, 1);
         }
     }
     Int8Value::Unknown

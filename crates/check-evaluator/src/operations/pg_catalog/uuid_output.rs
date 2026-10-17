@@ -40,7 +40,7 @@ pub fn sql__pg_catalog__uuid_send__32nf(input: UuidValue) -> ByteaValue {
     ByteaValue::Unknown
 }
 
-pub fn sql__pg_catalog__uuid_hash__8nnn(input: UuidValue) -> Int4Value {
+pub fn sql__pg_catalog__uuid_hash__8nnn(input: UuidValue, byte_order: i32) -> Int4Value {
     if let UuidValue::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -52,13 +52,16 @@ pub fn sql__pg_catalog__uuid_hash__8nnn(input: UuidValue) -> Int4Value {
     }
     if let UuidValue::Value(value) = input {
         let bytes = uuid_hash_bytes(value);
-        let hash = hash_bytes32(bytes);
-        return Int4Value::Value(hash);
+        return hash_native32(bytes, byte_order, 1);
     }
     Int4Value::Unknown
 }
 
-pub fn sql__pg_catalog__uuid_hash_extended__i59z(left: UuidValue, right: Int8Value) -> Int8Value {
+pub fn sql__pg_catalog__uuid_hash_extended__i59z(
+    left: UuidValue,
+    right: Int8Value,
+    byte_order: i32,
+) -> Int8Value {
     if let UuidValue::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -74,8 +77,7 @@ pub fn sql__pg_catalog__uuid_hash_extended__i59z(left: UuidValue, right: Int8Val
     if let UuidValue::Value(value) = left {
         if let Int8Value::Value(seed) = right {
             let bytes = uuid_hash_bytes(value);
-            let hash = hash_bytes64(bytes, seed);
-            return Int8Value::Value(hash);
+            return hash_native64(bytes, seed, byte_order, 1);
         }
     }
     Int8Value::Unknown

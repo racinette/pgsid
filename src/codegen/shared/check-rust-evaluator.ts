@@ -1,3 +1,4 @@
+import { nativeHashContext } from './check-hash-context.js'
 import {
   rustCallCanFail,
   rustArrayCastAlwaysValid,
@@ -508,6 +509,7 @@ export type CheckExecutionContext = {
   defaultCollation?: 'C'
   defaultCtype?: 'C' | 'C.UTF-8'
   serverEncoding?: 'UTF8'
+  nativeByteOrder?: 'little' | 'big'
   arrayNulls?: boolean
 }
 
@@ -2216,6 +2218,20 @@ export function emitCheckRustEvaluator(
                 : 0,
           ),
         )
+      const hashContext = nativeHashContext(implementation)
+      if (hashContext) {
+        arguments_.push(
+          String(
+            executionContext.nativeByteOrder === 'little'
+              ? 1
+              : executionContext.nativeByteOrder === 'big'
+                ? 2
+                : 0,
+          ),
+        )
+        if (hashContext === 'text')
+          arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+      }
       destination.push(`let ${name} = ${callable}(${arguments_.join(', ')});`)
       return { name, type: call.type }
     }

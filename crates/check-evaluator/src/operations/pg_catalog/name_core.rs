@@ -42,8 +42,17 @@ fn name_relation(left: TextValue, right: TextValue, mode: i32) -> BoolValue {
     BoolValue::Unknown
 }
 pub fn sql__pg_catalog__bpchar__8cer(input: TextValue) -> TextValue { input }
-pub fn sql__pg_catalog__hashname__vua3(input: TextValue) -> Int4Value { text_hash_value(input, false) }
-pub fn sql__pg_catalog__hashnameextended__p8gv(input: TextValue, seed: Int8Value) -> Int8Value { text_hash_extended(input, seed, false) }
+pub fn sql__pg_catalog__hashname__vua3(input: TextValue, byte_order: i32, utf8: bool) -> Int4Value {
+    text_hash_value(input, false, byte_order, utf8)
+}
+pub fn sql__pg_catalog__hashnameextended__p8gv(
+    input: TextValue,
+    seed: Int8Value,
+    byte_order: i32,
+    utf8: bool,
+) -> Int8Value {
+    text_hash_extended(input, seed, false, byte_order, utf8)
+}
 pub fn sql__pg_catalog__name__iqr4(input: TextValue) -> TextValue { name_from_text(input) }
 pub fn sql__pg_catalog__name__4szz(input: TextValue) -> TextValue { name_from_text(sql__pg_catalog__text__vc4r(input)) }
 pub fn sql__pg_catalog__name__i5b4(input: TextValue) -> TextValue { name_from_text(input) }

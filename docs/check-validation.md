@@ -15,6 +15,25 @@ expression from query inputs. A default that depends on database state stays
 unknown. An update may need the previous row and may affect no rows, so a
 parameter alone does not justify rejecting the update before it executes.
 
+## Execution assumptions
+
+The CHECK settings describe the target PostgreSQL deployment. They do not inspect
+the machine running generated Go or TypeScript. Declare byte order explicitly
+when constraints use PostgreSQL hashes that depend on native byte layout:
+
+```yaml
+sql:
+  codegen:
+    checks:
+      nativeByteOrder: little
+```
+
+Both `little` and `big` select arithmetic that runs consistently in every target
+language. Omitting this setting leaves an affected hash uncertain unless both
+orders produce the same result. Non-ASCII text hashes also require the declared
+`serverEncoding: UTF8` setting. These assumptions do not supply deployment
+catalog identities or session settings.
+
 ## Row-rewriting triggers
 
 PostgreSQL applies row-level BEFORE triggers before testing the resulting row

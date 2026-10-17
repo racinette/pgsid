@@ -34,7 +34,12 @@ try {
   )
   const btreeKeys = new Set<string>()
   for (const comparison of typeComparisons)
-    for (const signature of [comparison.equality, comparison.comparator])
+    for (const signature of [
+      comparison.equality,
+      comparison.comparator,
+      comparison.hash,
+      comparison.hashExtended,
+    ])
       if (signature !== null && !callableIds.has(signature))
         throw new Error(`Default type comparison references an absent callable: ${signature}`)
   sources.set(

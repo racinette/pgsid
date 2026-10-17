@@ -873,7 +873,7 @@ fn network_hash_bytes(address: NetworkAddress) -> Vec<HashByte> {
     bytes
 }
 
-pub fn sql__pg_catalog__hashinet__fhly(input: NetworkValue) -> Int4Value {
+pub fn sql__pg_catalog__hashinet__fhly(input: NetworkValue, byte_order: i32) -> Int4Value {
     if let NetworkValue::Error(error) = input {
         return Int4Value::Error(error);
     }
@@ -885,13 +885,16 @@ pub fn sql__pg_catalog__hashinet__fhly(input: NetworkValue) -> Int4Value {
     }
     if let NetworkValue::Value(address) = input {
         let bytes = network_hash_bytes(address);
-        let hash = hash_bytes32(bytes);
-        return Int4Value::Value(hash);
+        return hash_native32(bytes, byte_order, 1);
     }
     Int4Value::Unknown
 }
 
-pub fn sql__pg_catalog__hashinetextended__n7xh(left: NetworkValue, right: Int8Value) -> Int8Value {
+pub fn sql__pg_catalog__hashinetextended__n7xh(
+    left: NetworkValue,
+    right: Int8Value,
+    byte_order: i32,
+) -> Int8Value {
     if let NetworkValue::Error(error) = left {
         return Int8Value::Error(error);
     }
@@ -907,8 +910,7 @@ pub fn sql__pg_catalog__hashinetextended__n7xh(left: NetworkValue, right: Int8Va
     if let NetworkValue::Value(address) = left {
         if let Int8Value::Value(seed) = right {
             let bytes = network_hash_bytes(address);
-            let hash = hash_bytes64(bytes, seed);
-            return Int8Value::Value(hash);
+            return hash_native64(bytes, seed, byte_order, 1);
         }
     }
     Int8Value::Unknown

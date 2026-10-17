@@ -162,7 +162,10 @@ describe('text hash and index comparator collations', () => {
           ),
         ).rejects.toMatchObject({ code: '42P21' })
       }
-      const group = prepareCheckRustGroup(checks)
+      const group = prepareCheckRustGroup(checks, {
+        nativeByteOrder: 'little',
+        serverEncoding: 'UTF8',
+      })
       expect(group.checks.every((check) => check.kind === 'supported')).toBe(true)
       await runCheckParity(
         directory,

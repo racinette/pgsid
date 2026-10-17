@@ -11,7 +11,12 @@ import { builtinMetadata } from '../../src/postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../../src/postgres/builtins/taxonomy.js'
 import { checkRustCallableNames } from '../../src/codegen/shared/check-rust-source.js'
 import { catalogCheckGroups, lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
-import { callableBoundary, verifiedCatalog, jsonValueRequirements } from './catalog.js'
+import {
+  callableBoundary,
+  verifiedCatalog,
+  jsonValueRequirements,
+  hashValueRequirements,
+} from './catalog.js'
 import { bindProbe, inspectExpression, quote, valueRepresentation } from './probes.js'
 import { loadWorldCatalog, verifyWorldDigest, worldSourceDigest, writeReport } from './worlds.js'
 
@@ -97,6 +102,7 @@ export async function measureSurface(pg: PGlite) {
       implementationPresent:
         implementation.kind === 'function' && available.has(implementation.rustName),
       valueRequirements:
+        hashValueRequirements(implementation) ??
         jsonValueRequirements(implementation) ??
         (implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
@@ -156,42 +162,32 @@ export async function measureSurface(pg: PGlite) {
                       },
                     ]
                   : implementation.kind === 'function' &&
-                      ['hashtid', 'hashtidextended'].includes(implementation.name)
+                      ['hashenum', 'hashenumextended'].includes(implementation.name)
                     ? [
                         {
-                          kind: 'platform',
+                          kind: 'database',
                           requirement:
-                            'PostgreSQL native byte order unless the offset is zero and the block halfwords match',
-                          owner: 'tests/sql-semantics/check-tid.test.ts',
+                            'Actual enum label OIDs are unavailable to generated label adapters and literals; generation catalog OIDs are not portable',
+                          owner: 'tests/sql-semantics/check-enum-oid-context.test.ts',
                         },
                       ]
                     : implementation.kind === 'function' &&
-                        ['hashenum', 'hashenumextended'].includes(implementation.name)
+                        isOidAliasType(implementation.result) &&
+                        (implementation.name ===
+                          'to_' + implementation.result.slice('pg_catalog.'.length) ||
+                          (implementation.name === 'regclass' &&
+                            implementation.args[0] === 'pg_catalog.text'))
                       ? [
                           {
                             kind: 'database',
                             requirement:
-                              'Actual enum label OIDs are unavailable to generated label adapters and literals; generation catalog OIDs are not portable',
-                            owner: 'tests/sql-semantics/check-enum-oid-context.test.ts',
+                              implementation.name === 'regclass'
+                                ? 'Deployment catalog is unavailable; text arguments are relation names even when numeric'
+                                : 'Deployment catalog is unavailable for symbolic names; numeric and sentinel branches are portable',
+                            owner: 'tests/sql-semantics/check-oid-aliases.test.ts',
                           },
                         ]
-                      : implementation.kind === 'function' &&
-                          isOidAliasType(implementation.result) &&
-                          (implementation.name ===
-                            'to_' + implementation.result.slice('pg_catalog.'.length) ||
-                            (implementation.name === 'regclass' &&
-                              implementation.args[0] === 'pg_catalog.text'))
-                        ? [
-                            {
-                              kind: 'database',
-                              requirement:
-                                implementation.name === 'regclass'
-                                  ? 'Deployment catalog is unavailable; text arguments are relation names even when numeric'
-                                  : 'Deployment catalog is unavailable for symbolic names; numeric and sentinel branches are portable',
-                              owner: 'tests/sql-semantics/check-oid-aliases.test.ts',
-                            },
-                          ]
-                        : []),
+                      : []),
       probe: canProbe ? callableProbe(item) : null,
     }
   })

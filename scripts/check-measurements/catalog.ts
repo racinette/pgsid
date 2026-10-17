@@ -1,3 +1,4 @@
+import { nativeHashContext } from '../../src/codegen/shared/check-hash-context.js'
 import assert from 'node:assert/strict'
 import type { PGlite } from '@electric-sql/pglite'
 import { callableIdentity, readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
@@ -89,6 +90,30 @@ export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
     'Live default type comparison links differ from the generated inventory',
   )
   return catalog
+}
+
+export function hashValueRequirements(item: BuiltinCallable) {
+  const context = nativeHashContext(item)
+  if (!context) return null
+  return [
+    {
+      kind: 'platform',
+      requirement:
+        'Byte-dependent hashes require declared PostgreSQL nativeByteOrder little or big; unspecified byte order retains results only when both agree.',
+      owner: 'tests/sql-semantics/check-native-hash.test.ts',
+    },
+    ...(context === 'text'
+      ? [
+          {
+            kind: 'database',
+            setting: 'server_encoding',
+            requirement:
+              'Non-ASCII hash input requires declared UTF8 server encoding; ASCII remains portable.',
+            owner: 'tests/sql-semantics/check-native-hash.test.ts',
+          },
+        ]
+      : []),
+  ]
 }
 
 export function jsonValueRequirements(item: BuiltinCallable) {

@@ -97,6 +97,7 @@ describe('Rust CHECK bytea hashes and checksums', () => {
           }
         }),
       ),
+      { nativeByteOrder: 'little', serverEncoding: 'UTF8' },
     )
     for (const [index, check] of group.checks.entries())
       expect(

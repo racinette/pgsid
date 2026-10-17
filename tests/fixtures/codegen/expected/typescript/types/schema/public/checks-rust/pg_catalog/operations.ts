@@ -5764,7 +5764,8 @@ function byteaHashBytes(value: string): checkruntime.HashByte[] {
     }
     return bytes;
 }
-export function hashbyteaMypt(input: checkruntime.ByteaValue): checkruntime.Int4Value {
+export function hashbyteaMypt(input: checkruntime.ByteaValue, byteOrder: number): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -5778,12 +5779,12 @@ export function hashbyteaMypt(input: checkruntime.ByteaValue): checkruntime.Int4
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
         const bytes: checkruntime.HashByte[] = byteaHashBytes(value);
-        const hash: number = checkruntime.hashBytes32(bytes);
-        return { kind: "Value", value: hash };
+        return checkruntime.hashNative32(bytes, byteOrder, 1);
     }
     return { kind: "Unknown" };
 }
-export function hashbyteaextendedU1vz(input: checkruntime.ByteaValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+export function hashbyteaextendedU1vz(input: checkruntime.ByteaValue, seed: checkruntime.Int8Value, byteOrder: number): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -5803,8 +5804,7 @@ export function hashbyteaextendedU1vz(input: checkruntime.ByteaValue, seed: chec
         if (seed.kind === "Value") {
             const salt: bigint = langruntime.checkedI64(seed.value);
             const bytes: checkruntime.HashByte[] = byteaHashBytes(value);
-            const hash: bigint = checkruntime.hashBytes64(bytes, salt);
-            return { kind: "Value", value: hash };
+            return checkruntime.hashNative64(bytes, salt, byteOrder, 1);
         }
     }
     return { kind: "Unknown" };
@@ -20789,7 +20789,8 @@ export function macaddrSendFk4p(input: checkruntime.MacaddrValue): checkruntime.
     }
     return { kind: "Unknown" };
 }
-export function hashmacaddrIh2y(input: checkruntime.MacaddrValue): checkruntime.Int4Value {
+export function hashmacaddrIh2y(input: checkruntime.MacaddrValue, byteOrder: number): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -20803,12 +20804,12 @@ export function hashmacaddrIh2y(input: checkruntime.MacaddrValue): checkruntime.
     if (input.kind === "Value") {
         const address: checkruntime.MacAddress = input.value;
         const bytes: checkruntime.HashByte[] = macHashBytes(address, 6);
-        const result: number = checkruntime.hashBytes32(bytes);
-        return { kind: "Value", value: result };
+        return checkruntime.hashNative32(bytes, byteOrder, 1);
     }
     return { kind: "Unknown" };
 }
-export function hashmacaddrextended94rh(left: checkruntime.MacaddrValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+export function hashmacaddrextended94rh(left: checkruntime.MacaddrValue, right: checkruntime.Int8Value, byteOrder: number): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -20828,8 +20829,7 @@ export function hashmacaddrextended94rh(left: checkruntime.MacaddrValue, right: 
         if (right.kind === "Value") {
             const seed: bigint = langruntime.checkedI64(right.value);
             const bytes: checkruntime.HashByte[] = macHashBytes(address, 6);
-            const result: bigint = checkruntime.hashBytes64(bytes, seed);
-            return { kind: "Value", value: result };
+            return checkruntime.hashNative64(bytes, seed, byteOrder, 1);
         }
     }
     return { kind: "Unknown" };
@@ -20870,7 +20870,8 @@ export function macaddr8SendQten(input: checkruntime.Macaddr8Value): checkruntim
     }
     return { kind: "Unknown" };
 }
-export function hashmacaddr872kw(input: checkruntime.Macaddr8Value): checkruntime.Int4Value {
+export function hashmacaddr872kw(input: checkruntime.Macaddr8Value, byteOrder: number): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -20884,12 +20885,12 @@ export function hashmacaddr872kw(input: checkruntime.Macaddr8Value): checkruntim
     if (input.kind === "Value") {
         const address: checkruntime.MacAddress = input.value;
         const bytes: checkruntime.HashByte[] = macHashBytes(address, 8);
-        const result: number = checkruntime.hashBytes32(bytes);
-        return { kind: "Value", value: result };
+        return checkruntime.hashNative32(bytes, byteOrder, 1);
     }
     return { kind: "Unknown" };
 }
-export function hashmacaddr8extended63o8(left: checkruntime.Macaddr8Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+export function hashmacaddr8extended63o8(left: checkruntime.Macaddr8Value, right: checkruntime.Int8Value, byteOrder: number): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -20909,8 +20910,7 @@ export function hashmacaddr8extended63o8(left: checkruntime.Macaddr8Value, right
         if (right.kind === "Value") {
             const seed: bigint = langruntime.checkedI64(right.value);
             const bytes: checkruntime.HashByte[] = macHashBytes(address, 8);
-            const result: bigint = checkruntime.hashBytes64(bytes, seed);
-            return { kind: "Value", value: result };
+            return checkruntime.hashNative64(bytes, seed, byteOrder, 1);
         }
     }
     return { kind: "Unknown" };
@@ -21474,11 +21474,15 @@ function nameRelation(left: checkruntime.TextValue, right: checkruntime.TextValu
 export function bpchar8cer(input: checkruntime.TextValue): checkruntime.TextValue {
     return input;
 }
-export function hashnameVua3(input: checkruntime.TextValue): checkruntime.Int4Value {
-    return textHashValue(input, false);
+export function hashnameVua3(input: checkruntime.TextValue, byteOrder: number, utf8: boolean): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    return textHashValue(input, false, byteOrder, utf8);
 }
-export function hashnameextendedP8gv(input: checkruntime.TextValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
-    return textHashExtended(input, seed, false);
+export function hashnameextendedP8gv(input: checkruntime.TextValue, seed: checkruntime.Int8Value, byteOrder: number, utf8: boolean): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    return textHashExtended(input, seed, false, byteOrder, utf8);
 }
 export function nameIqr4(input: checkruntime.TextValue): checkruntime.TextValue {
     return nameFromText(input);
@@ -22503,7 +22507,8 @@ function networkHashBytes(address: checkruntime.NetworkAddress): checkruntime.Ha
     }
     return bytes;
 }
-export function hashinetFhly(input: checkruntime.NetworkValue): checkruntime.Int4Value {
+export function hashinetFhly(input: checkruntime.NetworkValue, byteOrder: number): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -22517,12 +22522,12 @@ export function hashinetFhly(input: checkruntime.NetworkValue): checkruntime.Int
     if (input.kind === "Value") {
         const address: checkruntime.NetworkAddress = input.value;
         const bytes: checkruntime.HashByte[] = networkHashBytes(address);
-        const hash: number = checkruntime.hashBytes32(bytes);
-        return { kind: "Value", value: hash };
+        return checkruntime.hashNative32(bytes, byteOrder, 1);
     }
     return { kind: "Unknown" };
 }
-export function hashinetextendedN7xh(left: checkruntime.NetworkValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+export function hashinetextendedN7xh(left: checkruntime.NetworkValue, right: checkruntime.Int8Value, byteOrder: number): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -22542,8 +22547,7 @@ export function hashinetextendedN7xh(left: checkruntime.NetworkValue, right: che
         if (right.kind === "Value") {
             const seed: bigint = langruntime.checkedI64(right.value);
             const bytes: checkruntime.HashByte[] = networkHashBytes(address);
-            const hash: bigint = checkruntime.hashBytes64(bytes, seed);
-            return { kind: "Value", value: hash };
+            return checkruntime.hashNative64(bytes, seed, byteOrder, 1);
         }
     }
     return { kind: "Unknown" };
@@ -24009,7 +24013,8 @@ function numericHashDigits(value: string): checkruntime.HashByte[] {
     }
     return bytes;
 }
-export function hashNumeric0e7w(input: checkruntime.NumericValue): checkruntime.Int4Value {
+export function hashNumeric0e7w(input: checkruntime.NumericValue, byteOrder: number): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -24037,12 +24042,13 @@ export function hashNumeric0e7w(input: checkruntime.NumericValue): checkruntime.
             weight = langruntime.checkedI32(langruntime.checkedSignedSubtract(weight, 1));
         }
         const bytes: checkruntime.HashByte[] = numericHashDigits(value);
-        const hash: number = checkruntime.hashBytes32(bytes);
-        return int4xor6j8h({ kind: "Value", value: hash }, { kind: "Value", value: weight });
+        const hash: checkruntime.Int4Value = checkruntime.hashNative32(bytes, byteOrder, 2);
+        return int4xor6j8h(hash, { kind: "Value", value: weight });
     }
     return { kind: "Unknown" };
 }
-export function hashNumericExtendedOglu(input: checkruntime.NumericValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+export function hashNumericExtendedOglu(input: checkruntime.NumericValue, seed: checkruntime.Int8Value, byteOrder: number): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -24080,8 +24086,8 @@ export function hashNumericExtendedOglu(input: checkruntime.NumericValue, seed: 
             }
             const wideWeight: bigint = BigInt(langruntime.checkedI32(weight));
             const bytes: checkruntime.HashByte[] = numericHashDigits(value);
-            const hash: bigint = checkruntime.hashBytes64(bytes, salt);
-            return int8xor4v56({ kind: "Value", value: hash }, { kind: "Value", value: wideWeight });
+            const hash: checkruntime.Int8Value = checkruntime.hashNative64(bytes, salt, byteOrder, 2);
+            return int8xor4v56(hash, { kind: "Value", value: wideWeight });
         }
     }
     return { kind: "Unknown" };
@@ -32621,8 +32627,10 @@ export function lowerHcg0(input: checkruntime.TextValue): checkruntime.TextValue
 export function upperValc(input: checkruntime.TextValue): checkruntime.TextValue {
     return textCaseValue(input, 1);
 }
-function textHashValue(input: checkruntime.TextValue, trimSpaces: boolean): checkruntime.Int4Value {
+function textHashValue(input: checkruntime.TextValue, trimSpaces: boolean, byteOrder: number, utf8: boolean): checkruntime.Int4Value {
     trimSpaces = langruntime.checkedBool(trimSpaces);
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -32635,14 +32643,26 @@ function textHashValue(input: checkruntime.TextValue, trimSpaces: boolean): chec
     }
     if (input.kind === "Value") {
         const value: string = langruntime.checkedString(input.value);
+        if (utf8 === false) {
+            const chars: string[] = Array.from(value);
+            let index: number = 0;
+            while (index < chars.length) {
+                if (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)! > 127) {
+                    return { kind: "Unknown" };
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+        }
         const hex: string = textBinaryHex(value, trimSpaces);
         const bytes: checkruntime.HashByte[] = byteaHashBytes(hex);
-        return { kind: "Value", value: checkruntime.hashBytes32(bytes) };
+        return checkruntime.hashNative32(bytes, byteOrder, 1);
     }
     return { kind: "Unknown" };
 }
-function textHashExtended(input: checkruntime.TextValue, seed: checkruntime.Int8Value, trimSpaces: boolean): checkruntime.Int8Value {
+function textHashExtended(input: checkruntime.TextValue, seed: checkruntime.Int8Value, trimSpaces: boolean, byteOrder: number, utf8: boolean): checkruntime.Int8Value {
     trimSpaces = langruntime.checkedBool(trimSpaces);
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -32661,24 +32681,42 @@ function textHashExtended(input: checkruntime.TextValue, seed: checkruntime.Int8
         const value: string = langruntime.checkedString(input.value);
         if (seed.kind === "Value") {
             const salt: bigint = langruntime.checkedI64(seed.value);
+            if (utf8 === false) {
+                const chars: string[] = Array.from(value);
+                let index: number = 0;
+                while (index < chars.length) {
+                    if (langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index))).codePointAt(0)! > 127) {
+                        return { kind: "Unknown" };
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+            }
             const hex: string = textBinaryHex(value, trimSpaces);
             const bytes: checkruntime.HashByte[] = byteaHashBytes(hex);
-            return { kind: "Value", value: checkruntime.hashBytes64(bytes, salt) };
+            return checkruntime.hashNative64(bytes, salt, byteOrder, 1);
         }
     }
     return { kind: "Unknown" };
 }
-export function hashtextCnj7(input: checkruntime.TextValue): checkruntime.Int4Value {
-    return textHashValue(input, false);
+export function hashtextCnj7(input: checkruntime.TextValue, byteOrder: number, utf8: boolean): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    return textHashValue(input, false, byteOrder, utf8);
 }
-export function hashbpcharEeeo(input: checkruntime.TextValue): checkruntime.Int4Value {
-    return textHashValue(input, true);
+export function hashbpcharEeeo(input: checkruntime.TextValue, byteOrder: number, utf8: boolean): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    return textHashValue(input, true, byteOrder, utf8);
 }
-export function hashtextextendedDns6(input: checkruntime.TextValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
-    return textHashExtended(input, seed, false);
+export function hashtextextendedDns6(input: checkruntime.TextValue, seed: checkruntime.Int8Value, byteOrder: number, utf8: boolean): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    return textHashExtended(input, seed, false, byteOrder, utf8);
 }
-export function hashbpcharextendedCa1t(input: checkruntime.TextValue, seed: checkruntime.Int8Value): checkruntime.Int8Value {
-    return textHashExtended(input, seed, true);
+export function hashbpcharextendedCa1t(input: checkruntime.TextValue, seed: checkruntime.Int8Value, byteOrder: number, utf8: boolean): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    return textHashExtended(input, seed, true, byteOrder, utf8);
 }
 export function ginCmpTslexeme1b7b(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.Int4Value {
     return textBinaryCompare(left, right, false);
@@ -34840,11 +34878,6 @@ export function tidsendO4ql(left: checkruntime.TidValue): checkruntime.ByteaValu
 export function bttidcmpAk5t(left: checkruntime.TidValue, right: checkruntime.TidValue): checkruntime.Int4Value {
     return tidCompare(left, right);
 }
-function tidHashPortable(value: bigint): boolean {
-    value = langruntime.checkedI64(value);
-    const block: bigint = langruntime.checkedI64Divide(value, 65536n);
-    return langruntime.checkedI64Remainder(value, 65536n) === 0n && langruntime.checkedI64Divide(block, 65536n) === langruntime.checkedI64Remainder(block, 65536n);
-}
 function tidHashBytes(value: bigint): checkruntime.HashByte[] {
     value = langruntime.checkedI64(value);
     const block: bigint = langruntime.checkedI64Divide(value, 65536n);
@@ -34860,7 +34893,8 @@ function tidHashBytes(value: bigint): checkruntime.HashByte[] {
     langruntime.pushStruct(bytes, { value: langruntime.checkedI64Divide(offset, 256n) }, checkruntime.copyHashByte);
     return bytes;
 }
-export function hashtidLi7j(left: checkruntime.TidValue): checkruntime.Int4Value {
+export function hashtidLi7j(left: checkruntime.TidValue, byteOrder: number): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -34870,13 +34904,13 @@ export function hashtidLi7j(left: checkruntime.TidValue): checkruntime.Int4Value
     }
     if (left.kind === "Value") {
         const value: bigint = langruntime.checkedI64(left.value);
-        if (tidHashPortable(value)) {
-            return checkruntime.makeInt4Value(checkruntime.hashBytes32(tidHashBytes(value)));
-        }
+        const bytes: checkruntime.HashByte[] = tidHashBytes(value);
+        return checkruntime.hashNative32(bytes, byteOrder, 2);
     }
     return { kind: "Unknown" };
 }
-export function hashtidextendedOsxq(left: checkruntime.TidValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+export function hashtidextendedOsxq(left: checkruntime.TidValue, right: checkruntime.Int8Value, byteOrder: number): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -34895,9 +34929,8 @@ export function hashtidextendedOsxq(left: checkruntime.TidValue, right: checkrun
         const value: bigint = langruntime.checkedI64(left.value);
         if (right.kind === "Value") {
             const seed: bigint = langruntime.checkedI64(right.value);
-            if (tidHashPortable(value)) {
-                return checkruntime.makeInt8Value(checkruntime.hashBytes64(tidHashBytes(value), seed));
-            }
+            const bytes: checkruntime.HashByte[] = tidHashBytes(value);
+            return checkruntime.hashNative64(bytes, seed, byteOrder, 2);
         }
     }
     return { kind: "Unknown" };
@@ -36694,7 +36727,8 @@ export function uuidSend32nf(input: checkruntime.UuidValue): checkruntime.ByteaV
     }
     return { kind: "Unknown" };
 }
-export function uuidHash8nnn(input: checkruntime.UuidValue): checkruntime.Int4Value {
+export function uuidHash8nnn(input: checkruntime.UuidValue, byteOrder: number): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -36708,12 +36742,12 @@ export function uuidHash8nnn(input: checkruntime.UuidValue): checkruntime.Int4Va
     if (input.kind === "Value") {
         const value: checkruntime.Uuid = input.value;
         const bytes: checkruntime.HashByte[] = uuidHashBytes(value);
-        const hash: number = checkruntime.hashBytes32(bytes);
-        return { kind: "Value", value: hash };
+        return checkruntime.hashNative32(bytes, byteOrder, 1);
     }
     return { kind: "Unknown" };
 }
-export function uuidHashExtendedI59z(left: checkruntime.UuidValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+export function uuidHashExtendedI59z(left: checkruntime.UuidValue, right: checkruntime.Int8Value, byteOrder: number): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -36733,8 +36767,7 @@ export function uuidHashExtendedI59z(left: checkruntime.UuidValue, right: checkr
         if (right.kind === "Value") {
             const seed: bigint = langruntime.checkedI64(right.value);
             const bytes: checkruntime.HashByte[] = uuidHashBytes(value);
-            const hash: bigint = checkruntime.hashBytes64(bytes, seed);
-            return { kind: "Value", value: hash };
+            return checkruntime.hashNative64(bytes, seed, byteOrder, 1);
         }
     }
     return { kind: "Unknown" };

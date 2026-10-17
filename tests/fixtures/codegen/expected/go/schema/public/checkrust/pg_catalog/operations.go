@@ -5742,7 +5742,8 @@ func byteaHashBytes(value string) []checkruntime.HashByte {
 	}
 	return bytes
 }
-func HashbyteaMypt(input checkruntime.ByteaValue) checkruntime.Int4Value {
+func HashbyteaMypt(input checkruntime.ByteaValue, byteOrder int) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.ByteaValueError {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -5756,12 +5757,12 @@ func HashbyteaMypt(input checkruntime.ByteaValue) checkruntime.Int4Value {
 	if input.Kind == checkruntime.ByteaValueValue {
 		value := langruntime.CheckedString(input.Value)
 		bytes := byteaHashBytes(value)
-		hash := checkruntime.HashBytes32(bytes)
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: hash}
+		return checkruntime.HashNative32(bytes, byteOrder, 1)
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func HashbyteaextendedU1vz(input checkruntime.ByteaValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+func HashbyteaextendedU1vz(input checkruntime.ByteaValue, seed checkruntime.Int8Value, byteOrder int) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.ByteaValueError {
 		error := input.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
@@ -5781,8 +5782,7 @@ func HashbyteaextendedU1vz(input checkruntime.ByteaValue, seed checkruntime.Int8
 		if seed.Kind == checkruntime.Int8ValueValue {
 			salt := seed.Value
 			bytes := byteaHashBytes(value)
-			hash := checkruntime.HashBytes64(bytes, salt)
-			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: hash}
+			return checkruntime.HashNative64(bytes, salt, byteOrder, 1)
 		}
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
@@ -20720,7 +20720,8 @@ func MacaddrSendFk4p(input checkruntime.MacaddrValue) checkruntime.ByteaValue {
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
-func HashmacaddrIh2y(input checkruntime.MacaddrValue) checkruntime.Int4Value {
+func HashmacaddrIh2y(input checkruntime.MacaddrValue, byteOrder int) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.MacaddrValueError {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -20734,12 +20735,12 @@ func HashmacaddrIh2y(input checkruntime.MacaddrValue) checkruntime.Int4Value {
 	if input.Kind == checkruntime.MacaddrValueValue {
 		address := input.Value
 		bytes := macHashBytes(address, 6)
-		result := checkruntime.HashBytes32(bytes)
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: result}
+		return checkruntime.HashNative32(bytes, byteOrder, 1)
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func Hashmacaddrextended94rh(left checkruntime.MacaddrValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+func Hashmacaddrextended94rh(left checkruntime.MacaddrValue, right checkruntime.Int8Value, byteOrder int) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if left.Kind == checkruntime.MacaddrValueError {
 		error := left.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
@@ -20759,8 +20760,7 @@ func Hashmacaddrextended94rh(left checkruntime.MacaddrValue, right checkruntime.
 		if right.Kind == checkruntime.Int8ValueValue {
 			seed := right.Value
 			bytes := macHashBytes(address, 6)
-			result := checkruntime.HashBytes64(bytes, seed)
-			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: result}
+			return checkruntime.HashNative64(bytes, seed, byteOrder, 1)
 		}
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
@@ -20801,7 +20801,8 @@ func Macaddr8SendQten(input checkruntime.Macaddr8Value) checkruntime.ByteaValue 
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
-func Hashmacaddr872kw(input checkruntime.Macaddr8Value) checkruntime.Int4Value {
+func Hashmacaddr872kw(input checkruntime.Macaddr8Value, byteOrder int) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.Macaddr8ValueError {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -20815,12 +20816,12 @@ func Hashmacaddr872kw(input checkruntime.Macaddr8Value) checkruntime.Int4Value {
 	if input.Kind == checkruntime.Macaddr8ValueValue {
 		address := input.Value
 		bytes := macHashBytes(address, 8)
-		result := checkruntime.HashBytes32(bytes)
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: result}
+		return checkruntime.HashNative32(bytes, byteOrder, 1)
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func Hashmacaddr8extended63o8(left checkruntime.Macaddr8Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+func Hashmacaddr8extended63o8(left checkruntime.Macaddr8Value, right checkruntime.Int8Value, byteOrder int) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if left.Kind == checkruntime.Macaddr8ValueError {
 		error := left.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
@@ -20840,8 +20841,7 @@ func Hashmacaddr8extended63o8(left checkruntime.Macaddr8Value, right checkruntim
 		if right.Kind == checkruntime.Int8ValueValue {
 			seed := right.Value
 			bytes := macHashBytes(address, 8)
-			result := checkruntime.HashBytes64(bytes, seed)
-			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: result}
+			return checkruntime.HashNative64(bytes, seed, byteOrder, 1)
 		}
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
@@ -21396,11 +21396,13 @@ func nameRelation(left checkruntime.TextValue, right checkruntime.TextValue, mod
 func Bpchar8cer(input checkruntime.TextValue) checkruntime.TextValue {
 	return input
 }
-func HashnameVua3(input checkruntime.TextValue) checkruntime.Int4Value {
-	return textHashValue(input, false)
+func HashnameVua3(input checkruntime.TextValue, byteOrder int, utf8 bool) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	return textHashValue(input, false, byteOrder, utf8)
 }
-func HashnameextendedP8gv(input checkruntime.TextValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
-	return textHashExtended(input, seed, false)
+func HashnameextendedP8gv(input checkruntime.TextValue, seed checkruntime.Int8Value, byteOrder int, utf8 bool) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	return textHashExtended(input, seed, false, byteOrder, utf8)
 }
 func NameIqr4(input checkruntime.TextValue) checkruntime.TextValue {
 	return NameFromText(input)
@@ -22431,7 +22433,8 @@ func networkHashBytes(address checkruntime.NetworkAddress) []checkruntime.HashBy
 	}
 	return bytes
 }
-func HashinetFhly(input checkruntime.NetworkValue) checkruntime.Int4Value {
+func HashinetFhly(input checkruntime.NetworkValue, byteOrder int) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.NetworkValueError {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -22445,12 +22448,12 @@ func HashinetFhly(input checkruntime.NetworkValue) checkruntime.Int4Value {
 	if input.Kind == checkruntime.NetworkValueValue {
 		address := input.Value
 		bytes := networkHashBytes(address)
-		hash := checkruntime.HashBytes32(bytes)
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: hash}
+		return checkruntime.HashNative32(bytes, byteOrder, 1)
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func HashinetextendedN7xh(left checkruntime.NetworkValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+func HashinetextendedN7xh(left checkruntime.NetworkValue, right checkruntime.Int8Value, byteOrder int) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
@@ -22470,8 +22473,7 @@ func HashinetextendedN7xh(left checkruntime.NetworkValue, right checkruntime.Int
 		if right.Kind == checkruntime.Int8ValueValue {
 			seed := right.Value
 			bytes := networkHashBytes(address)
-			hash := checkruntime.HashBytes64(bytes, seed)
-			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: hash}
+			return checkruntime.HashNative64(bytes, seed, byteOrder, 1)
 		}
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
@@ -23935,7 +23937,8 @@ func numericHashDigits(value string) []checkruntime.HashByte {
 	}
 	return bytes
 }
-func HashNumeric0e7w(input checkruntime.NumericValue) checkruntime.Int4Value {
+func HashNumeric0e7w(input checkruntime.NumericValue, byteOrder int) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.NumericValueError {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -23963,12 +23966,13 @@ func HashNumeric0e7w(input checkruntime.NumericValue) checkruntime.Int4Value {
 			weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
 		}
 		bytes := numericHashDigits(value)
-		hash := checkruntime.HashBytes32(bytes)
-		return Int4xor6j8h(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: hash}, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: weight})
+		hash := checkruntime.HashNative32(bytes, byteOrder, 2)
+		return Int4xor6j8h(hash, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: weight})
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func HashNumericExtendedOglu(input checkruntime.NumericValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
+func HashNumericExtendedOglu(input checkruntime.NumericValue, seed checkruntime.Int8Value, byteOrder int) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.NumericValueError {
 		error := input.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
@@ -24006,8 +24010,8 @@ func HashNumericExtendedOglu(input checkruntime.NumericValue, seed checkruntime.
 			}
 			wideWeight := int64(langruntime.CheckedI32(weight))
 			bytes := numericHashDigits(value)
-			hash := checkruntime.HashBytes64(bytes, salt)
-			return Int8xor4v56(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: hash}, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: wideWeight})
+			hash := checkruntime.HashNative64(bytes, salt, byteOrder, 2)
+			return Int8xor4v56(hash, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: wideWeight})
 		}
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
@@ -32509,7 +32513,8 @@ func LowerHcg0(input checkruntime.TextValue) checkruntime.TextValue {
 func UpperValc(input checkruntime.TextValue) checkruntime.TextValue {
 	return textCaseValue(input, 1)
 }
-func textHashValue(input checkruntime.TextValue, trimSpaces bool) checkruntime.Int4Value {
+func textHashValue(input checkruntime.TextValue, trimSpaces bool, byteOrder int, utf8 bool) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -32522,13 +32527,24 @@ func textHashValue(input checkruntime.TextValue, trimSpaces bool) checkruntime.I
 	}
 	if input.Kind == checkruntime.TextValueValue {
 		value := langruntime.CheckedString(input.Value)
+		if utf8 == false {
+			chars := []rune(value)
+			index := 0
+			for index < len(chars) {
+				if int(langruntime.CheckedChar(chars[index])) > 127 {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		}
 		hex := textBinaryHex(value, trimSpaces)
 		bytes := byteaHashBytes(hex)
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: checkruntime.HashBytes32(bytes)}
+		return checkruntime.HashNative32(bytes, byteOrder, 1)
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func textHashExtended(input checkruntime.TextValue, seed checkruntime.Int8Value, trimSpaces bool) checkruntime.Int8Value {
+func textHashExtended(input checkruntime.TextValue, seed checkruntime.Int8Value, trimSpaces bool, byteOrder int, utf8 bool) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
@@ -32547,24 +32563,38 @@ func textHashExtended(input checkruntime.TextValue, seed checkruntime.Int8Value,
 		value := langruntime.CheckedString(input.Value)
 		if seed.Kind == checkruntime.Int8ValueValue {
 			salt := seed.Value
+			if utf8 == false {
+				chars := []rune(value)
+				index := 0
+				for index < len(chars) {
+					if int(langruntime.CheckedChar(chars[index])) > 127 {
+						return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+			}
 			hex := textBinaryHex(value, trimSpaces)
 			bytes := byteaHashBytes(hex)
-			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: checkruntime.HashBytes64(bytes, salt)}
+			return checkruntime.HashNative64(bytes, salt, byteOrder, 1)
 		}
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
-func HashtextCnj7(input checkruntime.TextValue) checkruntime.Int4Value {
-	return textHashValue(input, false)
+func HashtextCnj7(input checkruntime.TextValue, byteOrder int, utf8 bool) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	return textHashValue(input, false, byteOrder, utf8)
 }
-func HashbpcharEeeo(input checkruntime.TextValue) checkruntime.Int4Value {
-	return textHashValue(input, true)
+func HashbpcharEeeo(input checkruntime.TextValue, byteOrder int, utf8 bool) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	return textHashValue(input, true, byteOrder, utf8)
 }
-func HashtextextendedDns6(input checkruntime.TextValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
-	return textHashExtended(input, seed, false)
+func HashtextextendedDns6(input checkruntime.TextValue, seed checkruntime.Int8Value, byteOrder int, utf8 bool) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	return textHashExtended(input, seed, false, byteOrder, utf8)
 }
-func HashbpcharextendedCa1t(input checkruntime.TextValue, seed checkruntime.Int8Value) checkruntime.Int8Value {
-	return textHashExtended(input, seed, true)
+func HashbpcharextendedCa1t(input checkruntime.TextValue, seed checkruntime.Int8Value, byteOrder int, utf8 bool) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	return textHashExtended(input, seed, true, byteOrder, utf8)
 }
 func GinCmpTslexeme1b7b(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.Int4Value {
 	return textBinaryCompare(left, right, false)
@@ -34676,10 +34706,6 @@ func TidsendO4ql(left checkruntime.TidValue) checkruntime.ByteaValue {
 func BttidcmpAk5t(left checkruntime.TidValue, right checkruntime.TidValue) checkruntime.Int4Value {
 	return tidCompare(left, right)
 }
-func tidHashPortable(value int64) bool {
-	block := langruntime.CheckedI64Divide(value, int64(65536))
-	return langruntime.CheckedI64Remainder(value, int64(65536)) == int64(0) && langruntime.CheckedI64Divide(block, int64(65536)) == langruntime.CheckedI64Remainder(block, int64(65536))
-}
 func tidHashBytes(value int64) []checkruntime.HashByte {
 	block := langruntime.CheckedI64Divide(value, int64(65536))
 	high := langruntime.CheckedI64Divide(block, int64(65536))
@@ -34700,7 +34726,8 @@ func tidHashBytes(value int64) []checkruntime.HashByte {
 	bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: langruntime.CheckedI64Divide(offset, int64(256))}))
 	return bytes
 }
-func HashtidLi7j(left checkruntime.TidValue) checkruntime.Int4Value {
+func HashtidLi7j(left checkruntime.TidValue, byteOrder int) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if left.Kind == checkruntime.TidValueError {
 		error := left.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -34710,13 +34737,13 @@ func HashtidLi7j(left checkruntime.TidValue) checkruntime.Int4Value {
 	}
 	if left.Kind == checkruntime.TidValueValue {
 		value := left.Value
-		if tidHashPortable(value) {
-			return checkruntime.MakeInt4Value(checkruntime.HashBytes32(tidHashBytes(value)))
-		}
+		bytes := tidHashBytes(value)
+		return checkruntime.HashNative32(bytes, byteOrder, 2)
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func HashtidextendedOsxq(left checkruntime.TidValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+func HashtidextendedOsxq(left checkruntime.TidValue, right checkruntime.Int8Value, byteOrder int) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if left.Kind == checkruntime.TidValueError {
 		error := left.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
@@ -34735,9 +34762,8 @@ func HashtidextendedOsxq(left checkruntime.TidValue, right checkruntime.Int8Valu
 		value := left.Value
 		if right.Kind == checkruntime.Int8ValueValue {
 			seed := right.Value
-			if tidHashPortable(value) {
-				return checkruntime.MakeInt8Value(checkruntime.HashBytes64(tidHashBytes(value), seed))
-			}
+			bytes := tidHashBytes(value)
+			return checkruntime.HashNative64(bytes, seed, byteOrder, 2)
 		}
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
@@ -36526,7 +36552,8 @@ func UuidSend32nf(input checkruntime.UuidValue) checkruntime.ByteaValue {
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
-func UuidHash8nnn(input checkruntime.UuidValue) checkruntime.Int4Value {
+func UuidHash8nnn(input checkruntime.UuidValue, byteOrder int) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if input.Kind == checkruntime.UuidValueError {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -36540,12 +36567,12 @@ func UuidHash8nnn(input checkruntime.UuidValue) checkruntime.Int4Value {
 	if input.Kind == checkruntime.UuidValueValue {
 		value := input.Value
 		bytes := uuidHashBytes(value)
-		hash := checkruntime.HashBytes32(bytes)
-		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: hash}
+		return checkruntime.HashNative32(bytes, byteOrder, 1)
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func UuidHashExtendedI59z(left checkruntime.UuidValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+func UuidHashExtendedI59z(left checkruntime.UuidValue, right checkruntime.Int8Value, byteOrder int) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
 	if left.Kind == checkruntime.UuidValueError {
 		error := left.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
@@ -36565,8 +36592,7 @@ func UuidHashExtendedI59z(left checkruntime.UuidValue, right checkruntime.Int8Va
 		if right.Kind == checkruntime.Int8ValueValue {
 			seed := right.Value
 			bytes := uuidHashBytes(value)
-			hash := checkruntime.HashBytes64(bytes, seed)
-			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: hash}
+			return checkruntime.HashNative64(bytes, seed, byteOrder, 1)
 		}
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}

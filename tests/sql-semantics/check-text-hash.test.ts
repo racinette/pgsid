@@ -193,6 +193,7 @@ describe('Rust CHECK text hashes and binary index comparisons', () => {
           }
         }),
       ),
+      { nativeByteOrder: 'little', serverEncoding: 'UTF8' },
     )
     for (const [index, check] of group.checks.entries())
       expect(
