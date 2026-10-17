@@ -80,3 +80,7 @@ VALUES (1, 255, 255, '11111111', '377', 'ff', '11111111', '377', 'ff', '255 byte
 
 INSERT INTO stock_hash_records (id, small_count, ordinary_count, bulk_count, selected, hash_seed, small_hash, ordinary_hash, bulk_hash, boolean_hash, small_seeded_hash, ordinary_seeded_hash, bulk_seeded_hash, boolean_seeded_hash)
 VALUES (1, 1, 1, 1, true, 0, -1905060026, -1905060026, -1905060026, -1905060026, -3670598878359251130, -3670598878359251130, -3670598878359251130, -3670598878359251130);
+
+INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(1,'10','0x20','9007199254740993',' 42 ',10,32,9007199254740993,42,false);
+INSERT INTO stock_encoded_shapes(id,payload,fallback_count,expected_count,bypass) VALUES(1,'10',0,1,false);
+INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(1,'{crate,pallet}',2,true,1);

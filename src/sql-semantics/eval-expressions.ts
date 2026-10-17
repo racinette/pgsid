@@ -174,6 +174,12 @@ export type EvalExpression =
       operand: EvalExpression
     }
   | {
+      kind: 'text-to-integer'
+      type: 'pg_catalog.int2' | 'pg_catalog.int4' | 'pg_catalog.int8'
+      operand: EvalExpression
+      literal?: true
+    }
+  | {
       kind: 'text-to-numeric'
       type: 'pg_catalog."numeric"'
       operand: EvalExpression
@@ -234,6 +240,7 @@ export type EvalExpression =
       kind: 'call'
       call: SqlCallableExpression
       operands: readonly EvalExpression[]
+      strictNull?: true
     }
   | {
       kind: 'regex-count'
@@ -522,6 +529,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'io-to-text' ||
       node.kind === 'refcursor-text-coercion' ||
       node.kind === 'text-to-float' ||
+      node.kind === 'text-to-integer' ||
       node.kind === 'text-to-numeric' ||
       node.kind === 'text-to-point' ||
       node.kind === 'text-to-line' ||

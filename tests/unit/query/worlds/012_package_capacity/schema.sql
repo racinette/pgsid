@@ -424,3 +424,40 @@ CREATE TABLE stock_hash_records (
   CONSTRAINT bulk_count_seeded_hash CHECK (hashint8extended(bulk_count, hash_seed) = bulk_seeded_hash),
   CONSTRAINT selected_count_seeded_hash CHECK (hashboolextended(selected, hash_seed) = boolean_seeded_hash)
 );
+
+CREATE TABLE stock_encoded_counts (
+  id integer PRIMARY KEY,
+  small_text text,
+  ordinary_text varchar,
+  bulk_text name,
+  padded_text char(32),
+  expected_small smallint,
+  expected_ordinary integer,
+  expected_bulk bigint,
+  expected_padded integer,
+  bypass boolean,
+  CONSTRAINT encoded_small_count CHECK (CASE WHEN bypass THEN true ELSE small_text::smallint IS NOT DISTINCT FROM expected_small END),
+  CONSTRAINT encoded_ordinary_count CHECK (CASE WHEN bypass THEN true ELSE ordinary_text::integer IS NOT DISTINCT FROM expected_ordinary END),
+  CONSTRAINT encoded_bulk_count CHECK (CASE WHEN bypass THEN true ELSE bulk_text::bigint IS NOT DISTINCT FROM expected_bulk END),
+  CONSTRAINT encoded_padded_count CHECK (CASE WHEN bypass THEN true ELSE padded_text::integer IS NOT DISTINCT FROM expected_padded END)
+);
+
+CREATE TABLE stock_encoded_shapes (
+  id integer PRIMARY KEY,
+  payload text,
+  fallback_count integer,
+  expected_count integer,
+  bypass boolean,
+  CONSTRAINT encoded_constructor_count CHECK (CASE WHEN bypass THEN true ELSE cardinality(ARRAY[COALESCE(payload::integer,fallback_count)])=expected_count END),
+  CONSTRAINT encoded_empty_fill CHECK (CASE WHEN bypass THEN true ELSE cardinality(array_fill(payload::integer,ARRAY[0]))=0 END)
+);
+
+CREATE TABLE stock_encoded_labels (
+  id integer PRIMARY KEY,
+  labels text,
+  expected_count integer,
+  check_count boolean NOT NULL,
+  divisor integer,
+  CONSTRAINT encoded_label_count CHECK (CASE WHEN check_count THEN cardinality(labels::name[]) IS NOT DISTINCT FROM expected_count ELSE true END),
+  CONSTRAINT encoded_label_calculation CHECK (CASE WHEN check_count THEN cardinality(labels::name[])+(1/divisor)>0 ELSE true END)
+);

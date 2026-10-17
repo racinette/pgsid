@@ -150,9 +150,19 @@ describe('numeric factorial', () => {
         record({ ...defaults(), value_num: state }, state as Outcome)
       record(
         { ...defaults(), value_num: { kind: 'Unknown' }, recorded: error('22003') },
-        error('22003'),
+        { kind: 'Unknown' },
         ['same', 'skipped'],
       )
+      record(
+        { ...defaults(), value_num: { kind: 'Unknown' }, recorded: error('22012') },
+        { kind: 'Unknown' },
+        ['same', 'skipped'],
+      )
+      record({ ...defaults(), recorded: error('22003') }, error('22003'), ['same', 'skipped'])
+      record({ ...defaults(), value_num: input(-1n), recorded: error('22012') }, error('22003'), [
+        'same',
+        'skipped',
+      ])
       record(
         { ...defaults(), value_num: error('22012'), recorded: error('22003') },
         error('22012'),
@@ -163,6 +173,22 @@ describe('numeric factorial', () => {
         { kind: 'True' },
         ['skipped'],
       )
+      await pg.exec(
+        'CREATE TABLE factorial_error_order(value_num bigint,numerator integer,divisor integer)',
+      )
+      for (const [value, code] of [
+        ['5', '22012'],
+        ['-1', '22003'],
+        [null, '22012'],
+      ] as const) {
+        await pg.exec('TRUNCATE factorial_error_order')
+        await pg.query('INSERT INTO factorial_error_order VALUES($1,1,0)', [value])
+        await expect(
+          pg.query(
+            'SELECT factorial(value_num)=(numerator/divisor)::numeric FROM factorial_error_order',
+          ),
+        ).rejects.toMatchObject({ code })
+      }
       await runCheckParity(
         directory,
         'pgsid-numeric-factorial',

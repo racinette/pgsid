@@ -59,7 +59,7 @@ Done when a fresh checkout can regenerate the reports without recovering scripts
 - [x] Keep scalar null tests type-aware for portable temporal values and nested domains.
 
 Verify each form independently, including NULL,
-Unknown, SQL errors, type resolution, and evaluation behavior. Compare raw SQL
+Unknown, SQL errors, ordered computation validity, strict runtime NULL propagation, eager literals, lazy branches and safe unresolved choices. Compare raw SQL
 and stored CHECK definitions. Unknown has no PostgreSQL counterpart and needs
 explicit partial-input cases in addition to database comparisons.
 
@@ -108,8 +108,8 @@ unexercised cases explicitly rather than treating them as passes.
 
 - [x] Measure explicit catalog cast pairs on represented values and their runtime
       text input/output paths, separating PostgreSQL admission from raw/stored binding.
-- [x] Bind Boolean/network character casts and numeric text I/O through catalog identities,
-      including actual argument types, width/precision modifiers, unconstrained domains, literal preparation and composition.
+- [x] Bind Boolean/network character casts and integer/numeric text I/O through catalog identities,
+      including actual argument types, integer radix/underscore grammar, width/precision modifiers, unconstrained domains, literal preparation and composition.
 - [ ] Inventory unsupported input forms and coercions for represented types.
 - [x] Share handled and deferred temporal input-form cases between their parity
       suites and the coercion report, retaining the executing owner of each list.
@@ -242,7 +242,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish typed scalar/enum arrays with dimensions/lower bounds, NULL/Unknown cells, independent nested clones, SQL-coerced public inputs and array domains, metadata, captured enum ranges/endpoints, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
 - [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, computed-element validity, lazy branches, ordered errors, constant preparation and INSERT parity; preserve nominal domain-element deferrals.
 - [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.
-- [x] Admit source/stored array literals and text I/O input, integer/Boolean/numeric/enum input profiles, widths/precision, explicit array_nulls, captured money units and coerced name facets; verify lazy preparation, exact cells and INSERT parity.
+- [x] Admit source/stored array literals and text I/O input, integer/Boolean/numeric/enum input profiles, widths/precision, explicit array_nulls, captured money units and partial name-cell shape; verify lazy preparation, exact cells and INSERT parity.
 - [x] Admit array text output and string splitting/joining, shared element I/O, dimensions, quoting/escaping, character widths, delimiters/NULL markers and INSERT parity; retain partial cells, reached encoding/collation and scalar formatting/catalog deferrals; classify binary array send/receive catalog/internal requirements.
 - [x] Admit multidimensional element fetches and slices, omitted/mixed bounds, integer assignment casts, copied cells, constant preparation and reached-error order; verify raw/stored composition and INSERT parity.
 - [x] Admit array equality/order through catalog-selected element support, NULL cells, dimensional tie-breaks, reached context deferrals, owned snapshots, constant preparation, expression composition and INSERT parity.
@@ -254,7 +254,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit regex capture/split arrays with catalog overloads, first/all match traversal, unmatched NULL captures, zero-length split boundaries, flags, C collation, owned text cells, array composition, strict partial states, preparation and INSERT parity.
 - [x] Admit qualified identifier arrays with quoted/escaped parts, ASCII downcasing, exact lexer whitespace, untruncated names, default/strict/relaxed suffix handling, collation independence, reached UTF8 requirements, partial states, eager/lazy composition and INSERT parity.
 - [x] Classify aggregate state bitmap/native-size requirements and direct-call combine errors. Preserve optional bitmap provenance through construction, I/O, slices, casts and transformations. Admit wrapping integer transitions/inverses, sum and exact average, plus floating statistical transitions, combiners and finalizers with native count guards, exact IEEE operation order, distinct overflow guards, fresh result bounds, partial cells, selected payload precision and eager/lazy INSERT parity; retain bitmap and missing-word deferrals.
-- [ ] Arrays: audit remaining binding coverage, scalar I/O, element domains and composed validity; retain catalog/runtime requirements separately, then run the integration checkpoint.
+- [ ] Arrays: audit remaining binding coverage, scalar I/O (including JSONB text-output encoding propagation), element domains and composed validity; retain catalog/runtime requirements separately, then run the integration checkpoint.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

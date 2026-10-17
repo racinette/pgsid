@@ -192,9 +192,33 @@ describe('floating square-root foundation for geometric distances', () => {
         add(
           fn.rustName,
           { ...row, recorded_value: error('22003') },
-          state.kind === 'Error' ? state : error('22003'),
+          state.kind === 'Unknown'
+            ? { kind: 'Unknown' }
+            : state.kind === 'Error'
+              ? state
+              : error('22003'),
         )
       }
+    for (const fn of functions) {
+      add(
+        fn.rustName,
+        { input_value: value(0x4010000000000000n), recorded_value: error('22003') },
+        error('22003'),
+      )
+      add(
+        fn.rustName,
+        { input_value: value(-4616189618054758400n), recorded_value: error('22003') },
+        error('2201F'),
+      )
+      for (const input of [4, -1, null])
+        await expect(
+          pg.query(
+            `WITH candidate AS MATERIALIZED (SELECT $1::float8 input_value,1::integer amount,0::integer divisor)
+             SELECT pg_catalog.${fn.name}(input_value) = (amount/divisor)::float8 FROM candidate`,
+            [input],
+          ),
+        ).rejects.toMatchObject({ code: input === -1 ? '2201F' : '22012' })
+    }
     add('literal_signed_zero', {}, { kind: 'True' })
     add('literal_lazy_error', {}, { kind: 'True' })
     await runCheckParity(

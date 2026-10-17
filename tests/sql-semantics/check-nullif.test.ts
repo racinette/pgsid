@@ -143,8 +143,42 @@ describe('NULLIF CHECK evaluation', () => {
       expect(builtinMetadata(value.comparison.signature!).args, sql).toEqual(args)
       expect(value.type, sql).toBe(args[0])
     }
+    const malformedSql = "NULLIF(amount,'1.5') IS NULL"
+    await expect(pg.query(`SELECT ${malformedSql} FROM nullif_checks`)).rejects.toMatchObject({
+      code: '22P02',
+    })
+    const malformed = lower(malformedSql)
+    expect(hasUncertain(malformed)).toBe(false)
+    const malformedGroup = prepareCheckRustGroup([
+      {
+        expression: malformed,
+        identity: {
+          schema: 'public',
+          kind: 'table',
+          owner: table.name,
+          constraint: 'malformed_integer_literal',
+        },
+      },
+    ])
+    expect(malformedGroup.checks[0]?.kind).toBe('supported')
+    const malformedRows: Row[] = [
+      { amount: { kind: 'Unknown' } },
+      { amount: input(1) },
+      { amount: input(null) },
+      { amount: error('22012') },
+    ]
+    await runCheckParity(
+      await mkdtemp(join(directory, 'literal-')),
+      'nullifliteral',
+      malformedGroup,
+      ['malformed_integer_literal'],
+      malformedRows.map((row) => ({
+        name: 'malformed_integer_literal',
+        row,
+        expected: error('22P02'),
+      })),
+    )
     for (const [sql, code] of [
-      ["NULLIF(amount,'1.5')", '22P02'],
       ['NULLIF(macaddr_left,macaddr8_right)', '42725'],
       ['NULLIF(domain_stage,status_left)', '42883'],
       ['NULLIF(NULL::json,NULL::json)', '42883'],
@@ -198,7 +232,7 @@ describe('NULLIF CHECK evaluation', () => {
       'pg_catalog.float8',
       'pg_catalog.float8',
     ])
-  })
+  }, 120_000)
 
   it('matches PostgreSQL raw/stored values, NULLs, ownership, partial inputs, planning and lazy branches in every target', async () => {
     const entries = table.constraints

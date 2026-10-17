@@ -2968,6 +2968,13 @@ describe('world CHECK INSERT parity', () => {
     })
     if (selectedWorldNames)
       for (const measured of constraints) {
+        if (
+          !worlds.some(
+            (world) =>
+              checkWorlds.has(world.name) && measured.constraint.startsWith(world.schema + '.'),
+          )
+        )
+          continue
         if (catalogDependentChecks.has(measured.constraint)) continue
         expect(measured.unknown, measured.constraint).toBe(
           binaryDeferrals(measured.constraint) +

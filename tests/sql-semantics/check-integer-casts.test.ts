@@ -8,6 +8,7 @@ import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import type { CatalogSnapshot, TableInfo } from '../../src/catalog/types.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
+import { hasUncertain } from '../../scripts/check-measurements/probes.js'
 import {
   runCheckParity,
   type Input,
@@ -102,6 +103,7 @@ describe('catalog-resolved integer CHECK casts', () => {
     pg = await PGlite.create()
     directory = await mkdtemp(join(tmpdir(), 'pgsid-check-integer-casts-'))
     await pg.exec(`CREATE DOMAIN short_change AS smallint;
+      CREATE DOMAIN positive_short_change AS short_change CHECK (VALUE > 0);
       CREATE DOMAIN count_change AS integer;
       CREATE DOMAIN nested_change AS count_change;
       CREATE DOMAIN big_change AS bigint;
@@ -317,7 +319,7 @@ describe('catalog-resolved integer CHECK casts', () => {
     await runCheckParity(directory, 'integercasts', group, ordered, fixtures)
   }, 120_000)
 
-  it('rejects forged conversion identities and defers domain targets', () => {
+  it('rejects forged conversion identities and distinguishes unconstrained and checked domain targets', async () => {
     const forged = prepareCheckRustGroup([
       {
         expression: {
@@ -344,21 +346,80 @@ describe('catalog-resolved integer CHECK casts', () => {
       kind: 'unsupported',
       reason: 'Invalid Rust CHECK cast function',
     })
-    for (const sql of ['wide::short_change > 0', 'big::short_change > 0']) {
-      const group = prepareCheckRustGroup([
-        {
-          expression: lowerTableCheck(
-            table,
-            { name: 'probe', type: 'check', definition: `CHECK (${sql})` },
-            [],
-            catalog.domains,
-          )!.expression,
-          identity: { schema: table.schema, kind: 'table', owner: table.name, constraint: 'probe' },
+    const columns = [
+      ['wide', 'integer'],
+      ['big', 'bigint'],
+    ] as const
+    const group = prepareCheckRustGroup(
+      columns.map(([column]) => ({
+        expression: lowerTableCheck(
+          table,
+          { name: 'probe', type: 'check', definition: `CHECK (${column}::short_change > 0)` },
+          [],
+          catalog.domains,
+        )!.expression,
+        identity: {
+          schema: table.schema,
+          kind: 'table' as const,
+          owner: table.name,
+          constraint: 'domain_' + column,
         },
-      ])
-      if (group.checks[0]!.kind === 'supported')
-        expect(group.evaluatorSource).toContain('check_unknown()')
-      else expect(group.checks[0]!.kind).toBe('unsupported')
+      })),
+    )
+    expect(group.checks.map((check) => check.kind)).toEqual(['supported', 'supported'])
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const [column, type] of columns) {
+      const states: Input[] = [
+        ...[-32769, -32768, -1, 0, 1, 32767, 32768, null].map((input) =>
+          value(input === null || column === 'wide' ? input : BigInt(input)),
+        ),
+        { kind: 'Unknown' },
+        { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      ]
+      for (const input of states) {
+        let expected: Outcome
+        if (input.kind === 'Unknown' || input.kind === 'Error') expected = input as Outcome
+        else {
+          try {
+            const result = (
+              await pg.query<{ value: boolean | null }>(
+                `SELECT ($1::${type})::short_change > 0 value`,
+                [input.kind === 'Null' ? null : String(input.value)],
+              )
+            ).rows[0]!.value
+            expected = { kind: result === null ? 'Null' : result ? 'True' : 'False' }
+          } catch (failure) {
+            expect(failure).toMatchObject({ code: '22003' })
+            expected = { kind: 'Error', value: { state: parseInt('22003', 36) } }
+          }
+        }
+        fixtures.push({
+          name: 'domain_' + column,
+          row: { wide: value(1), big: value(1n), [column]: input },
+          expected,
+        })
+      }
+      const constrained = lowerTableCheck(
+        table,
+        {
+          name: 'checked_domain',
+          type: 'check',
+          definition: `CHECK (${column}::positive_short_change > 0)`,
+        },
+        [],
+        catalog.domains,
+      )!.expression
+      expect(hasUncertain(constrained)).toBe(true)
     }
-  })
+    await expect(pg.query('SELECT (-1)::positive_short_change')).rejects.toMatchObject({
+      code: '23514',
+    })
+    await runCheckParity(
+      await mkdtemp(join(directory, 'domain-targets-')),
+      'integerdomaintargets',
+      group,
+      columns.map(([column]) => 'domain_' + column),
+      fixtures,
+    )
+  }, 120_000)
 })

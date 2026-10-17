@@ -42,6 +42,7 @@ it('matches threshold binary search, compatible overloads, shape/NULL errors and
       stages: 'width_bucket((needle::bucket_stage[])[1],a::bucket_stage[])',
       words: 'width_bucket((needle::text[])[1] COLLATE "C",a::text[])',
       constructed: 'width_bucket(quantity,ARRAY[0,2,4])',
+      direct: 'width_bucket(quantity,a::integer[])',
       eager: 'width_bucket(quantity/divisor,a::integer[])',
       lazy: 'CASE WHEN bypass THEN 7 ELSE width_bucket((needle::integer[])[1],a::integer[]) END',
       prepared_shape: 'CASE WHEN bypass THEN 7 ELSE width_bucket(1,ARRAY[[1,2]]) END',
@@ -180,12 +181,38 @@ it('matches threshold binary search, compatible overloads, shape/NULL errors and
       bypass: known(false),
       expected: known(1),
     }
+    for (const [needle, code] of [
+      ['{2}', '22003'],
+      ['bad', '22P02'],
+    ] as const) {
+      await pg.exec('TRUNCATE bucket_oracle')
+      await pg.query('INSERT INTO bucket_oracle(needle,quantity) VALUES($1,$2)', [
+        needle,
+        2147483647,
+      ])
+      await expect(
+        pg.query(
+          'SELECT width_bucket((needle::integer[])[1],ARRAY[quantity+1]) FROM bucket_oracle',
+        ),
+      ).rejects.toMatchObject({ code })
+    }
+    for (const quantity of [0, null]) {
+      await pg.exec('TRUNCATE bucket_oracle')
+      await pg.query('INSERT INTO bucket_oracle(a,quantity) VALUES($1,$2)', [
+        '{2147483648}',
+        quantity,
+      ])
+      await expect(
+        pg.query('SELECT width_bucket(quantity,a::integer[]) FROM bucket_oracle'),
+      ).rejects.toMatchObject({ code: '22003' })
+    }
     add('constructed', { ...base, quantity: unknown }, { kind: 'Unknown' })
     add('constructed', { ...base, quantity: error('22012') }, error('22012'))
     add('ints', { ...base, needle: unknown }, { kind: 'Unknown' })
     add('ints', { ...base, a: unknown }, { kind: 'Unknown' })
     add('ints', { ...base, a: error('22003'), needle: error('22012') }, error('22012'))
-    add('ints', { ...base, a: error('22003'), needle: unknown }, error('22003'))
+    add('ints', { ...base, a: error('22003'), needle: unknown }, { kind: 'Unknown' })
+    add('direct', { ...base, a: error('22003'), quantity: unknown }, error('22003'))
     add('eager', { ...base, quantity: known(1), divisor: known(0) }, error('22012'))
     add(
       'lazy',

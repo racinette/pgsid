@@ -133,6 +133,7 @@ export function portableCheckAtoms(
       value.kind === 'text-to-bytea' ||
       value.kind === 'uuid-to-text' ||
       value.kind === 'text-to-float' ||
+      value.kind === 'text-to-integer' ||
       value.kind === 'text-to-numeric' ||
       value.kind === 'text-to-bit' ||
       value.kind === 'bit-to-text'
@@ -207,7 +208,16 @@ export function portableCheckAtoms(
             })),
           }
         : { kind: 'uncertain', type: value.type }
-    if (value.kind === 'null-test') return { ...value, operand: scalar(value.operand) }
+    if (value.kind === 'null-test') {
+      if (!rust && value.operand.kind === 'input' && value.operand.type.startsWith('array:'))
+        return {
+          kind: 'input-null-test',
+          type: value.type,
+          name: value.operand.name,
+          negated: value.negated,
+        }
+      return { ...value, operand: scalar(value.operand) }
+    }
     if (value.kind === 'case')
       return {
         ...value,

@@ -148,7 +148,22 @@ describe('Rust CHECK Unicode character construction', () => {
         record(name, { ...known, codepoint: unknown }, { kind: 'Unknown' })
         record(name, { ...known, codepoint: error }, error as Outcome)
       }
-      record('character', { ...known, codepoint: unknown, label: error }, error as Outcome)
+      record('character', { ...known, codepoint: unknown, label: error }, { kind: 'Unknown' })
+      record('character', { ...known, label: error }, error as Outcome)
+      record('character', { ...known, codepoint: input(null), label: error }, error as Outcome)
+      record(
+        'character',
+        { ...known, codepoint: input(0), label: error },
+        { kind: 'Error', value: { state: parseInt('54000', 36) } },
+      )
+      for (const point of [65, 0, null])
+        await expect(
+          pg.query(
+            `WITH candidate AS MATERIALIZED (SELECT $1::integer codepoint,1::integer amount,0::integer divisor)
+             SELECT chr(codepoint) = (amount/divisor)::text FROM candidate`,
+            [point],
+          ),
+        ).rejects.toMatchObject({ code: point === 0 ? '54000' : '22012' })
       record('character', { ...known, codepoint: error, label: other }, error as Outcome)
       record('lazy', { ...known, codepoint: error, skip: input(true) }, { kind: 'True' })
       record('selected', { ...known, codepoint: error, skip: input(true) }, { kind: 'True' })

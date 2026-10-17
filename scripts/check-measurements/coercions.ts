@@ -83,6 +83,10 @@ import {
   floatInputForms,
   deferredFloatInputForms,
 } from '../../tests/sql-semantics/check-float-input-forms.js'
+import {
+  integerInputForms,
+  invalidIntegerInputForms,
+} from '../../tests/sql-semantics/check-integer-input-forms.js'
 
 import {
   clockInputForms,
@@ -106,6 +110,20 @@ const nanBinaryPrecision = {
 } as const
 
 const inputForms = [
+  ...(['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'] as const).map((type) => ({
+    type,
+    suite: 'tests/sql-semantics/check-integer-scalar-input.test.ts',
+    handled: integerInputForms,
+    rejected: invalidIntegerInputForms,
+    deferred: [],
+    platformDependent: [],
+    contextRequired: [],
+    unimplementedGrammar: [],
+    stringCasts: {
+      inputs: ['text', 'varchar', 'bpchar', 'name'],
+      owner: 'tests/sql-semantics/check-integer-scalar-input.test.ts',
+    },
+  })),
   {
     type: 'pg_catalog.jsonpath',
     suite: 'tests/sql-semantics/check-jsonpath-sql.test.ts',

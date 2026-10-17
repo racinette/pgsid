@@ -71,7 +71,7 @@ it('matches point/path and path/path distances, closing edges, no-segment result
   expect(functions).toHaveLength(3)
   const calls = new Map<
     string,
-    { sql: string; result: string; inputs: string[]; computed: boolean }
+    { sql: string; result: string; inputs: string[]; computed: boolean; earlyFailure?: true }
   >()
   for (const fn of functions) {
     const inputs = fn.args.map((type, index) =>
@@ -116,6 +116,19 @@ it('matches point/path and path/path distances, closing edges, no-segment result
     result: 'pg_catalog.float8',
     inputs: ['a', 'b'],
     computed: true,
+  })
+  calls.set('computed_path_pair_infinity', {
+    sql: "path_distance(a-point('-Infinity'::float8,'-0.0e100'::float8),b)",
+    result: 'pg_catalog.float8',
+    inputs: ['a', 'b'],
+    computed: true,
+  })
+  calls.set('computed_path_pair_overflow', {
+    sql: "path_distance(a+point(0::float8,'1e308'::float8),b)",
+    result: 'pg_catalog.float8',
+    inputs: ['a', 'b'],
+    computed: true,
+    earlyFailure: true,
   })
   calls.set('semantic_computed_nan', {
     sql: "dist_ppath(p,a+point('NaN'::float8,0::float8))='NaN'::float8",
@@ -284,7 +297,7 @@ it('matches point/path and path/path distances, closing edges, no-segment result
         add(
           name,
           { ...base, [call.inputs[0]!]: { kind: 'Unknown' }, [call.inputs[1]!]: failure('22003') },
-          failure('22003'),
+          call.earlyFailure ? { kind: 'Unknown' } : failure('22003'),
         )
         add(
           name,
@@ -294,6 +307,17 @@ it('matches point/path and path/path distances, closing edges, no-segment result
       }
     }
   }
+  add(
+    'computed_path_pair_overflow',
+    { ...base, a: { kind: 'Unknown' }, b: failure('22012') },
+    { kind: 'Unknown' },
+  )
+  for (const a of ["'[(0,0),(1,1)]'::path", "'[(0,1e308),(1,1)]'::path"])
+    await expect(
+      pg.query(`WITH candidate AS MATERIALIZED (SELECT ${a} a,1::integer amount,0::integer divisor)
+        SELECT path_distance(a+point(0::float8,'1e308'::float8),
+          CASE WHEN amount/divisor=0 THEN '[(0,0)]'::path ELSE '[(1,1)]'::path END) FROM candidate`),
+    ).rejects.toMatchObject({ code: a.includes('1e308') ? '22003' : '22012' })
   for (const name of ['sql__pg_catalog__dist_ppath__e16q', 'sql__pg_catalog__dist_pathp__9d28']) {
     add(
       name,

@@ -518,6 +518,16 @@ const materialize = (
     }
   }
   if (bound.literal) {
+    if (isIntegerType(type) && bound.literal.kind === 'string')
+      return {
+        kind: 'text-to-integer',
+        type,
+        literal: true,
+        operand: {
+          kind: 'certain',
+          expression: { kind: 'text', type: 'pg_catalog.text', value: bound.literal.value },
+        },
+      }
     if (type === 'pg_catalog."numeric"' && bound.literal.kind === 'string')
       return {
         kind: 'text-to-numeric',
@@ -635,7 +645,9 @@ type ResolvedCallable = {
 }
 const boundType = (arg: Bound): ScalarType | null =>
   arg.type ?? (arg.literal?.kind === 'integer' ? 'pg_catalog.int4' : null)
-const isIntegerType = (type: string | null): boolean =>
+const isIntegerType = (
+  type: string | null,
+): type is 'pg_catalog.int2' | 'pg_catalog.int4' | 'pg_catalog.int8' =>
   type !== null && /^pg_catalog\.int[248]$/u.test(type)
 
 const materializeInteger = (arg: Bound, target: ScalarType): EvalExpression | null => {
@@ -2679,6 +2691,17 @@ export function bindCatalogCheck(
         return text ? { type, value: { kind: 'text-to-bytea', type, operand: text } } : unknown
       }
       if (
+        isIntegerType(type) &&
+        operand.value &&
+        [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type ?? '')
+      )
+        return { type, value: { kind: 'text-to-integer', type, operand: operand.value } }
+      if (
         type === 'pg_catalog."numeric"' &&
         operand.value &&
         [
@@ -3247,6 +3270,7 @@ export function bindCatalogCheck(
                     ...arrayDefaultCollation(pair!.signature, pair!.collation),
                   },
                   operands: pair!.operands,
+                  strictNull: true,
                 },
           )
           const value: EvalExpression = {

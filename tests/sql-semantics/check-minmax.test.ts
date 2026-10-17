@@ -243,12 +243,15 @@ describe('GREATEST and LEAST CHECK evaluation', () => {
     for (const [sql, code] of [
       ['GREATEST(amount,flag)', '42804'],
       ["LEAST(status_left,'pending'::other_status)", '42846'],
-      ["GREATEST(amount,'1.5')", '22P02'],
       ['LEAST(NULL::json,NULL::json)', '42883'],
     ]) {
       await expect(pg.query(`SELECT ${sql} FROM minmax_checks`)).rejects.toMatchObject({ code })
       expect(hasUncertain(lower(`${sql} IS NULL`)), sql).toBe(true)
     }
+    await expect(
+      pg.query("SELECT GREATEST(amount,'1.5') FROM minmax_checks"),
+    ).rejects.toMatchObject({ code: '22P02' })
+    expect(hasUncertain(lower("GREATEST(amount,'1.5') IS NULL"))).toBe(false)
   })
 
   it('matches PostgreSQL raw/stored selection, NULLs, ties, casts, planning and partial inputs in every target', async () => {

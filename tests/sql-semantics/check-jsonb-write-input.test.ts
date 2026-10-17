@@ -5,10 +5,32 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { buildProject } from '../../src/project-runtime.js'
+import { PGlite } from '@electric-sql/pglite'
 
 it('validates SQL-coerced Go JSONB graphs and forwards raw JSONB query parameters unchanged', async () => {
   const root = await mkdtemp(join(tmpdir(), 'pgsid-jsonb-write-'))
   try {
+    const oracle = await PGlite.create()
+    try {
+      expect((await oracle.query('SHOW server_encoding')).rows).toEqual([
+        { server_encoding: 'UTF8' },
+      ])
+      await oracle.exec('CREATE TABLE text_cast_witness(source_text text,expected_source text)')
+      await oracle.query('INSERT INTO text_cast_witness VALUES($1,$2),($1,$3)', [
+        '"\\u00e9"',
+        '{"a": 2}',
+        '"é"',
+      ])
+      expect(
+        (
+          await oracle.query<{ matches: boolean }>(
+            'SELECT source_text::jsonb::text COLLATE "C"=expected_source COLLATE "C" AS matches FROM text_cast_witness',
+          )
+        ).rows,
+      ).toEqual([{ matches: false }, { matches: true }])
+    } finally {
+      await oracle.close()
+    }
     await mkdir(join(root, 'queries'))
     await writeFile(
       join(root, 'schema.sql'),
@@ -143,7 +165,9 @@ func TestJSONBTextCasts(t *testing.T){
   bypass=true;if err:=queries.InsertDocumentText(context.Background(),params);err!=nil||db.calls!=before+1{t.Fatal("skipped JSONB cast failed",err)};bypass=false
  }
  source=${JSON.stringify('"\\u00e9"')};before:=db.calls
- if err:=queries.InsertDocumentText(context.Background(),params);err!=nil||db.calls!=before+1{t.Fatal("encoding-dependent cast failed locally",err)}
+ if err:=queries.InsertDocumentText(context.Background(),params);err==nil||db.calls!=before{t.Fatal("UTF8 cast mismatch reached database",err)}
+ expected=${JSON.stringify('"é"')}
+ if err:=queries.InsertDocumentText(context.Background(),params);err!=nil||db.calls!=before+1{t.Fatal("matching UTF8 cast failed locally",err)}
  db.failure=&pgconn.PgError{Code:"22021",Message:"invalid input encoding"}
  for _,invalid:=range []string{string([]byte{0}),string([]byte{255})}{source=invalid;before:=db.calls;if err:=queries.InsertDocumentText(context.Background(),params);!errors.Is(err,db.failure)||db.calls!=before+1{t.Fatal("raw encoding failure lost",err)}}
 }

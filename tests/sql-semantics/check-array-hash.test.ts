@@ -57,6 +57,7 @@ it('matches array hash folds, dimensions, NULL cells, support errors, strict arg
       wrapped_nan: "cardinality(ARRAY[hash_array(ARRAY[hashfloat8('NaN'::float8)])])=1",
       wrapped_unsupported: 'cardinality(ARRAY[hash_array(a::json[])])=1',
       supported_nulls: 'hash_array(array_fill(NULL::integer,ARRAY[quantity]))=expected32',
+      seeded_typed: 'hash_array_extended(ARRAY[quantity],seed) IS NOT DISTINCT FROM expected64',
     })
     for (const [name, sql] of Object.entries(forms))
       await pg.exec(`ALTER TABLE array_hash_values ADD CONSTRAINT ${name} CHECK(${sql}) NOT VALID`)
@@ -240,7 +241,7 @@ it('matches array hash folds, dimensions, NULL cells, support errors, strict arg
       add(
         'seeded',
         { ...base, a: state, seed: error('22003') },
-        state.kind === 'Error' ? state : error('22003'),
+        state.kind === 'Null' ? error('22003') : state,
       )
       add(
         'lazy',
@@ -248,6 +249,31 @@ it('matches array hash folds, dimensions, NULL cells, support errors, strict arg
         { kind: 'True' },
       )
       add('wrapped', { ...base, a: state }, state.kind === 'Null' ? { kind: 'True' } : state)
+    }
+    add(
+      'seeded_typed',
+      { ...base, quantity: { kind: 'Unknown' }, seed: error('22003') },
+      error('22003'),
+    )
+    for (const [a, code] of [
+      ['{1}', '22003'],
+      ['bad', '22P02'],
+    ] as const) {
+      await pg.exec('TRUNCATE array_hash_oracle')
+      await pg.query('INSERT INTO array_hash_oracle(a,quantity) VALUES($1,$2)', [a, 2147483647])
+      await expect(
+        pg.query('SELECT hash_array_extended(a::integer[],quantity+1) FROM array_hash_oracle'),
+      ).rejects.toMatchObject({ code })
+    }
+    for (const quantity of [0, null]) {
+      await pg.exec('TRUNCATE array_hash_oracle')
+      await pg.query('INSERT INTO array_hash_oracle(quantity,seed) VALUES($1,$2)', [
+        quantity,
+        '9223372036854775807',
+      ])
+      await expect(
+        pg.query('SELECT hash_array_extended(ARRAY[quantity],seed+1) FROM array_hash_oracle'),
+      ).rejects.toMatchObject({ code: '22003' })
     }
     add('wrapped_nan', base, { kind: 'True' })
     await writeFile(

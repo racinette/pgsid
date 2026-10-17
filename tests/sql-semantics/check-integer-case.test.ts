@@ -134,7 +134,7 @@ describe('integer CASE result coercion', () => {
     expect(arm.operands[0]!.call.type).toBe('pg_catalog.int2')
   })
 
-  it('defers unsupported result conversions and incompatible branches', async () => {
+  it('admits supported result coercions and retains unsupported or incompatible branch boundaries', async () => {
     const floating = lowerTableCheck(
       table,
       {
@@ -152,9 +152,28 @@ describe('integer CASE result coercion', () => {
       },
     ])
     expect(floatingGroup.checks[0]?.kind).toBe('supported')
+    const literal = operand("CASE WHEN flag THEN small ELSE '7' END")
+    expect(literal.kind).toBe('case')
+    if (literal.kind !== 'case') throw new Error('Expected CASE')
+    expect(literal.type).toBe('pg_catalog.int2')
+    expect(literal.otherwise).toEqual({
+      kind: 'text-to-integer',
+      type: 'pg_catalog.int2',
+      literal: true,
+      operand: {
+        kind: 'certain',
+        expression: { kind: 'text', type: 'pg_catalog.text', value: '7' },
+      },
+    })
+    expect(
+      (
+        await pg.query(`SELECT
+          pg_typeof(CASE WHEN false THEN NULL::smallint ELSE '7' END)::text AS type,
+          CASE WHEN false THEN NULL::smallint ELSE '7' END AS value`)
+      ).rows,
+    ).toEqual([{ type: 'smallint', value: 7 }])
     for (const sql of [
       'CASE WHEN flag THEN small ELSE 1.5 END',
-      "CASE WHEN flag THEN small ELSE '7' END",
       'CASE WHEN flag THEN small ELSE abs(1.5) END',
     ]) {
       await pg.query(`SELECT ${sql} FROM case_stock`)
