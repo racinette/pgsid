@@ -1146,3 +1146,30 @@ CREATE TABLE lane_regression_merges (
   bypass boolean,
   CONSTRAINT float8_regr_combine_state CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_combine(payload::float8[],other_payload::float8[]) IS NOT DISTINCT FROM expected END)
 );
+
+CREATE TABLE lane_coerced_readings (
+  payload text,
+  reading numeric,
+  expected_single float8[],
+  expected_double float8[],
+  bypass boolean,
+  CONSTRAINT single_coerced_state CHECK (CASE WHEN bypass THEN true ELSE float4_accum(payload::real[],reading) IS NOT DISTINCT FROM expected_single END),
+  CONSTRAINT double_coerced_state CHECK (CASE WHEN bypass THEN true ELSE float8_accum(payload::integer[],reading) IS NOT DISTINCT FROM expected_double END)
+);
+
+CREATE TABLE lane_coerced_regression (
+  payload text,
+  reading_y integer,
+  reading_x real,
+  expected float8[],
+  bypass boolean,
+  CONSTRAINT regression_coerced_state CHECK (CASE WHEN bypass THEN true ELSE float8_regr_accum(payload::numeric[],reading_y,reading_x) IS NOT DISTINCT FROM expected END)
+);
+
+CREATE TABLE lane_coerced_state_shapes (
+  payload text,
+  reading integer,
+  expected_count integer,
+  bypass boolean,
+  CONSTRAINT coerced_update_shape CHECK (CASE WHEN bypass THEN true ELSE cardinality(ARRAY[float8_accum(payload::numeric[],reading)]) IS NOT DISTINCT FROM expected_count END)
+);
