@@ -12,6 +12,9 @@ export function nativeHashContext(item: BuiltinCallable): 'text' | 'bytes' | nul
       'pg_catalog.bpchar',
       'pg_catalog.name',
       'pg_catalog.bytea',
+      'pg_catalog.float4',
+      'pg_catalog.float8',
+      'pg_catalog.jsonb',
       'pg_catalog."numeric"',
       'pg_catalog.inet',
       'pg_catalog.macaddr',
@@ -24,7 +27,9 @@ export function nativeHashContext(item: BuiltinCallable): 'text' | 'bytes' | nul
   const support = builtinTypeComparison(type),
     signature = callableIdentity(item)
   if (support?.hash !== signature && support?.hashExtended !== signature) return null
-  return ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog.name'].includes(type)
+  return ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog.name', 'pg_catalog.jsonb'].includes(
+    type,
+  )
     ? 'text'
     : 'bytes'
 }

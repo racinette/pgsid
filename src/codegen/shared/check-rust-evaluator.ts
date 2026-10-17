@@ -901,7 +901,7 @@ export function emitCheckRustEvaluator(
       const state = fresh('prepared_value_state')
       bindings.push(
         `let ${nullness} = ${prefix}_is_null(${ownedOperand(value)});`,
-        `let ${state} = check_from_bool(${nullness});`,
+        `let ${state} = array_value_validity(${nullness}, ${node.kind !== 'certain' && valueLiteralDepth === 0 && !rustScalarOwnCanFail(node)});`,
         `${preparationState} = constant_finish(${preparationState}, ${state});`,
       )
     }

@@ -41,3 +41,22 @@ CREATE TABLE calibrated_magnitudes (
   CONSTRAINT calibrated_magnitude_value CHECK (CASE WHEN skip_validation THEN true ELSE sqrt(squared_value) IS NOT DISTINCT FROM recorded_magnitude END),
   CONSTRAINT calibrated_magnitude_wire CHECK (CASE WHEN skip_validation THEN true ELSE float8send(dsqrt(squared_value)) = recorded_wire END)
 );
+
+CREATE TABLE hashed_readings (
+  id integer PRIMARY KEY,
+  sensor_id integer NOT NULL REFERENCES sensor_limits(id),
+  label text NOT NULL,
+  reading real,
+  precise_reading double precision,
+  seed bigint,
+  recorded_hash integer,
+  recorded_seeded bigint,
+  recorded_precise_hash integer,
+  recorded_precise_seeded bigint,
+  bypass boolean NOT NULL,
+  CONSTRAINT reading_hash CHECK(CASE WHEN bypass THEN true ELSE hashfloat4(reading)=recorded_hash END),
+  CONSTRAINT reading_seeded CHECK(CASE WHEN bypass THEN true ELSE hashfloat4extended(reading,seed)=recorded_seeded END),
+  CONSTRAINT precise_hash CHECK(CASE WHEN bypass THEN true ELSE hashfloat8(precise_reading)=recorded_precise_hash END),
+  CONSTRAINT precise_seeded CHECK(CASE WHEN bypass THEN true ELSE hashfloat8extended(precise_reading,seed)=recorded_precise_seeded END),
+  CONSTRAINT reading_widened CHECK(CASE WHEN bypass THEN true ELSE hashfloat8(reading::float8)=recorded_hash END)
+);

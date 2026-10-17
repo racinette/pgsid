@@ -9475,6 +9475,88 @@ func Int8Kmmw(input checkruntime.Float8Value) checkruntime.Int8Value {
 func Float4Frus(input checkruntime.Float8Value) checkruntime.Float4Value {
 	return float8Narrow(input)
 }
+func floatHashBytes(bits int64) []checkruntime.HashByte {
+	bytes := []checkruntime.HashByte{}
+	word := bits
+	count := 0
+	for count < 8 {
+		octet := langruntime.CheckedI64Remainder(word, int64(256))
+		if octet < int64(0) {
+			octet = langruntime.CheckedI64Add(octet, int64(256))
+		}
+		langruntime.CheckedAdd(len(bytes), 1)
+		bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: octet}))
+		word = langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(word, octet)), int64(256))
+		count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+	}
+	return bytes
+}
+func Hashfloat8P4el(input checkruntime.Float8Value, byteOrder int) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	if input.Kind == checkruntime.Float8ValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		value := checkruntime.Float8Number(bits)
+		if value != value {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+		if value == float64(0.0) {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+		bytes := floatHashBytes(bits)
+		return checkruntime.HashNative32(bytes, byteOrder, 8)
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Hashfloat8extended7sph(input checkruntime.Float8Value, seed checkruntime.Int8Value, byteOrder int) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	if input.Kind == checkruntime.Float8ValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input == (checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.Float8ValueValue {
+		bits := input.Value
+		if seed.Kind == checkruntime.Int8ValueValue {
+			salt := seed.Value
+			value := checkruntime.Float8Number(bits)
+			if value != value {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+			}
+			if value == float64(0.0) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: salt}
+			}
+			bytes := floatHashBytes(bits)
+			return checkruntime.HashNative64(bytes, salt, byteOrder, 8)
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Hashfloat4Vwxf(input checkruntime.Float4Value, byteOrder int) checkruntime.Int4Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	widened := float4Widen(input)
+	return Hashfloat8P4el(widened, byteOrder)
+}
+func Hashfloat4extendedIjgq(input checkruntime.Float4Value, seed checkruntime.Int8Value, byteOrder int) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	widened := float4Widen(input)
+	return Hashfloat8extended7sph(widened, seed, byteOrder)
+}
 
 const floatInputInvalid = 3484946
 const floatInputRange = 3452547
@@ -14418,6 +14500,222 @@ func JsonbStripNullsRuwp(input checkruntime.JsonbValue, arrays checkruntime.Bool
 func JsonbPrettyGz4i(input checkruntime.JsonbValue) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
 	return checkruntime.JsonbToPrettyText(input)
+}
+
+type jsonbHashFrame struct {
+	node int
+	key  bool
+}
+
+func copyjsonbHashFrame(value jsonbHashFrame) jsonbHashFrame {
+	return jsonbHashFrame{node: langruntime.CheckedIndex(value.node), key: value.key}
+}
+func jsonbHashScalar(source *checkruntime.JsonbPayload, node checkruntime.JsonbNode, key bool, seed int64, byteOrder int, utf8 bool, extended bool) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	if key || node.Kind == 4 {
+		text := langruntime.NewTextBuffer("")
+		start := node.TextStart
+		end := node.TextEnd
+		if key {
+			start = langruntime.CheckedIndex(node.KeyStart)
+			end = langruntime.CheckedIndex(node.KeyEnd)
+		}
+		for start < end {
+			text = append(text, string(langruntime.CheckedChar(source.Characters[start]))...)
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		input := checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
+		if extended {
+			return textHashExtended(input, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: seed}, false, byteOrder, utf8)
+		}
+		hash := textHashValue(input, false, byteOrder, utf8)
+		return Int8Mzac(hash)
+	}
+	if node.Kind == 3 {
+		number := jsonbRelationNumber(source, node)
+		if extended {
+			return HashNumericExtendedOglu(number, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: seed}, byteOrder)
+		}
+		hash := HashNumeric0e7w(number, byteOrder)
+		return Int8Mzac(hash)
+	}
+	if node.Kind == 0 {
+		if extended {
+			if seed == int64(9223372036854775807) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(-9223372036854775808)}
+			}
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Add(seed, int64(1))}
+		}
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(1)}
+	}
+	if node.Kind == 1 || node.Kind == 2 {
+		if extended && seed != int64(0) {
+			value := 0
+			if node.Kind == 2 {
+				value = langruntime.CheckedI32(1)
+			}
+			return HashcharextendedUyia(checkruntime.InternalCharValue{Kind: checkruntime.InternalCharValueValue, Value: value}, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: seed})
+		}
+		if node.Kind == 2 {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(2)}
+		}
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(4)}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func jsonbHashPayload(source *checkruntime.JsonbPayload, seed int64, byteOrder int, utf8 bool, extended bool) checkruntime.Int8Value {
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	root := source.Nodes[source.Root]
+	if root.Kind >= 5 && root.Child == 0 {
+		if extended {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: seed}
+		}
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(0)}
+	}
+	low := int64(0)
+	high := int64(0)
+	if root.Kind < 5 {
+		low = int64(1073741824)
+		if extended {
+			high = low
+		}
+	}
+	frames := []jsonbHashFrame{}
+	langruntime.CheckedAdd(len(frames), 1)
+	frames = append(frames, copyjsonbHashFrame(jsonbHashFrame{node: source.Root, key: false}))
+	depth := 1
+	for depth > 0 {
+		depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+		frame := frames[depth]
+		node := source.Nodes[frame.node]
+		if frame.key == false && node.Kind >= 5 {
+			flag := int64(1073741824)
+			if node.Kind == 6 {
+				flag = int64(536870912)
+			}
+			low = checkruntime.HashXor(low, flag)
+			if extended {
+				high = checkruntime.HashXor(high, flag)
+			}
+			children := jsonbOrderChildren(source, node)
+			index := len(children)
+			for index > 0 {
+				index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 1))
+				valueFrame := jsonbHashFrame{node: children[index], key: false}
+				if depth == len(frames) {
+					langruntime.CheckedAdd(len(frames), 1)
+					frames = append(frames, copyjsonbHashFrame(valueFrame))
+				} else {
+					frames[depth] = copyjsonbHashFrame(valueFrame)
+				}
+				depth = langruntime.CheckedAdd(depth, 1)
+				if node.Kind == 6 {
+					keyFrame := jsonbHashFrame{node: children[index], key: true}
+					if depth == len(frames) {
+						langruntime.CheckedAdd(len(frames), 1)
+						frames = append(frames, copyjsonbHashFrame(keyFrame))
+					} else {
+						frames[depth] = copyjsonbHashFrame(keyFrame)
+					}
+					depth = langruntime.CheckedAdd(depth, 1)
+				}
+			}
+		} else {
+			scalar := jsonbHashScalar(source, node, frame.key, seed, byteOrder, utf8, extended)
+			if scalar.Kind == checkruntime.Int8ValueError {
+				error := scalar.Error
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+			}
+			if scalar == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || scalar == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+			}
+			if scalar.Kind == checkruntime.Int8ValueValue {
+				bits := scalar.Value
+				scalarLow := langruntime.CheckedI64Remainder(bits, int64(4294967296))
+				if scalarLow < int64(0) {
+					scalarLow = langruntime.CheckedI64Add(scalarLow, int64(4294967296))
+				}
+				low = langruntime.CheckedI64Add(langruntime.CheckedI64Remainder(langruntime.CheckedI64Multiply(low, int64(2)), int64(4294967296)), langruntime.CheckedI64Divide(low, int64(2147483648)))
+				low = checkruntime.HashXor(low, scalarLow)
+				if extended {
+					scalarHigh := langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(bits, scalarLow)), int64(4294967296))
+					if scalarHigh < int64(0) {
+						scalarHigh = langruntime.CheckedI64Add(scalarHigh, int64(4294967296))
+					}
+					high = langruntime.CheckedI64Add(langruntime.CheckedI64Remainder(langruntime.CheckedI64Multiply(high, int64(2)), int64(4294967296)), langruntime.CheckedI64Divide(high, int64(2147483648)))
+					high = checkruntime.HashXor(high, scalarHigh)
+				}
+			}
+		}
+	}
+	if high >= int64(2147483648) {
+		high = langruntime.CheckedI64Subtract(high, int64(4294967296))
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(4294967296)), low)}
+}
+func jsonbHashContext(input checkruntime.JsonbValue, seed checkruntime.Int8Value, byteOrder int, utf8 bool, extended bool) checkruntime.Int8Value {
+	input = checkruntime.CopyJsonbValue(input)
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	if input.Kind == checkruntime.JsonbValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.JsonbValueUnknown {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input.Kind == checkruntime.JsonbValueNull {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.JsonbValueValue {
+		value := checkruntime.CopyJsonbPayload(input.Value)
+		if seed.Kind == checkruntime.Int8ValueValue {
+			salt := seed.Value
+			if byteOrder == 1 || byteOrder == 2 {
+				return jsonbHashPayload(&value, salt, byteOrder, utf8, extended)
+			}
+			little := jsonbHashPayload(&value, salt, 1, utf8, extended)
+			if little == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+				return little
+			}
+			big := jsonbHashPayload(&value, salt, 2, utf8, extended)
+			if byteOrder == 0 && little == big {
+				return little
+			}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func JsonbHashQo2a(input checkruntime.JsonbValue, byteOrder int, utf8 bool) checkruntime.Int4Value {
+	input = checkruntime.CopyJsonbValue(input)
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	result := jsonbHashContext(input, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(0)}, byteOrder, utf8, false)
+	if result.Kind == checkruntime.Int8ValueError {
+		error := result.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if result == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if result.Kind == checkruntime.Int8ValueValue {
+		value := result.Value
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(value))}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func JsonbHashExtendedH75l(input checkruntime.JsonbValue, seed checkruntime.Int8Value, byteOrder int, utf8 bool) checkruntime.Int8Value {
+	input = checkruntime.CopyJsonbValue(input)
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	return jsonbHashContext(input, seed, byteOrder, utf8, true)
 }
 
 type jsonbOrderFrame struct {

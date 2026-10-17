@@ -9529,6 +9529,88 @@ export function int8Kmmw(input: checkruntime.Float8Value): checkruntime.Int8Valu
 export function float4Frus(input: checkruntime.Float8Value): checkruntime.Float4Value {
     return float8Narrow(input);
 }
+function floatHashBytes(bits: bigint): checkruntime.HashByte[] {
+    bits = langruntime.checkedI64(bits);
+    let bytes: checkruntime.HashByte[] = [];
+    let word: bigint = bits;
+    let count: number = 0;
+    while (count < 8) {
+        let octet: bigint = langruntime.checkedI64Remainder(word, 256n);
+        if (octet < 0n) {
+            octet = langruntime.checkedI64(langruntime.checkedI64Add(octet, 256n));
+        }
+        langruntime.pushStruct(bytes, { value: octet }, checkruntime.copyHashByte);
+        word = langruntime.checkedI64(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(word, octet)), 256n));
+        count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+    }
+    return bytes;
+}
+export function hashfloat8P4el(input: checkruntime.Float8Value, byteOrder: number): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        const value: number = checkruntime.float8Number(bits);
+        if (!(value === value)) {
+            return { kind: "Unknown" };
+        }
+        if (value === 0.0) {
+            return { kind: "Value", value: 0 };
+        }
+        const bytes: checkruntime.HashByte[] = floatHashBytes(bits);
+        return checkruntime.hashNative32(bytes, byteOrder, 8);
+    }
+    return { kind: "Unknown" };
+}
+export function hashfloat8extended7sph(input: checkruntime.Float8Value, seed: checkruntime.Int8Value, byteOrder: number): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (seed.kind === "Error") {
+        const error: checkruntime.SqlError = seed.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(seed, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalFloat8Value(input, { kind: "Null" }) || checkruntime.equalInt8Value(seed, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(input.value);
+        if (seed.kind === "Value") {
+            const salt: bigint = langruntime.checkedI64(seed.value);
+            const value: number = checkruntime.float8Number(bits);
+            if (!(value === value)) {
+                return { kind: "Unknown" };
+            }
+            if (value === 0.0) {
+                return { kind: "Value", value: salt };
+            }
+            const bytes: checkruntime.HashByte[] = floatHashBytes(bits);
+            return checkruntime.hashNative64(bytes, salt, byteOrder, 8);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function hashfloat4Vwxf(input: checkruntime.Float4Value, byteOrder: number): checkruntime.Int4Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
+    const widened: checkruntime.Float8Value = float4Widen(input);
+    return hashfloat8P4el(widened, byteOrder);
+}
+export function hashfloat4extendedIjgq(input: checkruntime.Float4Value, seed: checkruntime.Int8Value, byteOrder: number): checkruntime.Int8Value {
+    byteOrder = langruntime.checkedI32(byteOrder);
+    const widened: checkruntime.Float8Value = float4Widen(input);
+    return hashfloat8extended7sph(widened, seed, byteOrder);
+}
 const floatInputInvalid = 3484946;
 const floatInputRange = 3452547;
 interface FloatInputLayout {
@@ -14475,6 +14557,231 @@ export function jsonbStripNullsRuwp(input: checkruntime.JsonbValue, arrays: chec
 export function jsonbPrettyGz4i(input: checkruntime.JsonbValue): checkruntime.TextValue {
     input = checkruntime.copyJsonbValue(input);
     return checkruntime.jsonbToPrettyText(input);
+}
+interface JsonbHashFrame {
+    node: number;
+    key: boolean;
+}
+function copyJsonbHashFrame(value: JsonbHashFrame): JsonbHashFrame {
+    return { node: langruntime.checkedIndex(value.node), key: langruntime.checkedBool(value.key) };
+}
+function jsonbHashScalar(source: checkruntime.JsonbPayload, node: checkruntime.JsonbNode, key: boolean, seed: bigint, byteOrder: number, utf8: boolean, extended: boolean): checkruntime.Int8Value {
+    key = langruntime.checkedBool(key);
+    seed = langruntime.checkedI64(seed);
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    extended = langruntime.checkedBool(extended);
+    if (key || node.kind === 4) {
+        let text: string = "";
+        let start: number = node.textStart;
+        let end: number = node.textEnd;
+        if (key) {
+            start = langruntime.checkedIndex(node.keyStart);
+            end = langruntime.checkedIndex(node.keyEnd);
+        }
+        while (start < end) {
+            text = text + langruntime.checkedChar(langruntime.indexChar(source.characters, langruntime.checkedIndex(start)));
+            start = langruntime.checkedAdd(start, 1);
+        }
+        const input: checkruntime.TextValue = { kind: "Value", value: text };
+        if (extended) {
+            return textHashExtended(input, { kind: "Value", value: seed }, false, byteOrder, utf8);
+        }
+        const hash: checkruntime.Int4Value = textHashValue(input, false, byteOrder, utf8);
+        return int8Mzac(hash);
+    }
+    if (node.kind === 3) {
+        const number: checkruntime.NumericValue = jsonbRelationNumber(source, node);
+        if (extended) {
+            return hashNumericExtendedOglu(number, { kind: "Value", value: seed }, byteOrder);
+        }
+        const hash: checkruntime.Int4Value = hashNumeric0e7w(number, byteOrder);
+        return int8Mzac(hash);
+    }
+    if (node.kind === 0) {
+        if (extended) {
+            if (seed === 9223372036854775807n) {
+                return { kind: "Value", value: -9223372036854775808n };
+            }
+            return { kind: "Value", value: langruntime.checkedI64Add(seed, 1n) };
+        }
+        return { kind: "Value", value: 1n };
+    }
+    if (node.kind === 1 || node.kind === 2) {
+        if (extended && !(seed === 0n)) {
+            let value: number = 0;
+            if (node.kind === 2) {
+                value = langruntime.checkedI32(1);
+            }
+            return hashcharextendedUyia({ kind: "Value", value: value }, { kind: "Value", value: seed });
+        }
+        if (node.kind === 2) {
+            return { kind: "Value", value: 2n };
+        }
+        return { kind: "Value", value: 4n };
+    }
+    return { kind: "Unknown" };
+}
+function jsonbHashPayload(source: checkruntime.JsonbPayload, seed: bigint, byteOrder: number, utf8: boolean, extended: boolean): checkruntime.Int8Value {
+    seed = langruntime.checkedI64(seed);
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    extended = langruntime.checkedBool(extended);
+    const root: checkruntime.JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(source.root), checkruntime.copyJsonbNode);
+    if (root.kind >= 5 && root.child === 0) {
+        if (extended) {
+            return { kind: "Value", value: seed };
+        }
+        return { kind: "Value", value: 0n };
+    }
+    let low: bigint = 0n;
+    let high: bigint = 0n;
+    if (root.kind < 5) {
+        low = langruntime.checkedI64(1073741824n);
+        if (extended) {
+            high = langruntime.checkedI64(low);
+        }
+    }
+    let frames: JsonbHashFrame[] = [];
+    langruntime.pushStruct(frames, { node: source.root, key: false }, copyJsonbHashFrame);
+    let depth: number = 1;
+    while (depth > 0) {
+        depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+        const frame: JsonbHashFrame = copyJsonbHashFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(depth), copyJsonbHashFrame));
+        const node: checkruntime.JsonbNode = langruntime.indexStruct(source.nodes, langruntime.checkedIndex(frame.node), checkruntime.copyJsonbNode);
+        if (frame.key === false && node.kind >= 5) {
+            let flag: bigint = 1073741824n;
+            if (node.kind === 6) {
+                flag = langruntime.checkedI64(536870912n);
+            }
+            low = langruntime.checkedI64(checkruntime.hashXor(low, flag));
+            if (extended) {
+                high = langruntime.checkedI64(checkruntime.hashXor(high, flag));
+            }
+            const children: number[] = jsonbOrderChildren(source, node);
+            let index: number = children.length;
+            while (index > 0) {
+                index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 1));
+                const valueFrame: JsonbHashFrame = copyJsonbHashFrame({ node: langruntime.indexNumber(children, langruntime.checkedIndex(index)), key: false });
+                if (depth === frames.length) {
+                    langruntime.pushStruct(frames, valueFrame, copyJsonbHashFrame);
+                }
+                else {
+                    frames[langruntime.checkedIndexIn(frames, depth)] = copyJsonbHashFrame(valueFrame);
+                }
+                depth = langruntime.checkedAdd(depth, 1);
+                if (node.kind === 6) {
+                    const keyFrame: JsonbHashFrame = copyJsonbHashFrame({ node: langruntime.indexNumber(children, langruntime.checkedIndex(index)), key: true });
+                    if (depth === frames.length) {
+                        langruntime.pushStruct(frames, keyFrame, copyJsonbHashFrame);
+                    }
+                    else {
+                        frames[langruntime.checkedIndexIn(frames, depth)] = copyJsonbHashFrame(keyFrame);
+                    }
+                    depth = langruntime.checkedAdd(depth, 1);
+                }
+            }
+        }
+        else {
+            const scalar: checkruntime.Int8Value = jsonbHashScalar(source, node, frame.key, seed, byteOrder, utf8, extended);
+            if (scalar.kind === "Error") {
+                const error: checkruntime.SqlError = scalar.value;
+                return { kind: "Error", value: error };
+            }
+            if (checkruntime.equalInt8Value(scalar, { kind: "Unknown" }) || checkruntime.equalInt8Value(scalar, { kind: "Null" })) {
+                return { kind: "Unknown" };
+            }
+            if (scalar.kind === "Value") {
+                const bits: bigint = langruntime.checkedI64(scalar.value);
+                let scalarLow: bigint = langruntime.checkedI64Remainder(bits, 4294967296n);
+                if (scalarLow < 0n) {
+                    scalarLow = langruntime.checkedI64(langruntime.checkedI64Add(scalarLow, 4294967296n));
+                }
+                low = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Remainder(langruntime.checkedI64Multiply(low, 2n), 4294967296n), langruntime.checkedI64Divide(low, 2147483648n)));
+                low = langruntime.checkedI64(checkruntime.hashXor(low, scalarLow));
+                if (extended) {
+                    let scalarHigh: bigint = langruntime.checkedI64Divide((langruntime.checkedI64Subtract(bits, scalarLow)), 4294967296n);
+                    if (scalarHigh < 0n) {
+                        scalarHigh = langruntime.checkedI64(langruntime.checkedI64Add(scalarHigh, 4294967296n));
+                    }
+                    high = langruntime.checkedI64(langruntime.checkedI64Add(langruntime.checkedI64Remainder(langruntime.checkedI64Multiply(high, 2n), 4294967296n), langruntime.checkedI64Divide(high, 2147483648n)));
+                    high = langruntime.checkedI64(checkruntime.hashXor(high, scalarHigh));
+                }
+            }
+        }
+    }
+    if (high >= 2147483648n) {
+        high = langruntime.checkedI64(langruntime.checkedI64Subtract(high, 4294967296n));
+    }
+    return { kind: "Value", value: langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 4294967296n), low) };
+}
+function jsonbHashContext(input: checkruntime.JsonbValue, seed: checkruntime.Int8Value, byteOrder: number, utf8: boolean, extended: boolean): checkruntime.Int8Value {
+    input = checkruntime.copyJsonbValue(input);
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    extended = langruntime.checkedBool(extended);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (seed.kind === "Error") {
+        const error: checkruntime.SqlError = seed.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(seed, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(seed, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.JsonbPayload = checkruntime.copyJsonbPayload(input.value);
+        if (seed.kind === "Value") {
+            const salt: bigint = langruntime.checkedI64(seed.value);
+            if (byteOrder === 1 || byteOrder === 2) {
+                return jsonbHashPayload(value, salt, byteOrder, utf8, extended);
+            }
+            const little: checkruntime.Int8Value = jsonbHashPayload(value, salt, 1, utf8, extended);
+            if (checkruntime.equalInt8Value(little, { kind: "Unknown" })) {
+                return little;
+            }
+            const big: checkruntime.Int8Value = jsonbHashPayload(value, salt, 2, utf8, extended);
+            if (byteOrder === 0 && checkruntime.equalInt8Value(little, big)) {
+                return little;
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbHashQo2a(input: checkruntime.JsonbValue, byteOrder: number, utf8: boolean): checkruntime.Int4Value {
+    input = checkruntime.copyJsonbValue(input);
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    const result: checkruntime.Int8Value = jsonbHashContext(input, { kind: "Value", value: 0n }, byteOrder, utf8, false);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(result.value);
+        return { kind: "Value", value: Number(BigInt.asIntN(32, langruntime.checkedI64(value))) };
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbHashExtendedH75l(input: checkruntime.JsonbValue, seed: checkruntime.Int8Value, byteOrder: number, utf8: boolean): checkruntime.Int8Value {
+    input = checkruntime.copyJsonbValue(input);
+    byteOrder = langruntime.checkedI32(byteOrder);
+    utf8 = langruntime.checkedBool(utf8);
+    return jsonbHashContext(input, seed, byteOrder, utf8, true);
 }
 interface JsonbOrderFrame {
     left: number;

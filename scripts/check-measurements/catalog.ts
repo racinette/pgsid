@@ -95,13 +95,30 @@ export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
 export function hashValueRequirements(item: BuiltinCallable) {
   const context = nativeHashContext(item)
   if (!context) return null
+  const floating =
+    item.kind === 'function' &&
+    ['pg_catalog.float4', 'pg_catalog.float8'].includes(item.args[0] ?? '')
+  const owner =
+    floating || (item.kind === 'function' && item.args[0] === 'pg_catalog.jsonb')
+      ? 'tests/sql-semantics/check-scalar-hash.test.ts'
+      : 'tests/sql-semantics/check-native-hash.test.ts'
   return [
     {
       kind: 'platform',
       requirement:
         'Byte-dependent hashes require declared PostgreSQL nativeByteOrder little or big; unspecified byte order retains results only when both agree.',
-      owner: 'tests/sql-semantics/check-native-hash.test.ts',
+      owner,
     },
+    ...(floating
+      ? [
+          {
+            kind: 'platform',
+            requirement:
+              'NaN hashes use the PostgreSQL build canonical float8 NaN bit pattern; input NaN payload bits and byte order alone do not determine it.',
+            owner,
+          },
+        ]
+      : []),
     ...(context === 'text'
       ? [
           {
@@ -109,7 +126,7 @@ export function hashValueRequirements(item: BuiltinCallable) {
             setting: 'server_encoding',
             requirement:
               'Non-ASCII hash input requires declared UTF8 server encoding; ASCII remains portable.',
-            owner: 'tests/sql-semantics/check-native-hash.test.ts',
+            owner,
           },
         ]
       : []),

@@ -89,6 +89,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/jsonpath_keyvalue.rs");
     include!("operations/pg_catalog/jsonpath_execute.rs");
     include!("operations/pg_catalog/jsonb_core.rs");
+    include!("operations/pg_catalog/jsonb_hash.rs");
     include!("operations/pg_catalog/json_extract.rs");
     include!("operations/pg_catalog/jsonb_extract.rs");
     include!("operations/pg_catalog/json_array_paths.rs");
@@ -141,6 +142,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/temporal_timestamp_legacy.rs");
     include!("operations/pg_catalog/time_zone.rs");
     include!("operations/pg_catalog/float_core.rs");
+    include!("operations/pg_catalog/float_hash.rs");
     include!("operations/pg_catalog/float_arithmetic.rs");
     include!("operations/pg_catalog/float_math.rs");
     include!("operations/pg_catalog/point_core.rs");
