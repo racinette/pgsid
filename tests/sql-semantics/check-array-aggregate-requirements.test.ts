@@ -85,7 +85,7 @@ it('derives array state contracts from actual aggregate links and proves that id
                 ? 'tests/sql-semantics/check-array-integer-state.test.ts'
                 : fn.args.length === 1 && fn.result === 'pg_catalog.float8'
                   ? 'tests/sql-semantics/check-array-float-final.test.ts'
-                  : 'tests/sql-semantics/check-array-aggregate-requirements.test.ts',
+                  : 'tests/sql-semantics/check-array-float-transition.test.ts',
           },
         ])
         const result = (await pg.query(probe(false))).rows[0]

@@ -1314,7 +1314,7 @@ const comparisonCandidate = (
       ? enumIdentity
       : type === 'pg_catalog.anyarray'
         ? arrayIdentity
-        : type
+        : (catalogScalarType(type) ?? type)
   const viable = callables.filter(
     ({ item }) =>
       item.kind === kind &&

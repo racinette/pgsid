@@ -241,3 +241,9 @@ INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUE
 
 INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,4,8}',false,'{2,4,8,2,2.8284271247461903}',false);
 INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,4,1,2,2,4,1,1,2,0}',false);
+
+INSERT INTO lane_float4_updates(payload,reading,expected,bypass) VALUES('{0,0,0}',2,'{1,2,0}',false);
+INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('{0,0,0}',2,'{1,2,0}',false);
+INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0,0,0,0}',3,2,'{1,2,0,3,0,0}',false);
+INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0}','{2,4,8}','{2,4,8}',false);
+INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0,0,0,0}','{2,4,8,6,18,12}','{2,4,8,6,18,12}',false);

@@ -1588,6 +1588,21 @@ type Float8Value struct {
 	Error SqlError
 }
 
+func copyFloat8Value(value Float8Value) Float8Value {
+	switch value.Kind {
+	case Float8ValueUnknown:
+		return Float8Value{Kind: Float8ValueUnknown}
+	case Float8ValueNull:
+		return Float8Value{Kind: Float8ValueNull}
+	case Float8ValueValue:
+		return Float8Value{Kind: Float8ValueValue, Value: value.Value}
+	case Float8ValueError:
+		return Float8Value{Kind: Float8ValueError, Error: value.Error}
+	case Float8ValueUnspecifiedNan:
+		return Float8Value{Kind: Float8ValueUnspecifiedNan}
+	}
+	panic("unknown enum variant")
+}
 func Float8Semantic(input Float8Value) Float8Value {
 	if input == (Float8Value{Kind: Float8ValueUnspecifiedNan}) {
 		return MakeFloat8Bits(int64(9221120237041090560))

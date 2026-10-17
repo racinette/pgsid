@@ -1633,6 +1633,15 @@ export type Float8Value = {
 } | {
     readonly kind: "UnspecifiedNan";
 };
+export function copyFloat8Value(value: Float8Value): Float8Value {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: langruntime.checkedI64(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+        case "UnspecifiedNan": return { kind: "UnspecifiedNan" };
+    }
+}
 export function equalFloat8Value(left: Float8Value, right: Float8Value): boolean {
     if (left.kind !== right.kind)
         return false;
