@@ -6,6 +6,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: 'operator:["pg_catalog","="](pg_catalog."bit",pg_catalog."bit")',
     comparator: 'function:["pg_catalog","bitcmp"](pg_catalog."bit",pg_catalog."bit")',
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog."char"': {
     identity: 'pg_catalog."char"',
@@ -14,6 +16,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.char_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char")',
     comparator: 'function:["pg_catalog","btcharcmp"](pg_catalog."char",pg_catalog."char")',
+    hash: 'function:["pg_catalog","hashchar"](pg_catalog."char")',
+    hashExtended: 'function:["pg_catalog","hashcharextended"](pg_catalog."char",pg_catalog.int8)',
   },
   'pg_catalog."interval"': {
     identity: 'pg_catalog."interval"',
@@ -23,6 +27,9 @@ export const PG18_TYPE_COMPARISONS = {
     equality: 'operator:["pg_catalog","="](pg_catalog."interval",pg_catalog."interval")',
     comparator:
       'function:["pg_catalog","interval_cmp"](pg_catalog."interval",pg_catalog."interval")',
+    hash: 'function:["pg_catalog","interval_hash"](pg_catalog."interval")',
+    hashExtended:
+      'function:["pg_catalog","interval_hash_extended"](pg_catalog."interval",pg_catalog.int8)',
   },
   'pg_catalog."json"': {
     identity: 'pg_catalog."json"',
@@ -31,6 +38,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog."numeric"': {
     identity: 'pg_catalog."numeric"',
@@ -39,6 +48,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.numeric_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog."numeric",pg_catalog."numeric")',
     comparator: 'function:["pg_catalog","numeric_cmp"](pg_catalog."numeric",pg_catalog."numeric")',
+    hash: 'function:["pg_catalog","hash_numeric"](pg_catalog."numeric")',
+    hashExtended:
+      'function:["pg_catalog","hash_numeric_extended"](pg_catalog."numeric",pg_catalog.int8)',
   },
   'pg_catalog."time"': {
     identity: 'pg_catalog."time"',
@@ -47,6 +59,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.time_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog."time",pg_catalog."time")',
     comparator: 'function:["pg_catalog","time_cmp"](pg_catalog."time",pg_catalog."time")',
+    hash: 'function:["pg_catalog","time_hash"](pg_catalog."time")',
+    hashExtended: 'function:["pg_catalog","time_hash_extended"](pg_catalog."time",pg_catalog.int8)',
   },
   'pg_catalog."timestamp"': {
     identity: 'pg_catalog."timestamp"',
@@ -56,6 +70,9 @@ export const PG18_TYPE_COMPARISONS = {
     equality: 'operator:["pg_catalog","="](pg_catalog."timestamp",pg_catalog."timestamp")',
     comparator:
       'function:["pg_catalog","timestamp_cmp"](pg_catalog."timestamp",pg_catalog."timestamp")',
+    hash: 'function:["pg_catalog","timestamp_hash"](pg_catalog."timestamp")',
+    hashExtended:
+      'function:["pg_catalog","timestamp_hash_extended"](pg_catalog."timestamp",pg_catalog.int8)',
   },
   'pg_catalog."varchar"': {
     identity: 'pg_catalog."varchar"',
@@ -64,6 +81,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.text_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.text,pg_catalog.text)',
     comparator: 'function:["pg_catalog","bttextcmp"](pg_catalog.text,pg_catalog.text)',
+    hash: 'function:["pg_catalog","hashtext"](pg_catalog.text)',
+    hashExtended: 'function:["pg_catalog","hashtextextended"](pg_catalog.text,pg_catalog.int8)',
   },
   'pg_catalog.aclitem': {
     identity: 'pg_catalog.aclitem',
@@ -72,6 +91,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.aclitem_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.aclitem,pg_catalog.aclitem)',
     comparator: null,
+    hash: 'function:["pg_catalog","hash_aclitem"](pg_catalog.aclitem)',
+    hashExtended:
+      'function:["pg_catalog","hash_aclitem_extended"](pg_catalog.aclitem,pg_catalog.int8)',
   },
   'pg_catalog.anyenum': {
     identity: 'pg_catalog.anyenum',
@@ -80,6 +102,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.enum_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.anyenum,pg_catalog.anyenum)',
     comparator: 'function:["pg_catalog","enum_cmp"](pg_catalog.anyenum,pg_catalog.anyenum)',
+    hash: 'function:["pg_catalog","hashenum"](pg_catalog.anyenum)',
+    hashExtended: 'function:["pg_catalog","hashenumextended"](pg_catalog.anyenum,pg_catalog.int8)',
   },
   'pg_catalog.bool': {
     identity: 'pg_catalog.bool',
@@ -88,6 +112,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.bool_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.bool,pg_catalog.bool)',
     comparator: 'function:["pg_catalog","btboolcmp"](pg_catalog.bool,pg_catalog.bool)',
+    hash: 'function:["pg_catalog","hashbool"](pg_catalog.bool)',
+    hashExtended: 'function:["pg_catalog","hashboolextended"](pg_catalog.bool,pg_catalog.int8)',
   },
   'pg_catalog.box': {
     identity: 'pg_catalog.box',
@@ -96,6 +122,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.bpchar': {
     identity: 'pg_catalog.bpchar',
@@ -104,6 +132,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.bpchar_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.bpchar,pg_catalog.bpchar)',
     comparator: 'function:["pg_catalog","bpcharcmp"](pg_catalog.bpchar,pg_catalog.bpchar)',
+    hash: 'function:["pg_catalog","hashbpchar"](pg_catalog.bpchar)',
+    hashExtended: 'function:["pg_catalog","hashbpcharextended"](pg_catalog.bpchar,pg_catalog.int8)',
   },
   'pg_catalog.bytea': {
     identity: 'pg_catalog.bytea',
@@ -112,6 +142,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.bytea_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.bytea,pg_catalog.bytea)',
     comparator: 'function:["pg_catalog","byteacmp"](pg_catalog.bytea,pg_catalog.bytea)',
+    hash: 'function:["pg_catalog","hashbytea"](pg_catalog.bytea)',
+    hashExtended: 'function:["pg_catalog","hashbyteaextended"](pg_catalog.bytea,pg_catalog.int8)',
   },
   'pg_catalog.cid': {
     identity: 'pg_catalog.cid',
@@ -120,6 +152,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.cid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.cid,pg_catalog.cid)',
     comparator: null,
+    hash: 'function:["pg_catalog","hashcid"](pg_catalog.cid)',
+    hashExtended: 'function:["pg_catalog","hashcidextended"](pg_catalog.cid,pg_catalog.int8)',
   },
   'pg_catalog.cidr': {
     identity: 'pg_catalog.cidr',
@@ -128,6 +162,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.inet_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.inet,pg_catalog.inet)',
     comparator: 'function:["pg_catalog","network_cmp"](pg_catalog.inet,pg_catalog.inet)',
+    hash: 'function:["pg_catalog","hashinet"](pg_catalog.inet)',
+    hashExtended: 'function:["pg_catalog","hashinetextended"](pg_catalog.inet,pg_catalog.int8)',
   },
   'pg_catalog.circle': {
     identity: 'pg_catalog.circle',
@@ -136,6 +172,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.date': {
     identity: 'pg_catalog.date',
@@ -144,6 +182,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.date_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.date,pg_catalog.date)',
     comparator: 'function:["pg_catalog","date_cmp"](pg_catalog.date,pg_catalog.date)',
+    hash: 'function:["pg_catalog","hashdate"](pg_catalog.date)',
+    hashExtended: 'function:["pg_catalog","hashdateextended"](pg_catalog.date,pg_catalog.int8)',
   },
   'pg_catalog.datemultirange': {
     identity: 'pg_catalog.datemultirange',
@@ -153,6 +193,9 @@ export const PG18_TYPE_COMPARISONS = {
     equality: 'operator:["pg_catalog","="](pg_catalog.anymultirange,pg_catalog.anymultirange)',
     comparator:
       'function:["pg_catalog","multirange_cmp"](pg_catalog.anymultirange,pg_catalog.anymultirange)',
+    hash: 'function:["pg_catalog","hash_multirange"](pg_catalog.anymultirange)',
+    hashExtended:
+      'function:["pg_catalog","hash_multirange_extended"](pg_catalog.anymultirange,pg_catalog.int8)',
   },
   'pg_catalog.daterange': {
     identity: 'pg_catalog.daterange',
@@ -161,6 +204,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.range_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.anyrange,pg_catalog.anyrange)',
     comparator: 'function:["pg_catalog","range_cmp"](pg_catalog.anyrange,pg_catalog.anyrange)',
+    hash: 'function:["pg_catalog","hash_range"](pg_catalog.anyrange)',
+    hashExtended:
+      'function:["pg_catalog","hash_range_extended"](pg_catalog.anyrange,pg_catalog.int8)',
   },
   'pg_catalog.float4': {
     identity: 'pg_catalog.float4',
@@ -169,6 +215,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.float4_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.float4,pg_catalog.float4)',
     comparator: 'function:["pg_catalog","btfloat4cmp"](pg_catalog.float4,pg_catalog.float4)',
+    hash: 'function:["pg_catalog","hashfloat4"](pg_catalog.float4)',
+    hashExtended: 'function:["pg_catalog","hashfloat4extended"](pg_catalog.float4,pg_catalog.int8)',
   },
   'pg_catalog.float8': {
     identity: 'pg_catalog.float8',
@@ -177,6 +225,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.float8_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.float8,pg_catalog.float8)',
     comparator: 'function:["pg_catalog","btfloat8cmp"](pg_catalog.float8,pg_catalog.float8)',
+    hash: 'function:["pg_catalog","hashfloat8"](pg_catalog.float8)',
+    hashExtended: 'function:["pg_catalog","hashfloat8extended"](pg_catalog.float8,pg_catalog.int8)',
   },
   'pg_catalog.gtsvector': {
     identity: 'pg_catalog.gtsvector',
@@ -185,6 +235,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.inet': {
     identity: 'pg_catalog.inet',
@@ -193,6 +245,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.inet_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.inet,pg_catalog.inet)',
     comparator: 'function:["pg_catalog","network_cmp"](pg_catalog.inet,pg_catalog.inet)',
+    hash: 'function:["pg_catalog","hashinet"](pg_catalog.inet)',
+    hashExtended: 'function:["pg_catalog","hashinetextended"](pg_catalog.inet,pg_catalog.int8)',
   },
   'pg_catalog.int2': {
     identity: 'pg_catalog.int2',
@@ -201,6 +255,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.int2_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.int2,pg_catalog.int2)',
     comparator: 'function:["pg_catalog","btint2cmp"](pg_catalog.int2,pg_catalog.int2)',
+    hash: 'function:["pg_catalog","hashint2"](pg_catalog.int2)',
+    hashExtended: 'function:["pg_catalog","hashint2extended"](pg_catalog.int2,pg_catalog.int8)',
   },
   'pg_catalog.int4': {
     identity: 'pg_catalog.int4',
@@ -209,6 +265,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.int4_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.int4,pg_catalog.int4)',
     comparator: 'function:["pg_catalog","btint4cmp"](pg_catalog.int4,pg_catalog.int4)',
+    hash: 'function:["pg_catalog","hashint4"](pg_catalog.int4)',
+    hashExtended: 'function:["pg_catalog","hashint4extended"](pg_catalog.int4,pg_catalog.int8)',
   },
   'pg_catalog.int4multirange': {
     identity: 'pg_catalog.int4multirange',
@@ -218,6 +276,9 @@ export const PG18_TYPE_COMPARISONS = {
     equality: 'operator:["pg_catalog","="](pg_catalog.anymultirange,pg_catalog.anymultirange)',
     comparator:
       'function:["pg_catalog","multirange_cmp"](pg_catalog.anymultirange,pg_catalog.anymultirange)',
+    hash: 'function:["pg_catalog","hash_multirange"](pg_catalog.anymultirange)',
+    hashExtended:
+      'function:["pg_catalog","hash_multirange_extended"](pg_catalog.anymultirange,pg_catalog.int8)',
   },
   'pg_catalog.int4range': {
     identity: 'pg_catalog.int4range',
@@ -226,6 +287,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.range_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.anyrange,pg_catalog.anyrange)',
     comparator: 'function:["pg_catalog","range_cmp"](pg_catalog.anyrange,pg_catalog.anyrange)',
+    hash: 'function:["pg_catalog","hash_range"](pg_catalog.anyrange)',
+    hashExtended:
+      'function:["pg_catalog","hash_range_extended"](pg_catalog.anyrange,pg_catalog.int8)',
   },
   'pg_catalog.int8': {
     identity: 'pg_catalog.int8',
@@ -234,6 +298,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.int8_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.int8,pg_catalog.int8)',
     comparator: 'function:["pg_catalog","btint8cmp"](pg_catalog.int8,pg_catalog.int8)',
+    hash: 'function:["pg_catalog","hashint8"](pg_catalog.int8)',
+    hashExtended: 'function:["pg_catalog","hashint8extended"](pg_catalog.int8,pg_catalog.int8)',
   },
   'pg_catalog.int8multirange': {
     identity: 'pg_catalog.int8multirange',
@@ -243,6 +309,9 @@ export const PG18_TYPE_COMPARISONS = {
     equality: 'operator:["pg_catalog","="](pg_catalog.anymultirange,pg_catalog.anymultirange)',
     comparator:
       'function:["pg_catalog","multirange_cmp"](pg_catalog.anymultirange,pg_catalog.anymultirange)',
+    hash: 'function:["pg_catalog","hash_multirange"](pg_catalog.anymultirange)',
+    hashExtended:
+      'function:["pg_catalog","hash_multirange_extended"](pg_catalog.anymultirange,pg_catalog.int8)',
   },
   'pg_catalog.int8range': {
     identity: 'pg_catalog.int8range',
@@ -251,6 +320,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.range_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.anyrange,pg_catalog.anyrange)',
     comparator: 'function:["pg_catalog","range_cmp"](pg_catalog.anyrange,pg_catalog.anyrange)',
+    hash: 'function:["pg_catalog","hash_range"](pg_catalog.anyrange)',
+    hashExtended:
+      'function:["pg_catalog","hash_range_extended"](pg_catalog.anyrange,pg_catalog.int8)',
   },
   'pg_catalog.jsonb': {
     identity: 'pg_catalog.jsonb',
@@ -259,6 +331,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.jsonb_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.jsonb,pg_catalog.jsonb)',
     comparator: 'function:["pg_catalog","jsonb_cmp"](pg_catalog.jsonb,pg_catalog.jsonb)',
+    hash: 'function:["pg_catalog","jsonb_hash"](pg_catalog.jsonb)',
+    hashExtended: 'function:["pg_catalog","jsonb_hash_extended"](pg_catalog.jsonb,pg_catalog.int8)',
   },
   'pg_catalog.jsonpath': {
     identity: 'pg_catalog.jsonpath',
@@ -267,6 +341,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.line': {
     identity: 'pg_catalog.line',
@@ -275,6 +351,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.lseg': {
     identity: 'pg_catalog.lseg',
@@ -283,6 +361,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.macaddr': {
     identity: 'pg_catalog.macaddr',
@@ -291,6 +371,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.macaddr_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.macaddr,pg_catalog.macaddr)',
     comparator: 'function:["pg_catalog","macaddr_cmp"](pg_catalog.macaddr,pg_catalog.macaddr)',
+    hash: 'function:["pg_catalog","hashmacaddr"](pg_catalog.macaddr)',
+    hashExtended:
+      'function:["pg_catalog","hashmacaddrextended"](pg_catalog.macaddr,pg_catalog.int8)',
   },
   'pg_catalog.macaddr8': {
     identity: 'pg_catalog.macaddr8',
@@ -299,6 +382,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.macaddr8_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.macaddr8,pg_catalog.macaddr8)',
     comparator: 'function:["pg_catalog","macaddr8_cmp"](pg_catalog.macaddr8,pg_catalog.macaddr8)',
+    hash: 'function:["pg_catalog","hashmacaddr8"](pg_catalog.macaddr8)',
+    hashExtended:
+      'function:["pg_catalog","hashmacaddr8extended"](pg_catalog.macaddr8,pg_catalog.int8)',
   },
   'pg_catalog.money': {
     identity: 'pg_catalog.money',
@@ -307,6 +393,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: 'operator:["pg_catalog","="](pg_catalog.money,pg_catalog.money)',
     comparator: 'function:["pg_catalog","cash_cmp"](pg_catalog.money,pg_catalog.money)',
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.name': {
     identity: 'pg_catalog.name',
@@ -315,6 +403,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.name_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name)',
     comparator: 'function:["pg_catalog","btnamecmp"](pg_catalog.name,pg_catalog.name)',
+    hash: 'function:["pg_catalog","hashname"](pg_catalog.name)',
+    hashExtended: 'function:["pg_catalog","hashnameextended"](pg_catalog.name,pg_catalog.int8)',
   },
   'pg_catalog.nummultirange': {
     identity: 'pg_catalog.nummultirange',
@@ -324,6 +414,9 @@ export const PG18_TYPE_COMPARISONS = {
     equality: 'operator:["pg_catalog","="](pg_catalog.anymultirange,pg_catalog.anymultirange)',
     comparator:
       'function:["pg_catalog","multirange_cmp"](pg_catalog.anymultirange,pg_catalog.anymultirange)',
+    hash: 'function:["pg_catalog","hash_multirange"](pg_catalog.anymultirange)',
+    hashExtended:
+      'function:["pg_catalog","hash_multirange_extended"](pg_catalog.anymultirange,pg_catalog.int8)',
   },
   'pg_catalog.numrange': {
     identity: 'pg_catalog.numrange',
@@ -332,6 +425,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.range_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.anyrange,pg_catalog.anyrange)',
     comparator: 'function:["pg_catalog","range_cmp"](pg_catalog.anyrange,pg_catalog.anyrange)',
+    hash: 'function:["pg_catalog","hash_range"](pg_catalog.anyrange)',
+    hashExtended:
+      'function:["pg_catalog","hash_range_extended"](pg_catalog.anyrange,pg_catalog.int8)',
   },
   'pg_catalog.oid': {
     identity: 'pg_catalog.oid',
@@ -340,6 +436,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.path': {
     identity: 'pg_catalog.path',
@@ -348,6 +446,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.pg_aggregate': {
     identity: 'pg_catalog.pg_aggregate',
@@ -356,6 +456,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_aios': {
     identity: 'pg_catalog.pg_aios',
@@ -364,6 +467,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_am': {
     identity: 'pg_catalog.pg_am',
@@ -372,6 +478,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_amop': {
     identity: 'pg_catalog.pg_amop',
@@ -380,6 +489,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_amproc': {
     identity: 'pg_catalog.pg_amproc',
@@ -388,6 +500,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_attrdef': {
     identity: 'pg_catalog.pg_attrdef',
@@ -396,6 +511,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_attribute': {
     identity: 'pg_catalog.pg_attribute',
@@ -404,6 +522,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_auth_members': {
     identity: 'pg_catalog.pg_auth_members',
@@ -412,6 +533,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_authid': {
     identity: 'pg_catalog.pg_authid',
@@ -420,6 +544,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_available_extension_versions': {
     identity: 'pg_catalog.pg_available_extension_versions',
@@ -428,6 +555,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_available_extensions': {
     identity: 'pg_catalog.pg_available_extensions',
@@ -436,6 +566,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_backend_memory_contexts': {
     identity: 'pg_catalog.pg_backend_memory_contexts',
@@ -444,6 +577,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_brin_bloom_summary': {
     identity: 'pg_catalog.pg_brin_bloom_summary',
@@ -452,6 +588,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.pg_brin_minmax_multi_summary': {
     identity: 'pg_catalog.pg_brin_minmax_multi_summary',
@@ -460,6 +598,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.pg_cast': {
     identity: 'pg_catalog.pg_cast',
@@ -468,6 +608,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_class': {
     identity: 'pg_catalog.pg_class',
@@ -476,6 +619,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_collation': {
     identity: 'pg_catalog.pg_collation',
@@ -484,6 +630,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_config': {
     identity: 'pg_catalog.pg_config',
@@ -492,6 +641,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_constraint': {
     identity: 'pg_catalog.pg_constraint',
@@ -500,6 +652,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_conversion': {
     identity: 'pg_catalog.pg_conversion',
@@ -508,6 +663,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_cursors': {
     identity: 'pg_catalog.pg_cursors',
@@ -516,6 +674,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_database': {
     identity: 'pg_catalog.pg_database',
@@ -524,6 +685,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_db_role_setting': {
     identity: 'pg_catalog.pg_db_role_setting',
@@ -532,6 +696,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_default_acl': {
     identity: 'pg_catalog.pg_default_acl',
@@ -540,6 +707,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_depend': {
     identity: 'pg_catalog.pg_depend',
@@ -548,6 +718,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_dependencies': {
     identity: 'pg_catalog.pg_dependencies',
@@ -556,6 +729,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.bytea_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.bytea,pg_catalog.bytea)',
     comparator: 'function:["pg_catalog","byteacmp"](pg_catalog.bytea,pg_catalog.bytea)',
+    hash: 'function:["pg_catalog","hashbytea"](pg_catalog.bytea)',
+    hashExtended: 'function:["pg_catalog","hashbyteaextended"](pg_catalog.bytea,pg_catalog.int8)',
   },
   'pg_catalog.pg_description': {
     identity: 'pg_catalog.pg_description',
@@ -564,6 +739,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_enum': {
     identity: 'pg_catalog.pg_enum',
@@ -572,6 +750,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_event_trigger': {
     identity: 'pg_catalog.pg_event_trigger',
@@ -580,6 +761,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_extension': {
     identity: 'pg_catalog.pg_extension',
@@ -588,6 +772,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_file_settings': {
     identity: 'pg_catalog.pg_file_settings',
@@ -596,6 +783,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_foreign_data_wrapper': {
     identity: 'pg_catalog.pg_foreign_data_wrapper',
@@ -604,6 +794,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_foreign_server': {
     identity: 'pg_catalog.pg_foreign_server',
@@ -612,6 +805,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_foreign_table': {
     identity: 'pg_catalog.pg_foreign_table',
@@ -620,6 +816,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_group': {
     identity: 'pg_catalog.pg_group',
@@ -628,6 +827,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_hba_file_rules': {
     identity: 'pg_catalog.pg_hba_file_rules',
@@ -636,6 +838,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_ident_file_mappings': {
     identity: 'pg_catalog.pg_ident_file_mappings',
@@ -644,6 +849,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_index': {
     identity: 'pg_catalog.pg_index',
@@ -652,6 +860,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_indexes': {
     identity: 'pg_catalog.pg_indexes',
@@ -660,6 +871,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_inherits': {
     identity: 'pg_catalog.pg_inherits',
@@ -668,6 +882,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_init_privs': {
     identity: 'pg_catalog.pg_init_privs',
@@ -676,6 +893,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_language': {
     identity: 'pg_catalog.pg_language',
@@ -684,6 +904,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_largeobject': {
     identity: 'pg_catalog.pg_largeobject',
@@ -692,6 +915,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_largeobject_metadata': {
     identity: 'pg_catalog.pg_largeobject_metadata',
@@ -700,6 +926,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_locks': {
     identity: 'pg_catalog.pg_locks',
@@ -708,6 +937,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_lsn': {
     identity: 'pg_catalog.pg_lsn',
@@ -716,6 +948,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.pg_lsn_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.pg_lsn,pg_catalog.pg_lsn)',
     comparator: 'function:["pg_catalog","pg_lsn_cmp"](pg_catalog.pg_lsn,pg_catalog.pg_lsn)',
+    hash: 'function:["pg_catalog","pg_lsn_hash"](pg_catalog.pg_lsn)',
+    hashExtended:
+      'function:["pg_catalog","pg_lsn_hash_extended"](pg_catalog.pg_lsn,pg_catalog.int8)',
   },
   'pg_catalog.pg_matviews': {
     identity: 'pg_catalog.pg_matviews',
@@ -724,6 +959,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_mcv_list': {
     identity: 'pg_catalog.pg_mcv_list',
@@ -732,6 +970,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.bytea_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.bytea,pg_catalog.bytea)',
     comparator: 'function:["pg_catalog","byteacmp"](pg_catalog.bytea,pg_catalog.bytea)',
+    hash: 'function:["pg_catalog","hashbytea"](pg_catalog.bytea)',
+    hashExtended: 'function:["pg_catalog","hashbyteaextended"](pg_catalog.bytea,pg_catalog.int8)',
   },
   'pg_catalog.pg_namespace': {
     identity: 'pg_catalog.pg_namespace',
@@ -740,6 +980,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_ndistinct': {
     identity: 'pg_catalog.pg_ndistinct',
@@ -748,6 +991,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.bytea_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.bytea,pg_catalog.bytea)',
     comparator: 'function:["pg_catalog","byteacmp"](pg_catalog.bytea,pg_catalog.bytea)',
+    hash: 'function:["pg_catalog","hashbytea"](pg_catalog.bytea)',
+    hashExtended: 'function:["pg_catalog","hashbyteaextended"](pg_catalog.bytea,pg_catalog.int8)',
   },
   'pg_catalog.pg_node_tree': {
     identity: 'pg_catalog.pg_node_tree',
@@ -756,6 +1001,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.text_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.text,pg_catalog.text)',
     comparator: 'function:["pg_catalog","bttextcmp"](pg_catalog.text,pg_catalog.text)',
+    hash: 'function:["pg_catalog","hashtext"](pg_catalog.text)',
+    hashExtended: 'function:["pg_catalog","hashtextextended"](pg_catalog.text,pg_catalog.int8)',
   },
   'pg_catalog.pg_opclass': {
     identity: 'pg_catalog.pg_opclass',
@@ -764,6 +1011,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_operator': {
     identity: 'pg_catalog.pg_operator',
@@ -772,6 +1022,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_opfamily': {
     identity: 'pg_catalog.pg_opfamily',
@@ -780,6 +1033,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_parameter_acl': {
     identity: 'pg_catalog.pg_parameter_acl',
@@ -788,6 +1044,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_partitioned_table': {
     identity: 'pg_catalog.pg_partitioned_table',
@@ -796,6 +1055,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_policies': {
     identity: 'pg_catalog.pg_policies',
@@ -804,6 +1066,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_policy': {
     identity: 'pg_catalog.pg_policy',
@@ -812,6 +1077,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_prepared_statements': {
     identity: 'pg_catalog.pg_prepared_statements',
@@ -820,6 +1088,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_prepared_xacts': {
     identity: 'pg_catalog.pg_prepared_xacts',
@@ -828,6 +1099,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_proc': {
     identity: 'pg_catalog.pg_proc',
@@ -836,6 +1110,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_publication': {
     identity: 'pg_catalog.pg_publication',
@@ -844,6 +1121,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_publication_namespace': {
     identity: 'pg_catalog.pg_publication_namespace',
@@ -852,6 +1132,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_publication_rel': {
     identity: 'pg_catalog.pg_publication_rel',
@@ -860,6 +1143,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_publication_tables': {
     identity: 'pg_catalog.pg_publication_tables',
@@ -868,6 +1154,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_range': {
     identity: 'pg_catalog.pg_range',
@@ -876,6 +1165,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_replication_origin': {
     identity: 'pg_catalog.pg_replication_origin',
@@ -884,6 +1176,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_replication_origin_status': {
     identity: 'pg_catalog.pg_replication_origin_status',
@@ -892,6 +1187,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_replication_slots': {
     identity: 'pg_catalog.pg_replication_slots',
@@ -900,6 +1198,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_rewrite': {
     identity: 'pg_catalog.pg_rewrite',
@@ -908,6 +1209,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_roles': {
     identity: 'pg_catalog.pg_roles',
@@ -916,6 +1220,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_rules': {
     identity: 'pg_catalog.pg_rules',
@@ -924,6 +1231,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_seclabel': {
     identity: 'pg_catalog.pg_seclabel',
@@ -932,6 +1242,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_seclabels': {
     identity: 'pg_catalog.pg_seclabels',
@@ -940,6 +1253,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_sequence': {
     identity: 'pg_catalog.pg_sequence',
@@ -948,6 +1264,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_sequences': {
     identity: 'pg_catalog.pg_sequences',
@@ -956,6 +1275,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_settings': {
     identity: 'pg_catalog.pg_settings',
@@ -964,6 +1286,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_shadow': {
     identity: 'pg_catalog.pg_shadow',
@@ -972,6 +1297,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_shdepend': {
     identity: 'pg_catalog.pg_shdepend',
@@ -980,6 +1308,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_shdescription': {
     identity: 'pg_catalog.pg_shdescription',
@@ -988,6 +1319,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_shmem_allocations': {
     identity: 'pg_catalog.pg_shmem_allocations',
@@ -996,6 +1330,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_shmem_allocations_numa': {
     identity: 'pg_catalog.pg_shmem_allocations_numa',
@@ -1004,6 +1341,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_shseclabel': {
     identity: 'pg_catalog.pg_shseclabel',
@@ -1012,6 +1352,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_snapshot': {
     identity: 'pg_catalog.pg_snapshot',
@@ -1020,6 +1363,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.pg_stat_activity': {
     identity: 'pg_catalog.pg_stat_activity',
@@ -1028,6 +1373,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_all_indexes': {
     identity: 'pg_catalog.pg_stat_all_indexes',
@@ -1036,6 +1384,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_all_tables': {
     identity: 'pg_catalog.pg_stat_all_tables',
@@ -1044,6 +1395,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_archiver': {
     identity: 'pg_catalog.pg_stat_archiver',
@@ -1052,6 +1406,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_bgwriter': {
     identity: 'pg_catalog.pg_stat_bgwriter',
@@ -1060,6 +1417,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_checkpointer': {
     identity: 'pg_catalog.pg_stat_checkpointer',
@@ -1068,6 +1428,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_database': {
     identity: 'pg_catalog.pg_stat_database',
@@ -1076,6 +1439,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_database_conflicts': {
     identity: 'pg_catalog.pg_stat_database_conflicts',
@@ -1084,6 +1450,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_gssapi': {
     identity: 'pg_catalog.pg_stat_gssapi',
@@ -1092,6 +1461,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_io': {
     identity: 'pg_catalog.pg_stat_io',
@@ -1100,6 +1472,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_progress_analyze': {
     identity: 'pg_catalog.pg_stat_progress_analyze',
@@ -1108,6 +1483,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_progress_basebackup': {
     identity: 'pg_catalog.pg_stat_progress_basebackup',
@@ -1116,6 +1494,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_progress_cluster': {
     identity: 'pg_catalog.pg_stat_progress_cluster',
@@ -1124,6 +1505,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_progress_copy': {
     identity: 'pg_catalog.pg_stat_progress_copy',
@@ -1132,6 +1516,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_progress_create_index': {
     identity: 'pg_catalog.pg_stat_progress_create_index',
@@ -1140,6 +1527,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_progress_vacuum': {
     identity: 'pg_catalog.pg_stat_progress_vacuum',
@@ -1148,6 +1538,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_recovery_prefetch': {
     identity: 'pg_catalog.pg_stat_recovery_prefetch',
@@ -1156,6 +1549,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_replication': {
     identity: 'pg_catalog.pg_stat_replication',
@@ -1164,6 +1560,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_replication_slots': {
     identity: 'pg_catalog.pg_stat_replication_slots',
@@ -1172,6 +1571,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_slru': {
     identity: 'pg_catalog.pg_stat_slru',
@@ -1180,6 +1582,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_ssl': {
     identity: 'pg_catalog.pg_stat_ssl',
@@ -1188,6 +1593,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_subscription': {
     identity: 'pg_catalog.pg_stat_subscription',
@@ -1196,6 +1604,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_subscription_stats': {
     identity: 'pg_catalog.pg_stat_subscription_stats',
@@ -1204,6 +1615,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_sys_indexes': {
     identity: 'pg_catalog.pg_stat_sys_indexes',
@@ -1212,6 +1626,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_sys_tables': {
     identity: 'pg_catalog.pg_stat_sys_tables',
@@ -1220,6 +1637,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_user_functions': {
     identity: 'pg_catalog.pg_stat_user_functions',
@@ -1228,6 +1648,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_user_indexes': {
     identity: 'pg_catalog.pg_stat_user_indexes',
@@ -1236,6 +1659,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_user_tables': {
     identity: 'pg_catalog.pg_stat_user_tables',
@@ -1244,6 +1670,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_wal': {
     identity: 'pg_catalog.pg_stat_wal',
@@ -1252,6 +1681,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_wal_receiver': {
     identity: 'pg_catalog.pg_stat_wal_receiver',
@@ -1260,6 +1692,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_xact_all_tables': {
     identity: 'pg_catalog.pg_stat_xact_all_tables',
@@ -1268,6 +1703,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_xact_sys_tables': {
     identity: 'pg_catalog.pg_stat_xact_sys_tables',
@@ -1276,6 +1714,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_xact_user_functions': {
     identity: 'pg_catalog.pg_stat_xact_user_functions',
@@ -1284,6 +1725,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stat_xact_user_tables': {
     identity: 'pg_catalog.pg_stat_xact_user_tables',
@@ -1292,6 +1736,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statio_all_indexes': {
     identity: 'pg_catalog.pg_statio_all_indexes',
@@ -1300,6 +1747,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statio_all_sequences': {
     identity: 'pg_catalog.pg_statio_all_sequences',
@@ -1308,6 +1758,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statio_all_tables': {
     identity: 'pg_catalog.pg_statio_all_tables',
@@ -1316,6 +1769,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statio_sys_indexes': {
     identity: 'pg_catalog.pg_statio_sys_indexes',
@@ -1324,6 +1780,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statio_sys_sequences': {
     identity: 'pg_catalog.pg_statio_sys_sequences',
@@ -1332,6 +1791,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statio_sys_tables': {
     identity: 'pg_catalog.pg_statio_sys_tables',
@@ -1340,6 +1802,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statio_user_indexes': {
     identity: 'pg_catalog.pg_statio_user_indexes',
@@ -1348,6 +1813,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statio_user_sequences': {
     identity: 'pg_catalog.pg_statio_user_sequences',
@@ -1356,6 +1824,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statio_user_tables': {
     identity: 'pg_catalog.pg_statio_user_tables',
@@ -1364,6 +1835,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statistic': {
     identity: 'pg_catalog.pg_statistic',
@@ -1372,6 +1846,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statistic_ext': {
     identity: 'pg_catalog.pg_statistic_ext',
@@ -1380,6 +1857,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_statistic_ext_data': {
     identity: 'pg_catalog.pg_statistic_ext_data',
@@ -1388,6 +1868,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stats': {
     identity: 'pg_catalog.pg_stats',
@@ -1396,6 +1879,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stats_ext': {
     identity: 'pg_catalog.pg_stats_ext',
@@ -1404,6 +1890,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_stats_ext_exprs': {
     identity: 'pg_catalog.pg_stats_ext_exprs',
@@ -1412,6 +1901,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_subscription': {
     identity: 'pg_catalog.pg_subscription',
@@ -1420,6 +1912,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_subscription_rel': {
     identity: 'pg_catalog.pg_subscription_rel',
@@ -1428,6 +1923,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_tables': {
     identity: 'pg_catalog.pg_tables',
@@ -1436,6 +1934,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_tablespace': {
     identity: 'pg_catalog.pg_tablespace',
@@ -1444,6 +1945,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_timezone_abbrevs': {
     identity: 'pg_catalog.pg_timezone_abbrevs',
@@ -1452,6 +1956,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_timezone_names': {
     identity: 'pg_catalog.pg_timezone_names',
@@ -1460,6 +1967,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_transform': {
     identity: 'pg_catalog.pg_transform',
@@ -1468,6 +1978,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_trigger': {
     identity: 'pg_catalog.pg_trigger',
@@ -1476,6 +1989,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_ts_config': {
     identity: 'pg_catalog.pg_ts_config',
@@ -1484,6 +2000,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_ts_config_map': {
     identity: 'pg_catalog.pg_ts_config_map',
@@ -1492,6 +2011,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_ts_dict': {
     identity: 'pg_catalog.pg_ts_dict',
@@ -1500,6 +2022,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_ts_parser': {
     identity: 'pg_catalog.pg_ts_parser',
@@ -1508,6 +2033,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_ts_template': {
     identity: 'pg_catalog.pg_ts_template',
@@ -1516,6 +2044,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_type': {
     identity: 'pg_catalog.pg_type',
@@ -1524,6 +2055,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_user': {
     identity: 'pg_catalog.pg_user',
@@ -1532,6 +2066,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_user_mapping': {
     identity: 'pg_catalog.pg_user_mapping',
@@ -1540,6 +2077,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_user_mappings': {
     identity: 'pg_catalog.pg_user_mappings',
@@ -1548,6 +2088,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_views': {
     identity: 'pg_catalog.pg_views',
@@ -1556,6 +2099,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.pg_wait_events': {
     identity: 'pg_catalog.pg_wait_events',
@@ -1564,6 +2110,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.record_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.record,pg_catalog.record)',
     comparator: 'function:["pg_catalog","btrecordcmp"](pg_catalog.record,pg_catalog.record)',
+    hash: 'function:["pg_catalog","hash_record"](pg_catalog.record)',
+    hashExtended:
+      'function:["pg_catalog","hash_record_extended"](pg_catalog.record,pg_catalog.int8)',
   },
   'pg_catalog.point': {
     identity: 'pg_catalog.point',
@@ -1572,6 +2121,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.polygon': {
     identity: 'pg_catalog.polygon',
@@ -1580,6 +2131,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.refcursor': {
     identity: 'pg_catalog.refcursor',
@@ -1588,6 +2141,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.regclass': {
     identity: 'pg_catalog.regclass',
@@ -1596,6 +2151,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.regcollation': {
     identity: 'pg_catalog.regcollation',
@@ -1604,6 +2161,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.regconfig': {
     identity: 'pg_catalog.regconfig',
@@ -1612,6 +2171,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.regdictionary': {
     identity: 'pg_catalog.regdictionary',
@@ -1620,6 +2181,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.regnamespace': {
     identity: 'pg_catalog.regnamespace',
@@ -1628,6 +2191,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.regoper': {
     identity: 'pg_catalog.regoper',
@@ -1636,6 +2201,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.regoperator': {
     identity: 'pg_catalog.regoperator',
@@ -1644,6 +2211,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.regproc': {
     identity: 'pg_catalog.regproc',
@@ -1652,6 +2221,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.regprocedure': {
     identity: 'pg_catalog.regprocedure',
@@ -1660,6 +2231,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.regrole': {
     identity: 'pg_catalog.regrole',
@@ -1668,6 +2241,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.regtype': {
     identity: 'pg_catalog.regtype',
@@ -1676,6 +2251,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.oid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.oid,pg_catalog.oid)',
     comparator: 'function:["pg_catalog","btoidcmp"](pg_catalog.oid,pg_catalog.oid)',
+    hash: 'function:["pg_catalog","hashoid"](pg_catalog.oid)',
+    hashExtended: 'function:["pg_catalog","hashoidextended"](pg_catalog.oid,pg_catalog.int8)',
   },
   'pg_catalog.text': {
     identity: 'pg_catalog.text',
@@ -1684,6 +2261,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.text_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.text,pg_catalog.text)',
     comparator: 'function:["pg_catalog","bttextcmp"](pg_catalog.text,pg_catalog.text)',
+    hash: 'function:["pg_catalog","hashtext"](pg_catalog.text)',
+    hashExtended: 'function:["pg_catalog","hashtextextended"](pg_catalog.text,pg_catalog.int8)',
   },
   'pg_catalog.tid': {
     identity: 'pg_catalog.tid',
@@ -1692,6 +2271,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.tid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.tid,pg_catalog.tid)',
     comparator: 'function:["pg_catalog","bttidcmp"](pg_catalog.tid,pg_catalog.tid)',
+    hash: 'function:["pg_catalog","hashtid"](pg_catalog.tid)',
+    hashExtended: 'function:["pg_catalog","hashtidextended"](pg_catalog.tid,pg_catalog.int8)',
   },
   'pg_catalog.timestamptz': {
     identity: 'pg_catalog.timestamptz',
@@ -1701,6 +2282,9 @@ export const PG18_TYPE_COMPARISONS = {
     equality: 'operator:["pg_catalog","="](pg_catalog.timestamptz,pg_catalog.timestamptz)',
     comparator:
       'function:["pg_catalog","timestamptz_cmp"](pg_catalog.timestamptz,pg_catalog.timestamptz)',
+    hash: 'function:["pg_catalog","timestamptz_hash"](pg_catalog.timestamptz)',
+    hashExtended:
+      'function:["pg_catalog","timestamptz_hash_extended"](pg_catalog.timestamptz,pg_catalog.int8)',
   },
   'pg_catalog.timetz': {
     identity: 'pg_catalog.timetz',
@@ -1709,6 +2293,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.timetz_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.timetz,pg_catalog.timetz)',
     comparator: 'function:["pg_catalog","timetz_cmp"](pg_catalog.timetz,pg_catalog.timetz)',
+    hash: 'function:["pg_catalog","timetz_hash"](pg_catalog.timetz)',
+    hashExtended:
+      'function:["pg_catalog","timetz_hash_extended"](pg_catalog.timetz,pg_catalog.int8)',
   },
   'pg_catalog.tsmultirange': {
     identity: 'pg_catalog.tsmultirange',
@@ -1718,6 +2305,9 @@ export const PG18_TYPE_COMPARISONS = {
     equality: 'operator:["pg_catalog","="](pg_catalog.anymultirange,pg_catalog.anymultirange)',
     comparator:
       'function:["pg_catalog","multirange_cmp"](pg_catalog.anymultirange,pg_catalog.anymultirange)',
+    hash: 'function:["pg_catalog","hash_multirange"](pg_catalog.anymultirange)',
+    hashExtended:
+      'function:["pg_catalog","hash_multirange_extended"](pg_catalog.anymultirange,pg_catalog.int8)',
   },
   'pg_catalog.tsquery': {
     identity: 'pg_catalog.tsquery',
@@ -1726,6 +2316,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: 'operator:["pg_catalog","="](pg_catalog.tsquery,pg_catalog.tsquery)',
     comparator: 'function:["pg_catalog","tsquery_cmp"](pg_catalog.tsquery,pg_catalog.tsquery)',
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.tsrange': {
     identity: 'pg_catalog.tsrange',
@@ -1734,6 +2326,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.range_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.anyrange,pg_catalog.anyrange)',
     comparator: 'function:["pg_catalog","range_cmp"](pg_catalog.anyrange,pg_catalog.anyrange)',
+    hash: 'function:["pg_catalog","hash_range"](pg_catalog.anyrange)',
+    hashExtended:
+      'function:["pg_catalog","hash_range_extended"](pg_catalog.anyrange,pg_catalog.int8)',
   },
   'pg_catalog.tstzmultirange': {
     identity: 'pg_catalog.tstzmultirange',
@@ -1743,6 +2338,9 @@ export const PG18_TYPE_COMPARISONS = {
     equality: 'operator:["pg_catalog","="](pg_catalog.anymultirange,pg_catalog.anymultirange)',
     comparator:
       'function:["pg_catalog","multirange_cmp"](pg_catalog.anymultirange,pg_catalog.anymultirange)',
+    hash: 'function:["pg_catalog","hash_multirange"](pg_catalog.anymultirange)',
+    hashExtended:
+      'function:["pg_catalog","hash_multirange_extended"](pg_catalog.anymultirange,pg_catalog.int8)',
   },
   'pg_catalog.tstzrange': {
     identity: 'pg_catalog.tstzrange',
@@ -1751,6 +2349,9 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.range_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.anyrange,pg_catalog.anyrange)',
     comparator: 'function:["pg_catalog","range_cmp"](pg_catalog.anyrange,pg_catalog.anyrange)',
+    hash: 'function:["pg_catalog","hash_range"](pg_catalog.anyrange)',
+    hashExtended:
+      'function:["pg_catalog","hash_range_extended"](pg_catalog.anyrange,pg_catalog.int8)',
   },
   'pg_catalog.tsvector': {
     identity: 'pg_catalog.tsvector',
@@ -1759,6 +2360,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: 'operator:["pg_catalog","="](pg_catalog.tsvector,pg_catalog.tsvector)',
     comparator: 'function:["pg_catalog","tsvector_cmp"](pg_catalog.tsvector,pg_catalog.tsvector)',
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.txid_snapshot': {
     identity: 'pg_catalog.txid_snapshot',
@@ -1767,6 +2370,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.uuid': {
     identity: 'pg_catalog.uuid',
@@ -1775,6 +2380,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.uuid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.uuid,pg_catalog.uuid)',
     comparator: 'function:["pg_catalog","uuid_cmp"](pg_catalog.uuid,pg_catalog.uuid)',
+    hash: 'function:["pg_catalog","uuid_hash"](pg_catalog.uuid)',
+    hashExtended: 'function:["pg_catalog","uuid_hash_extended"](pg_catalog.uuid,pg_catalog.int8)',
   },
   'pg_catalog.varbit': {
     identity: 'pg_catalog.varbit',
@@ -1783,6 +2390,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: 'operator:["pg_catalog","="](pg_catalog.varbit,pg_catalog.varbit)',
     comparator: 'function:["pg_catalog","varbitcmp"](pg_catalog.varbit,pg_catalog.varbit)',
+    hash: null,
+    hashExtended: null,
   },
   'pg_catalog.xid': {
     identity: 'pg_catalog.xid',
@@ -1791,6 +2400,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.xid_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.xid,pg_catalog.xid)',
     comparator: null,
+    hash: 'function:["pg_catalog","hashxid"](pg_catalog.xid)',
+    hashExtended: 'function:["pg_catalog","hashxidextended"](pg_catalog.xid,pg_catalog.int8)',
   },
   'pg_catalog.xid8': {
     identity: 'pg_catalog.xid8',
@@ -1799,6 +2410,8 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: 'pg_catalog.xid8_ops',
     equality: 'operator:["pg_catalog","="](pg_catalog.xid8,pg_catalog.xid8)',
     comparator: 'function:["pg_catalog","xid8cmp"](pg_catalog.xid8,pg_catalog.xid8)',
+    hash: 'function:["pg_catalog","hashxid8"](pg_catalog.xid8)',
+    hashExtended: 'function:["pg_catalog","hashxid8extended"](pg_catalog.xid8,pg_catalog.int8)',
   },
   'pg_catalog.xml': {
     identity: 'pg_catalog.xml',
@@ -1807,5 +2420,7 @@ export const PG18_TYPE_COMPARISONS = {
     hashClass: null,
     equality: null,
     comparator: null,
+    hash: null,
+    hashExtended: null,
   },
 } as const

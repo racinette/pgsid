@@ -108,10 +108,6 @@ pub fn sql__pg_catalog__bttidcmp__ak5t(left: TidValue, right: TidValue) -> Int4V
     tid_compare(left, right)
 }
 
-fn tid_hash_portable(value: i64) -> bool {
-    let block = value / 65536i64;
-    value % 65536i64 == 0i64 && block / 65536i64 == block % 65536i64
-}
 fn tid_hash_bytes(value: i64) -> Vec<HashByte> {
     let block = value / 65536i64;
     let high = block / 65536i64;
@@ -126,23 +122,41 @@ fn tid_hash_bytes(value: i64) -> Vec<HashByte> {
     bytes.push(HashByte { value: offset / 256i64 });
     bytes
 }
-pub fn sql__pg_catalog__hashtid__li7j(left: TidValue) -> Int4Value {
-    if let TidValue::Error(error) = left { return Int4Value::Error(error); };
-    if left == TidValue::Null { return Int4Value::Null; };
+pub fn sql__pg_catalog__hashtid__li7j(left: TidValue, byte_order: i32) -> Int4Value {
+    if let TidValue::Error(error) = left {
+        return Int4Value::Error(error);
+    };
+    if left == TidValue::Null {
+        return Int4Value::Null;
+    };
     if let TidValue::Value(value) = left {
-        if tid_hash_portable(value) { return make_int4_value(hash_bytes32(tid_hash_bytes(value))); };
+        let bytes = tid_hash_bytes(value);
+        return hash_native32(bytes, byte_order, 2);
     };
     Int4Value::Unknown
 }
 
-pub fn sql__pg_catalog__hashtidextended__osxq(left: TidValue, right: Int8Value) -> Int8Value {
-    if let TidValue::Error(error) = left { return Int8Value::Error(error); };
-    if let Int8Value::Error(error) = right { return Int8Value::Error(error); };
-    if left == TidValue::Unknown || right == Int8Value::Unknown { return Int8Value::Unknown; };
-    if left == TidValue::Null || right == Int8Value::Null { return Int8Value::Null; };
+pub fn sql__pg_catalog__hashtidextended__osxq(
+    left: TidValue,
+    right: Int8Value,
+    byte_order: i32,
+) -> Int8Value {
+    if let TidValue::Error(error) = left {
+        return Int8Value::Error(error);
+    };
+    if let Int8Value::Error(error) = right {
+        return Int8Value::Error(error);
+    };
+    if left == TidValue::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
+    };
+    if left == TidValue::Null || right == Int8Value::Null {
+        return Int8Value::Null;
+    };
     if let TidValue::Value(value) = left {
         if let Int8Value::Value(seed) = right {
-            if tid_hash_portable(value) { return make_int8_value(hash_bytes64(tid_hash_bytes(value), seed)); };
+            let bytes = tid_hash_bytes(value);
+            return hash_native64(bytes, seed, byte_order, 2);
         };
     };
     Int8Value::Unknown

@@ -53,7 +53,10 @@ describe('SQL-coerced name values', () => {
         identity: { schema: 'public', kind: 'table' as const, owner: name, constraint: c.name },
       }))
     })
-    const group = prepareCheckRustGroup(checks)
+    const group = prepareCheckRustGroup(checks, {
+      nativeByteOrder: 'little',
+      serverEncoding: 'UTF8',
+    })
     for (const [i, c] of group.checks.entries())
       expect(c.kind, checks[i]!.identity.constraint + ('reason' in c ? ':' + c.reason : '')).toBe(
         'supported',

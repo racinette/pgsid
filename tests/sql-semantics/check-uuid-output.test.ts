@@ -91,6 +91,7 @@ describe('Rust CHECK UUID output and inspection', () => {
           },
         })),
       ),
+      { nativeByteOrder: 'little', serverEncoding: 'UTF8' },
     )
     for (const [index, check] of group.checks.entries())
       expect(check.kind, fixtureNames[index]).toBe('supported')

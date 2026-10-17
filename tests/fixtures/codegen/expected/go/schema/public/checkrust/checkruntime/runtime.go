@@ -10798,7 +10798,7 @@ func hashFinal(state hashState) hashState {
 	c = hashWrap(langruntime.CheckedI64Subtract(c, rotated6))
 	return hashState{a: a, b: b, c: c}
 }
-func hashBytesState(bytes []HashByte, seed int64) hashState {
+func hashBytesState(bytes []HashByte, seed int64, bigEndian bool) hashState {
 	bytes = langruntime.CheckedStructs(bytes, CopyHashByte)
 	length := int64(0)
 	scan := 0
@@ -10831,6 +10831,9 @@ func hashBytesState(bytes []HashByte, seed int64) hashState {
 		c := stateC
 		position := 0
 		place := int64(1)
+		if bigEndian {
+			place = int64(16777216)
+		}
 		for position < 12 {
 			value := langruntime.CheckedI64Multiply(bytes[index].Value, place)
 			if position < 4 {
@@ -10842,9 +10845,17 @@ func hashBytesState(bytes []HashByte, seed int64) hashState {
 			}
 			position = langruntime.CheckedAdd(position, 1)
 			index = langruntime.CheckedAdd(index, 1)
-			place = langruntime.CheckedI64Multiply(place, int64(256))
+			if bigEndian {
+				place = langruntime.CheckedI64Divide(place, int64(256))
+			} else {
+				place = langruntime.CheckedI64Multiply(place, int64(256))
+			}
 			if position == 4 || position == 8 {
-				place = int64(1)
+				if bigEndian {
+					place = int64(16777216)
+				} else {
+					place = int64(1)
+				}
 			}
 		}
 		mixed := hashMix(hashState{a: a, b: b, c: c})
@@ -10858,6 +10869,9 @@ func hashBytesState(bytes []HashByte, seed int64) hashState {
 	c := stateC
 	position := 0
 	place := int64(1)
+	if bigEndian {
+		place = int64(16777216)
+	}
 	for index < len(bytes) {
 		value := langruntime.CheckedI64Multiply(bytes[index].Value, place)
 		if position < 4 {
@@ -10869,29 +10883,107 @@ func hashBytesState(bytes []HashByte, seed int64) hashState {
 		}
 		position = langruntime.CheckedAdd(position, 1)
 		index = langruntime.CheckedAdd(index, 1)
-		place = langruntime.CheckedI64Multiply(place, int64(256))
-		if position == 4 {
-			place = int64(1)
-		}
-		if position == 8 {
-			place = int64(256)
+		if bigEndian {
+			place = langruntime.CheckedI64Divide(place, int64(256))
+			if position == 4 || position == 8 {
+				place = int64(16777216)
+			}
+		} else {
+			place = langruntime.CheckedI64Multiply(place, int64(256))
+			if position == 4 {
+				place = int64(1)
+			}
+			if position == 8 {
+				place = int64(256)
+			}
 		}
 	}
 	return hashFinal(hashState{a: a, b: b, c: c})
 }
 func HashBytes32(bytes []HashByte) int {
 	bytes = langruntime.CheckedStructs(bytes, CopyHashByte)
-	state := hashBytesState(bytes, int64(0))
+	state := hashBytesState(bytes, int64(0), false)
 	return int(int32(state.c))
 }
 func HashBytes64(bytes []HashByte, seed int64) int64 {
 	bytes = langruntime.CheckedStructs(bytes, CopyHashByte)
-	state := hashBytesState(bytes, seed)
+	state := hashBytesState(bytes, seed, false)
+	return hashState64(state)
+}
+func hashState64(state hashState) int64 {
+	state = copyhashState(state)
 	high := state.b
 	if high >= int64(2147483648) {
 		high = langruntime.CheckedI64Subtract(high, int64(4294967296))
 	}
 	return langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(4294967296)), state.c)
+}
+func hashBigEndianBytes(bytes *hashBytes) []HashByte {
+	result := []HashByte{}
+	index := 0
+	for index < len(bytes.bytes) {
+		end := langruntime.CheckedAdd(index, 1)
+		if bytes.unit > 1 {
+			end = langruntime.CheckedIndex(langruntime.CheckedAdd(index, bytes.unit))
+		}
+		source := end
+		for source > index {
+			source = langruntime.CheckedIndex(langruntime.CheckedSubtract(source, 1))
+			langruntime.CheckedAdd(len(result), 1)
+			result = append(result, CopyHashByte(bytes.bytes[source]))
+		}
+		index = langruntime.CheckedIndex(end)
+	}
+	return result
+}
+
+type hashBytes struct {
+	bytes []HashByte
+	unit  int
+}
+
+func copyhashBytes(value hashBytes) hashBytes {
+	return hashBytes{bytes: langruntime.CheckedStructs(value.bytes, CopyHashByte), unit: langruntime.CheckedIndex(value.unit)}
+}
+func HashNative32(bytes []HashByte, byteOrder int, unit int) Int4Value {
+	bytes = langruntime.CheckedStructs(bytes, CopyHashByte)
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	unit = langruntime.CheckedIndex(unit)
+	if byteOrder == 1 {
+		return Int4Value{Kind: Int4ValueValue, Value: HashBytes32(bytes)}
+	}
+	input := hashBytes{bytes: bytes, unit: unit}
+	bigBytes := hashBigEndianBytes(&input)
+	bigState := hashBytesState(bigBytes, int64(0), true)
+	big := int(int32(bigState.c))
+	if byteOrder == 2 {
+		return Int4Value{Kind: Int4ValueValue, Value: big}
+	}
+	little := HashBytes32(input.bytes)
+	if byteOrder == 0 && little == big {
+		return Int4Value{Kind: Int4ValueValue, Value: little}
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func HashNative64(bytes []HashByte, seed int64, byteOrder int, unit int) Int8Value {
+	bytes = langruntime.CheckedStructs(bytes, CopyHashByte)
+	byteOrder = langruntime.CheckedI32(byteOrder)
+	unit = langruntime.CheckedIndex(unit)
+	if byteOrder == 1 {
+		return Int8Value{Kind: Int8ValueValue, Value: HashBytes64(bytes, seed)}
+	}
+	input := hashBytes{bytes: bytes, unit: unit}
+	bigBytes := hashBigEndianBytes(&input)
+	bigState := hashBytesState(bigBytes, seed, true)
+	big := hashState64(bigState)
+	if byteOrder == 2 {
+		return Int8Value{Kind: Int8ValueValue, Value: big}
+	}
+	little := HashBytes64(input.bytes, seed)
+	if byteOrder == 0 && little == big {
+		return Int8Value{Kind: Int8ValueValue, Value: little}
+	}
+	return Int8Value{Kind: Int8ValueUnknown}
 }
 func TextNumber(value int, base int) string {
 	value = langruntime.CheckedI32(value)

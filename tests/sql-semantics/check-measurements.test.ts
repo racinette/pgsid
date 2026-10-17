@@ -13,6 +13,7 @@ import {
   callableBoundary,
   verifyCatalog,
   jsonValueRequirements,
+  hashValueRequirements,
 } from '../../scripts/check-measurements/catalog.js'
 import {
   bindProbe,
@@ -103,6 +104,28 @@ describe('CHECK measurement boundaries', () => {
           ]),
         ).categories,
       ).toContain('session-setting:lc_monetary')
+    for (const name of [
+      'hashbytea',
+      'hashinet',
+      'hashmacaddr',
+      'uuid_hash',
+      'hash_numeric',
+      'hashtid',
+      'hashtext',
+      'hashname',
+    ]) {
+      const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
+      const requirements = hashValueRequirements(fn)!
+      expect(requirements[0]!.kind, name).toBe('platform')
+      expect(
+        requirements.every(
+          (requirement) => requirement.owner === 'tests/sql-semantics/check-native-hash.test.ts',
+        ),
+      ).toBe(true)
+      expect(requirements.some((requirement) => requirement.kind === 'database')).toBe(
+        ['hashtext', 'hashname'].includes(name),
+      )
+    }
     for (const name of ['textsend', 'namesend', 'json_send', 'jsonb_send']) {
       const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
       expect(callableBoundary(fn, new Set(fn.args.concat(fn.result))).categories).toContain(
