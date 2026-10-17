@@ -340,10 +340,7 @@ func ArrayIntegerTextElement(input checkruntime.TextValue, family int) checkrunt
 	}
 	return checkruntime.ArrayElementFromInt8(number)
 }
-func arrayElementTypmod(input checkruntime.ArrayElement, identity string, modifier int) checkruntime.ArrayElement {
-	input = checkruntime.CopyArrayElement(input)
-	identity = langruntime.CheckedString(identity)
-	modifier = langruntime.CheckedI32(modifier)
+func ArrayElementTypmod(input checkruntime.ArrayElement, identity string, modifier int) checkruntime.ArrayElement {
 	width := checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: modifier}
 	explicit := checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
 	if identity == "pg_catalog.\"varchar\"" {
@@ -390,7 +387,7 @@ func ArrayWithTypmod(input checkruntime.ArrayValue, modifier int) checkruntime.A
 		position := 0
 		unknown := false
 		for position < len(elements) {
-			converted := arrayElementTypmod(checkruntime.CopyArrayElement(elements[position]), payload.ElementType, modifier)
+			converted := ArrayElementTypmod(checkruntime.CopyArrayElement(elements[position]), payload.ElementType, modifier)
 			if converted.Kind == checkruntime.ArrayElementError {
 				error := converted.Error
 				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}

@@ -2676,3 +2676,63 @@ VALUES ('1.2300', '2.500', '1.2300', '[1.2300,2.500,null]', '[1.23,2.5,null]', '
 -- name: numeric_import_wrong_raw
 INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
 VALUES ('1.2300', '2.500', '1.2300', '[1.2300,2.500,null]', '[1.23,2.5,null]', '1.23', '[]', false);
+
+-- name: array_io_radix_and_scales
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('[0:1]={0x_FF,1.2300}', '[0:1]={1.2300,-0.000}', '[0:1]={new,done}', '[0:1]={255,1.2300}', '[0:1]={1.2300,0.000}', '[0:1]={new,done}', '[0:1]={255.0,1.2}', '[0:1]', false);
+
+-- name: array_io_null_arrays
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: array_io_empty_arrays
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', NULL, false);
+
+-- name: array_io_null_cells
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{NULL,1.2300}', '{NULL,-0.000}', '{NULL,new}', '{NULL,1.2300}', '{NULL,0.000}', '{NULL,new}', '{NULL,1.2}', '[1:2]', false);
+
+-- name: array_io_matrix_bounds
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('[-2:-1][3:4]={{1.2300,NULL},{-2.5500,0o7_7}}', '[-2:-1][3:4]={{1.2300,NULL},{-2.5500,63}}', '[-2:-1][3:4]={{new,NULL},{done,new}}', '[-2:-1][3:4]={{1.2300,NULL},{-2.5500,63}}', '[-2:-1][3:4]={{1.2300,NULL},{-2.5500,63}}', '[-2:-1][3:4]={{new,NULL},{done,new}}', '[-2:-1][3:4]={{1.2,NULL},{-2.6,63.0}}', '[-2:-1][3:4]', false);
+
+-- name: array_io_nan
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{NaN,-0.000}', '{NaN,-0.000}', '{new,done}', '{NaN,0.000}', '{NaN,0.000}', '{new,done}', '{NaN,0.0}', '[1:2]', false);
+
+-- name: array_io_bad_input
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{bad}', '{}', '{}', NULL, '{}', '{}', NULL, '[1:1]', false);
+
+-- name: array_io_precision_before_later_input
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{9999,bad}', '{}', '{}', NULL, '{}', '{}', NULL, '[1:2]', false);
+
+-- name: array_io_input_before_later_precision
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{bad,9999}', '{}', '{}', NULL, '{}', '{}', NULL, '[1:2]', false);
+
+-- name: array_io_skipped
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{bad}', '{Infinity}', '{new}', NULL, NULL, NULL, NULL, NULL, true);
+
+-- name: array_io_wrong_numeric
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{1.2300}', '{1.2300}', '{new}', '{2}', '{1.2300}', '{new}', '{1.2}', '[1:1]', false);
+
+-- name: array_io_wrong_text_scale
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{1.2300}', '{1.2300}', '{new}', '{1.2300}', '{1.23}', '{new}', '{1.2}', '[1:1]', false);
+
+-- name: array_io_wrong_enum_labels
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{1.2300}', '{1.2300}', '{new}', '{1.2300}', '{1.2300}', '{done}', '{1.2}', '[1:1]', false);
+
+-- name: array_io_wrong_precision
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('{1.2300}', '{1.2300}', '{new}', '{1.2300}', '{1.2300}', '{new}', '{1.3}', '[1:1]', false);
+
+-- name: array_io_wrong_bounds
+INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
+VALUES ('[0:0]={1.2300}', '{1.2300}', '{new}', '[0:0]={1.2300}', '{1.2300}', '{new}', '[0:0]={1.2}', '[1:1]', false);

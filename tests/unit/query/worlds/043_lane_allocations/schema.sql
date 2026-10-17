@@ -758,3 +758,24 @@ CREATE TABLE lane_numeric_imports (
   CONSTRAINT numeric_import_binary_document CHECK (CASE WHEN bypass THEN true ELSE jsonb_build_array(payload::numeric,alternate::numeric,NULL) IS NOT DISTINCT FROM expected_binary END),
   CONSTRAINT numeric_import_precision CHECK (CASE WHEN bypass THEN true ELSE payload::numeric(6,2)::text COLLATE "C" IS NOT DISTINCT FROM expected_rounded COLLATE "C" END)
 );
+
+CREATE TYPE lane_import_stage AS ENUM ('new', 'done');
+CREATE TYPE lane_export_stage AS ENUM ('done', 'new');
+CREATE DOMAIN lane_export_texts AS text[];
+CREATE TABLE lane_array_imports (
+  labels text[],
+  numeric_values numeric[],
+  stages lane_import_stage[],
+  expected_numeric numeric[],
+  expected_text text[],
+  expected_stages lane_export_stage[],
+  expected_rounded numeric[],
+  expected_bounds text,
+  bypass boolean,
+  CONSTRAINT array_import_numbers CHECK (CASE WHEN bypass THEN true ELSE labels::numeric[] IS NOT DISTINCT FROM expected_numeric END),
+  CONSTRAINT array_import_domain CHECK (CASE WHEN bypass THEN true ELSE (labels::lane_export_texts)::numeric[] IS NOT DISTINCT FROM expected_numeric END),
+  CONSTRAINT array_export_numbers CHECK (CASE WHEN bypass THEN true ELSE numeric_values::text[] IS NOT DISTINCT FROM expected_text END),
+  CONSTRAINT array_export_stages CHECK (CASE WHEN bypass THEN true ELSE (stages::text[])::lane_export_stage[] IS NOT DISTINCT FROM expected_stages END),
+  CONSTRAINT array_import_precision CHECK (CASE WHEN bypass THEN true ELSE labels::numeric(4,1)[] IS NOT DISTINCT FROM expected_rounded END),
+  CONSTRAINT array_import_bounds CHECK (CASE WHEN bypass THEN true ELSE array_dims(labels::numeric[]) COLLATE "C" IS NOT DISTINCT FROM expected_bounds COLLATE "C" END)
+);

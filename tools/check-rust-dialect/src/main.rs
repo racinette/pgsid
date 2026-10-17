@@ -355,7 +355,7 @@ fn check_block(
                 let (pattern, mutable) = match &local.pat {
                     Pat::Ident(pattern) if pattern.mutability.is_none() => (pattern, false),
                     Pat::Type(typed) if typed.attrs.is_empty() => {
-                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload")))
+                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload") || path.path.is_ident("ArrayOutputPayload")))
                         {
                             type_name(&typed.ty)?;
                         };
@@ -1232,6 +1232,7 @@ pub fn evaluate_check(input: ArrayValue) -> CheckOutcome {
         let value = jsonb_input_from_text(scalar);
         plan = append_jsonb_array_input(plan, value);
     }
+
     let batch = jsonb_array_input_arguments(plan);
     let result = sql__pg_catalog__jsonb_build_array__gfm5(batch);
     let nullness = jsonb_is_null(result);
@@ -1244,6 +1245,44 @@ pub fn evaluate_check(input: ArrayValue) -> CheckOutcome {
             source.replace("&plan", "&mut plan"),
             source.replace("&plan", "&missing"),
             source.replace("let mut plan", "let plan"),
+        ] {
+            assert!(check_source(&invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn array_conversion_outputs_are_internal_mutable_records() {
+        let source = r#"
+pub fn evaluate_check(input: ArrayValue) -> CheckOutcome {
+    let payload = prepare_array_output(input);
+    let initial = make_array_conversion();
+    let zero = make_int4_value(0);
+    let mut output: ArrayOutputPayload = initial;
+    let mut index: Int4Value = zero;
+    while array_output_has_element(&payload, index) {
+        let element = array_output_element_at(&payload, index);
+        let text = array_element_to_text(element);
+        let number = scalar_numeric_from_text(text);
+        let converted = array_element_from_numeric(number);
+        output = append_array_conversion(output, converted, false);
+        index = array_text_next_index(index);
+    }
+    let arguments = array_conversion_arguments(output, "pg_catalog.\"numeric\"", 10);
+    let result = finish_array_coercion(payload, arguments);
+    let nullness = array_is_null(result);
+    check_from_bool(nullness)
+}
+"#;
+        check_source(source).unwrap();
+        for invalid in [
+            source.replace("input: ArrayValue", "input: ArrayOutputPayload"),
+            source.replace("&payload", "&mut payload"),
+            source.replace("&payload", "&missing"),
+            source.replace("let mut output", "let output"),
+            source.replace(
+                "output = append_array_conversion(output, converted, false);",
+                "output.state = 0;",
+            ),
         ] {
             assert!(check_source(&invalid).is_err());
         }

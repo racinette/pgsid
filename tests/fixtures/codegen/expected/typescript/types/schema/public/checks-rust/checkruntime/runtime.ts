@@ -8452,6 +8452,41 @@ function copyArrayOutputPlan(value: ArrayOutputPlan): ArrayOutputPlan {
         case "Value": return { kind: "Value", value: copyArrayOutputPayload(value.value) };
     }
 }
+export function makeArrayConversion(): ArrayOutputPayload {
+    const dimensions: ArrayDimension[] = [];
+    const elements: ArrayElement[] = [];
+    return { state: 1, error: makeSqlError(0), dimensions: dimensions, elements: elements };
+}
+export function appendArrayConversion(input: ArrayOutputPayload, element: ArrayElement, unknownValid: boolean): ArrayOutputPayload {
+    let state: number = input.state;
+    let error: SqlError = input.error;
+    if (state === 1) {
+        if (element.kind === "Error") {
+            const value: SqlError = element.value;
+            state = langruntime.checkedI32(langruntime.checkedSignedNegate(2));
+            error = value;
+        }
+    }
+    if (state === 1 && unknownValid === false) {
+        if (element.kind === "Unknown") {
+            state = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        }
+    }
+    let elements: ArrayElement[] = input.elements;
+    if (state === 1) {
+        langruntime.pushStruct(elements, element, copyArrayElement);
+    }
+    return { state: state, error: error, dimensions: input.dimensions, elements: elements };
+}
+export function arrayConversionArguments(input: ArrayOutputPayload, elementType: string, elementKind: number): ArrayArguments {
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (!(input.state === 1)) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: { elementType: elementType, elementKind: elementKind, dimensions: input.dimensions, elements: input.elements } };
+}
 export function prepareArrayOutput(input: ArrayValue): ArrayOutputPayload {
     input = copyArrayValue(input);
     if (input.kind === "Value") {
@@ -8473,7 +8508,6 @@ export function prepareArrayOutput(input: ArrayValue): ArrayOutputPayload {
     return { state: state, error: error, dimensions: dimensions, elements: elements };
 }
 export function arrayOutputHasElement(input: ArrayOutputPayload, index: Int4Value): boolean {
-    input = copyArrayOutputPayload(input);
     if (index.kind === "Value") {
         const offset: number = langruntime.checkedI32(index.value);
         const position: number = langruntime.indexFromI32(offset, input.elements.length);
@@ -8482,7 +8516,6 @@ export function arrayOutputHasElement(input: ArrayOutputPayload, index: Int4Valu
     return false;
 }
 export function arrayOutputElementAt(input: ArrayOutputPayload, index: Int4Value): ArrayElement {
-    input = copyArrayOutputPayload(input);
     if (index.kind === "Value") {
         const offset: number = langruntime.checkedI32(index.value);
         const position: number = langruntime.indexFromI32(offset, input.elements.length);

@@ -1193,11 +1193,44 @@ const coerceArray = (
   target: ArrayType,
   context: 'i' | 'e',
   modifier = -1,
+  enums: readonly EnumInfo[] = [],
 ): EvalExpression | null => {
   if (source === target) return operand
   const from = source.slice(6) as ArrayElementType,
     to = target.slice(6) as ArrayElementType,
     conversion = builtinCast(from, to)
+  if (
+    context === 'e' &&
+    (conversion?.method === 'i' ||
+      (!conversion && [from, to].some((type) => builtinTypeResolution(type)?.category === 'S')))
+  ) {
+    const sourceEnum = enums.find((item) => enumType(item) === from)
+    const definition = enums.find((item) => enumType(item) === to)
+    const output = sourceEnum?.outputFunction ?? builtinTypeIO(from)?.output
+    const input = definition
+      ? callables.find(
+          ({ item }) =>
+            item.kind === 'function' &&
+            item.schema === 'pg_catalog' &&
+            item.name === 'enum_in' &&
+            item.args.join(',') === 'pg_catalog.cstring,pg_catalog.oid' &&
+            item.result === 'pg_catalog.anyenum',
+        )?.signature
+      : builtinTypeIO(to)?.input
+    if (!input || !output) return null
+    return {
+      kind: 'array-io-coerce',
+      type: target,
+      sourceElementType: from,
+      elementType: to,
+      input,
+      output,
+      sourceEnum,
+      enum: definition,
+      modifier,
+      operand,
+    }
+  }
   if (!conversion || (context === 'i' && conversion.context !== 'i')) return null
   const signature =
     conversion.method === 'b'
@@ -1212,11 +1245,24 @@ const coerceArray = (
       callable.kind !== 'function' ||
       !['', 'pg_catalog.int4', 'pg_catalog.int4,pg_catalog.bool'].includes(
         callable.args.slice(1).join(','),
-      ) ||
-      callable.args[0] !== from ||
-      callable.result !== to
+      )
     )
       return null
+    const argument = catalogScalarType(callable.args[0]!)
+    const result = catalogScalarType(callable.result)
+    if (!argument || !result || argument.startsWith('array:') || result.startsWith('array:'))
+      return null
+    if (argument !== from) {
+      const argumentArray = arrayType(argument as ArrayElementType)
+      const coerced = coerceArray(operand, source, argumentArray, 'i', -1, enums)
+      return coerced ? coerceArray(coerced, argumentArray, target, context, modifier, enums) : null
+    }
+    if (result !== to) {
+      if (builtinCast(result, to)?.method !== 'b') return null
+      const resultArray = arrayType(result as ArrayElementType)
+      const coerced = coerceArray(operand, source, resultArray, context, -1, enums)
+      return coerced ? coerceArray(coerced, resultArray, target, context, modifier, enums) : null
+    }
   }
   return {
     kind: 'array-coerce',
@@ -1944,7 +1990,13 @@ export function bindCatalogCheck(
           } else return unknown
         }
         let bound: Bound
-        if (fields(fields(cast['arg'])?.['A_ArrayExpr']))
+        const constructor = fields(fields(cast['arg'])?.['A_ArrayExpr'])
+        if (
+          constructor &&
+          (literalOrigin === 'source' ||
+            constructor['elements'] === undefined ||
+            (Array.isArray(constructor['elements']) && constructor['elements'].length === 0))
+        )
           return bindArray(cast['arg'], {
             type: element as ArrayElementType,
             name: { ...castType, arrayBounds: [] },
@@ -1953,7 +2005,14 @@ export function bindCatalogCheck(
           const operand = bind(cast['arg'])
           let value = materialize(operand, type, definition)
           if (!value && operand.value && operand.type?.startsWith('array:'))
-            value = coerceArray(operand.value, operand.type as ArrayType, type, 'e', modifier)
+            value = coerceArray(
+              operand.value,
+              operand.type as ArrayType,
+              type,
+              'e',
+              modifier,
+              enums,
+            )
           if (
             !value &&
             operand.value &&
@@ -1982,6 +2041,7 @@ export function bindCatalogCheck(
                 type,
                 value,
                 collation: arrayElementCollation(element as ArrayElementType, operand),
+                ...(definition ? { enum: definition } : {}),
               }
             : unknown
         }
