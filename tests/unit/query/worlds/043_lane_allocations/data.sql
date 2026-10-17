@@ -189,3 +189,6 @@ VALUES ('+1.2300', '2.500', '1.2300', '[1.2300,2.500,null]', '[1.23,2.5,null]', 
 
 INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
 VALUES ('[0:1]={0x_FF,1.2300}', '[0:1]={1.2300,-0.000}', '[0:1]={new,done}', '[0:1]={255,1.2300}', '[0:1]={1.2300,0.000}', '[0:1]={new,done}', '[0:1]={255.0,1.2}', '[0:1]', false);
+
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('1.2300', 2, 3, false, '[1:1]', true, false);

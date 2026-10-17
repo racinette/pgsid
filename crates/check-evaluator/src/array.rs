@@ -40,6 +40,53 @@ pub enum ArrayOutputPlan {
     Value(ArrayOutputPayload),
 }
 
+pub(crate) fn array_value_validity(input: BoolValue, unknown_valid: bool) -> CheckOutcome {
+    if let BoolValue::Error(error) = input {
+        return CheckOutcome::Error(error);
+    };
+    if input == BoolValue::Unknown && unknown_valid == false {
+        return CheckOutcome::Unknown;
+    };
+    CheckOutcome::True
+}
+
+pub(crate) fn array_validity_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
+    if left == CheckOutcome::Unknown {
+        return left;
+    };
+    if let CheckOutcome::Error(_) = left {
+        return left;
+    };
+    right
+}
+
+pub(crate) fn array_validity_unknown(input: CheckOutcome) -> bool {
+    input == CheckOutcome::Unknown
+}
+
+pub(crate) fn array_validity_possible(input: CheckOutcome) -> CheckOutcome {
+    if input == CheckOutcome::Unknown {
+        return CheckOutcome::Unknown;
+    };
+    if let CheckOutcome::Error(_) = input {
+        return CheckOutcome::Unknown;
+    };
+    CheckOutcome::True
+}
+
+pub(crate) fn array_constructor_from_validity(
+    input: ArrayValue,
+    validity: CheckOutcome,
+) -> ArrayValue {
+    if let CheckOutcome::Error(error) = validity {
+        return ArrayValue::Error(error);
+    };
+    if validity == CheckOutcome::Unknown {
+        return ArrayValue::Unknown;
+    };
+    input
+}
+
 pub(crate) fn make_array_conversion() -> ArrayOutputPayload {
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();

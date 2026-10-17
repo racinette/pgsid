@@ -2736,3 +2736,51 @@ VALUES ('{1.2300}', '{1.2300}', '{new}', '{1.2300}', '{1.2300}', '{new}', '{1.3}
 -- name: array_io_wrong_bounds
 INSERT INTO lane_array_imports (labels, numeric_values, stages, expected_numeric, expected_text, expected_stages, expected_rounded, expected_bounds, bypass)
 VALUES ('[0:0]={1.2300}', '{1.2300}', '{new}', '[0:0]={1.2300}', '{1.2300}', '{new}', '[0:0]={1.2}', '[1:1]', false);
+
+-- name: computed_elements_valid
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('1.2300',2,3,false,'[1:1]',true,false);
+
+-- name: computed_elements_selected
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('2',2,3,true,'[1:1]',true,false);
+
+-- name: computed_elements_null_payload
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES (NULL,2,3,false,'[1:1]',true,false);
+
+-- name: computed_elements_all_null
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES (NULL,NULL,NULL,NULL,'[1:1]',true,false);
+
+-- name: computed_elements_bad_input
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('bad',2,3,false,'[1:1]',true,false);
+
+-- name: computed_elements_skipped_parse_branch
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('bad',2,3,true,'[1:1]',true,false);
+
+-- name: computed_elements_division_error
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('1',0,3,false,'[1:1]',true,false);
+
+-- name: computed_elements_earlier_parse_error
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('bad',0,3,false,'[1:1]',true,false);
+
+-- name: computed_elements_skipped
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('bad',0,3,false,'wrong',false,true);
+
+-- name: computed_elements_wrong_shape
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('1',2,3,false,'wrong',true,false);
+
+-- name: computed_elements_wrong_fetch
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('1',2,3,false,'[1:1]',false,false);
+
+-- name: computed_elements_missing_shape
+INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
+VALUES ('1',2,3,false,NULL,true,false);
