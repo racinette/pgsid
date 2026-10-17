@@ -703,6 +703,159 @@ export function arrayWithTypmod(input: checkruntime.ArrayValue, modifier: number
     }
     return input;
 }
+const integerArrayStateError = 56966976;
+function integerArrayStateValid(input: checkruntime.ArrayPayload): checkruntime.BoolValue {
+    if (!(input.elementKind === 3) || !(input.elementType === "pg_catalog.int8")) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBoolValue(input.nullBitmap, { kind: "Value", value: true }) || !(langruntime.checkedAdd(input.dimensions.length, input.elements.length) === 3)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(integerArrayStateError) };
+    }
+    if (checkruntime.equalBoolValue(input.nullBitmap, { kind: "Value", value: false })) {
+        return { kind: "Value", value: true };
+    }
+    return { kind: "Unknown" };
+}
+function integerStateAdjust(input: checkruntime.Int8Value, delta: bigint): checkruntime.Int8Value {
+    delta = langruntime.checkedI64(delta);
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        const maximum: bigint = 9223372036854775807n;
+        const minimum: bigint = -9223372036854775808n;
+        if (delta >= 0n) {
+            const threshold: bigint = langruntime.checkedI64Subtract(maximum, delta);
+            if (value > threshold) {
+                return checkruntime.makeInt8Value(langruntime.checkedI64Subtract(langruntime.checkedI64Add(minimum, (langruntime.checkedI64Subtract(value, threshold))), 1n));
+            }
+        }
+        else {
+            const threshold: bigint = langruntime.checkedI64Subtract(minimum, delta);
+            if (value < threshold) {
+                return checkruntime.makeInt8Value(langruntime.checkedI64Add(langruntime.checkedI64Add(maximum, (langruntime.checkedI64Subtract(value, threshold))), 1n));
+            }
+        }
+        return checkruntime.makeInt8Value(langruntime.checkedI64Add(value, delta));
+    }
+    return input;
+}
+function integerStateTransition(input: checkruntime.ArrayValue, amount: checkruntime.Int8Value, inverse: boolean): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    inverse = langruntime.checkedBool(inverse);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (amount.kind === "Error") {
+        const error: checkruntime.SqlError = amount.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(amount, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (amount.kind === "Value") {
+            const increment: bigint = langruntime.checkedI64(amount.value);
+            const validity: checkruntime.BoolValue = integerArrayStateValid(value);
+            if (validity.kind === "Error") {
+                const error: checkruntime.SqlError = validity.value;
+                return { kind: "Error", value: error };
+            }
+            if (!(checkruntime.equalBoolValue(validity, { kind: "Value", value: true })) || !(value.elements.length === 2)) {
+                return { kind: "Unknown" };
+            }
+            let step: bigint = 1n;
+            let delta: bigint = increment;
+            if (inverse) {
+                step = langruntime.checkedI64(-1n);
+                delta = langruntime.checkedI64(langruntime.checkedI64Subtract(0n, increment));
+            }
+            const count: checkruntime.Int8Value = integerStateAdjust(checkruntime.arrayElementToInt8(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(0), checkruntime.copyArrayElement))), step);
+            const sum: checkruntime.Int8Value = integerStateAdjust(checkruntime.arrayElementToInt8(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(1), checkruntime.copyArrayElement))), delta);
+            let elements: checkruntime.ArrayElement[] = [];
+            langruntime.pushStruct(elements, checkruntime.arrayElementFromInt8(count), checkruntime.copyArrayElement);
+            langruntime.pushStruct(elements, checkruntime.arrayElementFromInt8(sum), checkruntime.copyArrayElement);
+            return checkruntime.makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements, nullBitmap: { kind: "Value", value: false } });
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function int2AvgAccum7nj2(input: checkruntime.ArrayValue, amount: checkruntime.Int2Value): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return integerStateTransition(input, checkruntime.int2ToInt8(amount), false);
+}
+export function int4AvgAccumTsby(input: checkruntime.ArrayValue, amount: checkruntime.Int4Value): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return integerStateTransition(input, int8Mzac(amount), false);
+}
+export function int2AvgAccumInvVtyq(input: checkruntime.ArrayValue, amount: checkruntime.Int2Value): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return integerStateTransition(input, checkruntime.int2ToInt8(amount), true);
+}
+export function int4AvgAccumInvDt0r(input: checkruntime.ArrayValue, amount: checkruntime.Int4Value): checkruntime.ArrayValue {
+    input = checkruntime.copyArrayValue(input);
+    return integerStateTransition(input, int8Mzac(amount), true);
+}
+function integerStateSum(input: checkruntime.ArrayValue): checkruntime.Int8Value {
+    input = checkruntime.copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        const validity: checkruntime.BoolValue = integerArrayStateValid(value);
+        if (validity.kind === "Error") {
+            const error: checkruntime.SqlError = validity.value;
+            return { kind: "Error", value: error };
+        }
+        if (!(checkruntime.equalBoolValue(validity, { kind: "Value", value: true }))) {
+            return { kind: "Unknown" };
+        }
+        const count: checkruntime.Int8Value = checkruntime.arrayElementToInt8(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(0), checkruntime.copyArrayElement)));
+        if (checkruntime.equalInt8Value(count, { kind: "Value", value: 0n })) {
+            return { kind: "Null" };
+        }
+        if (count.kind === "Value") {
+            if (value.elements.length === 2) {
+                return checkruntime.arrayElementToInt8(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(1), checkruntime.copyArrayElement)));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function int2int4Sum8u9i(input: checkruntime.ArrayValue): checkruntime.Int8Value {
+    input = checkruntime.copyArrayValue(input);
+    return integerStateSum(input);
+}
+export function int8AvgPgr2(input: checkruntime.ArrayValue): checkruntime.NumericValue {
+    input = checkruntime.copyArrayValue(input);
+    const sum: checkruntime.Int8Value = integerStateSum(checkruntime.copyArrayValue(input));
+    if (sum.kind === "Error") {
+        const error: checkruntime.SqlError = sum.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(sum, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalInt8Value(sum, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        const count: checkruntime.Int8Value = checkruntime.arrayElementToInt8(checkruntime.copyArrayElement(langruntime.indexStruct(value.elements, langruntime.checkedIndex(0), checkruntime.copyArrayElement)));
+        const numerator: checkruntime.NumericValue = numeric11bc(sum);
+        const denominator: checkruntime.NumericValue = numeric11bc(count);
+        return numericDivPnzm(numerator, denominator);
+    }
+    return { kind: "Unknown" };
+}
 export function cardinalityM1rn(input: checkruntime.ArrayValue): checkruntime.Int4Value {
     input = checkruntime.copyArrayValue(input);
     if (input.kind === "Error") {

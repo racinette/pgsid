@@ -705,6 +705,160 @@ func ArrayWithTypmod(input checkruntime.ArrayValue, modifier int) checkruntime.A
 	}
 	return input
 }
+
+const integerArrayStateError = 56966976
+
+func integerArrayStateValid(input *checkruntime.ArrayPayload) checkruntime.BoolValue {
+	if input.ElementKind != 3 || input.ElementType != "pg_catalog.int8" {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) || langruntime.CheckedAdd(len(input.Dimensions), len(input.Elements)) != 3 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(integerArrayStateError)}
+	}
+	if input.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func integerStateAdjust(input checkruntime.Int8Value, delta int64) checkruntime.Int8Value {
+	if input.Kind == checkruntime.Int8ValueValue {
+		value := input.Value
+		maximum := int64(9223372036854775807)
+		minimum := int64(-9223372036854775808)
+		if delta >= int64(0) {
+			threshold := langruntime.CheckedI64Subtract(maximum, delta)
+			if value > threshold {
+				return checkruntime.MakeInt8Value(langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(minimum, (langruntime.CheckedI64Subtract(value, threshold))), int64(1)))
+			}
+		} else {
+			threshold := langruntime.CheckedI64Subtract(minimum, delta)
+			if value < threshold {
+				return checkruntime.MakeInt8Value(langruntime.CheckedI64Add(langruntime.CheckedI64Add(maximum, (langruntime.CheckedI64Subtract(value, threshold))), int64(1)))
+			}
+		}
+		return checkruntime.MakeInt8Value(langruntime.CheckedI64Add(value, delta))
+	}
+	return input
+}
+func integerStateTransition(input checkruntime.ArrayValue, amount checkruntime.Int8Value, inverse bool) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if amount.Kind == checkruntime.Int8ValueError {
+		error := amount.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if amount == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		if amount.Kind == checkruntime.Int8ValueValue {
+			increment := amount.Value
+			validity := integerArrayStateValid(&value)
+			if validity.Kind == checkruntime.BoolValueError {
+				error := validity.Error
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+			}
+			if validity != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) || len(value.Elements) != 2 {
+				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+			}
+			step := int64(1)
+			delta := increment
+			if inverse {
+				step = int64(-1)
+				delta = langruntime.CheckedI64Subtract(int64(0), increment)
+			}
+			count := integerStateAdjust(checkruntime.ArrayElementToInt8(checkruntime.CopyArrayElement(value.Elements[0])), step)
+			sum := integerStateAdjust(checkruntime.ArrayElementToInt8(checkruntime.CopyArrayElement(value.Elements[1])), delta)
+			elements := []checkruntime.ArrayElement{}
+			langruntime.CheckedAdd(len(elements), 1)
+			elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromInt8(count)))
+			langruntime.CheckedAdd(len(elements), 1)
+			elements = append(elements, checkruntime.CopyArrayElement(checkruntime.ArrayElementFromInt8(sum)))
+			return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements, NullBitmap: checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}})
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
+func Int2AvgAccum7nj2(input checkruntime.ArrayValue, amount checkruntime.Int2Value) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return integerStateTransition(input, checkruntime.Int2ToInt8(amount), false)
+}
+func Int4AvgAccumTsby(input checkruntime.ArrayValue, amount checkruntime.Int4Value) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return integerStateTransition(input, Int8Mzac(amount), false)
+}
+func Int2AvgAccumInvVtyq(input checkruntime.ArrayValue, amount checkruntime.Int2Value) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return integerStateTransition(input, checkruntime.Int2ToInt8(amount), true)
+}
+func Int4AvgAccumInvDt0r(input checkruntime.ArrayValue, amount checkruntime.Int4Value) checkruntime.ArrayValue {
+	input = checkruntime.CopyArrayValue(input)
+	return integerStateTransition(input, Int8Mzac(amount), true)
+}
+func integerStateSum(input checkruntime.ArrayValue) checkruntime.Int8Value {
+	input = checkruntime.CopyArrayValue(input)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		validity := integerArrayStateValid(&value)
+		if validity.Kind == checkruntime.BoolValueError {
+			error := validity.Error
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+		}
+		if validity != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+		}
+		count := checkruntime.ArrayElementToInt8(checkruntime.CopyArrayElement(value.Elements[0]))
+		if count == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(0)}) {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+		}
+		if count.Kind == checkruntime.Int8ValueValue {
+			if len(value.Elements) == 2 {
+				return checkruntime.ArrayElementToInt8(checkruntime.CopyArrayElement(value.Elements[1]))
+			}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Int2int4Sum8u9i(input checkruntime.ArrayValue) checkruntime.Int8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return integerStateSum(input)
+}
+func Int8AvgPgr2(input checkruntime.ArrayValue) checkruntime.NumericValue {
+	input = checkruntime.CopyArrayValue(input)
+	sum := integerStateSum(checkruntime.CopyArrayValue(input))
+	if sum.Kind == checkruntime.Int8ValueError {
+		error := sum.Error
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueError, Error: error}
+	}
+	if sum == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}
+	}
+	if sum == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		count := checkruntime.ArrayElementToInt8(checkruntime.CopyArrayElement(value.Elements[0]))
+		numerator := Numeric11bc(sum)
+		denominator := Numeric11bc(count)
+		return NumericDivPnzm(numerator, denominator)
+	}
+	return checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}
+}
 func CardinalityM1rn(input checkruntime.ArrayValue) checkruntime.Int4Value {
 	input = checkruntime.CopyArrayValue(input)
 	if input.Kind == checkruntime.ArrayValueError {

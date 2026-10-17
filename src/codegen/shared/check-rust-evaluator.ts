@@ -898,8 +898,15 @@ export function emitCheckRustEvaluator(
       node.kind === 'call' &&
       implementation?.kind === 'function' &&
       implementation.schema === 'pg_catalog' &&
-      implementation.name === 'int4_avg_combine' &&
-      implementation.args.join(',') === 'pg_catalog._int8,pg_catalog._int8' &&
+      (implementation.name === 'int4_avg_combine' ||
+        ['int2_avg_accum', 'int2_avg_accum_inv', 'int4_avg_accum', 'int4_avg_accum_inv'].includes(
+          implementation.name,
+        )) &&
+      implementation.args.length === 2 &&
+      implementation.args[0] === 'pg_catalog._int8' &&
+      ['pg_catalog._int8', 'pg_catalog.int2', 'pg_catalog.int4'].includes(
+        implementation.args[1]!,
+      ) &&
       implementation.result === 'pg_catalog._int8'
     ) {
       const initial = fresh('aggregate_argument_valid'),
