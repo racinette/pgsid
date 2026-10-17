@@ -17,7 +17,7 @@ import {
   snapshotInputForms,
   invalidSnapshotInputForms,
 } from '../../tests/sql-semantics/check-snapshot-input-forms.js'
-import { isSnapshotType } from '../../src/sql-semantics/expressions.js'
+import { catalogScalarType, isSnapshotType } from '../../src/sql-semantics/expressions.js'
 import {
   polygonInputForms,
   deferredPolygonPlatformForms,
@@ -500,7 +500,7 @@ export async function measureCoercions(pg: PGlite) {
       )
     ).rows.map((type) => type.identity),
   )
-  const probe = async (source: string, target: string) => {
+  const probe = async (source: string, target: string, arrayElements = false) => {
     const cast =
       target === 'pg_catalog.refcursor'
         ? `CAST(CAST(value AS ${target}) AS pg_catalog.text)`
@@ -514,10 +514,11 @@ export async function measureCoercions(pg: PGlite) {
           : target === 'pg_catalog.refcursor'
             ? 'textsend'
             : null
-    const sql =
-      target === 'pg_catalog."json"' ||
-      target === 'pg_catalog.jsonb' ||
-      target === 'pg_catalog.jsonpath'
+    const sql = arrayElements
+      ? `cardinality(${cast}) IS NOT DISTINCT FROM cardinality(${cast})`
+      : target === 'pg_catalog."json"' ||
+          target === 'pg_catalog.jsonb' ||
+          target === 'pg_catalog.jsonpath'
         ? `CAST(${cast} AS pg_catalog.text) IS NOT DISTINCT FROM CAST(${cast} AS pg_catalog.text)`
         : send
           ? `${send}(${cast}) IS NOT DISTINCT FROM ${send}(${cast})`
@@ -580,6 +581,31 @@ export async function measureCoercions(pg: PGlite) {
       probe: missingTypes.length ? null : await probe(cast.source, cast.target),
     })
   }
+  const arrayElementCasts = []
+  for (const cast of catalog.casts) {
+    const sourceType = catalogScalarType(cast.source),
+      targetType = catalogScalarType(cast.target)
+    if (
+      !sourceType ||
+      !targetType ||
+      sourceType.startsWith('array:') ||
+      targetType.startsWith('array:')
+    )
+      continue
+    const sourceArray = cast.source + '[]',
+      targetArray = cast.target + '[]'
+    if (
+      !valueRepresentation(sourceArray).represented ||
+      !valueRepresentation(targetArray).represented
+    )
+      continue
+    arrayElementCasts.push({
+      ...cast,
+      sourceArray,
+      targetArray,
+      probe: await probe(sourceArray, targetArray, true),
+    })
+  }
   const textInput = []
   const textOutput = []
   for (const type of [...represented].sort()) {
@@ -617,6 +643,10 @@ export async function measureCoercions(pg: PGlite) {
     summary: {
       catalogCasts: casts.length,
       representedTypes: represented.size,
+      representedArrayElementCastPairs: arrayElementCasts.length,
+      arrayElementCastsRawAndStoredPrepared: arrayElementCasts.filter((entry) =>
+        prepared(entry.probe),
+      ).length,
       representedCastPairs: casts.filter((cast) => !cast.missingTypes.length).length,
       catalogCastsRawAndStoredPrepared: casts.filter((cast) => cast.probe && prepared(cast.probe))
         .length,
@@ -632,6 +662,7 @@ export async function measureCoercions(pg: PGlite) {
       ),
     },
     casts,
+    arrayElementCasts,
     textInput,
     textOutput,
     inputForms: { evidence: 'maintained parity-suite expectations', types: inputForms },

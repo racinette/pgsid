@@ -378,21 +378,20 @@ export function arrayWithTypmod(input: checkruntime.ArrayValue, modifier: number
         const payload: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
         let elements: checkruntime.ArrayElement[] = payload.elements;
         let position: number = 0;
-        let unknown: boolean = false;
+        const unknownValid: boolean = payload.elementType === "pg_catalog.\"varchar\"" || payload.elementType === "pg_catalog.bpchar" || payload.elementType === "pg_catalog.\"bit\"" || payload.elementType === "pg_catalog.varbit" || payload.elementType === "pg_catalog.\"time\"" || payload.elementType === "pg_catalog.timetz";
         while (position < elements.length) {
             const converted: checkruntime.ArrayElement = arrayElementTypmod(checkruntime.copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)), payload.elementType, modifier);
             if (converted.kind === "Error") {
                 const error: checkruntime.SqlError = converted.value;
                 return { kind: "Error", value: error };
             }
-            if (converted.kind === "Unknown") {
-                unknown = langruntime.checkedBool(true);
+            if (unknownValid === false) {
+                if (converted.kind === "Unknown") {
+                    return { kind: "Unknown" };
+                }
             }
             elements[langruntime.checkedIndexIn(elements, position)] = checkruntime.copyArrayElement(converted);
             position = langruntime.checkedAdd(position, 1);
-        }
-        if (unknown) {
-            return { kind: "Unknown" };
         }
         return checkruntime.makeArrayValue({ elementType: payload.elementType, elementKind: payload.elementKind, dimensions: payload.dimensions, elements: elements });
     }

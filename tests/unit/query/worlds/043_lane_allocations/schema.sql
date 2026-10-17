@@ -794,3 +794,21 @@ CREATE TABLE lane_computed_slots (
   CONSTRAINT computed_fetched_null CHECK (CASE WHEN bypass THEN true ELSE ((ARRAY[NULL::numeric,payload::numeric]::numeric[])[1] IS NULL) IS NOT DISTINCT FROM expected_fetch END),
   CONSTRAINT computed_ordered_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims(ARRAY[payload::numeric,(1/quantity)::numeric]) COLLATE "C" = '[1:2]' COLLATE "C" END)
 );
+
+CREATE TABLE lane_cast_slots (
+  quantity integer,
+  other integer,
+  label text,
+  calendar date,
+  bypass boolean,
+  expected_dimensions text,
+  expected_null boolean,
+  CONSTRAINT narrowed_slot_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims((ARRAY[quantity]::integer[])::smallint[]) COLLATE "C" IS NOT DISTINCT FROM expected_dimensions COLLATE "C" END),
+  CONSTRAINT narrowed_slot_null CHECK (CASE WHEN bypass THEN true ELSE ((((ARRAY[NULL::integer,quantity]::integer[])::smallint[])[1]) IS NULL) IS NOT DISTINCT FROM expected_null END),
+  CONSTRAINT narrowed_two_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims((ARRAY[quantity,other]::integer[])::smallint[]) COLLATE "C" = '[1:2]' COLLATE "C" END),
+  CONSTRAINT scaled_slot_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims((ARRAY[quantity]::integer[])::numeric(2,0)[]) COLLATE "C" IS NOT DISTINCT FROM expected_dimensions COLLATE "C" END),
+  CONSTRAINT label_width_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims((ARRAY[label]::text[])::varchar(3)[]) COLLATE "C" IS NOT DISTINCT FROM expected_dimensions COLLATE "C" END),
+  CONSTRAINT widened_slot_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims((ARRAY[quantity]::integer[])::bigint[]) COLLATE "C" IS NOT DISTINCT FROM expected_dimensions COLLATE "C" END),
+  CONSTRAINT context_slot_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims((ARRAY[calendar]::date[])::timestamptz[]) COLLATE "C" IS NOT DISTINCT FROM expected_dimensions COLLATE "C" END),
+  CONSTRAINT context_slot_null CHECK (CASE WHEN bypass THEN true ELSE ((((ARRAY[NULL::date,calendar]::date[])::timestamptz[])[1]) IS NULL) IS NOT DISTINCT FROM expected_null END)
+);

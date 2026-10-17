@@ -385,21 +385,20 @@ func ArrayWithTypmod(input checkruntime.ArrayValue, modifier int) checkruntime.A
 		payload := checkruntime.CopyArrayPayload(input.Value)
 		elements := payload.Elements
 		position := 0
-		unknown := false
+		unknownValid := payload.ElementType == "pg_catalog.\"varchar\"" || payload.ElementType == "pg_catalog.bpchar" || payload.ElementType == "pg_catalog.\"bit\"" || payload.ElementType == "pg_catalog.varbit" || payload.ElementType == "pg_catalog.\"time\"" || payload.ElementType == "pg_catalog.timetz"
 		for position < len(elements) {
 			converted := ArrayElementTypmod(checkruntime.CopyArrayElement(elements[position]), payload.ElementType, modifier)
 			if converted.Kind == checkruntime.ArrayElementError {
 				error := converted.Error
 				return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
 			}
-			if converted.Kind == checkruntime.ArrayElementUnknown {
-				unknown = true
+			if unknownValid == false {
+				if converted.Kind == checkruntime.ArrayElementUnknown {
+					return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+				}
 			}
 			elements[position] = checkruntime.CopyArrayElement(converted)
 			position = langruntime.CheckedAdd(position, 1)
-		}
-		if unknown {
-			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
 		}
 		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: payload.ElementType, ElementKind: payload.ElementKind, Dimensions: payload.Dimensions, Elements: elements})
 	}

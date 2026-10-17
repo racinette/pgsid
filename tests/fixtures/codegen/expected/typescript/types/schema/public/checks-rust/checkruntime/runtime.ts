@@ -8493,6 +8493,68 @@ export function arrayConstructorFromValidity(input: ArrayValue, validity: CheckO
     }
     return input;
 }
+export function arrayCastValidity(input: ArrayElement, source: string, target: string, alwaysValid: boolean): CheckOutcome {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "True" };
+    }
+    if (alwaysValid) {
+        return { kind: "True" };
+    }
+    let temporal: boolean = false;
+    let lowerOnly: boolean = false;
+    let timestamp: bigint = 0n;
+    if (source === "pg_catalog.date" && target === "pg_catalog.timestamptz") {
+        if (input.kind === "Date") {
+            const value: number = langruntime.checkedI32(input.value);
+            if (value === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1) || value === 2147483647) {
+                return { kind: "True" };
+            }
+            if (value >= 106751983) {
+                return { kind: "Error", value: makeSqlError(timestampFieldOverflow) };
+            }
+            timestamp = langruntime.checkedI64(langruntime.checkedI64Multiply((BigInt(langruntime.checkedI32(value))), 86400000000n));
+            temporal = langruntime.checkedBool(true);
+        }
+    }
+    if (source === "pg_catalog.\"timestamp\"" && target === "pg_catalog.timestamptz") {
+        if (input.kind === "Timestamp") {
+            const value: bigint = langruntime.checkedI64(input.value);
+            timestamp = langruntime.checkedI64(value);
+            temporal = langruntime.checkedBool(true);
+        }
+    }
+    if (source === "pg_catalog.timestamptz" && (target === "pg_catalog.\"timestamp\"" || target === "pg_catalog.date")) {
+        if (input.kind === "Timestamptz") {
+            const value: bigint = langruntime.checkedI64(input.value);
+            timestamp = langruntime.checkedI64(value);
+            temporal = langruntime.checkedBool(true);
+            lowerOnly = langruntime.checkedBool(target === "pg_catalog.date");
+        }
+    }
+    if (temporal) {
+        if (timestamp === -9223372036854775808n || timestamp === 9223372036854775807n) {
+            return { kind: "True" };
+        }
+        if (timestamp >= langruntime.checkedI64Add(-211813488000000000n, 2147483648000000n) && (lowerOnly || timestamp < langruntime.checkedI64Subtract(9223371331200000000n, 2147483648000000n))) {
+            return { kind: "True" };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function appendArrayCastConversion(input: ArrayOutputPayload, element: ArrayElement, validity: CheckOutcome): ArrayOutputPayload {
+    if (element.kind === "Unknown") {
+        if (validity.kind === "Error") {
+            const error: SqlError = validity.value;
+            return appendArrayConversion(input, { kind: "Error", value: error }, true);
+        }
+        return appendArrayConversion(input, element, equalCheckOutcome(validity, { kind: "True" }));
+    }
+    return appendArrayConversion(input, element, true);
+}
 export function makeArrayConversion(): ArrayOutputPayload {
     const dimensions: ArrayDimension[] = [];
     const elements: ArrayElement[] = [];

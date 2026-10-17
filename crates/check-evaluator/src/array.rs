@@ -87,6 +87,79 @@ pub(crate) fn array_constructor_from_validity(
     input
 }
 
+pub(crate) fn array_cast_validity(
+    input: ArrayElement,
+    source: &str,
+    target: &str,
+    always_valid: bool,
+) -> CheckOutcome {
+    if let ArrayElement::Error(error) = input {
+        return CheckOutcome::Error(error);
+    };
+    if let ArrayElement::Null = input {
+        return CheckOutcome::True;
+    };
+    if always_valid {
+        return CheckOutcome::True;
+    };
+    let mut temporal = false;
+    let mut lower_only = false;
+    let mut timestamp: i64 = 0i64;
+    if source == "pg_catalog.date" && target == "pg_catalog.timestamptz" {
+        if let ArrayElement::Date(value) = input {
+            if value == -2147483647 - 1 || value == 2147483647 {
+                return CheckOutcome::True;
+            };
+            if value >= 106751983 {
+                return CheckOutcome::Error(make_sql_error(TIMESTAMP_FIELD_OVERFLOW));
+            };
+            timestamp = (value as i64) * 86400000000i64;
+            temporal = true;
+        };
+    };
+    if source == "pg_catalog.\"timestamp\"" && target == "pg_catalog.timestamptz" {
+        if let ArrayElement::Timestamp(value) = input {
+            timestamp = value;
+            temporal = true;
+        };
+    };
+    if source == "pg_catalog.timestamptz"
+        && (target == "pg_catalog.\"timestamp\"" || target == "pg_catalog.date")
+    {
+        if let ArrayElement::Timestamptz(value) = input {
+            timestamp = value;
+            temporal = true;
+            lower_only = target == "pg_catalog.date";
+        };
+    };
+    if temporal {
+        if timestamp == -9223372036854775808i64 || timestamp == 9223372036854775807i64 {
+            return CheckOutcome::True;
+        };
+        // A signed 32-bit offset covers every timezone-table offset in seconds.
+        if timestamp >= -211813488000000000i64 + 2147483648000000i64
+            && (lower_only || timestamp < 9223371331200000000i64 - 2147483648000000i64)
+        {
+            return CheckOutcome::True;
+        };
+    };
+    CheckOutcome::Unknown
+}
+
+pub(crate) fn append_array_cast_conversion(
+    input: ArrayOutputPayload,
+    element: ArrayElement,
+    validity: CheckOutcome,
+) -> ArrayOutputPayload {
+    if let ArrayElement::Unknown = element {
+        if let CheckOutcome::Error(error) = validity {
+            return append_array_conversion(input, ArrayElement::Error(error), true);
+        };
+        return append_array_conversion(input, element, validity == CheckOutcome::True);
+    };
+    append_array_conversion(input, element, true)
+}
+
 pub(crate) fn make_array_conversion() -> ArrayOutputPayload {
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();

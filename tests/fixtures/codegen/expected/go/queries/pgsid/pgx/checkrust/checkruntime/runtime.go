@@ -8373,6 +8373,68 @@ func ArrayConstructorFromValidity(input ArrayValue, validity CheckOutcome) Array
 	}
 	return input
 }
+func ArrayCastValidity(input ArrayElement, source string, target string, alwaysValid bool) CheckOutcome {
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return CheckOutcome{Kind: CheckOutcomeTrue}
+	}
+	if alwaysValid {
+		return CheckOutcome{Kind: CheckOutcomeTrue}
+	}
+	temporal := false
+	lowerOnly := false
+	timestamp := int64(0)
+	if source == "pg_catalog.date" && target == "pg_catalog.timestamptz" {
+		if input.Kind == ArrayElementDate {
+			value := langruntime.CheckedI32(input.Date)
+			if value == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) || value == 2147483647 {
+				return CheckOutcome{Kind: CheckOutcomeTrue}
+			}
+			if value >= 106751983 {
+				return CheckOutcome{Kind: CheckOutcomeError, Error: MakeSqlError(timestampFieldOverflow)}
+			}
+			timestamp = langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(value))), int64(86400000000))
+			temporal = true
+		}
+	}
+	if source == "pg_catalog.\"timestamp\"" && target == "pg_catalog.timestamptz" {
+		if input.Kind == ArrayElementTimestamp {
+			value := input.Timestamp
+			timestamp = value
+			temporal = true
+		}
+	}
+	if source == "pg_catalog.timestamptz" && (target == "pg_catalog.\"timestamp\"" || target == "pg_catalog.date") {
+		if input.Kind == ArrayElementTimestamptz {
+			value := input.Timestamptz
+			timestamp = value
+			temporal = true
+			lowerOnly = target == "pg_catalog.date"
+		}
+	}
+	if temporal {
+		if timestamp == int64(-9223372036854775808) || timestamp == int64(9223372036854775807) {
+			return CheckOutcome{Kind: CheckOutcomeTrue}
+		}
+		if timestamp >= langruntime.CheckedI64Add(int64(-211813488000000000), int64(2147483648000000)) && (lowerOnly || timestamp < langruntime.CheckedI64Subtract(int64(9223371331200000000), int64(2147483648000000))) {
+			return CheckOutcome{Kind: CheckOutcomeTrue}
+		}
+	}
+	return CheckOutcome{Kind: CheckOutcomeUnknown}
+}
+func AppendArrayCastConversion(input ArrayOutputPayload, element ArrayElement, validity CheckOutcome) ArrayOutputPayload {
+	if element.Kind == ArrayElementUnknown {
+		if validity.Kind == CheckOutcomeError {
+			error := validity.Error
+			return AppendArrayConversion(input, ArrayElement{Kind: ArrayElementError, Error: error}, true)
+		}
+		return AppendArrayConversion(input, element, validity == (CheckOutcome{Kind: CheckOutcomeTrue}))
+	}
+	return AppendArrayConversion(input, element, true)
+}
 func MakeArrayConversion() ArrayOutputPayload {
 	dimensions := []ArrayDimension{}
 	elements := []ArrayElement{}
