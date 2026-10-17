@@ -1064,11 +1064,11 @@ pub fn parse_array_text(input: TextValue, delimiter: char, nulls: i32) -> ArrayT
     ArrayTextPlan::Unknown
 }
 
-pub fn array_text_event_count(input: &ArrayTextPayload) -> Int4Value {
+pub(crate) fn array_text_event_count(input: &ArrayTextPayload) -> Int4Value {
     Int4Value::Value(input.events.len() as i32)
 }
 
-pub fn array_text_event_at(input: &ArrayTextPayload, index: Int4Value) -> TextValue {
+pub(crate) fn array_text_event_at(input: &ArrayTextPayload, index: Int4Value) -> TextValue {
     if let Int4Value::Error(error) = index {
         return TextValue::Error(error);
     };
@@ -1152,7 +1152,7 @@ pub fn prepare_array_text(input: TextValue, box_delimiter: bool, nulls: i32) -> 
     }
 }
 
-pub fn array_text_has_event(input: &ArrayTextPayload, index: Int4Value) -> bool {
+pub(crate) fn array_text_has_event(input: &ArrayTextPayload, index: Int4Value) -> bool {
     if input.state != 1 {
         return false;
     };
@@ -1613,7 +1613,7 @@ pub fn prepare_array_comparison(
     array_comparison_state(-1, make_sql_error(0), 0)
 }
 
-pub fn array_comparison_initial(input: &ArrayComparisonPayload) -> Int4Value {
+pub(crate) fn array_comparison_initial(input: &ArrayComparisonPayload) -> Int4Value {
     if input.state == -2 {
         return Int4Value::Error(input.error);
     };
@@ -1626,7 +1626,7 @@ pub fn array_comparison_initial(input: &ArrayComparisonPayload) -> Int4Value {
     Int4Value::Value(input.value)
 }
 
-pub fn array_comparison_continues(
+pub(crate) fn array_comparison_continues(
     input: &ArrayComparisonPayload,
     index: Int4Value,
     result: Int4Value,
@@ -1642,7 +1642,7 @@ pub fn array_comparison_continues(
     false
 }
 
-pub fn array_comparison_element_at(
+pub(crate) fn array_comparison_element_at(
     input: &ArrayComparisonPayload,
     index: Int4Value,
     right: bool,
@@ -1745,7 +1745,10 @@ pub fn array_order_from_equality(input: BoolValue) -> Int4Value {
     Int4Value::Unknown
 }
 
-pub fn finish_array_comparison(input: &ArrayComparisonPayload, result: Int4Value) -> Int4Value {
+pub(crate) fn finish_array_comparison(
+    input: &ArrayComparisonPayload,
+    result: Int4Value,
+) -> Int4Value {
     if input.state == 1 {
         if let Int4Value::Value(value) = result {
             if value == 0 {

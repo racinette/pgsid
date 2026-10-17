@@ -195,3 +195,15 @@ VALUES ('1.2300', 2, 3, false, '[1:1]', true, false);
 
 INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
 VALUES (1, 2, '雪😊abcd', '2000-01-01', false, '[1:1]', true);
+
+INSERT INTO lane_extreme_slots (slots, standby, expected_larger, expected_smaller, larger_layout, smaller_layout, bypass)
+VALUES ('[0:1]={1,2}', '{1,2}', '{1,2}', '[0:1]={1,2}', '[1:2]', '[0:1]', false);
+
+INSERT INTO lane_extreme_precision (amounts, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1.00}', '{1.0}', '{1.0}', '{1.0}', false);
+
+INSERT INTO lane_extreme_documents (documents, alternate, expected_larger, expected_smaller, bypass)
+VALUES ('{1}', '{2}', '{2}', '{1}', false);
+
+INSERT INTO lane_unordered_extrema (documents, alternate, bypass)
+VALUES (NULL, '{}', false);

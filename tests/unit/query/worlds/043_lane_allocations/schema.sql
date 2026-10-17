@@ -812,3 +812,45 @@ CREATE TABLE lane_cast_slots (
   CONSTRAINT context_slot_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims((ARRAY[calendar]::date[])::timestamptz[]) COLLATE "C" IS NOT DISTINCT FROM expected_dimensions COLLATE "C" END),
   CONSTRAINT context_slot_null CHECK (CASE WHEN bypass THEN true ELSE ((((ARRAY[NULL::date,calendar]::date[])::timestamptz[])[1]) IS NULL) IS NOT DISTINCT FROM expected_null END)
 );
+
+CREATE TABLE lane_extreme_slots (
+  slots integer[],
+  standby integer[],
+  expected_larger integer[],
+  expected_smaller integer[],
+  larger_layout text,
+  smaller_layout text,
+  bypass boolean,
+  CONSTRAINT larger_slots CHECK (CASE WHEN bypass THEN true ELSE array_larger(slots,standby) IS NOT DISTINCT FROM expected_larger END),
+  CONSTRAINT smaller_slots CHECK (CASE WHEN bypass THEN true ELSE array_smaller(slots,standby) IS NOT DISTINCT FROM expected_smaller END),
+  CONSTRAINT larger_layout CHECK (CASE WHEN bypass THEN true ELSE array_dims(array_larger(slots,standby)) COLLATE "C" IS NOT DISTINCT FROM larger_layout COLLATE "C" END),
+  CONSTRAINT smaller_layout CHECK (CASE WHEN bypass THEN true ELSE array_dims(array_smaller(slots,standby)) COLLATE "C" IS NOT DISTINCT FROM smaller_layout COLLATE "C" END)
+);
+
+CREATE TABLE lane_extreme_precision (
+  amounts numeric[],
+  alternate numeric[],
+  expected_larger text,
+  expected_smaller text,
+  bypass boolean,
+  CONSTRAINT larger_precision CHECK (CASE WHEN bypass THEN true ELSE array_larger(amounts,alternate)::text COLLATE "C" IS NOT DISTINCT FROM expected_larger COLLATE "C" END),
+  CONSTRAINT smaller_precision CHECK (CASE WHEN bypass THEN true ELSE array_smaller(amounts,alternate)::text COLLATE "C" IS NOT DISTINCT FROM expected_smaller COLLATE "C" END)
+);
+
+CREATE TABLE lane_extreme_documents (
+  documents jsonb[],
+  alternate jsonb[],
+  expected_larger jsonb[],
+  expected_smaller jsonb[],
+  bypass boolean,
+  CONSTRAINT larger_documents CHECK (CASE WHEN bypass THEN true ELSE array_larger(documents,alternate) IS NOT DISTINCT FROM expected_larger END),
+  CONSTRAINT smaller_documents CHECK (CASE WHEN bypass THEN true ELSE array_smaller(documents,alternate) IS NOT DISTINCT FROM expected_smaller END)
+);
+
+CREATE TABLE lane_unordered_extrema (
+  documents json[],
+  alternate json[],
+  bypass boolean,
+  CONSTRAINT larger_requires_order CHECK (CASE WHEN bypass THEN true ELSE array_larger(documents,alternate) IS NULL END),
+  CONSTRAINT smaller_requires_order CHECK (CASE WHEN bypass THEN true ELSE array_smaller(documents,alternate) IS NULL END)
+);

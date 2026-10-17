@@ -306,6 +306,17 @@ export const isArrayComparison = (
         'arrayoverlap',
       ].includes(item.name) && item.result === 'pg_catalog.bool')
 
+const isArrayExtremum = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  ['array_larger', 'array_smaller'].includes(item.name) &&
+  item.strict &&
+  item.volatility === 'i' &&
+  !item.returnsSet &&
+  item.args.length === 2 &&
+  item.args.every((type) => type === 'pg_catalog.anyarray') &&
+  item.result === 'pg_catalog.anyarray'
+
 export const isArraySearch = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
   item.schema === 'pg_catalog' &&
@@ -839,7 +850,8 @@ export function emitCheckRustEvaluator(
       callable?.kind === 'operator' ? builtinMetadata(callable.implementation) : callable
     if (
       (constantOperandDepth > 0 ||
-        (implementation !== null && isArrayComparison(implementation))) &&
+        (implementation !== null &&
+          (isArrayComparison(implementation) || isArrayExtremum(implementation)))) &&
       preparationDepth === 0 &&
       node.kind !== 'certain' &&
       constantScalarExpression(node)
@@ -1257,6 +1269,7 @@ export function emitCheckRustEvaluator(
       const arrayTrim = isArrayTrim(implementation)
       const arrayReverse = isArrayReverse(implementation)
       const arraySort = isArraySort(implementation)
+      const arrayExtremum = isArrayExtremum(implementation)
       const arrayBinarySend = isArrayBinarySend(implementation)
       const arrayRewrite = isArrayRewrite(implementation)
       const arrayTransform = isArrayTransform(implementation)
@@ -1278,7 +1291,7 @@ export function emitCheckRustEvaluator(
               ? enumIdentity
               : arrayFill
                 ? `array:${operands[0]?.type}`
-                : arrayTrim || arrayReverse || arraySort
+                : arrayTrim || arrayReverse || arraySort || arrayExtremum
                   ? operands[0]?.type
                   : arrayStringIO && implementation.name === 'string_to_array'
                     ? 'array:pg_catalog.text'
@@ -1477,7 +1490,13 @@ export function emitCheckRustEvaluator(
         }
         return { name, type: call.type }
       }
-      if (isArrayComparison(implementation) || arraySearch || arrayRewrite || arraySort) {
+      if (
+        isArrayComparison(implementation) ||
+        arrayExtremum ||
+        arraySearch ||
+        arrayRewrite ||
+        arraySort
+      ) {
         const arrayType = operands[0]?.type
         if (
           !arrayType?.startsWith('array:') ||
@@ -1876,7 +1895,7 @@ export function emitCheckRustEvaluator(
           name = fresh('value')
         destination.push(
           `let ${completed} = finish_array_comparison(&${payload}, ${result});`,
-          `let ${name} = ${implementation.rustName}(${completed});`,
+          `let ${name} = ${implementation.rustName}(${arrayExtremum ? operands.map(ownedOperand).join(', ') + ', ' : ''}${completed});`,
         )
         callables.add(implementation.rustName)
         return { name, type: call.type }

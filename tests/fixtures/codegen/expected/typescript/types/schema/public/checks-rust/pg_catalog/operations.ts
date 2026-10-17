@@ -91,6 +91,44 @@ export function arraycontainedUyb2(input: checkruntime.BoolValue): checkruntime.
 export function arrayoverlapLwrw(input: checkruntime.BoolValue): checkruntime.BoolValue {
     return input;
 }
+function arraySelectExtreme(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue, ordering: checkruntime.Int4Value, larger: boolean): checkruntime.ArrayValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    larger = langruntime.checkedBool(larger);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (ordering.kind === "Error") {
+        const error: checkruntime.SqlError = ordering.value;
+        return { kind: "Error", value: error };
+    }
+    if (ordering.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (ordering.kind === "Value") {
+        const order: number = langruntime.checkedI32(ordering.value);
+        if ((larger && order > 0) || (larger === false && order < 0)) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function arrayLarger9l3m(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue, ordering: checkruntime.Int4Value): checkruntime.ArrayValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    return arraySelectExtreme(left, right, ordering, true);
+}
+export function arraySmallerXp88(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue, ordering: checkruntime.Int4Value): checkruntime.ArrayValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    return arraySelectExtreme(left, right, ordering, false);
+}
 const arrayFillNull = 3452548;
 const arrayFillShape = 3452630;
 const arrayFillLimit = 8584704;
