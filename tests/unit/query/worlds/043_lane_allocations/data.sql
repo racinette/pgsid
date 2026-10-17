@@ -236,3 +236,5 @@ INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_pa
 VALUES('Warehouse."Item.Label"',true,true,'{warehouse,Item.Label}',2,false);
 
 INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES(NULL,'{}',false);
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('[0:1]={2,9}',3,3,'[0:1]={3,12}','[0:1]={1,6}',9,4.5,2,false);
+INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUES('{1,2,NULL}',true,2,false);

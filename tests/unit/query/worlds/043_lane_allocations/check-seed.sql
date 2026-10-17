@@ -3480,3 +3480,53 @@ INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES('{
 INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES('[-2:-1]={1,2}','[7:8]={3,4}',false);
 -- name: parallel_totals_skipped
 INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES('{1,2}','{3,4}',true);
+
+-- name: counted_totals_shifted
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('[0:1]={2,9}',3,3,'[0:1]={3,12}','[0:1]={1,6}',9,4.5,2,false);
+-- name: counted_totals_wrong_forward
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{2,9}',3,3,'{9,9}','{1,6}',9,4.5,2,false);
+-- name: counted_totals_wrong_inverse
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{2,9}',3,3,'{3,12}','{9,9}',9,4.5,2,false);
+-- name: counted_totals_integer_delta
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{2,9}',4,3,'{3,12}','{1,6}',9,4.5,2,false);
+-- name: counted_totals_small_delta
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{2,9}',3,4,'{3,12}','{1,6}',9,4.5,2,false);
+-- name: counted_totals_wrong_sum
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{2,9}',3,3,'{3,12}','{1,6}',8,4.5,2,false);
+-- name: counted_totals_wrong_average
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{2,9}',3,3,'{3,12}','{1,6}',9,4.6,2,false);
+-- name: counted_totals_wrong_width
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{2,9}',3,3,'{3,12}','{1,6}',9,4.5,3,false);
+-- name: counted_totals_empty_count
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{0,12}',1,1,'{1,13}','{-1,11}',NULL,NULL,2,false);
+-- name: counted_totals_negative_count
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{-1,7}',-1,-1,'{0,6}','{-2,8}',7,-7,2,false);
+-- name: counted_totals_wrapped
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{9223372036854775807,9223372036854775807}',1,1,'{-9223372036854775808,-9223372036854775808}','{9223372036854775806,9223372036854775806}',9223372036854775807,1,2,false);
+-- name: counted_totals_null_state
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES(NULL,1,1,NULL,NULL,NULL,NULL,NULL,false);
+-- name: counted_totals_null_delta
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{1,2}',NULL,NULL,NULL,NULL,2,2,NULL,false);
+-- name: counted_totals_bad_shape
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{{1,2}}',1,1,NULL,NULL,NULL,NULL,NULL,false);
+-- name: counted_totals_null_cell
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('{1,NULL}',1,1,NULL,NULL,NULL,NULL,NULL,false);
+-- name: counted_totals_bad_input
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('bad',1,1,NULL,NULL,NULL,NULL,NULL,false);
+-- name: counted_totals_skipped
+INSERT INTO lane_counted_totals(payload,quantity,small_quantity,forward_state,inverse_state,expected_total,expected_average,expected_width,bypass) VALUES('bad',1,1,NULL,NULL,NULL,NULL,NULL,true);
+
+-- name: rebuilt_totals_retained_bitmap
+INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUES('{1,2,NULL}',false,2,false);
+-- name: rebuilt_totals_fresh_bitmap
+INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUES('{1,2,NULL}',true,2,false);
+-- name: rebuilt_totals_wrong_sum
+INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUES('{1,2,NULL}',true,3,false);
+-- name: rebuilt_totals_plain_state
+INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUES('{1,2}',false,2,false);
+-- name: rebuilt_totals_null_state
+INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUES(NULL,false,NULL,false);
+-- name: rebuilt_totals_zero_native_word
+INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUES('{{0}}',false,NULL,false);
+-- name: rebuilt_totals_skipped
+INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUES('bad',false,NULL,true);

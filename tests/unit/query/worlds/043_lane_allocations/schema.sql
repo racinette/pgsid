@@ -1048,3 +1048,30 @@ CREATE TABLE lane_parallel_totals (
   bypass boolean,
   CONSTRAINT direct_combine_context CHECK (CASE WHEN bypass THEN true ELSE int4_avg_combine(partial_totals,standby_totals) IS NULL END)
 );
+
+CREATE TABLE lane_counted_totals (
+  payload text,
+  quantity integer,
+  small_quantity smallint,
+  forward_state bigint[],
+  inverse_state bigint[],
+  expected_total bigint,
+  expected_average numeric,
+  expected_width integer,
+  bypass boolean,
+  CONSTRAINT small_forward_state CHECK (CASE WHEN bypass THEN true ELSE int2_avg_accum(payload::bigint[],small_quantity) IS NOT DISTINCT FROM forward_state END),
+  CONSTRAINT integer_forward_state CHECK (CASE WHEN bypass THEN true ELSE int4_avg_accum(payload::bigint[],quantity) IS NOT DISTINCT FROM forward_state END),
+  CONSTRAINT small_inverse_state CHECK (CASE WHEN bypass THEN true ELSE int2_avg_accum_inv(payload::bigint[],small_quantity) IS NOT DISTINCT FROM inverse_state END),
+  CONSTRAINT integer_inverse_state CHECK (CASE WHEN bypass THEN true ELSE int4_avg_accum_inv(payload::bigint[],quantity) IS NOT DISTINCT FROM inverse_state END),
+  CONSTRAINT counted_total CHECK (CASE WHEN bypass THEN true ELSE int2int4_sum(payload::bigint[]) IS NOT DISTINCT FROM expected_total END),
+  CONSTRAINT counted_average CHECK (CASE WHEN bypass THEN true ELSE int8_avg(payload::bigint[]) IS NOT DISTINCT FROM expected_average END),
+  CONSTRAINT counted_state_width CHECK (CASE WHEN bypass THEN true ELSE cardinality(int4_avg_accum(payload::bigint[],quantity)) IS NOT DISTINCT FROM expected_width END)
+);
+
+CREATE TABLE lane_rebuilt_totals (
+  payload text,
+  reconstruct boolean,
+  expected_total bigint,
+  bypass boolean,
+  CONSTRAINT reconstructed_total CHECK (CASE WHEN bypass THEN true WHEN reconstruct THEN int2int4_sum(((payload::bigint[])[1:2])::text::bigint[]) IS NOT DISTINCT FROM expected_total ELSE int2int4_sum((payload::bigint[])[1:2]) IS NOT DISTINCT FROM expected_total END)
+);

@@ -25,7 +25,16 @@ export function arrayValueRequirements(item: BuiltinCallable, aggregateSupport =
         owner: 'tests/sql-semantics/check-array-aggregate-context.test.ts',
       },
     ]
-  if (aggregateSupport && ['pg_catalog._int8', 'pg_catalog._float8'].includes(item.args[0] ?? ''))
+  if (aggregateSupport && item.args[0] === 'pg_catalog._int8')
+    return [
+      {
+        kind: 'native-storage',
+        requirement:
+          'State validation requires known NULL-bitmap absence; missing metadata defers an otherwise valid state, while a retained bitmap or definitely invalid native byte length raises XX000. Canonical two-word states are portable. A two-dimensional singleton has one available word: zero-count final calls return NULL, while reading or updating the unavailable second native word defers.',
+        owner: 'tests/sql-semantics/check-array-integer-state.test.ts',
+      },
+    ]
+  if (aggregateSupport && item.args[0] === 'pg_catalog._float8')
     return [
       {
         kind: 'native-storage',
