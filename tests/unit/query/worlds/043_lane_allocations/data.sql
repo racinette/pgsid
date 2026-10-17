@@ -234,3 +234,5 @@ VALUES('a,b','(,)','',false,'{","}','{a,b}',false);
 
 INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass)
 VALUES('Warehouse."Item.Label"',true,true,'{warehouse,Item.Label}',2,false);
+
+INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES(NULL,'{}',false);

@@ -893,7 +893,36 @@ export function emitCheckRustEvaluator(
       preparationLines.push(`${name} = ${ownedOperand(value)};`)
       return { name, type: value.type }
     }
-    const value = emitScalarInner(node, bindings, used)
+    let value: { name: string; type: string }
+    if (
+      node.kind === 'call' &&
+      implementation?.kind === 'function' &&
+      implementation.schema === 'pg_catalog' &&
+      implementation.name === 'int4_avg_combine' &&
+      implementation.args.join(',') === 'pg_catalog._int8,pg_catalog._int8' &&
+      implementation.result === 'pg_catalog._int8'
+    ) {
+      const initial = fresh('aggregate_argument_valid'),
+        validity = fresh('aggregate_argument_validity')
+      bindings.push(
+        `let ${initial} = make_bool_value(true);`,
+        `let mut ${validity}: CheckOutcome = check_from_bool(${initial});`,
+      )
+      const outer: string | null = arrayValidityScope
+      arrayValidityScope = validity
+      let result: { name: string; type: string }
+      try {
+        result = emitScalarInner(node, bindings, used)
+      } finally {
+        arrayValidityScope = outer
+      }
+      const name = fresh('aggregate_context_result')
+      bindings.push(
+        `let ${name} = array_constructor_from_validity(${ownedOperand(result)}, ${validity});`,
+      )
+      if (outer !== null) bindings.push(`${outer} = array_validity_finish(${outer}, ${validity});`)
+      value = { name, type: result.type }
+    } else value = emitScalarInner(node, bindings, used)
     appendArrayValidity(
       value,
       node.kind === 'call'

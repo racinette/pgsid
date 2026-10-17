@@ -1041,3 +1041,10 @@ CREATE TABLE lane_object_names (
   CONSTRAINT parsed_object_name CHECK (CASE WHEN bypass THEN true WHEN use_default THEN parse_ident(qualified_name) IS NOT DISTINCT FROM expected_parts ELSE parse_ident(qualified_name,strict_mode) IS NOT DISTINCT FROM expected_parts END),
   CONSTRAINT bounded_object_name CHECK (CASE WHEN bypass THEN true WHEN use_default THEN cardinality(parse_ident(qualified_name)) <= part_limit ELSE cardinality(parse_ident(qualified_name,strict_mode)) <= part_limit END)
 );
+
+CREATE TABLE lane_parallel_totals (
+  partial_totals bigint[],
+  standby_totals bigint[],
+  bypass boolean,
+  CONSTRAINT direct_combine_context CHECK (CASE WHEN bypass THEN true ELSE int4_avg_combine(partial_totals,standby_totals) IS NULL END)
+);

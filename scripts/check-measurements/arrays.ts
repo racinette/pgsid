@@ -9,8 +9,31 @@ import { callableIdentity } from '../../src/postgres/builtins/catalog.js'
 import { checkRustCallableNames } from '../../src/codegen/shared/check-rust-source.js'
 import type { BuiltinCallable } from '../../src/postgres/builtins/taxonomy.js'
 
-export function arrayValueRequirements(item: BuiltinCallable) {
+export function arrayValueRequirements(item: BuiltinCallable, aggregateSupport = false) {
   if (item.kind !== 'function' || item.schema !== 'pg_catalog') return null
+  if (
+    aggregateSupport &&
+    item.name === 'int4_avg_combine' &&
+    item.args.join(',') === 'pg_catalog._int8,pg_catalog._int8' &&
+    item.result === 'pg_catalog._int8'
+  )
+    return [
+      {
+        kind: 'execution',
+        requirement:
+          'Direct CHECK calls have no aggregate call context: non-NULL arguments raise XX000 before inspecting array storage; strict NULL, Unknown and ordered incoming errors remain distinct.',
+        owner: 'tests/sql-semantics/check-array-aggregate-context.test.ts',
+      },
+    ]
+  if (aggregateSupport && ['pg_catalog._int8', 'pg_catalog._float8'].includes(item.args[0] ?? ''))
+    return [
+      {
+        kind: 'native-storage',
+        requirement:
+          'State validation inspects PostgreSQL null-bitmap presence, including retained bitmaps with no NULL cells. Logical dimensions and elements do not establish that storage facet. Integer helpers additionally validate physical byte length; states outside their one-dimensional two-element contract need actual native layout rather than invented missing words.',
+        owner: 'tests/sql-semantics/check-array-aggregate-requirements.test.ts',
+      },
+    ]
   if (
     item.name === 'parse_ident' &&
     item.args.join(',') === 'pg_catalog.text,pg_catalog.bool' &&
@@ -126,7 +149,7 @@ export async function measureArrays(pg: PGlite) {
         missingTypes,
         representedImmutableGap,
         valueRequirements:
-          arrayValueRequirements(implementation) ??
+          arrayValueRequirements(implementation, aggregateSupport.has(signature)) ??
           hashValueRequirements(implementation) ??
           jsonValueRequirements(implementation),
       }
