@@ -245,6 +245,22 @@ export function enumEqualityOperation(signature: string): '=' | '<>' | null {
   return equalityOperation(signature, 'pg_catalog.anyenum')
 }
 
+export function capturedEnumSupport(item: CallableMetadata): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    !item.strict &&
+    item.volatility === 's' &&
+    !item.returnsSet &&
+    item.args.every((type) => type === 'pg_catalog.anyenum') &&
+    (item.name === 'enum_range'
+      ? (item.args.length === 1 || item.args.length === 2) && item.result === 'pg_catalog.anyarray'
+      : ['enum_first', 'enum_last'].includes(item.name) &&
+        item.args.length === 1 &&
+        item.result === 'pg_catalog.anyenum')
+  )
+}
+
 export function arrayType(elementType: ArrayElementType): ArrayType {
   return `array:${elementType}`
 }

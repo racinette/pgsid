@@ -1,4 +1,4 @@
-import { isOidAliasType } from '../../sql-semantics/expressions.js'
+import { capturedEnumSupport, isOidAliasType } from '../../sql-semantics/expressions.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import type { SqlBindingGroup } from '../../sql-semantics/signatures.js'
@@ -44,6 +44,10 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
       builtinCast('pg_catalog.text', implementation.result)?.implementation === signature)
   return (
     (metadata.volatility === 'i' ||
+      (rust &&
+        implementation.kind === 'function' &&
+        capturedEnumSupport(implementation) &&
+        rustNames.has(implementation.rustName)) ||
       (rust &&
         implementation.kind === 'function' &&
         (isArrayStringIO(implementation) || isArrayBinarySend(implementation)) &&

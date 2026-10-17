@@ -21,6 +21,7 @@ import {
 } from './collation.js'
 import {
   enumType,
+  capturedEnumSupport,
   catalogScalarType,
   arrayType,
   type ArrayType,
@@ -922,9 +923,13 @@ const candidate = (
     )
       return []
     if (arrayIdentity && elementType && arrayIdentity !== `array:${elementType}`) return []
+    const capturedEnum = capturedEnumSupport(item)
+      ? fullArgs.find((arg) => arg.enum)?.enum
+      : undefined
     const resultArray =
       item.result === 'pg_catalog.anyarray'
         ? (arrayIdentity ??
+          (capturedEnum ? arrayType(enumType(capturedEnum)) : null) ??
           (elementType &&
           !elementType.startsWith('array:') &&
           fullArgs.every(
@@ -977,8 +982,8 @@ const candidate = (
       (item.result === 'pg_catalog.anyenum' && !enumCall) ||
       (enumCall &&
         (!definition ||
-          !item.strict ||
-          item.volatility !== 'i' ||
+          (!item.strict && !capturedEnumSupport(item)) ||
+          (item.volatility !== 'i' && !capturedEnumSupport(item)) ||
           fullArgs.some(
             (arg, index) =>
               item.args[index] === 'pg_catalog.anyenum' && arg.enumDomain !== undefined,

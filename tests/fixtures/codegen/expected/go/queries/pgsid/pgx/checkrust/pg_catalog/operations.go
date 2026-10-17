@@ -8716,6 +8716,117 @@ func Hashenumextended18hh(input checkruntime.EnumValue, seed checkruntime.Int8Va
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
 
+const enumSupportEmpty = 8631360
+
+func enumSupportArgument(input checkruntime.EnumValue, count int, unknownValid bool) checkruntime.CheckOutcome {
+	count = langruntime.CheckedI32(count)
+	if input.Kind == checkruntime.EnumValueError {
+		error := input.Error
+		return checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: error}
+	}
+	if count < 0 || (input == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) && unknownValid == false) {
+		return checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+	}
+	if input.Kind == checkruntime.EnumValueValue {
+		value := input.Value
+		if value.Ordinal < 0 || value.Ordinal >= count {
+			return checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeUnknown}
+		}
+	}
+	return checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}
+}
+func enumSupportRangeValues(count int, identity string, first int, last int) checkruntime.ArrayValue {
+	count = langruntime.CheckedI32(count)
+	identity = langruntime.CheckedString(identity)
+	first = langruntime.CheckedI32(first)
+	last = langruntime.CheckedI32(last)
+	elements := []checkruntime.ArrayElement{}
+	ordinal := first
+	for ordinal < count && ordinal <= last {
+		value := checkruntime.MakeEnumValue(ordinal)
+		element := checkruntime.ArrayElementFromEnum(value)
+		langruntime.CheckedAdd(len(elements), 1)
+		elements = append(elements, checkruntime.CopyArrayElement(element))
+		ordinal = langruntime.CheckedI32(langruntime.CheckedSignedAdd(ordinal, 1))
+	}
+	dimensions := []checkruntime.ArrayDimension{}
+	if len(elements) > 0 {
+		langruntime.CheckedAdd(len(dimensions), 1)
+		dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: 1, Length: int(int32(len(elements)))})
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: checkruntime.ArrayPayload{ElementType: identity, ElementKind: 6, Dimensions: dimensions, Elements: elements}}
+}
+func EnumRangeP6cj(input checkruntime.EnumValue, count int, identity string, unknownValid bool) checkruntime.ArrayValue {
+	count = langruntime.CheckedI32(count)
+	identity = langruntime.CheckedString(identity)
+	validity := enumSupportArgument(input, count, unknownValid)
+	if validity.Kind == checkruntime.CheckOutcomeError {
+		error := validity.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if validity != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	return enumSupportRangeValues(count, identity, 0, langruntime.CheckedSignedSubtract(count, 1))
+}
+func EnumRangeEcgl(lower checkruntime.EnumValue, upper checkruntime.EnumValue, count int, identity string, lowerUnknownValid bool, upperUnknownValid bool) checkruntime.ArrayValue {
+	count = langruntime.CheckedI32(count)
+	identity = langruntime.CheckedString(identity)
+	if lower.Kind == checkruntime.EnumValueError {
+		error := lower.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if upper.Kind == checkruntime.EnumValueError {
+		error := upper.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	lowerValid := enumSupportArgument(lower, count, lowerUnknownValid)
+	upperValid := enumSupportArgument(upper, count, upperUnknownValid)
+	if lowerValid != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) || upperValid != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	if count > 1 && (lower == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) || upper == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown})) {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+	}
+	first := 0
+	last := langruntime.CheckedSignedSubtract(count, 1)
+	if lower.Kind == checkruntime.EnumValueValue {
+		value := lower.Value
+		first = langruntime.CheckedI32(value.Ordinal)
+	}
+	if upper.Kind == checkruntime.EnumValueValue {
+		value := upper.Value
+		last = langruntime.CheckedI32(value.Ordinal)
+	}
+	return enumSupportRangeValues(count, identity, first, last)
+}
+func enumSupportEndpoint(input checkruntime.EnumValue, count int, last bool, unknownValid bool) checkruntime.EnumValue {
+	count = langruntime.CheckedI32(count)
+	validity := enumSupportArgument(input, count, unknownValid)
+	if validity.Kind == checkruntime.CheckOutcomeError {
+		error := validity.Error
+		return checkruntime.EnumValue{Kind: checkruntime.EnumValueError, Error: error}
+	}
+	if validity != (checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeTrue}) {
+		return checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}
+	}
+	if count == 0 {
+		return checkruntime.EnumValue{Kind: checkruntime.EnumValueError, Error: checkruntime.MakeSqlError(enumSupportEmpty)}
+	}
+	if last {
+		return checkruntime.MakeEnumValue(langruntime.CheckedSignedSubtract(count, 1))
+	}
+	return checkruntime.MakeEnumValue(0)
+}
+func EnumFirstE14q(input checkruntime.EnumValue, count int, unknownValid bool) checkruntime.EnumValue {
+	count = langruntime.CheckedI32(count)
+	return enumSupportEndpoint(input, count, false, unknownValid)
+}
+func EnumLast73mc(input checkruntime.EnumValue, count int, unknownValid bool) checkruntime.EnumValue {
+	count = langruntime.CheckedI32(count)
+	return enumSupportEndpoint(input, count, true, unknownValid)
+}
+
 const floatArithmeticZero = 3452582
 
 func floatArithmetic(left checkruntime.Float8Value, right checkruntime.Float8Value, mode int, single bool) checkruntime.Float8Value {

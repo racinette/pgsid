@@ -214,3 +214,8 @@ INSERT INTO lane_named_buckets(thresholds,probe,expected,bypass) VALUES ('{a,z,é
 INSERT INTO lane_stage_buckets(thresholds,probe,expected,bypass) VALUES ('{new,done}','done',2,false);
 INSERT INTO lane_document_buckets(thresholds,probe,expected,bypass) VALUES ('{1,2,3}','2',2,false);
 INSERT INTO lane_unordered_buckets(thresholds,probe,bypass) VALUES ('{}',NULL,false);
+
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('new','done','{new,done}','new','done','[1:2]',false);
+INSERT INTO lane_degenerate_stages(empty_stage,single_stage,bypass) VALUES (NULL,NULL,true);
+INSERT INTO lane_stage_catalog_inputs(payload,domain_stage,expected_count,bypass) VALUES ('{new}','done',2,false);
+INSERT INTO lane_export_intervals(stage,expected,expected_first,expected_last) VALUES ('new','{done,new}','done','new');

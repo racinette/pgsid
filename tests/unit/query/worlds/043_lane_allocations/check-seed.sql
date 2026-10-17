@@ -3087,3 +3087,87 @@ INSERT INTO lane_unordered_buckets(thresholds,probe,bypass) VALUES ('{1,2}','1',
 
 -- name: unordered_buckets_bypass
 INSERT INTO lane_unordered_buckets(thresholds,probe,bypass) VALUES ('{NULL}','1',true);
+
+-- name: stage_intervals_all
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('new','done','{new,done}','new','done','[1:2]',false);
+
+-- name: stage_intervals_reversed
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('done','new','{}','new','done',NULL,false);
+
+-- name: stage_intervals_first
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('new','new','{new}','new','done','[1:1]',false);
+
+-- name: stage_intervals_last
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('done','done','{done}','new','done','[1:1]',false);
+
+-- name: stage_intervals_open_lower
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES (NULL,'new','{new}','new','done','[1:1]',false);
+
+-- name: stage_intervals_open_upper
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('done',NULL,'{done}','new','done','[1:1]',false);
+
+-- name: stage_intervals_open_both
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES (NULL,NULL,'{new,done}','new','done','[1:2]',false);
+
+-- name: stage_intervals_wrong_range
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('new','done','{done}','new','done','[1:2]',false);
+
+-- name: stage_intervals_wrong_first
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('new','done','{new,done}','done','done','[1:2]',false);
+
+-- name: stage_intervals_wrong_last
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('new','done','{new,done}','new','new','[1:2]',false);
+
+-- name: stage_intervals_wrong_layout
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('new','done','{new,done}','new','done',NULL,false);
+
+-- name: stage_intervals_bypass
+INSERT INTO lane_stage_intervals(stage,upper_stage,expected,expected_first,expected_last,expected_layout,bypass) VALUES ('done','new','{new,done}','done','new','wrong',true);
+
+-- name: degenerate_stages_null
+INSERT INTO lane_degenerate_stages(empty_stage,single_stage,bypass) VALUES (NULL,NULL,true);
+
+-- name: degenerate_stages_value
+INSERT INTO lane_degenerate_stages(empty_stage,single_stage,bypass) VALUES (NULL,'only',true);
+
+-- name: degenerate_stages_reached_empty
+INSERT INTO lane_degenerate_stages(empty_stage,single_stage,bypass) VALUES (NULL,NULL,false);
+
+-- name: stage_catalog_inputs_values
+INSERT INTO lane_stage_catalog_inputs(payload,domain_stage,expected_count,bypass) VALUES ('{new,done}','new',2,false);
+
+-- name: stage_catalog_inputs_null
+INSERT INTO lane_stage_catalog_inputs(payload,domain_stage,expected_count,bypass) VALUES (NULL,NULL,2,false);
+
+-- name: stage_catalog_inputs_null_cell
+INSERT INTO lane_stage_catalog_inputs(payload,domain_stage,expected_count,bypass) VALUES ('{NULL}','done',2,false);
+
+-- name: stage_catalog_inputs_multidimensional
+INSERT INTO lane_stage_catalog_inputs(payload,domain_stage,expected_count,bypass) VALUES ('{{new,done}}','new',2,false);
+
+-- name: stage_catalog_inputs_bad_input
+INSERT INTO lane_stage_catalog_inputs(payload,domain_stage,expected_count,bypass) VALUES ('bad','new',2,false);
+
+-- name: stage_catalog_inputs_bad_label
+INSERT INTO lane_stage_catalog_inputs(payload,domain_stage,expected_count,bypass) VALUES ('{bad}','new',2,false);
+
+-- name: stage_catalog_inputs_wrong_count
+INSERT INTO lane_stage_catalog_inputs(payload,domain_stage,expected_count,bypass) VALUES ('{new}','new',1,false);
+
+-- name: stage_catalog_inputs_bypass
+INSERT INTO lane_stage_catalog_inputs(payload,domain_stage,expected_count,bypass) VALUES ('{bad}','new',2,true);
+
+-- name: export_intervals_value
+INSERT INTO lane_export_intervals(stage,expected,expected_first,expected_last) VALUES ('new','{done,new}','done','new');
+
+-- name: export_intervals_null
+INSERT INTO lane_export_intervals(stage,expected,expected_first,expected_last) VALUES (NULL,'{done,new}','done','new');
+
+-- name: export_intervals_wrong_range
+INSERT INTO lane_export_intervals(stage,expected,expected_first,expected_last) VALUES ('new','{new,done}','done','new');
+
+-- name: export_intervals_wrong_first
+INSERT INTO lane_export_intervals(stage,expected,expected_first,expected_last) VALUES ('new','{done,new}','new','new');
+
+-- name: export_intervals_wrong_last
+INSERT INTO lane_export_intervals(stage,expected,expected_first,expected_last) VALUES ('new','{done,new}','done','done');

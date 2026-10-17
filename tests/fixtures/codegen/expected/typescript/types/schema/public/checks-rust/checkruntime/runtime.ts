@@ -426,7 +426,7 @@ export type CheckOutcome = {
     readonly kind: "Error";
     readonly value: SqlError;
 };
-function equalCheckOutcome(left: CheckOutcome, right: CheckOutcome): boolean {
+export function equalCheckOutcome(left: CheckOutcome, right: CheckOutcome): boolean {
     if (left.kind !== right.kind)
         return false;
     if (left.kind === "Error" && right.kind === "Error")
@@ -476,6 +476,7 @@ const sqlErrorArraySubscript = 3452630;
 const sqlErrorFeatureNotSupported = 466560;
 const sqlErrorProgramLimit = 8584704;
 const sqlErrorInternal = 56966976;
+const sqlErrorObjectNotReady = 8631360;
 const sqlErrorJsonDatetime = 3452653;
 const sqlErrorJsonNonNumeric = 3452658;
 const sqlErrorJsonSubscript = 3452655;
@@ -485,6 +486,9 @@ const sqlErrorJsonNumber = 3452663;
 const sqlErrorJsonObject = 3452664;
 const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorObjectNotReady) {
+        return { message: "object not in prerequisite state" };
+    }
     if (error.state === sqlErrorNullValueNotAllowed) {
         return { message: "null value not allowed" };
     }
