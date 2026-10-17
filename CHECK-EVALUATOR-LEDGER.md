@@ -11,12 +11,12 @@ collation, input-format, or PostgreSQL type coverage.
 
 Measure each boundary separately:
 
-| Evidence                                 | What it measures                                                                      |
-| ---------------------------------------- | ------------------------------------------------------------------------------------- |
-| `artifacts/check-surface/report.json`    | Catalog overloads, operator aliases, binding probes, and uncertain corpus expressions |
-| `artifacts/check-type-audit/report.json` | Catalog type representations, row shape, and basic expression preparation             |
-| `artifacts/check-worlds/report.json`     | Actual INSERT outcomes, Unknown results, and unexercised constraints                  |
-| `artifacts/check-coercions/report.json`  | Explicit cast pairs and runtime text conversions, compared in raw/stored CHECKs       |
+| Evidence                                                                       | What it measures                                                                         |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `artifacts/check-surface/report.json`                                          | Catalog overloads, operator aliases, binding probes, and uncertain corpus expressions    |
+| `artifacts/check-type-audit/report.json`, `artifacts/check-arrays/report.json` | Catalog type representations, row shape, basic preparation and array callable boundaries |
+| `artifacts/check-worlds/report.json`                                           | Actual INSERT outcomes, Unknown results, and unexercised constraints                     |
+| `artifacts/check-coercions/report.json`                                        | Explicit cast pairs and runtime text conversions, compared in raw/stored CHECKs          |
 
 Generated artifacts are ignored by Git. The census and type-audit producers live under maintained `scripts/check-measurements/`.
 
@@ -251,10 +251,10 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Admit array equality/order through catalog-selected element support, NULL cells, dimensional tie-breaks, reached context deferrals, owned snapshots, constant preparation, expression composition and INSERT parity.
 - [x] Admit containment/overlap through default element equality, shape/duplicate independence, nonmatching NULL cells, partial-input recovery, reached errors, constant preparation, collation boundaries and INSERT parity.
 - [x] Establish catalog-linked binary/function/I/O array element casts, actual callable parameters/results, precision/width, common CASE/COALESCE/extrema/constructor types, retained bounds/partial cells and nominal enums; verify stored constructor typing, owned loops, narrowing/typmod validity, safe context bounds, preparation and INSERT parity.
-- [x] Bind compatible array/element signatures; admit first/all position searches and threshold bucketing; verify NULL matching/rejection, lower bounds/start positions, binary search/duplicates, support/shape error order, partial states, context/preparation, nominal enums and INSERT parity.
+- [x] Bind compatible array/element signatures; admit first/all position searches and threshold bucketing; verify NULL matching/rejection, lower bounds/start positions, binary search/duplicates, support/shape error order, partial states, context/preparation, nominal enums and INSERT parity. Admit catalog-selected ANY/SOME/ALL over column/computed arrays, scalar/element coercion, borrowed scans, empty/NULL rules, eager argument validity, reached comparison errors and legacy constructor-list compatibility.
 - [x] Admit fill/trim, append/prepend, concatenation, removal/replacement, first-dimension reversal, sorting and array extrema; verify concrete/polymorphic binding, NULL/partial cells, retained/reset bounds, support/error order, representation-sensitive sort/extrema ties, borrowed comparison cursors, native-count deferral, preparation and INSERT parity.
 - [x] Declare PostgreSQL byte order for byte, float and logical JSONB hashes through settings; verify both orders, native numeric/TID/float layouts, canonical JSONB traversal, UTF8 and NaN build requirements, successful constant Unknown computations, catalog hash links and INSERT parity. Admit array hashes through concrete element support, borrowed traversal and bounded modular arithmetic; retain whole-array endian alternatives/cancellation, shape independence, NULL cells, missing-support errors, ordinal-only enum deferrals, preparation and INSERT parity.
-- [ ] Arrays: finish the callable/cast inventory and composed-validity audit across dimensions, lower bounds, NULL elements and polymorphism.
+- [ ] Arrays: close the catalog-reported regex result arrays, identifier parsing and aggregate support callables; retain catalog/runtime requirements, scalar I/O and composed-validity gaps separately, then run the integration checkpoint.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

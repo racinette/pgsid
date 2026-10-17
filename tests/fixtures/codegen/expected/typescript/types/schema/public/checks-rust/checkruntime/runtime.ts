@@ -10705,6 +10705,97 @@ export function arrayHashContinues64(input: ArrayComparisonPayload, index: Int4V
     }
     return false;
 }
+export function prepareArrayQuantifier(scalar: BoolValue, input: ArrayValue, strict: boolean): ArrayComparisonPayload {
+    input = copyArrayValue(input);
+    strict = langruntime.checkedBool(strict);
+    if (scalar.kind === "Error") {
+        const error: SqlError = scalar.value;
+        return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 0);
+    }
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return arrayComparisonState(langruntime.checkedSignedNegate(2), error, 0);
+    }
+    if (input.kind === "Null") {
+        return arrayComparisonState(0, makeSqlError(0), 0);
+    }
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        const limit: number = value.elements.length;
+        if (limit > 0 && strict && equalBoolValue(scalar, { kind: "Value", value: true })) {
+            return arrayComparisonState(0, makeSqlError(0), 0);
+        }
+        const right: ArrayElement[] = [];
+        return { left: value.elements, right: right, limit: limit, state: 1, error: makeSqlError(0), tail: 0, value: 0 };
+    }
+    return arrayComparisonState(langruntime.checkedSignedNegate(1), makeSqlError(0), 0);
+}
+export function arrayQuantifierInitial(input: ArrayComparisonPayload, any: boolean): CheckOutcome {
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === langruntime.checkedSignedNegate(1)) {
+        return { kind: "Unknown" };
+    }
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (any) {
+        return { kind: "False" };
+    }
+    return { kind: "True" };
+}
+export function arrayQuantifierContinues(input: ArrayComparisonPayload, index: Int4Value, result: CheckOutcome, any: boolean, safe: boolean): boolean {
+    if (result.kind === "Error") {
+        return false;
+    }
+    if (equalCheckOutcome(result, { kind: "Unknown" }) && safe === false) {
+        return false;
+    }
+    if (any && equalCheckOutcome(result, { kind: "True" })) {
+        return false;
+    }
+    if (any === false && equalCheckOutcome(result, { kind: "False" })) {
+        return false;
+    }
+    if (index.kind === "Value") {
+        const offset: number = langruntime.checkedI32(index.value);
+        return input.state === 1 && offset >= 0 && (BigInt(langruntime.checkedI32(offset))) < (BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.limit))))));
+    }
+    return false;
+}
+export function arrayQuantifierCell(nullness: BoolValue, strict: boolean): BoolValue {
+    strict = langruntime.checkedBool(strict);
+    if (nullness.kind === "Error") {
+        const error: SqlError = nullness.value;
+        return { kind: "Error", value: error };
+    }
+    if (strict && equalBoolValue(nullness, { kind: "Value", value: true })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Value", value: true };
+}
+export function arrayQuantifierNeedsCall(input: BoolValue): boolean {
+    return equalBoolValue(input, { kind: "Value", value: true });
+}
+export function arrayQuantifierStep(left: CheckOutcome, right: BoolValue, any: boolean): CheckOutcome {
+    any = langruntime.checkedBool(any);
+    const value: CheckOutcome = checkFromBool(right);
+    if (any) {
+        return orFinish(left, value);
+    }
+    return andFinish(left, value);
+}
+export function arrayQuantifierFinish(input: CheckOutcome, validity: CheckOutcome): BoolValue {
+    if (validity.kind === "Error") {
+        const error: SqlError = validity.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCheckOutcome(validity, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return boolFromCheck(input);
+}
 export function bitFromLiteral(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);

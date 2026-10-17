@@ -10667,6 +10667,94 @@ func ArrayHashContinues64(input *ArrayComparisonPayload, index Int4Value, first 
 	}
 	return false
 }
+func PrepareArrayQuantifier(scalar BoolValue, input ArrayValue, strict bool) ArrayComparisonPayload {
+	input = CopyArrayValue(input)
+	if scalar.Kind == BoolValueError {
+		error := scalar.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 0)
+	}
+	if input.Kind == ArrayValueNull {
+		return arrayComparisonState(0, MakeSqlError(0), 0)
+	}
+	if input.Kind == ArrayValueValue {
+		value := CopyArrayPayload(input.Value)
+		limit := len(value.Elements)
+		if limit > 0 && strict && scalar == (BoolValue{Kind: BoolValueValue, Value: true}) {
+			return arrayComparisonState(0, MakeSqlError(0), 0)
+		}
+		right := []ArrayElement{}
+		return ArrayComparisonPayload{Left: value.Elements, Right: right, Limit: limit, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 0}
+	}
+	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 0)
+}
+func ArrayQuantifierInitial(input *ArrayComparisonPayload, any bool) CheckOutcome {
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return CheckOutcome{Kind: CheckOutcomeError, Error: input.Error}
+	}
+	if input.State == langruntime.CheckedSignedNegate(1) {
+		return CheckOutcome{Kind: CheckOutcomeUnknown}
+	}
+	if input.State == 0 {
+		return CheckOutcome{Kind: CheckOutcomeNull}
+	}
+	if any {
+		return CheckOutcome{Kind: CheckOutcomeFalse}
+	}
+	return CheckOutcome{Kind: CheckOutcomeTrue}
+}
+func ArrayQuantifierContinues(input *ArrayComparisonPayload, index Int4Value, result CheckOutcome, any bool, safe bool) bool {
+	if result.Kind == CheckOutcomeError {
+		return false
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) && safe == false {
+		return false
+	}
+	if any && result == (CheckOutcome{Kind: CheckOutcomeTrue}) {
+		return false
+	}
+	if any == false && result == (CheckOutcome{Kind: CheckOutcomeFalse}) {
+		return false
+	}
+	if index.Kind == Int4ValueValue {
+		offset := langruntime.CheckedI32(index.Value)
+		return input.State == 1 && offset >= 0 && (int64(langruntime.CheckedI32(offset))) < (int64(langruntime.CheckedI32((int(int32(input.Limit))))))
+	}
+	return false
+}
+func ArrayQuantifierCell(nullness BoolValue, strict bool) BoolValue {
+	if nullness.Kind == BoolValueError {
+		error := nullness.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if strict && nullness == (BoolValue{Kind: BoolValueValue, Value: true}) {
+		return BoolValue{Kind: BoolValueNull}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: true}
+}
+func ArrayQuantifierNeedsCall(input BoolValue) bool {
+	return input == (BoolValue{Kind: BoolValueValue, Value: true})
+}
+func ArrayQuantifierStep(left CheckOutcome, right BoolValue, any bool) CheckOutcome {
+	value := CheckFromBool(right)
+	if any {
+		return OrFinish(left, value)
+	}
+	return AndFinish(left, value)
+}
+func ArrayQuantifierFinish(input CheckOutcome, validity CheckOutcome) BoolValue {
+	if validity.Kind == CheckOutcomeError {
+		error := validity.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if validity == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolFromCheck(input)
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

@@ -986,3 +986,35 @@ CREATE TABLE lane_stage_hashes (
   CONSTRAINT stage_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array(stages) IS NOT DISTINCT FROM COALESCE(expected_hash,hash_array(stages)) END),
   CONSTRAINT stage_seeded_hash CHECK (CASE WHEN bypass THEN true ELSE hash_array_extended(stages,seed) IS NOT DISTINCT FROM COALESCE(expected_seeded,hash_array_extended(stages,seed)) END)
 );
+
+CREATE TABLE lane_quantified_slots (
+  slots lane_slots,
+  requested integer,
+  ceiling integer,
+  bypass boolean,
+  CONSTRAINT requested_present CHECK (CASE WHEN bypass THEN true ELSE requested = ANY(slots) END),
+  CONSTRAINT numeric_requested_present CHECK (CASE WHEN bypass THEN true ELSE requested::numeric = ANY(slots) END),
+  CONSTRAINT bounded_slots CHECK (CASE WHEN bypass THEN true ELSE ceiling >= ALL(slots) END)
+);
+CREATE TABLE lane_quantified_stages (
+  stages lane_stage[],
+  requested lane_stage,
+  bypass boolean,
+  CONSTRAINT requested_stage_present CHECK (CASE WHEN bypass THEN true ELSE requested = ANY(stages) END),
+  CONSTRAINT earlier_stage CHECK (CASE WHEN bypass THEN true ELSE requested <= ALL(stages) END)
+);
+CREATE TABLE lane_quantified_patterns (
+  label text COLLATE "C",
+  allowed text[] COLLATE "C",
+  excluded text[] COLLATE "C",
+  bypass boolean,
+  CONSTRAINT allowed_label CHECK (CASE WHEN bypass THEN true ELSE label ~ ANY(allowed) END),
+  CONSTRAINT excluded_label CHECK (CASE WHEN bypass THEN true ELSE label !~ ALL(excluded) END)
+);
+CREATE TABLE lane_quantifier_guards (
+  amount integer,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT empty_allowed CHECK (CASE WHEN bypass THEN true ELSE NOT(amount/divisor = ANY('{}'::integer[])) END),
+  CONSTRAINT null_allowed CHECK (CASE WHEN bypass THEN true ELSE amount/divisor = ALL(NULL::integer[]) END)
+);

@@ -112,8 +112,8 @@ describe('CHECK list and range validators', () => {
       lazy_in: true,
       lazy_not_in: false,
       mixed: true,
-      eager_in: true,
-      eager_not_in: false,
+      eager_in: undefined,
+      eager_not_in: undefined,
       computed_subject: true,
       nested: undefined,
       scalar: false,
@@ -357,7 +357,7 @@ describe('CHECK list and range validators', () => {
     }
   })
 
-  it('keeps unsupported membership forms uncertain', () => {
+  it('binds array expressions and general quantifiers while keeping invalid or unavailable forms uncertain', () => {
     const host = {
       columns: [
         ...table.columns,
@@ -366,7 +366,6 @@ describe('CHECK list and range validators', () => {
       ],
     }
     for (const sql of [
-      "plain IN ('a','b')",
       'amount = ANY (items)',
       "amount = ANY ('{0,1}'::int4[])",
       'amount = ANY (ARRAY[]::int4[])',
@@ -375,8 +374,25 @@ describe('CHECK list and range validators', () => {
       'amount > ANY (ARRAY[0,1])',
       'amount = ALL (ARRAY[0,1])',
     ]) {
+      const expression = lowerTableCheck(host, {
+        name: 'array',
+        type: 'check',
+        definition: `CHECK (${sql})`,
+      })!.expression
+      expect(expression).toMatchObject({
+        kind: 'eval-scalar',
+        expression: { kind: 'array-quantifier' },
+      })
+      expect(prepareCheckRust(expression).kind).toBe('supported')
+    }
+    for (const sql of [
+      "plain IN ('a','b')",
+      'amount = ANY(plain)',
+      'amount + ANY(items)',
+      'amount OPERATOR(other.=) ANY(items)',
+    ]) {
       expect(
-        lowerTableCheck(host, { name: 'unsupported', type: 'check', definition: `CHECK (${sql})` })
+        lowerTableCheck(host, { name: 'unsupported', type: 'check', definition: `CHECK(${sql})` })
           ?.expression,
       ).toEqual({ kind: 'uncertain' })
     }

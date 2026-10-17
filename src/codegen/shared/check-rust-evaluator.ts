@@ -865,6 +865,7 @@ export function emitCheckRustEvaluator(
       callable?.kind === 'operator' ? builtinMetadata(callable.implementation) : callable
     if (
       (constantOperandDepth > 0 ||
+        node.kind === 'array-quantifier' ||
         (implementation !== null &&
           (isArrayComparison(implementation) ||
             isArrayExtremum(implementation) ||
@@ -3558,6 +3559,99 @@ export function emitCheckRustEvaluator(
         bindings.push(`if case_guard_takes(${guard}) == false {`, ...indent(lines), '};')
       } else bindings.push(...lines)
       return { name, type: node.type }
+    }
+    if (node.kind === 'array-quantifier') {
+      if (node.comparison.signature === null)
+        throw new UnsupportedCheckRustExpression('Array quantifiers require a resolved operator')
+      const metadata = builtinMetadata(node.comparison.signature)
+      const implementation =
+        metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+      if (
+        metadata.kind !== 'operator' ||
+        metadata.result !== 'pg_catalog.bool' ||
+        implementation.kind !== 'function'
+      )
+        throw new UnsupportedCheckRustExpression('Array quantifiers require a Boolean operator')
+      const initial = bind('make_bool_value(true)'),
+        validity = fresh('array_quantifier_validity')
+      bindings.push(`let mut ${validity}: CheckOutcome = check_from_bool(${initial});`)
+      const outer: string | null = arrayValidityScope
+      arrayValidityScope = validity
+      let subject: { name: string; type: string }, array: { name: string; type: string }
+      try {
+        subject = emitPreparedOperand(node.operands[0], bindings, used)
+        array = emitPreparedOperand(node.operands[1], bindings, used)
+      } finally {
+        arrayValidityScope = outer
+      }
+      if (array.type !== `array:${node.elementType}`)
+        throw new UnsupportedCheckRustExpression('Array quantifier element identity differs')
+      const nullness = bind(
+        `${rustValuePrefix(rustType(subject.type))}_is_null(${ownedOperand(subject)})`,
+      )
+      const payload = bind(
+        `prepare_array_quantifier(${nullness}, ${ownedOperand(array)}, ${metadata.strict})`,
+      )
+      const first = bind(`array_quantifier_initial(&${payload}, ${node.any})`)
+      const start = bind('make_int4_value(0)'),
+        index = fresh('array_quantifier_index'),
+        result = fresh('array_quantifier_result')
+      bindings.push(
+        `let mut ${index}: Int4Value = ${start};`,
+        `let mut ${result}: CheckOutcome = ${first};`,
+      )
+      const element = fresh('array_quantifier_element'),
+        value = fresh('array_quantifier_value'),
+        cellNull = fresh('array_quantifier_null'),
+        pair = fresh('array_quantifier_pair')
+      const prefix = rustValuePrefix(rustType(node.elementType))
+      const body: string[] = [
+        `let ${element} = array_comparison_element_at(&${payload}, ${index}, false);`,
+        `let ${value} = array_element_to_${prefix}(${element});`,
+        `let ${cellNull} = ${prefix}_is_null(${ownedOperand({ name: value, type: node.elementType })});`,
+        `let mut ${pair}: BoolValue = array_quantifier_cell(${cellNull}, ${metadata.strict});`,
+      ]
+      const comparisonLines: string[] = []
+      const safe = !rustCallCanFail(node.comparison, [subject.type, node.elementType])
+      arrayValidityScope = validity
+      try {
+        if (!checkRustCallableNames().has(implementation.rustName))
+          throw new UnsupportedCheckRustExpression(
+            'Array quantifier scalar implementation unavailable',
+          )
+        const compared = emitCall(
+          node.comparison.kind !== 'cast' &&
+            node.comparison.collationDefault &&
+            executionContext.defaultCollation === 'C'
+            ? { ...node.comparison, collation: 'C' }
+            : node.comparison,
+          [subject, { name: value, type: node.elementType }],
+          comparisonLines,
+        )
+        comparisonLines.push(`${pair} = ${compared.name};`)
+      } catch (error) {
+        if (!(error instanceof UnsupportedCheckRustExpression)) throw error
+        comparisonLines.length = 0
+        comparisonLines.push(`${pair} = bool_unknown();`)
+        appendArrayValidity({ name: pair, type: node.type }, safe, comparisonLines)
+      } finally {
+        arrayValidityScope = outer
+      }
+      body.push(
+        `if array_quantifier_needs_call(${pair}) {`,
+        ...indent(comparisonLines),
+        '};',
+        `${result} = array_quantifier_step(${result}, ${pair}, ${node.any});`,
+        `${index} = array_text_next_index(${index});`,
+      )
+      bindings.push(
+        `while array_quantifier_continues(&${payload}, ${index}, ${result}, ${node.any}, ${safe}) {`,
+        ...indent(body),
+        '}',
+      )
+      if (outer && preparationDepth === 0)
+        bindings.push(`${outer} = array_validity_finish(${outer}, ${validity});`)
+      return { name: bind(`array_quantifier_finish(${result}, ${validity})`), type: node.type }
     }
     if (node.kind === 'membership') {
       if (!node.groups.length || node.groups.some((group) => !group.length))

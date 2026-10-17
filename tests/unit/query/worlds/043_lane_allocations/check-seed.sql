@@ -3332,3 +3332,72 @@ INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) 
 INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{new,done}','0'::bigint,NULL,NULL,false);
 -- name: hash_stages_skipped
 INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{new,done}','0'::bigint,NULL,NULL,true);
+
+-- name: quantified_slots_present
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('{1,2}',2,2,false);
+-- name: quantified_slots_missing
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('{1,2}',3,3,false);
+-- name: quantified_slots_above_ceiling
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('{1,2}',1,1,false);
+-- name: quantified_slots_multidimensional
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('{{1,2},{3,4}}',3,4,false);
+-- name: quantified_slots_shifted
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('[-3:-1]={1,NULL,2}',2,2,false);
+-- name: quantified_slots_null_comparisons
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('{1,NULL}',2,2,false);
+-- name: quantified_slots_empty
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('{}',NULL,NULL,false);
+-- name: quantified_slots_null_array
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES(NULL,1,1,false);
+-- name: quantified_slots_null_subjects
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('{1}',NULL,NULL,false);
+-- name: quantified_slots_skipped
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('{}',1,1,true);
+-- name: quantified_stage_present
+INSERT INTO lane_quantified_stages(stages,requested,bypass) VALUES('{new,done}','new',false);
+-- name: quantified_stage_missing
+INSERT INTO lane_quantified_stages(stages,requested,bypass) VALUES('{new}','done',false);
+-- name: quantified_stage_later
+INSERT INTO lane_quantified_stages(stages,requested,bypass) VALUES('{done,new}','done',false);
+-- name: quantified_stage_unknown
+INSERT INTO lane_quantified_stages(stages,requested,bypass) VALUES('{NULL,done}','new',false);
+-- name: quantified_stage_empty
+INSERT INTO lane_quantified_stages(stages,requested,bypass) VALUES('{}',NULL,false);
+-- name: quantified_stage_null_array
+INSERT INTO lane_quantified_stages(stages,requested,bypass) VALUES(NULL,'new',false);
+-- name: quantified_stage_null_subject
+INSERT INTO lane_quantified_stages(stages,requested,bypass) VALUES('{new}',NULL,false);
+-- name: quantified_stage_skipped
+INSERT INTO lane_quantified_stages(stages,requested,bypass) VALUES('{}','new',true);
+-- name: quantified_pattern_match
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES('A1','{^A,[}','{^Z}',false);
+-- name: quantified_pattern_missing
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES('A1','{^Z}','{^Z}',false);
+-- name: quantified_pattern_excluded
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES('A1','{^A}','{^Z,^A,[}',false);
+-- name: quantified_pattern_null_cell
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES('A1','{NULL,^Z}','{NULL,^Z}',false);
+-- name: quantified_pattern_empty
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES(NULL,'{}','{}',false);
+-- name: quantified_pattern_null_array
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES('A1',NULL,NULL,false);
+-- name: quantified_pattern_invalid_first
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES('A1','{[,^A}','{}',false);
+-- name: quantified_pattern_invalid_later
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES('A1','{^Z,[}','{}',false);
+-- name: quantified_pattern_null_subject
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES(NULL,'{[}','{[}',false);
+-- name: quantified_pattern_skipped
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES('A1','{[}','{[}',true);
+-- name: quantified_guard_values
+INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES(1,1,false);
+-- name: quantified_guard_null_scalar
+INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES(NULL,0,false);
+-- name: quantified_guard_null_divisor
+INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES(1,NULL,false);
+-- name: quantified_guard_zero_divisor
+INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES(1,0,false);
+-- name: quantified_guard_overflow
+INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES('-2147483648'::integer,-1,false);
+-- name: quantified_guard_skipped
+INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES(1,0,true);

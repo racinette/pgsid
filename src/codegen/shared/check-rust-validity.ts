@@ -238,6 +238,8 @@ export function rustScalarOwnCanFail(node: EvalExpression): boolean {
       return rustCallCanFail(node.comparison, [node.type, node.type])
     case 'membership':
       return rustCallCanFail(node.comparison, [typeOf(node.subject), typeOf(node.subject)])
+    case 'array-quantifier':
+      return rustCallCanFail(node.comparison, [typeOf(node.operands[0]), node.elementType])
     case 'row-compare':
       return node.pairs.some((pair) => rustCallCanFail(pair.comparison, pair.operands.map(typeOf)))
     default:

@@ -223,3 +223,8 @@ INSERT INTO lane_export_intervals(stage,expected,expected_first,expected_last) V
 INSERT INTO lane_hashes(slots,amounts,readings,seed,expected_slots,expected_seeded,expected_amounts,expected_readings,bypass) VALUES('{1,NULL,2}','{1.00,-0.0}','{-0,1.5}','0'::bigint,27897627::integer,'-469719983062405349'::bigint,'-1878750856'::integer,630861107::integer,false);
 INSERT INTO lane_document_hashes(documents,labels,seed,expected_documents,expected_labels,bypass) VALUES('{"{\"a\":1}",NULL}','{a,b}','0'::bigint,'1958739697606805207'::bigint,'-1103066928'::integer,false);
 INSERT INTO lane_stage_hashes(stages,seed,expected_hash,expected_seeded,bypass) VALUES('{}','0'::bigint,1::integer,'1'::bigint,false);
+
+INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('{1,NULL,2}',2,2,false);
+INSERT INTO lane_quantified_stages(stages,requested,bypass) VALUES('{new,done}','new',false);
+INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES('A1','{^A,[}','{^Z}',false);
+INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES(1,1,false);
