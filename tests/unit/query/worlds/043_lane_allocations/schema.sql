@@ -737,3 +737,24 @@ CREATE TABLE lane_raw_builder_imports (
   CONSTRAINT raw_imported_array CHECK (CASE WHEN bypass THEN true ELSE json_build_array(payload::json[],1/divisor)::text COLLATE "C" IS NOT DISTINCT FROM expected_array COLLATE "C" END),
   CONSTRAINT raw_imported_object CHECK (CASE WHEN bypass THEN true ELSE json_build_object('values',payload::json[],'count',1/divisor)::text COLLATE "C" IS NOT DISTINCT FROM expected_object COLLATE "C" END)
 );
+
+CREATE DOMAIN lane_imported_amount AS numeric;
+CREATE DOMAIN lane_imported_amount_chain AS lane_imported_amount;
+CREATE DOMAIN lane_imported_source AS text;
+CREATE TABLE lane_numeric_imports (
+  payload text,
+  alternate text,
+  expected_text text,
+  expected_array text,
+  expected_binary jsonb,
+  expected_rounded text,
+  expected_raw text,
+  bypass boolean,
+  CONSTRAINT numeric_import_text CHECK (CASE WHEN bypass THEN true ELSE payload::numeric::text COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END),
+  CONSTRAINT numeric_import_source_domain CHECK (CASE WHEN bypass THEN true ELSE (payload::lane_imported_source)::numeric::text COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END),
+  CONSTRAINT numeric_import_target_domain CHECK (CASE WHEN bypass THEN true ELSE (payload::lane_imported_amount_chain)::text COLLATE "C" IS NOT DISTINCT FROM expected_text COLLATE "C" END),
+  CONSTRAINT numeric_import_array CHECK (CASE WHEN bypass THEN true ELSE array_to_json(ARRAY[payload::numeric,alternate::numeric,NULL])::text COLLATE "C" IS NOT DISTINCT FROM expected_array COLLATE "C" END),
+  CONSTRAINT numeric_import_raw_document CHECK (CASE WHEN bypass THEN true ELSE json_build_array(payload::numeric,alternate::numeric,NULL)::text COLLATE "C" IS NOT DISTINCT FROM expected_raw COLLATE "C" END),
+  CONSTRAINT numeric_import_binary_document CHECK (CASE WHEN bypass THEN true ELSE jsonb_build_array(payload::numeric,alternate::numeric,NULL) IS NOT DISTINCT FROM expected_binary END),
+  CONSTRAINT numeric_import_precision CHECK (CASE WHEN bypass THEN true ELSE payload::numeric(6,2)::text COLLATE "C" IS NOT DISTINCT FROM expected_rounded COLLATE "C" END)
+);

@@ -218,6 +218,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'uuid-to-text' ||
     expression.kind === 'bit-to-text' ||
     expression.kind === 'text-to-float' ||
+    expression.kind === 'text-to-numeric' ||
     expression.kind === 'text-to-bit' ||
     expression.kind === 'clock-to-text' ||
     expression.kind === 'text-to-interval' ||
