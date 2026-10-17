@@ -159,6 +159,7 @@ function prepare(expression: EvalExpression): Preparation | null {
   }
   if (
     expression.kind === 'membership' ||
+    expression.kind === 'array-quantifier' ||
     expression.kind === 'distinct' ||
     expression.kind === 'minmax' ||
     expression.kind === 'row-compare'
@@ -171,7 +172,11 @@ function prepare(expression: EvalExpression): Preparation | null {
           : [expression.subject, ...expression.groups.flat()],
     )
     if (!operands) return null
-    return operands.every((operand) => operand.constant)
+    const immutable =
+      expression.kind !== 'array-quantifier' ||
+      (expression.comparison.signature !== null &&
+        builtinMetadata(expression.comparison.signature).volatility === 'i')
+    return immutable && operands.every((operand) => operand.constant)
       ? constant(expression)
       : {
           constant: false,

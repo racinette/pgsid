@@ -1442,31 +1442,6 @@ const containsColumn = (node: unknown): boolean => {
     (wrapper['ColumnRef'] !== undefined || Object.values(wrapper).some(containsColumn))
   )
 }
-const arrayConstructor = (
-  node: unknown,
-): { members: unknown[]; type: ScalarType | null } | null => {
-  const wrapper = fields(node)
-  if (!wrapper) return null
-  const cast = fields(wrapper['TypeCast'])
-  if (cast) {
-    const typeName = fields(cast['typeName'])
-    const names = strings(typeName?.['names'])
-    const bounds = typeName?.['arrayBounds']
-    if (
-      !names ||
-      (names.length > 1 && names[0] !== 'pg_catalog') ||
-      !Array.isArray(bounds) ||
-      bounds.length !== 1
-    )
-      return null
-    const type = catalogScalarType(names.at(-1)!)
-    const inner = arrayConstructor(cast['arg'])
-    return type && inner && (!inner.type || inner.type === type) ? { ...inner, type } : null
-  }
-  const array = fields(wrapper['A_ArrayExpr'])
-  const members = array?.['elements']
-  return Array.isArray(members) && members.length > 0 ? { members, type: null } : null
-}
 
 export function bindCatalogCheck(
   columns: readonly CheckColumn[],
@@ -3368,32 +3343,85 @@ export function bindCatalogCheck(
         },
       }
     }
-    if (
-      operator &&
-      ['AEXPR_IN', 'AEXPR_OP_ANY', 'AEXPR_OP_ALL'].includes(String(operator['kind']))
-    ) {
+    if (operator && ['AEXPR_OP_ANY', 'AEXPR_OP_ALL'].includes(String(operator['kind']))) {
+      const names = strings(operator['name'])
+      if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unknown
+      const name = names.at(-1)
+      if (!name) return unknown
+      const subject = bind(operator['lexpr'])
+      const array = bind(operator['rexpr'])
+      const inferred = boundType(subject) ?? 'pg_catalog.text'
+      const sourceType =
+        array.type ??
+        (array.literal && !inferred.startsWith('array:')
+          ? arrayType(inferred as ArrayElementType)
+          : null)
+      if (!sourceType?.startsWith('array:')) return unknown
+      const sourceElement = sourceType.slice(6) as ArrayElementType
+      const definition = array.enum ?? subject.enum
+      const value = materialize(array, sourceType, definition)
+      const dummy = materialize(
+        { type: null, value: null, literal: { kind: 'null', value: null } },
+        sourceElement,
+        definition,
+      )
+      if (!value || !dummy) return unknown
+      const collation =
+        arrayCollations([subject.collation, array.collation]) ??
+        arrayElementCollation(sourceElement)
+      const resolved = comparisonCandidate(
+        [
+          { ...subject, collation },
+          { type: sourceElement, value: dummy, enum: array.enum, collation },
+        ],
+        name,
+        false,
+      )
+      if (!resolved || resolved.item.result !== 'pg_catalog.bool') return unknown
+      const element =
+        resolved.item.args[1] === 'pg_catalog.anyenum'
+          ? resolved.enum && enumType(resolved.enum)
+          : catalogScalarType(resolved.item.args[1]!)
+      if (!element || element.startsWith('array:')) return unknown
+      const operand = coerceArray(
+        value,
+        sourceType as ArrayType,
+        arrayType(element as ArrayElementType),
+        'i',
+        -1,
+        enums,
+      )
+      if (!operand) return unknown
+      return {
+        type: 'pg_catalog.bool',
+        value: {
+          kind: 'array-quantifier',
+          type: 'pg_catalog.bool',
+          elementType: element as ArrayElementType,
+          operands: [resolved.operands[0]!, operand],
+          comparison: {
+            kind: 'operator',
+            signature: resolved.signature,
+            type: 'pg_catalog.bool',
+            collation: collation?.kind,
+            ...(collation?.default ? { collationDefault: true as const } : {}),
+          },
+          any: operator['kind'] === 'AEXPR_OP_ANY',
+        },
+      }
+    }
+    if (operator && operator['kind'] === 'AEXPR_IN') {
       const names = strings(operator['name'])
       if (!names || (names.length > 1 && names[0] !== 'pg_catalog')) return unknown
       const name = names.at(-1)
       const operation = name === '=' ? 'or' : name === '<>' ? 'and' : null
-      if (
-        !operation ||
-        (operator['kind'] === 'AEXPR_OP_ANY' && name !== '=') ||
-        (operator['kind'] === 'AEXPR_OP_ALL' && name !== '<>')
-      )
-        return unknown
+      if (!operation) return unknown
       const list = fields(fields(operator['rexpr'])?.['List'])?.['items']
-      const array =
-        operator['kind'] === 'AEXPR_IN'
-          ? Array.isArray(list) && list.length > 0
-            ? { members: list, type: null }
-            : null
-          : arrayConstructor(operator['rexpr'])
-      if (!array) return unknown
+      if (!Array.isArray(list) || list.length === 0) return unknown
+      const array = { members: list }
       const subject = bind(operator['lexpr'])
       const members = array.members.map((member) => bind(member))
       const type =
-        array.type ??
         subject.type ??
         members.find((member) => member.type)?.type ??
         ([subject, ...members].some((member) => member.literal?.kind === 'integer')
@@ -3421,24 +3449,19 @@ export function bindCatalogCheck(
       if (resolved.some((member) => !member)) return unknown
       const first = resolved[0]!
       if (resolved.some((member) => member!.signature !== first.signature)) return unknown
-      let groups: EvalExpression[][]
-      if (operator['kind'] === 'AEXPR_IN') {
-        const withColumns = array.members.map(containsColumn)
-        const constants = resolved.flatMap((member, index) =>
-          !withColumns[index] ? [member!.operands[1]!] : [],
-        )
-        groups =
-          constants.length > 1
-            ? [
-                constants,
-                ...resolved.flatMap((member, index) =>
-                  withColumns[index] ? [[member!.operands[1]!]] : [],
-                ),
-              ]
-            : resolved.map((member) => [member!.operands[1]!])
-      } else {
-        groups = [resolved.map((member) => member!.operands[1]!)]
-      }
+      const withColumns = array.members.map(containsColumn)
+      const constants = resolved.flatMap((member, index) =>
+        !withColumns[index] ? [member!.operands[1]!] : [],
+      )
+      const groups =
+        constants.length > 1
+          ? [
+              constants,
+              ...resolved.flatMap((member, index) =>
+                withColumns[index] ? [[member!.operands[1]!]] : [],
+              ),
+            ]
+          : resolved.map((member) => [member!.operands[1]!])
       return {
         type: 'pg_catalog.bool',
         value: {

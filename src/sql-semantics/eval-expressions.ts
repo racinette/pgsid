@@ -29,6 +29,14 @@ export type EvalExpression =
       operands: readonly EvalExpression[]
     }
   | {
+      kind: 'array-quantifier'
+      type: 'pg_catalog.bool'
+      elementType: ArrayElementType
+      operands: readonly [EvalExpression, EvalExpression]
+      comparison: SqlCallableExpression
+      any: boolean
+    }
+  | {
       kind: 'membership'
       type: 'pg_catalog.bool'
       subject: EvalExpression
@@ -331,6 +339,86 @@ export function emitEvalExpression<Ast>(
     include(result.helpers)
     return { type: call.type, expression: result.expression, effect: 'partial' }
   }
+  const guardKnown = (
+    value: EmittedEvalExpression<Ast>,
+    selected: EmittedEvalExpression<Ast>,
+  ): EmittedEvalExpression<Ast> => {
+    const nullness = backend.nullTest(value, false)
+    const valid = backend.nullTest(
+      { type: 'pg_catalog.bool', expression: nullness.expression, effect: 'partial' },
+      true,
+    )
+    const unknown = backend.uncertain(selected.type)
+    const result = backend.case(
+      selected.type,
+      [
+        {
+          when: { type: 'pg_catalog.bool', expression: valid.expression, effect: 'partial' },
+          then: selected,
+        },
+      ],
+      { type: selected.type, expression: unknown.expression, effect: 'partial' },
+    )
+    include([...nullness.helpers, ...valid.helpers, ...unknown.helpers, ...result.helpers])
+    return { type: selected.type, expression: result.expression, effect: 'partial' }
+  }
+  const emitMembership = (
+    node: Extract<EvalExpression, { kind: 'membership' }>,
+    validateComputed = false,
+  ): EmittedEvalExpression<Ast> => {
+    if (!node.groups.length || node.groups.some((group) => !group.length))
+      throw new Error('Invalid membership expression')
+    const combine = (operands: readonly EmittedEvalExpression<Ast>[]): EmittedEvalExpression<Ast> =>
+      operands.slice(1).reduce((left, right) => {
+        const result = backend.logic(node.operation, [left, right])
+        include(result.helpers)
+        return { type: node.type, expression: result.expression, effect: 'partial' }
+      }, operands[0]!)
+    const result = backend.bind(
+      node.type,
+      emit(node.subject),
+      (subject) => {
+        const result = combine(
+          node.groups.map((group) => {
+            const operands = group.map(emit)
+            const names = group.map(() => `membership_member_${nextBinding++}`)
+            const comparisons = (members: readonly EmittedEvalExpression<Ast>[]) =>
+              combine(members.map((member) => emitCall(node.comparison, [subject, member])))
+            const bindMembers = (
+              index: number,
+              members: readonly EmittedEvalExpression<Ast>[],
+            ): EmittedEvalExpression<Ast> => {
+              if (index === operands.length) return comparisons(members)
+              const result = backend.bind(
+                node.type,
+                operands[index]!,
+                (member) =>
+                  validateComputed &&
+                  group[index]!.kind !== 'input' &&
+                  group[index]!.kind !== 'certain'
+                    ? guardKnown(member, bindMembers(index + 1, [...members, member]))
+                    : bindMembers(index + 1, [...members, member]),
+                names[index]!,
+              )
+              include(result.helpers)
+              return { type: node.type, expression: result.expression, effect: 'partial' }
+            }
+            const result = validateComputed
+              ? bindMembers(0, [])
+              : backend.bindList(node.type, operands, names, comparisons)
+            if ('helpers' in result) include(result.helpers)
+            return { type: node.type, expression: result.expression, effect: 'partial' }
+          }),
+        )
+        return validateComputed && node.subject.kind !== 'input' && node.subject.kind !== 'certain'
+          ? guardKnown(subject, result)
+          : result
+      },
+      `membership_subject_${nextBinding++}`,
+    )
+    include(result.helpers)
+    return { type: node.type, expression: result.expression, effect: 'partial' }
+  }
   const emit = (node: EvalExpression): EmittedEvalExpression<Ast> => {
     if (node.kind === 'check') {
       if (!emitBoolean) throw new Error('A CHECK Boolean binding is required')
@@ -374,6 +462,32 @@ export function emitEvalExpression<Ast>(
       const result = emitSqlExpression(node.expression, scalarBackend)
       include(result.helpers)
       return { ...result.value, effect: 'total' }
+    }
+    if (node.kind === 'array-quantifier') {
+      const array = node.operands[1]
+      const comparison = node.comparison.signature && builtinMetadata(node.comparison.signature)
+      if (
+        array.kind === 'array-constructor' &&
+        !array.multidimensional &&
+        array.operands.length > 0 &&
+        comparison &&
+        comparison.kind === 'operator' &&
+        ['=', '<>'].includes(comparison.name)
+      )
+        return emitMembership(
+          {
+            kind: 'membership',
+            type: node.type,
+            subject: node.operands[0],
+            groups: [array.operands],
+            comparison: node.comparison,
+            operation: node.any ? 'or' : 'and',
+          },
+          true,
+        )
+      const result = backend.uncertain(node.type)
+      include(result.helpers)
+      return { type: node.type, expression: result.expression, effect: 'partial' }
     }
     if (
       node.kind === 'uncertain' ||
@@ -451,39 +565,7 @@ export function emitEvalExpression<Ast>(
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }
-    if (node.kind === 'membership') {
-      if (!node.groups.length || node.groups.some((group) => !group.length))
-        throw new Error('Invalid membership expression')
-      const combine = (
-        operands: readonly EmittedEvalExpression<Ast>[],
-      ): EmittedEvalExpression<Ast> =>
-        operands.slice(1).reduce((left, right) => {
-          const result = backend.logic(node.operation, [left, right])
-          include(result.helpers)
-          return { type: node.type, expression: result.expression, effect: 'partial' }
-        }, operands[0]!)
-      const result = backend.bind(
-        node.type,
-        emit(node.subject),
-        (subject) =>
-          combine(
-            node.groups.map((group) => {
-              const result = backend.bindList(
-                node.type,
-                group.map(emit),
-                group.map(() => `membership_member_${nextBinding++}`),
-                (members) =>
-                  combine(members.map((member) => emitCall(node.comparison, [subject, member]))),
-              )
-              include(result.helpers)
-              return { type: node.type, expression: result.expression, effect: 'partial' }
-            }),
-          ),
-        `membership_subject_${nextBinding++}`,
-      )
-      include(result.helpers)
-      return { type: node.type, expression: result.expression, effect: 'partial' }
-    }
+    if (node.kind === 'membership') return emitMembership(node)
     if (node.kind === 'input-null-test') {
       if (!backend.inputNullTest) throw new Error(`No NULL input binding for ${node.name}`)
       const result = backend.inputNullTest(node.name, node.negated)

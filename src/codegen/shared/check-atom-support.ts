@@ -175,6 +175,8 @@ export function portableCheckAtoms(
       value.kind === 'array-constructor'
     )
       return { ...value, operands: value.operands.map(scalar) }
+    if (value.kind === 'array-quantifier')
+      return { ...value, operands: [scalar(value.operands[0]), scalar(value.operands[1])] }
     if (value.kind === 'membership')
       return {
         ...value,

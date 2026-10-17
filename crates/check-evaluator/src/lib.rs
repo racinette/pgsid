@@ -17,6 +17,7 @@ pub mod checkruntime {
     include!("jsonpath.rs");
     include!("array_elements.rs");
     include!("array.rs");
+    include!("array_quantifier.rs");
     include!("bit.rs");
     include!("hash.rs");
     include!("text_builder.rs");
