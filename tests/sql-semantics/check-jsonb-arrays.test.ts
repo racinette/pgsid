@@ -337,7 +337,7 @@ pub fn jsonb_array_owned_probe()->BoolValue {
  let mut cells:Vec<ArrayElement>=Vec::new();let mut index:i32=0;
  while index<50000 {cells.push(ArrayElement::Text("held".to_owned()));index=index+1;}
  let mut dimensions:Vec<ArrayDimension>=Vec::new();dimensions.push(ArrayDimension {lower:-2,length:50000});
- let input=make_array_value(ArrayPayload {element_type:"pg_catalog.text".to_owned(),element_kind:8,dimensions:dimensions,elements:cells});
+ let input=make_array_value(ArrayPayload {element_type:"pg_catalog.text".to_owned(),element_kind:8,dimensions:dimensions,elements:cells,null_bitmap:BoolValue::Unknown});
  let initial=prepare_jsonb_array_input(input);let original=initial.clone();let mut cursor=initial;
  while jsonb_array_input_continues(&cursor) {
   let element=jsonb_array_input_element(&cursor);let text=array_element_to_text(element);let converted=jsonb_input_from_text(text);

@@ -753,7 +753,7 @@ pub fn array_ownership_probe(shape:TextValue,count:Int4Value,family:Int4Value,di
   if size>0 && changed_size<=size {return BoolValue::Value(false);};
   let mut elements=value.elements;
   elements[0]=extended;
-  let changed=ArrayValue::Value(ArrayPayload{element_type:value.element_type,element_kind:value.element_kind,dimensions:value.dimensions,elements:elements});
+  let changed=ArrayValue::Value(ArrayPayload{null_bitmap:BoolValue::Unknown,element_type:value.element_type,element_kind:value.element_kind,dimensions:value.dimensions,elements:elements});
   let original=array_flat_element(saved.clone(),Int4Value::Value(0));
   let replacement=array_flat_element(changed,Int4Value::Value(0));
   if let ArrayValue::Value(prior)=saved {

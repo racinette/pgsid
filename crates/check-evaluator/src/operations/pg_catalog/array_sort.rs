@@ -9,6 +9,10 @@ fn array_sort_payload(
     nulls_first: bool,
 ) -> ArraySortPayload {
     let mut rows: i32 = 0;
+    let mut null_bitmap = value.null_bitmap;
+    if value.dimensions.len() > 0 && value.dimensions[0].length >= 2 {
+        null_bitmap = array_reconstruction_bitmap(&value);
+    };
     let mut width: i32 = 0;
     if value.dimensions.len() > 0 {
         rows = value.dimensions[0].length;
@@ -30,6 +34,7 @@ fn array_sort_payload(
         right = 1;
     };
     ArraySortPayload {
+        null_bitmap: null_bitmap,
         element_type: value.element_type,
         element_kind: value.element_kind,
         dimensions: value.dimensions,
@@ -57,6 +62,7 @@ fn array_sort_status(state: i32, error: SqlError) -> ArraySortPayload {
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();
     let value = ArrayPayload {
+        null_bitmap: BoolValue::Unknown,
         element_type: String::new(),
         element_kind: 0,
         dimensions: dimensions,
@@ -277,6 +283,7 @@ pub(crate) fn array_sort_step(input: ArraySortPayload, compared: Int4Value) -> A
                             phase = 2;
                         };
                         return ArraySortPayload {
+                            null_bitmap: input.null_bitmap,
                             element_type: input.element_type,
                             element_kind: input.element_kind,
                             dimensions: input.dimensions,
@@ -304,6 +311,7 @@ pub(crate) fn array_sort_step(input: ArraySortPayload, compared: Int4Value) -> A
         };
     };
     ArraySortPayload {
+        null_bitmap: input.null_bitmap,
         element_type: input.element_type,
         element_kind: input.element_kind,
         dimensions: input.dimensions,
@@ -486,6 +494,7 @@ pub(crate) fn finish_array_sort(input: ArraySortPayload) -> ArrayValue {
     };
     if input.state == 2 {
         return make_array_value(ArrayPayload {
+            null_bitmap: input.null_bitmap,
             element_type: input.element_type,
             element_kind: input.element_kind,
             dimensions: input.dimensions,
@@ -555,6 +564,7 @@ pub(crate) fn finish_array_sort(input: ArraySortPayload) -> ArrayValue {
         return ArrayValue::Unknown;
     };
     make_array_value(ArrayPayload {
+        null_bitmap: input.null_bitmap,
         element_type: input.element_type,
         element_kind: input.element_kind,
         dimensions: input.dimensions,

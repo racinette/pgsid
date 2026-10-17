@@ -6,6 +6,7 @@ pub struct ArrayDimension {
 
 #[derive(Clone)]
 pub struct ArrayPayload {
+    pub null_bitmap: BoolValue,
     pub element_type: String,
     pub element_kind: i32,
     pub dimensions: Vec<ArrayDimension>,
@@ -29,6 +30,7 @@ pub enum ArrayArguments {
 
 #[derive(Clone)]
 pub struct ArrayOutputPayload {
+    pub null_bitmap: BoolValue,
     pub state: i32,
     pub error: SqlError,
     pub dimensions: Vec<ArrayDimension>,
@@ -164,6 +166,7 @@ pub(crate) fn make_array_conversion() -> ArrayOutputPayload {
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();
     ArrayOutputPayload {
+        null_bitmap: BoolValue::Value(false),
         state: 1,
         error: make_sql_error(0),
         dimensions: dimensions,
@@ -190,10 +193,13 @@ pub(crate) fn append_array_conversion(
         };
     };
     let mut elements = input.elements;
+    let mut null_bitmap = input.null_bitmap;
     if state == 1 {
+        null_bitmap = array_bitmap_union(null_bitmap, array_element_bitmap(element.clone()));
         elements.push(element);
     };
     ArrayOutputPayload {
+        null_bitmap: null_bitmap,
         state: state,
         error: error,
         dimensions: input.dimensions,
@@ -213,6 +219,7 @@ pub(crate) fn array_conversion_arguments(
         return ArrayArguments::Unknown;
     };
     ArrayArguments::Value(ArrayPayload {
+        null_bitmap: input.null_bitmap,
         element_type: element_type.to_owned(),
         element_kind: element_kind,
         dimensions: input.dimensions,
@@ -223,6 +230,7 @@ pub(crate) fn array_conversion_arguments(
 pub fn prepare_array_output(input: ArrayValue) -> ArrayOutputPayload {
     if let ArrayValue::Value(value) = input {
         return ArrayOutputPayload {
+            null_bitmap: value.null_bitmap,
             state: 1,
             error: make_sql_error(0),
             dimensions: value.dimensions,
@@ -241,6 +249,7 @@ pub fn prepare_array_output(input: ArrayValue) -> ArrayOutputPayload {
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();
     ArrayOutputPayload {
+        null_bitmap: BoolValue::Unknown,
         state: state,
         error: error,
         dimensions: dimensions,
@@ -349,7 +358,31 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         };
         position += 1;
     }
-    ArrayValue::Value(input)
+    let mut null_bitmap = input.null_bitmap;
+    if null_bitmap == BoolValue::Null {
+        return ArrayValue::Unknown;
+    };
+    if let BoolValue::Error(_) = null_bitmap {
+        return ArrayValue::Unknown;
+    };
+    position = 0;
+    while position < input.elements.len() {
+        let element = input.elements[position].clone();
+        if let ArrayElement::Null = element {
+            if null_bitmap == BoolValue::Value(false) {
+                return ArrayValue::Unknown;
+            };
+            null_bitmap = BoolValue::Value(true);
+        };
+        position += 1;
+    }
+    ArrayValue::Value(ArrayPayload {
+        element_type: input.element_type,
+        element_kind: input.element_kind,
+        dimensions: input.dimensions,
+        elements: input.elements,
+        null_bitmap: null_bitmap,
+    })
 }
 
 pub fn array_from_coerced_value(
@@ -370,6 +403,7 @@ pub fn make_array_arguments(element_type: &str, element_kind: i32) -> ArrayArgum
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();
     ArrayArguments::Value(ArrayPayload {
+        null_bitmap: BoolValue::Value(false),
         element_type: element_type.to_owned(),
         element_kind: element_kind,
         dimensions: dimensions,
@@ -385,6 +419,7 @@ pub fn append_array_dimension(input: ArrayArguments, lower: i32, length: i32) ->
             length: length,
         });
         return ArrayArguments::Value(ArrayPayload {
+            null_bitmap: value.null_bitmap,
             element_type: value.element_type,
             element_kind: value.element_kind,
             dimensions: dimensions,
@@ -402,9 +437,11 @@ pub fn append_array_argument(input: ArrayArguments, element: ArrayElement) -> Ar
         return ArrayArguments::Error(error);
     };
     if let ArrayArguments::Value(value) = input {
+        let null_bitmap = array_bitmap_union(value.null_bitmap, array_element_bitmap(element.clone()));
         let mut elements = value.elements;
         elements.push(element);
         return ArrayArguments::Value(ArrayPayload {
+            null_bitmap: null_bitmap,
             element_type: value.element_type,
             element_kind: value.element_kind,
             dimensions: value.dimensions,
@@ -465,6 +502,7 @@ pub fn finish_array_constructor(input: ArrayArguments) -> ArrayValue {
             });
         };
         return make_array_value(ArrayPayload {
+            null_bitmap: value.null_bitmap,
             element_type: value.element_type,
             element_kind: value.element_kind,
             dimensions: dimensions,
@@ -535,6 +573,7 @@ pub fn finish_array_children(input: ArrayChildrenArguments) -> ArrayValue {
         let mut dimensions: Vec<ArrayDimension> = Vec::new();
         let mut elements: Vec<ArrayElement> = Vec::new();
         let mut empty = false;
+        let mut null_bitmap = BoolValue::Value(false);
         position = 0;
         while position < value.arrays.len() {
             let child = value.arrays[position].clone();
@@ -550,6 +589,7 @@ pub fn finish_array_children(input: ArrayChildrenArguments) -> ArrayValue {
                 if array.dimensions.len() == 0 {
                     empty = true;
                 } else {
+                    null_bitmap = array_bitmap_union(null_bitmap, array.null_bitmap);
                     if dimensions.len() == 0 {
                         if array.dimensions.len() >= 6 {
                             return ArrayValue::Error(make_sql_error(SQL_ERROR_PROGRAM_LIMIT));
@@ -605,6 +645,7 @@ pub fn finish_array_children(input: ArrayChildrenArguments) -> ArrayValue {
             axis += 1;
         }
         return make_array_value(ArrayPayload {
+            null_bitmap: null_bitmap,
             element_type: value.element_type,
             element_kind: value.element_kind,
             dimensions: dimensions,
@@ -1120,6 +1161,7 @@ pub fn finish_array_text(plan: ArrayTextPlan, converted: ArrayArguments) -> Arra
                 index += 1;
             }
             return make_array_value(ArrayPayload {
+                null_bitmap: value.null_bitmap,
                 element_type: value.element_type,
                 element_kind: value.element_kind,
                 dimensions: payload.dimensions,
@@ -1365,6 +1407,7 @@ fn array_empty_like(input: &ArrayPayload) -> ArrayValue {
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();
     make_array_value(ArrayPayload {
+        null_bitmap: BoolValue::Value(false),
         element_type: identity.to_owned(),
         element_kind: input.element_kind,
         dimensions: dimensions,
@@ -1476,6 +1519,7 @@ pub fn array_slice_subscript(input: ArrayValue, indices: ArraySubscripts) -> Arr
                 }
             }
             return make_array_value(ArrayPayload {
+                null_bitmap: payload.null_bitmap,
                 element_type: payload.element_type,
                 element_kind: payload.element_kind,
                 dimensions: dimensions,
@@ -1907,7 +1951,11 @@ pub fn array_coercion_deferred(input: ArrayElement) -> ArrayElement {
     ArrayElement::Unknown
 }
 
-pub fn finish_array_coercion(input: ArrayOutputPayload, converted: ArrayArguments) -> ArrayValue {
+pub fn finish_array_coercion(
+    input: ArrayOutputPayload,
+    converted: ArrayArguments,
+    binary: bool,
+) -> ArrayValue {
     if input.state == -2 {
         return ArrayValue::Error(input.error);
     };
@@ -1924,7 +1972,12 @@ pub fn finish_array_coercion(input: ArrayOutputPayload, converted: ArrayArgument
         if value.elements.len() != input.elements.len() {
             return ArrayValue::Unknown;
         };
+        let mut null_bitmap = value.null_bitmap;
+        if binary {
+            null_bitmap = input.null_bitmap;
+        };
         return make_array_value(ArrayPayload {
+            null_bitmap: null_bitmap,
             element_type: value.element_type,
             element_kind: value.element_kind,
             dimensions: input.dimensions,
@@ -2376,11 +2429,32 @@ pub fn array_rewrite_step(
     ArrayArguments::Unknown
 }
 
+pub fn array_rewrite_changed(
+    input: &ArrayComparisonPayload,
+    compared: Int4Value,
+    remove: bool,
+) -> BoolValue {
+    if remove == false && input.right.len() == 2 {
+        let needle = input.right[0].clone();
+        let replacement = input.right[1].clone();
+        if let ArrayElement::Null = needle {
+            if let ArrayElement::Null = replacement {
+                return BoolValue::Value(false);
+            };
+        };
+    };
+    if let Int4Value::Value(value) = compared {
+        return BoolValue::Value(value == 0);
+    };
+    BoolValue::Unknown
+}
+
 pub fn finish_array_rewrite(
     original: ArrayValue,
     plan: &ArrayComparisonPayload,
     values: ArrayArguments,
     remove: bool,
+    changed: BoolValue,
 ) -> ArrayValue {
     if plan.state == -2 {
         return ArrayValue::Error(plan.error);
@@ -2419,7 +2493,14 @@ pub fn finish_array_rewrite(
                     position += 1;
                 }
             };
+            let mut null_bitmap = output.null_bitmap;
+            if changed == BoolValue::Value(false) {
+                null_bitmap = source.null_bitmap;
+            } else if changed != BoolValue::Value(true) {
+                null_bitmap = array_bitmap_choice(null_bitmap, source.null_bitmap);
+            };
             return make_array_value(ArrayPayload {
+                null_bitmap: null_bitmap,
                 element_type: output.element_type,
                 element_kind: output.element_kind,
                 dimensions: dimensions,
@@ -2432,6 +2513,7 @@ pub fn finish_array_rewrite(
 
 #[derive(Clone)]
 pub struct ArraySortPayload {
+    pub null_bitmap: BoolValue,
     pub element_type: String,
     pub element_kind: i32,
     pub dimensions: Vec<ArrayDimension>,

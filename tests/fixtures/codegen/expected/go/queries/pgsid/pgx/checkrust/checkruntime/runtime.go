@@ -8246,6 +8246,7 @@ func copyArrayDimension(value ArrayDimension) ArrayDimension {
 }
 
 type ArrayPayload struct {
+	NullBitmap  BoolValue
 	ElementType string
 	ElementKind int
 	Dimensions  []ArrayDimension
@@ -8253,7 +8254,7 @@ type ArrayPayload struct {
 }
 
 func CopyArrayPayload(value ArrayPayload) ArrayPayload {
-	return ArrayPayload{ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement)}
+	return ArrayPayload{NullBitmap: value.NullBitmap, ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement)}
 }
 
 type ArrayValueKind uint8
@@ -8312,6 +8313,7 @@ func CopyArrayArguments(value ArrayArguments) ArrayArguments {
 }
 
 type ArrayOutputPayload struct {
+	NullBitmap BoolValue
 	State      int
 	Error      SqlError
 	Dimensions []ArrayDimension
@@ -8319,7 +8321,7 @@ type ArrayOutputPayload struct {
 }
 
 func CopyArrayOutputPayload(value ArrayOutputPayload) ArrayOutputPayload {
-	return ArrayOutputPayload{State: langruntime.CheckedI32(value.State), Error: value.Error, Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement)}
+	return ArrayOutputPayload{NullBitmap: value.NullBitmap, State: langruntime.CheckedI32(value.State), Error: value.Error, Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement)}
 }
 
 type ArrayOutputPlanKind uint8
@@ -8446,7 +8448,7 @@ func AppendArrayCastConversion(input ArrayOutputPayload, element ArrayElement, v
 func MakeArrayConversion() ArrayOutputPayload {
 	dimensions := []ArrayDimension{}
 	elements := []ArrayElement{}
-	return ArrayOutputPayload{State: 1, Error: MakeSqlError(0), Dimensions: dimensions, Elements: elements}
+	return ArrayOutputPayload{NullBitmap: BoolValue{Kind: BoolValueValue, Value: false}, State: 1, Error: MakeSqlError(0), Dimensions: dimensions, Elements: elements}
 }
 func AppendArrayConversion(input ArrayOutputPayload, element ArrayElement, unknownValid bool) ArrayOutputPayload {
 	state := input.State
@@ -8464,11 +8466,13 @@ func AppendArrayConversion(input ArrayOutputPayload, element ArrayElement, unkno
 		}
 	}
 	elements := input.Elements
+	nullBitmap := input.NullBitmap
 	if state == 1 {
+		nullBitmap = ArrayBitmapUnion(nullBitmap, ArrayElementBitmap(CopyArrayElement(element)))
 		langruntime.CheckedAdd(len(elements), 1)
 		elements = append(elements, CopyArrayElement(element))
 	}
-	return ArrayOutputPayload{State: state, Error: error, Dimensions: input.Dimensions, Elements: elements}
+	return ArrayOutputPayload{NullBitmap: nullBitmap, State: state, Error: error, Dimensions: input.Dimensions, Elements: elements}
 }
 func ArrayConversionArguments(input ArrayOutputPayload, elementType string, elementKind int) ArrayArguments {
 	if input.State == langruntime.CheckedSignedNegate(2) {
@@ -8477,13 +8481,13 @@ func ArrayConversionArguments(input ArrayOutputPayload, elementType string, elem
 	if input.State != 1 {
 		return ArrayArguments{Kind: ArrayArgumentsUnknown}
 	}
-	return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: input.Dimensions, Elements: input.Elements}}
+	return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{NullBitmap: input.NullBitmap, ElementType: elementType, ElementKind: elementKind, Dimensions: input.Dimensions, Elements: input.Elements}}
 }
 func PrepareArrayOutput(input ArrayValue) ArrayOutputPayload {
 	input = CopyArrayValue(input)
 	if input.Kind == ArrayValueValue {
 		value := CopyArrayPayload(input.Value)
-		return ArrayOutputPayload{State: 1, Error: MakeSqlError(0), Dimensions: value.Dimensions, Elements: value.Elements}
+		return ArrayOutputPayload{NullBitmap: value.NullBitmap, State: 1, Error: MakeSqlError(0), Dimensions: value.Dimensions, Elements: value.Elements}
 	}
 	state := langruntime.CheckedSignedNegate(1)
 	error := MakeSqlError(0)
@@ -8497,7 +8501,7 @@ func PrepareArrayOutput(input ArrayValue) ArrayOutputPayload {
 	}
 	dimensions := []ArrayDimension{}
 	elements := []ArrayElement{}
-	return ArrayOutputPayload{State: state, Error: error, Dimensions: dimensions, Elements: elements}
+	return ArrayOutputPayload{NullBitmap: BoolValue{Kind: BoolValueUnknown}, State: state, Error: error, Dimensions: dimensions, Elements: elements}
 }
 func ArrayOutputHasElement(input *ArrayOutputPayload, index Int4Value) bool {
 	if index.Kind == Int4ValueValue {
@@ -8598,7 +8602,25 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		}
 		position = langruntime.CheckedAdd(position, 1)
 	}
-	return ArrayValue{Kind: ArrayValueValue, Value: input}
+	nullBitmap := input.NullBitmap
+	if nullBitmap == (BoolValue{Kind: BoolValueNull}) {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	if nullBitmap.Kind == BoolValueError {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	position = langruntime.CheckedIndex(0)
+	for position < len(input.Elements) {
+		element := CopyArrayElement(input.Elements[position])
+		if element.Kind == ArrayElementNull {
+			if nullBitmap == (BoolValue{Kind: BoolValueValue, Value: false}) {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
+			nullBitmap = BoolValue{Kind: BoolValueValue, Value: true}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return ArrayValue{Kind: ArrayValueValue, Value: ArrayPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements, NullBitmap: nullBitmap}}
 }
 func ArrayFromCoercedValue(input ArrayValue, elementType string, elementKind int) ArrayValue {
 	input = CopyArrayValue(input)
@@ -8618,7 +8640,7 @@ func MakeArrayArguments(elementType string, elementKind int) ArrayArguments {
 	elementKind = langruntime.CheckedI32(elementKind)
 	dimensions := []ArrayDimension{}
 	elements := []ArrayElement{}
-	return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: elements}}
+	return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{NullBitmap: BoolValue{Kind: BoolValueValue, Value: false}, ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: elements}}
 }
 func AppendArrayDimension(input ArrayArguments, lower int, length int) ArrayArguments {
 	input = CopyArrayArguments(input)
@@ -8629,7 +8651,7 @@ func AppendArrayDimension(input ArrayArguments, lower int, length int) ArrayArgu
 		dimensions := value.Dimensions
 		langruntime.CheckedAdd(len(dimensions), 1)
 		dimensions = append(dimensions, ArrayDimension{Lower: lower, Length: length})
-		return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: value.Elements}}
+		return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{NullBitmap: value.NullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: value.Elements}}
 	}
 	return input
 }
@@ -8645,10 +8667,11 @@ func AppendArrayArgument(input ArrayArguments, element ArrayElement) ArrayArgume
 	}
 	if input.Kind == ArrayArgumentsValue {
 		value := CopyArrayPayload(input.Value)
+		nullBitmap := ArrayBitmapUnion(value.NullBitmap, ArrayElementBitmap(CopyArrayElement(element)))
 		elements := value.Elements
 		langruntime.CheckedAdd(len(elements), 1)
 		elements = append(elements, CopyArrayElement(element))
-		return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements}}
+		return ArrayArguments{Kind: ArrayArgumentsValue, Value: ArrayPayload{NullBitmap: nullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements}}
 	}
 	return input
 }
@@ -8709,7 +8732,7 @@ func FinishArrayConstructor(input ArrayArguments) ArrayValue {
 			langruntime.CheckedAdd(len(dimensions), 1)
 			dimensions = append(dimensions, ArrayDimension{Lower: 1, Length: int(int32(len(value.Elements)))})
 		}
-		return MakeArrayValue(ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: value.Elements})
+		return MakeArrayValue(ArrayPayload{NullBitmap: value.NullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: value.Elements})
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
 }
@@ -8793,6 +8816,7 @@ func FinishArrayChildren(input ArrayChildrenArguments) ArrayValue {
 		dimensions := []ArrayDimension{}
 		elements := []ArrayElement{}
 		empty := false
+		nullBitmap := BoolValue{Kind: BoolValueValue, Value: false}
 		position = langruntime.CheckedIndex(0)
 		for position < len(value.Arrays) {
 			child := CopyArrayValue(value.Arrays[position])
@@ -8807,6 +8831,7 @@ func FinishArrayChildren(input ArrayChildrenArguments) ArrayValue {
 				if len(array.Dimensions) == 0 {
 					empty = true
 				} else {
+					nullBitmap = ArrayBitmapUnion(nullBitmap, array.NullBitmap)
 					if len(dimensions) == 0 {
 						if len(array.Dimensions) >= 6 {
 							return ArrayValue{Kind: ArrayValueError, Error: MakeSqlError(sqlErrorProgramLimit)}
@@ -8857,7 +8882,7 @@ func FinishArrayChildren(input ArrayChildrenArguments) ArrayValue {
 			}
 			axis = langruntime.CheckedAdd(axis, 1)
 		}
-		return MakeArrayValue(ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: elements})
+		return MakeArrayValue(ArrayPayload{NullBitmap: nullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: dimensions, Elements: elements})
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
 }
@@ -9349,7 +9374,7 @@ func FinishArrayText(plan ArrayTextPlan, converted ArrayArguments) ArrayValue {
 				}
 				index = langruntime.CheckedAdd(index, 1)
 			}
-			return MakeArrayValue(ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: payload.Dimensions, Elements: value.Elements})
+			return MakeArrayValue(ArrayPayload{NullBitmap: value.NullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: payload.Dimensions, Elements: value.Elements})
 		}
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
@@ -9596,7 +9621,7 @@ func arrayEmptyLike(input *ArrayPayload) ArrayValue {
 	identity := input.ElementType
 	dimensions := []ArrayDimension{}
 	elements := []ArrayElement{}
-	return MakeArrayValue(ArrayPayload{ElementType: identity, ElementKind: input.ElementKind, Dimensions: dimensions, Elements: elements})
+	return MakeArrayValue(ArrayPayload{NullBitmap: BoolValue{Kind: BoolValueValue, Value: false}, ElementType: identity, ElementKind: input.ElementKind, Dimensions: dimensions, Elements: elements})
 }
 func ArraySliceSubscript(input ArrayValue, indices ArraySubscripts) ArrayValue {
 	input = CopyArrayValue(input)
@@ -9690,7 +9715,7 @@ func ArraySliceSubscript(input ArrayValue, indices ArraySubscripts) ArrayValue {
 					axes[depth] = copyarraySliceAxis(arraySliceAxis{start: axis.start, length: axis.length, position: 0})
 				}
 			}
-			return MakeArrayValue(ArrayPayload{ElementType: payload.ElementType, ElementKind: payload.ElementKind, Dimensions: dimensions, Elements: elements})
+			return MakeArrayValue(ArrayPayload{NullBitmap: payload.NullBitmap, ElementType: payload.ElementType, ElementKind: payload.ElementKind, Dimensions: dimensions, Elements: elements})
 		}
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
@@ -10077,7 +10102,7 @@ func ArrayCoercionDeferred(input ArrayElement) ArrayElement {
 	}
 	return ArrayElement{Kind: ArrayElementUnknown}
 }
-func FinishArrayCoercion(input ArrayOutputPayload, converted ArrayArguments) ArrayValue {
+func FinishArrayCoercion(input ArrayOutputPayload, converted ArrayArguments, binary bool) ArrayValue {
 	input = CopyArrayOutputPayload(input)
 	converted = CopyArrayArguments(converted)
 	if input.State == langruntime.CheckedSignedNegate(2) {
@@ -10098,7 +10123,11 @@ func FinishArrayCoercion(input ArrayOutputPayload, converted ArrayArguments) Arr
 		if len(value.Elements) != len(input.Elements) {
 			return ArrayValue{Kind: ArrayValueUnknown}
 		}
-		return MakeArrayValue(ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: input.Dimensions, Elements: value.Elements})
+		nullBitmap := value.NullBitmap
+		if binary {
+			nullBitmap = input.NullBitmap
+		}
+		return MakeArrayValue(ArrayPayload{NullBitmap: nullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: input.Dimensions, Elements: value.Elements})
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
 }
@@ -10506,7 +10535,24 @@ func ArrayRewriteStep(input ArrayArguments, plan *ArrayComparisonPayload, index 
 	}
 	return ArrayArguments{Kind: ArrayArgumentsUnknown}
 }
-func FinishArrayRewrite(original ArrayValue, plan *ArrayComparisonPayload, values ArrayArguments, remove bool) ArrayValue {
+func ArrayRewriteChanged(input *ArrayComparisonPayload, compared Int4Value, remove bool) BoolValue {
+	input = langruntime.CheckedBorrowed(input, copyArrayComparisonPayload)
+	if remove == false && len(input.Right) == 2 {
+		needle := CopyArrayElement(input.Right[0])
+		replacement := CopyArrayElement(input.Right[1])
+		if needle.Kind == ArrayElementNull {
+			if replacement.Kind == ArrayElementNull {
+				return BoolValue{Kind: BoolValueValue, Value: false}
+			}
+		}
+	}
+	if compared.Kind == Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return BoolValue{Kind: BoolValueValue, Value: value == 0}
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
+func FinishArrayRewrite(original ArrayValue, plan *ArrayComparisonPayload, values ArrayArguments, remove bool, changed BoolValue) ArrayValue {
 	original = CopyArrayValue(original)
 	plan = langruntime.CheckedBorrowed(plan, copyArrayComparisonPayload)
 	values = CopyArrayArguments(values)
@@ -10547,13 +10593,20 @@ func FinishArrayRewrite(original ArrayValue, plan *ArrayComparisonPayload, value
 					position = langruntime.CheckedAdd(position, 1)
 				}
 			}
-			return MakeArrayValue(ArrayPayload{ElementType: output.ElementType, ElementKind: output.ElementKind, Dimensions: dimensions, Elements: output.Elements})
+			nullBitmap := output.NullBitmap
+			if changed == (BoolValue{Kind: BoolValueValue, Value: false}) {
+				nullBitmap = source.NullBitmap
+			} else if changed != (BoolValue{Kind: BoolValueValue, Value: true}) {
+				nullBitmap = ArrayBitmapChoice(nullBitmap, source.NullBitmap)
+			}
+			return MakeArrayValue(ArrayPayload{NullBitmap: nullBitmap, ElementType: output.ElementType, ElementKind: output.ElementKind, Dimensions: dimensions, Elements: output.Elements})
 		}
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
 }
 
 type ArraySortPayload struct {
+	NullBitmap  BoolValue
 	ElementType string
 	ElementKind int
 	Dimensions  []ArrayDimension
@@ -10577,7 +10630,7 @@ type ArraySortPayload struct {
 }
 
 func copyArraySortPayload(value ArraySortPayload) ArraySortPayload {
-	return ArraySortPayload{ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement), Order: langruntime.CheckedIndices(value.Order), Buffer: langruntime.CheckedIndices(value.Buffer), Ties: langruntime.CheckedIndices(value.Ties), Rows: langruntime.CheckedI32(value.Rows), Width: langruntime.CheckedI32(value.Width), Run: langruntime.CheckedI32(value.Run), Segment: langruntime.CheckedI32(value.Segment), Left: langruntime.CheckedI32(value.Left), Right: langruntime.CheckedI32(value.Right), Output: langruntime.CheckedI32(value.Output), Phase: langruntime.CheckedI32(value.Phase), Tie: langruntime.CheckedI32(value.Tie), State: langruntime.CheckedI32(value.State), Error: value.Error, Descending: value.Descending, NullsFirst: value.NullsFirst}
+	return ArraySortPayload{NullBitmap: value.NullBitmap, ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Dimensions: langruntime.CheckedStructs(value.Dimensions, copyArrayDimension), Elements: langruntime.CheckedStructs(value.Elements, CopyArrayElement), Order: langruntime.CheckedIndices(value.Order), Buffer: langruntime.CheckedIndices(value.Buffer), Ties: langruntime.CheckedIndices(value.Ties), Rows: langruntime.CheckedI32(value.Rows), Width: langruntime.CheckedI32(value.Width), Run: langruntime.CheckedI32(value.Run), Segment: langruntime.CheckedI32(value.Segment), Left: langruntime.CheckedI32(value.Left), Right: langruntime.CheckedI32(value.Right), Output: langruntime.CheckedI32(value.Output), Phase: langruntime.CheckedI32(value.Phase), Tie: langruntime.CheckedI32(value.Tie), State: langruntime.CheckedI32(value.State), Error: value.Error, Descending: value.Descending, NullsFirst: value.NullsFirst}
 }
 
 type ArraySortPlanKind uint8
@@ -10666,6 +10719,67 @@ func ArrayHashContinues64(input *ArrayComparisonPayload, index Int4Value, first 
 		}
 	}
 	return false
+}
+func ArrayBitmapUnion(left BoolValue, right BoolValue) BoolValue {
+	if left == (BoolValue{Kind: BoolValueValue, Value: true}) || right == (BoolValue{Kind: BoolValueValue, Value: true}) {
+		return BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	if left == (BoolValue{Kind: BoolValueValue, Value: false}) && right == (BoolValue{Kind: BoolValueValue, Value: false}) {
+		return BoolValue{Kind: BoolValueValue, Value: false}
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
+func ArrayElementBitmap(input ArrayElement) BoolValue {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == ArrayElementNull {
+		return BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: false}
+}
+func ArrayElementsBitmap(input *ArrayPayload) BoolValue {
+	input = langruntime.CheckedBorrowed(input, CopyArrayPayload)
+	result := BoolValue{Kind: BoolValueValue, Value: false}
+	index := 0
+	for index < len(input.Elements) {
+		result = ArrayBitmapUnion(result, ArrayElementBitmap(CopyArrayElement(input.Elements[index])))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return result
+}
+func ArrayReconstructionBitmap(input *ArrayPayload) BoolValue {
+	input = langruntime.CheckedBorrowed(input, CopyArrayPayload)
+	if input.NullBitmap == (BoolValue{Kind: BoolValueValue, Value: false}) {
+		return input.NullBitmap
+	}
+	return ArrayElementsBitmap(input)
+}
+func ArrayBitmapChoice(left BoolValue, right BoolValue) BoolValue {
+	if left == right {
+		return left
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
+func ArrayNullBitmap(input ArrayValue) BoolValue {
+	input = CopyArrayValue(input)
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == ArrayValueNull {
+		return BoolValue{Kind: BoolValueNull}
+	}
+	if input.Kind == ArrayValueValue {
+		value := CopyArrayPayload(input.Value)
+		return value.NullBitmap
+	}
+	return BoolValue{Kind: BoolValueUnknown}
 }
 func PrepareArrayQuantifier(scalar BoolValue, input ArrayValue, strict bool) ArrayComparisonPayload {
 	input = CopyArrayValue(input)

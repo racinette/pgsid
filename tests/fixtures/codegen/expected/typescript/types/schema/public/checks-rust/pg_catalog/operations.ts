@@ -253,7 +253,7 @@ function arrayFillPayload(element: checkruntime.ArrayElement, lengths: checkrunt
         langruntime.pushStruct(elements, checkruntime.copyArrayElement(element), checkruntime.copyArrayElement);
         filled = langruntime.checkedI64(langruntime.checkedI64Add(filled, 1n));
     }
-    return checkruntime.makeArrayValue({ elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: elements });
+    return checkruntime.makeArrayValue({ nullBitmap: checkruntime.arrayElementBitmap(element), elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: elements });
 }
 function arrayFillValue(element: checkruntime.ArrayElement, lengths: checkruntime.ArrayValue, bounds: checkruntime.ArrayValue, provided: boolean, elementType: string, elementKind: number): checkruntime.ArrayValue {
     element = checkruntime.copyArrayElement(element);
@@ -673,6 +673,7 @@ export function arrayWithTypmod(input: checkruntime.ArrayValue, modifier: number
     }
     if (input.kind === "Value") {
         const payload: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        let nullBitmap: checkruntime.BoolValue = checkruntime.arrayReconstructionBitmap(payload);
         let elements: checkruntime.ArrayElement[] = payload.elements;
         let position: number = 0;
         const unknownValid: boolean = payload.elementType === "pg_catalog.\"varchar\"" || payload.elementType === "pg_catalog.bpchar" || payload.elementType === "pg_catalog.\"bit\"" || payload.elementType === "pg_catalog.varbit" || payload.elementType === "pg_catalog.\"time\"" || payload.elementType === "pg_catalog.timetz";
@@ -690,7 +691,15 @@ export function arrayWithTypmod(input: checkruntime.ArrayValue, modifier: number
             elements[langruntime.checkedIndexIn(elements, position)] = checkruntime.copyArrayElement(converted);
             position = langruntime.checkedAdd(position, 1);
         }
-        return checkruntime.makeArrayValue({ elementType: payload.elementType, elementKind: payload.elementKind, dimensions: payload.dimensions, elements: elements });
+        if (!(checkruntime.equalBoolValue(payload.nullBitmap, { kind: "Value", value: false }))) {
+            nullBitmap = { kind: "Value", value: false };
+            position = langruntime.checkedIndex(0);
+            while (position < elements.length) {
+                nullBitmap = checkruntime.arrayBitmapUnion(nullBitmap, checkruntime.arrayElementBitmap(checkruntime.copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement))));
+                position = langruntime.checkedAdd(position, 1);
+            }
+        }
+        return checkruntime.makeArrayValue({ nullBitmap: nullBitmap, elementType: payload.elementType, elementKind: payload.elementKind, dimensions: payload.dimensions, elements: elements });
     }
     return input;
 }
@@ -1104,7 +1113,8 @@ export function arrayReverseIwk0(input: checkruntime.ArrayValue): checkruntime.A
             }
             row = langruntime.checkedI32(langruntime.checkedSignedAdd(row, 1));
         }
-        return checkruntime.makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements });
+        const nullBitmap: checkruntime.BoolValue = checkruntime.arrayReconstructionBitmap(value);
+        return checkruntime.makeArrayValue({ nullBitmap: nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements });
     }
     return input;
 }
@@ -1134,6 +1144,10 @@ function arraySortPayload(value: checkruntime.ArrayPayload, state: number, error
     descending = langruntime.checkedBool(descending);
     nullsFirst = langruntime.checkedBool(nullsFirst);
     let rows: number = 0;
+    let nullBitmap: checkruntime.BoolValue = value.nullBitmap;
+    if (value.dimensions.length > 0 && langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length >= 2) {
+        nullBitmap = checkruntime.arrayReconstructionBitmap(value);
+    }
     let width: number = 0;
     if (value.dimensions.length > 0) {
         rows = langruntime.checkedI32(langruntime.indexStruct(value.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length);
@@ -1154,13 +1168,13 @@ function arraySortPayload(value: checkruntime.ArrayPayload, state: number, error
     if (rows > 0) {
         right = langruntime.checkedI32(1);
     }
-    return { elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: value.elements, order: order, buffer: buffer, ties: ties, rows: rows, width: width, run: 1, segment: 0, left: 0, right: right, output: 0, phase: 1, tie: 1, state: state, error: error, descending: descending, nullsFirst: nullsFirst };
+    return { nullBitmap: nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: value.elements, order: order, buffer: buffer, ties: ties, rows: rows, width: width, run: 1, segment: 0, left: 0, right: right, output: 0, phase: 1, tie: 1, state: state, error: error, descending: descending, nullsFirst: nullsFirst };
 }
 function arraySortStatus(state: number, error: checkruntime.SqlError): checkruntime.ArraySortPayload {
     state = langruntime.checkedI32(state);
     const dimensions: checkruntime.ArrayDimension[] = [];
     const elements: checkruntime.ArrayElement[] = [];
-    const value: checkruntime.ArrayPayload = { elementType: "", elementKind: 0, dimensions: dimensions, elements: elements };
+    const value: checkruntime.ArrayPayload = { nullBitmap: { kind: "Unknown" }, elementType: "", elementKind: 0, dimensions: dimensions, elements: elements };
     return arraySortPayload(value, state, error, false, false);
 }
 export function prepareArraySort(input: checkruntime.ArrayValue, descending: checkruntime.BoolValue, nullsFirst: checkruntime.BoolValue, available: boolean): checkruntime.ArraySortPayload {
@@ -1364,13 +1378,13 @@ export function arraySortStep(input: checkruntime.ArraySortPayload, compared: ch
                         if (run >= input.rows) {
                             phase = langruntime.checkedI32(2);
                         }
-                        return { elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements, order: buffer, buffer: order, ties: ties, rows: input.rows, width: input.width, run: run, segment: segment, left: left, right: right, output: output, phase: phase, tie: tie, state: state, error: error, descending: input.descending, nullsFirst: input.nullsFirst };
+                        return { nullBitmap: input.nullBitmap, elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements, order: buffer, buffer: order, ties: ties, rows: input.rows, width: input.width, run: run, segment: segment, left: left, right: right, output: output, phase: phase, tie: tie, state: state, error: error, descending: input.descending, nullsFirst: input.nullsFirst };
                     }
                 }
             }
         }
     }
-    return { elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements, order: order, buffer: buffer, ties: ties, rows: input.rows, width: input.width, run: run, segment: segment, left: left, right: right, output: output, phase: phase, tie: tie, state: state, error: error, descending: input.descending, nullsFirst: input.nullsFirst };
+    return { nullBitmap: input.nullBitmap, elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements, order: order, buffer: buffer, ties: ties, rows: input.rows, width: input.width, run: run, segment: segment, left: left, right: right, output: output, phase: phase, tie: tie, state: state, error: error, descending: input.descending, nullsFirst: input.nullsFirst };
 }
 function arraySortSameElement(left: checkruntime.ArrayElement, right: checkruntime.ArrayElement): boolean {
     left = checkruntime.copyArrayElement(left);
@@ -1535,7 +1549,7 @@ export function finishArraySort(input: checkruntime.ArraySortPayload): checkrunt
         return { kind: "Unknown" };
     }
     if (input.state === 2) {
-        return checkruntime.makeArrayValue({ elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements });
+        return checkruntime.makeArrayValue({ nullBitmap: input.nullBitmap, elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements });
     }
     let elements: checkruntime.ArrayElement[] = [];
     if (input.state === 3) {
@@ -1597,7 +1611,7 @@ export function finishArraySort(input: checkruntime.ArraySortPayload): checkrunt
     else {
         return { kind: "Unknown" };
     }
-    return checkruntime.makeArrayValue({ elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: elements });
+    return checkruntime.makeArrayValue({ nullBitmap: input.nullBitmap, elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: elements });
 }
 export function arraySortHxzh(input: checkruntime.ArrayValue): checkruntime.ArrayValue {
     input = checkruntime.copyArrayValue(input);
@@ -1885,7 +1899,7 @@ function arrayPush(input: checkruntime.ArrayValue, element: checkruntime.ArrayEl
     }
     const dimensions: checkruntime.ArrayDimension[] = [];
     const elements: checkruntime.ArrayElement[] = [];
-    const empty: checkruntime.ArrayPayload = { elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: elements };
+    const empty: checkruntime.ArrayPayload = { nullBitmap: { kind: "Value", value: false }, elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: elements };
     return arrayPushPayload(empty, element, elementType, elementKind, prepend);
 }
 function arrayPushPayload(value: checkruntime.ArrayPayload, element: checkruntime.ArrayElement, elementType: string, elementKind: number, prepend: boolean): checkruntime.ArrayValue {
@@ -1916,6 +1930,7 @@ function arrayPushPayload(value: checkruntime.ArrayPayload, element: checkruntim
         return { kind: "Error", value: checkruntime.makeSqlError(arrayTransformLimit) };
     }
     let output: checkruntime.ArrayElement[] = [];
+    const nullBitmap: checkruntime.BoolValue = checkruntime.arrayBitmapUnion(value.nullBitmap, checkruntime.arrayElementBitmap(checkruntime.copyArrayElement(element)));
     if (prepend) {
         langruntime.pushStruct(output, checkruntime.copyArrayElement(element), checkruntime.copyArrayElement);
     }
@@ -1933,7 +1948,7 @@ function arrayPushPayload(value: checkruntime.ArrayPayload, element: checkruntim
     if (prepend && length > 0) {
         adjustment = langruntime.checkedI32(1);
     }
-    return arrayTransformFinish({ elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: output }, adjustment);
+    return arrayTransformFinish({ nullBitmap: nullBitmap, elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: output }, adjustment);
 }
 export function arrayAppendK9mc(input: checkruntime.ArrayValue, element: checkruntime.ArrayElement, elementType: string, elementKind: number): checkruntime.ArrayValue {
     input = checkruntime.copyArrayValue(input);
@@ -2050,7 +2065,7 @@ export function arrayCat6rla(left: checkruntime.ArrayValue, right: checkruntime.
                 langruntime.pushStruct(elements, checkruntime.copyArrayElement(langruntime.indexStruct(b.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)), checkruntime.copyArrayElement);
                 position = langruntime.checkedAdd(position, 1);
             }
-            return arrayTransformFinish({ elementType: a.elementType, elementKind: a.elementKind, dimensions: dimensions, elements: elements }, 0);
+            return arrayTransformFinish({ nullBitmap: checkruntime.arrayBitmapUnion(a.nullBitmap, b.nullBitmap), elementType: a.elementType, elementKind: a.elementKind, dimensions: dimensions, elements: elements }, 0);
         }
     }
     return { kind: "Unknown" };
@@ -9057,7 +9072,7 @@ function enumSupportRangeValues(count: number, identity: string, first: number, 
     if (elements.length > 0) {
         langruntime.pushStruct(dimensions, { lower: 1, length: langruntime.checkedI32(langruntime.checkedIndex(elements.length)) }, checkruntime.copyArrayDimension);
     }
-    return { kind: "Value", value: { elementType: identity, elementKind: 6, dimensions: dimensions, elements: elements } };
+    return { kind: "Value", value: { nullBitmap: { kind: "Value", value: false }, elementType: identity, elementKind: 6, dimensions: dimensions, elements: elements } };
 }
 export function enumRangeP6cj(input: checkruntime.EnumValue, count: number, identity: string, unknownValid: boolean): checkruntime.ArrayValue {
     count = langruntime.checkedI32(count);

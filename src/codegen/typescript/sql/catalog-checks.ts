@@ -514,7 +514,46 @@ export function renderTypescriptSchemaCheckArtifacts(
           factory.createTypeReferenceNode('_checkRust.NumericValue'),
           factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
         ])
-      : factory.createTypeReferenceNode(`_checkRust.${type}`)
+      : type === 'ArrayValue'
+        ? factory.createUnionTypeNode([
+            factory.createTypeReferenceNode('Exclude', [
+              factory.createTypeReferenceNode('_checkRust.ArrayValue'),
+              factory.createTypeLiteralNode([
+                factory.createPropertySignature(
+                  undefined,
+                  'kind',
+                  undefined,
+                  factory.createLiteralTypeNode(factory.createStringLiteral('Value')),
+                ),
+              ]),
+            ]),
+            factory.createTypeLiteralNode([
+              factory.createPropertySignature(
+                undefined,
+                'kind',
+                undefined,
+                factory.createLiteralTypeNode(factory.createStringLiteral('Value')),
+              ),
+              factory.createPropertySignature(
+                undefined,
+                'value',
+                undefined,
+                factory.createIntersectionTypeNode([
+                  factory.createTypeReferenceNode('Omit', [
+                    factory.createTypeReferenceNode('_checkRust.ArrayPayload'),
+                    factory.createLiteralTypeNode(factory.createStringLiteral('nullBitmap')),
+                  ]),
+                  factory.createTypeReferenceNode('Partial', [
+                    factory.createTypeReferenceNode('Pick', [
+                      factory.createTypeReferenceNode('_checkRust.ArrayPayload'),
+                      factory.createLiteralTypeNode(factory.createStringLiteral('nullBitmap')),
+                    ]),
+                  ]),
+                ]),
+              ),
+            ]),
+          ])
+        : factory.createTypeReferenceNode(`_checkRust.${type}`)
   const inputType = (group: (typeof groups)[number]): ts.TypeNode => {
     const table =
       group.kind === 'table'
@@ -742,7 +781,15 @@ function checkRustArray(row: object, name: string, elementType: string, elementK
     if (element===null) return _checkRust.arrayUnknown()
     elements.push(element)
   }
-  return _checkRust.arrayFromCoercedValue({kind:'Value',value:{elementType,elementKind,dimensions,elements}},elementType,elementKind)
+  let nullBitmap: _checkRust.BoolValue={kind:'Unknown'}
+  if ('nullBitmap' in value && value.nullBitmap !== undefined) {
+    const flag=value.nullBitmap
+    if (!flag || typeof flag !== 'object' || !('kind' in flag)) return _checkRust.arrayUnknown()
+    if (flag.kind==='Value' && 'value' in flag && typeof flag.value==='boolean') nullBitmap={kind:'Value',value:flag.value}
+    else if (flag.kind==='Null' || flag.kind==='Error') nullBitmap={kind:'Null'}
+    else if (flag.kind!=='Unknown') return _checkRust.arrayUnknown()
+  }
+  return _checkRust.arrayFromCoercedValue({kind:'Value',value:{elementType,elementKind,dimensions,elements,nullBitmap}},elementType,elementKind)
 }
 function checkRustArrayElement(input: unknown, family: number): _checkRust.ArrayElement | null {
   if (!input || typeof input !== 'object' || !('kind' in input)) return null

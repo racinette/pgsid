@@ -8399,13 +8399,14 @@ export function copyArrayDimension(value: ArrayDimension): ArrayDimension {
     return { lower: langruntime.checkedI32(value.lower), length: langruntime.checkedI32(value.length) };
 }
 export interface ArrayPayload {
+    readonly nullBitmap: BoolValue;
     readonly elementType: string;
     readonly elementKind: number;
     readonly dimensions: ArrayDimension[];
     readonly elements: ArrayElement[];
 }
 export function copyArrayPayload(value: ArrayPayload): ArrayPayload {
-    return { elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement) };
+    return { nullBitmap: value.nullBitmap, elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement) };
 }
 export type ArrayValue = {
     readonly kind: "Unknown";
@@ -8443,13 +8444,14 @@ export function copyArrayArguments(value: ArrayArguments): ArrayArguments {
     }
 }
 export interface ArrayOutputPayload {
+    nullBitmap: BoolValue;
     state: number;
     error: SqlError;
     dimensions: ArrayDimension[];
     elements: ArrayElement[];
 }
 export function copyArrayOutputPayload(value: ArrayOutputPayload): ArrayOutputPayload {
-    return { state: langruntime.checkedI32(value.state), error: value.error, dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement) };
+    return { nullBitmap: value.nullBitmap, state: langruntime.checkedI32(value.state), error: value.error, dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement) };
 }
 export type ArrayOutputPlan = {
     kind: "Value";
@@ -8566,7 +8568,7 @@ export function appendArrayCastConversion(input: ArrayOutputPayload, element: Ar
 export function makeArrayConversion(): ArrayOutputPayload {
     const dimensions: ArrayDimension[] = [];
     const elements: ArrayElement[] = [];
-    return { state: 1, error: makeSqlError(0), dimensions: dimensions, elements: elements };
+    return { nullBitmap: { kind: "Value", value: false }, state: 1, error: makeSqlError(0), dimensions: dimensions, elements: elements };
 }
 export function appendArrayConversion(input: ArrayOutputPayload, element: ArrayElement, unknownValid: boolean): ArrayOutputPayload {
     let state: number = input.state;
@@ -8584,10 +8586,12 @@ export function appendArrayConversion(input: ArrayOutputPayload, element: ArrayE
         }
     }
     let elements: ArrayElement[] = input.elements;
+    let nullBitmap: BoolValue = input.nullBitmap;
     if (state === 1) {
+        nullBitmap = arrayBitmapUnion(nullBitmap, arrayElementBitmap(copyArrayElement(element)));
         langruntime.pushStruct(elements, element, copyArrayElement);
     }
-    return { state: state, error: error, dimensions: input.dimensions, elements: elements };
+    return { nullBitmap: nullBitmap, state: state, error: error, dimensions: input.dimensions, elements: elements };
 }
 export function arrayConversionArguments(input: ArrayOutputPayload, elementType: string, elementKind: number): ArrayArguments {
     if (input.state === langruntime.checkedSignedNegate(2)) {
@@ -8596,13 +8600,13 @@ export function arrayConversionArguments(input: ArrayOutputPayload, elementType:
     if (!(input.state === 1)) {
         return { kind: "Unknown" };
     }
-    return { kind: "Value", value: { elementType: elementType, elementKind: elementKind, dimensions: input.dimensions, elements: input.elements } };
+    return { kind: "Value", value: { nullBitmap: input.nullBitmap, elementType: elementType, elementKind: elementKind, dimensions: input.dimensions, elements: input.elements } };
 }
 export function prepareArrayOutput(input: ArrayValue): ArrayOutputPayload {
     input = copyArrayValue(input);
     if (input.kind === "Value") {
         const value: ArrayPayload = copyArrayPayload(input.value);
-        return { state: 1, error: makeSqlError(0), dimensions: value.dimensions, elements: value.elements };
+        return { nullBitmap: value.nullBitmap, state: 1, error: makeSqlError(0), dimensions: value.dimensions, elements: value.elements };
     }
     let state: number = langruntime.checkedSignedNegate(1);
     let error: SqlError = makeSqlError(0);
@@ -8616,7 +8620,7 @@ export function prepareArrayOutput(input: ArrayValue): ArrayOutputPayload {
     }
     const dimensions: ArrayDimension[] = [];
     const elements: ArrayElement[] = [];
-    return { state: state, error: error, dimensions: dimensions, elements: elements };
+    return { nullBitmap: { kind: "Unknown" }, state: state, error: error, dimensions: dimensions, elements: elements };
 }
 export function arrayOutputHasElement(input: ArrayOutputPayload, index: Int4Value): boolean {
     if (index.kind === "Value") {
@@ -8717,7 +8721,25 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         }
         position = langruntime.checkedAdd(position, 1);
     }
-    return { kind: "Value", value: input };
+    let nullBitmap: BoolValue = input.nullBitmap;
+    if (equalBoolValue(nullBitmap, { kind: "Null" })) {
+        return { kind: "Unknown" };
+    }
+    if (nullBitmap.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    position = langruntime.checkedIndex(0);
+    while (position < input.elements.length) {
+        const element: ArrayElement = copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement));
+        if (element.kind === "Null") {
+            if (equalBoolValue(nullBitmap, { kind: "Value", value: false })) {
+                return { kind: "Unknown" };
+            }
+            nullBitmap = { kind: "Value", value: true };
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return { kind: "Value", value: { elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements, nullBitmap: nullBitmap } };
 }
 export function arrayFromCoercedValue(input: ArrayValue, elementType: string, elementKind: number): ArrayValue {
     input = copyArrayValue(input);
@@ -8737,7 +8759,7 @@ export function makeArrayArguments(elementType: string, elementKind: number): Ar
     elementKind = langruntime.checkedI32(elementKind);
     const dimensions: ArrayDimension[] = [];
     const elements: ArrayElement[] = [];
-    return { kind: "Value", value: { elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: elements } };
+    return { kind: "Value", value: { nullBitmap: { kind: "Value", value: false }, elementType: elementType, elementKind: elementKind, dimensions: dimensions, elements: elements } };
 }
 export function appendArrayDimension(input: ArrayArguments, lower: number, length: number): ArrayArguments {
     input = copyArrayArguments(input);
@@ -8747,7 +8769,7 @@ export function appendArrayDimension(input: ArrayArguments, lower: number, lengt
         const value: ArrayPayload = copyArrayPayload(input.value);
         let dimensions: ArrayDimension[] = value.dimensions;
         langruntime.pushStruct(dimensions, { lower: lower, length: length }, copyArrayDimension);
-        return { kind: "Value", value: { elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: value.elements } };
+        return { kind: "Value", value: { nullBitmap: value.nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: value.elements } };
     }
     return input;
 }
@@ -8763,9 +8785,10 @@ export function appendArrayArgument(input: ArrayArguments, element: ArrayElement
     }
     if (input.kind === "Value") {
         const value: ArrayPayload = copyArrayPayload(input.value);
+        const nullBitmap: BoolValue = arrayBitmapUnion(value.nullBitmap, arrayElementBitmap(copyArrayElement(element)));
         let elements: ArrayElement[] = value.elements;
         langruntime.pushStruct(elements, element, copyArrayElement);
-        return { kind: "Value", value: { elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements } };
+        return { kind: "Value", value: { nullBitmap: nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: value.dimensions, elements: elements } };
     }
     return input;
 }
@@ -8825,7 +8848,7 @@ export function finishArrayConstructor(input: ArrayArguments): ArrayValue {
         if (value.elements.length > 0) {
             langruntime.pushStruct(dimensions, { lower: 1, length: langruntime.checkedI32(langruntime.checkedIndex(value.elements.length)) }, copyArrayDimension);
         }
-        return makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: value.elements });
+        return makeArrayValue({ nullBitmap: value.nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: value.elements });
     }
     return { kind: "Unknown" };
 }
@@ -8896,6 +8919,7 @@ export function finishArrayChildren(input: ArrayChildrenArguments): ArrayValue {
         let dimensions: ArrayDimension[] = [];
         let elements: ArrayElement[] = [];
         let empty: boolean = false;
+        let nullBitmap: BoolValue = { kind: "Value", value: false };
         position = langruntime.checkedIndex(0);
         while (position < value.arrays.length) {
             const child: ArrayValue = copyArrayValue(langruntime.indexStruct(value.arrays, langruntime.checkedIndex(position), copyArrayValue));
@@ -8911,6 +8935,7 @@ export function finishArrayChildren(input: ArrayChildrenArguments): ArrayValue {
                     empty = langruntime.checkedBool(true);
                 }
                 else {
+                    nullBitmap = arrayBitmapUnion(nullBitmap, array.nullBitmap);
                     if (dimensions.length === 0) {
                         if (array.dimensions.length >= 6) {
                             return { kind: "Error", value: makeSqlError(sqlErrorProgramLimit) };
@@ -8959,7 +8984,7 @@ export function finishArrayChildren(input: ArrayChildrenArguments): ArrayValue {
             }
             axis = langruntime.checkedAdd(axis, 1);
         }
-        return makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: elements });
+        return makeArrayValue({ nullBitmap: nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: dimensions, elements: elements });
     }
     return { kind: "Unknown" };
 }
@@ -9417,7 +9442,7 @@ export function finishArrayText(plan: ArrayTextPlan, converted: ArrayArguments):
                 }
                 index = langruntime.checkedAdd(index, 1);
             }
-            return makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: payload.dimensions, elements: value.elements });
+            return makeArrayValue({ nullBitmap: value.nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: payload.dimensions, elements: value.elements });
         }
     }
     return { kind: "Unknown" };
@@ -9651,7 +9676,7 @@ function arrayEmptyLike(input: ArrayPayload): ArrayValue {
     const identity: string = input.elementType;
     const dimensions: ArrayDimension[] = [];
     const elements: ArrayElement[] = [];
-    return makeArrayValue({ elementType: identity, elementKind: input.elementKind, dimensions: dimensions, elements: elements });
+    return makeArrayValue({ nullBitmap: { kind: "Value", value: false }, elementType: identity, elementKind: input.elementKind, dimensions: dimensions, elements: elements });
 }
 export function arraySliceSubscript(input: ArrayValue, indices: ArraySubscripts): ArrayValue {
     input = copyArrayValue(input);
@@ -9742,7 +9767,7 @@ export function arraySliceSubscript(input: ArrayValue, indices: ArraySubscripts)
                     axes[langruntime.checkedIndexIn(axes, depth)] = copyArraySliceAxis({ start: axis.start, length: axis.length, position: 0 });
                 }
             }
-            return makeArrayValue({ elementType: payload.elementType, elementKind: payload.elementKind, dimensions: dimensions, elements: elements });
+            return makeArrayValue({ nullBitmap: payload.nullBitmap, elementType: payload.elementType, elementKind: payload.elementKind, dimensions: dimensions, elements: elements });
         }
     }
     return { kind: "Unknown" };
@@ -10126,9 +10151,10 @@ export function arrayCoercionDeferred(input: ArrayElement): ArrayElement {
     }
     return { kind: "Unknown" };
 }
-export function finishArrayCoercion(input: ArrayOutputPayload, converted: ArrayArguments): ArrayValue {
+export function finishArrayCoercion(input: ArrayOutputPayload, converted: ArrayArguments, binary: boolean): ArrayValue {
     input = copyArrayOutputPayload(input);
     converted = copyArrayArguments(converted);
+    binary = langruntime.checkedBool(binary);
     if (input.state === langruntime.checkedSignedNegate(2)) {
         return { kind: "Error", value: input.error };
     }
@@ -10147,7 +10173,11 @@ export function finishArrayCoercion(input: ArrayOutputPayload, converted: ArrayA
         if (!(value.elements.length === input.elements.length)) {
             return { kind: "Unknown" };
         }
-        return makeArrayValue({ elementType: value.elementType, elementKind: value.elementKind, dimensions: input.dimensions, elements: value.elements });
+        let nullBitmap: BoolValue = value.nullBitmap;
+        if (binary) {
+            nullBitmap = input.nullBitmap;
+        }
+        return makeArrayValue({ nullBitmap: nullBitmap, elementType: value.elementType, elementKind: value.elementKind, dimensions: input.dimensions, elements: value.elements });
     }
     return { kind: "Unknown" };
 }
@@ -10555,7 +10585,25 @@ export function arrayRewriteStep(input: ArrayArguments, plan: ArrayComparisonPay
     }
     return { kind: "Unknown" };
 }
-export function finishArrayRewrite(original: ArrayValue, plan: ArrayComparisonPayload, values: ArrayArguments, remove: boolean): ArrayValue {
+export function arrayRewriteChanged(input: ArrayComparisonPayload, compared: Int4Value, remove: boolean): BoolValue {
+    input = copyArrayComparisonPayload(input);
+    remove = langruntime.checkedBool(remove);
+    if (remove === false && input.right.length === 2) {
+        const needle: ArrayElement = copyArrayElement(langruntime.indexStruct(input.right, langruntime.checkedIndex(0), copyArrayElement));
+        const replacement: ArrayElement = copyArrayElement(langruntime.indexStruct(input.right, langruntime.checkedIndex(1), copyArrayElement));
+        if (needle.kind === "Null") {
+            if (replacement.kind === "Null") {
+                return { kind: "Value", value: false };
+            }
+        }
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value === 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function finishArrayRewrite(original: ArrayValue, plan: ArrayComparisonPayload, values: ArrayArguments, remove: boolean, changed: BoolValue): ArrayValue {
     original = copyArrayValue(original);
     plan = copyArrayComparisonPayload(plan);
     values = copyArrayArguments(values);
@@ -10596,12 +10644,20 @@ export function finishArrayRewrite(original: ArrayValue, plan: ArrayComparisonPa
                     position = langruntime.checkedAdd(position, 1);
                 }
             }
-            return makeArrayValue({ elementType: output.elementType, elementKind: output.elementKind, dimensions: dimensions, elements: output.elements });
+            let nullBitmap: BoolValue = output.nullBitmap;
+            if (equalBoolValue(changed, { kind: "Value", value: false })) {
+                nullBitmap = source.nullBitmap;
+            }
+            else if (!(equalBoolValue(changed, { kind: "Value", value: true }))) {
+                nullBitmap = arrayBitmapChoice(nullBitmap, source.nullBitmap);
+            }
+            return makeArrayValue({ nullBitmap: nullBitmap, elementType: output.elementType, elementKind: output.elementKind, dimensions: dimensions, elements: output.elements });
         }
     }
     return { kind: "Unknown" };
 }
 export interface ArraySortPayload {
+    nullBitmap: BoolValue;
     elementType: string;
     elementKind: number;
     dimensions: ArrayDimension[];
@@ -10624,7 +10680,7 @@ export interface ArraySortPayload {
     nullsFirst: boolean;
 }
 function copyArraySortPayload(value: ArraySortPayload): ArraySortPayload {
-    return { elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement), order: langruntime.checkedIndices(value.order), buffer: langruntime.checkedIndices(value.buffer), ties: langruntime.checkedIndices(value.ties), rows: langruntime.checkedI32(value.rows), width: langruntime.checkedI32(value.width), run: langruntime.checkedI32(value.run), segment: langruntime.checkedI32(value.segment), left: langruntime.checkedI32(value.left), right: langruntime.checkedI32(value.right), output: langruntime.checkedI32(value.output), phase: langruntime.checkedI32(value.phase), tie: langruntime.checkedI32(value.tie), state: langruntime.checkedI32(value.state), error: value.error, descending: langruntime.checkedBool(value.descending), nullsFirst: langruntime.checkedBool(value.nullsFirst) };
+    return { nullBitmap: value.nullBitmap, elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), dimensions: langruntime.checkedStructs(value.dimensions, copyArrayDimension), elements: langruntime.checkedStructs(value.elements, copyArrayElement), order: langruntime.checkedIndices(value.order), buffer: langruntime.checkedIndices(value.buffer), ties: langruntime.checkedIndices(value.ties), rows: langruntime.checkedI32(value.rows), width: langruntime.checkedI32(value.width), run: langruntime.checkedI32(value.run), segment: langruntime.checkedI32(value.segment), left: langruntime.checkedI32(value.left), right: langruntime.checkedI32(value.right), output: langruntime.checkedI32(value.output), phase: langruntime.checkedI32(value.phase), tie: langruntime.checkedI32(value.tie), state: langruntime.checkedI32(value.state), error: value.error, descending: langruntime.checkedBool(value.descending), nullsFirst: langruntime.checkedBool(value.nullsFirst) };
 }
 export type ArraySortPlan = {
     kind: "Value";
@@ -10704,6 +10760,67 @@ export function arrayHashContinues64(input: ArrayComparisonPayload, index: Int4V
         }
     }
     return false;
+}
+export function arrayBitmapUnion(left: BoolValue, right: BoolValue): BoolValue {
+    if (equalBoolValue(left, { kind: "Value", value: true }) || equalBoolValue(right, { kind: "Value", value: true })) {
+        return { kind: "Value", value: true };
+    }
+    if (equalBoolValue(left, { kind: "Value", value: false }) && equalBoolValue(right, { kind: "Value", value: false })) {
+        return { kind: "Value", value: false };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementBitmap(input: ArrayElement): BoolValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Value", value: true };
+    }
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Value", value: false };
+}
+export function arrayElementsBitmap(input: ArrayPayload): BoolValue {
+    input = copyArrayPayload(input);
+    let result: BoolValue = { kind: "Value", value: false };
+    let index: number = 0;
+    while (index < input.elements.length) {
+        result = arrayBitmapUnion(result, arrayElementBitmap(copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(index), copyArrayElement))));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return result;
+}
+export function arrayReconstructionBitmap(input: ArrayPayload): BoolValue {
+    input = copyArrayPayload(input);
+    if (equalBoolValue(input.nullBitmap, { kind: "Value", value: false })) {
+        return input.nullBitmap;
+    }
+    return arrayElementsBitmap(input);
+}
+export function arrayBitmapChoice(left: BoolValue, right: BoolValue): BoolValue {
+    if (equalBoolValue(left, right)) {
+        return left;
+    }
+    return { kind: "Unknown" };
+}
+export function arrayNullBitmap(input: ArrayValue): BoolValue {
+    input = copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        return value.nullBitmap;
+    }
+    return { kind: "Unknown" };
 }
 export function prepareArrayQuantifier(scalar: BoolValue, input: ArrayValue, strict: boolean): ArrayComparisonPayload {
     input = copyArrayValue(input);

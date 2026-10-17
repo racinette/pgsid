@@ -1948,6 +1948,8 @@ export function emitCheckRustEvaluator(
             index = fresh('array_rewrite_index'),
             empty = fresh('array_rewrite_empty'),
             builder = fresh('array_rewrite_builder')
+          const changed = fresh('array_rewrite_changed'),
+            change = fresh('array_rewrite_change')
           destination.push(
             `let ${payload} = prepare_array_rewrite(${ownedOperand(operands[0]!)}, ${needle}, ${replacement}, ${remove}, ${selected !== null});`,
             `let ${initial} = array_search_initial(&${payload});`,
@@ -1956,6 +1958,7 @@ export function emitCheckRustEvaluator(
             `let mut ${index}: Int4Value = ${first};`,
             `let ${empty} = make_array_arguments(${rustStringLiteral(elementType)}, ${family});`,
             `let mut ${builder}: ArrayArguments = ${empty};`,
+            `let mut ${changed}: BoolValue = make_bool_value(false);`,
           )
           const left = fresh('array_rewrite_cell'),
             right = fresh('array_rewrite_query'),
@@ -1972,6 +1975,8 @@ export function emitCheckRustEvaluator(
             ...indent(scalarLines),
             '};',
             `${builder} = array_rewrite_step(${builder}, &${payload}, ${index}, ${compared}, ${remove});`,
+            `let ${change} = array_rewrite_changed(&${payload}, ${compared}, ${remove});`,
+            `${changed} = array_bitmap_union(${changed}, ${change});`,
             `${result} = ${compared};`,
             `${index} = array_text_next_index(${index});`,
           ]
@@ -1983,7 +1988,7 @@ export function emitCheckRustEvaluator(
           const finished = fresh('array_rewrite_finished'),
             name = fresh('value')
           destination.push(
-            `let ${finished} = finish_array_rewrite(${ownedOperand(operands[0]!)}, &${payload}, ${builder}, ${remove});`,
+            `let ${finished} = finish_array_rewrite(${ownedOperand(operands[0]!)}, &${payload}, ${builder}, ${remove}, ${changed});`,
             `let ${name} = ${implementation.rustName}(${finished});`,
           )
           callables.add(implementation.rustName)
@@ -2497,7 +2502,10 @@ export function emitCheckRustEvaluator(
       const arguments_ = bind(
         `array_conversion_arguments(${builder}, ${rustStringLiteral(node.elementType)}, ${family})`,
       )
-      return { name: bind(`finish_array_coercion(${payload}, ${arguments_})`), type: node.type }
+      return {
+        name: bind(`finish_array_coercion(${payload}, ${arguments_}, false)`),
+        type: node.type,
+      }
     }
     if (node.kind === 'array-coerce') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -2593,7 +2601,12 @@ export function emitCheckRustEvaluator(
       const arguments_ = bind(
         `array_conversion_arguments(${builder}, ${rustStringLiteral(node.elementType)}, ${family})`,
       )
-      return { name: bind(`finish_array_coercion(${payload}, ${arguments_})`), type: node.type }
+      return {
+        name: bind(
+          `finish_array_coercion(${payload}, ${arguments_}, ${node.conversion.signature === null && node.modifier < 0})`,
+        ),
+        type: node.type,
+      }
     }
     if (node.kind === 'check') {
       if (node.expression.kind === 'eval-scalar')
