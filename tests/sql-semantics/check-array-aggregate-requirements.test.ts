@@ -83,7 +83,9 @@ it('derives array state contracts from actual aggregate links and proves that id
             owner:
               fn.args[0] === 'pg_catalog._int8'
                 ? 'tests/sql-semantics/check-array-integer-state.test.ts'
-                : 'tests/sql-semantics/check-array-aggregate-requirements.test.ts',
+                : fn.args.length === 1 && fn.result === 'pg_catalog.float8'
+                  ? 'tests/sql-semantics/check-array-float-final.test.ts'
+                  : 'tests/sql-semantics/check-array-aggregate-requirements.test.ts',
           },
         ])
         const result = (await pg.query(probe(false))).rows[0]

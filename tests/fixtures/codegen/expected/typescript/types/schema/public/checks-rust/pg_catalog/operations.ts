@@ -377,6 +377,266 @@ export function trimArrayUzie(input: checkruntime.ArrayValue, count: checkruntim
     }
     return { kind: "Unknown" };
 }
+const floatArrayStateError = 56966976;
+function floatArrayStateValid(input: checkruntime.ArrayPayload, width: number): checkruntime.BoolValue {
+    width = langruntime.checkedIndex(width);
+    if (!(input.elementKind === 20) || !(input.elementType === "pg_catalog.float8")) {
+        return { kind: "Unknown" };
+    }
+    if (!(input.dimensions.length === 1) || !(input.elements.length === width) || checkruntime.equalBoolValue(input.nullBitmap, { kind: "Value", value: true })) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatArrayStateError) };
+    }
+    if (!(langruntime.indexStruct(input.dimensions, langruntime.checkedIndex(0), checkruntime.copyArrayDimension).length === langruntime.checkedI32(langruntime.checkedIndex(width)))) {
+        return { kind: "Error", value: checkruntime.makeSqlError(floatArrayStateError) };
+    }
+    if (checkruntime.equalBoolValue(input.nullBitmap, { kind: "Value", value: false })) {
+        return { kind: "Value", value: true };
+    }
+    return { kind: "Unknown" };
+}
+function floatStateField(input: checkruntime.ArrayPayload, index: number): checkruntime.Float8Value {
+    index = langruntime.checkedIndex(index);
+    return checkruntime.arrayElementToFloat8(checkruntime.copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement)));
+}
+function floatStateResult(value: number): checkruntime.Float8Value {
+    value = langruntime.checkedF64(value);
+    if (!(value === value)) {
+        return { kind: "UnspecifiedNan" };
+    }
+    return checkruntime.makeFloat8Value(value);
+}
+function floatStateArithmetic(left: checkruntime.Float8Value, right: checkruntime.Float8Value, operation: number): checkruntime.Float8Value {
+    operation = langruntime.checkedI32(operation);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    const first: checkruntime.Float8Value = checkruntime.float8Semantic(left);
+    const second: checkruntime.Float8Value = checkruntime.float8Semantic(right);
+    if (first.kind === "Value") {
+        const aBits: bigint = langruntime.checkedI64(first.value);
+        if (second.kind === "Value") {
+            const bBits: bigint = langruntime.checkedI64(second.value);
+            const a: number = checkruntime.float8Number(aBits);
+            const b: number = checkruntime.float8Number(bBits);
+            let result: number = 0.0;
+            if (operation === 0) {
+                result = langruntime.checkedF64(langruntime.f64Add(a, b));
+            }
+            if (operation === 1) {
+                result = langruntime.checkedF64(langruntime.f64Subtract(a, b));
+            }
+            if (operation === 2) {
+                result = langruntime.checkedF64(langruntime.f64Multiply(a, b));
+            }
+            if (operation === 3) {
+                result = langruntime.checkedF64(langruntime.f64Divide(a, b));
+            }
+            if (operation === 4) {
+                result = langruntime.checkedF64(langruntime.f64Sqrt(a));
+            }
+            return floatStateResult(result);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function floatStateIsZero(input: checkruntime.Float8Value): boolean {
+    const value: checkruntime.Float8Value = checkruntime.float8Semantic(input);
+    if (value.kind === "Value") {
+        const bits: bigint = langruntime.checkedI64(value.value);
+        return checkruntime.float8Number(bits) === 0.0;
+    }
+    return false;
+}
+function floatArrayFinal(input: checkruntime.ArrayValue, operation: number): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    operation = langruntime.checkedI32(operation);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        let width: number = 3;
+        if (operation >= 5) {
+            width = langruntime.checkedIndex(6);
+        }
+        const validity: checkruntime.BoolValue = floatArrayStateValid(value, width);
+        if (validity.kind === "Error") {
+            const error: checkruntime.SqlError = validity.value;
+            return { kind: "Error", value: error };
+        }
+        if (!(checkruntime.equalBoolValue(validity, { kind: "Value", value: true }))) {
+            return { kind: "Unknown" };
+        }
+        const count: checkruntime.Float8Value = floatStateField(value, 0);
+        const knownCount: checkruntime.Float8Value = checkruntime.float8Semantic(count);
+        if (knownCount.kind === "Value") {
+            const bits: bigint = langruntime.checkedI64(knownCount.value);
+            const n: number = checkruntime.float8Number(bits);
+            let sample: boolean = operation === 2 || operation === 4;
+            if (width === 3) {
+                if (sample) {
+                    if (n <= 1.0) {
+                        return { kind: "Null" };
+                    }
+                }
+                else if (n === 0.0) {
+                    return { kind: "Null" };
+                }
+            }
+            else {
+                sample = langruntime.checkedBool(operation === 11);
+                let minimum: number = 1.0;
+                if (sample) {
+                    minimum = langruntime.checkedF64(2.0);
+                }
+                if (n < minimum) {
+                    return { kind: "Null" };
+                }
+            }
+            if (operation === 5) {
+                return floatStateField(value, 2);
+            }
+            if (operation === 6) {
+                return floatStateField(value, 4);
+            }
+            if (operation === 7) {
+                return floatStateField(value, 5);
+            }
+            if (operation <= 4 || operation === 8 || operation === 9 || operation === 10 || operation === 11) {
+                let index: number = 2;
+                if (operation === 0 || operation === 8) {
+                    index = langruntime.checkedIndex(1);
+                }
+                if (operation === 9) {
+                    index = langruntime.checkedIndex(3);
+                }
+                if (operation === 10 || operation === 11) {
+                    index = langruntime.checkedIndex(5);
+                }
+                const numerator: checkruntime.Float8Value = floatStateField(value, index);
+                let denominator: checkruntime.Float8Value = count;
+                if (sample) {
+                    denominator = floatStateArithmetic(count, checkruntime.makeFloat8Value(1.0), 1);
+                }
+                const quotient: checkruntime.Float8Value = floatStateArithmetic(numerator, denominator, 3);
+                if (operation === 3 || operation === 4) {
+                    return floatStateArithmetic(quotient, checkruntime.makeFloat8Value(1.0), 4);
+                }
+                return quotient;
+            }
+            const sxx: checkruntime.Float8Value = floatStateField(value, 2);
+            if (floatStateIsZero(sxx)) {
+                return { kind: "Null" };
+            }
+            const sxy: checkruntime.Float8Value = floatStateField(value, 5);
+            if (operation === 12) {
+                const syy: checkruntime.Float8Value = floatStateField(value, 4);
+                if (floatStateIsZero(syy)) {
+                    return { kind: "Null" };
+                }
+                const product: checkruntime.Float8Value = floatStateArithmetic(sxx, syy, 2);
+                const root: checkruntime.Float8Value = floatStateArithmetic(product, checkruntime.makeFloat8Value(1.0), 4);
+                return floatStateArithmetic(sxy, root, 3);
+            }
+            if (operation === 13) {
+                const knownSxx: checkruntime.Float8Value = checkruntime.float8Semantic(sxx);
+                if (knownSxx.kind === "Value") {
+                    const syy: checkruntime.Float8Value = floatStateField(value, 4);
+                    if (floatStateIsZero(syy)) {
+                        return checkruntime.makeFloat8Value(1.0);
+                    }
+                    const numerator: checkruntime.Float8Value = floatStateArithmetic(sxy, sxy, 2);
+                    const denominator: checkruntime.Float8Value = floatStateArithmetic(sxx, syy, 2);
+                    return floatStateArithmetic(numerator, denominator, 3);
+                }
+                return { kind: "Unknown" };
+            }
+            if (operation === 14) {
+                return floatStateArithmetic(sxy, sxx, 3);
+            }
+            const sx: checkruntime.Float8Value = floatStateField(value, 1);
+            const sy: checkruntime.Float8Value = floatStateField(value, 3);
+            const product: checkruntime.Float8Value = floatStateArithmetic(sx, sxy, 2);
+            const correction: checkruntime.Float8Value = floatStateArithmetic(product, sxx, 3);
+            const difference: checkruntime.Float8Value = floatStateArithmetic(sy, correction, 1);
+            return floatStateArithmetic(difference, count, 3);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function float8AvgZn36(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 0);
+}
+export function float8VarPopFml0(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 1);
+}
+export function float8VarSamp6u1n(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 2);
+}
+export function float8StddevPopMt1l(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 3);
+}
+export function float8StddevSampDuzt(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 4);
+}
+export function float8RegrSxxN77a(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 5);
+}
+export function float8RegrSyy9soz(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 6);
+}
+export function float8RegrSxy16cy(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 7);
+}
+export function float8RegrAvgxFe05(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 8);
+}
+export function float8RegrAvgy29af(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 9);
+}
+export function float8CovarPop704y(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 10);
+}
+export function float8CovarSampEicx(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 11);
+}
+export function float8Corr8af8(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 12);
+}
+export function float8RegrR2E7fd(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 13);
+}
+export function float8RegrSlopeQjk2(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 14);
+}
+export function float8RegrInterceptM3ss(input: checkruntime.ArrayValue): checkruntime.Float8Value {
+    input = checkruntime.copyArrayValue(input);
+    return floatArrayFinal(input, 15);
+}
 function arrayHashWordLow(value: bigint): bigint {
     value = langruntime.checkedI64(value);
     let low: bigint = langruntime.checkedI64Remainder(value, 4294967296n);

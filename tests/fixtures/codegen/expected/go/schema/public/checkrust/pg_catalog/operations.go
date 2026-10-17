@@ -385,6 +385,265 @@ func TrimArrayUzie(input checkruntime.ArrayValue, count checkruntime.Int4Value) 
 	}
 	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
 }
+
+const floatArrayStateError = 56966976
+
+func floatArrayStateValid(input *checkruntime.ArrayPayload, width int) checkruntime.BoolValue {
+	width = langruntime.CheckedIndex(width)
+	if input.ElementKind != 20 || input.ElementType != "pg_catalog.float8" {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if len(input.Dimensions) != 1 || len(input.Elements) != width || input.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(floatArrayStateError)}
+	}
+	if input.Dimensions[0].Length != int(int32(width)) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: checkruntime.MakeSqlError(floatArrayStateError)}
+	}
+	if input.NullBitmap == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func floatStateField(input *checkruntime.ArrayPayload, index int) checkruntime.Float8Value {
+	index = langruntime.CheckedIndex(index)
+	return checkruntime.ArrayElementToFloat8(checkruntime.CopyArrayElement(input.Elements[index]))
+}
+func floatStateResult(value float64) checkruntime.Float8Value {
+	if value != value {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnspecifiedNan}
+	}
+	return checkruntime.MakeFloat8Value(value)
+}
+func floatStateArithmetic(left checkruntime.Float8Value, right checkruntime.Float8Value, operation int) checkruntime.Float8Value {
+	operation = langruntime.CheckedI32(operation)
+	if left.Kind == checkruntime.Float8ValueError {
+		error := left.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Float8ValueError {
+		error := right.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	first := checkruntime.Float8Semantic(left)
+	second := checkruntime.Float8Semantic(right)
+	if first.Kind == checkruntime.Float8ValueValue {
+		aBits := first.Value
+		if second.Kind == checkruntime.Float8ValueValue {
+			bBits := second.Value
+			a := checkruntime.Float8Number(aBits)
+			b := checkruntime.Float8Number(bBits)
+			result := float64(0.0)
+			if operation == 0 {
+				result = langruntime.F64Add(a, b)
+			}
+			if operation == 1 {
+				result = langruntime.F64Subtract(a, b)
+			}
+			if operation == 2 {
+				result = langruntime.F64Multiply(a, b)
+			}
+			if operation == 3 {
+				result = langruntime.F64Divide(a, b)
+			}
+			if operation == 4 {
+				result = langruntime.F64Sqrt(a)
+			}
+			return floatStateResult(result)
+		}
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func floatStateIsZero(input checkruntime.Float8Value) bool {
+	value := checkruntime.Float8Semantic(input)
+	if value.Kind == checkruntime.Float8ValueValue {
+		bits := value.Value
+		return checkruntime.Float8Number(bits) == float64(0.0)
+	}
+	return false
+}
+func floatArrayFinal(input checkruntime.ArrayValue, operation int) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	operation = langruntime.CheckedI32(operation)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		value := checkruntime.CopyArrayPayload(input.Value)
+		width := 3
+		if operation >= 5 {
+			width = langruntime.CheckedIndex(6)
+		}
+		validity := floatArrayStateValid(&value, width)
+		if validity.Kind == checkruntime.BoolValueError {
+			error := validity.Error
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueError, Error: error}
+		}
+		if validity != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+		}
+		count := floatStateField(&value, 0)
+		knownCount := checkruntime.Float8Semantic(count)
+		if knownCount.Kind == checkruntime.Float8ValueValue {
+			bits := knownCount.Value
+			n := checkruntime.Float8Number(bits)
+			sample := operation == 2 || operation == 4
+			if width == 3 {
+				if sample {
+					if n <= float64(1.0) {
+						return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+					}
+				} else if n == float64(0.0) {
+					return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+				}
+			} else {
+				sample = operation == 11
+				minimum := float64(1.0)
+				if sample {
+					minimum = float64(2.0)
+				}
+				if n < minimum {
+					return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+				}
+			}
+			if operation == 5 {
+				return floatStateField(&value, 2)
+			}
+			if operation == 6 {
+				return floatStateField(&value, 4)
+			}
+			if operation == 7 {
+				return floatStateField(&value, 5)
+			}
+			if operation <= 4 || operation == 8 || operation == 9 || operation == 10 || operation == 11 {
+				index := 2
+				if operation == 0 || operation == 8 {
+					index = langruntime.CheckedIndex(1)
+				}
+				if operation == 9 {
+					index = langruntime.CheckedIndex(3)
+				}
+				if operation == 10 || operation == 11 {
+					index = langruntime.CheckedIndex(5)
+				}
+				numerator := floatStateField(&value, index)
+				denominator := count
+				if sample {
+					denominator = floatStateArithmetic(count, checkruntime.MakeFloat8Value(float64(1.0)), 1)
+				}
+				quotient := floatStateArithmetic(numerator, denominator, 3)
+				if operation == 3 || operation == 4 {
+					return floatStateArithmetic(quotient, checkruntime.MakeFloat8Value(float64(1.0)), 4)
+				}
+				return quotient
+			}
+			sxx := floatStateField(&value, 2)
+			if floatStateIsZero(sxx) {
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+			}
+			sxy := floatStateField(&value, 5)
+			if operation == 12 {
+				syy := floatStateField(&value, 4)
+				if floatStateIsZero(syy) {
+					return checkruntime.Float8Value{Kind: checkruntime.Float8ValueNull}
+				}
+				product := floatStateArithmetic(sxx, syy, 2)
+				root := floatStateArithmetic(product, checkruntime.MakeFloat8Value(float64(1.0)), 4)
+				return floatStateArithmetic(sxy, root, 3)
+			}
+			if operation == 13 {
+				knownSxx := checkruntime.Float8Semantic(sxx)
+				if knownSxx.Kind == checkruntime.Float8ValueValue {
+					syy := floatStateField(&value, 4)
+					if floatStateIsZero(syy) {
+						return checkruntime.MakeFloat8Value(float64(1.0))
+					}
+					numerator := floatStateArithmetic(sxy, sxy, 2)
+					denominator := floatStateArithmetic(sxx, syy, 2)
+					return floatStateArithmetic(numerator, denominator, 3)
+				}
+				return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+			}
+			if operation == 14 {
+				return floatStateArithmetic(sxy, sxx, 3)
+			}
+			sx := floatStateField(&value, 1)
+			sy := floatStateField(&value, 3)
+			product := floatStateArithmetic(sx, sxy, 2)
+			correction := floatStateArithmetic(product, sxx, 3)
+			difference := floatStateArithmetic(sy, correction, 1)
+			return floatStateArithmetic(difference, count, 3)
+		}
+	}
+	return checkruntime.Float8Value{Kind: checkruntime.Float8ValueUnknown}
+}
+func Float8AvgZn36(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 0)
+}
+func Float8VarPopFml0(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 1)
+}
+func Float8VarSamp6u1n(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 2)
+}
+func Float8StddevPopMt1l(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 3)
+}
+func Float8StddevSampDuzt(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 4)
+}
+func Float8RegrSxxN77a(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 5)
+}
+func Float8RegrSyy9soz(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 6)
+}
+func Float8RegrSxy16cy(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 7)
+}
+func Float8RegrAvgxFe05(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 8)
+}
+func Float8RegrAvgy29af(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 9)
+}
+func Float8CovarPop704y(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 10)
+}
+func Float8CovarSampEicx(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 11)
+}
+func Float8Corr8af8(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 12)
+}
+func Float8RegrR2E7fd(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 13)
+}
+func Float8RegrSlopeQjk2(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 14)
+}
+func Float8RegrInterceptM3ss(input checkruntime.ArrayValue) checkruntime.Float8Value {
+	input = checkruntime.CopyArrayValue(input)
+	return floatArrayFinal(input, 15)
+}
 func arrayHashWordLow(value int64) int64 {
 	low := langruntime.CheckedI64Remainder(value, int64(4294967296))
 	if low < int64(0) {

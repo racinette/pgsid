@@ -34,12 +34,25 @@ export function arrayValueRequirements(item: BuiltinCallable, aggregateSupport =
         owner: 'tests/sql-semantics/check-array-integer-state.test.ts',
       },
     ]
+  if (
+    aggregateSupport &&
+    item.args.join(',') === 'pg_catalog._float8' &&
+    item.result === 'pg_catalog.float8'
+  )
+    return [
+      {
+        kind: 'native-storage',
+        requirement:
+          'Final state validation requires a one-dimensional float8 array with the catalog aggregate state width and known NULL-bitmap absence. Definite shape errors or retained bitmaps raise XX000; missing bitmap metadata defers otherwise valid states. Arithmetic retains unchecked IEEE results, while exact computed NaN payload bytes remain unavailable and supplied selected payloads are preserved.',
+        owner: 'tests/sql-semantics/check-array-float-final.test.ts',
+      },
+    ]
   if (aggregateSupport && item.args[0] === 'pg_catalog._float8')
     return [
       {
         kind: 'native-storage',
         requirement:
-          'State validation inspects PostgreSQL null-bitmap presence, including retained bitmaps with no NULL cells. Logical dimensions and elements do not establish that storage facet. Integer helpers additionally validate physical byte length; states outside their one-dimensional two-element contract need actual native layout rather than invented missing words.',
+          'Floating transition/combine state validation inspects one-dimensional state width and NULL-bitmap presence, including retained bitmaps with no NULL cells. Logical dimensions and elements do not establish that storage facet; it requires supplied metadata or verified construction provenance.',
         owner: 'tests/sql-semantics/check-array-aggregate-requirements.test.ts',
       },
     ]
