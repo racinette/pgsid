@@ -93,6 +93,25 @@ export function rustCallCanFail(call: SqlCallableExpression, types: readonly str
   return true
 }
 
+export function rustArrayCastAlwaysValid(
+  node: Extract<EvalExpression, { kind: 'array-coerce' }>,
+): boolean {
+  if (!rustCallCanFail(node.conversion, [node.sourceElementType])) return true
+  const from = node.sourceElementType,
+    to = node.elementType
+  if (
+    node.modifier >= -1 &&
+    ['pg_catalog."bit"', 'pg_catalog.varbit'].includes(to) &&
+    ['pg_catalog.int4', 'pg_catalog.int8', 'pg_catalog."bit"', 'pg_catalog.varbit'].includes(from)
+  )
+    return true
+  return (
+    (from === 'pg_catalog.money' && to === 'pg_catalog."numeric"') ||
+    (from === 'pg_catalog."time"' && to === 'pg_catalog.timetz') ||
+    (from === 'pg_catalog.timestamptz' && ['pg_catalog."time"', 'pg_catalog.timetz'].includes(to))
+  )
+}
+
 export function rustScalarOwnCanFail(node: EvalExpression): boolean {
   switch (node.kind) {
     case 'input':
@@ -122,7 +141,7 @@ export function rustScalarOwnCanFail(node: EvalExpression): boolean {
         (node.sourceElementType === 'pg_catalog.jsonb' && node.elementType === 'pg_catalog."json"')
       )
     case 'array-coerce':
-      return rustCallCanFail(node.conversion, [node.sourceElementType])
+      return !rustArrayCastAlwaysValid(node)
     case 'distinct':
     case 'nullif':
       return rustCallCanFail(node.comparison, node.operands.map(typeOf))

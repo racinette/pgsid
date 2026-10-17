@@ -2784,3 +2784,59 @@ VALUES ('1',2,3,false,'[1:1]',false,false);
 -- name: computed_elements_missing_shape
 INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
 VALUES ('1',2,3,false,NULL,true,false);
+
+-- name: cast_slots_valid
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (1,2,'雪😊abcd','2000-01-01',false,'[1:1]',true);
+
+-- name: cast_slots_negative
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (-99,32767,'long label','2024-01-01',false,'[1:1]',true);
+
+-- name: cast_slots_nulls
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (NULL,NULL,NULL,NULL,false,'[1:1]',true);
+
+-- name: cast_slots_infinity
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (1,2,'label','infinity',false,'[1:1]',true);
+
+-- name: cast_slots_negative_infinity
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (1,2,'label','-infinity',false,'[1:1]',true);
+
+-- name: cast_slots_narrow_error
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (32768,1,'label','2000-01-01',false,'[1:1]',true);
+
+-- name: cast_slots_later_narrow_error
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (1,32768,'label','2000-01-01',false,'[1:1]',true);
+
+-- name: cast_slots_negative_narrow_error
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (-32769,1,'label','2000-01-01',false,'[1:1]',true);
+
+-- name: cast_slots_scale_error
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (100,1,'label','2000-01-01',false,'[1:1]',true);
+
+-- name: cast_slots_context_range_error
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (1,2,'label','5000000-01-01',false,'[1:1]',true);
+
+-- name: cast_slots_skipped
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (32768,32768,'label','5000000-01-01',true,'wrong',false);
+
+-- name: cast_slots_wrong_shape
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (1,2,'label','2000-01-01',false,'wrong',true);
+
+-- name: cast_slots_wrong_null
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (1,2,'label','2000-01-01',false,'[1:1]',false);
+
+-- name: cast_slots_missing_shape
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (1,2,'label','2000-01-01',false,NULL,true);

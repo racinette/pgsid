@@ -100,7 +100,12 @@ pub fn array_with_typmod(input: ArrayValue, modifier: i32) -> ArrayValue {
     if let ArrayValue::Value(payload) = input {
         let mut elements = payload.elements;
         let mut position: usize = 0;
-        let mut unknown = false;
+        let unknown_valid = payload.element_type == "pg_catalog.\"varchar\""
+            || payload.element_type == "pg_catalog.bpchar"
+            || payload.element_type == "pg_catalog.\"bit\""
+            || payload.element_type == "pg_catalog.varbit"
+            || payload.element_type == "pg_catalog.\"time\""
+            || payload.element_type == "pg_catalog.timetz";
         while position < elements.len() {
             let converted = array_element_typmod(
                 elements[position].clone(),
@@ -110,15 +115,14 @@ pub fn array_with_typmod(input: ArrayValue, modifier: i32) -> ArrayValue {
             if let ArrayElement::Error(error) = converted {
                 return ArrayValue::Error(error);
             };
-            if let ArrayElement::Unknown = converted {
-                unknown = true;
+            if unknown_valid == false {
+                if let ArrayElement::Unknown = converted {
+                    return ArrayValue::Unknown;
+                };
             };
             elements[position] = converted;
             position += 1;
         }
-        if unknown {
-            return ArrayValue::Unknown;
-        };
         return make_array_value(ArrayPayload {
             element_type: payload.element_type,
             element_kind: payload.element_kind,

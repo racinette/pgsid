@@ -192,3 +192,6 @@ VALUES ('[0:1]={0x_FF,1.2300}', '[0:1]={1.2300,-0.000}', '[0:1]={new,done}', '[0
 
 INSERT INTO lane_computed_slots (payload, quantity, other, flag, expected_dimensions, expected_fetch, bypass)
 VALUES ('1.2300', 2, 3, false, '[1:1]', true, false);
+
+INSERT INTO lane_cast_slots (quantity, other, label, calendar, bypass, expected_dimensions, expected_null)
+VALUES (1, 2, '雪😊abcd', '2000-01-01', false, '[1:1]', true);

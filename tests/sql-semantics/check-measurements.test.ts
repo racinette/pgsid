@@ -444,6 +444,23 @@ describe('CHECK measurement boundaries', () => {
     expect(report.casts.map(({ source, target }) => [source, target])).toEqual(
       catalog.casts.map(({ source, target }) => [source, target]),
     )
+    const arrayNarrowing = report.arrayElementCasts.find(
+      (entry) => entry.source === 'pg_catalog.int4' && entry.target === 'pg_catalog.int2',
+    )!
+    expect(arrayNarrowing.sourceArray).toBe('pg_catalog.int4[]')
+    expect(arrayNarrowing.targetArray).toBe('pg_catalog.int2[]')
+    expect(arrayNarrowing.probe.sql).toContain('cardinality(')
+    expect(arrayNarrowing.probe.postgres.accepted).toBe(true)
+    expect(arrayNarrowing.probe.raw.fullyBound).toBe(true)
+    expect(arrayNarrowing.probe.stored!.fullyBound).toBe(true)
+    expect(JSON.stringify(arrayNarrowing.probe.raw.expression)).toContain('array-coerce')
+    const arrayIO = report.arrayElementCasts.find(
+      (entry) => entry.source === 'pg_catalog."json"' && entry.target === 'pg_catalog.jsonb',
+    )!
+    expect(arrayIO.method).toBe('i')
+    expect(arrayIO.probe.postgres.accepted).toBe(true)
+    expect(JSON.stringify(arrayIO.probe.raw.expression)).toContain('array-io-coerce')
+    expect(report.summary.representedArrayElementCastPairs).toBe(report.arrayElementCasts.length)
     const widening = report.casts.find(
       (cast) => cast.source === 'pg_catalog.int2' && cast.target === 'pg_catalog.int8',
     )!

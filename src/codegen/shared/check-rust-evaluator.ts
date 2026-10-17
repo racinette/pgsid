@@ -1,5 +1,6 @@
 import {
   rustCallCanFail,
+  rustArrayCastAlwaysValid,
   rustScalarOwnCanFail,
   rustExpressionCanFail,
   rustExpressionInputs,
@@ -2231,6 +2232,8 @@ export function emitCheckRustEvaluator(
         converted = fresh('array_coercion_converted')
       const lines: string[] = []
       let conversion: string
+      const outerValidity: string | null = arrayValidityScope
+      arrayValidityScope = null
       try {
         if (node.conversion.signature !== null) {
           const callable = builtinMetadata(node.conversion.signature)
@@ -2271,12 +2274,12 @@ export function emitCheckRustEvaluator(
       } catch (error) {
         if (!(error instanceof UnsupportedCheckRustExpression)) throw error
         lines.length = 0
-        conversion = `array_coercion_deferred(${element})`
+        conversion = `array_coercion_deferred(${element}.clone())`
+      } finally {
+        arrayValidityScope = outerValidity
       }
-      const unknownValid =
-        castLink?.method === 'b' ||
-        builtinTypeResolution(node.sourceElementType)?.category !== 'S' ||
-        builtinTypeResolution(node.elementType)?.category === 'S'
+      const validity = fresh('array_cast_validity')
+      const alwaysValid = rustArrayCastAlwaysValid(node)
       bindings.push(
         `let mut ${builder}: ArrayOutputPayload = ${initial};`,
         `let mut ${index}: Int4Value = ${first};`,
@@ -2284,7 +2287,8 @@ export function emitCheckRustEvaluator(
         `    let ${element} = array_output_element_at(&${payload}, ${index});`,
         ...indent(lines),
         `    let ${converted} = ${conversion};`,
-        `    ${builder} = append_array_conversion(${builder}, ${converted}, ${unknownValid});`,
+        `    let ${validity} = array_cast_validity(${element}, ${rustStringLiteral(node.sourceElementType)}, ${rustStringLiteral(node.elementType)}, ${alwaysValid});`,
+        `    ${builder} = append_array_cast_conversion(${builder}, ${converted}, ${validity});`,
         `    ${index} = array_text_next_index(${index});`,
         '}',
       )
@@ -3189,7 +3193,11 @@ export function emitCheckRustEvaluator(
       }
       return emitCall(
         node.call,
-        node.operands.map((operand) => emitScalar(operand, bindings, used)),
+        node.operands.map((operand) =>
+          scalarType(operand).startsWith('array:')
+            ? emitPreparedOperand(operand, bindings, used)
+            : emitScalar(operand, bindings, used),
+        ),
       )
     }
     if (node.kind === 'array-constructor') {
