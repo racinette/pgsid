@@ -152,6 +152,25 @@ describe('CHECK measurement boundaries', () => {
           ),
         ).toBe(true)
     }
+    for (const name of ['hash_array', 'hash_array_extended']) {
+      const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
+      const requirements = hashValueRequirements(fn)!
+      expect(requirements.map(({ kind }) => kind)).toEqual([
+        'database',
+        'platform',
+        'database',
+        'database',
+      ])
+      expect(requirements.map(({ owner }) => owner)).toEqual([
+        'tests/sql-semantics/check-array-hash-families.test.ts',
+        'tests/sql-semantics/check-array-hash-context.test.ts',
+        'tests/sql-semantics/check-array-hash-context.test.ts',
+        'tests/sql-semantics/check-array-hash-state.test.ts',
+      ])
+      expect(requirements[0]!.requirement).toContain('42883')
+      expect(requirements[1]!.requirement).toContain('whole-array')
+      expect(requirements[3]!.requirement).toContain('actual label OIDs')
+    }
     for (const name of ['textsend', 'namesend', 'json_send', 'jsonb_send']) {
       const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
       expect(callableBoundary(fn, new Set(fn.args.concat(fn.result))).categories).toContain(

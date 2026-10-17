@@ -18,3 +18,4 @@ tools/regex-transpiler/conformance/postgres-extracted.json
 tools/regex-transpiler/conformance/postgres-fixtures.json
 tests/fixtures/check-native-hash.json
 tests/fixtures/check-scalar-hash.json
+tests/fixtures/check-array-hash.json

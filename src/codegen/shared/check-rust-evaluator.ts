@@ -1,4 +1,4 @@
-import { nativeHashContext } from './check-hash-context.js'
+import { nativeHashContext, isArrayHash } from './check-hash-context.js'
 import {
   rustCallCanFail,
   rustArrayCastAlwaysValid,
@@ -868,7 +868,8 @@ export function emitCheckRustEvaluator(
         (implementation !== null &&
           (isArrayComparison(implementation) ||
             isArrayExtremum(implementation) ||
-            isArrayBucket(implementation)))) &&
+            isArrayBucket(implementation) ||
+            isArrayHash(implementation)))) &&
       preparationDepth === 0 &&
       node.kind !== 'certain' &&
       constantScalarExpression(node)
@@ -1450,6 +1451,127 @@ export function emitCheckRustEvaluator(
         )
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
+      if (isArrayHash(implementation)) {
+        const arrayType = operands[0]?.type
+        if (!arrayType?.startsWith('array:'))
+          throw new UnsupportedCheckRustExpression(
+            'Array hashing requires one concrete array identity',
+          )
+        const elementType = arrayType.slice(6),
+          family = arrayElementFamily(elementType)
+        const defaults = builtinTypeComparison(
+          elementType.startsWith('enum:') ? 'pg_catalog.anyenum' : elementType,
+        )
+        if (family === null || !defaults)
+          throw new UnsupportedCheckRustExpression(
+            'Array hashing requires captured element support metadata',
+          )
+        const extended = implementation.args.length === 2,
+          width = extended ? '64' : '32'
+        const selected = extended ? defaults.hashExtended : defaults.hash
+        const scalar = selected ? builtinMetadata(selected) : null
+        const effectiveCollation =
+          call.kind === 'cast'
+            ? undefined
+            : call.collationDefault && executionContext.defaultCollation === 'C'
+              ? 'C'
+              : (call.collation ?? executionContext.defaultCollation)
+        const hashContext = scalar ? nativeHashContext(scalar) : null
+        const deferred =
+          !scalar ||
+          scalar.kind !== 'function' ||
+          !scalar.strict ||
+          scalar.returnsSet ||
+          scalar.volatility !== 'i' ||
+          scalar.result !== call.type ||
+          !checkRustCallableNames().has(scalar.rustName) ||
+          (['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog.name'].includes(
+            scalar.args[0] ?? '',
+          ) &&
+            !supportsTextCallableCollation(selected!, effectiveCollation))
+        const orders =
+          hashContext && executionContext.nativeByteOrder === undefined
+            ? [1, 2]
+            : [
+                executionContext.nativeByteOrder === 'big'
+                  ? 2
+                  : executionContext.nativeByteOrder === 'little'
+                    ? 1
+                    : 0,
+              ]
+        const seed = extended ? ownedOperand(operands[1]!) : fresh('array_hash_seed')
+        if (!extended) destination.push(`let ${seed} = make_int8_value(0i64);`)
+        const payload = fresh('array_hash_plan'),
+          initial = fresh('array_hash_initial'),
+          index = fresh('array_hash_index'),
+          start = fresh('array_hash_start')
+        const results = orders.map(() => fresh('array_hash_result'))
+        destination.push(
+          `let ${payload} = prepare_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${selected !== null});`,
+          `let ${initial} = ${extended ? 'array_hash_initial64' : 'array_comparison_initial'}(&${payload});`,
+          `let ${start} = make_int4_value(0);`,
+          `let mut ${index}: Int4Value = ${start};`,
+          ...results.map(
+            (result) => `let mut ${result}: ${extended ? 'Int8Value' : 'Int4Value'} = ${initial};`,
+          ),
+        )
+        const element = fresh('array_hash_element'),
+          value = fresh('array_hash_scalar'),
+          nullness = fresh('array_hash_nullness')
+        const prefix = rustValuePrefix(rustType(elementType))
+        const body: string[] = [
+          `let ${element} = array_comparison_element_at(&${payload}, ${index}, false);`,
+          `let ${value} = array_element_to_${prefix}(${element});`,
+          `let ${nullness} = ${prefix}_is_null(${ownedOperand({ name: value, type: elementType })});`,
+        ]
+        let argument = { name: value, type: elementType }
+        if (
+          !deferred &&
+          scalar &&
+          scalar.args[0] !== elementType &&
+          scalar.args[0] !== 'pg_catalog.anyenum'
+        ) {
+          const target = scalar.args[0]
+          if (!target || builtinCast(elementType, target)?.method !== 'b')
+            throw new UnsupportedCheckRustExpression(
+              'Array element hash requires its catalog binary relabel',
+            )
+          argument = emitCall({ kind: 'cast', signature: null, type: target }, [argument], body)
+        }
+        for (const [position, order] of orders.entries()) {
+          const hash = fresh('array_element_hash')
+          body.push(
+            `let mut ${hash}: ${extended ? 'Int8Value' : 'Int4Value'} = array_hash_cell${width}(${nullness});`,
+            `if array_hash_requires_scalar${width}(${hash}) {`,
+          )
+          if (!deferred && scalar) {
+            const args = [ownedOperand(argument), ...(extended ? [seed] : [])]
+            if (hashContext) args.push(String(order))
+            if (hashContext === 'text')
+              args.push(String(executionContext.serverEncoding === 'UTF8'))
+            body.push(`    ${hash} = ${scalar.rustName}(${args.join(', ')});`)
+            callables.add(scalar.rustName)
+          } else body.push(`    ${hash} = ${extended ? 'int8' : 'int4'}_unknown();`)
+          body.push(
+            '};',
+            `${results[position]} = array_hash_step${width}(${results[position]}, ${hash});`,
+          )
+        }
+        body.push(`${index} = array_text_next_index(${index});`)
+        const first = results[0]!,
+          second = results[1] ?? first
+        const finished = fresh('array_hash_finished'),
+          name = fresh('value')
+        destination.push(
+          `while array_hash_continues${width}(&${payload}, ${index}, ${first}, ${second}) {`,
+          ...indent(body),
+          '}',
+          `let ${finished} = array_hash_finish${width}(${first}, ${second});`,
+          `let ${name} = ${implementation.rustName}(${finished});`,
+        )
+        callables.add(implementation.rustName)
+        return { name, type: call.type }
+      }
       if (arrayStringIO) {
         callables.add(implementation.rustName)
         const name = fresh('array_string_io')

@@ -10598,6 +10598,75 @@ func copyArraySortPlan(value ArraySortPlan) ArraySortPlan {
 	}
 	panic("unknown enum variant")
 }
+func PrepareArrayHash(input ArrayValue, seed Int8Value, available bool) ArrayComparisonPayload {
+	input = CopyArrayValue(input)
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 1)
+	}
+	if seed.Kind == Int8ValueError {
+		error := seed.Error
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), error, 1)
+	}
+	if input.Kind == ArrayValueUnknown {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 1)
+	}
+	if seed == (Int8Value{Kind: Int8ValueUnknown}) {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 1)
+	}
+	if input.Kind == ArrayValueNull {
+		return arrayComparisonState(0, MakeSqlError(0), 1)
+	}
+	if seed == (Int8Value{Kind: Int8ValueNull}) {
+		return arrayComparisonState(0, MakeSqlError(0), 1)
+	}
+	if available == false {
+		return arrayComparisonState(langruntime.CheckedSignedNegate(2), MakeSqlError(arrayComparisonUndefined), 1)
+	}
+	if input.Kind == ArrayValueValue {
+		value := CopyArrayPayload(input.Value)
+		limit := len(value.Elements)
+		right := []ArrayElement{}
+		return ArrayComparisonPayload{Left: value.Elements, Right: right, Limit: limit, State: 1, Error: MakeSqlError(0), Tail: 0, Value: 1}
+	}
+	return arrayComparisonState(langruntime.CheckedSignedNegate(1), MakeSqlError(0), 1)
+}
+func ArrayHashInitial64(input *ArrayComparisonPayload) Int8Value {
+	initial := ArrayComparisonInitial(input)
+	if initial.Kind == Int4ValueError {
+		error := initial.Error
+		return Int8Value{Kind: Int8ValueError, Error: error}
+	}
+	if initial == (Int4Value{Kind: Int4ValueUnknown}) {
+		return Int8Value{Kind: Int8ValueUnknown}
+	}
+	if initial == (Int4Value{Kind: Int4ValueNull}) {
+		return Int8Value{Kind: Int8ValueNull}
+	}
+	return Int8Value{Kind: Int8ValueValue, Value: int64(1)}
+}
+func ArrayHashContinues32(input *ArrayComparisonPayload, index Int4Value, first Int4Value, second Int4Value) bool {
+	if first.Kind == Int4ValueValue {
+		if second.Kind == Int4ValueValue {
+			if index.Kind == Int4ValueValue {
+				offset := langruntime.CheckedI32(index.Value)
+				return input.State == 1 && offset >= 0 && (int64(langruntime.CheckedI32(offset))) < (int64(langruntime.CheckedI32((int(int32(input.Limit))))))
+			}
+		}
+	}
+	return false
+}
+func ArrayHashContinues64(input *ArrayComparisonPayload, index Int4Value, first Int8Value, second Int8Value) bool {
+	if first.Kind == Int8ValueValue {
+		if second.Kind == Int8ValueValue {
+			if index.Kind == Int4ValueValue {
+				offset := langruntime.CheckedI32(index.Value)
+				return input.State == 1 && offset >= 0 && (int64(langruntime.CheckedI32(offset))) < (int64(langruntime.CheckedI32((int(int32(input.Limit))))))
+			}
+		}
+	}
+	return false
+}
 func BitFromLiteral(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)

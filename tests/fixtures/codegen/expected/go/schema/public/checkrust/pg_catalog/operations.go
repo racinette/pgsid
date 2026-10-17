@@ -358,6 +358,128 @@ func TrimArrayUzie(input checkruntime.ArrayValue, count checkruntime.Int4Value) 
 	}
 	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
 }
+func arrayHashWordLow(value int64) int64 {
+	low := langruntime.CheckedI64Remainder(value, int64(4294967296))
+	if low < int64(0) {
+		low = langruntime.CheckedI64Add(low, int64(4294967296))
+	}
+	return low
+}
+func ArrayHashCell32(nullness checkruntime.BoolValue) checkruntime.Int4Value {
+	if nullness.Kind == checkruntime.BoolValueError {
+		error := nullness.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if nullness.Kind == checkruntime.BoolValueValue {
+		value := nullness.Value
+		if value {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func ArrayHashCell64(nullness checkruntime.BoolValue) checkruntime.Int8Value {
+	state := ArrayHashCell32(nullness)
+	if state.Kind == checkruntime.Int4ValueError {
+		error := state.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if state.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(state.Value)
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(value))}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func ArrayHashRequiresScalar32(input checkruntime.Int4Value) bool {
+	return input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1})
+}
+func ArrayHashRequiresScalar64(input checkruntime.Int8Value) bool {
+	return input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(1)})
+}
+func ArrayHashStep32(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.Int4Value {
+	if left.Kind == checkruntime.Int4ValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int4ValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.Int4ValueValue {
+		a := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.Int4ValueValue {
+			b := langruntime.CheckedI32(right.Value)
+			first := arrayHashWordLow(int64(langruntime.CheckedI32(a)))
+			second := arrayHashWordLow(int64(langruntime.CheckedI32(b)))
+			value := langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(first, int64(31)), second)), int64(4294967296))
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(value))}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func ArrayHashStep64(left checkruntime.Int8Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.Int8ValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.Int8ValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			b := right.Value
+			lowA := arrayHashWordLow(a)
+			lowB := arrayHashWordLow(b)
+			highA := arrayHashWordLow(langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(a, lowA)), int64(4294967296)))
+			highB := arrayHashWordLow(langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(b, lowB)), int64(4294967296)))
+			lowSum := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(lowA, int64(31)), lowB)
+			high := langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(highA, int64(31)), highB), langruntime.CheckedI64Divide(lowSum, int64(4294967296)))), int64(4294967296))
+			if high >= int64(2147483648) {
+				high = langruntime.CheckedI64Subtract(high, int64(4294967296))
+			}
+			value := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(4294967296)), langruntime.CheckedI64Remainder(lowSum, int64(4294967296)))
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func ArrayHashFinish32(first checkruntime.Int4Value, second checkruntime.Int4Value) checkruntime.Int4Value {
+	if first.Kind == checkruntime.Int4ValueError {
+		error := first.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if second.Kind == checkruntime.Int4ValueError {
+		error := second.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if first == second {
+		return first
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func ArrayHashFinish64(first checkruntime.Int8Value, second checkruntime.Int8Value) checkruntime.Int8Value {
+	if first.Kind == checkruntime.Int8ValueError {
+		error := first.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if second.Kind == checkruntime.Int8ValueError {
+		error := second.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if first == second {
+		return first
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func HashArrayBk1m(input checkruntime.Int4Value) checkruntime.Int4Value {
+	return input
+}
+func HashArrayExtended8jvn(input checkruntime.Int8Value) checkruntime.Int8Value {
+	return input
+}
 func ArrayIntegerTextElement(input checkruntime.TextValue, family int) checkruntime.ArrayElement {
 	family = langruntime.CheckedI32(family)
 	bits := 64
