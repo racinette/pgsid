@@ -247,3 +247,6 @@ INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('{0,0,0}
 INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0,0,0,0}',3,2,'{1,2,0,3,0,0}',false);
 INSERT INTO lane_unary_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0}','{2,4,8}','{2,4,8}',false);
 INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES('{0,0,0,0,0,0}','{2,4,8,6,18,12}','{2,4,8,6,18,12}',false);
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES('{0,0,0}',2,'{1,2,0}','{1,2,0}',false);
+INSERT INTO lane_coerced_regression(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0,0,0,0}',3,2,'{1,2,0,3,0,0}',false);
+INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VALUES('{0,0,0}',2,3,false);

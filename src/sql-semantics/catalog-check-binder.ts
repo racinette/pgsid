@@ -992,6 +992,9 @@ const candidate = (
           )))
     )
       return []
+    const concreteArrayParameters = item.args.some((type) =>
+      catalogScalarType(type)?.startsWith('array:'),
+    )
     const operands = fullArgs.map((arg, index) =>
       explicitAny && index === item.args.length - 1
         ? boundType(arg)?.startsWith('array:')
@@ -1011,13 +1014,15 @@ const candidate = (
                     ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
                     : isIntegerType(item.args[index]!)
                       ? materializeInteger(arg, item.args[index]! as ScalarType)
-                      : materialize(
-                          arg,
-                          item.args[index] === 'pg_catalog.anyenum'
-                            ? enumType(definition!)
-                            : (item.args[index]! as ScalarType),
-                          definition,
-                        ),
+                      : concreteArrayParameters && catalogScalarType(item.args[index]!)
+                        ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
+                        : materialize(
+                            arg,
+                            item.args[index] === 'pg_catalog.anyenum'
+                              ? enumType(definition!)
+                              : (item.args[index]! as ScalarType),
+                            definition,
+                          ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [
@@ -1327,7 +1332,14 @@ const comparisonCandidate = (
         const source = types[index]!
         if (!target || (type === 'pg_catalog.anyenum' && args[index]!.enumDomain !== undefined))
           return false
-        return source === null || source === target || builtinCast(source, target)?.context === 'i'
+        return (
+          source === null ||
+          source === target ||
+          builtinCast(source, target)?.context === 'i' ||
+          (source.startsWith('array:') &&
+            target.startsWith('array:') &&
+            builtinCast(source.slice(6), target.slice(6))?.context === 'i')
+        )
       }),
   )
   const assumed =

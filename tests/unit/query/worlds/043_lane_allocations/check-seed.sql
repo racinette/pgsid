@@ -3713,3 +3713,50 @@ INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES
 INSERT INTO lane_float8_updates(payload,reading,expected,bypass) VALUES('{2,1e308,0}',1e308,NULL,false);
 -- name: lane_regression_updates_overflow
 INSERT INTO lane_regression_updates(payload,reading_y,reading_x,expected,bypass) VALUES('{2,1,0,1e308,0,0}',1e308,1,NULL,false);
+
+-- name: coerced_readings_exact
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES('{0,0,0}',2,'{1,2,0}','{1,2,0}',false);
+-- name: coerced_readings_rounded
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES('{0,0,0}',0.1,'{1,0.10000000149011612,0}','{1,0.1,0}',false);
+-- name: coerced_readings_positive_count
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES('{2,4,8}',3,'{3,7,8.666666666666666}','{3,7,8.666666666666666}',false);
+-- name: coerced_readings_wrong_single
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES('{0,0,0}',2,'{1,9,0}','{1,2,0}',false);
+-- name: coerced_readings_wrong_double
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES('{0,0,0}',2,'{1,2,0}','{1,9,0}',false);
+-- name: coerced_readings_null_state
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES(NULL,2,NULL,NULL,false);
+-- name: coerced_readings_null_reading
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES('{2,4,8}',NULL,NULL,NULL,false);
+-- name: coerced_readings_scalar_overflow
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES(NULL,1e100,NULL,NULL,false);
+-- name: coerced_readings_eager_array_error
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES('bad',NULL,NULL,NULL,false);
+-- name: coerced_readings_skipped
+INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES('bad',1e100,NULL,NULL,true);
+-- name: coerced_regression_exact
+INSERT INTO lane_coerced_regression(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0,0,0,0}',3,2,'{1,2,0,3,0,0}',false);
+-- name: coerced_regression_wrong
+INSERT INTO lane_coerced_regression(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0,0,0,0}',3,2,'{1,2,0,9,0,0}',false);
+-- name: coerced_regression_null
+INSERT INTO lane_coerced_regression(payload,reading_y,reading_x,expected,bypass) VALUES(NULL,3,2,NULL,false);
+-- name: coerced_regression_scalar_null
+INSERT INTO lane_coerced_regression(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0,0,0,0}',NULL,2,NULL,false);
+-- name: coerced_regression_eager_array_overflow
+INSERT INTO lane_coerced_regression(payload,reading_y,reading_x,expected,bypass) VALUES('{1e9999,0,0,0,0,0}',NULL,2,NULL,false);
+-- name: coerced_regression_shape_error
+INSERT INTO lane_coerced_regression(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0}',3,2,NULL,false);
+-- name: coerced_regression_skipped
+INSERT INTO lane_coerced_regression(payload,reading_y,reading_x,expected,bypass) VALUES('bad',3,2,NULL,true);
+-- name: coerced_shape_exact
+INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VALUES('{0,0,0}',2,3,false);
+-- name: coerced_shape_wrong
+INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VALUES('{0,0,0}',2,9,false);
+-- name: coerced_shape_null_state
+INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VALUES(NULL,2,0,false);
+-- name: coerced_shape_null_reading
+INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VALUES('{0,0,0}',NULL,0,false);
+-- name: coerced_shape_eager_overflow
+INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VALUES('{1e9999,0,0}',NULL,0,false);
+-- name: coerced_shape_skipped
+INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VALUES('bad',2,9,true);
