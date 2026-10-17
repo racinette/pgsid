@@ -6,7 +6,11 @@ import {
   builtinTypeComparison,
   builtinTypeResolution,
 } from '../../postgres/builtins/inventory.js'
-import { catalogScalarType, type SqlCallableExpression } from '../../sql-semantics/expressions.js'
+import {
+  capturedEnumSupport,
+  catalogScalarType,
+  type SqlCallableExpression,
+} from '../../sql-semantics/expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 
 const scalarComparisons = new Set<string>()
@@ -48,7 +52,9 @@ for (const item of operators) {
 }
 const arrayMetadata = new Set<string>()
 const arrayBuckets = new Set<string>()
+const enumSupport = new Map<string, string>()
 for (const item of builtinCallables()) {
+  if (capturedEnumSupport(item)) enumSupport.set(callableIdentity(item), item.name)
   if (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&
@@ -110,6 +116,13 @@ const orderedElement = (type: string): boolean => {
 export function rustCallCanFail(call: SqlCallableExpression, types: readonly string[]): boolean {
   if (call.kind === 'cast' && call.signature === null) return false
   if (!call.signature) return true
+  const enumFunction = enumSupport.get(call.signature)
+  if (
+    enumFunction &&
+    (enumFunction === 'enum_range' ||
+      (call.kind !== 'cast' && call.enum && call.enum.values.length > 0))
+  )
+    return false
   if (scalarComparisons.has(call.signature) || arrayMetadata.has(call.signature)) return false
   if (arrayComparisons.has(call.signature) && types.every(orderedElement)) return false
   if (types.length !== 1) return true

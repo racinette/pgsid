@@ -901,3 +901,53 @@ CREATE TABLE lane_unordered_buckets (
   bypass boolean,
   CONSTRAINT bucket_requires_order CHECK (CASE WHEN bypass THEN true ELSE width_bucket(probe,thresholds) IS NULL END)
 );
+
+CREATE TABLE lane_stage_intervals (
+  stage lane_stage,
+  upper_stage lane_stage,
+  expected lane_stage[],
+  expected_first lane_stage,
+  expected_last lane_stage,
+  expected_layout text,
+  bypass boolean,
+  CONSTRAINT bounded_stage_interval CHECK (CASE WHEN bypass THEN true ELSE enum_range(stage,upper_stage) IS NOT DISTINCT FROM expected END),
+  CONSTRAINT complete_stage_interval CHECK (enum_range(stage) IS NOT DISTINCT FROM ARRAY['new'::lane_stage,'done'::lane_stage]),
+  CONSTRAINT first_stage_endpoint CHECK (CASE WHEN bypass THEN true ELSE enum_first(stage) IS NOT DISTINCT FROM expected_first END),
+  CONSTRAINT last_stage_endpoint CHECK (CASE WHEN bypass THEN true ELSE enum_last(upper_stage) IS NOT DISTINCT FROM expected_last END),
+  CONSTRAINT stage_interval_layout CHECK (CASE WHEN bypass THEN true ELSE array_dims(enum_range(stage,upper_stage)) COLLATE "C" IS NOT DISTINCT FROM expected_layout COLLATE "C" END)
+);
+
+CREATE TYPE lane_single_stage AS ENUM ('only');
+CREATE TYPE lane_empty_stage AS ENUM ();
+CREATE TABLE lane_degenerate_stages (
+  empty_stage lane_empty_stage,
+  single_stage lane_single_stage,
+  bypass boolean,
+  CONSTRAINT empty_stage_range CHECK (cardinality(enum_range(empty_stage,empty_stage))=0),
+  CONSTRAINT empty_stage_all CHECK (cardinality(enum_range(empty_stage))=0),
+  CONSTRAINT empty_first_endpoint CHECK (CASE WHEN bypass THEN true ELSE enum_first(empty_stage) IS NULL END),
+  CONSTRAINT empty_last_endpoint CHECK (CASE WHEN bypass THEN true ELSE enum_last(empty_stage) IS NULL END),
+  CONSTRAINT single_stage_all CHECK (enum_range(single_stage) IS NOT DISTINCT FROM ARRAY['only'::lane_single_stage]),
+  CONSTRAINT single_stage_bounds CHECK (enum_range(single_stage,single_stage) IS NOT DISTINCT FROM ARRAY['only'::lane_single_stage])
+);
+
+CREATE DOMAIN lane_stage_bound AS lane_stage;
+CREATE TABLE lane_stage_catalog_inputs (
+  payload text,
+  domain_stage lane_stage_bound,
+  expected_count integer,
+  bypass boolean,
+  CONSTRAINT parsed_stage_range CHECK (CASE WHEN bypass THEN true ELSE cardinality(enum_range((payload::lane_stage[])[1])) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT base_stage_range CHECK (enum_range(domain_stage::lane_stage) IS NOT DISTINCT FROM ARRAY['new'::lane_stage,'done'::lane_stage]),
+  CONSTRAINT base_first_endpoint CHECK (enum_first(domain_stage::lane_stage) IS NOT DISTINCT FROM 'new'::lane_stage)
+);
+
+CREATE TABLE lane_export_intervals (
+  stage lane_export_stage,
+  expected lane_export_stage[],
+  expected_first lane_export_stage,
+  expected_last lane_export_stage,
+  CONSTRAINT export_stage_all CHECK (enum_range(stage) IS NOT DISTINCT FROM expected),
+  CONSTRAINT export_first_endpoint CHECK (enum_first(stage) IS NOT DISTINCT FROM expected_first),
+  CONSTRAINT export_last_endpoint CHECK (enum_last(stage) IS NOT DISTINCT FROM expected_last)
+);

@@ -28,6 +28,7 @@ import {
 } from './check-rust-constants.js'
 import {
   enumType,
+  capturedEnumSupport,
   catalogScalarType,
   isOidType,
   isOidAliasType,
@@ -1289,6 +1290,7 @@ export function emitCheckRustEvaluator(
       const arrayBinarySend = isArrayBinarySend(implementation)
       const arrayRewrite = isArrayRewrite(implementation)
       const arrayTransform = isArrayTransform(implementation)
+      const enumSupport = capturedEnumSupport(implementation)
       const transformArray =
         arrayTransform || arrayRewrite
           ? operands[implementation.name === 'array_prepend' ? 1 : 0]?.type
@@ -1303,20 +1305,23 @@ export function emitCheckRustEvaluator(
           ? 'array:pg_catalog.int4'
           : arrayTransform || arrayRewrite
             ? transformArray
-            : implementation.result === 'pg_catalog.anyenum'
-              ? enumIdentity
-              : arrayFill
-                ? `array:${operands[0]?.type}`
-                : arrayTrim || arrayReverse || arraySort || arrayExtremum
-                  ? operands[0]?.type
-                  : arrayStringIO && implementation.name === 'string_to_array'
-                    ? 'array:pg_catalog.text'
-                    : implementation.result
+            : enumSupport && implementation.result === 'pg_catalog.anyarray'
+              ? `array:${enumIdentity}`
+              : implementation.result === 'pg_catalog.anyenum'
+                ? enumIdentity
+                : arrayFill
+                  ? `array:${operands[0]?.type}`
+                  : arrayTrim || arrayReverse || arraySort || arrayExtremum
+                    ? operands[0]?.type
+                    : arrayStringIO && implementation.name === 'string_to_array'
+                      ? 'array:pg_catalog.text'
+                      : implementation.result
       if (
         metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
         resultType !== call.type ||
         (!implementation.strict &&
+          !enumSupport &&
           !arraySearch &&
           !arrayTransform &&
           !arrayRewrite &&
@@ -1327,6 +1332,7 @@ export function emitCheckRustEvaluator(
           !isJsonbSetLax(implementation) &&
           !(implementation.schema === 'pg_catalog' && implementation.name === 'overlaps')) ||
         (implementation.volatility !== 'i' &&
+          !enumSupport &&
           !arrayBinarySend &&
           !arrayStringIO &&
           !jsonbConversion &&
@@ -1377,6 +1383,34 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           `Rust CHECK enum identity mismatch: ${call.signature}`,
         )
+      if (enumSupport) {
+        const definition = call.kind === 'cast' ? undefined : call.enum
+        if (
+          !definition ||
+          !enumIdentity ||
+          enumType(definition) !== enumIdentity ||
+          definition.values.length > 2147483647 ||
+          definition.values.some((label) => label.includes('\0'))
+        )
+          throw new UnsupportedCheckRustExpression('Enum support requires captured label order')
+        const safeArguments = operands.map((_, index) =>
+          String(
+            node.kind === 'call' &&
+              node.call === call &&
+              !rustExpressionCanFail(node.operands[index]),
+          ),
+        )
+        const args = [
+          ...operands.map(ownedOperand),
+          String(definition.values.length),
+          ...(implementation.name === 'enum_range' ? [rustStringLiteral(enumIdentity)] : []),
+          ...safeArguments,
+        ]
+        const name = fresh('enum_support')
+        destination.push(`let ${name} = ${implementation.rustName}(${args.join(', ')});`)
+        callables.add(implementation.rustName)
+        return { name, type: call.type }
+      }
       if (
         !builder &&
         implementation.args.some((type, index) =>

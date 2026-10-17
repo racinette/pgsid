@@ -8765,6 +8765,121 @@ export function hashenumextended18hh(input: checkruntime.EnumValue, seed: checkr
     }
     return { kind: "Unknown" };
 }
+const enumSupportEmpty = 8631360;
+function enumSupportArgument(input: checkruntime.EnumValue, count: number, unknownValid: boolean): checkruntime.CheckOutcome {
+    count = langruntime.checkedI32(count);
+    unknownValid = langruntime.checkedBool(unknownValid);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (count < 0 || (checkruntime.equalEnumValue(input, { kind: "Unknown" }) && unknownValid === false)) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.EnumPayload = input.value;
+        if (value.ordinal < 0 || value.ordinal >= count) {
+            return { kind: "Unknown" };
+        }
+    }
+    return { kind: "True" };
+}
+function enumSupportRangeValues(count: number, identity: string, first: number, last: number): checkruntime.ArrayValue {
+    count = langruntime.checkedI32(count);
+    identity = langruntime.checkedString(identity);
+    first = langruntime.checkedI32(first);
+    last = langruntime.checkedI32(last);
+    let elements: checkruntime.ArrayElement[] = [];
+    let ordinal: number = first;
+    while (ordinal < count && ordinal <= last) {
+        const value: checkruntime.EnumValue = checkruntime.makeEnumValue(ordinal);
+        const element: checkruntime.ArrayElement = checkruntime.arrayElementFromEnum(value);
+        langruntime.pushStruct(elements, element, checkruntime.copyArrayElement);
+        ordinal = langruntime.checkedI32(langruntime.checkedSignedAdd(ordinal, 1));
+    }
+    let dimensions: checkruntime.ArrayDimension[] = [];
+    if (elements.length > 0) {
+        langruntime.pushStruct(dimensions, { lower: 1, length: langruntime.checkedI32(langruntime.checkedIndex(elements.length)) }, checkruntime.copyArrayDimension);
+    }
+    return { kind: "Value", value: { elementType: identity, elementKind: 6, dimensions: dimensions, elements: elements } };
+}
+export function enumRangeP6cj(input: checkruntime.EnumValue, count: number, identity: string, unknownValid: boolean): checkruntime.ArrayValue {
+    count = langruntime.checkedI32(count);
+    identity = langruntime.checkedString(identity);
+    unknownValid = langruntime.checkedBool(unknownValid);
+    const validity: checkruntime.CheckOutcome = enumSupportArgument(input, count, unknownValid);
+    if (validity.kind === "Error") {
+        const error: checkruntime.SqlError = validity.value;
+        return { kind: "Error", value: error };
+    }
+    if (!(checkruntime.equalCheckOutcome(validity, { kind: "True" }))) {
+        return { kind: "Unknown" };
+    }
+    return enumSupportRangeValues(count, identity, 0, langruntime.checkedSignedSubtract(count, 1));
+}
+export function enumRangeEcgl(lower: checkruntime.EnumValue, upper: checkruntime.EnumValue, count: number, identity: string, lowerUnknownValid: boolean, upperUnknownValid: boolean): checkruntime.ArrayValue {
+    count = langruntime.checkedI32(count);
+    identity = langruntime.checkedString(identity);
+    lowerUnknownValid = langruntime.checkedBool(lowerUnknownValid);
+    upperUnknownValid = langruntime.checkedBool(upperUnknownValid);
+    if (lower.kind === "Error") {
+        const error: checkruntime.SqlError = lower.value;
+        return { kind: "Error", value: error };
+    }
+    if (upper.kind === "Error") {
+        const error: checkruntime.SqlError = upper.value;
+        return { kind: "Error", value: error };
+    }
+    const lowerValid: checkruntime.CheckOutcome = enumSupportArgument(lower, count, lowerUnknownValid);
+    const upperValid: checkruntime.CheckOutcome = enumSupportArgument(upper, count, upperUnknownValid);
+    if (!(checkruntime.equalCheckOutcome(lowerValid, { kind: "True" })) || !(checkruntime.equalCheckOutcome(upperValid, { kind: "True" }))) {
+        return { kind: "Unknown" };
+    }
+    if (count > 1 && (checkruntime.equalEnumValue(lower, { kind: "Unknown" }) || checkruntime.equalEnumValue(upper, { kind: "Unknown" }))) {
+        return { kind: "Unknown" };
+    }
+    let first: number = 0;
+    let last: number = langruntime.checkedSignedSubtract(count, 1);
+    if (lower.kind === "Value") {
+        const value: checkruntime.EnumPayload = lower.value;
+        first = langruntime.checkedI32(value.ordinal);
+    }
+    if (upper.kind === "Value") {
+        const value: checkruntime.EnumPayload = upper.value;
+        last = langruntime.checkedI32(value.ordinal);
+    }
+    return enumSupportRangeValues(count, identity, first, last);
+}
+function enumSupportEndpoint(input: checkruntime.EnumValue, count: number, last: boolean, unknownValid: boolean): checkruntime.EnumValue {
+    count = langruntime.checkedI32(count);
+    last = langruntime.checkedBool(last);
+    unknownValid = langruntime.checkedBool(unknownValid);
+    const validity: checkruntime.CheckOutcome = enumSupportArgument(input, count, unknownValid);
+    if (validity.kind === "Error") {
+        const error: checkruntime.SqlError = validity.value;
+        return { kind: "Error", value: error };
+    }
+    if (!(checkruntime.equalCheckOutcome(validity, { kind: "True" }))) {
+        return { kind: "Unknown" };
+    }
+    if (count === 0) {
+        return { kind: "Error", value: checkruntime.makeSqlError(enumSupportEmpty) };
+    }
+    if (last) {
+        return checkruntime.makeEnumValue(langruntime.checkedSignedSubtract(count, 1));
+    }
+    return checkruntime.makeEnumValue(0);
+}
+export function enumFirstE14q(input: checkruntime.EnumValue, count: number, unknownValid: boolean): checkruntime.EnumValue {
+    count = langruntime.checkedI32(count);
+    unknownValid = langruntime.checkedBool(unknownValid);
+    return enumSupportEndpoint(input, count, false, unknownValid);
+}
+export function enumLast73mc(input: checkruntime.EnumValue, count: number, unknownValid: boolean): checkruntime.EnumValue {
+    count = langruntime.checkedI32(count);
+    unknownValid = langruntime.checkedBool(unknownValid);
+    return enumSupportEndpoint(input, count, true, unknownValid);
+}
 const floatArithmeticZero = 3452582;
 function floatArithmetic(left: checkruntime.Float8Value, right: checkruntime.Float8Value, mode: number, single: boolean): checkruntime.Float8Value {
     mode = langruntime.checkedI32(mode);
