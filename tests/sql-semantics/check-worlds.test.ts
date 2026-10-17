@@ -1354,7 +1354,8 @@ describe('world CHECK INSERT parity', () => {
     const table = catalog.tables.find(
       (table) => table.schema === item.schema && table.name === item.relation,
     )!
-    await pg.exec(`SET search_path = ${quote(item.schema)}, public; BEGIN`)
+    await pg.exec(`SET search_path = ${quote(item.schema)}, public`)
+    await pg.exec('BEGIN')
     let rejected: { code: string; constraint?: string } | undefined
     try {
       await pg.query(item.sql)
@@ -1365,6 +1366,9 @@ describe('world CHECK INSERT parity', () => {
     } finally {
       await pg.exec('ROLLBACK')
     }
+    expect((await pg.query<{ schema: string }>('SELECT current_schema() AS schema')).rows).toEqual([
+      { schema: item.schema },
+    ])
     const results = typescriptResults.get(item.name)!
     if (checkWorlds.has(item.name.split('/')[0]!))
       for (const check of results)
