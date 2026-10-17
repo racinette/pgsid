@@ -463,7 +463,7 @@ pub fn array_subscript_owned_probe()->BoolValue {
    elements[0]=ArrayElement::Jsonb(JsonbPayload{root:value.root,nodes:value.nodes,characters:characters});
   };
   let mut dimensions=payload.dimensions;dimensions[0]=ArrayDimension{lower:5,length:2};
-  let modified=ArrayValue::Value(ArrayPayload{element_type:payload.element_type,element_kind:payload.element_kind,dimensions:dimensions,elements:elements});
+  let modified=ArrayValue::Value(ArrayPayload{null_bitmap:BoolValue::Unknown,element_type:payload.element_type,element_kind:payload.element_kind,dimensions:dimensions,elements:elements});
   if sql__pg_catalog__array_dims__01ex(modified)!=make_text_value("[5:6]") {return BoolValue::Value(false);};
  };
  if sql__pg_catalog__array_dims__01ex(sliced.clone())!=make_text_value("[1:2]") {return BoolValue::Value(false);};

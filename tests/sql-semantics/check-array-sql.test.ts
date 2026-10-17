@@ -171,6 +171,28 @@ it('binds public arrays, metadata and owned composition through Rust, Go and Typ
       await mkdir(dirname(artifact.path), { recursive: true })
       await writeFile(artifact.path, artifact.content)
     }
+    const typed = renderTypescriptSchemaCheckArtifacts(
+      catalog.tables.filter((table) => table.name === 'family_2'),
+      [],
+      catalog.domains,
+      { enums: catalog.enums, typedInputs: true, rustModuleSpecifier: '../checks-rust/checks.js' },
+    )
+    await mkdir(join(root, 'typed'), { recursive: true })
+    await writeFile(join(root, 'helpers.ts'), 'export type InferSelect<T> = T\n')
+    await writeFile(
+      join(root, 'typed/tables.ts'),
+      'export type Family2 = { value: unknown; expected_count: number }\n',
+    )
+    await writeFile(join(root, 'typed/checks.ts'), typed.checks)
+    await writeFile(
+      join(root, 'typed/usage.ts'),
+      `import { evaluatePublicFamily2Checks, type PublicFamily2CheckInput } from './checks.js'
+const legacy: PublicFamily2CheckInput = {value:{kind:'Value',value:{elementType:'pg_catalog.int4',elementKind:2,dimensions:[{lower:1,length:1}],elements:[{kind:'Int4',value:1}]}},expected_count:1}
+const supplied: PublicFamily2CheckInput = {value:{kind:'Value',value:{elementType:'pg_catalog.int4',elementKind:2,dimensions:[{lower:1,length:1}],elements:[{kind:'Int4',value:1}],nullBitmap:{kind:'Value',value:false}}},expected_count:1}
+evaluatePublicFamily2Checks(legacy)
+evaluatePublicFamily2Checks(supplied)
+`,
+    )
     const generatedEvidence = 'artifacts/array-sql/generated'
     await mkdir(generatedEvidence, { recursive: true })
     await writeFile(join(generatedEvidence, 'package.json'), '{"type":"module"}\n')
@@ -192,6 +214,7 @@ it('binds public arrays, metadata and owned composition through Rust, Go and Typ
       '--outDir',
       join(root, 'js'),
       join(root, 'checks.ts'),
+      join(root, 'typed/usage.ts'),
     ]).catch((error) => {
       throw new Error(error.stdout + error.stderr)
     })
@@ -345,6 +368,65 @@ it('binds public arrays, metadata and owned composition through Rust, Go and Typ
     expect(
       generated.evaluatePublicFamily2Checks({ value: upperBoundary, expected_count: 2 })[0].result,
     ).toEqual({ certain: true, value: true })
+    for (const nullBitmap of [
+      undefined,
+      { kind: 'Unknown' },
+      ...[false, true].map((value) => ({ kind: 'Value', value })),
+    ]) {
+      const value = { ...upperBoundary, value: { ...upperBoundary.value, nullBitmap } }
+      expect(generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result).toEqual(
+        { certain: true, value: true },
+      )
+    }
+    for (const nullBitmap of [{ kind: 'Unknown' }, { kind: 'Value', value: true }]) {
+      const value = { ...partial, value: { ...partial.value, nullBitmap } }
+      expect(generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result).toEqual(
+        { certain: true, value: true },
+      )
+    }
+    for (const nullBitmap of [
+      null,
+      false,
+      { kind: 'Null' },
+      { kind: 'Error', value: { state: 1 } },
+      { kind: 'Value', value: 'false' },
+    ]) {
+      const value = { ...upperBoundary, value: { ...upperBoundary.value, nullBitmap } }
+      expect(
+        generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result.certain,
+      ).toBe(false)
+    }
+    for (const nullBitmap of [{ kind: 'Null' }, { kind: 'Error', value: { state: 1 } }]) {
+      const value = {
+        ...upperBoundary,
+        value: {
+          ...upperBoundary.value,
+          nullBitmap,
+          elements: [
+            { kind: 'Error', value: { state: parseInt('22012', 36) } },
+            { kind: 'Int4', value: 1 },
+          ],
+        },
+      }
+      expect(
+        generated.evaluatePublicFamily2Checks({ value, expected_count: 2 })[0].result,
+      ).toMatchObject({ certain: true, error: '22012' })
+    }
+    goCases.push(
+      `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementError,Error:checkruntime.SqlError{State:3452582}}},NullBitmap:flag}};result:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))})[0].Result;if !result.Certain || result.Value.Error!="22012" {t.Fatal("incoming error before bitmap validation",flag,result)}}}`,
+    )
+    expect(
+      generated.evaluatePublicFamily2Checks({
+        value: {
+          ...partial,
+          value: { ...partial.value, nullBitmap: { kind: 'Value', value: false } },
+        },
+        expected_count: 2,
+      })[0].result.certain,
+    ).toBe(false)
+    goCases.push(
+      `{for _,flag:=range []checkruntime.BoolValue{{Kind:checkruntime.BoolValueUnknown},{Kind:checkruntime.BoolValueValue,Value:false},{Kind:checkruntime.BoolValueValue,Value:true},{Kind:checkruntime.BoolValueNull},{Kind:checkruntime.BoolValueError,Error:checkruntime.SqlError{State:1}}} {for _,nullCell:=range []bool{false,true} {cell:=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementInt4,Int4:1};if nullCell {cell=checkruntime.ArrayElement{Kind:checkruntime.ArrayElementNull}};value:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"pg_catalog.int4",ElementKind:2,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{cell},NullBitmap:flag}};result:=EvaluatePublicFamily2Checks(PublicFamily2CheckInput{Value:KnownCheckValue(value),ExpectedCount:KnownCheckValue(int32(1))})[0].Result;valid:=flag.Kind==checkruntime.BoolValueUnknown || (flag.Kind==checkruntime.BoolValueValue && (flag.Value || !nullCell));if result.Certain!=valid || (valid && (!result.Value.Valid || !result.Value.Value)) {t.Fatal("bitmap metadata",flag,nullCell,result)}}}}`,
+    )
     expect(
       (
         await pg.query<{ value: string }>(

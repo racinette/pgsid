@@ -370,6 +370,7 @@ fn rewrite_partial_run(original:ArrayValue,needle:ArrayElement,replacement:Array
  let plan=prepare_array_rewrite(original.clone(),needle,replacement,remove,true);
  let mut index=make_int4_value(0);let mut result=array_search_initial(&plan);
  let mut output=make_array_arguments("pg_catalog.int4",2);
+ let mut changed=make_bool_value(false);
  while array_rewrite_continues(&plan,index,result) {
   let a=array_membership_element_at(&plan,index,false);let b=array_rewrite_needle(&plan);
   let pair=array_comparison_pair(a.clone(),b.clone(),true);let mut compared=pair;
@@ -378,9 +379,10 @@ fn rewrite_partial_run(original:ArrayValue,needle:ArrayElement,replacement:Array
    compared=array_equality_step(sql__pg_catalog__int4eq__lrxe(left,right));
   };
   output=array_rewrite_step(output,&plan,index,compared,remove);
+  changed=array_bitmap_union(changed,array_rewrite_changed(&plan,compared,remove));
   result=compared;index=array_text_next_index(index);
  }
- finish_array_rewrite(original,&plan,output,remove)
+ finish_array_rewrite(original,&plan,output,remove,changed)
 }
 pub fn array_rewrite_partial_probe()->BoolValue {
  let original=rewrite_partial_input();let one=array_element_from_int4(make_int4_value(1));let two=array_element_from_int4(make_int4_value(2));
@@ -406,14 +408,14 @@ pub fn array_rewrite_partial_probe()->BoolValue {
  if array_search_initial(&null_failed)!=Int4Value::Error(second) {return BoolValue::Value(false);};
  let empty=finish_array_constructor(make_array_arguments("pg_catalog.int4",2));
  let empty_plan=prepare_array_rewrite(empty.clone(),ArrayElement::Unknown,ArrayElement::Unknown,false,false);
- let empty_output=finish_array_rewrite(empty,&empty_plan,make_array_arguments("pg_catalog.int4",2),false);
+ let empty_output=finish_array_rewrite(empty,&empty_plan,make_array_arguments("pg_catalog.int4",2),false,make_bool_value(false));
  if sql__pg_catalog__cardinality__m1rn(empty_output)!=make_int4_value(0) {return BoolValue::Value(false);};
  let missing=prepare_array_rewrite(rewrite_partial_input(),ArrayElement::Unknown,ArrayElement::Unknown,false,false);
  if array_search_initial(&missing)!=Int4Value::Error(make_sql_error(6822435)) {return BoolValue::Value(false);};
  let plan=prepare_array_rewrite(rewrite_partial_input(),one,two,true,true);
  let uncertain=array_rewrite_step(make_array_arguments("pg_catalog.int4",2),&plan,make_int4_value(0),Int4Value::Unknown,true);
  let later_error=array_rewrite_step(uncertain,&plan,make_int4_value(1),Int4Value::Error(first),true);
- let error_result=finish_array_rewrite(rewrite_partial_input(),&plan,later_error,true);
+ let error_result=finish_array_rewrite(rewrite_partial_input(),&plan,later_error,true,BoolValue::Unknown);
  let error_plan=prepare_array_output(error_result);
  if error_plan.state!= -2 || error_plan.error!=first {return BoolValue::Value(false);};
  if array_rewrite_continues(&plan,make_int4_value(1),Int4Value::Unknown)==false {return BoolValue::Value(false);};

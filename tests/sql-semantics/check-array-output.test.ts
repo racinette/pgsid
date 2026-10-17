@@ -426,7 +426,7 @@ pub fn array_output_owner_probe()->BoolValue {
   dimensions[0]=ArrayDimension{lower:-10,length:2};
   let mut elements=payload.elements;
   elements[0]=ArrayElement::Text("changed".to_owned());
-  let altered=ArrayOutputPayload{state:payload.state,error:payload.error,dimensions:dimensions,elements:elements};
+  let altered=ArrayOutputPayload{state:payload.state,error:payload.error,dimensions:dimensions,elements:elements,null_bitmap:payload.null_bitmap};
   if array_element_to_text(array_output_element_at(&altered,make_int4_value(0)))!=make_text_value("changed") {return BoolValue::Value(false);};
  };
  if let ArrayOutputPlan::Value(retained)=original {

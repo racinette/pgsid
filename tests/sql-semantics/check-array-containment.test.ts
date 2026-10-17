@@ -255,7 +255,7 @@ fn array_containment_partial_array(first:i32,second:i32,count:i32)->ArrayValue {
  let mut dimensions:Vec<ArrayDimension>=Vec::new();
  if count>0 {cells.push(array_containment_partial_cell(first));dimensions.push(ArrayDimension{lower:1,length:count});};
  if count>1 {cells.push(array_containment_partial_cell(second));};
- ArrayValue::Value(ArrayPayload{element_type:"pg_catalog.int4".to_owned(),element_kind:2,dimensions:dimensions,elements:cells})
+ ArrayValue::Value(ArrayPayload{null_bitmap:BoolValue::Unknown,element_type:"pg_catalog.int4".to_owned(),element_kind:2,dimensions:dimensions,elements:cells})
 }
 fn array_containment_partial_match(left:ArrayValue,right:ArrayValue,all:bool)->BoolValue {
  let payload=prepare_array_membership(left,right,false,true);

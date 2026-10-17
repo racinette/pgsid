@@ -263,7 +263,7 @@ func arrayFillPayload(element checkruntime.ArrayElement, lengths checkruntime.Ar
 		elements = append(elements, checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(element)))
 		filled = langruntime.CheckedI64Add(filled, int64(1))
 	}
-	return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: elements})
+	return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{NullBitmap: checkruntime.ArrayElementBitmap(element), ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: elements})
 }
 func arrayFillValue(element checkruntime.ArrayElement, lengths checkruntime.ArrayValue, bounds checkruntime.ArrayValue, provided bool, elementType string, elementKind int) checkruntime.ArrayValue {
 	element = checkruntime.CopyArrayElement(element)
@@ -675,6 +675,7 @@ func ArrayWithTypmod(input checkruntime.ArrayValue, modifier int) checkruntime.A
 	}
 	if input.Kind == checkruntime.ArrayValueValue {
 		payload := checkruntime.CopyArrayPayload(input.Value)
+		nullBitmap := checkruntime.ArrayReconstructionBitmap(&payload)
 		elements := payload.Elements
 		position := 0
 		unknownValid := payload.ElementType == "pg_catalog.\"varchar\"" || payload.ElementType == "pg_catalog.bpchar" || payload.ElementType == "pg_catalog.\"bit\"" || payload.ElementType == "pg_catalog.varbit" || payload.ElementType == "pg_catalog.\"time\"" || payload.ElementType == "pg_catalog.timetz"
@@ -692,7 +693,15 @@ func ArrayWithTypmod(input checkruntime.ArrayValue, modifier int) checkruntime.A
 			elements[position] = checkruntime.CopyArrayElement(converted)
 			position = langruntime.CheckedAdd(position, 1)
 		}
-		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: payload.ElementType, ElementKind: payload.ElementKind, Dimensions: payload.Dimensions, Elements: elements})
+		if payload.NullBitmap != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+			nullBitmap = checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+			position = langruntime.CheckedIndex(0)
+			for position < len(elements) {
+				nullBitmap = checkruntime.ArrayBitmapUnion(nullBitmap, checkruntime.ArrayElementBitmap(checkruntime.CopyArrayElement(elements[position])))
+				position = langruntime.CheckedAdd(position, 1)
+			}
+		}
+		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{NullBitmap: nullBitmap, ElementType: payload.ElementType, ElementKind: payload.ElementKind, Dimensions: payload.Dimensions, Elements: elements})
 	}
 	return input
 }
@@ -1105,7 +1114,8 @@ func ArrayReverseIwk0(input checkruntime.ArrayValue) checkruntime.ArrayValue {
 			}
 			row = langruntime.CheckedI32(langruntime.CheckedSignedAdd(row, 1))
 		}
-		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements})
+		nullBitmap := checkruntime.ArrayReconstructionBitmap(&value)
+		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{NullBitmap: nullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: elements})
 	}
 	return input
 }
@@ -1135,6 +1145,10 @@ func arraySortPayload(value checkruntime.ArrayPayload, state int, error checkrun
 	value = checkruntime.CopyArrayPayload(value)
 	state = langruntime.CheckedI32(state)
 	rows := 0
+	nullBitmap := value.NullBitmap
+	if len(value.Dimensions) > 0 && value.Dimensions[0].Length >= 2 {
+		nullBitmap = checkruntime.ArrayReconstructionBitmap(&value)
+	}
 	width := 0
 	if len(value.Dimensions) > 0 {
 		rows = langruntime.CheckedI32(value.Dimensions[0].Length)
@@ -1158,13 +1172,13 @@ func arraySortPayload(value checkruntime.ArrayPayload, state int, error checkrun
 	if rows > 0 {
 		right = langruntime.CheckedI32(1)
 	}
-	return checkruntime.ArraySortPayload{ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: value.Elements, Order: order, Buffer: buffer, Ties: ties, Rows: rows, Width: width, Run: 1, Segment: 0, Left: 0, Right: right, Output: 0, Phase: 1, Tie: 1, State: state, Error: error, Descending: descending, NullsFirst: nullsFirst}
+	return checkruntime.ArraySortPayload{NullBitmap: nullBitmap, ElementType: value.ElementType, ElementKind: value.ElementKind, Dimensions: value.Dimensions, Elements: value.Elements, Order: order, Buffer: buffer, Ties: ties, Rows: rows, Width: width, Run: 1, Segment: 0, Left: 0, Right: right, Output: 0, Phase: 1, Tie: 1, State: state, Error: error, Descending: descending, NullsFirst: nullsFirst}
 }
 func arraySortStatus(state int, error checkruntime.SqlError) checkruntime.ArraySortPayload {
 	state = langruntime.CheckedI32(state)
 	dimensions := []checkruntime.ArrayDimension{}
 	elements := []checkruntime.ArrayElement{}
-	value := checkruntime.ArrayPayload{ElementType: "", ElementKind: 0, Dimensions: dimensions, Elements: elements}
+	value := checkruntime.ArrayPayload{NullBitmap: checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}, ElementType: "", ElementKind: 0, Dimensions: dimensions, Elements: elements}
 	return arraySortPayload(value, state, error, false, false)
 }
 func PrepareArraySort(input checkruntime.ArrayValue, descending checkruntime.BoolValue, nullsFirst checkruntime.BoolValue, available bool) checkruntime.ArraySortPayload {
@@ -1365,13 +1379,13 @@ func ArraySortStep(input checkruntime.ArraySortPayload, compared checkruntime.In
 						if run >= input.Rows {
 							phase = langruntime.CheckedI32(2)
 						}
-						return checkruntime.ArraySortPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements, Order: buffer, Buffer: order, Ties: ties, Rows: input.Rows, Width: input.Width, Run: run, Segment: segment, Left: left, Right: right, Output: output, Phase: phase, Tie: tie, State: state, Error: error, Descending: input.Descending, NullsFirst: input.NullsFirst}
+						return checkruntime.ArraySortPayload{NullBitmap: input.NullBitmap, ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements, Order: buffer, Buffer: order, Ties: ties, Rows: input.Rows, Width: input.Width, Run: run, Segment: segment, Left: left, Right: right, Output: output, Phase: phase, Tie: tie, State: state, Error: error, Descending: input.Descending, NullsFirst: input.NullsFirst}
 					}
 				}
 			}
 		}
 	}
-	return checkruntime.ArraySortPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements, Order: order, Buffer: buffer, Ties: ties, Rows: input.Rows, Width: input.Width, Run: run, Segment: segment, Left: left, Right: right, Output: output, Phase: phase, Tie: tie, State: state, Error: error, Descending: input.Descending, NullsFirst: input.NullsFirst}
+	return checkruntime.ArraySortPayload{NullBitmap: input.NullBitmap, ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements, Order: order, Buffer: buffer, Ties: ties, Rows: input.Rows, Width: input.Width, Run: run, Segment: segment, Left: left, Right: right, Output: output, Phase: phase, Tie: tie, State: state, Error: error, Descending: input.Descending, NullsFirst: input.NullsFirst}
 }
 func arraySortSameElement(left checkruntime.ArrayElement, right checkruntime.ArrayElement) bool {
 	left = checkruntime.CopyArrayElement(left)
@@ -1536,7 +1550,7 @@ func FinishArraySort(input checkruntime.ArraySortPayload) checkruntime.ArrayValu
 		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
 	}
 	if input.State == 2 {
-		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements})
+		return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{NullBitmap: input.NullBitmap, ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements})
 	}
 	elements := []checkruntime.ArrayElement{}
 	if input.State == 3 {
@@ -1599,7 +1613,7 @@ func FinishArraySort(input checkruntime.ArraySortPayload) checkruntime.ArrayValu
 	} else {
 		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
 	}
-	return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: elements})
+	return checkruntime.MakeArrayValue(checkruntime.ArrayPayload{NullBitmap: input.NullBitmap, ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: elements})
 }
 func ArraySortHxzh(input checkruntime.ArrayValue) checkruntime.ArrayValue {
 	input = checkruntime.CopyArrayValue(input)
@@ -1880,7 +1894,7 @@ func arrayPush(input checkruntime.ArrayValue, element checkruntime.ArrayElement,
 	}
 	dimensions := []checkruntime.ArrayDimension{}
 	elements := []checkruntime.ArrayElement{}
-	empty := checkruntime.ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: elements}
+	empty := checkruntime.ArrayPayload{NullBitmap: checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}, ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: elements}
 	return arrayPushPayload(empty, element, elementType, elementKind, prepend)
 }
 func arrayPushPayload(value checkruntime.ArrayPayload, element checkruntime.ArrayElement, elementType string, elementKind int, prepend bool) checkruntime.ArrayValue {
@@ -1910,6 +1924,7 @@ func arrayPushPayload(value checkruntime.ArrayPayload, element checkruntime.Arra
 		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayTransformLimit)}
 	}
 	output := []checkruntime.ArrayElement{}
+	nullBitmap := checkruntime.ArrayBitmapUnion(value.NullBitmap, checkruntime.ArrayElementBitmap(checkruntime.CopyArrayElement(element)))
 	if prepend {
 		langruntime.CheckedAdd(len(output), 1)
 		output = append(output, checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(element)))
@@ -1931,7 +1946,7 @@ func arrayPushPayload(value checkruntime.ArrayPayload, element checkruntime.Arra
 	if prepend && length > 0 {
 		adjustment = langruntime.CheckedI32(1)
 	}
-	return arrayTransformFinish(checkruntime.ArrayPayload{ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: output}, adjustment)
+	return arrayTransformFinish(checkruntime.ArrayPayload{NullBitmap: nullBitmap, ElementType: elementType, ElementKind: elementKind, Dimensions: dimensions, Elements: output}, adjustment)
 }
 func ArrayAppendK9mc(input checkruntime.ArrayValue, element checkruntime.ArrayElement, elementType string, elementKind int) checkruntime.ArrayValue {
 	input = checkruntime.CopyArrayValue(input)
@@ -2051,7 +2066,7 @@ func ArrayCat6rla(left checkruntime.ArrayValue, right checkruntime.ArrayValue) c
 				elements = append(elements, checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(b.Elements[position])))
 				position = langruntime.CheckedAdd(position, 1)
 			}
-			return arrayTransformFinish(checkruntime.ArrayPayload{ElementType: a.ElementType, ElementKind: a.ElementKind, Dimensions: dimensions, Elements: elements}, 0)
+			return arrayTransformFinish(checkruntime.ArrayPayload{NullBitmap: checkruntime.ArrayBitmapUnion(a.NullBitmap, b.NullBitmap), ElementType: a.ElementType, ElementKind: a.ElementKind, Dimensions: dimensions, Elements: elements}, 0)
 		}
 	}
 	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
@@ -9006,7 +9021,7 @@ func enumSupportRangeValues(count int, identity string, first int, last int) che
 		langruntime.CheckedAdd(len(dimensions), 1)
 		dimensions = append(dimensions, checkruntime.ArrayDimension{Lower: 1, Length: int(int32(len(elements)))})
 	}
-	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: checkruntime.ArrayPayload{ElementType: identity, ElementKind: 6, Dimensions: dimensions, Elements: elements}}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueValue, Value: checkruntime.ArrayPayload{NullBitmap: checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}, ElementType: identity, ElementKind: 6, Dimensions: dimensions, Elements: elements}}
 }
 func EnumRangeP6cj(input checkruntime.EnumValue, count int, identity string, unknownValid bool) checkruntime.ArrayValue {
 	count = langruntime.CheckedI32(count)

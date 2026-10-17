@@ -51,6 +51,7 @@ fn array_push(
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();
     let empty = ArrayPayload {
+        null_bitmap: BoolValue::Value(false),
         element_type: element_type.to_owned(),
         element_kind: element_kind,
         dimensions: dimensions,
@@ -88,6 +89,7 @@ fn array_push_payload(
         return ArrayValue::Error(make_sql_error(ARRAY_TRANSFORM_LIMIT));
     };
     let mut output: Vec<ArrayElement> = Vec::new();
+    let null_bitmap = array_bitmap_union(value.null_bitmap, array_element_bitmap(element.clone()));
     if prepend {
         output.push(element.clone());
     };
@@ -110,6 +112,7 @@ fn array_push_payload(
     };
     array_transform_finish(
         ArrayPayload {
+            null_bitmap: null_bitmap,
             element_type: element_type.to_owned(),
             element_kind: element_kind,
             dimensions: dimensions,
@@ -236,6 +239,7 @@ pub fn sql__pg_catalog__array_cat__6rla(left: ArrayValue, right: ArrayValue) -> 
             }
             return array_transform_finish(
                 ArrayPayload {
+                    null_bitmap: array_bitmap_union(a.null_bitmap, b.null_bitmap),
                     element_type: a.element_type,
                     element_kind: a.element_kind,
                     dimensions: dimensions,

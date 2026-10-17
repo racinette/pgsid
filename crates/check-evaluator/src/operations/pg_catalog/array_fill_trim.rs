@@ -98,6 +98,7 @@ fn array_fill_payload(
         filled = filled + 1i64;
     }
     make_array_value(ArrayPayload {
+        null_bitmap: array_element_bitmap(element),
         element_type: element_type.to_owned(),
         element_kind: element_kind,
         dimensions: dimensions,

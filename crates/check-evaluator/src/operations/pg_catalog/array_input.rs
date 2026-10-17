@@ -98,6 +98,7 @@ pub fn array_with_typmod(input: ArrayValue, modifier: i32) -> ArrayValue {
         return input;
     };
     if let ArrayValue::Value(payload) = input {
+        let mut null_bitmap = array_reconstruction_bitmap(&payload);
         let mut elements = payload.elements;
         let mut position: usize = 0;
         let unknown_valid = payload.element_type == "pg_catalog.\"varchar\""
@@ -123,7 +124,19 @@ pub fn array_with_typmod(input: ArrayValue, modifier: i32) -> ArrayValue {
             elements[position] = converted;
             position += 1;
         }
+        if payload.null_bitmap != BoolValue::Value(false) {
+            null_bitmap = BoolValue::Value(false);
+            position = 0;
+            while position < elements.len() {
+                null_bitmap = array_bitmap_union(
+                    null_bitmap,
+                    array_element_bitmap(elements[position].clone()),
+                );
+                position += 1;
+            }
+        };
         return make_array_value(ArrayPayload {
+            null_bitmap: null_bitmap,
             element_type: payload.element_type,
             element_kind: payload.element_kind,
             dimensions: payload.dimensions,

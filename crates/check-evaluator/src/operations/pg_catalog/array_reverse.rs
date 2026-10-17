@@ -27,7 +27,9 @@ pub fn sql__pg_catalog__array_reverse__iwk0(input: ArrayValue) -> ArrayValue {
             }
             row = row + 1;
         }
+        let null_bitmap = array_reconstruction_bitmap(&value);
         return make_array_value(ArrayPayload {
+            null_bitmap: null_bitmap,
             element_type: value.element_type,
             element_kind: value.element_kind,
             dimensions: value.dimensions,

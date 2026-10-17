@@ -382,7 +382,7 @@ fn array_search_partial_array(first:i32,second:i32)->ArrayValue {
  if second == -11 {b=ArrayElement::Null;};
  if second >= 0 {b=array_element_from_int4(make_int4_value(second));};
  cells.push(a);cells.push(b);dimensions.push(ArrayDimension{lower:-2,length:2});
- ArrayValue::Value(ArrayPayload{element_type:"pg_catalog.int4".to_owned(),element_kind:2,dimensions:dimensions,elements:cells})
+ ArrayValue::Value(ArrayPayload{null_bitmap:BoolValue::Unknown,element_type:"pg_catalog.int4".to_owned(),element_kind:2,dimensions:dimensions,elements:cells})
 }
 fn array_search_partial_run(input:ArrayValue,needle:ArrayElement,start:Int4Value,all:bool)->Int4Value {
  let payload=prepare_array_search(input,needle,start,true,true);

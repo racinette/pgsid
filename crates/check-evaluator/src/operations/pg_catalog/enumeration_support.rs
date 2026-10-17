@@ -32,6 +32,7 @@ fn enum_support_range_values(count: i32, identity: &str, first: i32, last: i32) 
         });
     };
     ArrayValue::Value(ArrayPayload {
+        null_bitmap: BoolValue::Value(false),
         element_type: identity.to_owned(),
         element_kind: 6,
         dimensions: dimensions,
