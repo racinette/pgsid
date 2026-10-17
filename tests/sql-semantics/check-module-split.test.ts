@@ -4,10 +4,83 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { checkRustAsset } from '../../src/codegen/shared/check-rust-assets.js'
 import {
   checkTypescriptArtifacts,
   splitCheckTypescript,
 } from '../../tools/check-transpiler/typescript/split.js'
+
+it('splits many cross-module Go symbols within a bounded WASM heap', () => {
+  const count = 512
+  const items = Array.from({ length: count }, (_, index) => ({
+    kind: 'function',
+    module: 'regex_engine',
+    visibility: 'private',
+    name: `measure_${index}`,
+    returnType: { kind: 'path', segments: ['usize'] },
+    parameters: [],
+    body: [{ kind: 'expression', value: { kind: 'integer', digits: String(index) } }],
+  }))
+  const input = Buffer.from(
+    JSON.stringify({
+      ast: {
+        schemaVersion: 1,
+        items: [
+          ...items,
+          ...items.map((item, index) => ({
+            ...item,
+            module: 'pg_catalog',
+            name: `invoke_${index}`,
+            body: [
+              {
+                kind: 'expression',
+                value: { kind: 'call', callee: { kind: 'path', segments: [item.name] } },
+              },
+            ],
+          })),
+        ],
+      },
+      options: { immutableValueTypes: [], split: true, schemaImportPath: 'checks/pg_catalog' },
+    }),
+  )
+  const wasm = (
+    globalThis as unknown as {
+      WebAssembly: {
+        Module: { new (bytes: Uint8Array): unknown; imports(module: unknown): unknown[] }
+        Instance: new (module: unknown) => { exports: unknown }
+      }
+    }
+  ).WebAssembly
+  const module = new wasm.Module(new Uint8Array(checkRustAsset('check-go-transpiler.wasm')))
+  expect(wasm.Module.imports(module)).toEqual([])
+  const bridge = new wasm.Instance(module).exports as {
+    memory: { buffer: ArrayBufferLike }
+    _initialize(): void
+    alloc(size: number): number
+    transpile_configured(): number
+    output_ptr(): number
+    output_len(): number
+    dispose(): void
+  }
+  bridge._initialize()
+  const pointer = bridge.alloc(input.length) >>> 0
+  try {
+    new Uint8Array(bridge.memory.buffer, pointer, input.length).set(input)
+    expect(bridge.transpile_configured()).toBe(0)
+    const files = JSON.parse(
+      Buffer.from(
+        new Uint8Array(bridge.memory.buffer, bridge.output_ptr(), bridge.output_len()),
+      ).toString('utf8'),
+    ) as Record<string, string>
+    for (let index = 0; index < count; index++) {
+      expect(files.regex).toContain(`func Measure${index}() int`)
+      expect(files.operations).toContain(`return regexengine.Measure${index}()`)
+    }
+    expect(bridge.memory.buffer.byteLength).toBeLessThanOrEqual(128 * 1024 * 1024)
+  } finally {
+    bridge.dispose()
+  }
+})
 
 it('qualifies module references while preserving shadowed locals, property names and string contents', async () => {
   const generated = `

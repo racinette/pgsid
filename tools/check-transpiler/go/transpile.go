@@ -649,6 +649,7 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 		return nil, err
 	}
 	objects := make(map[string]map[*ast.Object]bool)
+	owners := make(map[*ast.Object]string)
 	offset := 0
 	for _, module := range moduleOrder {
 		length := len(files[module].Decls)
@@ -658,46 +659,33 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 		for name := range owned[module] {
 			if object := bound.Scope.Objects[name]; object != nil {
 				objects[module][object] = true
+				owners[object] = module
 			}
 		}
 	}
 	dependencies := make(map[string]map[string]bool)
+	references := make(map[*ast.Object][]*ast.Ident)
+	exports := make(map[*ast.Object]bool)
 	for _, module := range moduleOrder {
 		dependencies[module] = make(map[string]bool)
-		for _, owner := range moduleOrder {
-			if owner == module {
-				continue
-			}
-			used := make(map[string]bool)
-			for _, declaration := range files[module].Decls {
-				inspectModuleIdentifiers(declaration, func(identifier *ast.Ident) {
-					if objects[owner][identifier.Obj] {
-						used[identifier.Name] = true
-					}
-				})
-			}
-			if len(used) == 0 {
-				continue
-			}
-			dependencies[module][owner] = true
-			for name := range used {
-				object := bound.Scope.Objects[name]
-				exported := casedName(name, true)
-				if exported == name {
-					continue
+		for _, declaration := range files[module].Decls {
+			inspectModuleIdentifiers(declaration, func(identifier *ast.Ident) {
+				owner, ok := owners[identifier.Obj]
+				if !ok {
+					return
 				}
-				for _, file := range files {
-					for _, declaration := range file.Decls {
-						inspectModuleIdentifiers(declaration, func(identifier *ast.Ident) {
-							if identifier.Obj == object {
-								identifier.Name = exported
-							}
-						})
-					}
+				references[identifier.Obj] = append(references[identifier.Obj], identifier)
+				if owner != module {
+					dependencies[module][owner] = true
+					exports[identifier.Obj] = true
 				}
-				delete(owned[owner], name)
-				owned[owner][exported] = true
-			}
+			})
+		}
+	}
+	for object := range exports {
+		exported := casedName(object.Name, true)
+		for _, identifier := range references[object] {
+			identifier.Name = exported
 		}
 	}
 	result := make(map[string]string)
