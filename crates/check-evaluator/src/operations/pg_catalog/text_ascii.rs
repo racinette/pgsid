@@ -18,3 +18,15 @@ pub fn sql__pg_catalog__ascii__7m47(input: TextValue) -> Int4Value {
     }
     Int4Value::Unknown
 }
+
+pub fn ascii_context(input: TextValue, utf8: bool) -> Int4Value {
+    let value = sql__pg_catalog__ascii__7m47(input);
+    if utf8 == false {
+        if let Int4Value::Value(code) = value {
+            if code > 127 {
+                return Int4Value::Unknown;
+            }
+        }
+    }
+    value
+}

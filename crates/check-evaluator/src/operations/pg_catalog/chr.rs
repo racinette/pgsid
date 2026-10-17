@@ -25,3 +25,17 @@ pub fn sql__pg_catalog__chr__23bn(input: Int4Value) -> TextValue {
     }
     TextValue::Unknown
 }
+
+pub fn chr_context(input: Int4Value, utf8: bool) -> TextValue {
+    let value = sql__pg_catalog__chr__23bn(input);
+    if utf8 == false {
+        if let Int4Value::Value(code) = input {
+            if code > 127 {
+                if let TextValue::Value(_) = value {
+                    return TextValue::Unknown;
+                }
+            }
+        }
+    }
+    value
+}

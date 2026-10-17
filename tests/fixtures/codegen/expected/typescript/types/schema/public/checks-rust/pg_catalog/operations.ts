@@ -8524,6 +8524,21 @@ export function chr23bn(input: checkruntime.Int4Value): checkruntime.TextValue {
     }
     return { kind: "Unknown" };
 }
+export function chrContext(input: checkruntime.Int4Value, utf8: boolean): checkruntime.TextValue {
+    utf8 = langruntime.checkedBool(utf8);
+    const value: checkruntime.TextValue = chr23bn(input);
+    if (utf8 === false) {
+        if (input.kind === "Value") {
+            const code: number = langruntime.checkedI32(input.value);
+            if (code > 127) {
+                if (value.kind === "Value") {
+                    return { kind: "Unknown" };
+                }
+            }
+        }
+    }
+    return value;
+}
 function circleFromCenterRadius(center: checkruntime.PointValue, radius: checkruntime.Float8Value): checkruntime.CircleValue {
     if (center.kind === "Error") {
         const error: checkruntime.SqlError = center.value;
@@ -33871,6 +33886,19 @@ export function ascii7m47(input: checkruntime.TextValue): checkruntime.Int4Value
         return { kind: "Value", value: code };
     }
     return { kind: "Unknown" };
+}
+export function asciiContext(input: checkruntime.TextValue, utf8: boolean): checkruntime.Int4Value {
+    utf8 = langruntime.checkedBool(utf8);
+    const value: checkruntime.Int4Value = ascii7m47(input);
+    if (utf8 === false) {
+        if (value.kind === "Value") {
+            const code: number = langruntime.checkedI32(value.value);
+            if (code > 127) {
+                return { kind: "Unknown" };
+            }
+        }
+    }
+    return value;
 }
 export function textVuvi(input: checkruntime.BoolValue): checkruntime.TextValue {
     if (input.kind === "Error") {
