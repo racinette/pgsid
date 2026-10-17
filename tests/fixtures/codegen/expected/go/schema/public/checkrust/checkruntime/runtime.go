@@ -8332,6 +8332,47 @@ func copyArrayOutputPlan(value ArrayOutputPlan) ArrayOutputPlan {
 	}
 	panic("unknown enum variant")
 }
+func ArrayValueValidity(input BoolValue, unknownValid bool) CheckOutcome {
+	if input.Kind == BoolValueError {
+		error := input.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if input == (BoolValue{Kind: BoolValueUnknown}) && unknownValid == false {
+		return CheckOutcome{Kind: CheckOutcomeUnknown}
+	}
+	return CheckOutcome{Kind: CheckOutcomeTrue}
+}
+func ArrayValidityFinish(left CheckOutcome, right CheckOutcome) CheckOutcome {
+	if left == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return left
+	}
+	if left.Kind == CheckOutcomeError {
+		return left
+	}
+	return right
+}
+func ArrayValidityUnknown(input CheckOutcome) bool {
+	return input == (CheckOutcome{Kind: CheckOutcomeUnknown})
+}
+func ArrayValidityPossible(input CheckOutcome) CheckOutcome {
+	if input == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return CheckOutcome{Kind: CheckOutcomeUnknown}
+	}
+	if input.Kind == CheckOutcomeError {
+		return CheckOutcome{Kind: CheckOutcomeUnknown}
+	}
+	return CheckOutcome{Kind: CheckOutcomeTrue}
+}
+func ArrayConstructorFromValidity(input ArrayValue, validity CheckOutcome) ArrayValue {
+	if validity.Kind == CheckOutcomeError {
+		error := validity.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if validity == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	return input
+}
 func MakeArrayConversion() ArrayOutputPayload {
 	dimensions := []ArrayDimension{}
 	elements := []ArrayElement{}

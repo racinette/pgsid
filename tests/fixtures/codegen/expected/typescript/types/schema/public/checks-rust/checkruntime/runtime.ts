@@ -8452,6 +8452,47 @@ function copyArrayOutputPlan(value: ArrayOutputPlan): ArrayOutputPlan {
         case "Value": return { kind: "Value", value: copyArrayOutputPayload(value.value) };
     }
 }
+export function arrayValueValidity(input: BoolValue, unknownValid: boolean): CheckOutcome {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalBoolValue(input, { kind: "Unknown" }) && unknownValid === false) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "True" };
+}
+export function arrayValidityFinish(left: CheckOutcome, right: CheckOutcome): CheckOutcome {
+    if (equalCheckOutcome(left, { kind: "Unknown" })) {
+        return left;
+    }
+    if (left.kind === "Error") {
+        return left;
+    }
+    return right;
+}
+export function arrayValidityUnknown(input: CheckOutcome): boolean {
+    return equalCheckOutcome(input, { kind: "Unknown" });
+}
+export function arrayValidityPossible(input: CheckOutcome): CheckOutcome {
+    if (equalCheckOutcome(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    return { kind: "True" };
+}
+export function arrayConstructorFromValidity(input: ArrayValue, validity: CheckOutcome): ArrayValue {
+    if (validity.kind === "Error") {
+        const error: SqlError = validity.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCheckOutcome(validity, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return input;
+}
 export function makeArrayConversion(): ArrayOutputPayload {
     const dimensions: ArrayDimension[] = [];
     const elements: ArrayElement[] = [];

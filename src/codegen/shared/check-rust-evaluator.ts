@@ -1,3 +1,9 @@
+import {
+  rustCallCanFail,
+  rustScalarOwnCanFail,
+  rustExpressionCanFail,
+  rustExpressionInputs,
+} from './check-rust-validity.js'
 import { arrayElementFamily } from './check-array-types.js'
 import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-names.js'
 import {
@@ -506,6 +512,7 @@ export function emitCheckRustEvaluator(
   const preparationState = 'constant_preparation'
   let preparationDepth = 0
   let constantOperandDepth = 0
+  let arrayValidityScope: string | null = null
   const capturePreparation = <T>(emit: () => T): { value: T; lines: string[] } => {
     const outer = preparationLines
     const lines: string[] = []
@@ -616,6 +623,65 @@ export function emitCheckRustEvaluator(
           ? 'pg_catalog.int4'
           : operand.type
 
+  const appendArrayValidity = (
+    value: { name: string; type: string },
+    unknownValid: boolean,
+    destination: string[],
+  ): void => {
+    if (arrayValidityScope === null || preparationDepth > 0 || valueLiteralDepth > 0) return
+    const nullness = fresh('array_value_nullness'),
+      state = fresh('array_value_validity')
+    destination.push(
+      `let ${nullness} = ${rustValuePrefix(rustType(value.type))}_is_null(${ownedOperand(value)});`,
+      `let ${state} = array_value_validity(${nullness}, ${unknownValid});`,
+      `${arrayValidityScope} = array_validity_finish(${arrayValidityScope}, ${state});`,
+    )
+  }
+  const unresolvedArrayChoice = (
+    guard: string,
+    nodes: readonly unknown[],
+    destination: string[],
+    used: Set<string>,
+  ): void => {
+    if (arrayValidityScope === null || preparationDepth > 0 || valueLiteralDepth > 0) return
+    const lines: string[] = []
+    let potential: string
+    if (nodes.some(rustExpressionCanFail)) {
+      potential = fresh('array_choice_potential')
+      lines.push(`let ${potential} = check_unknown();`)
+    } else {
+      const initial = fresh('array_choice_start')
+      potential = fresh('array_choice_potential')
+      lines.push(
+        `let ${initial} = make_bool_value(true);`,
+        `let mut ${potential}: CheckOutcome = check_from_bool(${initial});`,
+      )
+      for (const input of rustExpressionInputs(nodes)) {
+        const outer: string | null = arrayValidityScope
+        arrayValidityScope = null
+        let value: { name: string; type: string }
+        try {
+          value = emitScalar(input, lines, used)
+        } finally {
+          arrayValidityScope = outer
+        }
+        const nullness = fresh('array_choice_nullness'),
+          state = fresh('array_choice_input')
+        lines.push(
+          `let ${nullness} = ${rustValuePrefix(rustType(value.type))}_is_null(${ownedOperand(value)});`,
+          `let ${state} = array_value_validity(${nullness}, true);`,
+          `${potential} = array_validity_finish(${potential}, ${state});`,
+        )
+      }
+    }
+    const possible = fresh('array_choice_possible')
+    lines.push(
+      `let ${possible} = array_validity_possible(${potential});`,
+      `${arrayValidityScope} = array_validity_finish(${arrayValidityScope}, ${possible});`,
+    )
+    destination.push(`if array_validity_unknown(${guard}) {`, ...indent(lines), '}')
+  }
+
   const renderArrayOutput = (
     payload: string,
     elementType: string,
@@ -720,6 +786,19 @@ export function emitCheckRustEvaluator(
     bindings: string[],
     used: Set<string>,
   ): { name: string; type: string } => {
+    const outer: string | null = arrayValidityScope
+    if (outer !== null && constantScalarExpression(node)) arrayValidityScope = null
+    try {
+      return emitScalarWithValidity(node, bindings, used)
+    } finally {
+      arrayValidityScope = outer
+    }
+  }
+  const emitScalarWithValidity = (
+    node: EvalExpression,
+    bindings: string[],
+    used: Set<string>,
+  ): { name: string; type: string } => {
     if (
       valueLiteralDepth === 0 &&
       (node.kind === 'interval-literal' ||
@@ -779,6 +858,13 @@ export function emitCheckRustEvaluator(
       return { name, type: value.type }
     }
     const value = emitScalarInner(node, bindings, used)
+    appendArrayValidity(
+      value,
+      node.kind === 'call'
+        ? true
+        : node.kind !== 'array-constructor' && !rustScalarOwnCanFail(node),
+      bindings,
+    )
     if (preparationDepth > 0) {
       const prefix = rustValuePrefix(rustType(value.type))
       const nullness = fresh('prepared_value_nullness')
@@ -1064,6 +1150,24 @@ export function emitCheckRustEvaluator(
       return { name, type }
     }
     const emitCall = (
+      call: Extract<EvalExpression, { kind: 'call' }>['call'],
+      operands: readonly { name: string; type: string }[],
+      destination = bindings,
+      folded?: { name: string; type: string },
+    ): { name: string; type: string } => {
+      const value = emitCallInner(call, operands, destination, folded)
+      if (!folded)
+        appendArrayValidity(
+          value,
+          !rustCallCanFail(
+            call,
+            operands.map((operand) => operand.type),
+          ),
+          destination,
+        )
+      return value
+    }
+    const emitCallInner = (
       call: Extract<EvalExpression, { kind: 'call' }>['call'],
       operands: readonly { name: string; type: string }[],
       destination = bindings,
@@ -3094,7 +3198,17 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           'Missing array element carrier: ' + node.elementType,
         )
-      const operands = node.operands.map((operand) => emitScalar(operand, bindings, used))
+      const initial = bind('make_bool_value(true)'),
+        validity = fresh('array_constructor_validity')
+      bindings.push(`let mut ${validity}: CheckOutcome = check_from_bool(${initial});`)
+      const outer: string | null = arrayValidityScope
+      arrayValidityScope = validity
+      let operands: { name: string; type: string }[]
+      try {
+        operands = node.operands.map((operand) => emitPreparedOperand(operand, bindings, used))
+      } finally {
+        arrayValidityScope = outer
+      }
       let builder = bind(
         `${node.multidimensional ? 'make_array_children' : 'make_array_arguments'}(${rustStringLiteral(node.elementType)}, ${family})`,
       )
@@ -3107,10 +3221,11 @@ export function emitCheckRustEvaluator(
           builder = bind(`append_array_argument(${builder}, ${element})`)
         }
       }
+      const finished = bind(
+        `${node.multidimensional ? 'finish_array_children' : 'finish_array_constructor'}(${builder})`,
+      )
       return {
-        name: bind(
-          `${node.multidimensional ? 'finish_array_children' : 'finish_array_constructor'}(${builder})`,
-        ),
+        name: bind(`array_constructor_from_validity(${finished}, ${validity})`),
         type: node.type,
       }
     }
@@ -3213,7 +3328,33 @@ export function emitCheckRustEvaluator(
       bindings.push(`let mut ${name}: CheckOutcome = ${first};`)
       for (const group of node.groups.slice(1)) {
         const lines: string[] = []
-        const selected = emitGroup(group, lines)
+        const outer: string | null = arrayValidityScope
+        const validity = outer && preparationDepth === 0 ? fresh('array_member_validity') : null
+        if (validity) {
+          const initial = fresh('array_member_start')
+          lines.push(
+            `let ${initial} = make_bool_value(true);`,
+            `let mut ${validity}: CheckOutcome = check_from_bool(${initial});`,
+          )
+          arrayValidityScope = validity
+        }
+        let selected: string
+        try {
+          selected = emitGroup(group, lines)
+        } finally {
+          arrayValidityScope = outer
+        }
+        if (validity && outer) {
+          const possible = fresh('array_member_possible')
+          lines.push(
+            `if array_validity_unknown(${name}) {`,
+            `    let ${possible} = array_validity_possible(${validity});`,
+            `    ${outer} = array_validity_finish(${outer}, ${possible});`,
+            `} else {`,
+            `    ${outer} = array_validity_finish(${outer}, ${validity});`,
+            '};',
+          )
+        }
         bindings.push(
           `if ${stop}(${name}) == false {`,
           ...indent(lines),
@@ -3241,7 +3382,21 @@ export function emitCheckRustEvaluator(
       }))
       const name = fresh('row_ordering')
       bindings.push(`let mut ${name}: Int4Value = make_int4_value(0);`)
-      for (const pair of pairs) {
+      for (const [index, pair] of pairs.entries()) {
+        if (arrayValidityScope !== null && index > 0) {
+          const nullness = bind(`int4_is_null(${name})`)
+          const guard = bind(`check_from_bool(${nullness})`)
+          unresolvedArrayChoice(
+            guard,
+            node.pairs.slice(index).map((remaining) => ({
+              kind: 'call',
+              call: remaining.comparison,
+              operands: remaining.operands,
+            })),
+            bindings,
+            used,
+          )
+        }
         const lines = pair.operands.flatMap((operand) => operand.lines)
         const comparison = emitCall(
           pair.comparison,
@@ -3354,7 +3509,7 @@ export function emitCheckRustEvaluator(
       if (node.operands.length === 1) return first
       const name = fresh('coalesce_result')
       bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
-      for (const operand of operands.slice(1)) {
+      for (const [index, operand] of operands.slice(1).entries()) {
         const nullness = bind(
           `${prefix}_is_null(${
             [
@@ -3375,6 +3530,7 @@ export function emitCheckRustEvaluator(
           })`,
         )
         const guard = bind(`check_from_bool(${nullness})`)
+        unresolvedArrayChoice(guard, node.operands.slice(index + 1), bindings, used)
         bindings.push(
           `if case_guard_takes(${guard}) {`,
           ...indent(operand.lines),
@@ -3430,8 +3586,16 @@ export function emitCheckRustEvaluator(
           otherwise.lines,
         )
         const conditionGuard = prepared ?? guard
+        const validityLines: string[] = []
+        unresolvedArrayChoice(
+          conditionGuard,
+          [branch.then, ...node.branches.slice(position + 1), node.otherwise],
+          validityLines,
+          used,
+        )
         return [
           ...(prepared ? [] : lines),
+          ...validityLines,
           `if case_guard_stops(${conditionGuard}) {`,
           `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${conditionGuard});`,
           `} else if case_guard_takes(${conditionGuard}) {`,
@@ -3489,7 +3653,16 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression('Expected binary Boolean operation')
       const left = emit(node.operands[0]!)
       const name = fresh(node.operation === 'and' ? 'and_result' : 'or_result')
-      const rightPreparation = capturePreparation(() => emit(node.operands[1]!))
+      const outerValidity: string | null = arrayValidityScope
+      const rightValidity =
+        outerValidity && preparationDepth === 0 ? fresh('array_right_validity') : null
+      if (rightValidity) arrayValidityScope = rightValidity
+      let rightPreparation: ReturnType<typeof capturePreparation<Emitted>>
+      try {
+        rightPreparation = capturePreparation(() => emit(node.operands[1]!))
+      } finally {
+        arrayValidityScope = outerValidity
+      }
       const right = rightPreparation.value
       const stop = node.operation === 'and' ? 'and_stops' : 'or_stops'
       const finish = node.operation === 'and' ? 'and_finish' : 'or_finish'
@@ -3506,12 +3679,32 @@ export function emitCheckRustEvaluator(
           '};',
         )
       } else preparationLines.push(...rightPreparation.lines)
+      const rightLines: string[] = []
+      if (rightValidity) {
+        const start = fresh('array_right_start')
+        rightLines.push(
+          `let ${start} = make_bool_value(true);`,
+          `let mut ${rightValidity}: CheckOutcome = check_from_bool(${start});`,
+        )
+      }
+      rightLines.push(...right.lines)
+      if (rightValidity && outerValidity) {
+        const possible = fresh('array_right_possible')
+        rightLines.push(
+          `if array_validity_unknown(${leftName}) {`,
+          `    let ${possible} = array_validity_possible(${rightValidity});`,
+          `    ${outerValidity} = array_validity_finish(${outerValidity}, ${possible});`,
+          `} else {`,
+          `    ${outerValidity} = array_validity_finish(${outerValidity}, ${rightValidity});`,
+          '};',
+        )
+      }
       return {
         lines: [
           ...leftLines,
           `let mut ${name}: CheckOutcome = ${leftName};`,
           `if ${stop}(${leftName}) == false {`,
-          ...indent(right.lines),
+          ...indent(rightLines),
           `    ${name} = ${finish}(${leftName}, ${right.name});`,
           '}',
         ],
@@ -3545,8 +3738,16 @@ export function emitCheckRustEvaluator(
           otherwise.lines,
         )
         const guard = prepared ?? condition.name
+        const validityLines: string[] = []
+        unresolvedArrayChoice(
+          guard,
+          [branch.then, ...node.branches.slice(position + 1), node.otherwise],
+          validityLines,
+          used,
+        )
         return [
           ...(prepared ? [] : condition.lines),
+          ...validityLines,
           `if case_guard_stops(${guard}) {`,
           `    ${name} = ${guard};`,
           `} else if case_guard_takes(${guard}) {`,

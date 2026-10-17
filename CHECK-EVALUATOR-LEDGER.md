@@ -244,7 +244,7 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Remove generation-time enum OIDs from emitted literals and public label adapters, and verify hash deferral across independent databases.
 - [ ] Catalog/system values, separating portable payload operations from database lookup.
 - [x] Establish typed scalar/enum arrays with dimensions/lower bounds, NULL/Unknown cells, independent nested clones, SQL-coerced public inputs and array domains, metadata, CASE/COALESCE, input shapes and INSERT parity; preserve raw database conversion.
-- [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, eager errors, constant preparation and INSERT parity; preserve nominal domain-element deferrals.
+- [x] Establish scalar/nested ARRAY constructors, enum/empty/NULL forms, element casts and widths, rectangular lower bounds, computed-element validity, lazy branches, ordered errors, constant preparation and INSERT parity; preserve nominal domain-element deferrals.
 - [x] Establish private array-text grammar and ordered element/error events, quoting/escaping, explicit bounds, delimiter profiles, NULL-token context and owned snapshots in every target; public I/O admission follows.
 - [x] Admit source/stored array literals and text I/O input, integer/Boolean/numeric/enum input profiles, widths/precision, explicit array_nulls, captured money units and coerced name facets; verify lazy preparation, exact cells and INSERT parity.
 - [x] Admit array text output and string splitting/joining, shared element I/O, dimensions, quoting/escaping, character widths, delimiters/NULL markers and INSERT parity; retain partial cells, reached encoding/collation and scalar formatting/catalog deferrals; classify binary array send/receive catalog/internal requirements.
@@ -254,7 +254,7 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Establish catalog-linked binary/function/I/O array element casts, actual callable parameters/results, precision/width, common CASE/COALESCE/extrema/constructor types, retained bounds/partial cells and nominal enums; verify stored constructor typing, owned loops, context/validity states and INSERT parity.
 - [x] Bind compatible array/element signatures and admit first/all position searches, NULL matching, lower bounds/start positions, support/shape error order, partial-input prefixes, context/preparation boundaries, nominal enums and INSERT parity.
 - [x] Admit fill/trim, append/prepend, concatenation, removal/replacement, first-dimension reversal and sorting; verify concrete/polymorphic binding, NULL/partial cells, retained/reset bounds, support/error order, representation-sensitive sort ties, native-count deferral, preparation and INSERT parity.
-- [ ] Arrays, including dimensions, lower bounds, NULL elements, polymorphism, and validity of potentially failing computed elements.
+- [ ] Arrays: finish the callable/cast inventory and composed-validity audit across dimensions, lower bounds, NULL elements and polymorphism.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

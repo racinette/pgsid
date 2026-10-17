@@ -779,3 +779,18 @@ CREATE TABLE lane_array_imports (
   CONSTRAINT array_import_precision CHECK (CASE WHEN bypass THEN true ELSE labels::numeric(4,1)[] IS NOT DISTINCT FROM expected_rounded END),
   CONSTRAINT array_import_bounds CHECK (CASE WHEN bypass THEN true ELSE array_dims(labels::numeric[]) COLLATE "C" IS NOT DISTINCT FROM expected_bounds COLLATE "C" END)
 );
+
+CREATE TABLE lane_computed_slots (
+  payload text,
+  quantity integer,
+  other integer,
+  flag boolean,
+  expected_dimensions text,
+  expected_fetch boolean,
+  bypass boolean,
+  CONSTRAINT computed_parse_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims(ARRAY[payload::numeric]) COLLATE "C" IS NOT DISTINCT FROM expected_dimensions COLLATE "C" END),
+  CONSTRAINT computed_choice_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims(ARRAY[CASE WHEN flag THEN quantity::numeric ELSE payload::numeric END]) COLLATE "C" IS NOT DISTINCT FROM expected_dimensions COLLATE "C" END),
+  CONSTRAINT computed_widened_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims(ARRAY[CASE WHEN flag THEN quantity::bigint ELSE other::bigint END]) COLLATE "C" IS NOT DISTINCT FROM expected_dimensions COLLATE "C" END),
+  CONSTRAINT computed_fetched_null CHECK (CASE WHEN bypass THEN true ELSE ((ARRAY[NULL::numeric,payload::numeric]::numeric[])[1] IS NULL) IS NOT DISTINCT FROM expected_fetch END),
+  CONSTRAINT computed_ordered_shape CHECK (CASE WHEN bypass THEN true ELSE array_dims(ARRAY[payload::numeric,(1/quantity)::numeric]) COLLATE "C" = '[1:2]' COLLATE "C" END)
+);
