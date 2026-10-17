@@ -47,7 +47,21 @@ for (const item of operators) {
   }
 }
 const arrayMetadata = new Set<string>()
+const arrayBuckets = new Set<string>()
 for (const item of builtinCallables()) {
+  if (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.name === 'width_bucket' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    item.args.length === 2 &&
+    item.args[0] === 'pg_catalog.anycompatible' &&
+    item.args[1] === 'pg_catalog.anycompatiblearray' &&
+    item.result === 'pg_catalog.int4'
+  )
+    arrayBuckets.add(callableIdentity(item))
   if (
     item.kind !== 'function' ||
     item.schema !== 'pg_catalog' ||
@@ -157,8 +171,24 @@ export function rustScalarOwnCanFail(node: EvalExpression): boolean {
     case 'refcursor-text-coercion':
     case 'array-subscript':
       return false
-    case 'call':
+    case 'call': {
+      const thresholds = node.operands[1]
+      if (
+        node.call.signature &&
+        arrayBuckets.has(node.call.signature) &&
+        thresholds?.kind === 'array-constructor' &&
+        !thresholds.multidimensional &&
+        orderedElement(thresholds.type) &&
+        thresholds.operands.every(
+          (element) =>
+            element.kind === 'certain' &&
+            (('value' in element.expression && element.expression.value !== null) ||
+              ('bits' in element.expression && element.expression.bits !== null)),
+        )
+      )
+        return false
       return rustCallCanFail(node.call, node.operands.map(typeOf))
+    }
     case 'array-constructor':
       return node.multidimensional
     case 'array-io-coerce':

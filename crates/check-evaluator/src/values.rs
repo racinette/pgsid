@@ -367,6 +367,7 @@ pub struct SqlErrorDescription<'a> {
 }
 
 const SQL_ERROR_NUMERIC_OUT_OF_RANGE: u32 = 3452547;
+const SQL_ERROR_NULL_VALUE_NOT_ALLOWED: u32 = 3452548;
 const SQL_ERROR_INVALID_DATETIME_FORMAT: u32 = 3452551;
 const SQL_ERROR_DATETIME_FIELD_OVERFLOW: u32 = 3452552;
 const SQL_ERROR_TIMEZONE_DISPLACEMENT: u32 = 3452553;
@@ -399,6 +400,11 @@ const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
 const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_NULL_VALUE_NOT_ALLOWED {
+        return SqlErrorDescription {
+            message: "null value not allowed",
+        };
+    }
     if error.state == SQL_ERROR_JSON_DATETIME {
         return SqlErrorDescription {
             message: "invalid argument for SQL/JSON datetime function",

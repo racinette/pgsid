@@ -87,6 +87,9 @@ func ArrayGe2z0c(input checkruntime.Int4Value) checkruntime.BoolValue {
 func BtarraycmpBmnb(input checkruntime.Int4Value) checkruntime.Int4Value {
 	return input
 }
+func WidthBucketEcky(input checkruntime.Int4Value) checkruntime.Int4Value {
+	return input
+}
 func ArraycontainsIpqq(input checkruntime.BoolValue) checkruntime.BoolValue {
 	return input
 }

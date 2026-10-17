@@ -1937,6 +1937,149 @@ pub fn finish_array_coercion(input: ArrayOutputPayload, converted: ArrayArgument
 const ARRAY_SEARCH_MULTIDIMENSIONAL: u32 = 466560;
 const ARRAY_SEARCH_NULL_START: u32 = 3452548;
 
+const ARRAY_BUCKET_MULTIDIMENSIONAL: u32 = 3452630;
+const ARRAY_BUCKET_NULL_ELEMENT: u32 = 3452548;
+
+pub(crate) fn prepare_array_bucket(
+    needle: ArrayElement,
+    input: ArrayValue,
+    available: bool,
+) -> ArrayComparisonPayload {
+    if let ArrayElement::Error(error) = needle {
+        return array_comparison_state(-2, error, 0);
+    };
+    if let ArrayValue::Error(error) = input {
+        return array_comparison_state(-2, error, 0);
+    };
+    if let ArrayElement::Unknown = needle {
+        return array_comparison_state(-1, make_sql_error(0), 0);
+    };
+    if let ArrayValue::Unknown = input {
+        return array_comparison_state(-1, make_sql_error(0), 0);
+    };
+    if let ArrayElement::Null = needle {
+        return array_comparison_state(0, make_sql_error(0), 0);
+    };
+    if let ArrayValue::Null = input {
+        return array_comparison_state(0, make_sql_error(0), 0);
+    };
+    if let ArrayValue::Value(array) = input {
+        if array.dimensions.len() > 1 {
+            return array_comparison_state(-2, make_sql_error(ARRAY_BUCKET_MULTIDIMENSIONAL), 0);
+        };
+        let mut known_null = false;
+        let mut unknown_null = false;
+        let mut position: usize = 0;
+        while position < array.elements.len() {
+            let cell = array.elements[position].clone();
+            if let ArrayElement::Error(error) = cell {
+                return array_comparison_state(-2, error, 0);
+            };
+            if let ArrayElement::Null = cell {
+                known_null = true;
+            };
+            if let ArrayElement::Unknown = cell {
+                unknown_null = true;
+            };
+            position += 1;
+        }
+        if known_null {
+            return array_comparison_state(-2, make_sql_error(ARRAY_BUCKET_NULL_ELEMENT), 0);
+        };
+        if unknown_null {
+            return array_comparison_state(-1, make_sql_error(0), 0);
+        };
+        if available == false {
+            return array_comparison_state(-2, make_sql_error(ARRAY_COMPARISON_UNDEFINED), 0);
+        };
+        let mut needles: Vec<ArrayElement> = Vec::new();
+        needles.push(needle);
+        return ArrayComparisonPayload {
+            limit: array.elements.len(),
+            left: array.elements,
+            right: needles,
+            state: 1,
+            error: make_sql_error(0),
+            tail: 0,
+            value: 0,
+        };
+    };
+    array_comparison_state(-1, make_sql_error(0), 0)
+}
+
+pub(crate) fn array_bucket_limit(input: &ArrayComparisonPayload) -> Int4Value {
+    if input.state == 1 {
+        return Int4Value::Value(input.limit as i32);
+    };
+    array_comparison_initial(input)
+}
+
+pub(crate) fn array_bucket_operand(input: &ArrayComparisonPayload) -> ArrayElement {
+    if input.state == 1 && input.right.len() == 1 {
+        return input.right[0].clone();
+    };
+    ArrayElement::Unknown
+}
+
+pub(crate) fn array_bucket_continues(low: Int4Value, high: Int4Value) -> bool {
+    if let Int4Value::Value(left) = low {
+        if let Int4Value::Value(right) = high {
+            return left >= 0 && left < right;
+        };
+    };
+    false
+}
+
+pub(crate) fn array_bucket_midpoint(low: Int4Value, high: Int4Value) -> Int4Value {
+    if let Int4Value::Value(left) = low {
+        if let Int4Value::Value(right) = high {
+            if left >= 0 && left <= right {
+                return Int4Value::Value(left + (right - left) / 2);
+            };
+        };
+    };
+    Int4Value::Unknown
+}
+
+pub(crate) fn array_bucket_lower(
+    low: Int4Value,
+    high: Int4Value,
+    compared: Int4Value,
+) -> Int4Value {
+    if let Int4Value::Error(error) = compared {
+        return Int4Value::Error(error);
+    };
+    if let Int4Value::Value(order) = compared {
+        if order < 0 {
+            return low;
+        };
+        let position = array_bucket_midpoint(low, high);
+        if let Int4Value::Value(midpoint) = position {
+            if midpoint < 2147483647 {
+                return Int4Value::Value(midpoint + 1);
+            };
+        };
+    };
+    Int4Value::Unknown
+}
+
+pub(crate) fn array_bucket_upper(
+    low: Int4Value,
+    high: Int4Value,
+    compared: Int4Value,
+) -> Int4Value {
+    if let Int4Value::Error(error) = compared {
+        return Int4Value::Error(error);
+    };
+    if let Int4Value::Value(order) = compared {
+        if order >= 0 {
+            return high;
+        };
+        return array_bucket_midpoint(low, high);
+    };
+    Int4Value::Unknown
+}
+
 pub fn prepare_array_search(
     input: ArrayValue,
     needle: ArrayElement,

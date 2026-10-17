@@ -50,6 +50,10 @@ pub fn sql__pg_catalog__btarraycmp__bmnb(input: Int4Value) -> Int4Value {
     input
 }
 
+pub fn sql__pg_catalog__width_bucket__ecky(input: Int4Value) -> Int4Value {
+    input
+}
+
 pub fn sql__pg_catalog__arraycontains__ipqq(input: BoolValue) -> BoolValue {
     input
 }
