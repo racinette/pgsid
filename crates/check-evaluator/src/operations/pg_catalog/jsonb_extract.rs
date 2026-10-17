@@ -40,7 +40,7 @@ fn jsonb_extract_member(source: &JsonbPayload, key: &JsonbExtractKey) -> usize {
     0
 }
 
-fn jsonb_extract_text(input: JsonbValue) -> TextValue {
+fn jsonb_extract_text(input: JsonbValue, utf8: bool) -> TextValue {
     if let JsonbValue::Error(error) = input {
         return TextValue::Error(error);
     };
@@ -61,7 +61,7 @@ fn jsonb_extract_text(input: JsonbValue) -> TextValue {
             }
             return TextValue::Value(text);
         };
-        return jsonb_to_text(JsonbValue::Value(value));
+        return jsonb_text_context(JsonbValue::Value(value), utf8);
     };
     TextValue::Unknown
 }
@@ -100,9 +100,10 @@ pub fn sql__pg_catalog__jsonb_object_field__4uf3(input: JsonbValue, key: TextVal
 pub fn sql__pg_catalog__jsonb_object_field_text__jpuz(
     input: JsonbValue,
     key: TextValue,
+    utf8: bool,
 ) -> TextValue {
     let selected = sql__pg_catalog__jsonb_object_field__4uf3(input, key);
-    jsonb_extract_text(selected)
+    jsonb_extract_text(selected, utf8)
 }
 
 pub fn sql__pg_catalog__jsonb_array_element__08oi(
@@ -166,9 +167,10 @@ pub fn sql__pg_catalog__jsonb_array_element__08oi(
 pub fn sql__pg_catalog__jsonb_array_element_text__83ql(
     input: JsonbValue,
     index: Int4Value,
+    utf8: bool,
 ) -> TextValue {
     let selected = sql__pg_catalog__jsonb_array_element__08oi(input, index);
-    jsonb_extract_text(selected)
+    jsonb_extract_text(selected, utf8)
 }
 
 pub fn sql__pg_catalog__jsonb_array_length__1gng(input: JsonbValue) -> Int4Value {

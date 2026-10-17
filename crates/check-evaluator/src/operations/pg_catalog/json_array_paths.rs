@@ -118,9 +118,10 @@ pub fn sql__pg_catalog__jsonb_extract_path__6gn0(
 pub fn sql__pg_catalog__jsonb_extract_path_text__w3ff(
     input: JsonbValue,
     path: ArrayValue,
+    utf8: bool,
 ) -> TextValue {
     let selected = jsonb_array_path_select(input, path);
-    jsonb_extract_text(selected)
+    jsonb_extract_text(selected, utf8)
 }
 
 fn jsonb_array_path_exists_key(source: &JsonbPayload, key: &JsonbExtractKey) -> bool {

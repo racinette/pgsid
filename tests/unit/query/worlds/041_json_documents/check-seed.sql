@@ -867,3 +867,37 @@ INSERT INTO document_fingerprints(id,store_id,label,document,seed,recorded_hash,
 INSERT INTO document_fingerprints(id,store_id,label,document,seed,recorded_hash,recorded_seeded,recorded_merged,recorded_extracted,bypass) VALUES(2,1,'fingerprint_null',NULL,NULL,NULL,NULL,NULL,NULL,false);
 -- name: fingerprint_skipped
 INSERT INTO document_fingerprints(id,store_id,label,document,seed,recorded_hash,recorded_seeded,recorded_merged,recorded_extracted,bypass) VALUES(2,1,'fingerprint_skipped','{"a":1}',0,0,8393972797727113770,-637497189,-822615224,true);
+
+-- name: format_utf8_key_order
+INSERT INTO document_formats (id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass)
+VALUES (2,1,'UTF8 key order','{"aa":1,"é":2}',false,'{"aa":1,"é":2}','{"aa":1,"é":2}','{
+    "aa": 1,
+    "é": 2
+}',false);
+-- name: format_utf8_wrong_order
+INSERT INTO document_formats (id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass)
+VALUES (2,1,'Wrong UTF8 key order','{"aa":1,"é":2}',false,'{"aa":1,"é":2}','{"aa":1,"é":2}','{
+    "é": 2,
+    "aa": 1
+}',false);
+-- name: format_utf8_null
+INSERT INTO document_formats (id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass)
+VALUES (2,1,'NULL document',NULL,false,NULL,NULL,NULL,false);
+-- name: format_utf8_skipped
+INSERT INTO document_formats (id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass)
+VALUES (2,1,'Skipped UTF8 output','{"aa":1,"é":2}',false,'{}','{}','ignored',true);
+-- name: normalized_field_utf8_container
+INSERT INTO normalized_fields (id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass)
+VALUES (2,1,'UTF8 selected object','{"selected":{"aa":1,"é":2}}','selected','{"aa": 1, "é": 2}','{"aa": 1, "é": 2}',false,true,false);
+-- name: normalized_field_utf8_wrong_text
+INSERT INTO normalized_fields (id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass)
+VALUES (2,1,'Wrong selected object text','{"selected":{"aa":1,"é":2}}','selected','{"aa": 1, "é": 2}','wrong',false,true,false);
+-- name: normalized_field_utf8_null
+INSERT INTO normalized_fields (id,store_id,label,document,field_name,recorded_json,recorded_text,allow_missing,recorded_exists,bypass)
+VALUES (2,1,'NULL selected object',NULL,'selected',NULL,NULL,true,NULL,false);
+-- name: normalized_element_utf8_container
+INSERT INTO normalized_elements (id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass)
+VALUES (2,1,'UTF8 array element','[{"aa":1,"é":2}]',0,'{"aa": 1, "é": 2}','{"aa": 1, "é": 2}',1,false,false);
+-- name: normalized_element_utf8_wrong_text
+INSERT INTO normalized_elements (id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass)
+VALUES (2,1,'Wrong array element text','[{"aa":1,"é":2}]',0,'{"aa": 1, "é": 2}','wrong',1,false,false);

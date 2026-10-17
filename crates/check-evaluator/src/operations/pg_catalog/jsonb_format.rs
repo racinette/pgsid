@@ -95,6 +95,6 @@ pub fn sql__pg_catalog__jsonb_strip_nulls__ruwp(
     JsonbValue::Unknown
 }
 
-pub fn sql__pg_catalog__jsonb_pretty__gz4i(input: JsonbValue) -> TextValue {
-    jsonb_to_pretty_text(input)
+pub fn sql__pg_catalog__jsonb_pretty__gz4i(input: JsonbValue, utf8: bool) -> TextValue {
+    jsonb_pretty_context(input, utf8)
 }

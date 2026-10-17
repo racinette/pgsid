@@ -5935,6 +5935,10 @@ func JsonbToOrderedText(input JsonbValue) TextValue {
 	input = CopyJsonbValue(input)
 	return jsonbRender(input, false, false)
 }
+func JsonbToOrderedPrettyText(input JsonbValue) TextValue {
+	input = CopyJsonbValue(input)
+	return jsonbRender(input, false, true)
+}
 func jsonbPreorder(input JsonbPayload) JsonbPayload {
 	input = CopyJsonbPayload(input)
 	links := []int{}

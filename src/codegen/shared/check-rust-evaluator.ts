@@ -1,5 +1,6 @@
 import { nativeHashContext, isArrayHash } from './check-hash-context.js'
 import { characterEncodingContext } from './check-character-context.js'
+import { jsonbTextRenderingContext } from './check-jsonb-context.js'
 import {
   rustCallCanFail,
   rustArrayCastAlwaysValid,
@@ -2427,6 +2428,8 @@ export function emitCheckRustEvaluator(
           ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
           : implementation.rustName
       if (characterContext) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
+      if (jsonbTextRenderingContext(implementation))
+        arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (
         implementation.schema === 'pg_catalog' &&
         ((['json_extract_path', 'json_extract_path_text'].includes(implementation.name) &&

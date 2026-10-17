@@ -13446,11 +13446,11 @@ func JsonbExtractPath6gn0(input checkruntime.JsonbValue, path checkruntime.Array
 	path = checkruntime.CopyArrayValue(path)
 	return jsonbArrayPathSelect(input, path)
 }
-func JsonbExtractPathTextW3ff(input checkruntime.JsonbValue, path checkruntime.ArrayValue) checkruntime.TextValue {
+func JsonbExtractPathTextW3ff(input checkruntime.JsonbValue, path checkruntime.ArrayValue, utf8 bool) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
 	path = checkruntime.CopyArrayValue(path)
 	selected := jsonbArrayPathSelect(input, path)
-	return jsonbExtractText(selected)
+	return jsonbExtractText(selected, utf8)
 }
 func jsonbArrayPathExistsKey(source *checkruntime.JsonbPayload, key *jsonbExtractKey) bool {
 	node := source.Nodes[source.Root]
@@ -13657,11 +13657,8 @@ func JsonBuildObjectQfmu(input checkruntime.JsonbArguments, utf8 bool) checkrunt
 func JsonBuildObjectNqz6() checkruntime.JsonValue {
 	return checkruntime.MakeJsonValue("{}")
 }
-func JsonbTextContext(input checkruntime.JsonbValue, utf8 bool) checkruntime.TextValue {
+func jsonbOrderedValue(input checkruntime.JsonbValue) checkruntime.JsonbValue {
 	input = checkruntime.CopyJsonbValue(input)
-	if utf8 == false {
-		return checkruntime.JsonbToText(input)
-	}
 	if input.Kind == checkruntime.JsonbValueValue {
 		value := checkruntime.CopyJsonbPayload(input.Value)
 		original := checkruntime.CopyJsonbPayload(value)
@@ -13689,9 +13686,23 @@ func JsonbTextContext(input checkruntime.JsonbValue, utf8 bool) checkruntime.Tex
 			}
 			index = langruntime.CheckedAdd(index, 1)
 		}
-		return checkruntime.JsonbToOrderedText(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: value.Characters, Nodes: nodes, Root: value.Root}})
+		return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: checkruntime.JsonbPayload{Characters: value.Characters, Nodes: nodes, Root: value.Root}}
+	}
+	return input
+}
+func JsonbTextContext(input checkruntime.JsonbValue, utf8 bool) checkruntime.TextValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if utf8 {
+		return checkruntime.JsonbToOrderedText(jsonbOrderedValue(input))
 	}
 	return checkruntime.JsonbToText(input)
+}
+func jsonbPrettyContext(input checkruntime.JsonbValue, utf8 bool) checkruntime.TextValue {
+	input = checkruntime.CopyJsonbValue(input)
+	if utf8 {
+		return checkruntime.JsonbToOrderedPrettyText(jsonbOrderedValue(input))
+	}
+	return checkruntime.JsonbToPrettyText(input)
 }
 func JsonInputFromNumeric(input checkruntime.NumericValue) checkruntime.JsonbInput {
 	output := ArrayNumericOutput(input)
@@ -15237,7 +15248,7 @@ func jsonbExtractMember(source *checkruntime.JsonbPayload, key *jsonbExtractKey)
 	}
 	return 0
 }
-func jsonbExtractText(input checkruntime.JsonbValue) checkruntime.TextValue {
+func jsonbExtractText(input checkruntime.JsonbValue, utf8 bool) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
 	if input.Kind == checkruntime.JsonbValueError {
 		error := input.Error
@@ -15261,7 +15272,7 @@ func jsonbExtractText(input checkruntime.JsonbValue) checkruntime.TextValue {
 			}
 			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(text)}
 		}
-		return checkruntime.JsonbToText(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value})
+		return JsonbTextContext(checkruntime.JsonbValue{Kind: checkruntime.JsonbValueValue, Value: value}, utf8)
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
@@ -15294,10 +15305,10 @@ func JsonbObjectField4uf3(input checkruntime.JsonbValue, key checkruntime.TextVa
 	}
 	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
 }
-func JsonbObjectFieldTextJpuz(input checkruntime.JsonbValue, key checkruntime.TextValue) checkruntime.TextValue {
+func JsonbObjectFieldTextJpuz(input checkruntime.JsonbValue, key checkruntime.TextValue, utf8 bool) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
 	selected := JsonbObjectField4uf3(input, key)
-	return jsonbExtractText(selected)
+	return jsonbExtractText(selected, utf8)
 }
 func JsonbArrayElement08oi(input checkruntime.JsonbValue, index checkruntime.Int4Value) checkruntime.JsonbValue {
 	input = checkruntime.CopyJsonbValue(input)
@@ -15354,10 +15365,10 @@ func JsonbArrayElement08oi(input checkruntime.JsonbValue, index checkruntime.Int
 	}
 	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueNull}
 }
-func JsonbArrayElementText83ql(input checkruntime.JsonbValue, index checkruntime.Int4Value) checkruntime.TextValue {
+func JsonbArrayElementText83ql(input checkruntime.JsonbValue, index checkruntime.Int4Value, utf8 bool) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
 	selected := JsonbArrayElement08oi(input, index)
-	return jsonbExtractText(selected)
+	return jsonbExtractText(selected, utf8)
 }
 func JsonbArrayLength1gng(input checkruntime.JsonbValue) checkruntime.Int4Value {
 	input = checkruntime.CopyJsonbValue(input)
@@ -15515,9 +15526,9 @@ func JsonbStripNullsRuwp(input checkruntime.JsonbValue, arrays checkruntime.Bool
 	}
 	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 }
-func JsonbPrettyGz4i(input checkruntime.JsonbValue) checkruntime.TextValue {
+func JsonbPrettyGz4i(input checkruntime.JsonbValue, utf8 bool) checkruntime.TextValue {
 	input = checkruntime.CopyJsonbValue(input)
-	return checkruntime.JsonbToPrettyText(input)
+	return jsonbPrettyContext(input, utf8)
 }
 
 type jsonbHashFrame struct {

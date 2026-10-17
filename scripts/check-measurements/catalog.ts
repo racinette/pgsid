@@ -1,5 +1,6 @@
 import { isArrayHash, nativeHashContext } from '../../src/codegen/shared/check-hash-context.js'
 import { characterEncodingContext } from '../../src/codegen/shared/check-character-context.js'
+import { jsonbTextRenderingContext } from '../../src/codegen/shared/check-jsonb-context.js'
 import assert from 'node:assert/strict'
 import type { PGlite } from '@electric-sql/pglite'
 import { callableIdentity, readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
@@ -427,13 +428,7 @@ export function jsonValueRequirements(item: BuiltinCallable) {
     ((item.name === 'jsonb_out' &&
       item.args.length === 1 &&
       item.result === 'pg_catalog.cstring') ||
-      (item.name === 'jsonb_pretty' &&
-        item.args.length === 1 &&
-        item.result === 'pg_catalog.text') ||
-      (item.args.length === 2 &&
-        item.result === 'pg_catalog.text' &&
-        ((item.name === 'jsonb_object_field_text' && item.args[1] === 'pg_catalog.text') ||
-          (item.name === 'jsonb_array_element_text' && item.args[1] === 'pg_catalog.int4'))))
+      jsonbTextRenderingContext(item))
   )
     return [
       {
@@ -446,7 +441,9 @@ export function jsonValueRequirements(item: BuiltinCallable) {
             ? 'tests/sql-semantics/check-jsonb-payload.test.ts'
             : item.name === 'jsonb_pretty'
               ? 'tests/sql-semantics/check-jsonb-format.test.ts'
-              : 'tests/sql-semantics/check-jsonb-extraction.test.ts',
+              : item.name === 'jsonb_extract_path_text'
+                ? 'tests/sql-semantics/check-json-array-paths.test.ts'
+                : 'tests/sql-semantics/check-jsonb-extraction.test.ts',
       },
     ]
 
@@ -489,6 +486,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
   if (item.volatility === 's') categories.push('session-or-database-state')
   if (item.volatility === 'v') categories.push('volatile')
   if (characterEncodingContext(item)) categories.push('database-setting:server_encoding')
+  if (jsonbTextRenderingContext(item)) categories.push('database-setting:server_encoding')
   if (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&

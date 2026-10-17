@@ -262,7 +262,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Raw JSON field/element extraction and lengths, source preservation and encoding requirements.
 - [x] Raw JSON scalar/array conversion: reuse scalar output policies, preserve raw sources/duplicates, numeric scales/signed zero, nested/pretty array layout, strict/partial states, canonical UTF8 JSONB text, owned cursors and INSERT parity.
 - [x] JSONB logical normalization, shared parsing, SQL-coerced values, domains/literals, text/JSON I/O and stored-format admission; preserve declared Unicode encoding, NULL/lazy composition and eager errors.
-- [x] JSONB field/element extraction, decoded text, array length and top-level existence, including scalar indexing.
+- [x] JSONB field/element/path extraction and pretty text honor declared UTF8 key ordering; retain decoded strings, portable subtrees, NULLs and missing-context deferrals.
 - [x] JSONB equality/inequality and iterative containment, exact numeric scalars, NULL-safe composition and public inputs.
 - [x] JSONB C/UTF8 ordering, exact comparator results and container traversal, with declared database defaults and composed/public INSERT parity.
 - [x] JSONB scalar casts, numeric precision/scale and unconstrained scalar-domain targets; preserve NULL, rounding, errors and lazy composition.

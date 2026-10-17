@@ -437,6 +437,25 @@ describe('CHECK measurement boundaries', () => {
     expect(characterValueRequirements(conversion.metadata)).toBeNull()
   })
 
+  it('records encoding requirements for JSONB container text paths', () => {
+    for (const name of [
+      'jsonb_pretty',
+      'jsonb_object_field_text',
+      'jsonb_array_element_text',
+      'jsonb_extract_path_text',
+    ]) {
+      const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
+      expect(callableBoundary(fn, new Set(fn.args.concat(fn.result))).categories).toContain(
+        'database-setting:server_encoding',
+      )
+      expect(jsonValueRequirements(fn)).toEqual([
+        expect.objectContaining({ kind: 'database', setting: 'server_encoding' }),
+      ])
+      expect(jsonValueRequirements({ ...fn, schema: 'public' })).toBeNull()
+      expect(jsonValueRequirements({ ...fn, args: ['pg_catalog.bool'] })).toBeNull()
+    }
+  })
+
   it('records immutable instant age as requiring the session timezone', async () => {
     const age = builtinMetadata(
       'function:["pg_catalog","age"](pg_catalog.timestamptz,pg_catalog.timestamptz)',
