@@ -17,6 +17,31 @@ function addressAndWord(left: number, right: number): number {
     }
     return result;
 }
+const arrayAggregateContextError = 56966976;
+export function int4AvgCombineGmvg(left: checkruntime.ArrayValue, right: checkruntime.ArrayValue): checkruntime.ArrayValue {
+    left = checkruntime.copyArrayValue(left);
+    right = checkruntime.copyArrayValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        if (right.kind === "Value") {
+            return { kind: "Error", value: checkruntime.makeSqlError(arrayAggregateContextError) };
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function arraySendG245(input: checkruntime.ArrayValue): checkruntime.ByteaValue {
     input = checkruntime.copyArrayValue(input);
     if (input.kind === "Error") {

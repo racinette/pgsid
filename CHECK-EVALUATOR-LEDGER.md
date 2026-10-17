@@ -5,8 +5,7 @@ This is the implementation queue for the Rust CHECK engine. Work in the order be
 ## Baseline and measurements
 
 The starting revision is `027d433` (XML well-formedness predicates). The bounded porting effort covered strict, immutable scalar callables on represented values,
-plus represented enum callables. Session-dependent behavior remains separate.
-Completion of that effort does not establish complete expression, coercion,
+plus represented enum callables. Session-dependent behavior remains separate. Completion of that effort does not establish complete expression, coercion,
 collation, input-format, or PostgreSQL type coverage.
 
 Measure each boundary separately:
@@ -254,7 +253,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Declare PostgreSQL byte order for byte, float and logical JSONB hashes through settings; verify both orders, native numeric/TID/float layouts, canonical JSONB traversal, UTF8 and NaN build requirements, successful constant Unknown computations, catalog hash links and INSERT parity. Admit array hashes through concrete element support, borrowed traversal and bounded modular arithmetic; retain whole-array endian alternatives/cancellation, shape independence, NULL cells, missing-support errors, ordinal-only enum deferrals, preparation and INSERT parity.
 - [x] Admit regex capture/split arrays with catalog overloads, first/all match traversal, unmatched NULL captures, zero-length split boundaries, flags, C collation, owned text cells, array composition, strict partial states, preparation and INSERT parity.
 - [x] Admit qualified identifier arrays with quoted/escaped parts, ASCII downcasing, exact lexer whitespace, untruncated names, default/strict/relaxed suffix handling, collation independence, reached UTF8 requirements, partial states, eager/lazy composition and INSERT parity.
-- [ ] Arrays: close the catalog-reported aggregate support callables; retain catalog/runtime requirements, scalar I/O and composed-validity gaps separately, then run the integration checkpoint.
+- [x] Classify aggregate array-state NULL-bitmap and native-size requirements with actual aggregate links and stored-row witnesses; admit the strict direct-call combine context error with ordered argument validity, constant preparation, lazy branches and INSERT parity.
+- [ ] Arrays: preserve verified NULL-bitmap provenance and native-layout boundaries before the remaining aggregate support callables; retain catalog/runtime requirements, scalar I/O and composed-validity gaps separately, then run the integration checkpoint.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

@@ -298,6 +298,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/regex_replace.rs");
     include!("operations/pg_catalog/regex_arrays.rs");
     include!("operations/pg_catalog/array_identifiers.rs");
+    include!("operations/pg_catalog/array_aggregate_context.rs");
 
     #[cfg(test)]
     mod binary_limit_tests {

@@ -3461,3 +3461,22 @@ INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_pa
 INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('"',NULL,false,NULL,0,false);
 -- name: object_name_skipped
 INSERT INTO lane_object_names(qualified_name,strict_mode,use_default,expected_parts,part_limit,bypass) VALUES('"',true,true,'{}',0,true);
+
+-- name: parallel_totals_null_left
+INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES(NULL,'{1,2}',false);
+-- name: parallel_totals_null_right
+INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES('{1,2}',NULL,false);
+-- name: parallel_totals_null_pair
+INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES(NULL,NULL,false);
+-- name: parallel_totals_direct_empty
+INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES('{}','{}',false);
+-- name: parallel_totals_direct_states
+INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES('{1,2}','{3,4}',false);
+-- name: parallel_totals_wrong_shape
+INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES('{{1,2}}','{NULL}',false);
+-- name: parallel_totals_null_cells
+INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES('{NULL}','{NULL}',false);
+-- name: parallel_totals_shifted
+INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES('[-2:-1]={1,2}','[7:8]={3,4}',false);
+-- name: parallel_totals_skipped
+INSERT INTO lane_parallel_totals(partial_totals,standby_totals,bypass) VALUES('{1,2}','{3,4}',true);

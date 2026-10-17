@@ -22,6 +22,33 @@ func addressAndWord(left int, right int) int {
 	}
 	return result
 }
+
+const arrayAggregateContextError = 56966976
+
+func Int4AvgCombineGmvg(left checkruntime.ArrayValue, right checkruntime.ArrayValue) checkruntime.ArrayValue {
+	left = checkruntime.CopyArrayValue(left)
+	right = checkruntime.CopyArrayValue(right)
+	if left.Kind == checkruntime.ArrayValueError {
+		error := left.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if right.Kind == checkruntime.ArrayValueError {
+		error := right.Error
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: error}
+	}
+	if left.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if right.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueNull}
+	}
+	if left.Kind == checkruntime.ArrayValueValue {
+		if right.Kind == checkruntime.ArrayValueValue {
+			return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueError, Error: checkruntime.MakeSqlError(arrayAggregateContextError)}
+		}
+	}
+	return checkruntime.ArrayValue{Kind: checkruntime.ArrayValueUnknown}
+}
 func ArraySendG245(input checkruntime.ArrayValue) checkruntime.ByteaValue {
 	input = checkruntime.CopyArrayValue(input)
 	if input.Kind == checkruntime.ArrayValueError {
