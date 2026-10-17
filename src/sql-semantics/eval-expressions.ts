@@ -153,6 +153,12 @@ export type EvalExpression =
       type: 'pg_catalog.float4' | 'pg_catalog.float8'
       operand: EvalExpression
     }
+  | {
+      kind: 'text-to-numeric'
+      type: 'pg_catalog."numeric"'
+      operand: EvalExpression
+      literal?: true
+    }
   | { kind: 'text-to-point'; type: 'pg_catalog.point'; operand: EvalExpression }
   | { kind: 'text-to-line'; type: 'pg_catalog.line'; operand: EvalExpression }
   | { kind: 'text-to-lseg'; type: 'pg_catalog.lseg'; operand: EvalExpression }
@@ -389,6 +395,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'io-to-text' ||
       node.kind === 'refcursor-text-coercion' ||
       node.kind === 'text-to-float' ||
+      node.kind === 'text-to-numeric' ||
       node.kind === 'text-to-point' ||
       node.kind === 'text-to-line' ||
       node.kind === 'text-to-lseg' ||

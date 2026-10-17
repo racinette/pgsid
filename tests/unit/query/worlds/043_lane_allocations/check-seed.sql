@@ -2596,3 +2596,83 @@ VALUES ('{1,NULL}', 1, '[]', '{"values" : [1,null], "count" : 1}', false);
 -- name: raw_build_import_wrong_object
 INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
 VALUES ('{1,NULL}', 1, '[[1,null], 1]', '{}', false);
+
+-- name: numeric_import_scale
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('+1.2300', '2.500', '1.2300', '[1.2300,2.500,null]', '[1.23,2.5,null]', '1.23', '[1.2300, 2.500, null]', false);
+
+-- name: numeric_import_radix
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('0x_FF', '-0b10_1', '255', '[255,-5,null]', '[255,-5,null]', '255.00', '[255, -5, null]', false);
+
+-- name: numeric_import_separators
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('1_2.3_400', '0o7_7', '12.3400', '[12.3400,63,null]', '[12.34,63,null]', '12.34', '[12.3400, 63, null]', false);
+
+-- name: numeric_import_negative_zero
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('-0.000', '-2.50', '0.000', '[0.000,-2.50,null]', '[0,-2.5,null]', '0.00', '[0.000, -2.50, null]', false);
+
+-- name: numeric_import_round_carry
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('99.9995', '.5e1', '99.9995', '[99.9995,5,null]', '[99.9995,5,null]', '100.00', '[99.9995, 5, null]', false);
+
+-- name: numeric_import_null
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES (NULL, '2.500', NULL, '[null,2.500,null]', '[null,2.5,null]', NULL, '[null, 2.500, null]', false);
+
+-- name: numeric_import_all_null
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES (NULL, NULL, NULL, '[null,null,null]', '[null,null,null]', NULL, '[null, null, null]', false);
+
+-- name: numeric_import_nan
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('NaN', '2.500', 'NaN', '["NaN",2.500,null]', '["NaN",2.5,null]', 'NaN', '["NaN", 2.500, null]', false);
+
+-- name: numeric_import_infinity_precision
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('Infinity', '2.500', 'Infinity', '["Infinity",2.500,null]', '["Infinity",2.5,null]', NULL, '["Infinity", 2.500, null]', false);
+
+-- name: numeric_import_precision_overflow
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('9999.995', '2.500', '9999.995', '[9999.995,2.500,null]', '[9999.995,2.5,null]', NULL, '[9999.995, 2.500, null]', false);
+
+-- name: numeric_import_bad_syntax
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('1__2', '2.500', NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: numeric_import_input_overflow
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('1e131072', '2.500', NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: numeric_import_input_scale_overflow
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('1e-16384', '2.500', NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: numeric_import_bad_alternate
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('1.2300', 'bad', '1.2300', NULL, NULL, '1.23', NULL, false);
+
+-- name: numeric_import_skipped
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('bad', 'bad', NULL, NULL, NULL, NULL, NULL, true);
+
+-- name: numeric_import_wrong_text
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('1.2300', '2.500', '1.23', '[1.2300,2.500,null]', '[1.23,2.5,null]', '1.23', '[1.2300, 2.500, null]', false);
+
+-- name: numeric_import_wrong_array
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('1.2300', '2.500', '1.2300', '[]', '[1.23,2.5,null]', '1.23', '[1.2300, 2.500, null]', false);
+
+-- name: numeric_import_wrong_binary
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('1.2300', '2.500', '1.2300', '[1.2300,2.500,null]', '[]', '1.23', '[1.2300, 2.500, null]', false);
+
+-- name: numeric_import_wrong_rounding
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('1.2300', '2.500', '1.2300', '[1.2300,2.500,null]', '[1.23,2.5,null]', '1.24', '[1.2300, 2.500, null]', false);
+
+-- name: numeric_import_wrong_raw
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('1.2300', '2.500', '1.2300', '[1.2300,2.500,null]', '[1.23,2.5,null]', '1.23', '[]', false);

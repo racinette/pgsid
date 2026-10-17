@@ -516,6 +516,16 @@ const materialize = (
     }
   }
   if (bound.literal) {
+    if (type === 'pg_catalog."numeric"' && bound.literal.kind === 'string')
+      return {
+        kind: 'text-to-numeric',
+        type,
+        literal: true,
+        operand: {
+          kind: 'certain',
+          expression: { kind: 'text', type: 'pg_catalog.text', value: bound.literal.value },
+        },
+      }
     if (
       type.startsWith('array:') &&
       bound.literal.kind === 'string' &&
@@ -2029,6 +2039,10 @@ export function bindCatalogCheck(
           domainType !== 'pg_catalog.float4' &&
           domainType !== 'pg_catalog.float8' &&
           domainType !== 'pg_catalog."numeric"' &&
+          domainType !== 'pg_catalog.text' &&
+          domainType !== 'pg_catalog."varchar"' &&
+          domainType !== 'pg_catalog.bpchar' &&
+          domainType !== 'pg_catalog.name' &&
           domainType !== 'pg_catalog.refcursor' &&
           domainType !== 'pg_catalog."json"' &&
           domainType !== 'pg_catalog.jsonb' &&
@@ -2347,6 +2361,7 @@ export function bindCatalogCheck(
         (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type) ||
           (type === 'pg_catalog.name' && isSnapshotType(source))) &&
         (isIntegerType(source) ||
+          source === 'pg_catalog."numeric"' ||
           source === 'pg_catalog."json"' ||
           source === 'pg_catalog.jsonb' ||
           source === 'pg_catalog.jsonpath' ||
@@ -2608,6 +2623,17 @@ export function bindCatalogCheck(
             : materialize(operand, 'pg_catalog.text')
         return text ? { type, value: { kind: 'text-to-bytea', type, operand: text } } : unknown
       }
+      if (
+        type === 'pg_catalog."numeric"' &&
+        operand.value &&
+        [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type ?? '')
+      )
+        return { type, value: { kind: 'text-to-numeric', type, operand: operand.value } }
       if (
         (type === 'pg_catalog.float4' || type === 'pg_catalog.float8') &&
         (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
@@ -3503,12 +3529,14 @@ export function bindCatalogCheck(
     if (
       kind === 'function' &&
       nodes.length === 1 &&
-      (aliasType === 'pg_catalog.refcursor' ||
+      (aliasType === 'pg_catalog."numeric"' ||
+        aliasType === 'pg_catalog.refcursor' ||
         aliasType === 'pg_catalog."json"' ||
         aliasType === 'pg_catalog.jsonb' ||
         aliasType === 'pg_catalog.jsonpath' ||
         isSnapshotType(aliasType) ||
-        ((args[0]?.type === 'pg_catalog.refcursor' ||
+        ((args[0]?.type === 'pg_catalog."numeric"' ||
+          args[0]?.type === 'pg_catalog.refcursor' ||
           args[0]?.type === 'pg_catalog."json"' ||
           args[0]?.type === 'pg_catalog.jsonb' ||
           args[0]?.type === 'pg_catalog.jsonpath' ||

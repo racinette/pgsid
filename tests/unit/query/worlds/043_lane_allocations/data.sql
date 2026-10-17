@@ -183,3 +183,6 @@ VALUES ('[0:2]={1,NULL,2}', '{a,1,a,2}', '{" { \"a\":1,\"a\":2 } ","\"\\u0000\""
 
 INSERT INTO lane_raw_builder_imports (payload, divisor, expected_array, expected_object, bypass)
 VALUES ('{"\"\\u0000\"",NULL}', 1, '[["\u0000",null], 1]', '{"values" : ["\u0000",null], "count" : 1}', false);
+
+INSERT INTO lane_numeric_imports (payload, alternate, expected_text, expected_array, expected_binary, expected_rounded, expected_raw, bypass)
+VALUES ('+1.2300', '2.500', '1.2300', '[1.2300,2.500,null]', '[1.23,2.5,null]', '1.23', '[1.2300, 2.500, null]', false);

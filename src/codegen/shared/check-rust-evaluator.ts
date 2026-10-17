@@ -664,6 +664,7 @@ export function emitCheckRustEvaluator(
       valueLiteralDepth === 0 &&
       (node.kind === 'interval-literal' ||
         node.kind === 'array-text-literal' ||
+        (node.kind === 'text-to-numeric' && node.literal === true) ||
         (node.kind === 'certain' &&
           (node.expression.kind === 'point' ||
             node.expression.kind === 'json' ||
@@ -2152,6 +2153,7 @@ export function emitCheckRustEvaluator(
             'pg_catalog.int2',
             'pg_catalog.int4',
             'pg_catalog.int8',
+            'pg_catalog."numeric"',
             'pg_catalog.oid',
             'pg_catalog.xid',
             'pg_catalog.cid',
@@ -2177,6 +2179,8 @@ export function emitCheckRustEvaluator(
         }
       if (isSnapshotType(operand.type))
         return { name: bind(`snapshot_to_text(${ownedOperand(operand)})`), type: node.type }
+      if (operand.type === 'pg_catalog."numeric"')
+        return { name: bind(`array_numeric_output(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog.jsonpath')
         return { name: bind(`jsonpath_to_text(${ownedOperand(operand)})`), type: node.type }
       if (operand.type === 'pg_catalog.jsonb')
@@ -2380,6 +2384,36 @@ export function emitCheckRustEvaluator(
                     ? 'line_from_text'
                     : 'point_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-numeric') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      const input = io ? builtinMetadata(io) : null
+      const output = builtinTypeIO(operand.type)?.output
+      const source = output ? builtinMetadata(output) : null
+      if (
+        ![
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type) ||
+        input?.kind !== 'function' ||
+        input.args.join(',') !== 'pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4' ||
+        input.result !== node.type ||
+        !input.strict ||
+        input.volatility !== 'i' ||
+        source?.kind !== 'function' ||
+        source.args.length !== 1 ||
+        source.args[0] !== operand.type ||
+        source.result !== 'pg_catalog.cstring' ||
+        !source.strict ||
+        source.volatility !== 'i'
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Numeric input requires its catalog I/O identities',
+        )
+      return { name: bind(`scalar_numeric_from_text(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'text-to-float') {
       const operand = emitScalar(node.operand, bindings, used)

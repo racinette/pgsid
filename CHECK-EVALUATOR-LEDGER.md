@@ -110,8 +110,8 @@ unexercised cases explicitly rather than treating them as passes.
 
 - [x] Measure explicit catalog cast pairs on represented values and their runtime
       text input/output paths, separating PostgreSQL admission from raw/stored binding.
-- [x] Bind catalog function casts from Boolean, inet, and cidr to character types,
-      including actual argument types, width modifiers, domains, and expression composition.
+- [x] Bind Boolean/network character casts and numeric text I/O through catalog identities,
+      including actual argument types, width/precision modifiers, unconstrained domains, literal preparation and composition.
 - [ ] Inventory unsupported input forms and coercions for represented types.
 - [x] Share handled and deferred temporal input-form cases between their parity
       suites and the coercion report, retaining the executing owner of each list.
