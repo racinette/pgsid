@@ -1,5 +1,6 @@
 import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
 import { nativeHashContext, isArrayHash } from './check-hash-context.js'
+import { characterEncodingContext } from './check-character-context.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
   builtinBtreeComparisons,
@@ -152,11 +153,7 @@ export function rustCallCanFail(
       hash.name === 'numeric_send' &&
       inputType === 'pg_catalog."numeric"' &&
       hash.result === 'pg_catalog.bytea'
-    const ascii =
-      hash.name === 'ascii' &&
-      inputType === 'pg_catalog.text' &&
-      hash.result === 'pg_catalog.int4' &&
-      context.serverEncoding === 'UTF8'
+    const ascii = characterEncodingContext(hash) === 'ascii' && context.serverEncoding === 'UTF8'
     const uuidTimestamp =
       hash.name === 'uuid_extract_timestamp' &&
       inputType === 'pg_catalog.uuid' &&

@@ -1,4 +1,5 @@
 import { isArrayHash, nativeHashContext } from '../../src/codegen/shared/check-hash-context.js'
+import { characterEncodingContext } from '../../src/codegen/shared/check-character-context.js'
 import assert from 'node:assert/strict'
 import type { PGlite } from '@electric-sql/pglite'
 import { callableIdentity, readBuiltinCatalog } from '../../src/postgres/builtins/catalog.js'
@@ -157,6 +158,22 @@ export function hashValueRequirements(item: BuiltinCallable) {
           },
         ]
       : []),
+  ]
+}
+
+export function characterValueRequirements(item: BuiltinCallable) {
+  const operation = characterEncodingContext(item)
+  if (!operation) return null
+  return [
+    {
+      kind: 'database',
+      setting: 'server_encoding',
+      requirement:
+        operation === 'ascii'
+          ? 'Non-ASCII first characters require declared UTF8 for codepoint extraction and execution validity; empty/ASCII first characters, SQL NULL and incoming errors remain portable.'
+          : 'Non-ASCII character construction requires declared UTF8; ASCII, SQL NULL, incoming errors and universally invalid codepoints remain definite.',
+      owner: 'tests/sql-semantics/check-character-encoding.test.ts',
+    },
   ]
 }
 
@@ -471,6 +488,7 @@ export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet
     categories.push('internal-interface')
   if (item.volatility === 's') categories.push('session-or-database-state')
   if (item.volatility === 'v') categories.push('volatile')
+  if (characterEncodingContext(item)) categories.push('database-setting:server_encoding')
   if (
     item.kind === 'function' &&
     item.schema === 'pg_catalog' &&

@@ -14,6 +14,7 @@ import {
   verifyCatalog,
   jsonValueRequirements,
   hashValueRequirements,
+  characterValueRequirements,
 } from '../../scripts/check-measurements/catalog.js'
 import {
   bindProbe,
@@ -406,6 +407,34 @@ describe('CHECK measurement boundaries', () => {
     } finally {
       await pg.exec('RESET quote_all_identifiers')
     }
+  })
+
+  it('records character database encoding independently of catalog immutability', () => {
+    for (const name of ['ascii', 'chr']) {
+      const fn = catalog.functions.find(({ metadata }) => metadata.name === name)!.metadata
+      expect(fn.volatility).toBe('i')
+      expect(callableBoundary(fn, new Set(fn.args.concat(fn.result))).categories).toEqual([
+        'database-setting:server_encoding',
+      ])
+      expect(characterValueRequirements(fn)).toEqual([
+        {
+          kind: 'database',
+          setting: 'server_encoding',
+          requirement: expect.stringContaining('declared UTF8'),
+          owner: 'tests/sql-semantics/check-character-encoding.test.ts',
+        },
+      ])
+      for (const unrelated of [
+        { ...fn, schema: 'public' },
+        { ...fn, strict: false },
+        { ...fn, returnsSet: true },
+        { ...fn, args: ['pg_catalog.bool'] },
+        { ...fn, result: 'pg_catalog.bool' },
+      ])
+        expect(characterValueRequirements(unrelated)).toBeNull()
+    }
+    const conversion = catalog.functions.find(({ metadata }) => metadata.name === 'to_ascii')!
+    expect(characterValueRequirements(conversion.metadata)).toBeNull()
   })
 
   it('records immutable instant age as requiring the session timezone', async () => {

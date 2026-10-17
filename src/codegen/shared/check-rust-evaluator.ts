@@ -1,4 +1,5 @@
 import { nativeHashContext, isArrayHash } from './check-hash-context.js'
+import { characterEncodingContext } from './check-character-context.js'
 import {
   rustCallCanFail,
   rustArrayCastAlwaysValid,
@@ -2419,9 +2420,13 @@ export function emitCheckRustEvaluator(
             'jsonb_path_query_array',
             'jsonb_path_query_first',
           ].includes(implementation.name))
-      const callable = jsonpathExecution
-        ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
-        : implementation.rustName
+      const characterContext = characterEncodingContext(implementation)
+      const callable = characterContext
+        ? characterContext + '_context'
+        : jsonpathExecution
+          ? implementation.name.replace('jsonb_path_', 'jsonpath_') + '_context'
+          : implementation.rustName
+      if (characterContext) arguments_.push(String(executionContext.serverEncoding === 'UTF8'))
       if (
         implementation.schema === 'pg_catalog' &&
         ((['json_extract_path', 'json_extract_path_text'].includes(implementation.name) &&

@@ -8476,6 +8476,20 @@ func Chr23bn(input checkruntime.Int4Value) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+func ChrContext(input checkruntime.Int4Value, utf8 bool) checkruntime.TextValue {
+	value := Chr23bn(input)
+	if utf8 == false {
+		if input.Kind == checkruntime.Int4ValueValue {
+			code := langruntime.CheckedI32(input.Value)
+			if code > 127 {
+				if value.Kind == checkruntime.TextValueValue {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+				}
+			}
+		}
+	}
+	return value
+}
 func circleFromCenterRadius(center checkruntime.PointValue, radius checkruntime.Float8Value) checkruntime.CircleValue {
 	if center.Kind == checkruntime.PointValueError {
 		error := center.Error
@@ -33744,6 +33758,18 @@ func Ascii7m47(input checkruntime.TextValue) checkruntime.Int4Value {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: code}
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func AsciiContext(input checkruntime.TextValue, utf8 bool) checkruntime.Int4Value {
+	value := Ascii7m47(input)
+	if utf8 == false {
+		if value.Kind == checkruntime.Int4ValueValue {
+			code := langruntime.CheckedI32(value.Value)
+			if code > 127 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+			}
+		}
+	}
+	return value
 }
 func TextVuvi(input checkruntime.BoolValue) checkruntime.TextValue {
 	if input.Kind == checkruntime.BoolValueError {

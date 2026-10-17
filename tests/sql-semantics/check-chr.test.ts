@@ -75,6 +75,7 @@ describe('Rust CHECK Unicode character construction', () => {
             },
           })),
         ),
+        { serverEncoding: 'UTF8' },
       )
       for (const [index, check] of group.checks.entries())
         expect(check.kind, fixtureNames[index]).toBe('supported')

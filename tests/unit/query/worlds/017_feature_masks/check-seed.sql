@@ -1174,6 +1174,14 @@ VALUES (1707, 1, '\x0080ff', -1, NULL, NULL, NULL, NULL);
 INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
 VALUES (1800, 1, 'A', 'A', 'A', 65, 'A');
 
+-- name: payload_label_context_prefix
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1800, 1, 'Aé', 'Aé', 'Aé', 65, 'Aé');
+
+-- name: payload_label_context_wrong_prefix
+INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
+VALUES (1800, 1, 'Aé', 'Aé', 'Aé', 233, 'Aé');
+
 -- name: payload_label_latin
 INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
 VALUES (1801, 1, 'é', 'é', 'é', 233, 'é');

@@ -84,6 +84,21 @@ INSERT INTO default_labels (id, label, reference_label, fixed_label, fixed_refer
 -- name: unicode_label_ascii
 INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
 VALUES (2, 65, 65, 'A', 65, false);
+-- name: unicode_context_ascii_edge
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 127, 65, U&'\007f', 127, false);
+-- name: unicode_context_non_ascii_edge
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 128, 65, U&'\0080', 128, false);
+-- name: unicode_context_wrong_ordinal
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 128, 65, U&'\0080', 127, false);
+-- name: unicode_context_null_source
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, NULL, 127, U&'\007f', NULL, false);
+-- name: unicode_context_skipped_edge
+INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
+VALUES (2, 128, 0, 'ignored', 0, true);
 -- name: unicode_label_accent
 INSERT INTO unicode_labels (id, code_point, backup_code_point, printed_label, recorded_code_point, suppress_invalid)
 VALUES (2, 233, 65, 'é', 233, false);
