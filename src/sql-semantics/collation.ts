@@ -1,5 +1,20 @@
 import { builtinCallables, builtinCast, builtinMetadata } from '../postgres/builtins/inventory.js'
 
+export function isRegexArrayCallable(signature: string): boolean {
+  const metadata = builtinMetadata(signature)
+  return (
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    ['regexp_match', 'regexp_split_to_array'].includes(metadata.name) &&
+    metadata.result === 'pg_catalog._text' &&
+    metadata.strict &&
+    metadata.volatility === 'i' &&
+    !metadata.returnsSet &&
+    [2, 3].includes(metadata.args.length) &&
+    metadata.args.every((type) => type === 'pg_catalog.text')
+  )
+}
+
 export function equalityOperation(signature: string, argumentType: string): '=' | '<>' | null {
   const metadata = builtinMetadata(signature)
   if (

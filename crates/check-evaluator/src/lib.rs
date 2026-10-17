@@ -296,6 +296,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/regex_substr.rs");
     include!("operations/pg_catalog/regex_substring.rs");
     include!("operations/pg_catalog/regex_replace.rs");
+    include!("operations/pg_catalog/regex_arrays.rs");
 
     #[cfg(test)]
     mod binary_limit_tests {

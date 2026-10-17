@@ -157,8 +157,7 @@ and internal/cstring interfaces are not an automatic CHECK implementation queue.
 - [x] Establish exported owned point-list payloads with independent clones and transfers in Rust, Go and TypeScript; retain private aggregate boundaries.
 
 Implement the remaining concrete PostgreSQL value families after the preceding expression and corpus work.
-Complete one bounded slice through the completion gate before expanding it.
-Prioritize common CHECK families, including arrays and JSON, before ACL/full-text; follow dependency order unless implementation exposes a prerequisite:
+Complete one bounded slice through the completion gate before expanding it. Prioritize common CHECK families, including arrays and JSON, before ACL/full-text; follow dependency order unless implementation exposes a prerequisite:
 
 - [x] Establish IEEE bit conversion primitives before floating-point values,
       casts, comparisons, and binary I/O.
@@ -254,7 +253,8 @@ Prioritize common CHECK families, including arrays and JSON, before ACL/full-tex
 - [x] Bind compatible array/element signatures; admit first/all position searches and threshold bucketing; verify NULL matching/rejection, lower bounds/start positions, binary search/duplicates, support/shape error order, partial states, context/preparation, nominal enums and INSERT parity. Admit catalog-selected ANY/SOME/ALL over column/computed arrays, scalar/element coercion, borrowed scans, empty/NULL rules, eager argument validity, reached comparison errors and legacy constructor-list compatibility.
 - [x] Admit fill/trim, append/prepend, concatenation, removal/replacement, first-dimension reversal, sorting and array extrema; verify concrete/polymorphic binding, NULL/partial cells, retained/reset bounds, support/error order, representation-sensitive sort/extrema ties, borrowed comparison cursors, native-count deferral, preparation and INSERT parity.
 - [x] Declare PostgreSQL byte order for byte, float and logical JSONB hashes through settings; verify both orders, native numeric/TID/float layouts, canonical JSONB traversal, UTF8 and NaN build requirements, successful constant Unknown computations, catalog hash links and INSERT parity. Admit array hashes through concrete element support, borrowed traversal and bounded modular arithmetic; retain whole-array endian alternatives/cancellation, shape independence, NULL cells, missing-support errors, ordinal-only enum deferrals, preparation and INSERT parity.
-- [ ] Arrays: close the catalog-reported regex result arrays, identifier parsing and aggregate support callables; retain catalog/runtime requirements, scalar I/O and composed-validity gaps separately, then run the integration checkpoint.
+- [x] Admit regex capture/split arrays with catalog overloads, first/all match traversal, unmatched NULL captures, zero-length split boundaries, flags, C collation, owned text cells, array composition, strict partial states, preparation and INSERT parity.
+- [ ] Arrays: close the catalog-reported identifier parsing and aggregate support callables; retain catalog/runtime requirements, scalar I/O and composed-validity gaps separately, then run the integration checkpoint.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

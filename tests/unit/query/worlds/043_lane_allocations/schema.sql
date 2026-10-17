@@ -1018,3 +1018,15 @@ CREATE TABLE lane_quantifier_guards (
   CONSTRAINT empty_allowed CHECK (CASE WHEN bypass THEN true ELSE NOT(amount/divisor = ANY('{}'::integer[])) END),
   CONSTRAINT null_allowed CHECK (CASE WHEN bypass THEN true ELSE amount/divisor = ALL(NULL::integer[]) END)
 );
+
+CREATE TABLE lane_label_tokens (
+  label text COLLATE "C",
+  separator text COLLATE "C",
+  flags text,
+  use_flags boolean,
+  expected_captures text[] COLLATE "C",
+  expected_tokens text[] COLLATE "C",
+  bypass boolean,
+  CONSTRAINT captured_label_parts CHECK (CASE WHEN bypass THEN true WHEN use_flags THEN regexp_match(label,separator,flags) IS NOT DISTINCT FROM expected_captures ELSE regexp_match(label,separator) IS NOT DISTINCT FROM expected_captures END),
+  CONSTRAINT split_label_parts CHECK (CASE WHEN bypass THEN true WHEN use_flags THEN regexp_split_to_array(label,separator,flags) IS NOT DISTINCT FROM expected_tokens ELSE regexp_split_to_array(label,separator) IS NOT DISTINCT FROM expected_tokens END)
+);
