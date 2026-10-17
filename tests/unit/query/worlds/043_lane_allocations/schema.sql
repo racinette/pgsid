@@ -1075,3 +1075,33 @@ CREATE TABLE lane_rebuilt_totals (
   bypass boolean,
   CONSTRAINT reconstructed_total CHECK (CASE WHEN bypass THEN true WHEN reconstruct THEN int2int4_sum(((payload::bigint[])[1:2])::text::bigint[]) IS NOT DISTINCT FROM expected_total ELSE int2int4_sum((payload::bigint[])[1:2]) IS NOT DISTINCT FROM expected_total END)
 );
+
+CREATE TABLE lane_unary_statistics (
+  payload text,
+  reconstruct boolean,
+  expected float8[],
+  bypass boolean,
+  CONSTRAINT float8_avg_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_avg(CASE WHEN reconstruct THEN ((payload::float8[])[1:3])::text::float8[] ELSE (payload::float8[])[1:3] END) IS NOT DISTINCT FROM expected[1] END),
+  CONSTRAINT float8_var_pop_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_var_pop(CASE WHEN reconstruct THEN ((payload::float8[])[1:3])::text::float8[] ELSE (payload::float8[])[1:3] END) IS NOT DISTINCT FROM expected[2] END),
+  CONSTRAINT float8_var_samp_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_var_samp(CASE WHEN reconstruct THEN ((payload::float8[])[1:3])::text::float8[] ELSE (payload::float8[])[1:3] END) IS NOT DISTINCT FROM expected[3] END),
+  CONSTRAINT float8_stddev_pop_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_stddev_pop(CASE WHEN reconstruct THEN ((payload::float8[])[1:3])::text::float8[] ELSE (payload::float8[])[1:3] END) IS NOT DISTINCT FROM expected[4] END),
+  CONSTRAINT float8_stddev_samp_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_stddev_samp(CASE WHEN reconstruct THEN ((payload::float8[])[1:3])::text::float8[] ELSE (payload::float8[])[1:3] END) IS NOT DISTINCT FROM expected[5] END)
+);
+
+CREATE TABLE lane_binary_statistics (
+  payload text,
+  reconstruct boolean,
+  expected float8[],
+  bypass boolean,
+  CONSTRAINT float8_regr_sxx_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_sxx(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[1] END),
+  CONSTRAINT float8_regr_syy_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_syy(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[2] END),
+  CONSTRAINT float8_regr_sxy_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_sxy(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[3] END),
+  CONSTRAINT float8_regr_avgx_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_avgx(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[4] END),
+  CONSTRAINT float8_regr_avgy_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_avgy(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[5] END),
+  CONSTRAINT float8_covar_pop_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_covar_pop(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[6] END),
+  CONSTRAINT float8_covar_samp_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_covar_samp(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[7] END),
+  CONSTRAINT float8_corr_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_corr(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[8] END),
+  CONSTRAINT float8_regr_r2_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_r2(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[9] END),
+  CONSTRAINT float8_regr_slope_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_slope(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[10] END),
+  CONSTRAINT float8_regr_intercept_value CHECK (CASE WHEN bypass THEN true ELSE pg_catalog.float8_regr_intercept(CASE WHEN reconstruct THEN ((payload::float8[])[1:6])::text::float8[] ELSE (payload::float8[])[1:6] END) IS NOT DISTINCT FROM expected[11] END)
+);

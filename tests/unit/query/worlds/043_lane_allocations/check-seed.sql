@@ -3530,3 +3530,92 @@ INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUE
 INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUES('{{0}}',false,NULL,false);
 -- name: rebuilt_totals_skipped
 INSERT INTO lane_rebuilt_totals(payload,reconstruct,expected_total,bypass) VALUES('bad',false,NULL,true);
+
+-- name: lane_unary_statistics_canonical
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,4,8}',false,'{2,4,8,2,2.8284271247461903}',false);
+-- name: lane_unary_statistics_reconstructed
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,4,8,NULL}',true,'{2,4,8,2,2.8284271247461903}',false);
+-- name: lane_unary_statistics_empty_count
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{0,0,0}',false,'{NULL,NULL,NULL,NULL,NULL}',false);
+-- name: lane_unary_statistics_single_count
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{1,2,9}',false,'{2,9,NULL,3,NULL}',false);
+-- name: lane_unary_statistics_nan_values
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,NaN,-1}',false,'{NaN,-0.5,-1,NaN,NaN}',false);
+-- name: lane_unary_statistics_signed_zero
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,-0,-0}',false,'{-0,-0,-0,-0,-0}',false);
+-- name: lane_unary_statistics_unchecked_arithmetic
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{5e-324,1e308,1e308}',false,'{Infinity,Infinity,NULL,Infinity,NULL}',false);
+-- name: lane_unary_statistics_null_state
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES(NULL,false,'{NULL,NULL,NULL,NULL,NULL}',false);
+-- name: lane_unary_statistics_wrong_float8_avg
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,4,8}',false,'{-999,4,8,2,2.8284271247461903}',false);
+-- name: lane_unary_statistics_wrong_float8_var_pop
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,4,8}',false,'{2,-999,8,2,2.8284271247461903}',false);
+-- name: lane_unary_statistics_wrong_float8_var_samp
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,4,8}',false,'{2,4,-999,2,2.8284271247461903}',false);
+-- name: lane_unary_statistics_wrong_float8_stddev_pop
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,4,8}',false,'{2,4,8,-999,2.8284271247461903}',false);
+-- name: lane_unary_statistics_wrong_float8_stddev_samp
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,4,8}',false,'{2,4,8,2,-999}',false);
+-- name: lane_unary_statistics_retained_bitmap
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,4,8,NULL}',false,'{2,4,8,2,2.8284271247461903}',false);
+-- name: lane_unary_statistics_empty_shape
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{}',false,'{2,4,8,2,2.8284271247461903}',false);
+-- name: lane_unary_statistics_nested_shape
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{{0,0,0}}',false,'{2,4,8,2,2.8284271247461903}',false);
+-- name: lane_unary_statistics_null_cells
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,NULL,NULL}',false,'{2,4,8,2,2.8284271247461903}',false);
+-- name: lane_unary_statistics_bad_input
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('bad',false,'{2,4,8,2,2.8284271247461903}',false);
+-- name: lane_unary_statistics_skipped
+INSERT INTO lane_unary_statistics(payload,reconstruct,expected,bypass) VALUES('bad',false,NULL,true);
+-- name: lane_binary_statistics_canonical
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,4,1,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_reconstructed
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4,NULL}',true,'{2,8,4,1,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_empty_count
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{0,0,0,0,0,0}',false,'{NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL}',false);
+-- name: lane_binary_statistics_single_count
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{1,2,4,3,9,6}',false,'{4,9,6,2,3,6,NULL,1,1,1.5,0}',false);
+-- name: lane_binary_statistics_nan_values
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,NaN,2,NaN,8,4}',false,'{2,8,4,NaN,NaN,2,4,1,1,2,NaN}',false);
+-- name: lane_binary_statistics_signed_zero
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,-0,-0,0,-0,-0}',false,'{-0,-0,-0,-0,0,-0,-0,NULL,NULL,NULL,NULL}',false);
+-- name: lane_binary_statistics_unchecked_arithmetic
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,1,5e-324,2,5e-324,1}',false,'{5e-324,5e-324,1,0.5,1,0.5,1,Infinity,Infinity,Infinity,-Infinity}',false);
+-- name: lane_binary_statistics_null_state
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES(NULL,false,'{NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL}',false);
+-- name: lane_binary_statistics_wrong_float8_regr_sxx
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{-999,8,4,1,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_wrong_float8_regr_syy
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,-999,4,1,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_wrong_float8_regr_sxy
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,-999,1,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_wrong_float8_regr_avgx
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,4,-999,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_wrong_float8_regr_avgy
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,4,1,-999,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_wrong_float8_covar_pop
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,4,1,2,-999,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_wrong_float8_covar_samp
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,4,1,2,2,-999,1,1,2,0}',false);
+-- name: lane_binary_statistics_wrong_float8_corr
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,4,1,2,2,4,-999,1,2,0}',false);
+-- name: lane_binary_statistics_wrong_float8_regr_r2
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,4,1,2,2,4,1,-999,2,0}',false);
+-- name: lane_binary_statistics_wrong_float8_regr_slope
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,4,1,2,2,4,1,1,-999,0}',false);
+-- name: lane_binary_statistics_wrong_float8_regr_intercept
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4}',false,'{2,8,4,1,2,2,4,1,1,2,-999}',false);
+-- name: lane_binary_statistics_retained_bitmap
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,2,2,4,8,4,NULL}',false,'{2,8,4,1,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_empty_shape
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{}',false,'{2,8,4,1,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_nested_shape
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{{0,0,0,0,0,0}}',false,'{2,8,4,1,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_null_cells
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('{2,NULL,NULL,NULL,NULL,NULL}',false,'{2,8,4,1,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_bad_input
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('bad',false,'{2,8,4,1,2,2,4,1,1,2,0}',false);
+-- name: lane_binary_statistics_skipped
+INSERT INTO lane_binary_statistics(payload,reconstruct,expected,bypass) VALUES('bad',false,NULL,true);
