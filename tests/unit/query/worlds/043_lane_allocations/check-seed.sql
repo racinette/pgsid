@@ -3401,3 +3401,32 @@ INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES(1,0,false);
 INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES('-2147483648'::integer,-1,false);
 -- name: quantified_guard_skipped
 INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES(1,0,true);
+
+-- name: label_tokens_default
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('a,b','(,)','',false,'{","}','{a,b}',false);
+-- name: label_tokens_wrong_capture
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('a,b','(,)','',false,'{wrong}','{a,b}',false);
+-- name: label_tokens_wrong_split
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('a,b','(,)','',false,'{","}','{wrong}',false);
+-- name: label_tokens_flags
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('AaB','(a)','i',true,'{A}','{"","",B}',false);
+-- name: label_tokens_zero_length
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('abc','','',false,'{""}','{a,b,c}',false);
+-- name: label_tokens_empty_source
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('','','',false,'{""}','{""}',false);
+-- name: label_tokens_unmatched_capture
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('b','(a)?(b)','',true,'{NULL,b}','{"",""}',false);
+-- name: label_tokens_no_match
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('abc','x','',false,NULL,'{abc}',false);
+-- name: label_tokens_unicode
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('é🙂a','(🙂)','',true,'{🙂}','{é,a}',false);
+-- name: label_tokens_null_subject
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES(NULL,'[','g',true,NULL,NULL,false);
+-- name: label_tokens_null_flags
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('a','[',NULL,true,NULL,NULL,false);
+-- name: label_tokens_invalid_pattern
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('a','[','',true,NULL,NULL,false);
+-- name: label_tokens_invalid_global
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('a','a','g',true,'{a}','{"",""}',false);
+-- name: label_tokens_skipped
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass) VALUES('a','[','g',true,NULL,NULL,true);

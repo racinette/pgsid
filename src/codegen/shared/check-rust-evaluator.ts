@@ -18,7 +18,10 @@ import {
 import { checkRustCallableNames } from './check-rust-source.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
-import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
+import {
+  isRegexArrayCallable,
+  supportsTextCallableCollation,
+} from '../../sql-semantics/collation.js'
 import { rustStringLiteral } from './rust-literals.js'
 import {
   constantCheckExpression,
@@ -1251,6 +1254,7 @@ export function emitCheckRustEvaluator(
       const metadata = builtinMetadata(call.signature)
       const implementation =
         metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+      const arrayRegex = isRegexArrayCallable(call.signature)
       if (
         implementation.kind === 'function' &&
         implementation.schema === 'pg_catalog' &&
@@ -1319,7 +1323,7 @@ export function emitCheckRustEvaluator(
                     ? operands[0]?.type
                     : arrayStringIO && implementation.name === 'string_to_array'
                       ? 'array:pg_catalog.text'
-                      : implementation.result
+                      : (catalogScalarType(implementation.result) ?? implementation.result)
       if (
         metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
@@ -1371,6 +1375,7 @@ export function emitCheckRustEvaluator(
             'pg_catalog.bpchar',
           ].includes(type),
         ) &&
+        !arrayRegex &&
         !supportsTextCallableCollation(
           call.signature,
           call.kind === 'cast' ? undefined : call.collation,
@@ -2121,6 +2126,14 @@ export function emitCheckRustEvaluator(
         return { name, type: call.type }
       }
       let arguments_ = operands.map((operand) => ownedOperand(operand))
+      if (arrayRegex)
+        arguments_.push(
+          String(
+            call.kind !== 'cast' &&
+              (call.collation === 'C' ||
+                (call.collationDefault === true && executionContext.defaultCollation === 'C')),
+          ),
+        )
       if (jsonbConversion || jsonConversion || (builder && operands.length > 0)) {
         const scalarInput = (
           original: { name: string; type: string },

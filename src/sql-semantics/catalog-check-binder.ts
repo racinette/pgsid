@@ -16,6 +16,7 @@ import type { EvalBoolExpression } from './check-expressions.js'
 import {
   combineCollations,
   defaultCollation,
+  isRegexArrayCallable,
   supportsTextCallableCollation,
   type BoundCollation,
 } from './collation.js'
@@ -902,7 +903,8 @@ const candidate = (
           'pg_catalog.bpchar',
         ].includes(type),
       ) &&
-      !supportsTextCallableCollation(signature, collation?.kind)
+      !supportsTextCallableCollation(signature, collation?.kind) &&
+      !isRegexArrayCallable(signature)
     )
       return []
     const elementTypes = fullArgs.flatMap((arg, index) =>
@@ -1401,7 +1403,8 @@ const arrayDefaultCollation = (
   const metadata = builtinMetadata(signature)
   return collation?.default &&
     (metadata.args.includes('pg_catalog.anyarray') ||
-      metadata.args.includes('pg_catalog.anycompatiblearray'))
+      metadata.args.includes('pg_catalog.anycompatiblearray') ||
+      isRegexArrayCallable(signature))
     ? { collationDefault: true }
     : {}
 }

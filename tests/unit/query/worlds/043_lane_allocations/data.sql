@@ -228,3 +228,6 @@ INSERT INTO lane_quantified_slots(slots,requested,ceiling,bypass) VALUES('{1,NUL
 INSERT INTO lane_quantified_stages(stages,requested,bypass) VALUES('{new,done}','new',false);
 INSERT INTO lane_quantified_patterns(label,allowed,excluded,bypass) VALUES('A1','{^A,[}','{^Z}',false);
 INSERT INTO lane_quantifier_guards(amount,divisor,bypass) VALUES(1,1,false);
+
+INSERT INTO lane_label_tokens(label,separator,flags,use_flags,expected_captures,expected_tokens,bypass)
+VALUES('a,b','(,)','',false,'{","}','{a,b}',false);
