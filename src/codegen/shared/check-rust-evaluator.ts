@@ -1574,6 +1574,7 @@ export function emitCheckRustEvaluator(
       operands: readonly { name: string; type: string }[],
       destination = bindings,
       folded?: { name: string; type: string },
+      hashByteOrder?: number,
     ): { name: string; type: string } => {
       if (call.kind === 'cast' && call.signature === null) {
         if (operands.length === 1 && builtinCast(operands[0]!.type, call.type)?.method === 'b') {
@@ -1841,11 +1842,7 @@ export function emitCheckRustEvaluator(
           )
         const elementType = arrayType.slice(6),
           family = arrayElementFamily(elementType)
-        const defaults = builtinTypeComparison(
-          arrayElementBaseType(elementType).startsWith('enum:')
-            ? 'pg_catalog.anyenum'
-            : arrayElementBaseType(elementType),
-        )
+        const defaults = arrayElementComparison(elementType)
         if (family === null || !defaults)
           throw new UnsupportedCheckRustExpression(
             'Array hashing requires captured element support metadata',
@@ -1873,25 +1870,32 @@ export function emitCheckRustEvaluator(
             scalar.args[0] ?? '',
           ) &&
             !supportsTextCallableCollation(selected!, effectiveCollation))
+        let leafType = arrayElementBaseType(elementType)
+        while (leafType.startsWith('array:')) leafType = arrayElementBaseType(leafType.slice(6))
+        const leafSupport = arrayElementComparison(leafType)
+        const leafHash = extended ? leafSupport?.hashExtended : leafSupport?.hash
+        const nativeContext = leafHash ? nativeHashContext(builtinMetadata(leafHash)) : null
         const orders =
-          hashContext && executionContext.nativeByteOrder === undefined
-            ? [1, 2]
-            : [
-                executionContext.nativeByteOrder === 'big'
-                  ? 2
-                  : executionContext.nativeByteOrder === 'little'
-                    ? 1
-                    : 0,
-              ]
+          hashByteOrder !== undefined
+            ? [hashByteOrder]
+            : nativeContext && executionContext.nativeByteOrder === undefined
+              ? [1, 2]
+              : [
+                  executionContext.nativeByteOrder === 'big'
+                    ? 2
+                    : executionContext.nativeByteOrder === 'little'
+                      ? 1
+                      : 0,
+                ]
         const seed = extended ? ownedOperand(operands[1]!) : fresh('array_hash_seed')
         if (!extended) destination.push(`let ${seed} = make_int8_value(0i64);`)
         const payload = fresh('array_hash_plan'),
-          initial = fresh('array_hash_initial'),
+          initial = fresh('array_hash_basis'),
           index = fresh('array_hash_index'),
           start = fresh('array_hash_start')
         const results = orders.map(() => fresh('array_hash_result'))
         destination.push(
-          `let ${payload} = prepare_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${selected !== null});`,
+          `let ${payload} = prepare_array_hash(${ownedOperand(operands[0]!)}, ${seed}, ${selected !== null && leafHash != null});`,
           `let ${initial} = ${extended ? 'array_hash_initial64' : 'array_comparison_initial'}(&${payload});`,
           `let ${start} = make_int4_value(0);`,
           `let mut ${index}: Int4Value = ${start};`,
@@ -1908,15 +1912,17 @@ export function emitCheckRustEvaluator(
           `let ${value} = array_element_to_${prefix}(${element});`,
           `let ${nullness} = ${prefix}_is_null(${ownedOperand({ name: value, type: elementType })});`,
         ]
-        let argument = { name: value, type: elementType }
+        const baseType = arrayElementBaseType(elementType)
+        let argument = { name: value, type: baseType }
         if (
           !deferred &&
           scalar &&
-          scalar.args[0] !== elementType &&
-          scalar.args[0] !== 'pg_catalog.anyenum'
+          scalar.args[0] !== baseType &&
+          scalar.args[0] !== 'pg_catalog.anyenum' &&
+          !(scalar.args[0] === 'pg_catalog.anyarray' && baseType.startsWith('array:'))
         ) {
           const target = scalar.args[0]
-          if (!target || builtinCast(elementType, target)?.method !== 'b')
+          if (!target || builtinCast(baseType, target)?.method !== 'b')
             throw new UnsupportedCheckRustExpression(
               'Array element hash requires its catalog binary relabel',
             )
@@ -1929,12 +1935,29 @@ export function emitCheckRustEvaluator(
             `if array_hash_requires_scalar${width}(${hash}) {`,
           )
           if (!deferred && scalar) {
-            const args = [ownedOperand(argument), ...(extended ? [seed] : [])]
-            if (hashContext) args.push(String(order))
-            if (hashContext === 'text')
-              args.push(String(executionContext.serverEncoding === 'UTF8'))
-            body.push(`    ${hash} = ${scalar.rustName}(${args.join(', ')});`)
-            callables.add(scalar.rustName)
+            if (isArrayHash(scalar)) {
+              const nested: string[] = []
+              const result = emitCallInner(
+                {
+                  kind: 'function',
+                  signature: selected!,
+                  type: call.type,
+                  collation: effectiveCollation,
+                },
+                [argument, ...(extended ? [{ name: seed, type: 'pg_catalog.int8' }] : [])],
+                nested,
+                undefined,
+                order,
+              )
+              body.push(...indent(nested), `    ${hash} = ${result.name};`)
+            } else {
+              const args = [ownedOperand(argument), ...(extended ? [seed] : [])]
+              if (hashContext) args.push(String(order))
+              if (hashContext === 'text')
+                args.push(String(executionContext.serverEncoding === 'UTF8'))
+              body.push(`    ${hash} = ${scalar.rustName}(${args.join(', ')});`)
+              callables.add(scalar.rustName)
+            }
           } else body.push(`    ${hash} = ${extended ? 'int8' : 'int4'}_unknown();`)
           body.push(
             '};',

@@ -1385,3 +1385,15 @@ CREATE TABLE lane_group_comparisons (
   CONSTRAINT nested_compare_any CHECK(CASE WHEN bypass THEN true ELSE (requested=ANY(groups)) IS NOT DISTINCT FROM expected_any END),
   CONSTRAINT nested_compare_sort CHECK(CASE WHEN bypass THEN true ELSE array_sort(groups)::text COLLATE "C" IS NOT DISTINCT FROM expected_sort COLLATE "C" END)
 );
+
+CREATE TABLE lane_group_hashes (
+  groups lane_pair_array[],
+  payload text,
+  seed bigint,
+  expected_hash integer,
+  expected_seeded bigint,
+  bypass boolean,
+  CONSTRAINT nested_group_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array(groups) IS NOT DISTINCT FROM expected_hash END),
+  CONSTRAINT nested_group_seeded_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array_extended(groups,seed) IS NOT DISTINCT FROM expected_seeded END),
+  CONSTRAINT nested_group_input_hash CHECK(CASE WHEN bypass OR payload IS NULL THEN true ELSE hash_array(payload::lane_pair_array[]) IS NOT DISTINCT FROM expected_hash END)
+);
