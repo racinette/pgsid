@@ -1558,3 +1558,32 @@ CREATE TABLE lane_range_imports (
   CONSTRAINT range_import_instant CHECK(CASE WHEN bypass THEN true ELSE upper(instant_shift::tstzrange)<=latest_instant END),
   CONSTRAINT range_import_start CHECK(CASE WHEN bypass THEN true ELSE lower(slots::int4range)>=1/divisor END)
 );
+
+CREATE TABLE lane_range_exports (
+  slots int4range,
+  loads int8range,
+  prices numrange,
+  calendar_days daterange,
+  local_shift tsrange,
+  instant_shift tstzrange,
+  expected_slots text,
+  expected_loads text,
+  expected_prices text,
+  expected_days text,
+  expected_local text,
+  expected_instant text,
+  slot_prefix text,
+  imported text,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT range_export_slots CHECK(CASE WHEN bypass THEN true ELSE slots::text IS NOT DISTINCT FROM expected_slots END),
+  CONSTRAINT range_export_loads CHECK(CASE WHEN bypass THEN true ELSE text(loads) IS NOT DISTINCT FROM expected_loads END),
+  CONSTRAINT range_export_prices CHECK(CASE WHEN bypass THEN true ELSE prices::varchar IS NOT DISTINCT FROM expected_prices END),
+  CONSTRAINT range_export_days CHECK(CASE WHEN bypass THEN true ELSE calendar_days::text IS NOT DISTINCT FROM expected_days END),
+  CONSTRAINT range_export_local CHECK(CASE WHEN bypass THEN true ELSE local_shift::text IS NOT DISTINCT FROM expected_local END),
+  CONSTRAINT range_export_instant CHECK(CASE WHEN bypass THEN true ELSE instant_shift::text IS NOT DISTINCT FROM expected_instant END),
+  CONSTRAINT range_export_prefix CHECK(CASE WHEN bypass THEN true ELSE (slots::char(3))::text IS NOT DISTINCT FROM slot_prefix END),
+  CONSTRAINT range_export_domain CHECK(CASE WHEN bypass THEN true ELSE (slots::imported_slot)::text IS NOT DISTINCT FROM expected_slots END),
+  CONSTRAINT range_export_import CHECK(CASE WHEN bypass THEN true ELSE (imported::int4range)::text IS NOT DISTINCT FROM expected_slots END),
+  CONSTRAINT range_export_constructor CHECK(CASE WHEN bypass THEN true ELSE int4range(1,3/divisor)::text='[1,3)' END)
+);

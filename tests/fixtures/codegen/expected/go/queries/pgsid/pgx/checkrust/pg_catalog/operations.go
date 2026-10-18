@@ -30272,6 +30272,196 @@ func UpperInf51cc(input checkruntime.RangeValue) checkruntime.BoolValue {
 	input = checkruntime.CopyRangeValue(input)
 	return checkruntime.RangeBoundFlag(input, true, true)
 }
+func rangeOutputQuote(input string) string {
+	input = langruntime.CheckedString(input)
+	characters := []rune(input)
+	quoted := len(characters) == 0
+	position := 0
+	for position < len(characters) {
+		ch := characters[position]
+		if ch == '"' || ch == '\\' || ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == ',' || rangeInputSpace(ch) {
+			quoted = true
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	output := langruntime.NewTextBuffer("")
+	if quoted {
+		output = append(output, string(langruntime.CheckedChar('"'))...)
+	}
+	position = langruntime.CheckedIndex(0)
+	for position < len(characters) {
+		ch := characters[position]
+		if ch == '"' || ch == '\\' {
+			output = append(output, string(langruntime.CheckedChar(ch))...)
+		}
+		output = append(output, string(langruntime.CheckedChar(ch))...)
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if quoted {
+		output = append(output, string(langruntime.CheckedChar('"'))...)
+	}
+	return string(output)
+}
+func RangeFormatText(input checkruntime.RangeValue, lower checkruntime.TextValue, upper checkruntime.TextValue) checkruntime.TextValue {
+	input = checkruntime.CopyRangeValue(input)
+	if input.Kind == checkruntime.RangeValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.RangeValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.RangeValueValue {
+		value := checkruntime.CopyRangePayload(input.Value)
+		if value.Empty {
+			return checkruntime.MakeTextValue("empty")
+		}
+		output := langruntime.NewTextBuffer("")
+		if value.LowerInclusive {
+			output = append(output, string(langruntime.CheckedChar('['))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar('('))...)
+		}
+		lo := checkruntime.CopyArrayElement(value.Bounds[0])
+		lowerPresent := true
+		if lo.Kind == checkruntime.ArrayElementNull {
+			lowerPresent = false
+		}
+		if lowerPresent {
+			if lower.Kind == checkruntime.TextValueError {
+				error := lower.Error
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+			}
+			lowerKnown := false
+			if lower.Kind == checkruntime.TextValueValue {
+				text := langruntime.CheckedString(lower.Value)
+				quoted := rangeOutputQuote(text)
+				output = append(output, quoted...)
+				lowerKnown = true
+			}
+			if lowerKnown == false {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+		}
+		output = append(output, string(langruntime.CheckedChar(','))...)
+		hi := checkruntime.CopyArrayElement(value.Bounds[1])
+		upperPresent := true
+		if hi.Kind == checkruntime.ArrayElementNull {
+			upperPresent = false
+		}
+		if upperPresent {
+			if upper.Kind == checkruntime.TextValueError {
+				error := upper.Error
+				return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+			}
+			upperKnown := false
+			if upper.Kind == checkruntime.TextValueValue {
+				text := langruntime.CheckedString(upper.Value)
+				quoted := rangeOutputQuote(text)
+				output = append(output, quoted...)
+				upperKnown = true
+			}
+			if upperKnown == false {
+				return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+			}
+		}
+		if value.UpperInclusive {
+			output = append(output, string(langruntime.CheckedChar(']'))...)
+		} else {
+			output = append(output, string(langruntime.CheckedChar(')'))...)
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(output)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func rangeOutputBound(input checkruntime.ArrayElement, kind int) checkruntime.TextValue {
+	input = checkruntime.CopyArrayElement(input)
+	kind = langruntime.CheckedI32(kind)
+	if input.Kind == checkruntime.ArrayElementError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if kind == 2 {
+		return Int4ToText(checkruntime.ArrayElementToInt4(input))
+	}
+	if kind == 3 {
+		return Int8ToText(checkruntime.ArrayElementToInt8(input))
+	}
+	if kind == 10 {
+		return ArrayNumericOutput(checkruntime.ArrayElementToNumeric(input))
+	}
+	if kind == 7 {
+		if input.Kind == checkruntime.ArrayElementDate {
+			value := langruntime.CheckedI32(input.Date)
+			if value == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
+				return checkruntime.MakeTextValue("-infinity")
+			}
+			if value == 2147483647 {
+				return checkruntime.MakeTextValue("infinity")
+			}
+		}
+	}
+	if kind == 4 {
+		if input.Kind == checkruntime.ArrayElementTimestamp {
+			value := input.Timestamp
+			if value == int64(-9223372036854775808) {
+				return checkruntime.MakeTextValue("-infinity")
+			}
+			if value == int64(9223372036854775807) {
+				return checkruntime.MakeTextValue("infinity")
+			}
+		}
+	}
+	if kind == 5 {
+		if input.Kind == checkruntime.ArrayElementTimestamptz {
+			value := input.Timestamptz
+			if value == int64(-9223372036854775808) {
+				return checkruntime.MakeTextValue("-infinity")
+			}
+			if value == int64(9223372036854775807) {
+				return checkruntime.MakeTextValue("infinity")
+			}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
+	input = checkruntime.CopyRangeValue(input)
+	if input.Kind == checkruntime.RangeValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input.Kind == checkruntime.RangeValueNull {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.RangeValueValue {
+		value := checkruntime.CopyRangePayload(input.Value)
+		if value.Empty {
+			return checkruntime.MakeTextValue("empty")
+		}
+		lower := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[0]), value.ElementKind)
+		if lower.Kind == checkruntime.TextValueError {
+			error := lower.Error
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+		}
+		if lower.Kind == checkruntime.TextValueUnknown {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		upper := rangeOutputBound(checkruntime.CopyArrayElement(value.Bounds[1]), value.ElementKind)
+		if upper.Kind == checkruntime.TextValueError {
+			error := upper.Error
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+		}
+		if upper.Kind == checkruntime.TextValueUnknown {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+		}
+		return RangeFormatText(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: value}, lower, upper)
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 
 const scalarInputInvalid = 3484946
 const scalarInputRange = 3452547

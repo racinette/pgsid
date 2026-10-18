@@ -3241,9 +3241,35 @@ export function emitCheckRustEvaluator(
         metadata.result !== 'pg_catalog.cstring' ||
         !metadata.strict ||
         metadata.args.length !== 1 ||
-        metadata.args[0] !== (node.enum ? 'pg_catalog.anyenum' : operand.type)
+        metadata.args[0] !==
+          (node.enum
+            ? 'pg_catalog.anyenum'
+            : isRangeType(operand.type)
+              ? 'pg_catalog.anyrange'
+              : operand.type)
       )
         throw new UnsupportedCheckRustExpression('Unsupported text output function')
+      const range = builtinRangeType(operand.type)
+      if (range) {
+        const subtypeOutput = builtinTypeIO(range.subtype)?.output
+        const subtype = subtypeOutput ? builtinMetadata(subtypeOutput) : null
+        if (
+          metadata.name !== 'range_out' ||
+          metadata.schema !== 'pg_catalog' ||
+          metadata.volatility !== 's' ||
+          metadata.returnsSet ||
+          subtype?.kind !== 'function' ||
+          !subtype.strict ||
+          subtype.returnsSet ||
+          subtype.args.length !== 1 ||
+          subtype.args[0] !== range.subtype ||
+          subtype.result !== 'pg_catalog.cstring'
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Range output requires captured range and subtype output identities',
+          )
+        return { name: bind(`range_to_text(${ownedOperand(operand)})`), type: node.type }
+      }
       if (node.enum) {
         if (
           operand.type !== enumType(node.enum) ||

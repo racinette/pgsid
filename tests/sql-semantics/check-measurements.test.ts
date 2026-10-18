@@ -700,7 +700,24 @@ describe('CHECK measurement boundaries', () => {
       expect(report.inputForms.types.find((forms) => forms.type === range.identity)).toMatchObject({
         boundType: range.subtype,
         scope: expect.stringContaining('scalar input requirements'),
+        textOutput: {
+          owner: 'tests/sql-semantics/check-range-output.test.ts',
+          formatOwner: 'tests/sql-semantics/check-range-output-format.test.ts',
+          boundType: range.subtype,
+          contextRequired:
+            range.subtype === 'pg_catalog.date' || range.subtype === 'pg_catalog."timestamp"'
+              ? ['DateStyle for finite bounds']
+              : range.subtype === 'pg_catalog.timestamptz'
+                ? ['DateStyle and TimeZone for finite bounds']
+                : [],
+        },
       })
+      const output = report.textOutput.find((item) => item.type === range.identity)!
+      expect(output.probe.postgres.accepted).toBe(true)
+      expect(output.probe.raw.fullyBound).toBe(true)
+      expect(output.probe.raw.preparation.kind).toBe('supported')
+      expect(output.probe.stored!.fullyBound).toBe(true)
+      expect(output.probe.stored!.preparation.kind).toBe('supported')
     }
     const pointInput = report.textInput.find((entry) => entry.type === 'pg_catalog.point')!
     expect(pointInput.probe.postgres.accepted).toBe(true)
