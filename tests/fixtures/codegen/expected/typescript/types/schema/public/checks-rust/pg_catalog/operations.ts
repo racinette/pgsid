@@ -29934,6 +29934,479 @@ export function polygonFromText(input: checkruntime.TextValue): checkruntime.Pol
     }
     return { kind: "Unknown" };
 }
+function rangeSameFamily(left: checkruntime.RangePayload, right: checkruntime.RangePayload): boolean {
+    return left.typeName === right.typeName && left.elementType === right.elementType && left.elementKind === right.elementKind;
+}
+function rangeEndpointCompare(left: checkruntime.RangePayload, leftUpper: boolean, right: checkruntime.RangePayload, rightUpper: boolean): checkruntime.Int4Value {
+    leftUpper = langruntime.checkedBool(leftUpper);
+    rightUpper = langruntime.checkedBool(rightUpper);
+    let li: number = 0;
+    let ri: number = 0;
+    let leftInc: boolean = left.lowerInclusive;
+    let rightInc: boolean = right.lowerInclusive;
+    if (leftUpper) {
+        li = langruntime.checkedIndex(1);
+        leftInc = langruntime.checkedBool(left.upperInclusive);
+    }
+    if (rightUpper) {
+        ri = langruntime.checkedIndex(1);
+        rightInc = langruntime.checkedBool(right.upperInclusive);
+    }
+    const a: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(left.bounds, langruntime.checkedIndex(li), checkruntime.copyArrayElement));
+    const b: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(right.bounds, langruntime.checkedIndex(ri), checkruntime.copyArrayElement));
+    let leftUnbounded: boolean = false;
+    let rightUnbounded: boolean = false;
+    if (a.kind === "Null") {
+        leftUnbounded = langruntime.checkedBool(true);
+    }
+    if (b.kind === "Null") {
+        rightUnbounded = langruntime.checkedBool(true);
+    }
+    if (leftUnbounded && rightUnbounded && leftUpper === rightUpper) {
+        return checkruntime.makeInt4Value(0);
+    }
+    if (leftUnbounded) {
+        if (leftUpper) {
+            return checkruntime.makeInt4Value(1);
+        }
+        return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+    }
+    if (rightUnbounded) {
+        if (rightUpper) {
+            return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+        }
+        return checkruntime.makeInt4Value(1);
+    }
+    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(a, b, left.elementKind);
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if (!(order === 0)) {
+            return comparison;
+        }
+        if (leftInc === false && rightInc === false && leftUpper === rightUpper) {
+            return comparison;
+        }
+        if (leftInc === false) {
+            if (leftUpper) {
+                return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+            }
+            return checkruntime.makeInt4Value(1);
+        }
+        if (rightInc === false) {
+            if (rightUpper) {
+                return checkruntime.makeInt4Value(1);
+            }
+            return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+        }
+    }
+    return comparison;
+}
+function rangePayloadCompare(left: checkruntime.RangePayload, right: checkruntime.RangePayload): checkruntime.Int4Value {
+    if (left.empty && right.empty) {
+        return checkruntime.makeInt4Value(0);
+    }
+    if (left.empty) {
+        return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+    }
+    if (right.empty) {
+        return checkruntime.makeInt4Value(1);
+    }
+    const lower: checkruntime.Int4Value = rangeEndpointCompare(left, false, right, false);
+    if (lower.kind === "Value") {
+        const order: number = langruntime.checkedI32(lower.value);
+        if (order === 0) {
+            return rangeEndpointCompare(left, true, right, true);
+        }
+    }
+    return lower;
+}
+export function rangeCmp8jgl(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.Int4Value {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.RangePayload = checkruntime.copyRangePayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.RangePayload = checkruntime.copyRangePayload(right.value);
+            if (rangeSameFamily(a, b)) {
+                return rangePayloadCompare(a, b);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+function rangeOrderBoolean(input: checkruntime.Int4Value, strategy: number): checkruntime.BoolValue {
+    strategy = langruntime.checkedI32(strategy);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const order: number = langruntime.checkedI32(input.value);
+        if (strategy === 1) {
+            return { kind: "Value", value: order < 0 };
+        }
+        if (strategy === 2) {
+            return { kind: "Value", value: order <= 0 };
+        }
+        if (strategy === 3) {
+            return { kind: "Value", value: order === 0 };
+        }
+        if (strategy === 4) {
+            return { kind: "Value", value: order >= 0 };
+        }
+        if (strategy === 5) {
+            return { kind: "Value", value: order > 0 };
+        }
+        return { kind: "Value", value: !(order === 0) };
+    }
+    return { kind: "Unknown" };
+}
+function rangeBoundsAdjacent(left: checkruntime.RangePayload, right: checkruntime.RangePayload): checkruntime.BoolValue {
+    const a: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(left.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+    const b: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(right.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+    if (a.kind === "Null") {
+        return { kind: "Value", value: false };
+    }
+    if (b.kind === "Null") {
+        return { kind: "Value", value: false };
+    }
+    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(checkruntime.copyArrayElement(a), checkruntime.copyArrayElement(b), left.elementKind);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if (order === 0) {
+            return { kind: "Value", value: !(left.upperInclusive === right.lowerInclusive) };
+        }
+        if (order < 0 && (left.elementKind === 2 || left.elementKind === 3 || left.elementKind === 7)) {
+            let flags: string = "";
+            if (left.upperInclusive) {
+                flags = flags + langruntime.checkedChar("(");
+            }
+            else {
+                flags = flags + langruntime.checkedChar("[");
+            }
+            if (right.lowerInclusive) {
+                flags = flags + langruntime.checkedChar(")");
+            }
+            else {
+                flags = flags + langruntime.checkedChar("]");
+            }
+            const gap: checkruntime.RangeValue = rangeBuiltinConstruct(left.typeName, left.elementType, left.elementKind, a, b, { kind: "Value", value: flags });
+            return checkruntime.rangeEmptyState(gap);
+        }
+        return { kind: "Value", value: false };
+    }
+    return { kind: "Unknown" };
+}
+function rangePayloadRelation(left: checkruntime.RangePayload, right: checkruntime.RangePayload, strategy: number): checkruntime.BoolValue {
+    strategy = langruntime.checkedI32(strategy);
+    if (strategy === 6) {
+        return rangePayloadRelation(right, left, 5);
+    }
+    if (strategy === 5 && right.empty) {
+        return { kind: "Value", value: true };
+    }
+    if (left.empty || right.empty) {
+        return { kind: "Value", value: false };
+    }
+    if (strategy === 1) {
+        const order: checkruntime.Int4Value = rangeEndpointCompare(left, true, right, false);
+        return rangeOrderBoolean(order, 1);
+    }
+    if (strategy === 2) {
+        const order: checkruntime.Int4Value = rangeEndpointCompare(left, false, right, true);
+        return rangeOrderBoolean(order, 5);
+    }
+    if (strategy === 3) {
+        const order: checkruntime.Int4Value = rangeEndpointCompare(left, true, right, true);
+        return rangeOrderBoolean(order, 2);
+    }
+    if (strategy === 4) {
+        const order: checkruntime.Int4Value = rangeEndpointCompare(left, false, right, false);
+        return rangeOrderBoolean(order, 4);
+    }
+    if (strategy === 5) {
+        const lo: checkruntime.Int4Value = rangeEndpointCompare(left, false, right, false);
+        if (lo.kind === "Value") {
+            const order: number = langruntime.checkedI32(lo.value);
+            if (order > 0) {
+                return { kind: "Value", value: false };
+            }
+            const hi: checkruntime.Int4Value = rangeEndpointCompare(left, true, right, true);
+            return rangeOrderBoolean(hi, 4);
+        }
+        return rangeOrderBoolean(lo, 2);
+    }
+    if (strategy === 7) {
+        const first: checkruntime.BoolValue = rangeBoundsAdjacent(left, right);
+        if (first.kind === "Value") {
+            const adjacent: boolean = langruntime.checkedBool(first.value);
+            if (adjacent) {
+                return first;
+            }
+            return rangeBoundsAdjacent(right, left);
+        }
+        return first;
+    }
+    const lo: checkruntime.Int4Value = rangeEndpointCompare(left, false, right, false);
+    if (lo.kind === "Error") {
+        const error: checkruntime.SqlError = lo.value;
+        return { kind: "Error", value: error };
+    }
+    if (lo.kind === "Value") {
+        const order: number = langruntime.checkedI32(lo.value);
+        if (order >= 0) {
+            const end: checkruntime.Int4Value = rangeEndpointCompare(left, false, right, true);
+            if (end.kind === "Error") {
+                const error: checkruntime.SqlError = end.value;
+                return { kind: "Error", value: error };
+            }
+            let known: boolean = false;
+            if (end.kind === "Value") {
+                const limit: number = langruntime.checkedI32(end.value);
+                known = langruntime.checkedBool(true);
+                if (limit <= 0) {
+                    return { kind: "Value", value: true };
+                }
+            }
+            if (known === false) {
+                return { kind: "Unknown" };
+            }
+        }
+        const reverse: checkruntime.Int4Value = rangeEndpointCompare(right, false, left, false);
+        if (reverse.kind === "Value") {
+            const back: number = langruntime.checkedI32(reverse.value);
+            if (back < 0) {
+                return { kind: "Value", value: false };
+            }
+            const end: checkruntime.Int4Value = rangeEndpointCompare(right, false, left, true);
+            return rangeOrderBoolean(end, 2);
+        }
+        return rangeOrderBoolean(reverse, 4);
+    }
+    return { kind: "Unknown" };
+}
+function rangeRelation(left: checkruntime.RangeValue, right: checkruntime.RangeValue, strategy: number): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    strategy = langruntime.checkedI32(strategy);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.RangePayload = checkruntime.copyRangePayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.RangePayload = checkruntime.copyRangePayload(right.value);
+            if (rangeSameFamily(a, b)) {
+                return rangePayloadRelation(a, b, strategy);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+function rangeContainsElement(input: checkruntime.RangeValue, element: checkruntime.ArrayElement, elementFirst: boolean): checkruntime.BoolValue {
+    input = checkruntime.copyRangeValue(input);
+    element = checkruntime.copyArrayElement(element);
+    elementFirst = langruntime.checkedBool(elementFirst);
+    if (elementFirst) {
+        if (element.kind === "Error") {
+            const error: checkruntime.SqlError = element.value;
+            return { kind: "Error", value: error };
+        }
+    }
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (element.kind === "Error") {
+        const error: checkruntime.SqlError = element.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (element.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (element.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Value") {
+        const span: checkruntime.RangePayload = checkruntime.copyRangePayload(input.value);
+        if (span.empty) {
+            return { kind: "Value", value: false };
+        }
+        const kind: number = checkruntime.arrayElementFamily(checkruntime.copyArrayElement(element));
+        if (!(kind === 0) && !(kind === span.elementKind)) {
+            return { kind: "Unknown" };
+        }
+        const lower: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(span.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+        const upper: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(span.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+        let hasLower: boolean = true;
+        let hasUpper: boolean = true;
+        if (lower.kind === "Null") {
+            hasLower = langruntime.checkedBool(false);
+        }
+        if (upper.kind === "Null") {
+            hasUpper = langruntime.checkedBool(false);
+        }
+        if (hasLower) {
+            const comparison: checkruntime.Int4Value = rangeBuiltinCompare(lower, checkruntime.copyArrayElement(element), span.elementKind);
+            if (comparison.kind === "Error") {
+                const error: checkruntime.SqlError = comparison.value;
+                return { kind: "Error", value: error };
+            }
+            let known: boolean = false;
+            if (comparison.kind === "Value") {
+                const order: number = langruntime.checkedI32(comparison.value);
+                known = langruntime.checkedBool(true);
+                if (order > 0 || (order === 0 && span.lowerInclusive === false)) {
+                    return { kind: "Value", value: false };
+                }
+            }
+            if (known === false) {
+                return { kind: "Unknown" };
+            }
+        }
+        if (hasUpper) {
+            const comparison: checkruntime.Int4Value = rangeBuiltinCompare(upper, element, span.elementKind);
+            if (comparison.kind === "Error") {
+                const error: checkruntime.SqlError = comparison.value;
+                return { kind: "Error", value: error };
+            }
+            let known: boolean = false;
+            if (comparison.kind === "Value") {
+                const order: number = langruntime.checkedI32(comparison.value);
+                known = langruntime.checkedBool(true);
+                if (order < 0 || (order === 0 && span.upperInclusive === false)) {
+                    return { kind: "Value", value: false };
+                }
+            }
+            if (known === false) {
+                return { kind: "Unknown" };
+            }
+        }
+        return { kind: "Value", value: true };
+    }
+    return { kind: "Unknown" };
+}
+export function rangeLtT1sv(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    return rangeOrderBoolean(comparison, 1);
+}
+export function rangeLeUr15(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    return rangeOrderBoolean(comparison, 2);
+}
+export function rangeEqLoxq(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    return rangeOrderBoolean(comparison, 3);
+}
+export function rangeGeI2f0(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    return rangeOrderBoolean(comparison, 4);
+}
+export function rangeGt943z(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    return rangeOrderBoolean(comparison, 5);
+}
+export function rangeNeMzkw(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    const comparison: checkruntime.Int4Value = rangeCmp8jgl(left, right);
+    return rangeOrderBoolean(comparison, 6);
+}
+export function rangeBeforeZ0g8(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeRelation(left, right, 1);
+}
+export function rangeAfter5pak(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeRelation(left, right, 2);
+}
+export function rangeOverleft8k1o(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeRelation(left, right, 3);
+}
+export function rangeOverrightRl1q(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeRelation(left, right, 4);
+}
+export function rangeContainsUt37(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeRelation(left, right, 5);
+}
+export function rangeContainedByOk2x(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeRelation(left, right, 6);
+}
+export function rangeAdjacent03u0(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeRelation(left, right, 7);
+}
+export function rangeOverlaps38jd(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeRelation(left, right, 8);
+}
+export function rangeContainsElemWtfe(input: checkruntime.RangeValue, element: checkruntime.ArrayElement): checkruntime.BoolValue {
+    input = checkruntime.copyRangeValue(input);
+    element = checkruntime.copyArrayElement(element);
+    return rangeContainsElement(input, element, false);
+}
+export function elemContainedByRangeWkbk(element: checkruntime.ArrayElement, input: checkruntime.RangeValue): checkruntime.BoolValue {
+    element = checkruntime.copyArrayElement(element);
+    input = checkruntime.copyRangeValue(input);
+    return rangeContainsElement(input, element, true);
+}
 const rangeConstructorDataError = 3452544;
 const rangeConstructorFlagsError = 6819553;
 const rangeConstructorIntegerOverflow = 3452547;
@@ -30572,6 +31045,209 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
         return rangeFormatText({ kind: "Value", value: value }, lower, upper);
     }
     return { kind: "Unknown" };
+}
+const rangeSetNoncontiguous = 3452544;
+function rangeEmptyLike(input: checkruntime.RangePayload): checkruntime.RangeValue {
+    return checkruntime.rangeFromCoercedBounds(input.typeName, input.elementType, input.elementKind, true, false, false, { kind: "Null" }, { kind: "Null" });
+}
+function rangeCopyPayload(input: checkruntime.RangePayload): checkruntime.RangeValue {
+    if (input.empty) {
+        return rangeEmptyLike(input);
+    }
+    return checkruntime.rangeFromCoercedBounds(input.typeName, input.elementType, input.elementKind, false, input.lowerInclusive, input.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)));
+}
+function rangeRebuild(input: checkruntime.RangePayload, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInc: boolean, upperInc: boolean): checkruntime.RangeValue {
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    lowerInc = langruntime.checkedBool(lowerInc);
+    upperInc = langruntime.checkedBool(upperInc);
+    const initial: checkruntime.RangeValue = rangeBuiltinSerialize(input.typeName, input.elementType, input.elementKind, lower, upper, lowerInc, upperInc);
+    return rangeBuiltinCanonical(initial);
+}
+function rangePayloadDifference(left: checkruntime.RangePayload, right: checkruntime.RangePayload): checkruntime.RangeValue {
+    if (left.empty || right.empty) {
+        return rangeCopyPayload(left);
+    }
+    const ll: checkruntime.Int4Value = rangeEndpointCompare(left, false, right, false);
+    if (ll.kind === "Error") {
+        const error: checkruntime.SqlError = ll.value;
+        return { kind: "Error", value: error };
+    }
+    const lu: checkruntime.Int4Value = rangeEndpointCompare(left, false, right, true);
+    if (lu.kind === "Error") {
+        const error: checkruntime.SqlError = lu.value;
+        return { kind: "Error", value: error };
+    }
+    const ul: checkruntime.Int4Value = rangeEndpointCompare(left, true, right, false);
+    if (ul.kind === "Error") {
+        const error: checkruntime.SqlError = ul.value;
+        return { kind: "Error", value: error };
+    }
+    const uu: checkruntime.Int4Value = rangeEndpointCompare(left, true, right, true);
+    if (uu.kind === "Error") {
+        const error: checkruntime.SqlError = uu.value;
+        return { kind: "Error", value: error };
+    }
+    if (ll.kind === "Value") {
+        const cLl: number = langruntime.checkedI32(ll.value);
+        if (lu.kind === "Value") {
+            const cLu: number = langruntime.checkedI32(lu.value);
+            if (ul.kind === "Value") {
+                const cUl: number = langruntime.checkedI32(ul.value);
+                if (uu.kind === "Value") {
+                    const cUu: number = langruntime.checkedI32(uu.value);
+                    if (cLl < 0 && cUu > 0) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(rangeSetNoncontiguous) };
+                    }
+                    if (cLu > 0 || cUl < 0) {
+                        return rangeCopyPayload(left);
+                    }
+                    if (cLl >= 0 && cUu <= 0) {
+                        return rangeEmptyLike(left);
+                    }
+                    if (cLl <= 0 && cUl >= 0 && cUu <= 0) {
+                        const lower: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(left.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+                        const upper: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(right.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+                        return rangeRebuild(left, lower, upper, left.lowerInclusive, right.lowerInclusive === false);
+                    }
+                    if (cLl >= 0 && cUu >= 0 && cLu <= 0) {
+                        const lower: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(right.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+                        const upper: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(left.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+                        return rangeRebuild(left, lower, upper, right.upperInclusive === false, left.upperInclusive);
+                    }
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+function rangePayloadSet(left: checkruntime.RangePayload, right: checkruntime.RangePayload, strategy: number): checkruntime.RangeValue {
+    strategy = langruntime.checkedI32(strategy);
+    if (strategy === 4) {
+        return rangePayloadDifference(left, right);
+    }
+    if (strategy === 3 && (left.empty || right.empty)) {
+        return rangeEmptyLike(left);
+    }
+    if (left.empty) {
+        return rangeCopyPayload(right);
+    }
+    if (right.empty) {
+        return rangeCopyPayload(left);
+    }
+    if (strategy === 1 || strategy === 3) {
+        const overlap: checkruntime.BoolValue = rangePayloadRelation(left, right, 8);
+        if (overlap.kind === "Error") {
+            const error: checkruntime.SqlError = overlap.value;
+            return { kind: "Error", value: error };
+        }
+        let known: boolean = false;
+        if (overlap.kind === "Value") {
+            const overlapping: boolean = langruntime.checkedBool(overlap.value);
+            known = langruntime.checkedBool(true);
+            if (overlapping === false) {
+                if (strategy === 3) {
+                    return rangeEmptyLike(left);
+                }
+                const adjacent: checkruntime.BoolValue = rangePayloadRelation(left, right, 7);
+                if (adjacent.kind === "Error") {
+                    const error: checkruntime.SqlError = adjacent.value;
+                    return { kind: "Error", value: error };
+                }
+                if (adjacent.kind === "Unknown") {
+                    return { kind: "Unknown" };
+                }
+                if (adjacent.kind === "Value") {
+                    const connected: boolean = langruntime.checkedBool(adjacent.value);
+                    if (connected === false) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(rangeSetNoncontiguous) };
+                    }
+                }
+            }
+        }
+        if (known === false) {
+            return { kind: "Unknown" };
+        }
+    }
+    const lo: checkruntime.Int4Value = rangeEndpointCompare(left, false, right, false);
+    if (lo.kind === "Error") {
+        const error: checkruntime.SqlError = lo.value;
+        return { kind: "Error", value: error };
+    }
+    if (lo.kind === "Value") {
+        const lowerOrder: number = langruntime.checkedI32(lo.value);
+        const hi: checkruntime.Int4Value = rangeEndpointCompare(left, true, right, true);
+        if (hi.kind === "Error") {
+            const error: checkruntime.SqlError = hi.value;
+            return { kind: "Error", value: error };
+        }
+        if (hi.kind === "Value") {
+            const upperOrder: number = langruntime.checkedI32(hi.value);
+            let lower: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(right.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+            let upper: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(right.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+            let lowerInc: boolean = right.lowerInclusive;
+            let upperInc: boolean = right.upperInclusive;
+            if ((strategy === 3 && lowerOrder >= 0) || (!(strategy === 3) && lowerOrder < 0)) {
+                lower = checkruntime.copyArrayElement(checkruntime.copyArrayElement(langruntime.indexStruct(left.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)));
+                lowerInc = langruntime.checkedBool(left.lowerInclusive);
+            }
+            if ((strategy === 3 && upperOrder <= 0) || (!(strategy === 3) && upperOrder > 0)) {
+                upper = checkruntime.copyArrayElement(checkruntime.copyArrayElement(langruntime.indexStruct(left.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)));
+                upperInc = langruntime.checkedBool(left.upperInclusive);
+            }
+            return rangeRebuild(left, lower, upper, lowerInc, upperInc);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function rangeSet(left: checkruntime.RangeValue, right: checkruntime.RangeValue, strategy: number): checkruntime.RangeValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    strategy = langruntime.checkedI32(strategy);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.RangePayload = checkruntime.copyRangePayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.RangePayload = checkruntime.copyRangePayload(right.value);
+            if (rangeSameFamily(a, b)) {
+                return rangePayloadSet(a, b, strategy);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function rangeUnion8koj(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.RangeValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeSet(left, right, 1);
+}
+export function rangeMergeB43r(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.RangeValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeSet(left, right, 2);
+}
+export function rangeIntersect4pce(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.RangeValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeSet(left, right, 3);
+}
+export function rangeMinusF67g(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.RangeValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    return rangeSet(left, right, 4);
 }
 const scalarInputInvalid = 3484946;
 const scalarInputRange = 3452547;

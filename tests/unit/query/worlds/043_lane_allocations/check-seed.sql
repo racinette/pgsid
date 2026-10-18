@@ -4778,3 +4778,107 @@ VALUES(3,false);
 -- name: range_export_bypass
 INSERT INTO lane_range_exports(slots,calendar_days,local_shift,instant_shift,imported,divisor,bypass)
 VALUES('[-1,3)','[2000-01-02,2000-03-04)','[2000-01-02,2000-03-04)','[2000-01-02 00:00:00+00,2000-03-04 00:00:00+00)','invalid',0,true);
+
+-- name: range_relation_touching
+INSERT INTO lane_range_relations(slots,other_slots,loads,other_loads,prices,other_prices,calendar_days,other_days,local_shift,other_local,instant_shift,other_instant,expected_order,expected_contains,expected_overlap,expected_adjacent,bypass)
+VALUES('[1,3)','[3,5)','[9007199254740993,9007199254740999)','[9007199254740999,9007199254741001)','[1.2300,3.4500)','[3.45,5.67)','[2000-01-01,2000-01-03)','[2000-01-03,2000-01-05)','[2000-01-01,2000-01-03)','[2000-01-03,2000-01-05)','[2000-01-01 00:00:00+00,2000-01-03 00:00:00+00)','[2000-01-03 00:00:00+00,2000-01-05 00:00:00+00)',-1,false,false,true,false);
+
+-- name: range_relation_unbounded
+INSERT INTO lane_range_relations(slots,other_slots,loads,other_loads,prices,other_prices,calendar_days,other_days,local_shift,other_local,instant_shift,other_instant,expected_order,expected_contains,expected_overlap,expected_adjacent,bypass)
+VALUES('(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)',0,true,true,false,false);
+
+-- name: range_relation_empty
+INSERT INTO lane_range_relations(slots,other_slots,loads,other_loads,prices,other_prices,calendar_days,other_days,local_shift,other_local,instant_shift,other_instant,expected_order,expected_contains,expected_overlap,expected_adjacent,bypass)
+VALUES('empty','empty','empty','empty','empty','empty','empty','empty','empty','empty','empty','empty',0,true,false,false,false);
+
+-- name: range_relation_null
+INSERT INTO lane_range_relations(slots,other_slots,loads,other_loads,prices,other_prices,calendar_days,other_days,local_shift,other_local,instant_shift,other_instant,expected_order,expected_contains,expected_overlap,expected_adjacent,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: range_relation_order_mismatch
+INSERT INTO lane_range_relations(slots,other_slots,expected_order,bypass)
+VALUES('[1,3)','[3,5)',1,false);
+
+-- name: range_relation_wide_mismatch
+INSERT INTO lane_range_relations(loads,other_loads,expected_order,bypass)
+VALUES('[9007199254740993,9007199254740999)','[9007199254740999,9007199254741001)',1,false);
+
+-- name: range_relation_price_mismatch
+INSERT INTO lane_range_relations(prices,other_prices,expected_order,bypass)
+VALUES('[1.2300,3.4500)','[3.45,5.67)',1,false);
+
+-- name: range_relation_day_mismatch
+INSERT INTO lane_range_relations(calendar_days,other_days,expected_order,bypass)
+VALUES('[2000-01-01,2000-01-03)','[2000-01-03,2000-01-05)',1,false);
+
+-- name: range_relation_local_mismatch
+INSERT INTO lane_range_relations(local_shift,other_local,expected_order,bypass)
+VALUES('[2000-01-01,2000-01-03)','[2000-01-03,2000-01-05)',1,false);
+
+-- name: range_relation_instant_mismatch
+INSERT INTO lane_range_relations(instant_shift,other_instant,expected_order,bypass)
+VALUES('[2000-01-01 00:00:00+00,2000-01-03 00:00:00+00)','[2000-01-03 00:00:00+00,2000-01-05 00:00:00+00)',1,false);
+
+-- name: range_relation_bypass
+INSERT INTO lane_range_relations(slots,other_slots,expected_order,bypass)
+VALUES('[1,3)','[3,5)',1,true);
+
+-- name: range_algebra_overlap
+INSERT INTO lane_range_algebra(slots,other_slots,combined,shared,remaining,hull,preferred,needle,expected_contains,divisor,bypass)
+VALUES('[1,4)','[3,6)','[1,6)','[3,4)','[1,3)','[1,6)','[3,6)',2,true,1,false);
+
+-- name: range_algebra_touching
+INSERT INTO lane_range_algebra(slots,other_slots,combined,shared,remaining,hull,preferred,needle,expected_contains,divisor,bypass)
+VALUES('[1,3)','[3,6)','[1,6)','empty','[1,3)','[1,6)','[3,6)',3,false,1,false);
+
+-- name: range_algebra_equal
+INSERT INTO lane_range_algebra(slots,other_slots,combined,shared,remaining,hull,preferred,needle,expected_contains,divisor,bypass)
+VALUES('[3,6)','[3,6)','[3,6)','[3,6)','empty','[3,6)','[3,6)',3,true,1,false);
+
+-- name: range_algebra_empty
+INSERT INTO lane_range_algebra(slots,other_slots,combined,shared,remaining,hull,preferred,needle,expected_contains,divisor,bypass)
+VALUES('empty','empty','empty','empty','empty','empty','empty',3,false,1,false);
+
+-- name: range_algebra_null
+INSERT INTO lane_range_algebra(slots,other_slots,combined,shared,remaining,hull,preferred,needle,expected_contains,divisor,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: range_algebra_union_mismatch
+INSERT INTO lane_range_algebra(combined,bypass)
+VALUES('empty',false);
+
+-- name: range_algebra_intersection_mismatch
+INSERT INTO lane_range_algebra(shared,bypass)
+VALUES('empty',false);
+
+-- name: range_algebra_difference_mismatch
+INSERT INTO lane_range_algebra(remaining,bypass)
+VALUES('empty',false);
+
+-- name: range_algebra_hull_mismatch
+INSERT INTO lane_range_algebra(hull,bypass)
+VALUES('empty',false);
+
+-- name: range_algebra_choice_mismatch
+INSERT INTO lane_range_algebra(preferred,bypass)
+VALUES('empty',false);
+
+-- name: range_algebra_element_mismatch
+INSERT INTO lane_range_algebra(expected_contains,bypass)
+VALUES(true,false);
+
+-- name: range_algebra_union_gap
+INSERT INTO lane_range_algebra(slots,other_slots,combined,shared,remaining,hull,preferred,needle,expected_contains,divisor,bypass)
+VALUES('[1,2)','[4,6)','[1,6)','empty','[1,2)','[1,6)','[4,6)',1,true,1,false);
+
+-- name: range_algebra_difference_split
+INSERT INTO lane_range_algebra(slots,other_slots,combined,shared,remaining,hull,preferred,needle,expected_contains,divisor,bypass)
+VALUES('[1,7)','[3,6)','[1,7)','[3,6)','empty','[1,7)','[3,6)',2,true,1,false);
+
+-- name: range_algebra_division_error
+INSERT INTO lane_range_algebra(slots,other_slots,combined,shared,remaining,hull,preferred,needle,expected_contains,divisor,bypass)
+VALUES('[1,4)','[3,6)','[1,6)','[3,4)','[1,3)','[1,6)','[3,6)',2,true,0,false);
+
+-- name: range_algebra_bypass
+INSERT INTO lane_range_algebra(slots,other_slots,combined,shared,remaining,hull,preferred,needle,expected_contains,divisor,bypass)
+VALUES('[1,7)','[3,6)','empty','empty','empty','empty','empty',2,false,0,true);

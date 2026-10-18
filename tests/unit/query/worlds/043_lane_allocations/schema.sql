@@ -1587,3 +1587,60 @@ CREATE TABLE lane_range_exports (
   CONSTRAINT range_export_import CHECK(CASE WHEN bypass THEN true ELSE (imported::int4range)::text IS NOT DISTINCT FROM expected_slots END),
   CONSTRAINT range_export_constructor CHECK(CASE WHEN bypass THEN true ELSE int4range(1,3/divisor)::text='[1,3)' END)
 );
+
+CREATE TABLE lane_range_relations (
+  slots int4range,
+  other_slots int4range,
+  loads int8range,
+  other_loads int8range,
+  prices numrange,
+  other_prices numrange,
+  calendar_days daterange,
+  other_days daterange,
+  local_shift tsrange,
+  other_local tsrange,
+  instant_shift tstzrange,
+  other_instant tstzrange,
+  expected_order integer,
+  expected_contains boolean,
+  expected_overlap boolean,
+  expected_adjacent boolean,
+  bypass boolean,
+  CONSTRAINT range_relation_order CHECK(CASE WHEN bypass THEN true ELSE
+    range_cmp(slots,other_slots) IS NOT DISTINCT FROM expected_order AND range_cmp(loads,other_loads) IS NOT DISTINCT FROM expected_order AND
+    range_cmp(prices,other_prices) IS NOT DISTINCT FROM expected_order AND range_cmp(calendar_days,other_days) IS NOT DISTINCT FROM expected_order AND
+    range_cmp(local_shift,other_local) IS NOT DISTINCT FROM expected_order AND range_cmp(instant_shift,other_instant) IS NOT DISTINCT FROM expected_order END),
+  CONSTRAINT range_relation_contains CHECK(CASE WHEN bypass THEN true ELSE
+    (slots @> other_slots) IS NOT DISTINCT FROM expected_contains AND (loads @> other_loads) IS NOT DISTINCT FROM expected_contains AND
+    (prices @> other_prices) IS NOT DISTINCT FROM expected_contains AND (calendar_days @> other_days) IS NOT DISTINCT FROM expected_contains AND
+    (local_shift @> other_local) IS NOT DISTINCT FROM expected_contains AND (instant_shift @> other_instant) IS NOT DISTINCT FROM expected_contains END),
+  CONSTRAINT range_relation_overlap CHECK(CASE WHEN bypass THEN true ELSE
+    (slots && other_slots) IS NOT DISTINCT FROM expected_overlap AND (loads && other_loads) IS NOT DISTINCT FROM expected_overlap AND
+    (prices && other_prices) IS NOT DISTINCT FROM expected_overlap AND (calendar_days && other_days) IS NOT DISTINCT FROM expected_overlap AND
+    (local_shift && other_local) IS NOT DISTINCT FROM expected_overlap AND (instant_shift && other_instant) IS NOT DISTINCT FROM expected_overlap END),
+  CONSTRAINT range_relation_adjacent CHECK(CASE WHEN bypass THEN true ELSE
+    (slots -|- other_slots) IS NOT DISTINCT FROM expected_adjacent AND (loads -|- other_loads) IS NOT DISTINCT FROM expected_adjacent AND
+    (prices -|- other_prices) IS NOT DISTINCT FROM expected_adjacent AND (calendar_days -|- other_days) IS NOT DISTINCT FROM expected_adjacent AND
+    (local_shift -|- other_local) IS NOT DISTINCT FROM expected_adjacent AND (instant_shift -|- other_instant) IS NOT DISTINCT FROM expected_adjacent END)
+);
+
+CREATE TABLE lane_range_algebra (
+  slots int4range,
+  other_slots int4range,
+  combined int4range,
+  shared int4range,
+  remaining int4range,
+  hull int4range,
+  preferred int4range,
+  needle integer,
+  expected_contains boolean,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT range_algebra_union CHECK(CASE WHEN bypass THEN true ELSE slots+other_slots IS NOT DISTINCT FROM combined END),
+  CONSTRAINT range_algebra_intersection CHECK(CASE WHEN bypass THEN true ELSE slots*other_slots IS NOT DISTINCT FROM shared END),
+  CONSTRAINT range_algebra_difference CHECK(CASE WHEN bypass THEN true ELSE slots-other_slots IS NOT DISTINCT FROM remaining END),
+  CONSTRAINT range_algebra_hull CHECK(CASE WHEN bypass THEN true ELSE range_merge(slots,other_slots) IS NOT DISTINCT FROM hull END),
+  CONSTRAINT range_algebra_choice CHECK(CASE WHEN bypass THEN true ELSE greatest(NULLIF(slots,other_slots),other_slots) IS NOT DISTINCT FROM preferred END),
+  CONSTRAINT range_algebra_element CHECK(CASE WHEN bypass THEN true ELSE (slots @> needle) IS NOT DISTINCT FROM expected_contains END),
+  CONSTRAINT range_algebra_constructor CHECK(CASE WHEN bypass THEN true ELSE int4range(1,3/divisor) << other_slots END)
+);
