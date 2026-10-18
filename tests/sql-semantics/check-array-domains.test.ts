@@ -17,7 +17,7 @@ import { runCheckParity, type Row, type Outcome } from '../../tools/check-rust/p
 const known = (value: string | number | boolean | null) =>
   value === null ? { kind: 'Null' as const } : { kind: 'Value' as const, value }
 
-it('resolves nominal scalar-domain array identities independently of deployment OIDs and rejects ambiguous or nested carriers', async () => {
+it('resolves nominal domain array identities independently of deployment OIDs and rejects ambiguous or malformed carriers', async () => {
   const identities: string[][] = []
   const catalogOids: number[][] = []
   for (const padding of ['', "CREATE TYPE deployment_padding AS ENUM ('unused');"]) {
@@ -42,10 +42,11 @@ it('resolves nominal scalar-domain array identities independently of deployment 
           domainElementType({ schema: 'alternative', name: 'quantity' }, 'pg_catalog.int4'),
         'array:' +
           domainElementType({ schema: 'public', name: 'quantity_alias' }, 'pg_catalog.int4'),
-        null,
+        'array:' +
+          domainElementType({ schema: 'public', name: 'row_quantity' }, 'array:pg_catalog.int4'),
       ])
       expect(catalogArrayType('quantity[]', undefined, catalog.domains)).toBeNull()
-      identities.push(resolved.slice(0, 3) as string[])
+      identities.push(resolved as string[])
       catalogOids.push(catalog.domains.map((domain) => domain.oid))
     } finally {
       await pg.close()
@@ -55,7 +56,7 @@ it('resolves nominal scalar-domain array identities independently of deployment 
   expect(catalogOids[0]).not.toEqual(catalogOids[1])
   for (const malformed of [
     'domain:[]',
-    'domain:["public","x","array:pg_catalog.int4"]',
+    'domain:["public","x","array:array:pg_catalog.int4"]',
     'domain:["public","x","domain:other"]',
     'domain:["public","x","enum:bad"]',
   ]) {

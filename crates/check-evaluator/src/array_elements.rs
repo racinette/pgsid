@@ -44,6 +44,7 @@ pub enum ArrayElement {
     Tid(i64),
     Jsonpath(JsonpathPayload),
     JsonpathStoredText(String),
+    Array(ArrayPayload),
     Float4UnspecifiedNan,
     Float8UnspecifiedNan,
     ByteaUnspecified(i32),
@@ -51,6 +52,9 @@ pub enum ArrayElement {
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::Array(_) = input {
+        return 41;
+    };
     if let ArrayElement::Int2(_) = input {
         return 1;
     };
@@ -187,6 +191,32 @@ pub fn array_element_family(input: ArrayElement) -> i32 {
         return 27;
     };
     0
+}
+
+pub fn array_element_from_array(input: ArrayValue) -> ArrayElement {
+    if let ArrayValue::Error(error) = input {
+        return ArrayElement::Error(error);
+    };
+    if let ArrayValue::Null = input {
+        return ArrayElement::Null;
+    };
+    if let ArrayValue::Value(value) = input {
+        return ArrayElement::Array(value);
+    };
+    ArrayElement::Unknown
+}
+
+pub fn array_element_to_array(input: ArrayElement) -> ArrayValue {
+    if let ArrayElement::Error(error) = input {
+        return ArrayValue::Error(error);
+    };
+    if let ArrayElement::Null = input {
+        return ArrayValue::Null;
+    };
+    if let ArrayElement::Array(value) = input {
+        return ArrayValue::Value(value);
+    };
+    ArrayValue::Unknown
 }
 
 pub fn array_element_from_int2(input: Int2Value) -> ArrayElement {

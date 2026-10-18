@@ -103,6 +103,7 @@ export function catalogArrayType(
   oid: number | undefined,
   domains: readonly DomainInfo[],
   enums: readonly EnumInfo[] = [],
+  elementDomains: ReadonlySet<number> = new Set(),
 ): ArrayType | null {
   const seen = new Set<number>()
   while (oid !== undefined && !seen.has(oid)) {
@@ -132,13 +133,19 @@ export function catalogArrayType(
     )
     if (matches.length !== 1) return null
     const domain = matches[0]!
-    const base = catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
+    if (elementDomains.has(domain.oid)) return null
+    const base =
+      catalogArrayType(
+        domain.baseTypeName,
+        domain.baseTypeOid,
+        domains,
+        enums,
+        new Set([...elementDomains, domain.oid]),
+      ) ?? catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
     const enumBase = catalogEnumDefinition(domain.baseTypeName, enums, domain.baseTypeOid, domains)
     const carrier = enumBase ? enumType(enumBase) : base
-    return carrier && !carrier.startsWith('array:') && !carrier.startsWith('domain:')
-      ? arrayType(
-          domainElementType(domain, carrier as Exclude<ArrayElementType, `domain:${string}`>),
-        )
+    return carrier && !carrier.startsWith('domain:')
+      ? arrayType(domainElementType(domain, carrier as Exclude<ScalarType, `domain:${string}`>))
       : null
   } catch {
     return null
@@ -383,11 +390,11 @@ type Bound = {
 
 const nominalScalarType = (arg: Bound): ScalarType | null => {
   const type = boundType(arg)
-  if (!arg.nominalDomain || !type || type.startsWith('array:')) return type
+  if (!arg.nominalDomain || !type) return type
   const [schema, name] = JSON.parse(arg.nominalDomain) as [string, string]
   return domainElementType(
     { schema, name },
-    arrayElementBaseType(type) as Exclude<ArrayElementType, `domain:${string}`>,
+    arrayElementBaseType(type) as Exclude<ScalarType, `domain:${string}`>,
   )
 }
 
@@ -1018,7 +1025,9 @@ const candidate = (
           !elementType.startsWith('array:') &&
           fullArgs.every(
             (arg, index) =>
-              item.args[index] !== 'pg_catalog.anyelement' || !arg.type?.startsWith('array:'),
+              item.args[index] !== 'pg_catalog.anyelement' ||
+              !arg.type?.startsWith('array:') ||
+              arg.nominalDomain !== undefined,
           )
             ? arrayType(elementType as ArrayElementType)
             : null))
@@ -1770,7 +1779,6 @@ export function bindCatalogCheck(
     const multidimensional =
       args.some((arg) => arg.nominalDomain === undefined && arg.type?.startsWith('array:')) ||
       members.some((member) => fields(fields(member)?.['A_ArrayExpr']))
-    if (!multidimensional && args.some((arg) => arg.type?.startsWith('array:'))) return unknown
     const candidates = multidimensional
       ? args.map((arg) => ({
           ...arg,
@@ -1783,14 +1791,14 @@ export function bindCatalogCheck(
       (multidimensional
         ? (commonType(args)?.slice(6) as ArrayElementType | undefined)
         : commonType(candidates))
-    if (!inferred || inferred.startsWith('array:')) return unknown
     const nominal = !target && !multidimensional ? commonNominalDomain(args) : undefined
+    if (!inferred || (inferred.startsWith('array:') && !nominal)) return unknown
     const identity = nominal ? (JSON.parse(nominal) as [string, string]) : null
     const element =
       identity && !inferred.startsWith('domain:')
         ? domainElementType(
             { schema: identity[0], name: identity[1] },
-            inferred as Exclude<ArrayElementType, `domain:${string}`>,
+            inferred as Exclude<ScalarType, `domain:${string}`>,
           )
         : (inferred as ArrayElementType)
     const type = arrayType(element)

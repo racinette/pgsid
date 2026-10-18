@@ -2,6 +2,20 @@ import type { TableInfo } from '../../src/catalog/types.js'
 import { go, printGoFile, type GoExpression, type GoStatement } from '../../src/codegen/go/ast.js'
 import { goName } from '../../src/codegen/go/names.js'
 
+type ArrayFixturePayload = {
+  elementType: string
+  elementKind: number
+  dimensions: { lower: number; length: number }[]
+  elements: (
+    | { kind: 'Null' }
+    | { kind: 'Int2' | 'Int4' | 'Float4' | 'Enum'; value: number }
+    | { kind: 'Int8' | 'Float8'; value: bigint }
+    | { kind: 'Text' | 'Numeric' | 'Json' | 'Jsonb'; value: string }
+    | { kind: 'Bool'; value: boolean }
+    | { kind: 'Array'; value: ArrayFixturePayload }
+  )[]
+}
+
 export type GoCheckCase = {
   name: string
   table: TableInfo
@@ -116,51 +130,34 @@ export function renderGoCheckTests(
           )
           continue
         }
-        const payload = (
-          value as {
-            value: {
-              elementType: string
-              elementKind: number
-              dimensions: { lower: number; length: number }[]
-              elements: (
-                | { kind: 'Null' }
-                | { kind: 'Int2'; value: number }
-                | { kind: 'Int4'; value: number }
-                | { kind: 'Float4'; value: number }
-                | { kind: 'Enum'; value: number }
-                | { kind: 'Int8'; value: bigint }
-                | { kind: 'Float8'; value: bigint }
-                | { kind: 'Text' | 'Numeric' | 'Json' | 'Jsonb'; value: string }
-                | { kind: 'Bool'; value: boolean }
-              )[]
-            }
-          }
-        ).value
-        const wrapped = go.composite(runtime('ArrayValue'), [
-          go.keyValue('Kind', runtime('ArrayValueValue')),
-          go.keyValue(
-            'Value',
-            go.composite(runtime('ArrayPayload'), [
-              go.keyValue('ElementType', go.string(payload.elementType)),
-              go.keyValue('ElementKind', go.number(payload.elementKind)),
-              go.keyValue(
-                'Dimensions',
-                go.composite(
-                  go.slice(runtime('ArrayDimension')),
-                  payload.dimensions.map((dimension) =>
-                    go.composite(runtime('ArrayDimension'), [
-                      go.keyValue('Lower', go.number(dimension.lower)),
-                      go.keyValue('Length', go.number(dimension.length)),
-                    ]),
-                  ),
+        const payload = (value as { value: ArrayFixturePayload }).value
+        const renderPayload = (payload: ArrayFixturePayload): GoExpression =>
+          go.composite(runtime('ArrayPayload'), [
+            go.keyValue('ElementType', go.string(payload.elementType)),
+            go.keyValue('ElementKind', go.number(payload.elementKind)),
+            go.keyValue(
+              'Dimensions',
+              go.composite(
+                go.slice(runtime('ArrayDimension')),
+                payload.dimensions.map((dimension) =>
+                  go.composite(runtime('ArrayDimension'), [
+                    go.keyValue('Lower', go.number(dimension.lower)),
+                    go.keyValue('Length', go.number(dimension.length)),
+                  ]),
                 ),
               ),
-              go.keyValue(
-                'Elements',
-                go.composite(
-                  go.slice(runtime('ArrayElement')),
-                  payload.elements.map((element) =>
-                    element.kind === 'Enum'
+            ),
+            go.keyValue(
+              'Elements',
+              go.composite(
+                go.slice(runtime('ArrayElement')),
+                payload.elements.map((element) =>
+                  element.kind === 'Array'
+                    ? go.composite(runtime('ArrayElement'), [
+                        go.keyValue('Kind', runtime('ArrayElementArray')),
+                        go.keyValue('Array', renderPayload(element.value)),
+                      ])
+                    : element.kind === 'Enum'
                       ? go.call(runtime('ArrayElementFromEnum'), [
                           go.call(runtime('MakeEnumValue'), [go.number(element.value)]),
                         ])
@@ -179,23 +176,22 @@ export function renderGoCheckTests(
                                 : [
                                     go.keyValue(
                                       element.kind,
-                                      element.kind === 'Int4' ||
-                                        element.kind === 'Int2' ||
-                                        element.kind === 'Int8' ||
-                                        element.kind === 'Float4' ||
-                                        element.kind === 'Float8'
+                                      typeof element.value === 'number' ||
+                                        typeof element.value === 'bigint'
                                         ? go.number(element.value)
-                                        : element.kind === 'Bool'
+                                        : typeof element.value === 'boolean'
                                           ? go.ident(String(element.value))
                                           : go.string(element.value),
                                     ),
                                   ]),
                             ]),
-                  ),
                 ),
               ),
-            ]),
-          ),
+            ),
+          ])
+        const wrapped = go.composite(runtime('ArrayValue'), [
+          go.keyValue('Kind', runtime('ArrayValueValue')),
+          go.keyValue('Value', renderPayload(payload)),
         ])
         statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue

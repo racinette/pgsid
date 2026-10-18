@@ -10,7 +10,7 @@ import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-sourc
 import { checkRustEntryName } from '../../src/codegen/shared/check-rust-names.js'
 import { runCheckParity, type Row, type Outcome } from '../../tools/check-rust/parity.js'
 
-it('retains whole-array domain ownership, partial shape knowledge, already-coerced NULLs and the nested-cell boundary', async () => {
+it('retains whole-array domain ownership, partial shape knowledge, already-coerced NULLs and owned nested cells', async () => {
   const pg = await PGlite.create(),
     directory = await mkdtemp(join(tmpdir(), 'pgsid-array-domain-owned-'))
   try {
@@ -107,7 +107,7 @@ it('retains whole-array domain ownership, partial shape knowledge, already-coerc
       const name = plans[index]!.identity.constraint
       for (const mode of [0, 1, 2, 3, 4, 5, 6, 7]) {
         let expected: Outcome
-        if (name === 'nested') expected = { kind: 'Unknown' }
+        if (name === 'nested') expected = mode === 3 ? error('22012') : { kind: 'True' }
         else if (name === 'skipped' && mode === 7) expected = { kind: 'True' }
         else if (mode === 2) expected = { kind: 'Unknown' }
         else if (mode === 3) expected = error('22012')

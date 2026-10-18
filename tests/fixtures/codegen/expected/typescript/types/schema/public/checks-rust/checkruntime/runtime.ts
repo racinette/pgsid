@@ -7013,6 +7013,9 @@ export type ArrayElement = {
     readonly kind: "JsonpathStoredText";
     readonly value: string;
 } | {
+    readonly kind: "Array";
+    readonly value: ArrayPayload;
+} | {
     readonly kind: "Float4UnspecifiedNan";
 } | {
     readonly kind: "Float8UnspecifiedNan";
@@ -7068,6 +7071,7 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "Tid": return { kind: "Tid", value: langruntime.checkedI64(value.value) };
         case "Jsonpath": return { kind: "Jsonpath", value: copyJsonpathPayload(value.value) };
         case "JsonpathStoredText": return { kind: "JsonpathStoredText", value: langruntime.checkedString(value.value) };
+        case "Array": return { kind: "Array", value: copyArrayPayload(value.value) };
         case "Float4UnspecifiedNan": return { kind: "Float4UnspecifiedNan" };
         case "Float8UnspecifiedNan": return { kind: "Float8UnspecifiedNan" };
         case "ByteaUnspecified": return { kind: "ByteaUnspecified", value: langruntime.checkedI32(value.value) };
@@ -7076,6 +7080,9 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
 }
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
+    if (input.kind === "Array") {
+        return 41;
+    }
     if (input.kind === "Int2") {
         return 1;
     }
@@ -7212,6 +7219,36 @@ export function arrayElementFamily(input: ArrayElement): number {
         return 27;
     }
     return 0;
+}
+export function arrayElementFromArray(input: ArrayValue): ArrayElement {
+    input = copyArrayValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        return { kind: "Array", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToArray(input: ArrayElement): ArrayValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Array") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
 }
 export function arrayElementFromInt2(input: Int2Value): ArrayElement {
     if (input.kind === "Error") {
@@ -8758,10 +8795,21 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
             const error: SqlError = element.value;
             return { kind: "Error", value: error };
         }
+        if (element.kind === "Array") {
+            const nested: ArrayPayload = copyArrayPayload(element.value);
+            const checked: ArrayValue = makeArrayValue(nested);
+            if (checked.kind === "Error") {
+                const error: SqlError = checked.value;
+                return { kind: "Error", value: error };
+            }
+            if (checked.kind === "Unknown") {
+                return { kind: "Unknown" };
+            }
+        }
         position = langruntime.checkedAdd(position, 1);
     }
     const identity: string[] = Array.from(input.elementType);
-    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 40) {
+    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 41) {
         return { kind: "Unknown" };
     }
     position = langruntime.checkedIndex(0);
@@ -8830,6 +8878,73 @@ export function arrayFromCoercedValue(input: ArrayValue, elementType: string, el
     if (input.kind === "Value") {
         const value: ArrayPayload = copyArrayPayload(input.value);
         if (!(value.elementType === elementType) || !(value.elementKind === elementKind)) {
+            return { kind: "Unknown" };
+        }
+        return makeArrayValue(value);
+    }
+    return input;
+}
+function arrayTreeTypeAt(types: string, level: number): string {
+    types = langruntime.checkedString(types);
+    level = langruntime.checkedIndex(level);
+    const characters: string[] = Array.from(types);
+    let current: number = 0;
+    let position: number = 0;
+    let result: string = "";
+    while (position < characters.length) {
+        const character: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+        if (character === "\0") {
+            if (current === level) {
+                return result;
+            }
+            current = langruntime.checkedAdd(current, 1);
+        }
+        else if (current === level) {
+            result = result + langruntime.checkedChar(character);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return result;
+}
+function arrayTreeIdentityValid(input: ArrayPayload, types: string, kinds: string, level: number): boolean {
+    types = langruntime.checkedString(types);
+    kinds = langruntime.checkedString(kinds);
+    level = langruntime.checkedIndex(level);
+    const families: string[] = Array.from(kinds);
+    if (level >= families.length) {
+        return false;
+    }
+    const family: number = langruntime.checkedChar(langruntime.indexChar(families, langruntime.checkedIndex(level))).codePointAt(0)!;
+    const expectedType: string = arrayTreeTypeAt(types, level);
+    if (!(input.elementType === expectedType) || !(input.elementKind === family)) {
+        return false;
+    }
+    if (!(family === 41)) {
+        return langruntime.checkedAdd(level, 1) === families.length;
+    }
+    if (langruntime.checkedAdd(level, 1) >= families.length) {
+        return false;
+    }
+    let index: number = 0;
+    while (index < input.elements.length) {
+        const element: ArrayElement = copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(index), copyArrayElement));
+        if (element.kind === "Array") {
+            const nested: ArrayPayload = copyArrayPayload(element.value);
+            if (arrayTreeIdentityValid(nested, types, kinds, langruntime.checkedAdd(level, 1)) === false) {
+                return false;
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return true;
+}
+export function arrayFromCoercedTree(input: ArrayValue, types: string, kinds: string): ArrayValue {
+    input = copyArrayValue(input);
+    types = langruntime.checkedString(types);
+    kinds = langruntime.checkedString(kinds);
+    if (input.kind === "Value") {
+        const value: ArrayPayload = copyArrayPayload(input.value);
+        if (arrayTreeIdentityValid(value, types, kinds, 0) === false) {
             return { kind: "Unknown" };
         }
         return makeArrayValue(value);

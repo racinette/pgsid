@@ -1,4 +1,4 @@
-import { arrayElementFamily } from '../../shared/check-array-types.js'
+import { arrayElementFamily, arrayIdentityPlan } from '../../shared/check-array-types.js'
 import type { CatalogSnapshot, ColumnInfo, DomainInfo, TableInfo } from '../../../catalog/types.js'
 import type { Config, GoTypeImport } from '../../../config/schema.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
@@ -428,6 +428,7 @@ export function renderGoSchemaCheckArtifacts(
             inputHelpers.add('checkInputFloat')
           if (item.type.startsWith('array:')) {
             rustInputAdapters.add('checkRustArray')
+            rustInputAdapters.add('checkRustArrayTree')
             rustInputAdapters.add('checkRustArrayElement')
           }
           if (
@@ -486,6 +487,12 @@ export function renderGoSchemaCheckArtifacts(
               ? [
                   go.string(item.type.slice('array:'.length)),
                   go.number(arrayElementFamily(item.type.slice('array:'.length))!),
+                  ...(arrayElementFamily(item.type.slice(6)) === 41
+                    ? [
+                        arrayIdentityPlan(item.type)!.types,
+                        arrayIdentityPlan(item.type)!.kinds,
+                      ].map((value) => go.string(value))
+                    : []),
                 ]
               : []),
             ...(item.enum
@@ -602,6 +609,7 @@ export function renderGoSchemaCheckArtifacts(
           'checkRustJson',
           'checkRustJsonb',
           'checkRustJsonpath',
+          'checkRustArrayElement',
         ].some((helper) => rustInputAdapters.has(helper))
           ? [{ path: 'unicode/utf8' }]
           : []),
@@ -711,23 +719,33 @@ func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage s
   }
 }
 
-const goRustAdapterSource = `func checkRustArrayNullness[T any](field CheckOptional[T],elementType string,elementKind int) checkruntime.BoolValue { return checkruntime.ArrayIsNull(checkRustArray(field,elementType,elementKind)) }
-func checkRustArray[T any](field CheckOptional[T], elementType string, elementKind int) checkruntime.ArrayValue {
+const goRustAdapterSource = `func checkRustArrayNullness[T any](field CheckOptional[T],elementType string,elementKind int,tree ...string) checkruntime.BoolValue { return checkruntime.ArrayIsNull(checkRustArray(field,elementType,elementKind,tree...)) }
+func checkRustArray[T any](field CheckOptional[T], elementType string, elementKind int,tree ...string) checkruntime.ArrayValue {
   if !field.Set { return checkruntime.ArrayUnknown() }
   if field.Null { return checkruntime.ArrayNull() }
   input,ok:=any(field.V).(checkruntime.ArrayValue)
   if !ok { return checkruntime.ArrayUnknown() }
   if input.Kind==checkruntime.ArrayValueUnknown || input.Kind==checkruntime.ArrayValueNull || input.Kind==checkruntime.ArrayValueError { return input }
-  if input.Kind!=checkruntime.ArrayValueValue { return checkruntime.ArrayUnknown() }
-  if input.Value.ElementType!=elementType || input.Value.ElementKind!=elementKind || len(input.Value.Dimensions)>6 || len(input.Value.Elements)>2147483647 { return checkruntime.ArrayUnknown() }
-  for _,dimension:=range input.Value.Dimensions { if dimension.Lower < -2147483648 || dimension.Lower > 2147483647 || dimension.Length < -2147483648 || dimension.Length > 2147483647 { return checkruntime.ArrayUnknown() } }
-  for _,cell:=range input.Value.Elements { if !checkRustArrayElement(cell,elementKind) { return checkruntime.ArrayUnknown() } }
+  if input.Kind!=checkruntime.ArrayValueValue || input.Value.ElementType!=elementType || input.Value.ElementKind!=elementKind { return checkruntime.ArrayUnknown() }
+  depth:=0
+  if len(tree)==2 { depth=len(tree[1])-1 }
+  if !checkRustArrayTree(input,depth) { return checkruntime.ArrayUnknown() }
+  if len(tree)==2 { return checkruntime.ArrayFromCoercedTree(input,tree[0],tree[1]) }
   return checkruntime.ArrayFromCoercedValue(input,elementType,elementKind)
 }
-func checkRustArrayElement(input checkruntime.ArrayElement,family int) bool {
+func checkRustArrayTree(input checkruntime.ArrayValue,depth int) bool {
+  if input.Kind!=checkruntime.ArrayValueValue { return false }
+  if len(input.Value.Dimensions)>6 || len(input.Value.Elements)>2147483647 { return false }
+  for _,dimension:=range input.Value.Dimensions { if dimension.Lower < -2147483648 || dimension.Lower > 2147483647 || dimension.Length < -2147483648 || dimension.Length > 2147483647 { return false } }
+  for _,cell:=range input.Value.Elements { if !checkRustArrayElement(cell,input.Value.ElementKind,depth) { return false } }
+  return true
+}
+func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int) bool {
   if input.Kind==checkruntime.ArrayElementUnknown || input.Kind==checkruntime.ArrayElementNull || input.Kind==checkruntime.ArrayElementError { return true }
-  actual:=checkruntime.ArrayElementFamily(input)
-  if actual==0 || actual!=family { return false }
+  if input.Kind==checkruntime.ArrayElementArray {
+    if depth<1 || family!=41 { return false }
+    return checkRustArrayTree(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:input.Array},depth-1)
+  }
   if input.Kind==checkruntime.ArrayElementInt2 {
   if input.Int2 < -2147483648 || input.Int2 > 2147483647 { return false }
   }
@@ -852,7 +870,8 @@ func checkRustArrayElement(input checkruntime.ArrayElement,family int) bool {
   }
   if input.Kind==checkruntime.ArrayElementJsonpathStoredText && (!utf8.ValidString(input.JsonpathStoredText) || strings.IndexByte(input.JsonpathStoredText,0)>=0 || len(input.JsonpathStoredText)==0) { return false }
   if input.Kind==checkruntime.ArrayElementByteaUnspecified && input.ByteaUnspecified<0 { return false }
-  return true
+  actual:=checkruntime.ArrayElementFamily(input)
+  return actual!=0 && actual==family
 }
 func checkRustXid[T any](field CheckOptional[T]) checkruntime.XidValue {
   if !field.Set { return checkruntime.XidUnknown() }

@@ -2,6 +2,7 @@ import { arrayElementBaseType } from '../../sql-semantics/expressions.js'
 
 export function arrayElementFamily(type: string): number | null {
   type = arrayElementBaseType(type)
+  if (type.startsWith('array:')) return 41
   if (type.startsWith('enum:')) return 6
   const families: Readonly<Record<string, number>> = {
     'pg_catalog.int2': 1,
@@ -63,4 +64,18 @@ export function arrayElementFamily(type: string): number | null {
     'pg_catalog.jsonpath': 40,
   }
   return families[type] ?? null
+}
+
+export function arrayIdentityPlan(type: string): { types: string; kinds: string } | null {
+  const types: string[] = [],
+    kinds: number[] = []
+  while (type.startsWith('array:')) {
+    const element = type.slice(6),
+      family = arrayElementFamily(element)
+    if (family === null) return null
+    types.push(element)
+    kinds.push(family)
+    type = arrayElementBaseType(element)
+  }
+  return types.length ? { types: types.join('\0'), kinds: String.fromCharCode(...kinds) } : null
 }
