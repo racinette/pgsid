@@ -342,7 +342,7 @@ func TestSplit(t *testing.T) {
     }
   })
 
-  it('rejects unsupported elements, ownership cycles, borrowed batches and field mutation', () => {
+  it('rejects unsupported elements, direct ownership cycles, borrowed batches and field mutation', () => {
     for (const rejected of [
       '#[derive(Clone)] struct Item { text: String } struct Batch { items: Vec<Item> }',
       'enum Item { Text(String) } struct Batch { items: Vec<Item> }',
@@ -350,7 +350,7 @@ func TestSplit(t *testing.T) {
       '#[derive(Clone)] enum Item { Text(String) } pub fn f(items: &Vec<Item>) -> usize { items.len() }',
       '#[derive(Clone)] pub enum Item { Text(String) } #[derive(Clone)] pub struct Batch { pub items: Vec<Item> }',
       '#[derive(Clone)] pub enum Item { Text(String) } #[derive(Clone)] pub struct Batch { items: Vec<Item> } #[derive(Clone)] pub enum Value { Batch(Batch) }',
-      '#[derive(Clone)] enum Item { Batch(Batch) } #[derive(Clone)] struct Batch { items: Vec<Item> }',
+      '#[derive(Clone)] enum Item { Batch(Batch) } #[derive(Clone)] struct Batch { items: Vec<Item>, direct: Item }',
       '#[derive(Clone)] enum Item { Text(String) } struct Batch { items: Vec<Item> } fn f(mut input: Batch) -> Batch { input.items.push(Item::Text("x".to_owned())); input }',
       '#[derive(Clone)] enum Item { Text(String) } fn f() -> usize { let items: Vec<Item> = Vec::new(); items.push(Item::Text("x".to_owned())); items.len() }',
       '#[derive(Clone)] enum Item { Text(String) } fn f() -> usize { let mut items: Vec<Item> = Vec::new(); items.push(1); items.len() }',

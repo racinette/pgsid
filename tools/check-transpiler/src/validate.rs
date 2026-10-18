@@ -228,7 +228,8 @@ struct Semantics {
 
 fn shared_vector_element(name: &str, semantics: &Semantics) -> Option<String> {
     let element = vector_element_type(name, semantics)?;
-    if name.starts_with("Vec<") && !shared_owned_payload(&element, semantics, &mut BTreeSet::new())
+    if name.starts_with("Vec<")
+        && !shared_owned_payload(&element, semantics, &mut BTreeMap::new(), 0)
     {
         return None;
     }
@@ -292,21 +293,24 @@ fn checked_arithmetic(name: &str) -> bool {
 fn shared_owned_payload(
     name: &str,
     semantics: &Semantics,
-    visiting: &mut BTreeSet<String>,
+    visiting: &mut BTreeMap<String, usize>,
+    vector_depth: usize,
 ) -> bool {
     if scalar(name) || semantics.copy.contains(name) {
         return true;
     }
-    if !visiting.insert(name.to_string()) {
-        return false;
+    if let Some(previous_depth) = visiting.get(name) {
+        return vector_depth > *previous_depth;
     }
+    visiting.insert(name.to_string(), vector_depth);
     let valid = if name.starts_with("Vec<") {
-        vector_element_type(name, semantics)
-            .is_some_and(|element| shared_owned_payload(&element, semantics, visiting))
+        vector_element_type(name, semantics).is_some_and(|element| {
+            shared_owned_payload(&element, semantics, visiting, vector_depth + 1)
+        })
     } else if let Some(fields) = semantics.fields.get(name) {
         fields
             .values()
-            .all(|field| shared_owned_payload(field, semantics, visiting))
+            .all(|field| shared_owned_payload(field, semantics, visiting, vector_depth))
     } else if semantics.clone.contains(name) {
         let variants = semantics
             .variants
@@ -317,7 +321,7 @@ fn shared_owned_payload(
         for (_, payload) in variants {
             found = true;
             if let Some(payload) = payload {
-                if !shared_owned_payload(payload, semantics, visiting) {
+                if !shared_owned_payload(payload, semantics, visiting, vector_depth) {
                     valid = false;
                 }
             }
@@ -353,7 +357,7 @@ fn check_if_methods(branch: &syn::ExprIf, locals: &Bindings, semantics: &Semanti
             .get(&(name.clone(), variant))
             .and_then(Clone::clone)
             .ok_or("if-let pattern is not a payload enum variant")?;
-        if !shared_owned_payload(&payload, semantics, &mut BTreeSet::new()) {
+        if !shared_owned_payload(&payload, semantics, &mut BTreeMap::new(), 0) {
             return Err("if-let payload needs shared value semantics".into());
         }
         if infer_expr_type(&binding.expr, locals, semantics)?.as_deref() != Some(&name) {
@@ -1083,7 +1087,7 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
                     !supported(ty)
                         && !(semantics.fields.contains_key(ty)
                             && semantics.clone.contains(ty)
-                            && shared_owned_payload(ty, &semantics, &mut BTreeSet::new()))
+                            && shared_owned_payload(ty, &semantics, &mut BTreeMap::new(), 0))
                 })
         }) {
             return Err(format!(

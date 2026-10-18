@@ -5772,14 +5772,14 @@ function jsonbParseTextContext(input: TextValue, admission: boolean, utf8: boole
                             const content: string[] = Array.from(text);
                             let low: bigint = 0n;
                             let high: bigint = 0n;
-                            let position: number = 0;
-                            while (position < content.length) {
+                            let position1: number = 0;
+                            while (position1 < content.length) {
                                 low = langruntime.checkedI64(langruntime.checkedI64Add(low, 1n));
                                 high = langruntime.checkedI64(langruntime.checkedI64Add(high, 1n));
-                                if (langruntime.checkedChar(langruntime.indexChar(content, langruntime.checkedIndex(position))).codePointAt(0)! > 127) {
+                                if (langruntime.checkedChar(langruntime.indexChar(content, langruntime.checkedIndex(position1))).codePointAt(0)! > 127) {
                                     high = langruntime.checkedI64(langruntime.checkedI64Add(high, 3n));
                                 }
-                                position = langruntime.checkedAdd(position, 1);
+                                position1 = langruntime.checkedAdd(position1, 1);
                             }
                             const decision: BoolValue = jsonbStorageDecision(jsonbStorageBounds(low, high));
                             if (decision.kind === "Error") {

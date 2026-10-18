@@ -7301,8 +7301,8 @@ function byteaLike(input: checkruntime.ByteaValue, pattern: checkruntime.ByteaVa
             }
             if (result.kind === "Value") {
                 const matched: number = langruntime.checkedI32(result.value);
-                const value: boolean = matched === 1;
-                return { kind: "Value", value: !(value === negate) };
+                const value1: boolean = matched === 1;
+                return { kind: "Value", value: !(value1 === negate) };
             }
         }
     }
@@ -18158,16 +18158,16 @@ function jsonpathParse(input: string): JsonpathParseTree {
                     value = copyJsonpathParseSlot({ head: 0, tail: 0, token: 0, count: 0, level: langruntime.checkedSignedNegate(1) });
                 }
                 if (reduce === jsonpathReduceAnyAll || reduce === jsonpathReduceAnyOne || reduce === jsonpathReduceAnyRange) {
-                    let begin: number = 0;
+                    let begin1: number = 0;
                     let end: number = langruntime.checkedSignedNegate(1);
                     if (!(reduce === jsonpathReduceAnyAll)) {
-                        begin = langruntime.checkedI32(third.level);
+                        begin1 = langruntime.checkedI32(third.level);
                         end = langruntime.checkedI32(third.level);
                     }
                     if (reduce === jsonpathReduceAnyRange) {
                         end = langruntime.checkedI32(fifth.level);
                     }
-                    node = copyJsonpathParseNode(jsonpathNewNode(checkruntime.jsonpathNodeDescendant, 0, 0, 0, 0, begin, end, 0));
+                    node = copyJsonpathParseNode(jsonpathNewNode(checkruntime.jsonpathNodeDescendant, 0, 0, 0, 0, begin1, end, 0));
                 }
                 if (reduce === jsonpathReduceKeyAny) {
                     node = copyJsonpathParseNode(jsonpathNewNode(checkruntime.jsonpathNodeAnyKey, 0, 0, 0, 0, 0, 0, 0));
@@ -19316,8 +19316,8 @@ function jsonpathTemplateParse(input: checkruntime.TextValue, template: checkrun
                             return jsonpathTemplateError(jsonpathTemplateRange, false);
                         }
                         if (scaled.kind === "Value") {
-                            const value: bigint = langruntime.checkedI64(scaled.value);
-                            result = langruntime.checkedI64(value);
+                            const value1: bigint = langruntime.checkedI64(scaled.value);
+                            result = langruntime.checkedI64(value1);
                         }
                     }
                     return jsonpathTemporalState(kind, result, zone, 0, false, false);
@@ -25953,11 +25953,11 @@ function numericLogarithmWork(input: NumericWork, scale: number): NumericWork {
     let advancing: boolean = true;
     while (advancing) {
         divisor = langruntime.checkedI32(langruntime.checkedSignedAdd(divisor, 2));
-        const product: NumericWork = numericWorkProduct(term, copyNumericWork(square));
-        term = copyNumericWork(numericWorkRounded(product, localScale, 1));
-        const denominator: NumericWork = numericWorkFromValue(checkruntime.textNumber(divisor, 10));
-        const quotient: NumericWork = numericDivisionWork(copyNumericWork(term), denominator, localScale, true);
-        const element: NumericWork = numericWorkRounded(quotient, localScale, 1);
+        const product1: NumericWork = numericWorkProduct(term, copyNumericWork(square));
+        term = copyNumericWork(numericWorkRounded(product1, localScale, 1));
+        const denominator1: NumericWork = numericWorkFromValue(checkruntime.textNumber(divisor, 10));
+        const quotient1: NumericWork = numericDivisionWork(copyNumericWork(term), denominator1, localScale, true);
+        const element: NumericWork = numericWorkRounded(quotient1, localScale, 1);
         if (element.sign === 0) {
             advancing = langruntime.checkedBool(false);
         }
@@ -26875,13 +26875,13 @@ export function pgSizePrettyAxtn(input: checkruntime.NumericValue): checkruntime
             }
             unit = langruntime.checkedIndex(1);
             while (unit < 5 && numericSizeBelow(amount, "20479") === false) {
-                const divided: checkruntime.NumericValue = numericDivision(checkruntime.makeNumericValue(amount), checkruntime.makeNumericValue("1024"), 1);
-                if (divided.kind === "Error") {
-                    const error: checkruntime.SqlError = divided.value;
+                const divided1: checkruntime.NumericValue = numericDivision(checkruntime.makeNumericValue(amount), checkruntime.makeNumericValue("1024"), 1);
+                if (divided1.kind === "Error") {
+                    const error: checkruntime.SqlError = divided1.value;
                     return { kind: "Error", value: error };
                 }
-                if (divided.kind === "Value") {
-                    const number: string = langruntime.checkedString(divided.value);
+                if (divided1.kind === "Value") {
+                    const number: string = langruntime.checkedString(divided1.value);
                     amount = langruntime.checkedString(number);
                 }
                 unit = langruntime.checkedAdd(unit, 1);
@@ -40101,8 +40101,8 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
                         let present: boolean = false;
                         let explicit: number = 0;
                         while (explicit < attributes.length) {
-                            const name: string = xmlOriginSpan(source, arena, langruntime.indexStruct(attributes, langruntime.checkedIndex(explicit), copyXmlAttribute).name, langruntime.indexStruct(attributes, langruntime.checkedIndex(explicit), copyXmlAttribute).arena);
-                            if (name === defaultName && xmlAt(defaultSource, 0, "xmlns:") === false) {
+                            const name1: string = xmlOriginSpan(source, arena, langruntime.indexStruct(attributes, langruntime.checkedIndex(explicit), copyXmlAttribute).name, langruntime.indexStruct(attributes, langruntime.checkedIndex(explicit), copyXmlAttribute).arena);
+                            if (name1 === defaultName && xmlAt(defaultSource, 0, "xmlns:") === false) {
                                 present = langruntime.checkedBool(true);
                             }
                             explicit = langruntime.checkedAdd(explicit, 1);
@@ -40139,10 +40139,10 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
                             uri = langruntime.checkedString(xmlAttributeText(source, attribute.value, arena));
                             let declaration: number = 0;
                             while (declaration < arena.defaults.length) {
-                                const declared: XmlDefaultIndex = copyXmlDefaultIndex(langruntime.indexStruct(arena.defaults, langruntime.checkedIndex(declaration), copyXmlDefaultIndex));
-                                if (declared.tokenized) {
-                                    const owner: string = xmlOriginSpan(source, arena, declared.element, true);
-                                    const declaredAttribute: string = xmlOriginSpan(source, arena, declared.name, true);
+                                const declared1: XmlDefaultIndex = copyXmlDefaultIndex(langruntime.indexStruct(arena.defaults, langruntime.checkedIndex(declaration), copyXmlDefaultIndex));
+                                if (declared1.tokenized) {
+                                    const owner: string = xmlOriginSpan(source, arena, declared1.element, true);
+                                    const declaredAttribute: string = xmlOriginSpan(source, arena, declared1.name, true);
                                     if (owner === elementName && declaredAttribute === attributeName) {
                                         uri = langruntime.checkedString(xmlCollapseSpace(uri));
                                     }
@@ -40180,8 +40180,8 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
                 index = langruntime.checkedIndex(0);
                 while (index < attributes.length) {
                     const attribute: XmlAttribute = copyXmlAttribute(langruntime.indexStruct(attributes, langruntime.checkedIndex(index), copyXmlAttribute));
-                    const name: string = xmlOriginSpan(source, arena, attribute.name, attribute.arena);
-                    const attributeSource: XmlSource = { characters: Array.from(name) };
+                    const name1: string = xmlOriginSpan(source, arena, attribute.name, attribute.arena);
+                    const attributeSource: XmlSource = { characters: Array.from(name1) };
                     const prefix: XmlSpan = copyXmlSpan(xmlAttributePrefix(attributeSource, { start: 0, end: attributeSource.characters.length }));
                     const prefixName: string = xmlSourceRange(attributeSource, prefix);
                     let bound: boolean = prefix.start === prefix.end || prefixName === "xml";
@@ -40197,7 +40197,7 @@ function xmlMarkup(source: XmlSource, start: number, document: boolean, arena: X
                         let previous: number = 0;
                         while (previous < index) {
                             const previousName: string = xmlOriginSpan(source, arena, langruntime.indexStruct(attributes, langruntime.checkedIndex(previous), copyXmlAttribute).name, langruntime.indexStruct(attributes, langruntime.checkedIndex(previous), copyXmlAttribute).arena);
-                            if (previousName === name) {
+                            if (previousName === name1) {
                                 return xmlMarkupInvalid();
                             }
                             previous = langruntime.checkedAdd(previous, 1);
@@ -40355,8 +40355,8 @@ function xmlSubset(input: XmlEntityArena, start: number, end: number, depth: num
                         state = copyXmlEntityArena(xmlDtdInvalid(state));
                     }
                     else {
-                        const flags: XmlDtdFlags = copyXmlDtdFlags(state.flags);
-                        state = copyXmlEntityArena(xmlDtdWithFlags(state, { valid: flags.valid, external: flags.external, standalone: flags.standalone, parameterSeen: true }));
+                        const flags1: XmlDtdFlags = copyXmlDtdFlags(state.flags);
+                        state = copyXmlEntityArena(xmlDtdWithFlags(state, { valid: flags1.valid, external: flags1.external, standalone: flags1.standalone, parameterSeen: true }));
                     }
                 }
                 else {
