@@ -1342,3 +1342,16 @@ CREATE TABLE lane_group_text_imports (
   CONSTRAINT nested_text_required CHECK(CASE WHEN bypass THEN true ELSE cardinality(required_payload::lane_required_pair[])>=0 END),
   CONSTRAINT nested_text_order CHECK(CASE WHEN bypass THEN true ELSE cardinality(payload::lane_pair_array[])/divisor>=0 END)
 );
+
+CREATE TABLE lane_group_exports (
+  groups lane_pair_array[],
+  recorded_text text,
+  recorded_join text,
+  recorded_first text,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT nested_export_text CHECK(CASE WHEN bypass THEN true ELSE groups::text COLLATE "C" IS NOT DISTINCT FROM recorded_text COLLATE "C" END),
+  CONSTRAINT nested_export_join CHECK(CASE WHEN bypass THEN true ELSE array_to_string(groups,'|','<NULL>') COLLATE "C" IS NOT DISTINCT FROM recorded_join COLLATE "C" END),
+  CONSTRAINT nested_export_first CHECK(CASE WHEN bypass THEN true ELSE groups[1]::text COLLATE "C" IS NOT DISTINCT FROM recorded_first COLLATE "C" END),
+  CONSTRAINT nested_export_order CHECK(CASE WHEN bypass THEN true ELSE cardinality(groups)/divisor>=0 END)
+);

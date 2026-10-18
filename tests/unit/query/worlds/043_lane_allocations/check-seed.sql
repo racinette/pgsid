@@ -4130,3 +4130,47 @@ VALUES('{bad}','{"{1,2}"}',2,1,0,false);
 -- name: nested_domain_text_bypassed
 INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
 VALUES('bad','bad',-1,-1,0,true);
+
+-- name: nested_export_valid
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}","{3,4}"}','{1,2}|{3,4}','{1,2}',1,false);
+
+-- name: nested_export_bounds
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{"[5:6]={1,2}","[-3:-2]={3,4}"}','[5:6]={1,2}|[-3:-2]={3,4}','[5:6]={1,2}',1,false);
+
+-- name: nested_export_null_cell
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES('{NULL,"{1,2}"}','{NULL,"{1,2}"}','<NULL>|{1,2}',NULL,1,false);
+
+-- name: nested_export_multidimensional
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES('{{"{1,2}","{3,4}"},{"{5,6}",NULL}}','{{"{1,2}","{3,4}"},{"{5,6}",NULL}}','{1,2}|{3,4}|{5,6}|<NULL>',NULL,1,false);
+
+-- name: nested_export_nulls
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES(NULL,NULL,NULL,NULL,1,false);
+
+-- name: nested_export_empty
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES('{}','{}','',NULL,1,false);
+
+-- name: nested_export_wrong_text
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','wrong','{1,2}|{3,4}','{1,2}',1,false);
+
+-- name: nested_export_wrong_join
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}","{3,4}"}','wrong','{1,2}',1,false);
+
+-- name: nested_export_wrong_first
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}","{3,4}"}','{1,2}|{3,4}','wrong',1,false);
+
+-- name: nested_export_zero_divisor
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}","{3,4}"}','{1,2}|{3,4}','{1,2}',0,false);
+
+-- name: nested_export_bypassed
+INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','wrong','wrong','wrong',0,true);

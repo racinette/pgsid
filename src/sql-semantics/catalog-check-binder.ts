@@ -1870,6 +1870,10 @@ export function bindCatalogCheck(
       value: { kind: 'array-constructor', type, elementType: element, multidimensional, operands },
     }
   }
+  const arrayOutputEnum = (type: string): EnumInfo | undefined => {
+    while (type.startsWith('array:')) type = arrayElementBaseType(type.slice(6))
+    return type.startsWith('enum:') ? enums.find((item) => enumType(item) === type) : undefined
+  }
   const resultEnum = (type: ScalarType, args: readonly Bound[]): EnumInfo | undefined =>
     type.startsWith('array:enum:')
       ? enums.find((item) => enumType(item) === type.slice(6))
@@ -2953,7 +2957,7 @@ export function bindCatalogCheck(
             item.result === 'pg_catalog.cstring',
         )
         if (!output) return unknown
-        const definition = resultEnum(source as ArrayType, [operand])
+        const definition = arrayOutputEnum(source)
         operand = {
           type: 'pg_catalog.text',
           collation: defaultCollation,
@@ -4572,6 +4576,10 @@ export function bindCatalogCheck(
         ? enumType(resolved.enum!)
         : (catalogScalarType(resolved.item.result) ?? (resolved.item.result as ScalarType)))
     const collation = resolved.collation
+    const outputEnum =
+      resolved.item.schema === 'pg_catalog' && resolved.item.name === 'array_to_string'
+        ? arrayOutputEnum(boundType(args[0]!) ?? '')
+        : resolved.enum
     return {
       type,
       ...(type.startsWith('enum:') || type.startsWith('array:enum:')
@@ -4598,7 +4606,7 @@ export function bindCatalogCheck(
           resolved.item.variadic !== null
             ? { variadic: true as const }
             : {}),
-          ...(resolved.enum ? { enum: resolved.enum } : {}),
+          ...(outputEnum ? { enum: outputEnum } : {}),
           collation: collation?.kind,
           ...arrayDefaultCollation(resolved.signature, collation),
         },

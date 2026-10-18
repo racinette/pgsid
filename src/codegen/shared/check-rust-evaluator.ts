@@ -8,7 +8,7 @@ import {
   rustExpressionCanFail,
   rustExpressionValidityProbes,
 } from './check-rust-validity.js'
-import { arrayElementFamily } from './check-array-types.js'
+import { arrayElementDelimiter, arrayElementFamily } from './check-array-types.js'
 import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-names.js'
 import {
   builtinCast,
@@ -763,12 +763,6 @@ export function emitCheckRustEvaluator(
       scalar = fresh('array_scalar')
     const rendered = fresh('array_rendered'),
       converted = fresh('array_converted')
-    const { prefix, conversion, scalarRequired } = arrayElementOutput(
-      elementType,
-      definition,
-      element,
-      scalar,
-    )
     const initial = fresh('array_initial'),
       first = fresh('array_first')
     destination.push(
@@ -779,8 +773,27 @@ export function emitCheckRustEvaluator(
       `while array_output_has_element(&${payload}, ${index}) {`,
       `    let ${element} = array_output_element_at(&${payload}, ${index});`,
     )
-    if (scalarRequired)
-      destination.push(`    let ${scalar} = array_element_to_${prefix}(${element});`)
+    const inner: string[] = []
+    const base = arrayElementBaseType(elementType)
+    let conversion: string
+    if (base.startsWith('array:')) {
+      const nested = fresh('array_nested')
+      inner.push(
+        `let ${scalar} = array_element_to_array(${element});`,
+        `let ${nested} = prepare_array_output(${scalar});`,
+      )
+      const values = renderArrayOutput(nested, base.slice(6), definition, inner)
+      conversion = `finish_array_output(${nested}, ${values}, ${arrayElementDelimiter(base.slice(6)) === ';'})`
+    } else {
+      const output = arrayElementOutput(elementType, definition, element, scalar)
+      if (output.scalarRequired)
+        inner.push(`let ${scalar} = array_element_to_${output.prefix}(${element});`)
+      conversion =
+        base === 'pg_catalog.jsonb'
+          ? `jsonb_text_context(${scalar}, ${executionContext.serverEncoding === 'UTF8'})`
+          : output.conversion
+    }
+    destination.push(...indent(inner))
     destination.push(
       `    let ${rendered} = ${conversion};`,
       `    let ${converted} = array_element_from_text(${rendered});`,
@@ -1242,7 +1255,9 @@ export function emitCheckRustEvaluator(
       const payload = bind(`prepare_array_output(${ownedOperand(operand)})`)
       const builder = renderArrayOutput(payload, node.elementType, node.enum, bindings)
       return {
-        name: bind(`finish_array_output(${payload}, ${builder}, ${family === 27})`),
+        name: bind(
+          `finish_array_output(${payload}, ${builder}, ${arrayElementDelimiter(node.elementType) === ';'})`,
+        ),
         type: node.type,
       }
     }
@@ -1310,7 +1325,7 @@ export function emitCheckRustEvaluator(
             ? 0
             : -1
       const payload = bind(
-        `prepare_array_text(${ownedOperand(operand)}, ${family === 27}, ${nulls})`,
+        `prepare_array_text(${ownedOperand(operand)}, ${arrayElementDelimiter(node.elementType) === ';'}, ${nulls})`,
       )
       const initial = bind(`make_array_conversion()`)
       const builder = fresh('array_builder')

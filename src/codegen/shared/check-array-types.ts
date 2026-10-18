@@ -66,6 +66,12 @@ export function arrayElementFamily(type: string): number | null {
   return families[type] ?? null
 }
 
+export function arrayElementDelimiter(type: string): ',' | ';' {
+  type = arrayElementBaseType(type)
+  while (type.startsWith('array:')) type = arrayElementBaseType(type.slice(6))
+  return type === 'pg_catalog.box' ? ';' : ','
+}
+
 export function arrayIdentityPlan(type: string): { types: string; kinds: string } | null {
   const types: string[] = [],
     kinds: number[] = []
