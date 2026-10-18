@@ -410,7 +410,7 @@ it('retains independently shaped array-valued domains at two nominal levels over
   }
 })
 
-it('defers nested-domain array text conversion while preserving known skipped branches', async () => {
+it('evaluates nested-domain array text conversion while preserving known skipped branches', async () => {
   const pg = await PGlite.create()
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-nested-text-boundary-'))
   try {
@@ -432,7 +432,7 @@ it('defers nested-domain array text conversion while preserving known skipped br
       const expression = portableCheckAtoms(
         lowerTableCheck(table, constraint, catalog.enums, catalog.domains, origin)!.expression,
       )
-      expect(hasUncertain(expression)).toBe(true)
+      expect(hasUncertain(expression)).toBe(false)
       plans.push({
         identity: {
           schema: 'public',
@@ -448,7 +448,7 @@ it('defers nested-domain array text conversion while preserving known skipped br
           payload: { kind: 'Value', value: literal },
           bypass: { kind: 'Value', value: false },
         },
-        expected: { kind: 'Unknown' },
+        expected: { kind: 'True' },
       })
       fixtures.push({
         name: origin,

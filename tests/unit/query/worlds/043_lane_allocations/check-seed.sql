@@ -4078,3 +4078,55 @@ VALUES('{}','{1,2}','{3,4}',0,NULL,NULL,NULL,0,1,2,1,2,false);
 -- name: nested_groups_bypassed
 INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
 VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{1,2}','{3,4}',-1,-1,-1,-1,-1,-1,-1,0,-1,true);
+
+-- name: nested_domain_text_valid
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}',2,1,1,false);
+
+-- name: nested_domain_text_lower_bounds
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{"[5:6]={1,2}"}','{"{1,2}"}',1,NULL,1,false);
+
+-- name: nested_domain_text_nulls
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES(NULL,NULL,NULL,NULL,1,false);
+
+-- name: nested_domain_text_empty
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{}','{}',0,NULL,1,false);
+
+-- name: nested_domain_text_wrong_count
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}',3,1,1,false);
+
+-- name: nested_domain_text_wrong_first
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}',2,9,1,false);
+
+-- name: nested_domain_text_domain_before_syntax
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{"{1}","{bad}"}','{"{1,2}"}',2,1,1,false);
+
+-- name: nested_domain_text_syntax_before_domain
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{"{bad}","{1}"}','{"{1,2}"}',2,1,1,false);
+
+-- name: nested_domain_text_required_null
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{NULL}',2,1,1,false);
+
+-- name: nested_domain_text_required_positive
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{-1,2}"}',2,1,1,false);
+
+-- name: nested_domain_text_zero_divisor
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}',2,1,0,false);
+
+-- name: nested_domain_text_input_before_zero
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('{bad}','{"{1,2}"}',2,1,0,false);
+
+-- name: nested_domain_text_bypassed
+INSERT INTO lane_group_text_imports(payload,required_payload,expected_count,expected_first,divisor,bypass)
+VALUES('bad','bad',-1,-1,0,true);

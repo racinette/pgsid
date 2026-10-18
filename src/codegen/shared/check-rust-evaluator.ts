@@ -795,6 +795,8 @@ export function emitCheckRustEvaluator(
     return arguments_
   }
 
+  let storedArrayInputScope = false
+  let declaredArrayInputScope = false
   const renderArrayInputElement = (
     elementType: string,
     definition: EnumDefinition | undefined,
@@ -803,14 +805,51 @@ export function emitCheckRustEvaluator(
     destination: string[],
     moneyLiterals?: readonly { text: string; units: string }[],
     declaredEncoding = false,
+    inputConversion?: EvalExpression,
+    used?: Set<string>,
   ): string => {
     const family = arrayElementFamily(elementType)
     if (family === null)
       throw new UnsupportedCheckRustExpression('Missing array input element carrier')
-    if (family === 41)
-      throw new UnsupportedCheckRustExpression(
-        'Nested array text input requires its element conversion plan',
-      )
+    if (family === 41) {
+      if (!inputConversion || !used)
+        throw new UnsupportedCheckRustExpression(
+          'Nested array text input requires its element conversion plan',
+        )
+      const key = JSON.stringify(['__pgsid_array_text_element', false])
+      const outerInput = localInputs.get(key),
+        outerValidity = arrayValidityScope,
+        outerStored = storedArrayInputScope,
+        outerDeclared = declaredArrayInputScope,
+        outerDepth = preparationDepth
+      localInputs.set(key, {
+        name: '__pgsid_array_text_element',
+        type: 'pg_catalog.text',
+        rustName: event,
+        rustType: 'TextValue',
+      })
+      arrayValidityScope = null
+      storedArrayInputScope = stored
+      declaredArrayInputScope = declaredArrayInputScope || declaredEncoding
+      preparationDepth = 0
+      try {
+        const value = emitScalar(inputConversion, destination, used)
+        if (value.type !== elementType)
+          throw new UnsupportedCheckRustExpression(
+            'Nested array input requires its matching base carrier',
+          )
+        const result = fresh('nested_array_input_element')
+        destination.push(`let ${result}=array_element_from_array(${ownedOperand(value)});`)
+        return result
+      } finally {
+        if (outerInput) localInputs.set(key, outerInput)
+        else localInputs.delete(key)
+        arrayValidityScope = outerValidity
+        storedArrayInputScope = outerStored
+        declaredArrayInputScope = outerDeclared
+        preparationDepth = outerDepth
+      }
+    }
     const prefix = rustValuePrefix(rustType(elementType))
     const element = fresh('array_input_element')
     if (family <= 3) {
@@ -1235,7 +1274,8 @@ export function emitCheckRustEvaluator(
       const input = baseType.startsWith('enum:') ? null : builtinTypeIO(baseType)?.input
       if (
         family === null ||
-        (!baseType.startsWith('enum:') &&
+        (family !== 41 &&
+          !baseType.startsWith('enum:') &&
           (!input || builtinMetadata(input).args[0] !== 'pg_catalog.cstring'))
       )
         throw new UnsupportedCheckRustExpression(
@@ -1259,7 +1299,9 @@ export function emitCheckRustEvaluator(
         ].includes(operand.type)
       )
         throw new UnsupportedCheckRustExpression('Array input requires a character value')
-      const stored = node.kind === 'array-text-literal' && node.origin === 'stored'
+      const stored =
+        storedArrayInputScope || (node.kind === 'array-text-literal' && node.origin === 'stored')
+      const conversion = stored ? undefined : node.conversion
       const nulls = stored
         ? 1
         : executionContext.arrayNulls === true
@@ -1288,10 +1330,12 @@ export function emitCheckRustEvaluator(
         stored,
         lines,
         node.kind === 'array-text-literal' ? node.moneyLiterals : undefined,
-        node.conversion !== undefined,
+        conversion !== undefined || declaredArrayInputScope,
+        node.inputConversion,
+        used,
       )
       const inputPreparation: string[] = []
-      if (node.conversion) {
+      if (conversion) {
         const prefix = rustValuePrefix(rustType(baseType))
         const scalar = fresh('domain_input_scalar')
         lines.push(`let ${scalar} = array_element_to_${prefix}(${converted}.clone());`)
@@ -1314,7 +1358,7 @@ export function emitCheckRustEvaluator(
         preparationDepth = 0
         let value: { name: string; type: string }
         try {
-          value = emitScalar(node.conversion, lines, used)
+          value = emitScalar(conversion, lines, used)
         } finally {
           if (outerInput) localInputs.set(key, outerInput)
           else localInputs.delete(key)
@@ -1355,7 +1399,7 @@ export function emitCheckRustEvaluator(
         `    let ${element} = ${converted};`,
       )
       bindings.push(
-        `    ${builder} = append_array_conversion(${builder}, ${element}, ${!node.conversion});`,
+        `    ${builder} = append_array_conversion(${builder}, ${element}, ${!conversion});`,
         `    ${index} = array_text_next_index(${index});`,
         '}',
       )
@@ -1364,7 +1408,7 @@ export function emitCheckRustEvaluator(
       )
       return {
         name: bind(
-          `${node.conversion ? 'finish_domain_array_input' : 'finish_prepared_array_text'}(${payload}, ${arguments_})`,
+          `${conversion ? 'finish_domain_array_input' : 'finish_prepared_array_text'}(${payload}, ${arguments_})`,
         ),
         type: node.type,
       }

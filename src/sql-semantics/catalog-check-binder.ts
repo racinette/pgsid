@@ -1558,6 +1558,7 @@ export function bindCatalogCheck(
   domainStack: ReadonlySet<string> = new Set(),
   domainInput?: boolean,
   coercionContext?: StoredDomainCoercionContext,
+  preparedArrayDomainInput?: string,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   const storedCoercions =
     literalOrigin === 'stored' && coercionContext
@@ -1601,25 +1602,32 @@ export function bindCatalogCheck(
       moneyUnits.set(literal.text, value.toString())
   }
   const inputs = new Set<string>()
-  const elementTypeName = (type: ArrayElementType): Fields => ({
-    names: type.startsWith('domain:')
-      ? (() => {
-          const domain = domainElementDefinition(type)!
-          return [domain.schema, domain.name].map((sval) => ({ String: { sval } }))
-        })()
-      : type.startsWith('enum:')
-        ? (JSON.parse(type.slice(5)) as string[]).map((sval) => ({ String: { sval } }))
-        : [
-            { String: { sval: 'pg_catalog' } },
-            { String: { sval: type.slice('pg_catalog.'.length).replaceAll('"', '') } },
-          ],
-  })
+  const elementTypeName = (type: ScalarType): Fields =>
+    type.startsWith('array:')
+      ? {
+          ...elementTypeName(type.slice(6) as ArrayElementType),
+          arrayBounds: [{ Integer: { ival: -1 } }],
+        }
+      : {
+          names: type.startsWith('domain:')
+            ? (() => {
+                const domain = domainElementDefinition(type)!
+                return [domain.schema, domain.name].map((sval) => ({ String: { sval } }))
+              })()
+            : type.startsWith('enum:')
+              ? (JSON.parse(type.slice(5)) as string[]).map((sval) => ({ String: { sval } }))
+              : [
+                  { String: { sval: 'pg_catalog' } },
+                  { String: { sval: type.slice('pg_catalog.'.length).replaceAll('"', '') } },
+                ],
+        }
   const bindArrayElementCoercion = (
     operand: Bound,
     type: ArrayType,
     element: ArrayElementType,
     targetName: Fields,
     inputContext = false,
+    preparedInput?: string,
   ): Bound => {
     if (!operand.type?.startsWith('array:') || !operand.value) return unknown
     const sourceElementType = operand.type.slice(6) as ArrayElementType
@@ -1634,8 +1642,15 @@ export function bindCatalogCheck(
       [
         {
           name: '__pgsid_domain_element',
-          typeName:
-            sourceNames[0] === 'pg_catalog'
+          typeName: sourceElementType.startsWith('array:')
+            ? sourceNames
+                .map((name, index) =>
+                  index === 0 && name === 'pg_catalog'
+                    ? name
+                    : '"' + name.replaceAll('"', '""') + '"',
+                )
+                .join('.') + '[]'
+            : sourceNames[0] === 'pg_catalog'
               ? arrayElementBaseType(sourceElementType)
               : sourceNames.map((name) => '"' + name.replaceAll('"', '""') + '"').join('.'),
           ...(sourceDefinition ? { typeOid: sourceDefinition.oid } : {}),
@@ -1663,6 +1678,8 @@ export function bindCatalogCheck(
       literalOrigin,
       domainStack,
       inputContext,
+      undefined,
+      preparedInput,
     ).expression
     if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
       return unknown
@@ -2302,12 +2319,90 @@ export function bindCatalogCheck(
           ) {
             const baseType = arrayElementBaseType(element) as ArrayElementType
             const baseArray = arrayType(baseType)
+            let inputConversion: EvalExpression | undefined
+            if (baseType.startsWith('array:')) {
+              const parsed = bindCatalogCheck(
+                [
+                  {
+                    name: '__pgsid_array_text_element',
+                    typeName: 'pg_catalog.text',
+                    collationIsC: true,
+                    isRowType: false,
+                  },
+                ],
+                {
+                  NullTest: {
+                    nulltesttype: 'IS_NOT_NULL',
+                    arg: {
+                      TypeCast: {
+                        arg: {
+                          ColumnRef: {
+                            fields: [{ String: { sval: '__pgsid_array_text_element' } }],
+                          },
+                        },
+                        typeName: elementTypeName(baseType),
+                      },
+                    },
+                  },
+                },
+                [],
+                enums,
+                domains,
+                moneyLiterals,
+                literalOrigin,
+                domainStack,
+                true,
+              ).expression
+              if (parsed.kind !== 'eval-scalar' || parsed.expression.kind !== 'null-test')
+                return unknown
+              inputConversion = parsed.expression.operand
+              const nominal = domainElementDefinition(element)!
+              const targetDomain = domains.find(
+                (item) => item.schema === nominal.schema && item.name === nominal.name,
+              )
+              const layers: DomainInfo[] = []
+              const visited = new Set<number>()
+              let layer = targetDomain
+              while (layer) {
+                if (visited.has(layer.oid)) return unknown
+                visited.add(layer.oid)
+                layers.push(layer)
+                layer = domains.find((item) => item.oid === layer!.baseTypeOid)
+              }
+              const modifiers = layers
+                .reverse()
+                .map((item) => item.baseTypeMod)
+                .filter((modifier) => modifier !== -1)
+              if (modifiers.some((modifier) => modifier === undefined)) return unknown
+              if (modifiers.length) {
+                if (inputConversion.kind !== 'text-to-array' || inputConversion.conversion)
+                  return unknown
+                const scalarType = baseType.slice(6) as ScalarType
+                let converted: EvalExpression = {
+                  kind: 'input',
+                  type: scalarType,
+                  name: '__pgsid_domain_element',
+                }
+                for (const modifier of modifiers) {
+                  const modified = modifyScalar(converted, scalarType, modifier!, false)
+                  if (!modified) return unknown
+                  converted = modified
+                }
+                inputConversion = { ...inputConversion, conversion: converted }
+              }
+            }
             const mapping = bindArrayElementCoercion(
               { type: baseArray, value: { kind: 'uncertain', type: baseArray } },
               type,
               element as ArrayElementType,
               { ...castType, arrayBounds: [] },
               true,
+              baseType.startsWith('array:')
+                ? JSON.stringify([
+                    domainElementDefinition(element)!.schema,
+                    domainElementDefinition(element)!.name,
+                  ])
+                : undefined,
             ).value
             if (mapping?.kind !== 'array-domain-coerce') return unknown
             const baseEnum = baseType.startsWith('enum:')
@@ -2321,6 +2416,7 @@ export function bindCatalogCheck(
                     type,
                     elementType: element as ArrayElementType,
                     value: operand.literal.value!,
+                    ...(inputConversion ? { inputConversion } : {}),
                     ...(literalOrigin === 'stored' ? {} : { conversion: mapping.conversion }),
                     ...(baseEnum ? { enum: baseEnum } : {}),
                   }
@@ -2330,6 +2426,7 @@ export function bindCatalogCheck(
                       type,
                       elementType: element as ArrayElementType,
                       operand: text,
+                      ...(inputConversion ? { inputConversion } : {}),
                       conversion: mapping.conversion,
                       ...(baseEnum ? { enum: baseEnum } : {}),
                     }
@@ -2611,7 +2708,10 @@ export function bindCatalogCheck(
             if (modifier === -1) continue
             if (scalarType.startsWith('array:')) {
               if (pushModifiers) continue
-              if (castInput) return unknown
+              if (castInput) {
+                if (preparedArrayDomainInput === identity) continue
+                return unknown
+              }
               value = {
                 kind: 'array-typmod',
                 type: scalarType as ArrayType,
