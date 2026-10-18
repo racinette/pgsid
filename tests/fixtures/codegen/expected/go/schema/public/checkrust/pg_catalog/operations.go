@@ -29828,6 +29828,281 @@ func PolygonFromText(input checkruntime.TextValue) checkruntime.PolygonValue {
 	}
 	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
 }
+
+const rangeConstructorDataError = 3452544
+const rangeConstructorFlagsError = 6819553
+const rangeConstructorIntegerOverflow = 3452547
+const rangeConstructorDateOverflow = 3452552
+
+func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, kind int) checkruntime.Int4Value {
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	kind = langruntime.CheckedI32(kind)
+	if lower.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+	}
+	if upper.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+	}
+	if kind == 7 {
+		left := checkruntime.ArrayElementToDate(lower)
+		right := checkruntime.ArrayElementToDate(upper)
+		return DateCmpU18z(left, right)
+	}
+	if kind == 2 {
+		left := checkruntime.ArrayElementToInt4(lower)
+		right := checkruntime.ArrayElementToInt4(upper)
+		return Btint4cmpE3r7(left, right)
+	}
+	if kind == 3 {
+		left := checkruntime.ArrayElementToInt8(lower)
+		right := checkruntime.ArrayElementToInt8(upper)
+		return Btint8cmpTevi(left, right)
+	}
+	if kind == 10 {
+		left := checkruntime.ArrayElementToNumeric(lower)
+		right := checkruntime.ArrayElementToNumeric(upper)
+		return NumericCmp6h4s(left, right)
+	}
+	if kind == 4 {
+		left := checkruntime.ArrayElementToTimestamp(lower)
+		right := checkruntime.ArrayElementToTimestamp(upper)
+		return TimestampCmpLpkm(left, right)
+	}
+	if kind == 5 {
+		left := checkruntime.ArrayElementToTimestamptz(lower)
+		right := checkruntime.ArrayElementToTimestamptz(upper)
+		return TimestamptzCmpCa0r(left, right)
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func rangeBuiltinSerialize(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInclusive bool, upperInclusive bool) checkruntime.RangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	comparison := rangeBuiltinCompare(checkruntime.CopyArrayElement(lower), checkruntime.CopyArrayElement(upper), kind)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if order > 0 {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorDataError)}
+		}
+		if order == 0 && (lowerInclusive == false || upperInclusive == false) {
+			return checkruntime.RangeFromCoercedBounds(typeName, elementType, kind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull})
+		}
+		loInc := lowerInclusive
+		hiInc := upperInclusive
+		if lower.Kind == checkruntime.ArrayElementNull {
+			loInc = false
+		}
+		if upper.Kind == checkruntime.ArrayElementNull {
+			hiInc = false
+		}
+		return checkruntime.RangeFromCoercedBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper)
+	}
+	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+}
+func rangeBuiltinCanonical(input checkruntime.RangeValue) checkruntime.RangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	if input.Kind == checkruntime.RangeValueValue {
+		value := checkruntime.CopyRangePayload(input.Value)
+		if value.Empty {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: value}
+		}
+		lower := checkruntime.CopyArrayElement(value.Bounds[0])
+		upper := checkruntime.CopyArrayElement(value.Bounds[1])
+		loInc := value.LowerInclusive
+		hiInc := value.UpperInclusive
+		if value.ElementKind == 2 {
+			if lower.Kind == checkruntime.ArrayElementInt4 {
+				bound := langruntime.CheckedI32(lower.Int4)
+				if loInc == false {
+					if bound == 2147483647 {
+						return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorIntegerOverflow)}
+					}
+					lower = checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementInt4, Int4: langruntime.CheckedSignedAdd(bound, 1)})
+					loInc = true
+				}
+			}
+			if upper.Kind == checkruntime.ArrayElementInt4 {
+				bound := langruntime.CheckedI32(upper.Int4)
+				if hiInc {
+					if bound == 2147483647 {
+						return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorIntegerOverflow)}
+					}
+					upper = checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementInt4, Int4: langruntime.CheckedSignedAdd(bound, 1)})
+					hiInc = false
+				}
+			}
+		}
+		if value.ElementKind == 3 {
+			if lower.Kind == checkruntime.ArrayElementInt8 {
+				bound := lower.Int8
+				if loInc == false {
+					if bound == int64(9223372036854775807) {
+						return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorIntegerOverflow)}
+					}
+					lower = checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementInt8, Int8: langruntime.CheckedI64Add(bound, int64(1))})
+					loInc = true
+				}
+			}
+			if upper.Kind == checkruntime.ArrayElementInt8 {
+				bound := upper.Int8
+				if hiInc {
+					if bound == int64(9223372036854775807) {
+						return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorIntegerOverflow)}
+					}
+					upper = checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementInt8, Int8: langruntime.CheckedI64Add(bound, int64(1))})
+					hiInc = false
+				}
+			}
+		}
+		if value.ElementKind == 7 {
+			if lower.Kind == checkruntime.ArrayElementDate {
+				bound := langruntime.CheckedI32(lower.Date)
+				if bound != langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) && bound != 2147483647 && loInc == false {
+					if bound >= 2145031948 {
+						return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorDateOverflow)}
+					}
+					lower = checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementDate, Date: langruntime.CheckedSignedAdd(bound, 1)})
+					loInc = true
+				}
+			}
+			if upper.Kind == checkruntime.ArrayElementDate {
+				bound := langruntime.CheckedI32(upper.Date)
+				if bound != langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) && bound != 2147483647 && hiInc {
+					if bound >= 2145031948 {
+						return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorDateOverflow)}
+					}
+					upper = checkruntime.CopyArrayElement(checkruntime.ArrayElement{Kind: checkruntime.ArrayElementDate, Date: langruntime.CheckedSignedAdd(bound, 1)})
+					hiInc = false
+				}
+			}
+		}
+		return rangeBuiltinSerialize(value.TypeName, value.ElementType, value.ElementKind, lower, upper, loInc, hiInc)
+	}
+	return input
+}
+func rangeBuiltinConstruct(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, flags checkruntime.TextValue) checkruntime.RangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	if lower.Kind == checkruntime.ArrayElementError {
+		error := lower.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if upper.Kind == checkruntime.ArrayElementError {
+		error := upper.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if flags.Kind == checkruntime.TextValueError {
+		error := flags.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if flags.Kind == checkruntime.TextValueNull {
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorDataError)}
+	}
+	if flags.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(flags.Value)
+		valid := text == "[]" || text == "[)" || text == "(]" || text == "()"
+		if valid == false {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorFlagsError)}
+		}
+		if lower.Kind == checkruntime.ArrayElementUnknown {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+		}
+		if upper.Kind == checkruntime.ArrayElementUnknown {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+		}
+		loInc := text == "[]" || text == "[)"
+		hiInc := text == "[]" || text == "(]"
+		initial := rangeBuiltinSerialize(typeName, elementType, kind, lower, upper, loInc, hiInc)
+		return rangeBuiltinCanonical(initial)
+	}
+	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+}
+func DaterangeXa2w(lower checkruntime.DateValue, upper checkruntime.DateValue) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromDate(lower)
+	hi := checkruntime.ArrayElementFromDate(upper)
+	return rangeBuiltinConstruct("pg_catalog.daterange", "pg_catalog.date", 7, lo, hi, checkruntime.MakeTextValue("[)"))
+}
+func DaterangeZ15e(lower checkruntime.DateValue, upper checkruntime.DateValue, flags checkruntime.TextValue) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromDate(lower)
+	hi := checkruntime.ArrayElementFromDate(upper)
+	return rangeBuiltinConstruct("pg_catalog.daterange", "pg_catalog.date", 7, lo, hi, flags)
+}
+func DaterangeCanonicalWxsu(input checkruntime.RangeValue) checkruntime.RangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	checked := checkruntime.RangeRequireType(input, "pg_catalog.daterange", "pg_catalog.date", 7)
+	return rangeBuiltinCanonical(checked)
+}
+func Int4rangeH2la(lower checkruntime.Int4Value, upper checkruntime.Int4Value) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromInt4(lower)
+	hi := checkruntime.ArrayElementFromInt4(upper)
+	return rangeBuiltinConstruct("pg_catalog.int4range", "pg_catalog.int4", 2, lo, hi, checkruntime.MakeTextValue("[)"))
+}
+func Int4rangeDl1b(lower checkruntime.Int4Value, upper checkruntime.Int4Value, flags checkruntime.TextValue) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromInt4(lower)
+	hi := checkruntime.ArrayElementFromInt4(upper)
+	return rangeBuiltinConstruct("pg_catalog.int4range", "pg_catalog.int4", 2, lo, hi, flags)
+}
+func Int4rangeCanonicalRxi1(input checkruntime.RangeValue) checkruntime.RangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	checked := checkruntime.RangeRequireType(input, "pg_catalog.int4range", "pg_catalog.int4", 2)
+	return rangeBuiltinCanonical(checked)
+}
+func Int8rangeP6bp(lower checkruntime.Int8Value, upper checkruntime.Int8Value) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromInt8(lower)
+	hi := checkruntime.ArrayElementFromInt8(upper)
+	return rangeBuiltinConstruct("pg_catalog.int8range", "pg_catalog.int8", 3, lo, hi, checkruntime.MakeTextValue("[)"))
+}
+func Int8rangeK46i(lower checkruntime.Int8Value, upper checkruntime.Int8Value, flags checkruntime.TextValue) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromInt8(lower)
+	hi := checkruntime.ArrayElementFromInt8(upper)
+	return rangeBuiltinConstruct("pg_catalog.int8range", "pg_catalog.int8", 3, lo, hi, flags)
+}
+func Int8rangeCanonicalWenu(input checkruntime.RangeValue) checkruntime.RangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	checked := checkruntime.RangeRequireType(input, "pg_catalog.int8range", "pg_catalog.int8", 3)
+	return rangeBuiltinCanonical(checked)
+}
+func NumrangeEag6(lower checkruntime.NumericValue, upper checkruntime.NumericValue) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromNumeric(lower)
+	hi := checkruntime.ArrayElementFromNumeric(upper)
+	return rangeBuiltinConstruct("pg_catalog.numrange", "pg_catalog.\"numeric\"", 10, lo, hi, checkruntime.MakeTextValue("[)"))
+}
+func Numrange8ziy(lower checkruntime.NumericValue, upper checkruntime.NumericValue, flags checkruntime.TextValue) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromNumeric(lower)
+	hi := checkruntime.ArrayElementFromNumeric(upper)
+	return rangeBuiltinConstruct("pg_catalog.numrange", "pg_catalog.\"numeric\"", 10, lo, hi, flags)
+}
+func TsrangeU3gz(lower checkruntime.TimestampValue, upper checkruntime.TimestampValue) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromTimestamp(lower)
+	hi := checkruntime.ArrayElementFromTimestamp(upper)
+	return rangeBuiltinConstruct("pg_catalog.tsrange", "pg_catalog.\"timestamp\"", 4, lo, hi, checkruntime.MakeTextValue("[)"))
+}
+func TsrangeRglb(lower checkruntime.TimestampValue, upper checkruntime.TimestampValue, flags checkruntime.TextValue) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromTimestamp(lower)
+	hi := checkruntime.ArrayElementFromTimestamp(upper)
+	return rangeBuiltinConstruct("pg_catalog.tsrange", "pg_catalog.\"timestamp\"", 4, lo, hi, flags)
+}
+func Tstzrange2y9m(lower checkruntime.TimestamptzValue, upper checkruntime.TimestamptzValue) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromTimestamptz(lower)
+	hi := checkruntime.ArrayElementFromTimestamptz(upper)
+	return rangeBuiltinConstruct("pg_catalog.tstzrange", "pg_catalog.timestamptz", 5, lo, hi, checkruntime.MakeTextValue("[)"))
+}
+func TstzrangeZuff(lower checkruntime.TimestamptzValue, upper checkruntime.TimestamptzValue, flags checkruntime.TextValue) checkruntime.RangeValue {
+	lo := checkruntime.ArrayElementFromTimestamptz(lower)
+	hi := checkruntime.ArrayElementFromTimestamptz(upper)
+	return rangeBuiltinConstruct("pg_catalog.tstzrange", "pg_catalog.timestamptz", 5, lo, hi, flags)
+}
 func Isempty86tf(input checkruntime.RangeValue) checkruntime.BoolValue {
 	input = checkruntime.CopyRangeValue(input)
 	return checkruntime.RangeEmptyState(input)

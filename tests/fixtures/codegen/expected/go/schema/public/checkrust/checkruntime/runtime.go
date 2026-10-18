@@ -8310,7 +8310,7 @@ type RangePayload struct {
 	Bounds         []ArrayElement
 }
 
-func copyRangePayload(value RangePayload) RangePayload {
+func CopyRangePayload(value RangePayload) RangePayload {
 	return RangePayload{TypeName: langruntime.CheckedString(value.TypeName), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Empty: value.Empty, LowerInclusive: value.LowerInclusive, UpperInclusive: value.UpperInclusive, Bounds: langruntime.CheckedStructs(value.Bounds, CopyArrayElement)}
 }
 
@@ -8338,7 +8338,7 @@ func CopyRangeValue(value RangeValue) RangeValue {
 	case RangeValueError:
 		return RangeValue{Kind: RangeValueError, Error: value.Error}
 	case RangeValueValue:
-		return RangeValue{Kind: RangeValueValue, Value: copyRangePayload(value.Value)}
+		return RangeValue{Kind: RangeValueValue, Value: CopyRangePayload(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -8349,7 +8349,7 @@ func RangeNull() RangeValue {
 	return RangeValue{Kind: RangeValueNull}
 }
 func MakeCoercedRangeValue(input RangePayload) RangeValue {
-	input = copyRangePayload(input)
+	input = CopyRangePayload(input)
 	if input.TypeName == "" || input.ElementType == "" || input.ElementKind < 1 {
 		return RangeValue{Kind: RangeValueUnknown}
 	}
@@ -8403,7 +8403,7 @@ func RangeRequireType(input RangeValue, typeName string, elementType string, ele
 	elementType = langruntime.CheckedString(elementType)
 	elementKind = langruntime.CheckedI32(elementKind)
 	if input.Kind == RangeValueValue {
-		value := copyRangePayload(input.Value)
+		value := CopyRangePayload(input.Value)
 		if value.TypeName != typeName || value.ElementType != elementType || value.ElementKind != elementKind {
 			return RangeValue{Kind: RangeValueUnknown}
 		}
@@ -8442,7 +8442,7 @@ func RangeEmptyState(input RangeValue) BoolValue {
 		return BoolValue{Kind: BoolValueNull}
 	}
 	if input.Kind == RangeValueValue {
-		value := copyRangePayload(input.Value)
+		value := CopyRangePayload(input.Value)
 		return BoolValue{Kind: BoolValueValue, Value: value.Empty}
 	}
 	return BoolValue{Kind: BoolValueUnknown}
@@ -8457,7 +8457,7 @@ func RangeBound(input RangeValue, upper bool) ArrayElement {
 		return ArrayElement{Kind: ArrayElementNull}
 	}
 	if input.Kind == RangeValueValue {
-		value := copyRangePayload(input.Value)
+		value := CopyRangePayload(input.Value)
 		if value.Empty {
 			return ArrayElement{Kind: ArrayElementNull}
 		}
@@ -8479,7 +8479,7 @@ func RangeBoundFlag(input RangeValue, upper bool, infinite bool) BoolValue {
 		return BoolValue{Kind: BoolValueNull}
 	}
 	if input.Kind == RangeValueValue {
-		value := copyRangePayload(input.Value)
+		value := CopyRangePayload(input.Value)
 		if value.Empty {
 			return BoolValue{Kind: BoolValueValue, Value: false}
 		}

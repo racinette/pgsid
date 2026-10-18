@@ -17,6 +17,7 @@ import {
   builtinTypeComparison,
   builtinTypeResolution,
   builtinRangeType,
+  isBuiltinRangeConstructor,
 } from '../../postgres/builtins/inventory.js'
 import { checkRustCallableNames } from './check-rust-source.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
@@ -1661,6 +1662,7 @@ export function emitCheckRustEvaluator(
       const builder = jsonbBuilder || jsonBuilder
       const rawJson = jsonConversion || jsonBuilder
       const jsonpathTimezone = isJsonpathTimezoneCallable(implementation)
+      const rangeConstructor = isBuiltinRangeConstructor(implementation)
       const arraySearch = isArraySearch(implementation)
       const arrayStringIO = isArrayStringIO(implementation)
       const arrayFill = isArrayFill(implementation)
@@ -1718,6 +1720,7 @@ export function emitCheckRustEvaluator(
         implementation.kind !== 'function' ||
         resultType !== call.type ||
         (!implementation.strict &&
+          !rangeConstructor &&
           !enumSupport &&
           !arraySearch &&
           !arrayTransform &&

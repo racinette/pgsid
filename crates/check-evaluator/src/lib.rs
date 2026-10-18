@@ -61,6 +61,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/boolean.rs");
     include!("operations/pg_catalog/array_metadata.rs");
     include!("operations/pg_catalog/range_metadata.rs");
+    include!("operations/pg_catalog/range_construct.rs");
     include!("operations/pg_catalog/array_compare.rs");
     include!("operations/pg_catalog/array_hash.rs");
     include!("operations/pg_catalog/enumeration_support.rs");

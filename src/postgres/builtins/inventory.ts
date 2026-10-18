@@ -82,3 +82,20 @@ export function functionMetadata(signature: string): FunctionMetadata {
   if (metadata.kind === 'operator') throw new Error(`Not a function signature: ${signature}`)
   return metadata
 }
+
+export function isBuiltinRangeConstructor(item: BuiltinCallable): boolean {
+  if (item.kind !== 'function') return false
+  const range = builtinRangeType(item.result)
+  return (
+    range !== null &&
+    item.schema === 'pg_catalog' &&
+    item.name === range.identity.slice('pg_catalog.'.length) &&
+    !item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    (item.args.length === 2 || item.args.length === 3) &&
+    item.args[0] === range.subtype &&
+    item.args[1] === range.subtype &&
+    (item.args.length === 2 || item.args[2] === 'pg_catalog.text')
+  )
+}

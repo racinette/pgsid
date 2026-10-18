@@ -1500,3 +1500,34 @@ CREATE TABLE lane_reservation_windows (
   CONSTRAINT window_selected_end CHECK(CASE WHEN bypass THEN true ELSE upper(CASE WHEN prefer_alternate THEN alternate_span ELSE span END) IS NOT DISTINCT FROM expected_end END),
   CONSTRAINT window_division CHECK(CASE WHEN bypass THEN true ELSE isempty(span) OR 1/denominator > 0 END)
 );
+
+CREATE TABLE lane_constructor_windows (
+  low_bound integer,
+  high_bound integer,
+  low_wide bigint,
+  high_wide bigint,
+  low_price numeric,
+  high_price numeric,
+  low_day date,
+  high_day date,
+  low_local timestamp,
+  high_local timestamp,
+  low_instant timestamptz,
+  high_instant timestamptz,
+  bound_flags text,
+  expected_empty boolean,
+  ceiling_wide bigint,
+  latest_day date,
+  earliest_local timestamp,
+  latest_instant timestamptz,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT constructor_empty CHECK(CASE WHEN bypass THEN true ELSE isempty(int4range(low_bound,high_bound,bound_flags)) IS NOT DISTINCT FROM expected_empty END),
+  CONSTRAINT constructor_wide_end CHECK(CASE WHEN bypass THEN true ELSE upper(int8range(low_wide,high_wide,bound_flags))<=ceiling_wide END),
+  CONSTRAINT constructor_price_floor CHECK(CASE WHEN bypass THEN true ELSE lower(numrange(low_price,high_price,bound_flags))>=0 END),
+  CONSTRAINT constructor_day_end CHECK(CASE WHEN bypass THEN true ELSE upper(daterange(low_day,high_day,bound_flags))<=latest_day END),
+  CONSTRAINT constructor_local_floor CHECK(CASE WHEN bypass THEN true ELSE lower(tsrange(low_local,high_local,bound_flags))>=earliest_local END),
+  CONSTRAINT constructor_instant_end CHECK(CASE WHEN bypass THEN true ELSE upper(tstzrange(low_instant,high_instant,bound_flags))<=latest_instant END),
+  CONSTRAINT constructor_default_end CHECK(CASE WHEN bypass THEN true ELSE upper(int4range(low_bound,high_bound/divisor))<=100 END),
+  CONSTRAINT constructor_canonical_floor CHECK(CASE WHEN bypass THEN true ELSE lower(int4range_canonical(int4range(low_bound,high_bound,bound_flags)))>=0 END)
+);
