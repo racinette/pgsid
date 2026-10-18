@@ -75,6 +75,20 @@ function prepare(expression: EvalExpression): Preparation | null {
         ? { constant: false, null: operand.null, expressions: operand.expressions }
         : null
   }
+  if (expression.kind === 'io-to-text') {
+    const output = builtinMetadata(expression.output)
+    if (
+      output.kind === 'function' &&
+      output.schema === 'pg_catalog' &&
+      output.name === 'range_out' &&
+      output.volatility === 's'
+    ) {
+      const operand = prepare(expression.operand)
+      return operand
+        ? { constant: false, null: operand.null, expressions: operand.expressions }
+        : null
+    }
+  }
   if (expression.kind === 'array-domain-coerce') {
     const operand = prepare(expression.operand)
     return operand

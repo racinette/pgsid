@@ -30381,6 +30381,198 @@ export function upperInf51cc(input: checkruntime.RangeValue): checkruntime.BoolV
     input = checkruntime.copyRangeValue(input);
     return checkruntime.rangeBoundFlag(input, true, true);
 }
+function rangeOutputQuote(input: string): string {
+    input = langruntime.checkedString(input);
+    const characters: string[] = Array.from(input);
+    let quoted: boolean = characters.length === 0;
+    let position: number = 0;
+    while (position < characters.length) {
+        const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+        if (ch === "\"" || ch === "\\" || ch === "(" || ch === ")" || ch === "[" || ch === "]" || ch === "," || rangeInputSpace(ch)) {
+            quoted = langruntime.checkedBool(true);
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    let output: string = "";
+    if (quoted) {
+        output = output + langruntime.checkedChar("\"");
+    }
+    position = langruntime.checkedIndex(0);
+    while (position < characters.length) {
+        const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+        if (ch === "\"" || ch === "\\") {
+            output = output + langruntime.checkedChar(ch);
+        }
+        output = output + langruntime.checkedChar(ch);
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (quoted) {
+        output = output + langruntime.checkedChar("\"");
+    }
+    return output;
+}
+export function rangeFormatText(input: checkruntime.RangeValue, lower: checkruntime.TextValue, upper: checkruntime.TextValue): checkruntime.TextValue {
+    input = checkruntime.copyRangeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.RangePayload = checkruntime.copyRangePayload(input.value);
+        if (value.empty) {
+            return checkruntime.makeTextValue("empty");
+        }
+        let output: string = "";
+        if (value.lowerInclusive) {
+            output = output + langruntime.checkedChar("[");
+        }
+        else {
+            output = output + langruntime.checkedChar("(");
+        }
+        const lo: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+        let lowerPresent: boolean = true;
+        if (lo.kind === "Null") {
+            lowerPresent = langruntime.checkedBool(false);
+        }
+        if (lowerPresent) {
+            if (lower.kind === "Error") {
+                const error: checkruntime.SqlError = lower.value;
+                return { kind: "Error", value: error };
+            }
+            let lowerKnown: boolean = false;
+            if (lower.kind === "Value") {
+                const text: string = langruntime.checkedString(lower.value);
+                const quoted: string = rangeOutputQuote(text);
+                output = output + quoted;
+                lowerKnown = langruntime.checkedBool(true);
+            }
+            if (lowerKnown === false) {
+                return { kind: "Unknown" };
+            }
+        }
+        output = output + langruntime.checkedChar(",");
+        const hi: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+        let upperPresent: boolean = true;
+        if (hi.kind === "Null") {
+            upperPresent = langruntime.checkedBool(false);
+        }
+        if (upperPresent) {
+            if (upper.kind === "Error") {
+                const error: checkruntime.SqlError = upper.value;
+                return { kind: "Error", value: error };
+            }
+            let upperKnown: boolean = false;
+            if (upper.kind === "Value") {
+                const text: string = langruntime.checkedString(upper.value);
+                const quoted: string = rangeOutputQuote(text);
+                output = output + quoted;
+                upperKnown = langruntime.checkedBool(true);
+            }
+            if (upperKnown === false) {
+                return { kind: "Unknown" };
+            }
+        }
+        if (value.upperInclusive) {
+            output = output + langruntime.checkedChar("]");
+        }
+        else {
+            output = output + langruntime.checkedChar(")");
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+function rangeOutputBound(input: checkruntime.ArrayElement, kind: number): checkruntime.TextValue {
+    input = checkruntime.copyArrayElement(input);
+    kind = langruntime.checkedI32(kind);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (kind === 2) {
+        return int4ToText(checkruntime.arrayElementToInt4(input));
+    }
+    if (kind === 3) {
+        return int8ToText(checkruntime.arrayElementToInt8(input));
+    }
+    if (kind === 10) {
+        return arrayNumericOutput(checkruntime.arrayElementToNumeric(input));
+    }
+    if (kind === 7) {
+        if (input.kind === "Date") {
+            const value: number = langruntime.checkedI32(input.value);
+            if (value === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
+                return checkruntime.makeTextValue("-infinity");
+            }
+            if (value === 2147483647) {
+                return checkruntime.makeTextValue("infinity");
+            }
+        }
+    }
+    if (kind === 4) {
+        if (input.kind === "Timestamp") {
+            const value: bigint = langruntime.checkedI64(input.value);
+            if (value === -9223372036854775808n) {
+                return checkruntime.makeTextValue("-infinity");
+            }
+            if (value === 9223372036854775807n) {
+                return checkruntime.makeTextValue("infinity");
+            }
+        }
+    }
+    if (kind === 5) {
+        if (input.kind === "Timestamptz") {
+            const value: bigint = langruntime.checkedI64(input.value);
+            if (value === -9223372036854775808n) {
+                return checkruntime.makeTextValue("-infinity");
+            }
+            if (value === 9223372036854775807n) {
+                return checkruntime.makeTextValue("infinity");
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextValue {
+    input = checkruntime.copyRangeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.RangePayload = checkruntime.copyRangePayload(input.value);
+        if (value.empty) {
+            return checkruntime.makeTextValue("empty");
+        }
+        const lower: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), value.elementKind);
+        if (lower.kind === "Error") {
+            const error: checkruntime.SqlError = lower.value;
+            return { kind: "Error", value: error };
+        }
+        if (lower.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        const upper: checkruntime.TextValue = rangeOutputBound(checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), value.elementKind);
+        if (upper.kind === "Error") {
+            const error: checkruntime.SqlError = upper.value;
+            return { kind: "Error", value: error };
+        }
+        if (upper.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        return rangeFormatText({ kind: "Value", value: value }, lower, upper);
+    }
+    return { kind: "Unknown" };
+}
 const scalarInputInvalid = 3484946;
 const scalarInputRange = 3452547;
 export function moneyFromCapturedText(input: checkruntime.TextValue, texts: string, units: string, count: number): checkruntime.MoneyValue {

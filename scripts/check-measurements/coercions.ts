@@ -124,6 +124,20 @@ const inputForms = [
     platformDependent: [],
     unimplementedGrammar: [],
     scope: 'Outer range grammar samples; reached bounds retain their scalar input requirements',
+    textOutput: {
+      owner: 'tests/sql-semantics/check-range-output.test.ts',
+      formatOwner: 'tests/sql-semantics/check-range-output-format.test.ts',
+      handled: ['NULL', 'empty', 'unbounded bounds', 'typed infinite bounds'],
+      contextRequired:
+        forms.boundType === 'pg_catalog.date' || forms.boundType === 'pg_catalog."timestamp"'
+          ? ['DateStyle for finite bounds']
+          : forms.boundType === 'pg_catalog.timestamptz'
+            ? ['DateStyle and TimeZone for finite bounds']
+            : [],
+      boundType: forms.boundType,
+      scope:
+        'Ordered subtype rendering; finite integer and numeric bounds retain exact values and scales',
+    },
   })),
   ...(['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'] as const).map((type) => ({
     type,

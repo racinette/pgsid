@@ -4706,3 +4706,75 @@ VALUES('(,)','(,)','(,)','(,)','(,)','(,)',false,3,0,'2000-01-05','1999-12-31','
 -- name: range_import_point
 INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
 VALUES('[1,1]','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,2,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_export_exact
+INSERT INTO lane_range_exports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_slots,expected_loads,expected_prices,expected_days,expected_local,expected_instant,slot_prefix,imported,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254740999)','[-0.00,1.2300]','[-infinity,infinity]','[-infinity,infinity]','[-infinity,infinity]','[1,3)','[9007199254740993,9007199254740999)','[0.00,1.2300]','[-infinity,infinity]','[-infinity,infinity]','[-infinity,infinity]','[1,','(0,2]',1,false);
+
+-- name: range_export_slot_mismatch
+INSERT INTO lane_range_exports(slots,expected_slots,slot_prefix,imported,divisor,bypass)
+VALUES('[1,3)','[1,4)','[1,','[1,3)',1,false);
+
+-- name: range_export_wide_mismatch
+INSERT INTO lane_range_exports(loads,expected_loads,divisor,bypass)
+VALUES('[9007199254740993,9007199254740999)','[9007199254740992,9007199254740999)',1,false);
+
+-- name: range_export_scale_mismatch
+INSERT INTO lane_range_exports(prices,expected_prices,divisor,bypass)
+VALUES('[1.2300,3.4500]','[1.23,3.45]',1,false);
+
+-- name: range_export_day_mismatch
+INSERT INTO lane_range_exports(calendar_days,expected_days,divisor,bypass)
+VALUES('[-infinity,infinity]','(-infinity,infinity)',1,false);
+
+-- name: range_export_local_mismatch
+INSERT INTO lane_range_exports(local_shift,expected_local,divisor,bypass)
+VALUES('[-infinity,infinity]','[-infinity,infinity)',1,false);
+
+-- name: range_export_instant_mismatch
+INSERT INTO lane_range_exports(instant_shift,expected_instant,divisor,bypass)
+VALUES('[-infinity,infinity]','[-infinity,infinity)',1,false);
+
+-- name: range_export_empty
+INSERT INTO lane_range_exports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_slots,expected_loads,expected_prices,expected_days,expected_local,expected_instant,slot_prefix,imported,divisor,bypass)
+VALUES('empty','empty','empty','empty','empty','empty','empty','empty','empty','empty','empty','empty','emp','empty',1,false);
+
+-- name: range_export_unbounded
+INSERT INTO lane_range_exports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_slots,expected_loads,expected_prices,expected_days,expected_local,expected_instant,slot_prefix,imported,divisor,bypass)
+VALUES('(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)','(,)',1,false);
+
+-- name: range_export_null
+INSERT INTO lane_range_exports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_slots,expected_loads,expected_prices,expected_days,expected_local,expected_instant,slot_prefix,imported,divisor,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,false);
+
+-- name: range_export_prefix_mismatch
+INSERT INTO lane_range_exports(slots,expected_slots,slot_prefix,imported,divisor,bypass)
+VALUES('[1,3)','[1,3)','[2,','[1,3)',1,false);
+
+-- name: range_export_domain_failure
+INSERT INTO lane_range_exports(slots,expected_slots,slot_prefix,imported,divisor,bypass)
+VALUES('[-1,3)','[-1,3)','[-1','[-1,3)',1,false);
+
+-- name: range_export_import_mismatch
+INSERT INTO lane_range_exports(slots,expected_slots,slot_prefix,imported,divisor,bypass)
+VALUES('[1,3)','[1,3)','[1,','[1,4)',1,false);
+
+-- name: range_export_import_syntax
+INSERT INTO lane_range_exports(slots,expected_slots,slot_prefix,imported,divisor,bypass)
+VALUES('[1,3)','[1,3)','[1,','[1,3)junk',1,false);
+
+-- name: range_export_import_overflow
+INSERT INTO lane_range_exports(imported,divisor,bypass)
+VALUES('[2147483648,bad)',1,false);
+
+-- name: range_export_constructor_error
+INSERT INTO lane_range_exports(divisor,bypass)
+VALUES(0,false);
+
+-- name: range_export_constructor_mismatch
+INSERT INTO lane_range_exports(divisor,bypass)
+VALUES(3,false);
+
+-- name: range_export_bypass
+INSERT INTO lane_range_exports(slots,calendar_days,local_shift,instant_shift,imported,divisor,bypass)
+VALUES('[-1,3)','[2000-01-02,2000-03-04)','[2000-01-02,2000-03-04)','[2000-01-02 00:00:00+00,2000-03-04 00:00:00+00)','invalid',0,true);

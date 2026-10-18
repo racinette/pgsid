@@ -23,8 +23,7 @@ Refresh world outcomes before measuring the surface. Run from the repository roo
 pnpm check-rust:measure
 ```
 
-A prepared evaluator may return Unknown. Count useful support from binding and executed outcomes, rather than preparation success alone. Legacy target bindings
-and catalog function counts are separate from Rust CHECK coverage; dedicated regex paths can work without a catalog-named implementation.
+A prepared evaluator may return Unknown. Count useful support from binding and executed outcomes, rather than preparation success alone. Legacy target bindings and catalog function counts are separate from Rust CHECK coverage; dedicated regex paths can work without a catalog-named implementation.
 
 The type report separates nullness from portable value representation and uses catalog row shape for column probes. Column admission is probed in PostgreSQL;
 rejected types remain inventoried without column probes. The surface report
@@ -254,8 +253,9 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Capture stable range/subtype/multirange/array identities and selected comparison, collation and canonicalization support; verify custom support, overloads and rebuild/search-path independence without retaining OIDs.
 - [x] Establish owned SQL-coerced range payloads with typed bounds, nominal identities, empty/unbounded/inclusive distinctions and narrow wrapper admission; verify structural calls, exact bounds, NULL/Unknown/errors, snapshots and Rust/Go/TypeScript INSERT parity.
 - [x] Bind builtin ranges and subtype results through nested domains, typed NULLs and CASE/COALESCE; validate public row payloads, preserve raw query conversion and reject malformed bound tags before copying.
-- [x] Admit builtin two/three-argument range constructors and discrete canonicalization through catalog identities and subtype comparators; preserve non-strict NULL bounds, flags validation, equal/reversed endpoints, exact bigint/numeric scales, infinity and overflow, ordered errors, eager/lazy composition and reservation INSERT parity. Keep text output, comparisons, range arrays, custom range binding and multiranges pending.
+- [x] Admit builtin two/three-argument range constructors and discrete canonicalization through catalog identities and subtype comparators; preserve non-strict NULL bounds, flags validation, equal/reversed endpoints, exact bigint/numeric scales, infinity and overflow, ordered errors, eager/lazy composition and reservation INSERT parity.
 - [x] Admit builtin range grammar, typed literals and catalog-linked character input through ordered scalar parsers and canonicalization; preserve quoting/escapes, omitted versus empty bounds, nested checked domains, eager literal versus stable runtime preparation and reached DateStyle/TimeZone deferrals with raw/stored and INSERT parity.
+- [x] Admit builtin range text output through captured range/subtype I/O, exact integer/numeric rendering, quoting/escapes, omitted and typed infinite bounds, character widths and nested domains; preserve strict states, ordered rendering, eager literal input errors, lazy stable output and reached DateStyle/TimeZone deferrals with raw/stored and INSERT parity.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

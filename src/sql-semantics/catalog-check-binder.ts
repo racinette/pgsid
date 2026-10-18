@@ -3104,6 +3104,7 @@ export function bindCatalogCheck(
           source === 'pg_catalog.jsonb' ||
           source === 'pg_catalog.jsonpath' ||
           isSnapshotType(source) ||
+          isRangeType(source) ||
           isOidAliasType(source) ||
           [
             'pg_catalog.oid',
@@ -3127,8 +3128,16 @@ export function bindCatalogCheck(
           metadata.result !== 'pg_catalog.cstring' ||
           !metadata.strict ||
           metadata.args.length !== 1 ||
-          metadata.args[0] !== (operand.enum ? 'pg_catalog.anyenum' : source) ||
-          (!operand.enum && metadata.volatility !== 'i' && !isOidAliasType(source))
+          metadata.args[0] !==
+            (operand.enum
+              ? 'pg_catalog.anyenum'
+              : isRangeType(source)
+                ? 'pg_catalog.anyrange'
+                : source) ||
+          (!operand.enum &&
+            metadata.volatility !== 'i' &&
+            !isOidAliasType(source) &&
+            !isRangeType(source))
         )
           return unknown
         operand = {
@@ -4371,7 +4380,8 @@ export function bindCatalogCheck(
           args[0]?.type === 'pg_catalog."json"' ||
           args[0]?.type === 'pg_catalog.jsonb' ||
           args[0]?.type === 'pg_catalog.jsonpath' ||
-          isSnapshotType(args[0]?.type)) &&
+          isSnapshotType(args[0]?.type) ||
+          isRangeType(args[0]?.type)) &&
           [
             'pg_catalog.text',
             'pg_catalog."varchar"',
