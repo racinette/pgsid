@@ -691,12 +691,15 @@ export function emitCheckRustEvaluator(
       }
       if (constantScalarExpression(probe)) continue
       const outer: string | null = arrayValidityScope
+      const outerPreparation = preparationLines
       arrayValidityScope = null
+      preparationLines = lines
       let value: { name: string; type: string }
       try {
         value = emitScalar(probe, lines, used)
       } finally {
         arrayValidityScope = outer
+        preparationLines = outerPreparation
       }
       const nullness = fresh('array_choice_nullness'),
         state = fresh('array_choice_input')

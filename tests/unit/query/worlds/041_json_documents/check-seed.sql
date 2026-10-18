@@ -868,6 +868,17 @@ INSERT INTO document_fingerprints(id,store_id,label,document,seed,recorded_hash,
 -- name: fingerprint_skipped
 INSERT INTO document_fingerprints(id,store_id,label,document,seed,recorded_hash,recorded_seeded,recorded_merged,recorded_extracted,bypass) VALUES(2,1,'fingerprint_skipped','{"a":1}',0,0,8393972797727113770,-637497189,-822615224,true);
 
+-- name: label_policy_retained
+INSERT INTO document_label_defaults (id,store_id,label,recorded_label,recorded_default,bypass) VALUES (2,1,'kept','kept','retained',false);
+-- name: label_policy_wrong_label
+INSERT INTO document_label_defaults (id,store_id,label,recorded_label,recorded_default,bypass) VALUES (2,1,'kept','wrong','retained',false);
+-- name: label_policy_wrong_default
+INSERT INTO document_label_defaults (id,store_id,label,recorded_label,recorded_default,bypass) VALUES (2,1,'kept','kept','wrong',false);
+-- name: label_policy_null
+INSERT INTO document_label_defaults (id,store_id,label,recorded_label,recorded_default,bypass) VALUES (2,1,NULL,'kept',NULL,false);
+-- name: label_policy_skipped_default
+INSERT INTO document_label_defaults (id,store_id,label,recorded_label,recorded_default,bypass) VALUES (2,1,'kept','kept','wrong',true);
+
 -- name: format_utf8_key_order
 INSERT INTO document_formats (id,store_id,label,document,strip_arrays,recorded_default,recorded_stripped,recorded_pretty,bypass)
 VALUES (2,1,'UTF8 key order','{"aa":1,"é":2}',false,'{"aa":1,"é":2}','{"aa":1,"é":2}','{
