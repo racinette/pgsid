@@ -59,7 +59,7 @@ Done when a fresh checkout can regenerate the reports without recovering scripts
 - [x] Keep scalar null tests type-aware for portable temporal values and nested domains.
 
 Verify each form independently, including NULL,
-Unknown, SQL errors, ordered computation validity, strict runtime NULL propagation, eager literals, lazy branches and safe unresolved choices. Compare raw SQL
+Unknown, SQL errors, ordered computation validity, strict runtime NULL propagation, eager literals, lazy branches and safe unresolved choices whose probes retain their guards. Compare raw SQL
 and stored CHECK definitions. Unknown has no PostgreSQL counterpart and needs
 explicit partial-input cases in addition to database comparisons.
 

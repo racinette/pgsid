@@ -423,7 +423,8 @@ it('preserves numeric I/O NULL, partial states, source errors, runtime laziness 
       },
       { kind: 'True' },
     )
-    add('eager', { ...base, source: { kind: 'Unknown' }, divisor: known(0) }, error('22012'))
+    add('eager', { ...base, source: { kind: 'Unknown' }, divisor: known(0) }, { kind: 'Unknown' })
+    add('eager', { ...base, divisor: known(0) }, error('22012'))
     add('eager', { ...base, source: known('bad'), divisor: known(0) }, error('22P02'))
     add('prepared', { ...base, bypass: known(true) }, error('22P02'))
     add('pruned', { ...base, bypass: known(false) }, { kind: 'True' })
@@ -464,6 +465,16 @@ it('preserves numeric I/O NULL, partial states, source errors, runtime laziness 
       'artifacts/numeric-text-input/context-fixtures.json',
       JSON.stringify(fixtures, null, 2) + '\n',
     )
+    for (const [source, state] of [
+      ['12.3400', '22012'],
+      ['bad', '22P02'],
+    ])
+      expect(references).toContainEqual({
+        name: 'eager',
+        source,
+        bypass: false,
+        expected: error(state!),
+      })
     await writeFile(
       'artifacts/numeric-text-input/context-references.json',
       JSON.stringify(references, null, 2) + '\n',

@@ -12,6 +12,16 @@ CREATE TABLE stored_documents (
  CONSTRAINT stored_source CHECK(document::text COLLATE "C"=recorded_source COLLATE "C"),
  CONSTRAINT stored_presence CHECK((document IS NULL)=allow_absent)
 );
+CREATE TABLE document_label_defaults (
+ id integer PRIMARY KEY,
+ store_id integer NOT NULL REFERENCES stored_documents(id),
+ label text,
+ recorded_label text,
+ recorded_default text,
+ bypass boolean NOT NULL,
+ CONSTRAINT retained_label CHECK((CASE WHEN true THEN label ELSE to_json(1/0)::text END) COLLATE "C"=recorded_label COLLATE "C"),
+ CONSTRAINT retained_default CHECK(CASE WHEN bypass THEN true ELSE COALESCE('retained'::text,to_json(1/0)::text) COLLATE "C"=recorded_default COLLATE "C" END)
+);
 CREATE TABLE document_choices (
  id integer PRIMARY KEY,
  store_id integer NOT NULL REFERENCES stored_documents(id),
