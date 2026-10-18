@@ -70,6 +70,12 @@ describe('CHECK measurement boundaries', () => {
     const duplicateIO = structuredClone(catalog)
     duplicateIO.typeIO.push(duplicateIO.typeIO[0]!)
     expect(() => verifyCatalog(duplicateIO)).toThrow('Duplicate type I/O identity')
+    const range = structuredClone(catalog)
+    range.rangeTypes[0]!.canonical = null
+    expect(() => verifyCatalog(range)).toThrow('range support links')
+    const duplicateRange = structuredClone(catalog)
+    duplicateRange.rangeTypes.push(duplicateRange.rangeTypes[0]!)
+    expect(() => verifyCatalog(duplicateRange)).toThrow('Duplicate range identity')
   })
 
   it('keeps session requirements and new representations outside the pure callable queue', async () => {
@@ -874,6 +880,19 @@ describe('CHECK measurement boundaries', () => {
   it('measures column admission and nullness against PostgreSQL catalog row shape', async () => {
     const report = await measureTypes(pg)
     const inventory = new Map(report.types.map((type) => [type.identity, type]))
+    expect(report.rangeTypes).toEqual(catalog.rangeTypes)
+    expect(report.rangeTypes.map((range) => range.identity).sort()).toEqual(
+      report.types
+        .filter((type) => type.kind === 'r')
+        .map((type) => type.identity)
+        .sort(),
+    )
+    expect(report.rangeTypes.map((range) => range.multirange).sort()).toEqual(
+      report.types
+        .filter((type) => type.kind === 'm')
+        .map((type) => type.identity)
+        .sort(),
+    )
     const cstringArray = inventory.get('pg_catalog._cstring')!
     expect(cstringArray.kind).toBe('b')
     expect(cstringArray.storedColumn).toBe(false)
@@ -894,7 +913,7 @@ describe('CHECK measurement boundaries', () => {
       for (const [name, identity, expected, represented] of [
         ['items', 'pg_catalog._int4', true, true],
         ['document', 'pg_catalog.jsonb', true, true],
-        ['span', 'pg_catalog.int4range', true, false],
+        ['span', 'pg_catalog.int4range', true, true],
         ['statistics', 'pg_catalog.anyarray', true, false],
         ['row_value', 'pg_catalog.pg_class', false, false],
       ] as const) {

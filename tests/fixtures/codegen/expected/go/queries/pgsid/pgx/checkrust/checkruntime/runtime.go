@@ -8299,6 +8299,208 @@ func ArrayElementToJsonpath(input ArrayElement) JsonpathValue {
 	}
 	return JsonpathValue{Kind: JsonpathValueUnknown}
 }
+
+type RangePayload struct {
+	TypeName       string
+	ElementType    string
+	ElementKind    int
+	Empty          bool
+	LowerInclusive bool
+	UpperInclusive bool
+	Bounds         []ArrayElement
+}
+
+func copyRangePayload(value RangePayload) RangePayload {
+	return RangePayload{TypeName: langruntime.CheckedString(value.TypeName), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Empty: value.Empty, LowerInclusive: value.LowerInclusive, UpperInclusive: value.UpperInclusive, Bounds: langruntime.CheckedStructs(value.Bounds, CopyArrayElement)}
+}
+
+type RangeValueKind uint8
+
+const (
+	RangeValueUnknown RangeValueKind = iota
+	RangeValueNull
+	RangeValueError
+	RangeValueValue
+)
+
+type RangeValue struct {
+	Kind  RangeValueKind
+	Error SqlError
+	Value RangePayload
+}
+
+func CopyRangeValue(value RangeValue) RangeValue {
+	switch value.Kind {
+	case RangeValueUnknown:
+		return RangeValue{Kind: RangeValueUnknown}
+	case RangeValueNull:
+		return RangeValue{Kind: RangeValueNull}
+	case RangeValueError:
+		return RangeValue{Kind: RangeValueError, Error: value.Error}
+	case RangeValueValue:
+		return RangeValue{Kind: RangeValueValue, Value: copyRangePayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func RangeUnknown() RangeValue {
+	return RangeValue{Kind: RangeValueUnknown}
+}
+func RangeNull() RangeValue {
+	return RangeValue{Kind: RangeValueNull}
+}
+func MakeCoercedRangeValue(input RangePayload) RangeValue {
+	input = copyRangePayload(input)
+	if input.TypeName == "" || input.ElementType == "" || input.ElementKind < 1 {
+		return RangeValue{Kind: RangeValueUnknown}
+	}
+	if input.Empty {
+		if len(input.Bounds) != 0 || input.LowerInclusive || input.UpperInclusive {
+			return RangeValue{Kind: RangeValueUnknown}
+		}
+		return RangeValue{Kind: RangeValueValue, Value: input}
+	}
+	if len(input.Bounds) != 2 {
+		return RangeValue{Kind: RangeValueUnknown}
+	}
+	index := 0
+	for index < len(input.Bounds) {
+		bound := CopyArrayElement(input.Bounds[index])
+		if bound.Kind == ArrayElementError {
+			error := bound.Error
+			return RangeValue{Kind: RangeValueError, Error: error}
+		}
+		kind := ArrayElementFamily(CopyArrayElement(bound))
+		if kind != 0 && kind != input.ElementKind {
+			return RangeValue{Kind: RangeValueUnknown}
+		}
+		if bound.Kind == ArrayElementNull {
+			if (index == 0 && input.LowerInclusive) || (index == 1 && input.UpperInclusive) {
+				return RangeValue{Kind: RangeValueUnknown}
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return RangeValue{Kind: RangeValueValue, Value: input}
+}
+func RangeFromCoercedBounds(typeName string, elementType string, elementKind int, empty bool, lowerInclusive bool, upperInclusive bool, lower ArrayElement, upper ArrayElement) RangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	lower = CopyArrayElement(lower)
+	upper = CopyArrayElement(upper)
+	bounds := []ArrayElement{}
+	if empty == false {
+		langruntime.CheckedAdd(len(bounds), 1)
+		bounds = append(bounds, CopyArrayElement(lower))
+		langruntime.CheckedAdd(len(bounds), 1)
+		bounds = append(bounds, CopyArrayElement(upper))
+	}
+	return MakeCoercedRangeValue(RangePayload{TypeName: typeName, ElementType: elementType, ElementKind: elementKind, Empty: empty, LowerInclusive: lowerInclusive, UpperInclusive: upperInclusive, Bounds: bounds})
+}
+func RangeRequireType(input RangeValue, typeName string, elementType string, elementKind int) RangeValue {
+	input = CopyRangeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	if input.Kind == RangeValueValue {
+		value := copyRangePayload(input.Value)
+		if value.TypeName != typeName || value.ElementType != elementType || value.ElementKind != elementKind {
+			return RangeValue{Kind: RangeValueUnknown}
+		}
+		return RangeValue{Kind: RangeValueValue, Value: value}
+	}
+	return input
+}
+func RangeIsNull(input RangeValue) BoolValue {
+	input = CopyRangeValue(input)
+	if input.Kind == RangeValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == RangeValueUnknown {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	if input.Kind == RangeValueNull {
+		return BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: false}
+}
+func RangeFromCaseGuard(input CheckOutcome) RangeValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return RangeValue{Kind: RangeValueError, Error: error}
+	}
+	return RangeValue{Kind: RangeValueUnknown}
+}
+func RangeEmptyState(input RangeValue) BoolValue {
+	input = CopyRangeValue(input)
+	if input.Kind == RangeValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == RangeValueNull {
+		return BoolValue{Kind: BoolValueNull}
+	}
+	if input.Kind == RangeValueValue {
+		value := copyRangePayload(input.Value)
+		return BoolValue{Kind: BoolValueValue, Value: value.Empty}
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
+func RangeBound(input RangeValue, upper bool) ArrayElement {
+	input = CopyRangeValue(input)
+	if input.Kind == RangeValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == RangeValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == RangeValueValue {
+		value := copyRangePayload(input.Value)
+		if value.Empty {
+			return ArrayElement{Kind: ArrayElementNull}
+		}
+		index := 0
+		if upper {
+			index = langruntime.CheckedIndex(1)
+		}
+		return CopyArrayElement(value.Bounds[index])
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func RangeBoundFlag(input RangeValue, upper bool, infinite bool) BoolValue {
+	input = CopyRangeValue(input)
+	if input.Kind == RangeValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == RangeValueNull {
+		return BoolValue{Kind: BoolValueNull}
+	}
+	if input.Kind == RangeValueValue {
+		value := copyRangePayload(input.Value)
+		if value.Empty {
+			return BoolValue{Kind: BoolValueValue, Value: false}
+		}
+		if infinite {
+			index := 0
+			if upper {
+				index = langruntime.CheckedIndex(1)
+			}
+			bound := CopyArrayElement(value.Bounds[index])
+			if bound.Kind == ArrayElementNull {
+				return BoolValue{Kind: BoolValueValue, Value: true}
+			}
+			return BoolValue{Kind: BoolValueValue, Value: false}
+		}
+		if upper {
+			return BoolValue{Kind: BoolValueValue, Value: value.UpperInclusive}
+		}
+		return BoolValue{Kind: BoolValueValue, Value: value.LowerInclusive}
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
 func DomainConversionStart(input BoolValue, notNull bool) CheckOutcome {
 	if input.Kind == BoolValueError {
 		error := input.Error

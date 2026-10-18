@@ -4,9 +4,7 @@ This is the implementation queue for the Rust CHECK engine. Work in the order be
 
 ## Baseline and measurements
 
-The starting revision is `027d433` (XML well-formedness predicates). The bounded porting effort covered strict, immutable scalar callables on represented values,
-plus represented enum callables. Session-dependent behavior remains separate. Completion of that effort does not establish complete expression, coercion,
-collation, input-format, or PostgreSQL type coverage.
+The starting revision is `027d433` (XML well-formedness predicates). The bounded porting effort covered strict, immutable scalar callables on represented values, plus represented enum callables. Session-dependent behavior remains separate. Completion of that effort does not establish complete expression, coercion, collation, input-format, or PostgreSQL type coverage.
 
 Measure each boundary separately:
 
@@ -26,8 +24,7 @@ pnpm check-rust:measure
 ```
 
 A prepared evaluator may return Unknown. Count useful support from binding and executed outcomes, rather than preparation success alone. Legacy target bindings
-and catalog function counts are separate from Rust CHECK coverage; dedicated
-regex paths can work without a catalog-named implementation.
+and catalog function counts are separate from Rust CHECK coverage; dedicated regex paths can work without a catalog-named implementation.
 
 The type report separates nullness from portable value representation and uses
 catalog row shape for column probes. Column admission is probed in PostgreSQL;
@@ -256,6 +253,9 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Classify aggregate state bitmap/native-size requirements and direct-call combine errors. Preserve optional bitmap provenance through construction, I/O, slices, casts and transformations. Admit wrapping integer transitions/inverses, sum and exact average, plus floating statistical transitions, combiners and finalizers with native count guards, exact IEEE operation order, distinct overflow guards, fresh result bounds, partial cells, selected payload precision and eager/lazy INSERT parity; retain bitmap and missing-word deferrals.
 - [x] Retain owned array-valued domain cells with recursive nominal identities, independent shapes, constructors/fetch/slices/fill/append and public inputs; admit recursive text input, input typmods, literal preparation, ordered errors, trusted stored values and encoding/NULL context with INSERT parity. Admit recursive text output/string joining with inherited delimiters, captured enum labels and JSONB output encoding; verify recursive catalog casts, target constraints/modifiers, retained source values and nested error order. Admit recursive equality/order, containment, search/rewrite, sort/extrema, bucketing and quantified comparisons with catalog support, NULL/partial states, preparation and reached context. Recursive ownership crosses vectors only.
 - [x] Close array binding, scalar I/O and composed-validity audits for represented element families; preserve catalog/runtime requirements and complete the integration checkpoint.
+- [x] Capture stable range/subtype/multirange/array names, selected subtype comparison support, collation and canonicalization; verify custom support, overload identities and rebuild/search-path independence without retaining OIDs. Include links in the type audit; value representation and execution remain pending.
+- [x] Establish owned SQL-coerced range payloads with typed bounds, nominal type/subtype identities, empty/unbounded/inclusive distinctions and narrow wrapper admission; verify structural calls, exact bound selection, NULL/Unknown/errors, independent snapshots and direct INSERT witnesses in Rust/Go/TypeScript. Binding, public row adapters, input/casts, comparisons and multiranges remain pending.
+- [x] Bind builtin ranges and subtype results, nested domains, typed NULLs and CASE/COALESCE; validate nominal payloads and public Go/TypeScript row conversion, preserve raw query conversion, reject malformed bound tags before copying, and verify raw/stored composition and reservation INSERTs. Keep range arrays, custom range capture, input/casts, constructors, comparisons and multiranges pending.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

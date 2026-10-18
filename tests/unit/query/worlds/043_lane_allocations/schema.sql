@@ -1443,3 +1443,60 @@ CREATE TABLE lane_catalog_array_exports (
   CONSTRAINT catalog_amount_text CHECK(CASE WHEN bypass THEN true ELSE array_to_string(amounts::pg_catalog._numeric(4,1),'|','N') COLLATE "C" IS NOT DISTINCT FROM expected_amounts COLLATE "C" END),
   CONSTRAINT catalog_narrowed_shape CHECK(CASE WHEN bypass THEN true ELSE cardinality(ARRAY[quantity,1/divisor]::pg_catalog._int2)=2 END)
 );
+
+CREATE TABLE lane_reservation_windows (
+  span int4range,
+  alternate_span int4range,
+  loads int8range,
+  price_band numrange,
+  service_days daterange,
+  local_shift tsrange,
+  instant_shift tstzrange,
+  prefer_alternate boolean,
+  expected_end integer,
+  expected_empty boolean,
+  expected_lower_inc boolean,
+  expected_continuous_upper_inc boolean,
+  expected_lower_inf boolean,
+  expected_upper_inf boolean,
+  expected_lower_null boolean,
+  expected_upper_null boolean,
+  minimum integer,
+  latest_local timestamp,
+  earliest_instant timestamptz,
+  denominator integer,
+  bypass boolean,
+  CONSTRAINT window_empty_flags CHECK(CASE WHEN bypass THEN true ELSE
+    isempty(span) IS NOT DISTINCT FROM expected_empty AND isempty(loads) IS NOT DISTINCT FROM expected_empty AND
+    isempty(price_band) IS NOT DISTINCT FROM expected_empty AND isempty(service_days) IS NOT DISTINCT FROM expected_empty AND
+    isempty(local_shift) IS NOT DISTINCT FROM expected_empty AND isempty(instant_shift) IS NOT DISTINCT FROM expected_empty END),
+  CONSTRAINT window_lower_flags CHECK(CASE WHEN bypass THEN true ELSE
+    lower_inc(span) IS NOT DISTINCT FROM expected_lower_inc AND lower_inc(loads) IS NOT DISTINCT FROM expected_lower_inc AND
+    lower_inc(price_band) IS NOT DISTINCT FROM expected_lower_inc AND lower_inc(service_days) IS NOT DISTINCT FROM expected_lower_inc AND
+    lower_inc(local_shift) IS NOT DISTINCT FROM expected_lower_inc AND lower_inc(instant_shift) IS NOT DISTINCT FROM expected_lower_inc END),
+  CONSTRAINT window_upper_flags CHECK(CASE WHEN bypass THEN true ELSE
+    upper_inc(span) IS NOT DISTINCT FROM CASE WHEN span IS NULL THEN NULL ELSE false END AND
+    upper_inc(loads) IS NOT DISTINCT FROM CASE WHEN loads IS NULL THEN NULL ELSE false END AND
+    upper_inc(service_days) IS NOT DISTINCT FROM CASE WHEN service_days IS NULL THEN NULL ELSE false END AND
+    upper_inc(price_band) IS NOT DISTINCT FROM expected_continuous_upper_inc AND
+    upper_inc(local_shift) IS NOT DISTINCT FROM expected_continuous_upper_inc AND upper_inc(instant_shift) IS NOT DISTINCT FROM expected_continuous_upper_inc END),
+  CONSTRAINT window_infinite_flags CHECK(CASE WHEN bypass THEN true ELSE
+    lower_inf(span) IS NOT DISTINCT FROM expected_lower_inf AND upper_inf(span) IS NOT DISTINCT FROM expected_upper_inf AND
+    lower_inf(loads) IS NOT DISTINCT FROM expected_lower_inf AND upper_inf(loads) IS NOT DISTINCT FROM expected_upper_inf AND
+    lower_inf(price_band) IS NOT DISTINCT FROM expected_lower_inf AND upper_inf(price_band) IS NOT DISTINCT FROM expected_upper_inf AND
+    lower_inf(service_days) IS NOT DISTINCT FROM expected_lower_inf AND upper_inf(service_days) IS NOT DISTINCT FROM expected_upper_inf AND
+    lower_inf(local_shift) IS NOT DISTINCT FROM expected_lower_inf AND upper_inf(local_shift) IS NOT DISTINCT FROM expected_upper_inf AND
+    lower_inf(instant_shift) IS NOT DISTINCT FROM expected_lower_inf AND upper_inf(instant_shift) IS NOT DISTINCT FROM expected_upper_inf END),
+  CONSTRAINT window_bound_presence CHECK(CASE WHEN bypass THEN true ELSE
+    (lower(span) IS NULL) IS NOT DISTINCT FROM expected_lower_null AND (upper(span) IS NULL) IS NOT DISTINCT FROM expected_upper_null AND
+    (lower(loads) IS NULL) IS NOT DISTINCT FROM expected_lower_null AND (upper(loads) IS NULL) IS NOT DISTINCT FROM expected_upper_null AND
+    (lower(price_band) IS NULL) IS NOT DISTINCT FROM expected_lower_null AND (upper(price_band) IS NULL) IS NOT DISTINCT FROM expected_upper_null AND
+    (lower(service_days) IS NULL) IS NOT DISTINCT FROM expected_lower_null AND (upper(service_days) IS NULL) IS NOT DISTINCT FROM expected_upper_null AND
+    (lower(local_shift) IS NULL) IS NOT DISTINCT FROM expected_lower_null AND (upper(local_shift) IS NULL) IS NOT DISTINCT FROM expected_upper_null AND
+    (lower(instant_shift) IS NULL) IS NOT DISTINCT FROM expected_lower_null AND (upper(instant_shift) IS NULL) IS NOT DISTINCT FROM expected_upper_null END),
+  CONSTRAINT window_integer_floor CHECK(CASE WHEN bypass THEN true ELSE lower(COALESCE(span,alternate_span)) >= minimum END),
+  CONSTRAINT window_local_ceiling CHECK(CASE WHEN bypass THEN true ELSE upper(local_shift) <= latest_local END),
+  CONSTRAINT window_instant_floor CHECK(CASE WHEN bypass THEN true ELSE lower(instant_shift) >= earliest_instant END),
+  CONSTRAINT window_selected_end CHECK(CASE WHEN bypass THEN true ELSE upper(CASE WHEN prefer_alternate THEN alternate_span ELSE span END) IS NOT DISTINCT FROM expected_end END),
+  CONSTRAINT window_division CHECK(CASE WHEN bypass THEN true ELSE isempty(span) OR 1/denominator > 0 END)
+);

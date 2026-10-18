@@ -4,7 +4,9 @@ import { PG18_TYPE_RESOLUTION } from './type-resolution.generated.js'
 import { PG18_BTREE_COMPARISONS } from './btree-comparisons.generated.js'
 import { PG18_TYPE_IO } from './type-io.generated.js'
 import { PG18_TYPE_COMPARISONS } from './type-comparisons.generated.js'
+import { PG18_RANGE_TYPES } from './type-ranges.generated.js'
 import type { BuiltinTypeComparison } from './type-comparisons.js'
+import type { RangeTypeMetadata } from '../range-types.js'
 import type {
   BuiltinCastMetadata,
   BuiltinTypeResolution,
@@ -19,6 +21,18 @@ const casts: Readonly<Record<string, BuiltinCastMetadata>> = PG18_BUILTIN_CASTS
 const types: Readonly<Record<string, BuiltinTypeResolution>> = PG18_TYPE_RESOLUTION
 const typeIO: Readonly<Record<string, BuiltinTypeIO>> = PG18_TYPE_IO
 const comparisons: Readonly<Record<string, BuiltinTypeComparison>> = PG18_TYPE_COMPARISONS
+const ranges: Readonly<Record<string, RangeTypeMetadata>> = PG18_RANGE_TYPES
+const multiranges = new Map(
+  Object.values(ranges).map((range) => [range.multirange, range] as const),
+)
+
+export function builtinRangeType(identity: string): RangeTypeMetadata | null {
+  return Object.hasOwn(ranges, identity) ? ranges[identity]! : null
+}
+
+export function builtinMultirangeType(identity: string): RangeTypeMetadata | null {
+  return multiranges.get(identity) ?? null
+}
 
 export function builtinTypeComparison(identity: string): BuiltinTypeComparison | null {
   return comparisons[identity] ?? null

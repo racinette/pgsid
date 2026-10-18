@@ -14,6 +14,7 @@ import {
   builtinBtreeComparisons,
   builtinTypeIO,
   builtinTypeComparison,
+  builtinRangeType,
 } from '../postgres/builtins/inventory.js'
 import { builtinDefaultArguments } from '../postgres/builtins/default-arguments.js'
 import type { BuiltinCallable } from '../postgres/builtins/taxonomy.js'
@@ -39,6 +40,8 @@ import {
   isOidType,
   isOidAliasType,
   isSnapshotType,
+  isRangeType,
+  type RangeType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
   type ScalarType,
@@ -144,7 +147,7 @@ export function catalogArrayType(
       ) ?? catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
     const enumBase = catalogEnumDefinition(domain.baseTypeName, enums, domain.baseTypeOid, domains)
     const carrier = enumBase ? enumType(enumBase) : base
-    return carrier && !carrier.startsWith('domain:')
+    return carrier && !isRangeType(carrier) && !carrier.startsWith('domain:')
       ? arrayType(domainElementType(domain, carrier as Exclude<ScalarType, `domain:${string}`>))
       : null
   } catch {
@@ -269,6 +272,15 @@ export function catalogSnapshotType(
 ): SnapshotType | null {
   const type = catalogBaseScalarType(name, oid, domains)
   return isSnapshotType(type) ? type : null
+}
+
+export function catalogRangeType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): RangeType | null {
+  const type = catalogBaseScalarType(name, oid, domains)
+  return isRangeType(type) ? type : null
 }
 
 export function catalogJsonType(
@@ -420,6 +432,7 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
+  if (isRangeType(type) && literal.kind === 'null') return { kind: 'range', type, value: null }
   if (type === 'pg_catalog.jsonpath' && (literal.kind === 'null' || literal.kind === 'string'))
     return { kind: 'jsonpath', type, value: literal.value }
   if (type === 'pg_catalog.jsonb' && (literal.kind === 'null' || literal.kind === 'string'))
@@ -929,6 +942,8 @@ const candidate = (
           'pg_catalog.anyarray',
           'pg_catalog.anycompatiblearray',
           'pg_catalog.anycompatible',
+          'pg_catalog.anyrange',
+          'pg_catalog.anyelement',
         ].includes(item.result))
     )
       return []
@@ -996,9 +1011,24 @@ const candidate = (
       !isRegexArrayCallable(signature)
     )
       return []
-    const elementTypes = fullArgs.flatMap((arg, index) =>
-      item.args[index] === 'pg_catalog.anyelement' ? [nominalScalarType(arg)] : [],
+    const rangeTypes = fullArgs.flatMap((arg, index) =>
+      item.args[index] === 'pg_catalog.anyrange' && isRangeType(arg.type) ? [arg.type] : [],
     )
+    const rangeIdentity = rangeTypes[0]
+    if (
+      item.args.includes('pg_catalog.anyrange') &&
+      (!rangeIdentity || rangeTypes.some((type) => type !== rangeIdentity))
+    )
+      return []
+    const rangeElement = rangeIdentity
+      ? catalogScalarType(builtinRangeType(rangeIdentity)!.subtype)
+      : null
+    const elementTypes = [
+      ...(rangeElement ? [rangeElement] : []),
+      ...fullArgs.flatMap((arg, index) =>
+        item.args[index] === 'pg_catalog.anyelement' ? [nominalScalarType(arg)] : [],
+      ),
+    ]
     const elementType = elementTypes[0]
     if (elementTypes.length && (!elementType || elementTypes.some((type) => type !== elementType)))
       return []
@@ -1100,21 +1130,23 @@ const candidate = (
               ? coerce(arg, compatibleType!, definition)
               : item.args[index] === 'pg_catalog.anyarray'
                 ? materialize(arg, arrayIdentity!)
-                : item.args[index] === 'pg_catalog.anyelement'
-                  ? coerce(arg, elementType!, arg.enum)
-                  : catalogScalarType(item.args[index]!)?.startsWith('array:')
-                    ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
-                    : isIntegerType(item.args[index]!)
-                      ? materializeInteger(arg, item.args[index]! as ScalarType)
-                      : concreteArrayParameters && catalogScalarType(item.args[index]!)
-                        ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
-                        : materialize(
-                            arg,
-                            item.args[index] === 'pg_catalog.anyenum'
-                              ? enumType(definition!)
-                              : (item.args[index]! as ScalarType),
-                            definition,
-                          ),
+                : item.args[index] === 'pg_catalog.anyrange'
+                  ? materialize(arg, rangeIdentity!)
+                  : item.args[index] === 'pg_catalog.anyelement'
+                    ? coerce(arg, elementType!, arg.enum)
+                    : catalogScalarType(item.args[index]!)?.startsWith('array:')
+                      ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
+                      : isIntegerType(item.args[index]!)
+                        ? materializeInteger(arg, item.args[index]! as ScalarType)
+                        : concreteArrayParameters && catalogScalarType(item.args[index]!)
+                          ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
+                          : materialize(
+                              arg,
+                              item.args[index] === 'pg_catalog.anyenum'
+                                ? enumType(definition!)
+                                : (item.args[index]! as ScalarType),
+                              definition,
+                            ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [
@@ -1126,11 +1158,15 @@ const candidate = (
             collation,
             enum: definition,
             resultType:
-              item.result === 'pg_catalog.anycompatiblearray'
-                ? compatibleArray!
-                : item.result === 'pg_catalog.anycompatible'
-                  ? compatibleType!
-                  : (resultArray ?? undefined),
+              item.result === 'pg_catalog.anyrange'
+                ? rangeIdentity
+                : item.result === 'pg_catalog.anyelement'
+                  ? (elementType ?? undefined)
+                  : item.result === 'pg_catalog.anycompatiblearray'
+                    ? compatibleArray!
+                    : item.result === 'pg_catalog.anycompatible'
+                      ? compatibleType!
+                      : (resultArray ?? undefined),
           },
         ]
       : []

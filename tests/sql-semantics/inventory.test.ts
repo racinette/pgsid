@@ -19,6 +19,8 @@ import {
   builtinBtreeComparisons,
   builtinTypeIO,
   builtinTypeComparison,
+  builtinRangeType,
+  builtinMultirangeType,
 } from '../../src/postgres/builtins/inventory.js'
 import { builtinDomain } from '../../src/postgres/builtins/taxonomy.js'
 import { PG18_TYPE_NAMES } from '../../src/postgres/builtins/type-names.generated.js'
@@ -26,6 +28,7 @@ import { PG18_BUILTIN_CASTS } from '../../src/postgres/builtins/casts.generated.
 import { PG18_TYPE_RESOLUTION } from '../../src/postgres/builtins/type-resolution.generated.js'
 import { PG18_BTREE_COMPARISONS } from '../../src/postgres/builtins/btree-comparisons.generated.js'
 import { PG18_TYPE_IO } from '../../src/postgres/builtins/type-io.generated.js'
+import { PG18_RANGE_TYPES } from '../../src/postgres/builtins/type-ranges.generated.js'
 import type {
   CallableEmitter,
   CallableOperands,
@@ -125,6 +128,46 @@ describe('PostgreSQL builtin inventory', () => {
         category,
         preferred,
       })
+  })
+
+  it('matches range subtypes, multiranges and exact catalog support identities', () => {
+    expect(Object.fromEntries(catalog.rangeTypes.map((range) => [range.identity, range]))).toEqual(
+      PG18_RANGE_TYPES,
+    )
+    expect(catalog.rangeTypes).toHaveLength(6)
+    for (const range of catalog.rangeTypes) {
+      expect(builtinRangeType(range.identity)).toEqual(range)
+      expect(builtinMultirangeType(range.multirange)).toEqual(range)
+      expect(builtinRangeType(range.multirange)).toBeNull()
+      expect(builtinMultirangeType(range.identity)).toBeNull()
+      expect(catalog.types.find((type) => type.identity === range.array)?.category).toBe('A')
+      expect(catalog.types.find((type) => type.identity === range.multirangeArray)?.category).toBe(
+        'A',
+      )
+      expect(functionMetadata(range.comparator!).result).toBe('pg_catalog.int4')
+      if (range.canonical) expect(functionMetadata(range.canonical).result).toBe(range.identity)
+      if (range.subtypeDiff)
+        expect(functionMetadata(range.subtypeDiff).result).toBe('pg_catalog.float8')
+      expect(
+        Object.values(range).every((value) => value === null || typeof value === 'string'),
+      ).toBe(true)
+    }
+    expect(builtinRangeType('public.int4range')).toBeNull()
+    expect(builtinRangeType('constructor')).toBeNull()
+    expect(builtinRangeType('toString')).toBeNull()
+    expect(builtinMultirangeType('public.int4multirange')).toBeNull()
+    expect(builtinRangeType('pg_catalog.int4range')).toMatchObject({
+      subtype: 'pg_catalog.int4',
+      multirange: 'pg_catalog.int4multirange',
+      subtypeClass: 'pg_catalog.int4_ops',
+      comparator: 'function:["pg_catalog","btint4cmp"](pg_catalog.int4,pg_catalog.int4)',
+      canonical: 'function:["pg_catalog","int4range_canonical"](pg_catalog.int4range)',
+      collation: null,
+    })
+    expect(builtinRangeType('pg_catalog.numrange')).toMatchObject({
+      subtype: 'pg_catalog."numeric"',
+      canonical: null,
+    })
   })
 
   it('matches B-tree families, strategies and underlying comparison functions', () => {

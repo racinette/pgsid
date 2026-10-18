@@ -29934,6 +29934,34 @@ export function polygonFromText(input: checkruntime.TextValue): checkruntime.Pol
     }
     return { kind: "Unknown" };
 }
+export function isempty86tf(input: checkruntime.RangeValue): checkruntime.BoolValue {
+    input = checkruntime.copyRangeValue(input);
+    return checkruntime.rangeEmptyState(input);
+}
+export function lowerNy7i(input: checkruntime.RangeValue): checkruntime.ArrayElement {
+    input = checkruntime.copyRangeValue(input);
+    return checkruntime.rangeBound(input, false);
+}
+export function upper4y0a(input: checkruntime.RangeValue): checkruntime.ArrayElement {
+    input = checkruntime.copyRangeValue(input);
+    return checkruntime.rangeBound(input, true);
+}
+export function lowerInc9bur(input: checkruntime.RangeValue): checkruntime.BoolValue {
+    input = checkruntime.copyRangeValue(input);
+    return checkruntime.rangeBoundFlag(input, false, false);
+}
+export function upperIncVwy8(input: checkruntime.RangeValue): checkruntime.BoolValue {
+    input = checkruntime.copyRangeValue(input);
+    return checkruntime.rangeBoundFlag(input, true, false);
+}
+export function lowerInfWo5x(input: checkruntime.RangeValue): checkruntime.BoolValue {
+    input = checkruntime.copyRangeValue(input);
+    return checkruntime.rangeBoundFlag(input, false, true);
+}
+export function upperInf51cc(input: checkruntime.RangeValue): checkruntime.BoolValue {
+    input = checkruntime.copyRangeValue(input);
+    return checkruntime.rangeBoundFlag(input, true, true);
+}
 const scalarInputInvalid = 3484946;
 const scalarInputRange = 3452547;
 export function moneyFromCapturedText(input: checkruntime.TextValue, texts: string, units: string, count: number): checkruntime.MoneyValue {

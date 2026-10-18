@@ -8449,6 +8449,200 @@ export function arrayElementToJsonpath(input: ArrayElement): JsonpathValue {
     }
     return { kind: "Unknown" };
 }
+export interface RangePayload {
+    readonly typeName: string;
+    readonly elementType: string;
+    readonly elementKind: number;
+    readonly empty: boolean;
+    readonly lowerInclusive: boolean;
+    readonly upperInclusive: boolean;
+    readonly bounds: ArrayElement[];
+}
+function copyRangePayload(value: RangePayload): RangePayload {
+    return { typeName: langruntime.checkedString(value.typeName), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), empty: langruntime.checkedBool(value.empty), lowerInclusive: langruntime.checkedBool(value.lowerInclusive), upperInclusive: langruntime.checkedBool(value.upperInclusive), bounds: langruntime.checkedStructs(value.bounds, copyArrayElement) };
+}
+export type RangeValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+} | {
+    readonly kind: "Value";
+    readonly value: RangePayload;
+};
+export function copyRangeValue(value: RangeValue): RangeValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Value": return { kind: "Value", value: copyRangePayload(value.value) };
+    }
+}
+export function rangeUnknown(): RangeValue {
+    return { kind: "Unknown" };
+}
+export function rangeNull(): RangeValue {
+    return { kind: "Null" };
+}
+export function makeCoercedRangeValue(input: RangePayload): RangeValue {
+    input = copyRangePayload(input);
+    if (input.typeName === "" || input.elementType === "" || input.elementKind < 1) {
+        return { kind: "Unknown" };
+    }
+    if (input.empty) {
+        if (!(input.bounds.length === 0) || input.lowerInclusive || input.upperInclusive) {
+            return { kind: "Unknown" };
+        }
+        return { kind: "Value", value: input };
+    }
+    if (!(input.bounds.length === 2)) {
+        return { kind: "Unknown" };
+    }
+    let index: number = 0;
+    while (index < input.bounds.length) {
+        const bound: ArrayElement = copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(index), copyArrayElement));
+        if (bound.kind === "Error") {
+            const error: SqlError = bound.value;
+            return { kind: "Error", value: error };
+        }
+        const kind: number = arrayElementFamily(copyArrayElement(bound));
+        if (!(kind === 0) && !(kind === input.elementKind)) {
+            return { kind: "Unknown" };
+        }
+        if (bound.kind === "Null") {
+            if ((index === 0 && input.lowerInclusive) || (index === 1 && input.upperInclusive)) {
+                return { kind: "Unknown" };
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: input };
+}
+export function rangeFromCoercedBounds(typeName: string, elementType: string, elementKind: number, empty: boolean, lowerInclusive: boolean, upperInclusive: boolean, lower: ArrayElement, upper: ArrayElement): RangeValue {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    empty = langruntime.checkedBool(empty);
+    lowerInclusive = langruntime.checkedBool(lowerInclusive);
+    upperInclusive = langruntime.checkedBool(upperInclusive);
+    lower = copyArrayElement(lower);
+    upper = copyArrayElement(upper);
+    let bounds: ArrayElement[] = [];
+    if (empty === false) {
+        langruntime.pushStruct(bounds, lower, copyArrayElement);
+        langruntime.pushStruct(bounds, upper, copyArrayElement);
+    }
+    return makeCoercedRangeValue({ typeName: typeName, elementType: elementType, elementKind: elementKind, empty: empty, lowerInclusive: lowerInclusive, upperInclusive: upperInclusive, bounds: bounds });
+}
+export function rangeRequireType(input: RangeValue, typeName: string, elementType: string, elementKind: number): RangeValue {
+    input = copyRangeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    if (input.kind === "Value") {
+        const value: RangePayload = copyRangePayload(input.value);
+        if (!(value.typeName === typeName) || !(value.elementType === elementType) || !(value.elementKind === elementKind)) {
+            return { kind: "Unknown" };
+        }
+        return { kind: "Value", value: value };
+    }
+    return input;
+}
+export function rangeIsNull(input: RangeValue): BoolValue {
+    input = copyRangeValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Value", value: true };
+    }
+    return { kind: "Value", value: false };
+}
+export function rangeFromCaseGuard(input: CheckOutcome): RangeValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function rangeEmptyState(input: RangeValue): BoolValue {
+    input = copyRangeValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: RangePayload = copyRangePayload(input.value);
+        return { kind: "Value", value: value.empty };
+    }
+    return { kind: "Unknown" };
+}
+export function rangeBound(input: RangeValue, upper: boolean): ArrayElement {
+    input = copyRangeValue(input);
+    upper = langruntime.checkedBool(upper);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: RangePayload = copyRangePayload(input.value);
+        if (value.empty) {
+            return { kind: "Null" };
+        }
+        let index: number = 0;
+        if (upper) {
+            index = langruntime.checkedIndex(1);
+        }
+        return copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(index), copyArrayElement));
+    }
+    return { kind: "Unknown" };
+}
+export function rangeBoundFlag(input: RangeValue, upper: boolean, infinite: boolean): BoolValue {
+    input = copyRangeValue(input);
+    upper = langruntime.checkedBool(upper);
+    infinite = langruntime.checkedBool(infinite);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: RangePayload = copyRangePayload(input.value);
+        if (value.empty) {
+            return { kind: "Value", value: false };
+        }
+        if (infinite) {
+            let index: number = 0;
+            if (upper) {
+                index = langruntime.checkedIndex(1);
+            }
+            const bound: ArrayElement = copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(index), copyArrayElement));
+            if (bound.kind === "Null") {
+                return { kind: "Value", value: true };
+            }
+            return { kind: "Value", value: false };
+        }
+        if (upper) {
+            return { kind: "Value", value: value.upperInclusive };
+        }
+        return { kind: "Value", value: value.lowerInclusive };
+    }
+    return { kind: "Unknown" };
+}
 export function domainConversionStart(input: BoolValue, notNull: boolean): CheckOutcome {
     notNull = langruntime.checkedBool(notNull);
     if (input.kind === "Error") {

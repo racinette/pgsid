@@ -29828,6 +29828,34 @@ func PolygonFromText(input checkruntime.TextValue) checkruntime.PolygonValue {
 	}
 	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
 }
+func Isempty86tf(input checkruntime.RangeValue) checkruntime.BoolValue {
+	input = checkruntime.CopyRangeValue(input)
+	return checkruntime.RangeEmptyState(input)
+}
+func LowerNy7i(input checkruntime.RangeValue) checkruntime.ArrayElement {
+	input = checkruntime.CopyRangeValue(input)
+	return checkruntime.RangeBound(input, false)
+}
+func Upper4y0a(input checkruntime.RangeValue) checkruntime.ArrayElement {
+	input = checkruntime.CopyRangeValue(input)
+	return checkruntime.RangeBound(input, true)
+}
+func LowerInc9bur(input checkruntime.RangeValue) checkruntime.BoolValue {
+	input = checkruntime.CopyRangeValue(input)
+	return checkruntime.RangeBoundFlag(input, false, false)
+}
+func UpperIncVwy8(input checkruntime.RangeValue) checkruntime.BoolValue {
+	input = checkruntime.CopyRangeValue(input)
+	return checkruntime.RangeBoundFlag(input, true, false)
+}
+func LowerInfWo5x(input checkruntime.RangeValue) checkruntime.BoolValue {
+	input = checkruntime.CopyRangeValue(input)
+	return checkruntime.RangeBoundFlag(input, false, true)
+}
+func UpperInf51cc(input checkruntime.RangeValue) checkruntime.BoolValue {
+	input = checkruntime.CopyRangeValue(input)
+	return checkruntime.RangeBoundFlag(input, true, true)
+}
 
 const scalarInputInvalid = 3484946
 const scalarInputRange = 3452547

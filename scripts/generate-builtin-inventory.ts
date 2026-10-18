@@ -32,6 +32,20 @@ try {
   const callableIds = new Set(
     [...catalog.functions, ...catalog.operators].map(({ metadata }) => callableIdentity(metadata)),
   )
+  const rangeNames = new Set<string>()
+  for (const range of catalog.rangeTypes) {
+    for (const identity of [range.identity, range.multirange]) {
+      if (rangeNames.has(identity)) throw new Error(`Duplicate range identity: ${identity}`)
+      rangeNames.add(identity)
+    }
+    for (const identity of [range.comparator, range.canonical, range.subtypeDiff])
+      if (identity !== null && !callableIds.has(identity))
+        throw new Error(`Range support references an absent callable: ${identity}`)
+  }
+  sources.set(
+    'type-ranges.generated.ts',
+    `export const PG18_RANGE_TYPES = ${JSON.stringify(Object.fromEntries(catalog.rangeTypes.map((range) => [range.identity, range])))} as const`,
+  )
   const btreeKeys = new Set<string>()
   for (const comparison of typeComparisons)
     for (const signature of [

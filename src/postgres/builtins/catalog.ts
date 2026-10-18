@@ -1,6 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite'
 import type { BuiltinFunctionSignature, BuiltinOperatorSignature } from '../../catalog/types.js'
 import { assertUniqueRustCallableNames, rustCallableName } from './rust-name.js'
+import { readRangeTypes, type RangeTypeMetadata } from '../range-types.js'
 
 export interface CallableMetadata {
   kind: 'function' | 'aggregate' | 'window' | 'operator'
@@ -38,6 +39,7 @@ export interface BuiltinCatalog {
   types: BuiltinTypeResolution[]
   btreeComparisons: BuiltinBtreeComparison[]
   typeIO: BuiltinTypeIO[]
+  rangeTypes: RangeTypeMetadata[]
 }
 
 export interface BuiltinTypeIO {
@@ -79,26 +81,27 @@ export function callableIdentity(metadata: FunctionMetadata | OperatorMetadata):
 }
 
 export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
-  const [version, functions, operators, casts, types, btree, typeIO] = await Promise.all([
-    pg.query<{ server_version_num: string }>('SHOW server_version_num'),
-    pg.query<{
-      schema: string
-      name: string
-      args: string[] | null
-      canonical_args: string[] | null
-      returns: string
-      result: string
-      strict: boolean
-      volatility: 'i' | 's' | 'v'
-      kind: 'f' | 'a' | 'w'
-      returns_set: boolean
-      variadic: string | null
-      canonical_variadic: string | null
-      num_arg_defaults: number
-      argument_defaults: string | null
-      agg_kind: 'n' | 'o' | 'h' | null
-      num_direct_args: number | null
-    }>(`SELECT n.nspname AS schema, p.proname AS name,
+  const [version, functions, operators, casts, types, btree, typeIO, rangeTypes] =
+    await Promise.all([
+      pg.query<{ server_version_num: string }>('SHOW server_version_num'),
+      pg.query<{
+        schema: string
+        name: string
+        args: string[] | null
+        canonical_args: string[] | null
+        returns: string
+        result: string
+        strict: boolean
+        volatility: 'i' | 's' | 'v'
+        kind: 'f' | 'a' | 'w'
+        returns_set: boolean
+        variadic: string | null
+        canonical_variadic: string | null
+        num_arg_defaults: number
+        argument_defaults: string | null
+        agg_kind: 'n' | 'o' | 'h' | null
+        num_direct_args: number | null
+      }>(`SELECT n.nspname AS schema, p.proname AS name,
       (SELECT array_agg(format_type(t, null) ORDER BY o)
         FROM unnest(p.proargtypes) WITH ORDINALITY AS u(t, o)) AS args,
       (SELECT array_agg((${typeIdentity} u.t) ORDER BY o)
@@ -116,22 +119,22 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       LEFT JOIN pg_aggregate a ON a.aggfnoid = p.oid
       WHERE n.nspname = 'pg_catalog' AND p.prokind IN ('f', 'a', 'w')
       ORDER BY p.proname, 3`),
-    pg.query<{
-      schema: string
-      name: string
-      left_type: string | null
-      right_type: string | null
-      left: string | null
-      right: string | null
-      returns: string
-      result: string
-      strict: boolean
-      volatility: 'i' | 's' | 'v'
-      returns_set: boolean
-      implementation_schema: string
-      implementation_name: string
-      implementation_args: string[] | null
-    }>(`SELECT n.nspname AS schema, o.oprname AS name,
+      pg.query<{
+        schema: string
+        name: string
+        left_type: string | null
+        right_type: string | null
+        left: string | null
+        right: string | null
+        returns: string
+        result: string
+        strict: boolean
+        volatility: 'i' | 's' | 'v'
+        returns_set: boolean
+        implementation_schema: string
+        implementation_name: string
+        implementation_args: string[] | null
+      }>(`SELECT n.nspname AS schema, o.oprname AS name,
       CASE WHEN o.oprleft <> 0 THEN format_type(o.oprleft, null) END AS left_type,
       CASE WHEN o.oprright <> 0 THEN format_type(o.oprright, null) END AS right_type,
       (${typeIdentity} o.oprleft) AS left,
@@ -146,15 +149,15 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       JOIN pg_namespace n ON n.oid = o.oprnamespace
       JOIN pg_namespace pn ON pn.oid = p.pronamespace
       WHERE n.nspname = 'pg_catalog' ORDER BY o.oprname, 3, 4`),
-    pg.query<{
-      source: string
-      target: string
-      implementation_schema: string | null
-      implementation_name: string | null
-      implementation_args: string[] | null
-      context: 'i' | 'a' | 'e'
-      method: 'f' | 'b' | 'i'
-    }>(`SELECT (${typeIdentity} c.castsource) AS source,
+      pg.query<{
+        source: string
+        target: string
+        implementation_schema: string | null
+        implementation_name: string | null
+        implementation_args: string[] | null
+        context: 'i' | 'a' | 'e'
+        method: 'f' | 'b' | 'i'
+      }>(`SELECT (${typeIdentity} c.castsource) AS source,
       (${typeIdentity} c.casttarget) AS target,
       pn.nspname AS implementation_schema, p.proname AS implementation_name,
       (SELECT array_agg((${typeIdentity} u.t) ORDER BY o)
@@ -168,21 +171,21 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       LEFT JOIN pg_namespace pn ON pn.oid = p.pronamespace
       WHERE sn.nspname = 'pg_catalog' AND tn.nspname = 'pg_catalog'
       ORDER BY 1, 2`),
-    pg.query<BuiltinTypeResolution>(`SELECT quote_ident(n.nspname) || '.' || quote_ident(t.typname) AS identity,
+      pg.query<BuiltinTypeResolution>(`SELECT quote_ident(n.nspname) || '.' || quote_ident(t.typname) AS identity,
       t.typcategory AS category, t.typispreferred AS preferred
       FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
       WHERE n.nspname = 'pg_catalog' ORDER BY 1`),
-    pg.query<{
-      operator_schema: string
-      operator_name: string
-      left: string
-      right: string
-      family: string
-      strategy: 1 | 2 | 3 | 4 | 5
-      comparator_schema: string | null
-      comparator_name: string | null
-      comparator_args: string[] | null
-    }>(`SELECT onsp.nspname AS operator_schema, o.oprname AS operator_name,
+      pg.query<{
+        operator_schema: string
+        operator_name: string
+        left: string
+        right: string
+        family: string
+        strategy: 1 | 2 | 3 | 4 | 5
+        comparator_schema: string | null
+        comparator_name: string | null
+        comparator_args: string[] | null
+      }>(`SELECT onsp.nspname AS operator_schema, o.oprname AS operator_name,
       (${typeIdentity} o.oprleft) AS left, (${typeIdentity} o.oprright) AS right,
       quote_ident(fnsp.nspname) || '.' || quote_ident(f.opfname) AS family,
       a.amopstrategy::int AS strategy,
@@ -201,15 +204,15 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       WHERE onsp.nspname = 'pg_catalog' AND fnsp.nspname = 'pg_catalog'
         AND (p.oid IS NULL OR pnsp.nspname = 'pg_catalog')
       ORDER BY 1, 2, 3, 4, 5, 6`),
-    pg.query<{
-      identity: string
-      input_schema: string | null
-      input_name: string | null
-      input_args: string[] | null
-      output_schema: string | null
-      output_name: string | null
-      output_args: string[] | null
-    }>(`SELECT quote_ident(n.nspname) || '.' || quote_ident(t.typname) AS identity,
+      pg.query<{
+        identity: string
+        input_schema: string | null
+        input_name: string | null
+        input_args: string[] | null
+        output_schema: string | null
+        output_name: string | null
+        output_args: string[] | null
+      }>(`SELECT quote_ident(n.nspname) || '.' || quote_ident(t.typname) AS identity,
       ins.nspname AS input_schema, ip.proname AS input_name,
       (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
         FROM unnest(ip.proargtypes) WITH ORDINALITY u(t, ord)) AS input_args,
@@ -222,7 +225,8 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       LEFT JOIN pg_proc op ON op.oid = t.typoutput
       LEFT JOIN pg_namespace outs ON outs.oid = op.pronamespace
       WHERE n.nspname = 'pg_catalog' ORDER BY 1`),
-  ])
+      readRangeTypes(pg, 'pg_catalog'),
+    ])
   assertUniqueRustCallableNames([
     ...functions.rows.map((row) => ({
       schema: row.schema,
@@ -251,6 +255,7 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
   return {
     serverVersion: Number(version.rows[0]!.server_version_num),
     types: types.rows,
+    rangeTypes,
     typeIO: typeIO.rows.map((row) => ({
       identity: row.identity,
       input:

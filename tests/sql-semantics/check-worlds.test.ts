@@ -16,6 +16,7 @@ import { enumType, arrayElementBaseType } from '../../src/sql-semantics/expressi
 import {
   catalogDateType,
   catalogArrayType,
+  catalogRangeType,
   catalogTemporalType,
   catalogNumericType,
   catalogFloatType,
@@ -47,6 +48,7 @@ import { typeName } from '../../src/codegen/typescript/type-mapping.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { worldPurpose } from '../unit/query/world-purpose.js'
 import { deparseWorldSql, worldSourceDigest } from '../../scripts/check-measurements/worlds.js'
+import { readRangeFixture } from './check-range-fixtures.js'
 // @ts-expect-error -- Espalier input policy is a runtime JavaScript rule.
 import { constantInput } from '../unit/query/espalier/worlds/[world]/check-seed.sql.mjs'
 
@@ -654,6 +656,13 @@ describe('world CHECK INSERT parity', () => {
               null,
         )
         .map((column) => column.name)
+      const rangeColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogRangeType(column.typeName, column.typeOid, catalog.domains) !== null,
+        )
+        .map((column) => column.name)
       const jsonpathColumns = table.columns
         .filter(
           (column) =>
@@ -1054,6 +1063,13 @@ describe('world CHECK INSERT parity', () => {
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
       }
+      for (const name of rangeColumns) {
+        const column = table.columns.find((column) => column.name === name)!
+        const type = catalogRangeType(column.typeName, column.typeOid, catalog.domains)!
+        const payload = await readRangeFixture(pg, `SELECT ${expressions.join(',')}`, name, type)
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
+      }
       for (const name of pathColumns) {
         const hex = (
           await pg.query<{ binary: string | null }>(
@@ -1235,6 +1251,7 @@ describe('world CHECK INSERT parity', () => {
         jsonbColumns,
         jsonpathColumns,
         arrayColumns,
+        rangeColumns,
         oidColumns,
         moneyColumns,
         polygonColumns,

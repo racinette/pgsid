@@ -4462,3 +4462,63 @@ VALUES('{}','{}','{}','{}','','','','',2,0,false);
 -- name: catalog_array_bypassed
 INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
 VALUES('bad','bad','bad','bad','wrong','wrong','wrong','wrong',32768,0,true);
+
+-- name: reservation_normal
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','[1.00,9.00)','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',false,9,false,true,false,false,false,false,false,0,'2000-01-04','1999-12-31 00:00:00+00',1,false);
+
+-- name: reservation_alternate
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','[1.00,9.00)','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',true,8,false,true,false,false,false,false,false,0,'2000-01-04','1999-12-31 00:00:00+00',1,false);
+
+-- name: reservation_wrong_end
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','[1.00,9.00)','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',true,7,false,true,false,false,false,false,false,0,'2000-01-04','1999-12-31 00:00:00+00',1,false);
+
+-- name: reservation_wrong_upper_flag
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','[1.00,9.00)','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',false,9,false,true,true,false,false,false,false,0,'2000-01-04','1999-12-31 00:00:00+00',1,false);
+
+-- name: reservation_below_floor
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','[1.00,9.00)','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',false,9,false,true,false,false,false,false,false,10,'2000-01-04','1999-12-31 00:00:00+00',1,false);
+
+-- name: reservation_after_local_limit
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','[1.00,9.00)','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',false,9,false,true,false,false,false,false,false,0,'2000-01-01 00:00:00.000001','1999-12-31 00:00:00+00',1,false);
+
+-- name: reservation_before_instant_limit
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','[1.00,9.00)','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',false,9,false,true,false,false,false,false,false,0,'2000-01-04','2000-01-02 00:00:00+00',1,false);
+
+-- name: reservation_division_error
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','[1.00,9.00)','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',false,9,false,true,false,false,false,false,false,0,'2000-01-04','1999-12-31 00:00:00+00',0,false);
+
+-- name: reservation_bypassed
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','[1.00,9.00)','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',false,7,true,true,false,false,false,false,false,1000,'2000-01-04','1999-12-31 00:00:00+00',0,true);
+
+-- name: reservation_empty
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('empty','[2,8)','empty','empty','empty','empty','empty',false,NULL,true,false,false,false,false,true,true,0,'2000-01-04','1999-12-31 00:00:00+00',0,false);
+
+-- name: reservation_null
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,false,NULL,NULL,NULL,NULL,NULL,NULL,true,true,0,'2000-01-04','1999-12-31 00:00:00+00',1,false);
+
+-- name: reservation_null_fallback
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES(NULL,'[2,8)',NULL,NULL,NULL,NULL,NULL,true,8,NULL,NULL,NULL,NULL,NULL,true,true,0,'2000-01-04','1999-12-31 00:00:00+00',1,false);
+
+-- name: reservation_unbounded
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('(,)','[2,8)','(,)','(,)','(,)','(,)','(,)',false,NULL,false,false,false,true,true,true,true,0,'2000-01-04','1999-12-31 00:00:00+00',1,false);
+
+-- name: reservation_points
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,1]','[2,8)','[9007199254740993,9007199254740993]','[1.00,1.00]','[2000-01-01,2000-01-01]','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000001]','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000001+00]',false,2,false,true,true,false,false,false,false,0,'2000-01-04','1999-12-31 00:00:00+00',1,false);
+
+-- name: reservation_mixed_empty
+INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
+VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','empty','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',false,9,false,true,false,false,false,false,false,0,'2000-01-04','1999-12-31 00:00:00+00',1,false);
