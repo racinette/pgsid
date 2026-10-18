@@ -407,6 +407,8 @@ func copySqlErrorDescription(value SqlErrorDescription) SqlErrorDescription {
 }
 
 const sqlErrorNumericOutOfRange = 3452547
+const sqlErrorNotNullViolation = 3505682
+const sqlErrorCheckViolation = 3505720
 const sqlErrorNullValueNotAllowed = 3452548
 const sqlErrorInvalidDatetimeFormat = 3452551
 const sqlErrorDatetimeFieldOverflow = 3452552
@@ -441,6 +443,12 @@ const sqlErrorJsonObject = 3452664
 const sqlErrorJsonSingleton = 3452660
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorNotNullViolation {
+		return SqlErrorDescription{Message: "not-null constraint violation"}
+	}
+	if error.State == sqlErrorCheckViolation {
+		return SqlErrorDescription{Message: "check constraint violation"}
+	}
 	if error.State == sqlErrorObjectNotReady {
 		return SqlErrorDescription{Message: "object not in prerequisite state"}
 	}
@@ -8254,6 +8262,66 @@ func ArrayElementToJsonpath(input ArrayElement) JsonpathValue {
 	}
 	return JsonpathValue{Kind: JsonpathValueUnknown}
 }
+func DomainConversionStart(input BoolValue, notNull bool) CheckOutcome {
+	if input.Kind == BoolValueError {
+		error := input.Error
+		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
+	}
+	if input != (BoolValue{Kind: BoolValueValue, Value: true}) && input != (BoolValue{Kind: BoolValueValue, Value: false}) {
+		return CheckOutcome{Kind: CheckOutcomeUnknown}
+	}
+	if notNull {
+		if input == (BoolValue{Kind: BoolValueValue, Value: true}) {
+			return CheckOutcome{Kind: CheckOutcomeError, Error: MakeSqlError(sqlErrorNotNullViolation)}
+		}
+	}
+	return CheckOutcome{Kind: CheckOutcomeTrue}
+}
+func DomainConversionContinues(input CheckOutcome) bool {
+	return input == (CheckOutcome{Kind: CheckOutcomeTrue})
+}
+func DomainConversionCheck(input CheckOutcome, result CheckOutcome) CheckOutcome {
+	if input != (CheckOutcome{Kind: CheckOutcomeTrue}) {
+		return input
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeFalse}) {
+		return CheckOutcome{Kind: CheckOutcomeError, Error: MakeSqlError(sqlErrorCheckViolation)}
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeNull}) {
+		return CheckOutcome{Kind: CheckOutcomeTrue}
+	}
+	return result
+}
+func FinishDomainConversion(input ArrayElement, result CheckOutcome) ArrayElement {
+	input = CopyArrayElement(input)
+	if result.Kind == CheckOutcomeError {
+		error := result.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return ArrayElement{Kind: ArrayElementUnknown}
+	}
+	return input
+}
+func FinishDomainArrayInput(input ArrayTextPayload, converted ArrayArguments) ArrayValue {
+	input = copyArrayTextPayload(input)
+	converted = CopyArrayArguments(converted)
+	if converted.Kind == ArrayArgumentsUnknown {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	return FinishPreparedArrayText(input, converted)
+}
+func FinishArrayDomainConversion(input ArrayValue, result CheckOutcome) ArrayValue {
+	input = CopyArrayValue(input)
+	if result.Kind == CheckOutcomeError {
+		error := result.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return ArrayValue{Kind: ArrayValueUnknown}
+	}
+	return input
+}
 
 type ArrayDimension struct {
 	Lower  int
@@ -9426,6 +9494,20 @@ func ArrayTextHasEvent(input *ArrayTextPayload, index Int4Value) bool {
 	if index.Kind == Int4ValueValue {
 		position := langruntime.CheckedI32(index.Value)
 		return position >= 0 && ((int64(langruntime.CheckedI32(position))) < (int64(langruntime.CheckedI32((int(int32(len(input.Events))))))))
+	}
+	return false
+}
+func ArrayTextEventNeedsInput(input *ArrayTextPayload, index Int4Value) bool {
+	input = langruntime.CheckedBorrowed(input, copyArrayTextPayload)
+	if index.Kind == Int4ValueValue {
+		position := langruntime.CheckedI32(index.Value)
+		if position >= 0 && (int64(langruntime.CheckedI32(position))) < (int64(langruntime.CheckedI32((int(int32(len(input.Events))))))) {
+			event := copyArrayTextEvent(input.Events[langruntime.IndexFromI32(position, 0)])
+			if event.Kind == ArrayTextEventError {
+				return false
+			}
+			return true
+		}
 	}
 	return false
 }

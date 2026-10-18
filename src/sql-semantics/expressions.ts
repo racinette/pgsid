@@ -191,7 +191,9 @@ export const BUILTIN_ARRAY_ELEMENT_TYPES = [
 ] as const
 export type ArrayElementType = NonArrayScalarType
 export type ArrayType = `array:${ArrayElementType}`
+export type DomainElementType = `domain:${string}`
 export type NonArrayScalarType =
+  | DomainElementType
   | RefcursorType
   | 'pg_catalog.name'
   | 'pg_catalog."char"'
@@ -265,6 +267,52 @@ export function arrayType(elementType: ArrayElementType): ArrayType {
   return `array:${elementType}`
 }
 
+export function domainElementType(
+  definition: { schema: string; name: string },
+  base: Exclude<NonArrayScalarType, DomainElementType>,
+): DomainElementType {
+  return `domain:${JSON.stringify([definition.schema, definition.name, base])}`
+}
+
+export function domainElementDefinition(
+  type: string,
+): { schema: string; name: string; base: Exclude<NonArrayScalarType, DomainElementType> } | null {
+  if (!type.startsWith('domain:')) return null
+  try {
+    const parts: unknown = JSON.parse(type.slice(7))
+    if (
+      !Array.isArray(parts) ||
+      parts.length !== 3 ||
+      !parts.every(
+        (part): part is string =>
+          typeof part === 'string' && part.length > 0 && !part.includes('\0'),
+      )
+    )
+      return null
+    const [schema, name, base] = parts as [string, string, string]
+    if (base.startsWith('array:') || base.startsWith('domain:')) return null
+    if (!base.startsWith('enum:') && catalogScalarType(base) !== base) return null
+    if (base.startsWith('enum:')) {
+      const identity: unknown = JSON.parse(base.slice(5))
+      if (
+        !Array.isArray(identity) ||
+        identity.length !== 2 ||
+        !identity.every(
+          (part) => typeof part === 'string' && part.length > 0 && !part.includes('\0'),
+        )
+      )
+        return null
+    }
+    return { schema, name, base: base as Exclude<NonArrayScalarType, DomainElementType> }
+  } catch {
+    return null
+  }
+}
+
+export function arrayElementBaseType(type: string): string {
+  return domainElementDefinition(type)?.base ?? type
+}
+
 function isJsonConvertibleType(type: string): boolean {
   if (
     type === 'pg_catalog.bool' ||
@@ -294,7 +342,9 @@ function operandMatchesDeclared(declared: string, actual: string): boolean {
 
 function isArrayElementType(type: string): type is ArrayElementType {
   return (
-    (BUILTIN_ARRAY_ELEMENT_TYPES as readonly string[]).includes(type) || type.startsWith('enum:')
+    (BUILTIN_ARRAY_ELEMENT_TYPES as readonly string[]).includes(type) ||
+    type.startsWith('enum:') ||
+    domainElementDefinition(type) !== null
   )
 }
 

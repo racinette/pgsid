@@ -290,6 +290,10 @@ const safePathTranslation = (node: Extract<EvalExpression, { kind: 'call' }>): b
 
 export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityContext = {}): boolean {
   switch (node.kind) {
+    case 'array-domain-coerce':
+      return true
+    case 'domain-cast':
+      return node.notNull || node.checks.length > 0
     case 'input':
     case 'input-null-test':
     case 'certain':

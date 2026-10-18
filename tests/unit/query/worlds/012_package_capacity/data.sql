@@ -1,6 +1,9 @@
 INSERT INTO stock_batches (id, received, dispatched, reserve, available)
 VALUES (1, 100, 40, 120, 9007199254740993);
 
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (1,7,9,9007199254740993,1.2300,true,7,9,9007199254740993,7,8,'00010000000000000007',false);
+
 INSERT INTO package_capacity (id, width, height, capacity, slots, batch_size, adjustment)
 VALUES (1, 4, 5, 20, 4, 5, -2);
 
@@ -84,3 +87,6 @@ VALUES (1, 1, 1, 1, true, 0, -1905060026, -1905060026, -1905060026, -1905060026,
 INSERT INTO stock_encoded_counts(id,small_text,ordinary_text,bulk_text,padded_text,expected_small,expected_ordinary,expected_bulk,expected_padded,bypass) VALUES(1,'10','0x20','9007199254740993',' 42 ',10,32,9007199254740993,42,false);
 INSERT INTO stock_encoded_shapes(id,payload,fallback_count,expected_count,bypass) VALUES(1,'10',0,1,false);
 INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(1,'{crate,pallet}',2,true,1);
+
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (1,1.2500,2,2,9007199254740993,9007199254740995.5000,0.625,1.25,4,false);

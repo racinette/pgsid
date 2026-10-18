@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -372,7 +372,13 @@ it('preserves fill/trim preparation, inferred enum identity, concrete array coer
       }
     }
     const domainSql = 'array_fill(1::fill_seed,ARRAY[2]) IS NULL'
-    await expect(pg.query('SELECT ' + domainSql)).resolves.toBeDefined()
+    expect(
+      (
+        await pg.query<{ type: string; value: boolean }>(
+          'SELECT pg_typeof(array_fill(1::fill_seed,ARRAY[2]))::text type,' + domainSql + ' value',
+        )
+      ).rows,
+    ).toEqual([{ type: 'fill_seed[]', value: false }])
     expect(
       lowerTableCheck(
         table,
@@ -380,8 +386,8 @@ it('preserves fill/trim preparation, inferred enum identity, concrete array coer
         catalog.enums,
         catalog.domains,
         'source',
-      )!.expression,
-    ).toEqual({ kind: 'uncertain' })
+      )!.expression.kind,
+    ).toBe('eval-scalar')
     await expect(pg.query('SELECT array_fill(ARRAY[1,2],ARRAY[2])')).rejects.toMatchObject({
       code: '42704',
     })
@@ -407,10 +413,14 @@ it('preserves fill/trim preparation, inferred enum identity, concrete array coer
   }
 }, 240_000)
 
-it('fills and trims every represented scalar and enum profile without comparison or rendering requirements', async () => {
-  const pg = await PGlite.create(),
+describe('fills and trims every represented scalar and enum profile without comparison or rendering requirements', () => {
+  let pg: PGlite
+  let directory: string
+  let plans: Parameters<typeof prepareCheckRustGroup>[0]
+  const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+  beforeAll(async () => {
+    pg = await PGlite.create()
     directory = await mkdtemp(join(tmpdir(), 'pgsid-array-fill-trim-families-'))
-  try {
     await pg.exec(
       "CREATE TYPE array_stage AS ENUM ('new','done');CREATE TABLE fill_trim_families(seed text,a text,dims text,lbs text,n integer,expected_count integer,expected_layout text,expected_null boolean);CREATE TABLE fill_trim_family_oracle(LIKE fill_trim_families)",
     )
@@ -450,7 +460,7 @@ it('fills and trims every represented scalar and enum profile without comparison
       await pg.exec(`ALTER TABLE fill_trim_families ADD CONSTRAINT ${form.name} CHECK(${form.sql})`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((item) => item.name === 'fill_trim_families')!
-    const plans = forms.flatMap((form) =>
+    plans = forms.flatMap((form) =>
       (['source', 'stored'] as const).map((origin) => {
         const constraint = table.constraints.find((item) => item.name === form.name)!
         return {
@@ -474,8 +484,7 @@ it('fills and trims every represented scalar and enum profile without comparison
         }
       }),
     )
-    const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
-      references: unknown[] = []
+    const references: unknown[] = []
     for (const form of forms)
       for (const [seed, a, dims, lbs, n] of samples.get(form.type)!) {
         const value = (
@@ -529,7 +538,14 @@ it('fills and trims every represented scalar and enum profile without comparison
       'artifacts/array-fill-trim/family-references.json',
       JSON.stringify(references, null, 2) + '\n',
     )
-    for (let offset = 0; offset < plans.length; offset += 64) {
+  }, 240_000)
+  afterAll(async () => {
+    if (pg && !pg.closed) await pg.close()
+    if (directory) await rm(directory, { recursive: true, force: true })
+  })
+  it.each([0, 64, 128, 192, 256, 320])(
+    'preserves scalar and enum profile batch %i',
+    async (offset) => {
       const selected = plans.slice(offset, offset + 64),
         group = prepareCheckRustGroup(selected, {
           arrayNulls: true,
@@ -552,9 +568,7 @@ it('fills and trims every represented scalar and enum profile without comparison
         names,
         fixtures.filter((fixture) => allowed.has(fixture.name)),
       )
-    }
-  } finally {
-    await pg.close()
-    await rm(directory, { recursive: true, force: true })
-  }
-}, 240_000)
+    },
+    240_000,
+  )
+})

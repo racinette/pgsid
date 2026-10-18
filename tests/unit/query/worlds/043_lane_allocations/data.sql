@@ -250,3 +250,21 @@ INSERT INTO lane_regression_merges(payload,other_payload,expected,bypass) VALUES
 INSERT INTO lane_coerced_readings(payload,reading,expected_single,expected_double,bypass) VALUES('{0,0,0}',2,'{1,2,0}','{1,2,0}',false);
 INSERT INTO lane_coerced_regression(payload,reading_y,reading_x,expected,bypass) VALUES('{0,0,0,0,0,0}',3,2,'{1,2,0,3,0,0}',false);
 INSERT INTO lane_coerced_state_shapes(payload,reading,expected_count,bypass) VALUES('{0,0,0}',2,3,false);
+
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('{1,2}',NULL,1,'{b,a}','{new,done}',2,2,'[1:2]','{a,b}','{new,done}',false);
+
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('1',1,1,1,'abcd','abc',false);
+
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (1,1,1,2,'abcd','abc',false);
+
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{1,2}','{1}','{abc}',2,1,'abc',false);
+
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abc,def}',1,'abc',1,1,'{1,2}',1,false);
+
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,'{1,2}','{3,4}','{1}','new',3,2,false,true,1,false);
+
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES(NULL,'{abc,xy}',2,'abc','abc',1,false);

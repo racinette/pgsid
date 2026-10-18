@@ -367,6 +367,8 @@ pub struct SqlErrorDescription<'a> {
 }
 
 const SQL_ERROR_NUMERIC_OUT_OF_RANGE: u32 = 3452547;
+const SQL_ERROR_NOT_NULL_VIOLATION: u32 = 3505682;
+const SQL_ERROR_CHECK_VIOLATION: u32 = 3505720;
 const SQL_ERROR_NULL_VALUE_NOT_ALLOWED: u32 = 3452548;
 const SQL_ERROR_INVALID_DATETIME_FORMAT: u32 = 3452551;
 const SQL_ERROR_DATETIME_FIELD_OVERFLOW: u32 = 3452552;
@@ -401,6 +403,16 @@ const SQL_ERROR_JSON_OBJECT: u32 = 3452664;
 const SQL_ERROR_JSON_SINGLETON: u32 = 3452660;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_NOT_NULL_VIOLATION {
+        return SqlErrorDescription {
+            message: "not-null constraint violation",
+        };
+    }
+    if error.state == SQL_ERROR_CHECK_VIOLATION {
+        return SqlErrorDescription {
+            message: "check constraint violation",
+        };
+    }
     if error.state == SQL_ERROR_OBJECT_NOT_READY {
         return SqlErrorDescription {
             message: "object not in prerequisite state",

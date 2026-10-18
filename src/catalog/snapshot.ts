@@ -1,3 +1,4 @@
+import { captureDomainCoercionContext, type DomainCoercionIdentity } from './coercion-context.js'
 import { captureMoneyLiterals } from './money-literals.js'
 import { readBuiltinCatalog } from '../postgres/builtins/catalog.js'
 import type { PGlite } from '@electric-sql/pglite'
@@ -128,6 +129,7 @@ interface ColumnRow {
 }
 
 interface ConstraintRow {
+  coercion_tree: string | null
   name: string
   contype: string // 'p' | 'u' | 'f' | 'c' | 'x'
   conrelid: number
@@ -216,6 +218,10 @@ interface EnumTypeRow {
   output_schema: string
   output_name: string
   output_args: string[]
+  input_schema: string
+  input_name: string
+  input_args: string[]
+  input_sources: string[]
 }
 
 interface EnumValueRow {
@@ -226,6 +232,7 @@ interface EnumValueRow {
 }
 
 interface DomainRow {
+  array_type_oid: number
   oid: number
   schema: string
   name: string
@@ -239,7 +246,7 @@ interface DomainRow {
   collation_oid: number | null
   not_null: boolean
   default_expr: string | null
-  check_exprs: { name: string; definition: string }[] | null
+  check_exprs: { name: string; definition: string; coercion_tree: string | null }[] | null
 }
 
 interface InheritsRow {
@@ -769,8 +776,23 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
   }
 
   // --- Constraints grouped by conrelid. ---
+  const domainIdentities = new Map<number, DomainCoercionIdentity>()
+  for (const domain of domainRows) {
+    domainIdentities.set(domain.oid, { schema: domain.schema, name: domain.name, array: false })
+    if (domain.array_type_oid)
+      domainIdentities.set(domain.array_type_oid, {
+        schema: domain.schema,
+        name: domain.name,
+        array: true,
+      })
+  }
   const constraintsByRel = new Map<number, ConstraintInfo[]>()
   for (const con of constraintRows) {
+    const coercionContext = captureDomainCoercionContext(
+      con.coercion_tree,
+      con.definition,
+      domainIdentities,
+    )
     const ci: ConstraintInfo = {
       name: con.name,
       type: mapConstraintType(con.contype),
@@ -786,6 +808,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
           ? resolveAttnums(con.confrelid, toNumArray(con.confkey), attnumIdx)
           : null,
       definition: con.definition,
+      ...(coercionContext ? { coercionContext } : {}),
       validated: con.validated,
       enforced: con.enforced,
       noInherit: con.noinherit,
@@ -1015,6 +1038,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       valueOids: enumOidsByType.get(e.oid) ?? [],
       oid: e.oid,
       outputFunction: `function:${JSON.stringify([e.output_schema, e.output_name])}(${e.output_args.join(',')})`,
+      inputFunction: `function:${JSON.stringify([e.input_schema, e.input_name])}(${e.input_args.join(',')})`,
+      inputSources: e.input_sources,
     }))
     .sort(bySchemaName)
 
@@ -1034,7 +1059,18 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       collationOid: d.collation_oid,
       notNull: d.not_null,
       default: d.default_expr,
-      checks: d.check_exprs ?? [],
+      checks: (d.check_exprs ?? []).map((check) => {
+        const coercionContext = captureDomainCoercionContext(
+          check.coercion_tree,
+          check.definition,
+          domainIdentities,
+        )
+        return {
+          name: check.name,
+          definition: check.definition,
+          ...(coercionContext ? { coercionContext } : {}),
+        }
+      }),
     }))
     .sort(bySchemaName)
 
@@ -1341,7 +1377,7 @@ async function queryConstraints(pg: PGlite): Promise<ConstraintRow[]> {
             tn.nspname AS foreign_schema,
             tc.relname AS foreign_table,
             con.conkey, con.confkey,
-            pg_get_constraintdef(con.oid) AS definition,
+            pg_get_constraintdef(con.oid) AS definition, con.conbin::text AS coercion_tree,
             con.convalidated AS validated,
             con.conenforced AS enforced,
             con.connoinherit AS noinherit,
@@ -1898,11 +1934,25 @@ async function queryEnumTypes(pg: PGlite): Promise<EnumTypeRow[]> {
        pn.nspname AS output_schema, p.proname AS output_name,
        (SELECT array_agg(quote_ident(an.nspname) || '.' || quote_ident(a.typname) ORDER BY u.ord)
         FROM unnest(p.proargtypes) WITH ORDINALITY u(oid, ord)
-        JOIN pg_type a ON a.oid = u.oid JOIN pg_namespace an ON an.oid = a.typnamespace) AS output_args
+        JOIN pg_type a ON a.oid = u.oid JOIN pg_namespace an ON an.oid = a.typnamespace) AS output_args,
+       pin.nspname AS input_schema, pi.proname AS input_name,
+       (SELECT array_agg(quote_ident(an.nspname) || '.' || quote_ident(a.typname) ORDER BY u.ord)
+        FROM unnest(pi.proargtypes) WITH ORDINALITY u(oid, ord)
+        JOIN pg_type a ON a.oid = u.oid JOIN pg_namespace an ON an.oid = a.typnamespace) AS input_args,
+       ARRAY(SELECT source.name FROM (VALUES
+         ('pg_catalog.text','pg_catalog.text'::regtype::oid),
+         ('pg_catalog."varchar"','pg_catalog.varchar'::regtype::oid),
+         ('pg_catalog.bpchar','pg_catalog.bpchar'::regtype::oid),
+         ('pg_catalog.name','pg_catalog.name'::regtype::oid)
+       ) AS source(name,oid)
+       WHERE NOT EXISTS(SELECT 1 FROM pg_cast c WHERE c.castsource=source.oid AND c.casttarget=t.oid)
+       ORDER BY source.name COLLATE "C") AS input_sources
      FROM pg_type t
      JOIN pg_namespace n ON n.oid = t.typnamespace
      JOIN pg_proc p ON p.oid = t.typoutput
      JOIN pg_namespace pn ON pn.oid = p.pronamespace
+     JOIN pg_proc pi ON pi.oid = t.typinput
+     JOIN pg_namespace pin ON pin.oid = pi.pronamespace
      WHERE t.typtype = 'e' AND ${USER_NS}
      ORDER BY n.nspname, t.typname;`,
   )
@@ -1922,7 +1972,7 @@ async function queryEnumValues(pg: PGlite): Promise<EnumValueRow[]> {
 async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
   const res = await pg.query<DomainRow>(
     `${TYPE_SHAPES}
-     SELECT t.oid, n.nspname AS schema, t.typname AS name,
+     SELECT t.oid, t.typarray AS array_type_oid, n.nspname AS schema, t.typname AS name,
             t.typbasetype AS base_type_oid,
             format_type(t.typbasetype, null) AS base_type_name,
             t.typtypmod AS base_type_mod,
@@ -1943,7 +1993,7 @@ async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
             -- kept depended on catalog row order, so the same domain could
             -- compare unequal to itself across a replay.
             (SELECT json_agg(json_build_object('name', con.conname,
-                                               'definition', pg_get_constraintdef(con.oid))
+                                               'definition', pg_get_constraintdef(con.oid), 'coercion_tree', con.conbin::text)
                              ORDER BY con.conname)
                FROM pg_constraint con
               WHERE con.contypid = t.oid AND con.contype = 'c') AS check_exprs

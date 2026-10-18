@@ -6,14 +6,14 @@ import { dirname, join } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import type { Node } from 'libpg-query'
-import { deparseSync } from 'pgsql-deparser'
+import { Deparser } from 'pgsql-deparser'
 import { PGlite } from '@electric-sql/pglite'
 import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
 import { getStatements, parseSql } from '../../src/ast.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import type { CatalogSnapshot, ColumnInfo } from '../../src/catalog/types.js'
 import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
-import { enumType } from '../../src/sql-semantics/expressions.js'
+import { enumType, arrayElementBaseType } from '../../src/sql-semantics/expressions.js'
 import {
   catalogDateType,
   catalogArrayType,
@@ -282,11 +282,61 @@ for (const world of worlds) {
   }
 }
 
+class WorldDeparser extends Deparser {
+  override A_Indirection(
+    node: Parameters<Deparser['A_Indirection']>[0],
+    context: Parameters<Deparser['A_Indirection']>[1],
+  ): string {
+    const argument = this.visit(node.arg!, context)
+    const expression = super.A_Indirection(node, context)
+    if (expression.startsWith(`(${argument})`)) return expression
+    if (!expression.startsWith(argument)) throw new Error('Unexpected subscript rendering')
+    return `(${argument})${expression.slice(argument.length)}`
+  }
+}
+
+const deparseSync = (...args: ConstructorParameters<typeof Deparser>): string =>
+  new WorldDeparser(...args).deparseQuery()
+
+const declaredCheckExpressions = new Map<string, string>()
+
 async function loadWorldSql(pg: PGlite, source: string, schema: string): Promise<void> {
   const parsed = await parseSql(source)
   const visit = (value: unknown): void => {
     if (!value || typeof value !== 'object') return
     const record = value as Record<string, unknown>
+    const capture = (
+      relation: { relname?: string; schemaname?: string },
+      nodes: readonly Node[],
+    ): void => {
+      for (const node of nodes) {
+        if ('ColumnDef' in node) capture(relation, node.ColumnDef.constraints ?? [])
+        if (
+          'Constraint' in node &&
+          node.Constraint.contype === 'CONSTR_CHECK' &&
+          node.Constraint.conname &&
+          node.Constraint.raw_expr
+        ) {
+          const owner =
+            relation.schemaname === undefined || relation.schemaname === 'public'
+              ? schema
+              : relation.schemaname
+          declaredCheckExpressions.set(
+            `${owner}.${relation.relname}.${node.Constraint.conname}`,
+            deparseSync(node.Constraint.raw_expr),
+          )
+        }
+      }
+    }
+    const create = record['CreateStmt'] as
+      { relation?: { relname?: string; schemaname?: string }; tableElts?: Node[] } | undefined
+    if (create?.relation) capture(create.relation, create.tableElts ?? [])
+    const alter = record['AlterTableStmt'] as
+      { relation?: { relname?: string; schemaname?: string }; cmds?: Node[] } | undefined
+    if (alter?.relation)
+      for (const command of alter.cmds ?? [])
+        if ('AlterTableCmd' in command && command.AlterTableCmd.def)
+          capture(alter.relation, [command.AlterTableCmd.def])
     if (record['schemaname'] === 'public') record['schemaname'] = schema
     const setting = record['VariableSetStmt'] as { name?: string; args?: Node[] } | undefined
     if (setting?.name === 'search_path')
@@ -801,11 +851,13 @@ describe('world CHECK INSERT parity', () => {
           catalog.enums,
         )!
         const elementType = type.slice(6)
+        const baseElementType = arrayElementBaseType(elementType)
         const profiles: Record<string, { kind: string; family: number }> = {
           'pg_catalog.int2': { kind: 'Int2', family: 1 },
           'pg_catalog.int4': { kind: 'Int4', family: 2 },
           'pg_catalog.int8': { kind: 'Int8', family: 3 },
           'pg_catalog.text': { kind: 'Text', family: 8 },
+          'pg_catalog."varchar"': { kind: 'Text', family: 8 },
           'pg_catalog.bool': { kind: 'Bool', family: 9 },
           'pg_catalog."numeric"': { kind: 'Numeric', family: 10 },
           'pg_catalog."json"': { kind: 'Json', family: 11 },
@@ -813,8 +865,8 @@ describe('world CHECK INSERT parity', () => {
           'pg_catalog.float4': { kind: 'Float4', family: 19 },
           'pg_catalog.float8': { kind: 'Float8', family: 20 },
         }
-        const definition = catalog.enums.find((item) => enumType(item) === elementType)
-        const profile = definition ? { kind: 'Enum', family: 6 } : profiles[elementType]
+        const definition = catalog.enums.find((item) => enumType(item) === baseElementType)
+        const profile = definition ? { kind: 'Enum', family: 6 } : profiles[baseElementType]
         if (!profile) throw new Error('Missing array INSERT fixture conversion: ' + elementType)
         const scalarText =
           profile.kind === 'Float4' || profile.kind === 'Float8'
@@ -1356,7 +1408,8 @@ describe('world CHECK INSERT parity', () => {
     )!
     await pg.exec(`SET search_path = ${quote(item.schema)}, public`)
     await pg.exec('BEGIN')
-    let rejected: { code: string; constraint?: string } | undefined
+    let rejected:
+      { code: string; constraint?: string; schema?: string; dataType?: string } | undefined
     try {
       await pg.query(item.sql)
     } catch (error) {
@@ -1397,6 +1450,7 @@ describe('world CHECK INSERT parity', () => {
       ? `SELECT inputs.*, ${generatedColumns.join(',')} FROM (SELECT ${select}) AS inputs`
       : `SELECT ${select}`
     const oracleResults: (Result & { postgres: OracleOutcome })[] = []
+    const domainErrors = new Set<string>()
     for (const { constraint, result, message } of results) {
       const identity = `${item.schema}.${table.name}.${constraint}`
       const counts = coverage.get(identity) ?? {
@@ -1426,9 +1480,9 @@ describe('world CHECK INSERT parity', () => {
         (candidate) => candidate.name === constraint,
       )!.definition
       expect(definition).toMatch(/^CHECK \(/u)
-      const expression = definition
-        .slice('CHECK '.length)
-        .replace(/(?:\s+(?:NOT VALID|NO INHERIT))+$/u, '')
+      const expression =
+        declaredCheckExpressions.get(identity) ??
+        definition.slice('CHECK '.length).replace(/(?:\s+(?:NOT VALID|NO INHERIT))+$/u, '')
       let expected: OracleOutcome
       try {
         expected = (
@@ -1439,6 +1493,9 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.value
       } catch (error) {
         const code = (error as { code: string }).code
+        const failure = error as { schema?: string; dataType?: string; constraint?: string }
+        if (code === '23514' && failure.dataType)
+          domainErrors.add(JSON.stringify([failure.schema, failure.dataType, failure.constraint]))
         expect(code, `${item.name}/${constraint}: malformed CHECK SQLSTATE`).toMatch(
           /^[A-Z0-9]{5}$/u,
         )
@@ -1475,7 +1532,34 @@ describe('world CHECK INSERT parity', () => {
       if (expected === false)
         expect(rejected, `${item.name}/${constraint}: INSERT must reject`).toBeDefined()
     }
-    if (rejected?.code === '23514') {
+    const domainViolation = rejected?.code === '23514' && rejected.dataType !== undefined
+    if (domainViolation) {
+      let domain = catalog.domains.find(
+        (item) => item.schema === rejected!.schema && item.name === rejected!.dataType,
+      )
+      expect(
+        domain,
+        `${item.name}: domain CHECK diagnostic must identify a captured domain`,
+      ).toBeDefined()
+      const seen = new Set<number>()
+      let declared = false
+      while (domain && !seen.has(domain.oid)) {
+        seen.add(domain.oid)
+        declared ||= domain.checks.some((check) => check.name === rejected!.constraint)
+        domain = catalog.domains.find((item) => item.oid === domain!.baseTypeOid)
+      }
+      expect(
+        declared,
+        `${item.name}: domain CHECK diagnostic must identify a declared constraint`,
+      ).toBe(true)
+      expect(
+        domainErrors.has(
+          JSON.stringify([rejected!.schema, rejected!.dataType, rejected!.constraint]),
+        ),
+        `${item.name}: domain CHECK failure must occur in a CHECK expression oracle`,
+      ).toBe(true)
+    }
+    if (rejected?.code === '23514' && !domainViolation) {
       databaseRejections++
       const result = results.find((result) => result.constraint === rejected!.constraint)?.result
       expect(

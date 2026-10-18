@@ -3776,3 +3776,261 @@ VALUES ('{"aa":1,"é":2}','{"aa":1,"é":2}','{}','{"aa":1,"é":2}','{"aa":1,"é"
 -- name: expanded_path_utf8_container
 INSERT INTO lane_expanded_paths (document,binary_document,first_key,second_key,expected_text,expected_binary_text)
 VALUES ('{"selected":[{"aa":1,"é":2}]}','{"selected":[{"aa":1,"é":2}]}','selected','0','{"aa":1,"é":2}','{"aa": 1, "é": 2}');
+
+-- name: domain_lane_valid
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('{1,2}',NULL,1,'{b,a}','{new,done}',2,2,'[1:2]','{a,b}','{new,done}',false);
+-- name: domain_lane_wrong_capacity
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('{1,2}',NULL,1,'{b,a}','{new,done}',1,2,'[1:2]','{a,b}','{new,done}',false);
+-- name: domain_lane_wrong_layout
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('{1,2}',NULL,1,'{b,a}','{new,done}',2,2,'wrong','{a,b}','{new,done}',false);
+-- name: domain_lane_wrong_constructor
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('{1,2}',NULL,1,'{b,a}','{new,done}',2,1,'[1:2]','{a,b}','{new,done}',false);
+-- name: domain_lane_wrong_labels
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('{1,2}',NULL,1,'{b,a}','{new,done}',2,2,'[1:2]','{b,a}','{new,done}',false);
+-- name: domain_lane_wrong_stages
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('{1,2}',NULL,1,'{b,a}','{new,done}',2,2,'[1:2]','{a,b}','{done,new}',false);
+-- name: domain_lane_wrong_selection
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('{1,2}',NULL,2,'{b,a}','{new,done}',2,2,'[1:2]','{a,b}','{new,done}',false);
+-- name: domain_lane_null
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES (NULL,NULL,NULL,NULL,NULL,2,2,NULL,NULL,NULL,false);
+-- name: domain_lane_skipped
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('{}',NULL,1,'{}','{}',2,2,NULL,'{}','{}',true);
+-- name: domain_lane_lower_bounds
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('[0:1]={1,2}',NULL,2,'[0:1]={b,a}','[-1:0]={new,done}',2,2,'[0:1]','[0:1]={a,b}','[-1:0]={new,done}',false);
+-- name: domain_lane_multidimensional
+INSERT INTO lane_domain_allocations(slots,standby,assigned_lane,labels,stages,slot_limit,recorded_count,recorded_layout,recorded_labels,recorded_stages,bypass)
+VALUES ('{{1,2},{3,4}}',NULL,1,'{{c,b},{a,d}}','{{new,done},{done,new}}',4,2,'[1:2][1:2]','{{a,d},{c,b}}','{{new,done},{done,new}}',false);
+
+-- name: domain_import_valid
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('1',1,1,1,'abcd','abc',false);
+-- name: domain_import_wrong_record
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('1',1,1,2,'abcd','abc',false);
+-- name: domain_import_bad_input
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('bad',1,1,1,'abc','abc',false);
+-- name: domain_import_nonpositive_payload
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('0',1,1,1,'abc','abc',false);
+-- name: domain_import_null_payload
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES (NULL,1,1,1,'abc','abc',false);
+-- name: domain_import_nonpositive_lane
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('1',0,1,1,'abc','abc',false);
+-- name: domain_import_empty_label
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('1',1,1,1,'','',false);
+-- name: domain_import_wrong_label
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('1',1,1,1,'abcd','wrong',false);
+-- name: domain_import_null_lane
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('1',NULL,1,1,NULL,NULL,false);
+-- name: domain_import_skipped
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('bad',0,1,1,'',NULL,true);
+-- name: domain_import_same_null
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('1',NULL,NULL,NULL,NULL,NULL,true);
+-- name: domain_import_unicode
+INSERT INTO lane_domain_imports(payload,lane,approved_lane,recorded_lane,label,recorded_label,bypass)
+VALUES ('1',1,1,1,'é😀aZ','é😀a',false);
+
+-- name: bulk_domain_valid
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (1,1,1,2,'abcd','abc',false);
+-- name: bulk_domain_unicode
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (2,1,2,2,'雪😊ab','雪😊a',false);
+-- name: bulk_domain_null_lane
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (NULL,1,1,2,NULL,NULL,false);
+-- name: bulk_domain_null_required
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (1,1,NULL,2,'abc','abc',false);
+-- name: bulk_domain_nonpositive
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (0,1,1,2,'abc','abc',false);
+-- name: bulk_domain_division
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (1,0,1,2,'abc','abc',false);
+-- name: bulk_domain_ordered_failures
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (0,0,1,2,'abc','abc',false);
+-- name: bulk_domain_empty_code
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (1,1,1,2,'','',false);
+-- name: bulk_domain_wrong_count
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (1,1,1,3,'abc','abc',false);
+-- name: bulk_domain_skipped
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (0,0,NULL,3,'',NULL,true);
+-- name: bulk_domain_null_count
+INSERT INTO lane_domain_bulk_imports(lane,divisor,optional_lane,recorded_count,label,recorded_label,bypass) VALUES (1,1,1,NULL,'abc','abc',false);
+
+-- name: text_domain_valid
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{1,2}','{1}','{abc}',2,1,'abc',false);
+-- name: text_domain_lower_bounds
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('[0:1]={1,2}','{1}','{abc}',2,2,'abc',false);
+-- name: text_domain_multidimensional
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{{1,2},{3,4}}','{1}','{abc}',4,NULL,'abc',false);
+-- name: text_domain_null_element
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{NULL,2}','{1}','{abc}',2,NULL,'abc',false);
+-- name: text_domain_null_arrays
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES (NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: text_domain_empty
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{}','{}','{}',0,NULL,NULL,false);
+-- name: text_domain_check_before_input
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{0,bad}','{1}','{abc}',2,0,'abc',false);
+-- name: text_domain_input_before_check
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{bad,0}','{1}','{abc}',2,0,'abc',false);
+-- name: text_domain_check_before_grammar
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{0,','{1}','{abc}',2,0,'abc',false);
+-- name: text_domain_grammar_first
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{','{1}','{abc}',2,0,'abc',false);
+-- name: text_domain_required_null
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{1,2}','{NULL}','{abc}',2,1,'abc',false);
+-- name: text_domain_code_excess
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{1,2}','{1}','{abcd}',2,1,'abc',false);
+-- name: text_domain_code_empty
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{1,2}','{1}','{""}',2,1,'',false);
+-- name: text_domain_wrong_count
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{1,2}','{1}','{abc}',3,1,'abc',false);
+-- name: text_domain_skipped
+INSERT INTO lane_domain_text_imports(payload,required_payload,labels,recorded_count,recorded_first,recorded_code,bypass) VALUES ('{0,bad}','{NULL}','{abcd}',3,0,'wrong',true);
+
+-- name: whole_array_domain_valid
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abc,def}',1,'abc',1,1,'{1,2}',1,false);
+-- name: whole_array_domain_truncation
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abcd,efgh}',1,'abc',1,1,'{1,2}',1,false);
+-- name: whole_array_domain_null_array
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES (NULL,'{1,2}',NULL,1,NULL,NULL,1,NULL,NULL,false);
+-- name: whole_array_domain_null_cells
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{NULL,2}','{NULL,2}','{abc,def}',NULL,'abc',NULL,1,NULL,NULL,false);
+-- name: whole_array_domain_wrong_size
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1}','{1,2}','{abc,def}',1,'abc',1,1,'{1,2}',1,false);
+-- name: whole_array_domain_bad_input
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{bad,0}','{1,2}','{abc,def}',1,'abc',1,1,'{1,2}',1,false);
+-- name: whole_array_domain_required_null
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}',NULL,'{abc,def}',1,'abc',1,1,'{1,2}',1,false);
+-- name: whole_array_domain_required_nonpositive
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{0,2}','{abc,def}',0,'abc',1,1,'{1,2}',1,false);
+-- name: whole_array_domain_codes_size
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abc}',1,'abc',1,1,'{1,2}',1,false);
+-- name: whole_array_domain_constructor_nonpositive
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abc,def}',1,'abc',0,1,'{1,2}',1,false);
+-- name: whole_array_domain_constructor_division
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abc,def}',1,'abc',1,0,'{1,2}',1,false);
+-- name: whole_array_domain_constructor_order
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abc,def}',1,'abc',0,0,'{1,2}',1,false);
+-- name: whole_array_domain_wrong_record
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abc,def}',7,'abc',1,1,'{1,2}',1,false);
+-- name: whole_array_domain_wrong_approved
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abc,def}',1,'abc',1,1,'{1,2}',7,false);
+-- name: whole_array_domain_skipped
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{bad}',NULL,'{',7,'wrong',0,0,NULL,7,true);
+-- name: whole_array_domain_lower_bounds
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('[0:1]={1,2}','[0:1]={1,2}','{abc,def}',2,'abc',1,1,'[0:1]={1,2}',2,false);
+-- name: whole_array_domain_bad_required
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{bad}','{abc,def}',1,'abc',1,1,'{1,2}',1,false);
+-- name: whole_array_domain_bad_codes
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{',1,'abc',1,1,'{1,2}',1,false);
+-- name: whole_array_domain_empty_required
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{}','{abc,def}',1,'abc',1,1,'{1,2}',1,false);
+
+-- name: whole_array_domain_precision_first
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abc,def}',1,'abc',1000,0,'{1,2}',1,false);
+
+-- name: whole_array_domain_precision_bound
+INSERT INTO lane_array_domain_imports(payload,required_payload,codes,recorded_first,recorded_code,lane,divisor,approved_pair,recorded_approved,bypass) VALUES ('{1,2}','{1,2}','{abc,def}',1,'abc',1000,1,'{1,2}',1,false);
+
+-- name: polymorphic_domain_valid
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,'{1,2}','{3,4}','{1}','new',3,2,false,true,1,false);
+
+-- name: polymorphic_domain_wrong_append
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,'{1,2}','{3,4}','{1}','new',4,2,false,true,1,false);
+
+-- name: polymorphic_domain_wrong_choice
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,'{1,2}','{3,4}','{1}','new',3,3,false,true,1,false);
+
+-- name: polymorphic_domain_fallback_negative
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,'{1,2}','{-1,2}','{1}','new',3,2,false,true,1,false);
+
+-- name: polymorphic_domain_reached_fallback
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,NULL,'{-1,2}','{1}','new',1,2,false,false,1,false);
+
+-- name: polymorphic_domain_null_values
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(NULL,NULL,NULL,'{1}',NULL,1,2,false,false,1,false);
+
+-- name: polymorphic_domain_required_null
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,'{1,2}','{3,4}','{1}','new',3,2,true,true,1,false);
+
+-- name: polymorphic_domain_layout_zero
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,'{1,2}','{3,4}','{1}','new',3,2,false,true,0,false);
+
+-- name: polymorphic_domain_domain_before_zero
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,'{1,2}','{-1,2}','{1}','new',3,2,false,true,0,false);
+
+-- name: polymorphic_domain_bypassed
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,'{1,2}','{-1,2}','{1}','new',-1,-1,true,true,0,true);
+
+-- name: polymorphic_domain_retained_null
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(NULL,'{1,2}','{3,4}','{1}','new',3,2,false,true,1,false);
+
+-- name: polymorphic_domain_lower_bounds
+INSERT INTO lane_polymorphic_allocations(lane,slots,fallback,required_slots,stage,recorded_appended,recorded_choice,check_required,check_layout,divisor,bypass)
+VALUES(1,'[0:1]={1,2}','[0:1]={3,4}','{1}','new',3,2,false,false,1,false);
+
+-- name: catalog_coercion_valid
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES(NULL,'{abc,xy}',2,'abc','abc',1,false);
+
+-- name: catalog_coercion_wide_required
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES(NULL,'{abcd,xy}',2,'abc','abc',1,false);
+
+-- name: catalog_coercion_approved_skips_wide
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES('{abc,xy}','{abcd,xy}',2,'abc','abc',1,false);
+
+-- name: catalog_coercion_approved_skips_bad
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES('{abc,xy}','bad',2,'abc','abc',1,false);
+
+-- name: catalog_coercion_nulls
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES(NULL,NULL,2,NULL,NULL,1,false);
+
+-- name: catalog_coercion_wrong_count
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES(NULL,'{abc,xy}',3,'abc','abc',1,false);
+
+-- name: catalog_coercion_empty
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES(NULL,'{}',0,NULL,NULL,1,false);
+
+-- name: catalog_coercion_domain_failure
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES(NULL,'{"",x}',2,'','',1,false);
+
+-- name: catalog_coercion_error_before_zero
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES(NULL,'{abcd,xy}',2,'abc','abc',0,false);
+
+-- name: catalog_coercion_bypassed
+INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
+VALUES(NULL,'bad',-1,'ignored','ignored',0,true);

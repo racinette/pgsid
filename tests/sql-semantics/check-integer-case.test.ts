@@ -177,13 +177,10 @@ describe('integer CASE result coercion', () => {
       'CASE WHEN flag THEN small ELSE abs(1.5) END',
     ]) {
       await pg.query(`SELECT ${sql} FROM case_stock`)
-      const plan = lowerTableCheck(
-        table,
-        { name: 'probe', type: 'check', definition: `CHECK ((${sql}) IS NULL)` },
-        [],
-        catalog.domains,
-      )!
-      expect(plan.expression).toEqual({ kind: 'uncertain' })
+      const expression = operand(sql)
+      expect(expression.kind).toBe('case')
+      if (expression.kind !== 'case') throw new Error('Expected numeric CASE')
+      expect(expression.type).toBe('pg_catalog."numeric"')
     }
     const sql = 'CASE WHEN flag THEN small ELSE false END'
     await expect(pg.query(`SELECT ${sql} FROM case_stock`)).rejects.toMatchObject({ code: '42804' })

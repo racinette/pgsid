@@ -522,7 +522,9 @@ export async function runCheckParity(
     '--moduleResolution',
     'bundler',
     join(directory, 'typescript/checks.ts'),
-  ])
+  ]).catch((error: { stdout: string; stderr: string }) => {
+    throw new Error(error.stdout + error.stderr, { cause: error })
+  })
   const generated = await import(pathToFileURL(join(directory, 'typescript/checks.ts')).href)
   const operations = await import(
     pathToFileURL(join(directory, 'typescript/pg_catalog/operations.ts')).href

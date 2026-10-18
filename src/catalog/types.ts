@@ -107,7 +107,14 @@ export interface MoneyLiteralInfo {
   units: string
 }
 
+export interface StoredDomainCoercionContext {
+  definition: string
+  complete: boolean
+  casts: { schema: string; name: string; array: boolean; input: boolean; constant: boolean }[]
+}
+
 export interface ConstraintInfo {
+  coercionContext?: StoredDomainCoercionContext
   moneyLiterals?: MoneyLiteralInfo[]
   name: string
   type: ConstraintType
@@ -549,6 +556,8 @@ export interface EnumInfo {
   /** pg_enum label identities, aligned with values in catalog sort order. */
   valueOids?: number[]
   outputFunction?: string
+  inputFunction?: string
+  inputSources?: readonly string[]
 }
 
 export interface DomainInfo {
@@ -578,7 +587,12 @@ export interface DomainInfo {
    * hid the others from the diff and made the state depend on catalog row
    * order across a replay.
    */
-  checks: { name: string; definition: string; moneyLiterals?: MoneyLiteralInfo[] }[]
+  checks: {
+    name: string
+    definition: string
+    moneyLiterals?: MoneyLiteralInfo[]
+    coercionContext?: StoredDomainCoercionContext
+  }[]
 }
 
 export interface CompositeTypeAttrInfo {

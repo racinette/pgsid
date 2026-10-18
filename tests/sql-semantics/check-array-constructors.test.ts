@@ -134,7 +134,7 @@ it('constructs scalar and nested ARRAY expressions with PostgreSQL shape, coerci
       ['ARRAY[CASE WHEN bypass THEN a ELSE b END,b]', '[1:2]', true],
       ['ARRAY[a::integer[],b::integer[]]', '[1:2][1:1]', false],
       ['ARRAY[a,plain]', '[1:2][1:1]', false],
-      ['ARRAY[lane,lane]', '[1:2]', true],
+      ['ARRAY[lane,lane]', '[1:2]', false],
       ['ARRAY[lane,NULL]', '[1:2]', false],
     ] as const) {
       const actual = (
