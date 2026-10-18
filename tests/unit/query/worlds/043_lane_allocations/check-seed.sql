@@ -4274,3 +4274,51 @@ VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}','{1,2}',1,1,true,true,'wrong',false);
 -- name: nested_compare_bypassed
 INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
 VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}','{1,2}',9,9,false,false,'wrong',true);
+
+-- name: nested_hash_valid
+INSERT INTO lane_group_hashes(groups,payload,seed,expected_hash,expected_seeded,bypass)
+VALUES('{"{1,2}",NULL,"{3,4}"}','{"{1,2}",NULL,"{3,4}"}',42,1786655877,-3013670091533766778,false);
+
+-- name: nested_hash_bounds_independent
+INSERT INTO lane_group_hashes(groups,seed,expected_hash,expected_seeded,bypass)
+VALUES('[5:7]={"{1,2}",NULL,"{3,4}"}',42,1786655877,-3013670091533766778,false);
+
+-- name: nested_hash_nulls
+INSERT INTO lane_group_hashes(groups,seed,expected_hash,expected_seeded,bypass)
+VALUES(NULL,42,NULL,NULL,false);
+
+-- name: nested_hash_empty
+INSERT INTO lane_group_hashes(groups,seed,expected_hash,expected_seeded,bypass)
+VALUES('{}',42,1,1,false);
+
+-- name: nested_hash_null_group
+INSERT INTO lane_group_hashes(groups,seed,expected_hash,expected_seeded,bypass)
+VALUES('{NULL}',42,31,31,false);
+
+-- name: nested_hash_inner_null_cells
+INSERT INTO lane_group_hashes(groups,seed,expected_hash,expected_seeded,bypass)
+VALUES('{"{NULL,NULL}"}',42,992,992,false);
+
+-- name: nested_hash_null_seed
+INSERT INTO lane_group_hashes(groups,seed,expected_hash,expected_seeded,bypass)
+VALUES('{NULL}',NULL,31,NULL,false);
+
+-- name: nested_hash_wrong_plain
+INSERT INTO lane_group_hashes(groups,seed,expected_hash,expected_seeded,bypass)
+VALUES('{"{1,2}",NULL,"{3,4}"}',42,0,-3013670091533766778,false);
+
+-- name: nested_hash_wrong_seeded
+INSERT INTO lane_group_hashes(groups,seed,expected_hash,expected_seeded,bypass)
+VALUES('{"{1,2}",NULL,"{3,4}"}',42,1786655877,0,false);
+
+-- name: nested_hash_bad_group
+INSERT INTO lane_group_hashes(groups,payload,seed,expected_hash,expected_seeded,bypass)
+VALUES('{}','{"{1}"}',42,1,1,false);
+
+-- name: nested_hash_bypassed
+INSERT INTO lane_group_hashes(groups,seed,expected_hash,expected_seeded,bypass)
+VALUES('{"{1,2}",NULL,"{3,4}"}',42,0,0,true);
+
+-- name: nested_hash_wrong_input_hash
+INSERT INTO lane_group_hashes(groups,payload,seed,expected_hash,expected_seeded,bypass)
+VALUES('{}','{NULL}',42,1,1,false);

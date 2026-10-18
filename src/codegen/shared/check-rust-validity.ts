@@ -172,8 +172,11 @@ export function rustCallCanFail(
       return false
   }
   if (isArrayHash(hash) && types[0]?.startsWith('array:')) {
-    const element = types[0].slice(6),
-      support = builtinTypeComparison(element.startsWith('enum:') ? 'pg_catalog.anyenum' : element)
+    let element = arrayElementBaseType(types[0].slice(6))
+    while (element.startsWith('array:')) element = arrayElementBaseType(element.slice(6))
+    const support = builtinTypeComparison(
+      element.startsWith('enum:') ? 'pg_catalog.anyenum' : element,
+    )
     const signature = hash.args.length === 1 ? support?.hash : support?.hashExtended
     if (signature) {
       const fn = builtinMetadata(signature)
