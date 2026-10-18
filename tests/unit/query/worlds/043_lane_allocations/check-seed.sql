@@ -4174,3 +4174,51 @@ VALUES('{"{1,2}","{3,4}"}','{"{1,2}","{3,4}"}','{1,2}|{3,4}','{1,2}',0,false);
 -- name: nested_export_bypassed
 INSERT INTO lane_group_exports(groups,recorded_text,recorded_join,recorded_first,divisor,bypass)
 VALUES('{"{1,2}","{3,4}"}','wrong','wrong','wrong',0,true);
+
+-- name: nested_cast_valid
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}","{3,4}"}','{"{1.0,2.0}","{3.0,4.0}"}',1,1,false);
+
+-- name: nested_cast_bounds
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{"[5:6]={1,2}"}','{"[5:6]={1,2}"}','{"[5:6]={1.0,2.0}"}',NULL,1,false);
+
+-- name: nested_cast_nulls
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES(NULL,NULL,NULL,NULL,1,false);
+
+-- name: nested_cast_empty
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{}','{}','{}',NULL,1,false);
+
+-- name: nested_cast_wrong_text
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}","{3,4}"}','wrong',1,1,false);
+
+-- name: nested_cast_wrong_first
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}","{3,4}"}','{"{1.0,2.0}","{3.0,4.0}"}',9,1,false);
+
+-- name: nested_cast_range
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{"{100,2}"}','{"{100,2}"}','ignored',100,1,false);
+
+-- name: nested_cast_required_null
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{NULL}','{NULL}','{NULL}',NULL,1,false);
+
+-- name: nested_cast_positive_before_zero
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{"{-1,2}"}','{"{-1,2}"}','{"{-1.0,2.0}"}',-1,0,false);
+
+-- name: nested_cast_zero_divisor
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}","{3,4}"}','{"{1.0,2.0}","{3.0,4.0}"}',1,0,false);
+
+-- name: nested_cast_bad_input
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','bad','{"{1.0,2.0}","{3.0,4.0}"}',1,1,false);
+
+-- name: nested_cast_bypassed
+INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
+VALUES('{"{1,2}","{3,4}"}','bad','wrong',-1,0,true);
