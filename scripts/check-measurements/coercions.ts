@@ -1,3 +1,4 @@
+import { rangeInputForms } from '../../tests/sql-semantics/check-range-input-forms.js'
 import {
   jsonpathInputForms,
   invalidJsonpathInputForms,
@@ -17,7 +18,11 @@ import {
   snapshotInputForms,
   invalidSnapshotInputForms,
 } from '../../tests/sql-semantics/check-snapshot-input-forms.js'
-import { catalogScalarType, isSnapshotType } from '../../src/sql-semantics/expressions.js'
+import {
+  catalogScalarType,
+  isSnapshotType,
+  isRangeType,
+} from '../../src/sql-semantics/expressions.js'
 import {
   polygonInputForms,
   deferredPolygonPlatformForms,
@@ -110,6 +115,16 @@ const nanBinaryPrecision = {
 } as const
 
 const inputForms = [
+  ...rangeInputForms.map((forms) => ({
+    ...forms,
+    suite: 'tests/sql-semantics/check-range-input.test.ts',
+    contextOwner: 'tests/sql-semantics/check-range-input-context.test.ts',
+    literalOwner: 'tests/sql-semantics/check-range-literals.test.ts',
+    contextRequired: forms.deferred,
+    platformDependent: [],
+    unimplementedGrammar: [],
+    scope: 'Outer range grammar samples; reached bounds retain their scalar input requirements',
+  })),
   ...(['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'] as const).map((type) => ({
     type,
     suite: 'tests/sql-semantics/check-integer-scalar-input.test.ts',
@@ -532,15 +547,17 @@ export async function measureCoercions(pg: PGlite) {
           : target === 'pg_catalog.refcursor'
             ? 'textsend'
             : null
-    const sql = arrayElements
-      ? `cardinality(${cast}) IS NOT DISTINCT FROM cardinality(${cast})`
-      : target === 'pg_catalog."json"' ||
-          target === 'pg_catalog.jsonb' ||
-          target === 'pg_catalog.jsonpath'
-        ? `CAST(${cast} AS pg_catalog.text) IS NOT DISTINCT FROM CAST(${cast} AS pg_catalog.text)`
-        : send
-          ? `${send}(${cast}) IS NOT DISTINCT FROM ${send}(${cast})`
-          : `${cast} IS NOT DISTINCT FROM ${cast}`
+    const sql = isRangeType(target)
+      ? `isempty(${cast}) IS NOT DISTINCT FROM isempty(${cast})`
+      : arrayElements
+        ? `cardinality(${cast}) IS NOT DISTINCT FROM cardinality(${cast})`
+        : target === 'pg_catalog."json"' ||
+            target === 'pg_catalog.jsonb' ||
+            target === 'pg_catalog.jsonpath'
+          ? `CAST(${cast} AS pg_catalog.text) IS NOT DISTINCT FROM CAST(${cast} AS pg_catalog.text)`
+          : send
+            ? `${send}(${cast}) IS NOT DISTINCT FROM ${send}(${cast})`
+            : `${cast} IS NOT DISTINCT FROM ${cast}`
     const columns = [
       {
         name: 'value',

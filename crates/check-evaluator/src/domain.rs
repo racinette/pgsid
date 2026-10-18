@@ -56,3 +56,13 @@ pub fn finish_array_domain_conversion(input: ArrayValue, result: CheckOutcome) -
     };
     input
 }
+
+pub fn finish_range_domain_conversion(input: RangeValue, result: CheckOutcome) -> RangeValue {
+    if let CheckOutcome::Error(error) = result {
+        return RangeValue::Error(error);
+    };
+    if result == CheckOutcome::Unknown {
+        return RangeValue::Unknown;
+    };
+    input
+}
