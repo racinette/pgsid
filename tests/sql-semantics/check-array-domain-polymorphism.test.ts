@@ -428,8 +428,10 @@ it('preserves already-coerced domain ownership through polymorphic results after
     }
   const artifact = process.env['PGSID_DOMAIN_POLY_ARTIFACTS']
   if (artifact) await writeFile(join(artifact, 'legacy-fixtures.json'), JSON.stringify(fixtures))
+  const legacyDirectory = join(directory, 'legacy')
+  await mkdir(legacyDirectory)
   await runCheckParity(
-    directory,
+    legacyDirectory,
     'domainpolylegacy',
     group,
     entries.map((e) => e.name),

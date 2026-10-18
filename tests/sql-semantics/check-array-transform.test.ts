@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -195,10 +195,14 @@ it('appends, prepends and concatenates raw/stored arrays with compatible types, 
   }
 }, 240_000)
 
-it('transforms every represented scalar and enum array without requiring element comparison support', async () => {
-  const pg = await PGlite.create(),
+describe('transforms every represented scalar and enum array without requiring element comparison support', () => {
+  let pg: PGlite
+  let directory: string
+  let plans: Parameters<typeof prepareCheckRustGroup>[0]
+  const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+  beforeAll(async () => {
+    pg = await PGlite.create()
     directory = await mkdtemp(join(tmpdir(), 'pgsid-array-transform-families-'))
-  try {
     await pg.exec(
       "CREATE TYPE array_stage AS ENUM ('new','done');CREATE TABLE transform_families(a text,b text,needle text,expected integer);CREATE TABLE transform_family_oracle(LIKE transform_families)",
     )
@@ -236,7 +240,7 @@ it('transforms every represented scalar and enum array without requiring element
       await pg.exec(`ALTER TABLE transform_families ADD CONSTRAINT ${form.name} CHECK(${form.sql})`)
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((item) => item.name === 'transform_families')!
-    const plans = forms.flatMap((form) =>
+    plans = forms.flatMap((form) =>
       (['source', 'stored'] as const).map((origin) => {
         const constraint = table.constraints.find((item) => item.name === form.name)!
         return {
@@ -260,8 +264,7 @@ it('transforms every represented scalar and enum array without requiring element
         }
       }),
     )
-    const fixtures: { name: string; row: Row; expected: Outcome }[] = [],
-      references: unknown[] = []
+    const references: unknown[] = []
     for (const form of forms)
       for (const [a, b, needle] of samples.get(form.type)!) {
         const count = form.name.endsWith('cat')
@@ -306,7 +309,14 @@ it('transforms every represented scalar and enum array without requiring element
       'artifacts/array-transform/family-references.json',
       JSON.stringify(references, null, 2) + '\n',
     )
-    for (let offset = 0; offset < plans.length; offset += 72) {
+  }, 240_000)
+  afterAll(async () => {
+    if (pg && !pg.closed) await pg.close()
+    if (directory) await rm(directory, { recursive: true, force: true })
+  })
+  it.each([0, 72, 144, 216, 288])(
+    'preserves scalar and enum profile batch %i',
+    async (offset) => {
       const selected = plans.slice(offset, offset + 72)
       const group = prepareCheckRustGroup(selected, {
         arrayNulls: true,
@@ -329,12 +339,10 @@ it('transforms every represented scalar and enum array without requiring element
         names,
         fixtures.filter((fixture) => allowed.has(fixture.name)),
       )
-    }
-  } finally {
-    await pg.close()
-    await rm(directory, { recursive: true, force: true })
-  }
-}, 240_000)
+    },
+    120_000,
+  )
+})
 
 it('retains partial cells, argument-order errors and independent owned array results', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-array-transform-owned-'))

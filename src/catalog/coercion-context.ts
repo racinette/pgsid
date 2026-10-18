@@ -86,7 +86,9 @@ export function captureDomainCoercionContext(
   if (!source) return undefined
   if (
     !source.includes('{COERCETODOMAIN') &&
-    ![...source.matchAll(/:consttype\s+(\d+)/gu)].some((match) => identities.has(Number(match[1])))
+    ![...source.matchAll(/:(?:consttype|resulttype)\s+(\d+)/gu)].some((match) =>
+      identities.has(Number(match[1])),
+    )
   )
     return undefined
   const casts: StoredDomainCoercionContext['casts'] = []
@@ -98,7 +100,9 @@ export function captureDomainCoercionContext(
       if (!identity) return false
       const format = constant
         ? '1'
-        : (scalar(node, 'coercionformat') ?? scalar(node, 'coerceformat'))
+        : (scalar(node, 'coercionformat') ??
+          scalar(node, 'coerceformat') ??
+          scalar(node, 'relabelformat'))
       if (!format || !['0', '1', '2', '3'].includes(format)) {
         complete = false
         return false
@@ -112,15 +116,30 @@ export function captureDomainCoercionContext(
       })
       return true
     }
-    const visit = (value: Value): void => {
+    const visit = (value: Value, hiddenInput = false): void => {
       if (Array.isArray(value)) {
-        value.forEach(visit)
+        value.forEach((item) => visit(item))
         return
       }
       const node = tree(value)
       if (!node) return
-      if (node.kind === 'COERCETODOMAIN' && !add(node, 'resulttype')) complete = false
+      if (node.kind === 'COERCETODOMAIN') {
+        if (!add(node, 'resulttype')) complete = false
+        for (const [key, values] of Object.entries(node.fields))
+          for (const value of values) {
+            const argument = tree(value)
+            visit(
+              value,
+              key === 'arg' &&
+                argument?.kind === 'COERCEVIAIO' &&
+                scalar(argument, 'coerceformat') === '2',
+            )
+          }
+        return
+      }
       if (node.kind === 'CONST') add(node, 'consttype', true)
+      if (!hiddenInput && (node.kind === 'COERCEVIAIO' || node.kind === 'RELABELTYPE'))
+        add(node, 'resulttype')
       if (node.kind === 'ARRAYCOERCEEXPR' && add(node, 'resulttype')) {
         const element = tree(node.fields['elemexpr']?.[0])
         const identity = identities.get(Number(scalar(node, 'resulttype')))
@@ -136,10 +155,10 @@ export function captureDomainCoercionContext(
         )
           complete = false
         for (const [key, values] of Object.entries(node.fields))
-          if (key !== 'elemexpr') values.forEach(visit)
+          if (key !== 'elemexpr') values.forEach((item) => visit(item))
         return
       }
-      Object.values(node.fields).forEach((values) => values.forEach(visit))
+      Object.values(node.fields).forEach((values) => values.forEach((item) => visit(item)))
     }
     visit(parseTree(source))
   } catch {

@@ -125,3 +125,48 @@ it('accepts ordinary catalog field names that also exist on object prototypes', 
     casts: [{ schema: 'public', name: 'd', array: false, input: true, constant: false }],
   })
 })
+
+it('captures text input and whole-domain array relabels in the order printed by PostgreSQL', async () => {
+  const captured: unknown[] = []
+  const identifiers: number[][] = []
+  for (const padding of ['', "CREATE TYPE context_padding AS ENUM('unused');"]) {
+    const pg = await PGlite.create()
+    try {
+      await pg.exec(`${padding}CREATE DOMAIN positive_item AS integer CHECK(VALUE>0);
+        CREATE DOMAIN item_pair AS positive_item[] CHECK(cardinality(VALUE)=2);
+        CREATE TABLE coercion_paths(payload text,
+          CONSTRAINT mixed CHECK(cardinality(COALESCE(payload::positive_item[],ARRAY[1]::positive_item[]))>0),
+          CONSTRAINT whole CHECK(cardinality(payload::item_pair)=2),
+          CONSTRAINT explicit_base CHECK(cardinality(payload::positive_item[]::item_pair)=2))`)
+      const catalog = await snapshotCatalog(pg)
+      const table = catalog.tables.find((item) => item.name === 'coercion_paths')!
+      const mixed = table.constraints.find((item) => item.name === 'mixed')!.coercionContext!
+      const whole = table.constraints.find((item) => item.name === 'whole')!.coercionContext!
+      expect(mixed.complete).toBe(true)
+      expect(mixed.casts).toEqual([
+        { schema: 'public', name: 'positive_item', array: true, input: false, constant: false },
+        { schema: 'public', name: 'positive_item', array: false, input: false, constant: false },
+      ])
+      expect(whole.complete).toBe(true)
+      expect(whole.casts).toEqual([
+        { schema: 'public', name: 'positive_item', array: true, input: true, constant: false },
+        { schema: 'public', name: 'item_pair', array: false, input: false, constant: false },
+      ])
+      const explicit = table.constraints.find(
+        (item) => item.name === 'explicit_base',
+      )!.coercionContext!
+      expect(explicit.complete).toBe(true)
+      expect(explicit.casts).toEqual([
+        { schema: 'public', name: 'positive_item', array: true, input: true, constant: false },
+        { schema: 'public', name: 'item_pair', array: false, input: false, constant: false },
+        { schema: 'public', name: 'positive_item', array: true, input: false, constant: false },
+      ])
+      captured.push({ mixed, whole, explicit })
+      identifiers.push(catalog.domains.map((domain) => domain.oid))
+    } finally {
+      await pg.close()
+    }
+  }
+  expect(identifiers[0]).not.toEqual(identifiers[1])
+  expect(captured[0]).toEqual(captured[1])
+})
