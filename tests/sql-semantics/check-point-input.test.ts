@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -167,7 +167,7 @@ describe('point text input and literals', () => {
       fixtures,
     )
   }, 600_000)
-  it('unwraps unconstrained point domains while retaining domain-enforcement gaps and builtin type names', async () => {
+  it('enforces geometric domains and resolves qualified domain names separately from builtins', async () => {
     await pg.exec(`CREATE DOMAIN empty_coordinate AS point;
       CREATE DOMAIN nested_empty_coordinate AS empty_coordinate;
       CREATE DOMAIN positive_coordinate AS point CHECK (point_right(VALUE, point(0,0)));
@@ -189,19 +189,20 @@ describe('point text input and literals', () => {
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((table) => table.name === 'point_domain_checks')!
     const constraints = table.constraints.filter((constraint) => constraint.type === 'check')
-    const group = prepareCheckRustGroup(
-      constraints.map((constraint) => ({
-        expression: lowerTableCheck(table, constraint, [], catalog.domains)!.expression,
+    const plans = constraints.flatMap((constraint) =>
+      (['source', 'stored'] as const).map((origin) => ({
+        expression: lowerTableCheck(table, constraint, [], catalog.domains, origin)!.expression,
         identity: {
           schema: 'public',
           kind: 'table' as const,
           owner: table.name,
-          constraint: constraint.name,
+          constraint: constraint.name + '_' + origin,
         },
       })),
     )
+    const group = prepareCheckRustGroup(plans)
     for (const [index, check] of group.checks.entries())
-      expect(check.kind, constraints[index]!.name).toBe('supported')
+      expect(check.kind, plans[index]!.identity.constraint).toBe('supported')
     const row: Row = { source: value('(1,2)'), expected: value('3ff00000000000004000000000000000') }
     const fixtures = [
       { name: 'nested', row, expected: { kind: 'True' } as Outcome },
@@ -221,17 +222,110 @@ describe('point text input and literals', () => {
         [null, '(1,2)', '(bad,0)'].map((source) => ({
           name,
           row: { ...row, source: value(source) },
-          expected: { kind: 'Unknown' } as Outcome,
+          expected:
+            source === null
+              ? name === 'required'
+                ? error('23502')
+                : ({ kind: 'Null' } as Outcome)
+              : source === '(bad,0)'
+                ? error('22P02')
+                : ({ kind: 'True' } as Outcome),
         })),
       ),
     ]
+    fixtures.push({
+      name: 'checked',
+      row: { ...row, source: value('(-1,0)') },
+      expected: error('23514'),
+    })
+    const acceptedSource = '(1,2)'
+    fixtures.push({
+      name: 'checked',
+      row: { source: value(acceptedSource), expected: value('00') },
+      expected: { kind: 'False' },
+    })
+    for (const name of ['checked', 'required'])
+      fixtures.push({
+        name,
+        row: { source: value(acceptedSource), expected: value(null) },
+        expected: { kind: 'Null' },
+      })
+    const references: unknown[] = []
+    for (const constraint of constraints) {
+      const oracle = table.name + '_oracle_' + constraint.name
+      await pg.exec(
+        `CREATE TEMP TABLE ${oracle}(source text, expected bytea, CONSTRAINT checked ${constraint.definition})`,
+      )
+      const sql = constraint.definition.replace(/^CHECK\s*/u, '')
+      for (const fixture of fixtures.filter((item) => item.name === constraint.name)) {
+        const source = fixture.row.source!,
+          wire = fixture.row.expected!
+        if (
+          (source.kind !== 'Value' && source.kind !== 'Null') ||
+          (wire.kind !== 'Value' && wire.kind !== 'Null')
+        )
+          throw new Error('PostgreSQL witnesses require concrete SQL inputs')
+        const sourceValue = source.kind === 'Value' ? source.value : null
+        const hex = wire.kind === 'Value' ? wire.value : null
+        if (sourceValue !== null && typeof sourceValue !== 'string')
+          throw new Error('Expected text input')
+        if (hex !== null && typeof hex !== 'string')
+          throw new Error('Expected hexadecimal bytea input')
+        const parameters = [sourceValue, hex === null ? null : Buffer.from(hex, 'hex')]
+        let observed: Outcome
+        try {
+          const value = (
+            await pg.query<{ value: boolean | null }>(
+              `WITH candidate AS MATERIALIZED(SELECT $1::text source,$2::bytea expected) SELECT ${sql} AS value FROM candidate`,
+              parameters,
+            )
+          ).rows[0]!.value
+          observed = { kind: value === null ? 'Null' : value ? 'True' : 'False' }
+        } catch (error) {
+          observed = {
+            kind: 'Error',
+            value: { state: parseInt((error as { code: string }).code, 36) },
+          }
+        }
+        expect(observed, constraint.name + ':' + String(sourceValue)).toEqual(fixture.expected)
+        const insert = pg.query(`INSERT INTO ${oracle} VALUES($1,$2)`, parameters)
+        if (observed.kind === 'Error' || observed.kind === 'False')
+          await expect(insert).rejects.toMatchObject({
+            code:
+              observed.kind === 'Error'
+                ? observed.value.state.toString(36).toUpperCase().padStart(5, '0')
+                : '23514',
+          })
+        else await insert
+        references.push({
+          constraint: constraint.name,
+          source: sourceValue,
+          expected: hex,
+          outcome: observed,
+        })
+      }
+      await pg.exec(`DROP TABLE ${oracle}`)
+    }
+    await mkdir('artifacts/geometric-domain-casts', { recursive: true })
+    await writeFile(
+      'artifacts/geometric-domain-casts/point.json',
+      JSON.stringify(references, null, 2) + '\n',
+    )
+    expect(references).toHaveLength(fixtures.length)
+    expect(fixtures).toHaveLength(15)
+    const parityFixtures = fixtures.flatMap((fixture) =>
+      (['source', 'stored'] as const).map((origin) => ({
+        ...fixture,
+        name: fixture.name + '_' + origin,
+      })),
+    )
     await mkdir(join(directory, 'domains'), { recursive: true })
     await runCheckParity(
       join(directory, 'domains'),
       'pointdomains',
       group,
-      constraints.map((constraint) => constraint.name),
-      fixtures,
+      plans.map((plan) => plan.identity.constraint),
+      parityFixtures,
     )
   }, 300_000)
   it('snapshots point literals and defaults losslessly while restoring floating rendering settings', async () => {
