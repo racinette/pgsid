@@ -450,6 +450,44 @@ fn array_sort_same_element(left: ArrayElement, right: ArrayElement) -> bool {
     if kind == 39 {
         return array_element_to_tid(left) == array_element_to_tid(right);
     };
+    if kind == 41 {
+        let first_array = array_element_to_array(left);
+        let second_array = array_element_to_array(right);
+        if let ArrayValue::Value(first) = first_array {
+            if let ArrayValue::Value(second) = second_array {
+                if first.element_type != second.element_type
+                    || first.element_kind != second.element_kind
+                    || first.null_bitmap != second.null_bitmap
+                    || first.dimensions.len() != second.dimensions.len()
+                    || first.elements.len() != second.elements.len()
+                {
+                    return false;
+                };
+                let mut dimension: usize = 0;
+                while dimension < first.dimensions.len() {
+                    if first.dimensions[dimension].lower != second.dimensions[dimension].lower
+                        || first.dimensions[dimension].length != second.dimensions[dimension].length
+                    {
+                        return false;
+                    };
+                    dimension += 1;
+                }
+                let mut position: usize = 0;
+                while position < first.elements.len() {
+                    if array_sort_same_element(
+                        first.elements[position].clone(),
+                        second.elements[position].clone(),
+                    ) == false
+                    {
+                        return false;
+                    };
+                    position += 1;
+                }
+                return true;
+            };
+        };
+        return false;
+    };
     if kind == 12 {
         let a = jsonb_to_text(array_element_to_jsonb(left));
         let b = jsonb_to_text(array_element_to_jsonb(right));

@@ -13,6 +13,7 @@ import {
 import {
   capturedEnumSupport,
   catalogScalarType,
+  arrayElementBaseType,
   type SqlCallableExpression,
 } from '../../sql-semantics/expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
@@ -111,7 +112,8 @@ const typeOf = (node: EvalExpression): string =>
         : node.type
 const orderedElement = (type: string): boolean => {
   if (!type.startsWith('array:')) return false
-  const element = type.slice(6)
+  let element = arrayElementBaseType(type.slice(6))
+  while (element.startsWith('array:')) element = arrayElementBaseType(element.slice(6))
   return (
     builtinTypeComparison(element.startsWith('enum:') ? 'pg_catalog.anyenum' : element)
       ?.btreeClass != null

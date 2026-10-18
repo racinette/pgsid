@@ -1368,3 +1368,20 @@ CREATE TABLE lane_group_casts (
   CONSTRAINT nested_cast_first CHECK(CASE WHEN bypass THEN true ELSE ((groups::lane_rounded_pair[])[1])[1] IS NOT DISTINCT FROM recorded_first END),
   CONSTRAINT nested_cast_required CHECK(CASE WHEN bypass THEN true ELSE cardinality(groups::lane_required_pair[])/divisor>=0 END)
 );
+
+CREATE TABLE lane_group_comparisons (
+  groups lane_pair_array[],
+  thresholds lane_pair_array[],
+  requested lane_pair_array,
+  expected_order integer,
+  expected_position integer,
+  expected_contains boolean,
+  expected_any boolean,
+  expected_sort text,
+  bypass boolean,
+  CONSTRAINT nested_compare_order CHECK(CASE WHEN bypass THEN true ELSE btarraycmp(groups,thresholds)=expected_order END),
+  CONSTRAINT nested_compare_position CHECK(CASE WHEN bypass THEN true ELSE array_position(groups,requested) IS NOT DISTINCT FROM expected_position END),
+  CONSTRAINT nested_compare_contains CHECK(CASE WHEN bypass THEN true ELSE (groups@>thresholds) IS NOT DISTINCT FROM expected_contains END),
+  CONSTRAINT nested_compare_any CHECK(CASE WHEN bypass THEN true ELSE (requested=ANY(groups)) IS NOT DISTINCT FROM expected_any END),
+  CONSTRAINT nested_compare_sort CHECK(CASE WHEN bypass THEN true ELSE array_sort(groups)::text COLLATE "C" IS NOT DISTINCT FROM expected_sort COLLATE "C" END)
+);

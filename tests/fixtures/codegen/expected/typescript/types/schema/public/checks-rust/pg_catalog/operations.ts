@@ -2240,6 +2240,35 @@ function arraySortSameElement(left: checkruntime.ArrayElement, right: checkrunti
     if (kind === 39) {
         return checkruntime.equalTidValue(checkruntime.arrayElementToTid(left), checkruntime.arrayElementToTid(right));
     }
+    if (kind === 41) {
+        const firstArray: checkruntime.ArrayValue = checkruntime.arrayElementToArray(left);
+        const secondArray: checkruntime.ArrayValue = checkruntime.arrayElementToArray(right);
+        if (firstArray.kind === "Value") {
+            const first: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(firstArray.value);
+            if (secondArray.kind === "Value") {
+                const second: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(secondArray.value);
+                if (!(first.elementType === second.elementType) || !(first.elementKind === second.elementKind) || !(checkruntime.equalBoolValue(first.nullBitmap, second.nullBitmap)) || !(first.dimensions.length === second.dimensions.length) || !(first.elements.length === second.elements.length)) {
+                    return false;
+                }
+                let dimension: number = 0;
+                while (dimension < first.dimensions.length) {
+                    if (!(langruntime.indexStruct(first.dimensions, langruntime.checkedIndex(dimension), checkruntime.copyArrayDimension).lower === langruntime.indexStruct(second.dimensions, langruntime.checkedIndex(dimension), checkruntime.copyArrayDimension).lower) || !(langruntime.indexStruct(first.dimensions, langruntime.checkedIndex(dimension), checkruntime.copyArrayDimension).length === langruntime.indexStruct(second.dimensions, langruntime.checkedIndex(dimension), checkruntime.copyArrayDimension).length)) {
+                        return false;
+                    }
+                    dimension = langruntime.checkedAdd(dimension, 1);
+                }
+                let position: number = 0;
+                while (position < first.elements.length) {
+                    if (arraySortSameElement(checkruntime.copyArrayElement(langruntime.indexStruct(first.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(second.elements, langruntime.checkedIndex(position), checkruntime.copyArrayElement))) === false) {
+                        return false;
+                    }
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
     if (kind === 12) {
         const a: checkruntime.TextValue = checkruntime.jsonbToText(checkruntime.arrayElementToJsonb(left));
         const b: checkruntime.TextValue = checkruntime.jsonbToText(checkruntime.arrayElementToJsonb(right));

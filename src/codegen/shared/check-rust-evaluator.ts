@@ -292,6 +292,27 @@ export const isArrayStringIO = (item: ReturnType<typeof builtinMetadata>): boole
       item.strict === (item.args.length === 2) &&
       item.volatility === 's'))
 
+const arrayElementComparison = (type: string) => {
+  type = arrayElementBaseType(type)
+  return builtinTypeComparison(
+    type.startsWith('array:')
+      ? 'pg_catalog.anyarray'
+      : type.startsWith('enum:')
+        ? 'pg_catalog.anyenum'
+        : type,
+  )
+}
+
+const arrayElementComparisonAvailable = (type: string, equality: boolean): boolean => {
+  while (true) {
+    const support = arrayElementComparison(type)
+    if (!(equality ? support?.equality : support?.comparator)) return false
+    type = arrayElementBaseType(type)
+    if (!type.startsWith('array:')) return true
+    type = type.slice(6)
+  }
+}
+
 export const isArrayComparison = (
   item: ReturnType<typeof builtinMetadata>,
 ): item is ReturnType<typeof builtinMetadata> & { kind: 'function' } =>
@@ -2069,16 +2090,13 @@ export function emitCheckRustEvaluator(
           arrayRewrite ||
           membership ||
           ['array_eq', 'array_ne'].includes(implementation.name)
-        const defaults = builtinTypeComparison(
-          arrayElementBaseType(elementType).startsWith('enum:')
-            ? 'pg_catalog.anyenum'
-            : arrayElementBaseType(elementType),
-        )
+        const defaults = arrayElementComparison(elementType)
         if (family === null || !defaults)
           throw new UnsupportedCheckRustExpression(
             'Array comparison requires captured element comparison metadata',
           )
         const selected = equality ? defaults.equality : defaults.comparator
+        const available = arrayElementComparisonAvailable(elementType, equality)
         const emitPair = (
           left: string,
           right: string,
@@ -2111,7 +2129,7 @@ export function emitCheckRustEvaluator(
             !checkRustCallableNames().has(actual.rustName) ||
             (text && !supportsTextCallableCollation(selected!, effectiveCollation)) ||
             (!equality &&
-              elementType === 'pg_catalog.jsonb' &&
+              arrayElementBaseType(elementType) === 'pg_catalog.jsonb' &&
               (executionContext.defaultCollation !== 'C' ||
                 executionContext.serverEncoding !== 'UTF8'))
           const emitElement = (selected: string, scalar: ReturnType<typeof builtinMetadata>) => {
@@ -2121,7 +2139,11 @@ export function emitCheckRustEvaluator(
               const name = fresh('array_comparison_scalar')
               scalarLines.push(`let ${name} = array_element_to_${prefix}(${element});`)
               const target = scalar.args[position]
-              if (target === baseType || target === 'pg_catalog.anyenum')
+              if (
+                target === baseType ||
+                target === 'pg_catalog.anyenum' ||
+                (target === 'pg_catalog.anyarray' && baseType.startsWith('array:'))
+              )
                 return { name, type: baseType }
               if (!target || builtinCast(baseType, target)?.method !== 'b')
                 throw new UnsupportedCheckRustExpression(
@@ -2181,7 +2203,7 @@ export function emitCheckRustEvaluator(
             compared = fresh('array_bucket_compared')
           destination.push(
             `let ${needle} = array_element_from_${prefix}(${ownedOperand(operands[0]!)});`,
-            `let ${payload} = prepare_array_bucket(${needle}, ${ownedOperand(operands[1]!)}, ${selected !== null});`,
+            `let ${payload} = prepare_array_bucket(${needle}, ${ownedOperand(operands[1]!)}, ${available});`,
             `let mut ${low}: Int4Value = array_comparison_initial(&${payload});`,
             `let mut ${high}: Int4Value = array_bucket_limit(&${payload});`,
           )
@@ -2224,7 +2246,7 @@ export function emitCheckRustEvaluator(
           if (!operands[1]) destination.push(`let ${direction} = make_bool_value(false);`)
           const nullsFirst = operands[2]?.name ?? direction
           destination.push(
-            `let ${initial} = prepare_array_sort(${ownedOperand(operands[0]!)}, ${direction}, ${nullsFirst}, ${selected !== null});`,
+            `let ${initial} = prepare_array_sort(${ownedOperand(operands[0]!)}, ${direction}, ${nullsFirst}, ${available});`,
             `let mut ${plan}: ArraySortPayload = ${initial};`,
             `let ${zero} = make_int4_value(0);`,
             `while array_sort_continues(&${plan}) {`,
@@ -2288,7 +2310,7 @@ export function emitCheckRustEvaluator(
           const changed = fresh('array_rewrite_changed'),
             change = fresh('array_rewrite_change')
           destination.push(
-            `let ${payload} = prepare_array_rewrite(${ownedOperand(operands[0]!)}, ${needle}, ${replacement}, ${remove}, ${selected !== null});`,
+            `let ${payload} = prepare_array_rewrite(${ownedOperand(operands[0]!)}, ${needle}, ${replacement}, ${remove}, ${available});`,
             `let ${initial} = array_search_initial(&${payload});`,
             `let ${first} = make_int4_value(0);`,
             `let mut ${result}: Int4Value = ${initial};`,
@@ -2349,7 +2371,7 @@ export function emitCheckRustEvaluator(
             result = fresh('array_search_result'),
             index = fresh('array_search_index')
           destination.push(
-            `let ${payload} = prepare_array_search(${ownedOperand(operands[0]!)}, ${needle}, ${start.name}, ${operands.length === 3}, ${selected !== null});`,
+            `let ${payload} = prepare_array_search(${ownedOperand(operands[0]!)}, ${needle}, ${start.name}, ${operands.length === 3}, ${available});`,
             `let ${initial} = array_search_initial(&${payload});`,
             `let ${first} = array_search_start(&${payload});`,
             `let mut ${result}: Int4Value = ${initial};`,
@@ -2409,7 +2431,7 @@ export function emitCheckRustEvaluator(
             scan = fresh('array_membership_scan'),
             matched = fresh('array_membership_matched')
           destination.push(
-            `let ${payload} = prepare_array_membership(${ownedOperand(operands[0]!)}, ${ownedOperand(operands[1]!)}, ${reverse}, ${selected !== null});`,
+            `let ${payload} = prepare_array_membership(${ownedOperand(operands[0]!)}, ${ownedOperand(operands[1]!)}, ${reverse}, ${available});`,
             `let ${initial} = array_membership_initial(&${payload}, ${all});`,
             `let ${first} = make_int4_value(0);`,
             `let mut ${result}: BoolValue = ${initial};`,
@@ -2453,7 +2475,7 @@ export function emitCheckRustEvaluator(
         }
         const payload = fresh('array_comparison')
         destination.push(
-          `let ${payload} = prepare_array_comparison(${ownedOperand(operands[0]!)}, ${ownedOperand(operands[1]!)}, ${equality}, ${selected !== null});`,
+          `let ${payload} = prepare_array_comparison(${ownedOperand(operands[0]!)}, ${ownedOperand(operands[1]!)}, ${equality}, ${available});`,
         )
         const initial = fresh('array_comparison_start'),
           first = fresh('array_comparison_first')
@@ -4168,7 +4190,7 @@ export function emitCheckRustEvaluator(
       const comparisonLines: string[] = []
       const safe = !rustCallCanFail(
         node.comparison,
-        [subject.type, node.elementType],
+        [subject.type, arrayElementBaseType(node.elementType)],
         executionContext,
       )
       arrayValidityScope = validity
@@ -4183,7 +4205,7 @@ export function emitCheckRustEvaluator(
             executionContext.defaultCollation === 'C'
             ? { ...node.comparison, collation: 'C' }
             : node.comparison,
-          [subject, { name: value, type: node.elementType }],
+          [subject, { name: value, type: arrayElementBaseType(node.elementType) }],
           comparisonLines,
         )
         comparisonLines.push(`${pair} = ${compared.name};`)

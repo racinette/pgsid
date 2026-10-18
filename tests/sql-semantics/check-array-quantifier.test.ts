@@ -21,6 +21,7 @@ it('evaluates catalog-resolved ANY, SOME and ALL over array expressions with eag
   const pg = await PGlite.create(),
     directory = await mkdtemp(join(tmpdir(), 'pgsid-array-quantifier-'))
   try {
+    await mkdir('artifacts/goal-checks/array-quantifier', { recursive: true })
     await pg.exec(`CREATE TYPE quantified_stage AS ENUM ('new','done');
    CREATE DOMAIN quantified_slots AS integer[];
    CREATE TABLE quantified_values(probe text,payload text,quantity integer,divisor integer,bypass boolean);
@@ -254,7 +255,6 @@ it('evaluates catalog-resolved ANY, SOME and ALL over array expressions with eag
       plans.map((p) => p.identity.constraint),
       fixtures,
     )
-    await mkdir('artifacts/goal-checks/array-quantifier', { recursive: true })
     await writeFile(
       'artifacts/goal-checks/array-quantifier/observations.json',
       JSON.stringify(observations, null, 2) + '\n',
