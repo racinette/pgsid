@@ -16,6 +16,7 @@ pub mod checkruntime {
     include!("jsonb_storage.rs");
     include!("jsonpath.rs");
     include!("array_elements.rs");
+    include!("range.rs");
     include!("domain.rs");
     include!("array.rs");
     include!("array_storage.rs");
@@ -59,6 +60,7 @@ pub mod pg_catalog {
 
     include!("operations/pg_catalog/boolean.rs");
     include!("operations/pg_catalog/array_metadata.rs");
+    include!("operations/pg_catalog/range_metadata.rs");
     include!("operations/pg_catalog/array_compare.rs");
     include!("operations/pg_catalog/array_hash.rs");
     include!("operations/pg_catalog/enumeration_support.rs");

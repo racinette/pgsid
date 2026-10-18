@@ -16,6 +16,7 @@ import {
   builtinTypeIO,
   builtinTypeComparison,
   builtinTypeResolution,
+  builtinRangeType,
 } from '../../postgres/builtins/inventory.js'
 import { checkRustCallableNames } from './check-rust-source.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
@@ -41,6 +42,7 @@ import {
   isOidType,
   isOidAliasType,
   isSnapshotType,
+  isRangeType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
   type EnumDefinition,
@@ -511,6 +513,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.tid') return 'TidValue'
   if (type === 'pg_catalog.xid8') return 'Xid8Value'
   if (isSnapshotType(type)) return 'SnapshotValue'
+  if (isRangeType(type)) return 'RangeValue'
   if (isOidType(type)) return 'OidValue'
   if (type === 'pg_catalog.polygon') return 'PolygonValue'
   if (type === 'pg_catalog.path') return 'PathValue'
@@ -696,6 +699,7 @@ export function emitCheckRustEvaluator(
       'JsonpathValue',
       'ArrayValue',
       'SnapshotValue',
+      'RangeValue',
       'PolygonValue',
       'PathValue',
       'TextValue',
@@ -1678,25 +1682,37 @@ export function emitCheckRustEvaluator(
       )
       const enumCall = enumOperands.length > 0
       const enumIdentity = enumOperands[0]
+      const rangeTypes = implementation.args.flatMap((type, index) =>
+        type === 'pg_catalog.anyrange' ? [operands[index]?.type] : [],
+      )
+      const rangeIdentity = rangeTypes[0]
+      const rangeSubtype =
+        rangeIdentity && rangeTypes.every((type) => type === rangeIdentity)
+          ? builtinRangeType(rangeIdentity)?.subtype
+          : undefined
       const resultType =
-        arraySearch && implementation.name === 'array_positions'
-          ? 'array:pg_catalog.int4'
-          : arrayTransform || arrayRewrite
-            ? transformArray
-            : enumSupport && implementation.result === 'pg_catalog.anyarray'
-              ? `array:${enumIdentity}`
-              : implementation.result === 'pg_catalog.anyenum'
-                ? enumIdentity
-                : arrayFill
-                  ? call.type.startsWith('array:') &&
-                    arrayElementBaseType(call.type.slice(6)) === operands[0]?.type
-                    ? call.type
-                    : null
-                  : arrayTrim || arrayReverse || arraySort || arrayExtremum
-                    ? operands[0]?.type
-                    : arrayStringIO && implementation.name === 'string_to_array'
-                      ? 'array:pg_catalog.text'
-                      : (catalogScalarType(implementation.result) ?? implementation.result)
+        rangeSubtype && implementation.result === 'pg_catalog.anyelement'
+          ? rangeSubtype
+          : rangeSubtype && implementation.result === 'pg_catalog.anyrange'
+            ? rangeIdentity
+            : arraySearch && implementation.name === 'array_positions'
+              ? 'array:pg_catalog.int4'
+              : arrayTransform || arrayRewrite
+                ? transformArray
+                : enumSupport && implementation.result === 'pg_catalog.anyarray'
+                  ? `array:${enumIdentity}`
+                  : implementation.result === 'pg_catalog.anyenum'
+                    ? enumIdentity
+                    : arrayFill
+                      ? call.type.startsWith('array:') &&
+                        arrayElementBaseType(call.type.slice(6)) === operands[0]?.type
+                        ? call.type
+                        : null
+                      : arrayTrim || arrayReverse || arraySort || arrayExtremum
+                        ? operands[0]?.type
+                        : arrayStringIO && implementation.name === 'string_to_array'
+                          ? 'array:pg_catalog.text'
+                          : (catalogScalarType(implementation.result) ?? implementation.result)
       if (
         metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
@@ -1813,23 +1829,27 @@ export function emitCheckRustEvaluator(
                   ]!.type.slice(6),
                 ) === operands[index]?.type
               ? false
-              : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
+              : type === 'pg_catalog.anyrange' &&
+                  rangeSubtype &&
+                  operands[index]?.type === rangeIdentity
                 ? false
-                : type === 'pg_catalog.anyenum' && enumCall
-                  ? !operands[index]?.type.startsWith('enum:')
-                  : type === 'pg_catalog.anyelement' &&
-                      (jsonbConversion || jsonConversion || arrayFill)
-                    ? false
-                    : catalogScalarType(type)?.startsWith('array:') &&
-                        operands[index]?.type === catalogScalarType(type)
+                : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
+                  ? false
+                  : type === 'pg_catalog.anyenum' && enumCall
+                    ? !operands[index]?.type.startsWith('enum:')
+                    : type === 'pg_catalog.anyelement' &&
+                        (jsonbConversion || jsonConversion || arrayFill)
                       ? false
-                      : operands[index]?.type !== type &&
-                        !(
-                          call.kind === 'cast' &&
-                          call.type === 'pg_catalog."char"' &&
-                          type === 'pg_catalog.text' &&
-                          operands[index]?.type === 'pg_catalog.bpchar'
-                        ),
+                      : catalogScalarType(type)?.startsWith('array:') &&
+                          operands[index]?.type === catalogScalarType(type)
+                        ? false
+                        : operands[index]?.type !== type &&
+                          !(
+                            call.kind === 'cast' &&
+                            call.type === 'pg_catalog."char"' &&
+                            type === 'pg_catalog.text' &&
+                            operands[index]?.type === 'pg_catalog.bpchar'
+                          ),
         )
       )
         throw new UnsupportedCheckRustExpression(
@@ -1837,6 +1857,16 @@ export function emitCheckRustEvaluator(
         )
       for (const operand of operands) rustType(operand.type)
       if (folded) return folded
+      if (rangeSubtype && implementation.result === 'pg_catalog.anyelement') {
+        const cell = fresh('range_bound')
+        const name = fresh('range_value')
+        callables.add(implementation.rustName)
+        destination.push(
+          `let ${cell} = ${implementation.rustName}(${operands.map(ownedOperand).join(', ')});`,
+          `let ${name} = array_element_to_${rustValuePrefix(rustType(call.type))}(${cell});`,
+        )
+        return { name, type: call.type }
+      }
       if (isArrayHash(implementation)) {
         const arrayType = operands[0]?.type
         if (!arrayType?.startsWith('array:'))
@@ -3142,6 +3172,14 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'input') {
       const item = input(node.name, node.type, false, node.enum)
       used.add(item.name)
+      const range = builtinRangeType(node.type)
+      if (range)
+        return {
+          name: bind(
+            `range_require_type(${item.rustName}.clone(), ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.subtype)})`,
+          ),
+          type: node.type,
+        }
       return { name: item.rustName, type: node.type }
     }
     if (node.kind === 'uncertain') {
@@ -3680,6 +3718,7 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'certain') {
       const value = node.expression
+      if (value.kind === 'range') return { name: bind('range_null()'), type: value.type }
       if (
         value.kind === 'temporal' &&
         (value.type === 'pg_catalog."time"' ||
@@ -3980,6 +4019,7 @@ export function emitCheckRustEvaluator(
         node.operand.kind === 'input' &&
         !node.operand.type.startsWith('enum:') &&
         !isOidType(node.operand.type) &&
+        !isRangeType(node.operand.type) &&
         ![
           'pg_catalog.inet',
           'pg_catalog.cidr',
@@ -4543,6 +4583,7 @@ export function emitCheckRustEvaluator(
               'JsonpathValue',
               'ArrayValue',
               'SnapshotValue',
+              'RangeValue',
               'PolygonValue',
               'PathValue',
               'TextValue',
@@ -4904,6 +4945,7 @@ export function emitCheckRustEvaluator(
           'JsonpathValue',
           'ArrayValue',
           'SnapshotValue',
+          'RangeValue',
           'PolygonValue',
           'PathValue',
           'TextValue',

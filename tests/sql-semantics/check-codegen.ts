@@ -1,6 +1,7 @@
 import type { TableInfo } from '../../src/catalog/types.js'
 import { go, printGoFile, type GoExpression, type GoStatement } from '../../src/codegen/go/ast.js'
 import { goName } from '../../src/codegen/go/names.js'
+import { rangeGoInput, type RangeInputPayload } from '../../tools/check-rust/range-input.js'
 
 type ArrayFixturePayload = {
   elementType: string
@@ -36,6 +37,7 @@ export type GoCheckCase = {
   jsonbColumns?: readonly string[]
   jsonpathColumns?: readonly string[]
   arrayColumns?: readonly string[]
+  rangeColumns?: readonly string[]
   oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
   polygonColumns?: readonly string[]
@@ -91,6 +93,7 @@ export function renderGoCheckTests(
       jsonbColumns,
       jsonpathColumns,
       arrayColumns,
+      rangeColumns,
       oidColumns,
       moneyColumns,
       polygonColumns,
@@ -119,6 +122,16 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && rangeColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const payload = value as RangeInputPayload | null
+        const wrapped =
+          payload === null
+            ? go.call(go.selector(go.ident('checkruntime'), 'RangeNull'), [])
+            : rangeGoInput(payload)
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (options.dateRuntime && arrayColumns?.includes(column.name)) {

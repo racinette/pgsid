@@ -112,6 +112,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("ArrayValue") => {
             Ok("ArrayValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("RangeValue") => {
+            Ok("RangeValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("JsonpathValue") => {
             Ok("JsonpathValue")
         }
@@ -474,6 +477,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "JsonbValue"
                     | "JsonpathValue"
                     | "ArrayValue"
+                    | "RangeValue"
                     | "CircleValue"
                     | "BoxValue"
                     | "UuidValue"
@@ -833,6 +837,27 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             check_source(&source.replace("input: JsonpathValue", "mut input: JsonpathValue"))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn range_values_keep_owned_parameters_and_payloads_narrow() {
+        let source = "pub fn evaluate_check(input: RangeValue) -> CheckOutcome { let mut saved: RangeValue = range_unknown(); saved = input.clone(); let empty = sql__pg_catalog__isempty__86tf(saved); check_from_bool(empty) }";
+        assert!(check_source(source).is_ok());
+        for ty in [
+            "RangePayload",
+            "RangeValue<String>",
+            "&RangeValue",
+            "Vec<RangeValue>",
+        ] {
+            assert!(
+                check_source(&source.replace("input: RangeValue", &format!("input: {ty}")))
+                    .is_err()
+            );
+        }
+        assert!(
+            check_source(&source.replace("input: RangeValue", "mut input: RangeValue")).is_err()
+        );
+        assert!(check_source(&source.replace("input.clone()", "input.value")).is_err());
     }
 
     #[test]

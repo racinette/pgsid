@@ -10,6 +10,7 @@ import { PG18_BUILTIN_CASTS } from '../../src/postgres/builtins/casts.generated.
 import { PG18_TYPE_RESOLUTION } from '../../src/postgres/builtins/type-resolution.generated.js'
 import { PG18_BTREE_COMPARISONS } from '../../src/postgres/builtins/btree-comparisons.generated.js'
 import { PG18_TYPE_IO } from '../../src/postgres/builtins/type-io.generated.js'
+import { PG18_RANGE_TYPES } from '../../src/postgres/builtins/type-ranges.generated.js'
 import { PG18_TYPE_COMPARISONS } from '../../src/postgres/builtins/type-comparisons.generated.js'
 import { readBuiltinTypeComparisons } from '../../src/postgres/builtins/type-comparisons.js'
 import { builtinCallables, builtinTypeIO } from '../../src/postgres/builtins/inventory.js'
@@ -68,6 +69,17 @@ export function verifyCatalog(catalog: BuiltinCatalog): void {
     Object.fromEntries(io),
     PG18_TYPE_IO,
     'Live type I/O links differ from the generated inventory',
+  )
+  const ranges = catalog.rangeTypes.map((range) => [range.identity, range] as const)
+  assert.equal(
+    new Set(ranges.map(([identity]) => identity)).size,
+    ranges.length,
+    'Duplicate range identity',
+  )
+  assert.deepEqual(
+    Object.fromEntries(ranges),
+    PG18_RANGE_TYPES,
+    'Live range support links differ from the generated inventory',
   )
   assert.equal(new Set(btreeKeys).size, btreeKeys.length, 'Duplicate B-tree comparison')
   assert.deepEqual(

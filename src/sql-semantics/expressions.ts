@@ -1,18 +1,22 @@
 import {
   builtinCast,
   builtinTypeResolution,
+  builtinRangeType,
   functionMetadata,
   operatorMetadata,
 } from '../postgres/builtins/inventory.js'
 import type { CallableMetadata } from '../postgres/builtins/catalog.js'
 import type { EnumInfo } from '../catalog/types.js'
+import type { PG18_RANGE_TYPES } from '../postgres/builtins/type-ranges.generated.js'
 import type { CallableEmitter, SqlBindingGroup, TypedSqlExpression } from './signatures.js'
 import { equalityOperation, supportsTextCallableCollation } from './collation.js'
 
 export const catalogScalarType = (name: string): ScalarType | null => {
+  const range = builtinRangeType(name.startsWith('pg_catalog.') ? name : 'pg_catalog.' + name)
+  if (range) return range.identity as RangeType
   if (name.endsWith('[]')) {
     const element = catalogScalarType(name.replace(/(?:\[\])+$/u, ''))
-    return element && !element.startsWith('array:')
+    return element && !isRangeType(element) && !element.startsWith('array:')
       ? arrayType(element as Exclude<ScalarType, ArrayType>)
       : null
   }
@@ -23,7 +27,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     const internal = name.replace(/^pg_catalog\./u, '')
     if (builtinTypeResolution('pg_catalog.' + internal)?.category !== 'A') return null
     const element = catalogScalarType(internal.slice(1))
-    return element && !element.startsWith('array:')
+    return element && !isRangeType(element) && !element.startsWith('array:')
       ? arrayType(element as Exclude<ScalarType, ArrayType>)
       : null
   }
@@ -139,6 +143,9 @@ export type PgLsnType = 'pg_catalog.pg_lsn'
 export type TidType = 'pg_catalog.tid'
 export type Xid8Type = 'pg_catalog.xid8'
 export type SnapshotType = 'pg_catalog.pg_snapshot' | 'pg_catalog.txid_snapshot'
+export type RangeType = keyof typeof PG18_RANGE_TYPES
+export const isRangeType = (type: string | null | undefined): type is RangeType =>
+  typeof type === 'string' && builtinRangeType(type) !== null
 export const isSnapshotType = (type: string | null | undefined): type is SnapshotType =>
   type === 'pg_catalog.pg_snapshot' || type === 'pg_catalog.txid_snapshot'
 export const oidAliasTypes = [
@@ -208,6 +215,7 @@ export type NonArrayScalarType =
   | TidType
   | Xid8Type
   | SnapshotType
+  | RangeType
   | OidType
   | PolygonType
   | PathType
@@ -531,6 +539,7 @@ export type SqlExpression =
   | { kind: 'tid'; type: TidType; value: string | null }
   | { kind: 'xid8'; type: Xid8Type; value: string | null }
   | { kind: 'snapshot'; type: SnapshotType; value: string | null }
+  | { kind: 'range'; type: RangeType; value: null }
   | { kind: 'oid'; type: OidType; value: string | null }
   | { kind: 'polygon'; type: PolygonType; value: string | null }
   | { kind: 'path'; type: PathType; value: string | null }
@@ -1221,6 +1230,7 @@ export function emitSqlExpression<Ast>(
       if (node.value !== null) throw new Error('Snapshot literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
+    if (node.kind === 'range') return { type: node.type, expression: backend.text(null) }
     if (node.kind === 'oid') {
       if (node.value !== null) throw new Error('Oid literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }

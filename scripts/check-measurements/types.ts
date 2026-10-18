@@ -86,6 +86,7 @@ export async function measureTypes(pg: PGlite) {
       ),
     },
     types: rows,
+    rangeTypes: catalog.rangeTypes,
   }
 }
 
