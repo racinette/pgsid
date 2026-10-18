@@ -4,6 +4,62 @@ import type { RangeType } from '../../src/sql-semantics/expressions.js'
 import { arrayElementFamily } from '../../src/codegen/shared/check-array-types.js'
 import type { RangeInputCell, RangeInputPayload } from '../../tools/check-rust/range-input.js'
 
+export function rangeCoreSamples(type: RangeType): {
+  ranges: (string | null)[]
+  elements: (string | null)[]
+} {
+  const subtype = builtinRangeType(type)!.subtype
+  const temporal =
+    subtype === 'pg_catalog.date' ||
+    subtype === 'pg_catalog."timestamp"' ||
+    subtype === 'pg_catalog.timestamptz'
+  const offset = subtype === 'pg_catalog.timestamptz' ? ' 00:00:00+00' : ''
+  const [a, b, c] = temporal
+    ? ['2000-01-01' + offset, '2000-01-03' + offset, '2000-01-05' + offset]
+    : ['1', '3', '5']
+  const ranges: (string | null)[] = [
+    null,
+    'empty',
+    '(,)',
+    `(,${b})`,
+    `[${a},)`,
+    `[${a},${b})`,
+    `(${a},${b})`,
+    `[${a},${b}]`,
+    `(${a},${b}]`,
+    `[${b},${c})`,
+    `(${b},${c}]`,
+    `[${b},${b}]`,
+    `[${a},${a})`,
+  ]
+  const elements: (string | null)[] = [null, a!, b!, c!]
+  if (temporal) {
+    ranges.push(
+      '[-infinity,infinity]',
+      '[infinity,infinity]',
+      '[-infinity,-infinity]',
+      '(,infinity)',
+    )
+    elements.push('-infinity', 'infinity')
+  } else if (subtype === 'pg_catalog."numeric"') {
+    ranges.push(
+      '[1.0000,3.0000)',
+      '[-0.00,1.2300]',
+      '[NaN,NaN]',
+      '[-Infinity,Infinity]',
+      '[Infinity,NaN]',
+    )
+    elements.push('-0.00', '1.2300', 'NaN', '-Infinity', 'Infinity')
+  } else if (subtype === 'pg_catalog.int8') {
+    ranges.push('[-9223372036854775808,9223372036854775807)', '[9007199254740993,9007199254740999)')
+    elements.push('-9223372036854775808', '9223372036854775807', '9007199254740993')
+  } else {
+    ranges.push('[-2147483648,2147483647)', '[2147483647,)')
+    elements.push('-2147483648', '2147483647')
+  }
+  return { ranges, elements }
+}
+
 export function rangeBoundProjection(bound: string, subtype: string): string {
   if (subtype === 'pg_catalog.date')
     return `CASE WHEN ${bound}='-infinity'::date THEN '-2147483648' WHEN ${bound}='infinity'::date THEN '2147483647' ELSE (${bound}-DATE '2000-01-01')::text END`

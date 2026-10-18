@@ -29828,6 +29828,474 @@ func PolygonFromText(input checkruntime.TextValue) checkruntime.PolygonValue {
 	}
 	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
 }
+func rangeSameFamily(left *checkruntime.RangePayload, right *checkruntime.RangePayload) bool {
+	return left.TypeName == right.TypeName && left.ElementType == right.ElementType && left.ElementKind == right.ElementKind
+}
+func rangeEndpointCompare(left *checkruntime.RangePayload, leftUpper bool, right *checkruntime.RangePayload, rightUpper bool) checkruntime.Int4Value {
+	li := 0
+	ri := 0
+	leftInc := left.LowerInclusive
+	rightInc := right.LowerInclusive
+	if leftUpper {
+		li = langruntime.CheckedIndex(1)
+		leftInc = left.UpperInclusive
+	}
+	if rightUpper {
+		ri = langruntime.CheckedIndex(1)
+		rightInc = right.UpperInclusive
+	}
+	a := checkruntime.CopyArrayElement(left.Bounds[li])
+	b := checkruntime.CopyArrayElement(right.Bounds[ri])
+	leftUnbounded := false
+	rightUnbounded := false
+	if a.Kind == checkruntime.ArrayElementNull {
+		leftUnbounded = true
+	}
+	if b.Kind == checkruntime.ArrayElementNull {
+		rightUnbounded = true
+	}
+	if leftUnbounded && rightUnbounded && leftUpper == rightUpper {
+		return checkruntime.MakeInt4Value(0)
+	}
+	if leftUnbounded {
+		if leftUpper {
+			return checkruntime.MakeInt4Value(1)
+		}
+		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+	}
+	if rightUnbounded {
+		if rightUpper {
+			return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+		}
+		return checkruntime.MakeInt4Value(1)
+	}
+	comparison := rangeBuiltinCompare(a, b, left.ElementKind)
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if order != 0 {
+			return comparison
+		}
+		if leftInc == false && rightInc == false && leftUpper == rightUpper {
+			return comparison
+		}
+		if leftInc == false {
+			if leftUpper {
+				return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+			}
+			return checkruntime.MakeInt4Value(1)
+		}
+		if rightInc == false {
+			if rightUpper {
+				return checkruntime.MakeInt4Value(1)
+			}
+			return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+		}
+	}
+	return comparison
+}
+func rangePayloadCompare(left *checkruntime.RangePayload, right *checkruntime.RangePayload) checkruntime.Int4Value {
+	if left.Empty && right.Empty {
+		return checkruntime.MakeInt4Value(0)
+	}
+	if left.Empty {
+		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+	}
+	if right.Empty {
+		return checkruntime.MakeInt4Value(1)
+	}
+	lower := rangeEndpointCompare(left, false, right, false)
+	if lower.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(lower.Value)
+		if order == 0 {
+			return rangeEndpointCompare(left, true, right, true)
+		}
+	}
+	return lower
+}
+func RangeCmp8jgl(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.Int4Value {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	if left.Kind == checkruntime.RangeValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.RangeValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.RangeValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if right.Kind == checkruntime.RangeValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.RangeValueValue {
+		a := checkruntime.CopyRangePayload(left.Value)
+		if right.Kind == checkruntime.RangeValueValue {
+			b := checkruntime.CopyRangePayload(right.Value)
+			if rangeSameFamily(&a, &b) {
+				return rangePayloadCompare(&a, &b)
+			}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func rangeOrderBoolean(input checkruntime.Int4Value, strategy int) checkruntime.BoolValue {
+	strategy = langruntime.CheckedI32(strategy)
+	if input.Kind == checkruntime.Int4ValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.Int4ValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(input.Value)
+		if strategy == 1 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order < 0}
+		}
+		if strategy == 2 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order <= 0}
+		}
+		if strategy == 3 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order == 0}
+		}
+		if strategy == 4 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order >= 0}
+		}
+		if strategy == 5 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order > 0}
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order != 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func rangeBoundsAdjacent(left *checkruntime.RangePayload, right *checkruntime.RangePayload) checkruntime.BoolValue {
+	a := checkruntime.CopyArrayElement(left.Bounds[1])
+	b := checkruntime.CopyArrayElement(right.Bounds[0])
+	if a.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+	}
+	if b.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+	}
+	comparison := rangeBuiltinCompare(checkruntime.CopyArrayElement(a), checkruntime.CopyArrayElement(b), left.ElementKind)
+	if comparison.Kind == checkruntime.Int4ValueError {
+		error := comparison.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if comparison.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(comparison.Value)
+		if order == 0 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: left.UpperInclusive != right.LowerInclusive}
+		}
+		if order < 0 && (left.ElementKind == 2 || left.ElementKind == 3 || left.ElementKind == 7) {
+			flags := langruntime.NewTextBuffer("")
+			if left.UpperInclusive {
+				flags = append(flags, string(langruntime.CheckedChar('('))...)
+			} else {
+				flags = append(flags, string(langruntime.CheckedChar('['))...)
+			}
+			if right.LowerInclusive {
+				flags = append(flags, string(langruntime.CheckedChar(')'))...)
+			} else {
+				flags = append(flags, string(langruntime.CheckedChar(']'))...)
+			}
+			gap := rangeBuiltinConstruct(left.TypeName, left.ElementType, left.ElementKind, a, b, checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(flags)})
+			return checkruntime.RangeEmptyState(gap)
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func rangePayloadRelation(left *checkruntime.RangePayload, right *checkruntime.RangePayload, strategy int) checkruntime.BoolValue {
+	strategy = langruntime.CheckedI32(strategy)
+	if strategy == 6 {
+		return rangePayloadRelation(right, left, 5)
+	}
+	if strategy == 5 && right.Empty {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+	}
+	if left.Empty || right.Empty {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+	}
+	if strategy == 1 {
+		order := rangeEndpointCompare(left, true, right, false)
+		return rangeOrderBoolean(order, 1)
+	}
+	if strategy == 2 {
+		order := rangeEndpointCompare(left, false, right, true)
+		return rangeOrderBoolean(order, 5)
+	}
+	if strategy == 3 {
+		order := rangeEndpointCompare(left, true, right, true)
+		return rangeOrderBoolean(order, 2)
+	}
+	if strategy == 4 {
+		order := rangeEndpointCompare(left, false, right, false)
+		return rangeOrderBoolean(order, 4)
+	}
+	if strategy == 5 {
+		lo := rangeEndpointCompare(left, false, right, false)
+		if lo.Kind == checkruntime.Int4ValueValue {
+			order := langruntime.CheckedI32(lo.Value)
+			if order > 0 {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+			}
+			hi := rangeEndpointCompare(left, true, right, true)
+			return rangeOrderBoolean(hi, 4)
+		}
+		return rangeOrderBoolean(lo, 2)
+	}
+	if strategy == 7 {
+		first := rangeBoundsAdjacent(left, right)
+		if first.Kind == checkruntime.BoolValueValue {
+			adjacent := first.Value
+			if adjacent {
+				return first
+			}
+			return rangeBoundsAdjacent(right, left)
+		}
+		return first
+	}
+	lo := rangeEndpointCompare(left, false, right, false)
+	if lo.Kind == checkruntime.Int4ValueError {
+		error := lo.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if lo.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(lo.Value)
+		if order >= 0 {
+			end := rangeEndpointCompare(left, false, right, true)
+			if end.Kind == checkruntime.Int4ValueError {
+				error := end.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			known := false
+			if end.Kind == checkruntime.Int4ValueValue {
+				limit := langruntime.CheckedI32(end.Value)
+				known = true
+				if limit <= 0 {
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+				}
+			}
+			if known == false {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+		}
+		reverse := rangeEndpointCompare(right, false, left, false)
+		if reverse.Kind == checkruntime.Int4ValueValue {
+			back := langruntime.CheckedI32(reverse.Value)
+			if back < 0 {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+			}
+			end := rangeEndpointCompare(right, false, left, true)
+			return rangeOrderBoolean(end, 2)
+		}
+		return rangeOrderBoolean(reverse, 4)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func rangeRelation(left checkruntime.RangeValue, right checkruntime.RangeValue, strategy int) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	strategy = langruntime.CheckedI32(strategy)
+	if left.Kind == checkruntime.RangeValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.RangeValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left.Kind == checkruntime.RangeValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if right.Kind == checkruntime.RangeValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.RangeValueValue {
+		a := checkruntime.CopyRangePayload(left.Value)
+		if right.Kind == checkruntime.RangeValueValue {
+			b := checkruntime.CopyRangePayload(right.Value)
+			if rangeSameFamily(&a, &b) {
+				return rangePayloadRelation(&a, &b, strategy)
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func rangeContainsElement(input checkruntime.RangeValue, element checkruntime.ArrayElement, elementFirst bool) checkruntime.BoolValue {
+	input = checkruntime.CopyRangeValue(input)
+	element = checkruntime.CopyArrayElement(element)
+	if elementFirst {
+		if element.Kind == checkruntime.ArrayElementError {
+			error := element.Error
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+		}
+	}
+	if input.Kind == checkruntime.RangeValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if element.Kind == checkruntime.ArrayElementError {
+		error := element.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.RangeValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if element.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if element.Kind == checkruntime.ArrayElementUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.Kind == checkruntime.RangeValueValue {
+		span := checkruntime.CopyRangePayload(input.Value)
+		if span.Empty {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+		}
+		kind := checkruntime.ArrayElementFamily(checkruntime.CopyArrayElement(element))
+		if kind != 0 && kind != span.ElementKind {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+		lower := checkruntime.CopyArrayElement(span.Bounds[0])
+		upper := checkruntime.CopyArrayElement(span.Bounds[1])
+		hasLower := true
+		hasUpper := true
+		if lower.Kind == checkruntime.ArrayElementNull {
+			hasLower = false
+		}
+		if upper.Kind == checkruntime.ArrayElementNull {
+			hasUpper = false
+		}
+		if hasLower {
+			comparison := rangeBuiltinCompare(lower, checkruntime.CopyArrayElement(element), span.ElementKind)
+			if comparison.Kind == checkruntime.Int4ValueError {
+				error := comparison.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			known := false
+			if comparison.Kind == checkruntime.Int4ValueValue {
+				order := langruntime.CheckedI32(comparison.Value)
+				known = true
+				if order > 0 || (order == 0 && span.LowerInclusive == false) {
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+				}
+			}
+			if known == false {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+		}
+		if hasUpper {
+			comparison := rangeBuiltinCompare(upper, element, span.ElementKind)
+			if comparison.Kind == checkruntime.Int4ValueError {
+				error := comparison.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			known := false
+			if comparison.Kind == checkruntime.Int4ValueValue {
+				order := langruntime.CheckedI32(comparison.Value)
+				known = true
+				if order < 0 || (order == 0 && span.UpperInclusive == false) {
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+				}
+			}
+			if known == false {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func RangeLtT1sv(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	comparison := RangeCmp8jgl(left, right)
+	return rangeOrderBoolean(comparison, 1)
+}
+func RangeLeUr15(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	comparison := RangeCmp8jgl(left, right)
+	return rangeOrderBoolean(comparison, 2)
+}
+func RangeEqLoxq(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	comparison := RangeCmp8jgl(left, right)
+	return rangeOrderBoolean(comparison, 3)
+}
+func RangeGeI2f0(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	comparison := RangeCmp8jgl(left, right)
+	return rangeOrderBoolean(comparison, 4)
+}
+func RangeGt943z(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	comparison := RangeCmp8jgl(left, right)
+	return rangeOrderBoolean(comparison, 5)
+}
+func RangeNeMzkw(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	comparison := RangeCmp8jgl(left, right)
+	return rangeOrderBoolean(comparison, 6)
+}
+func RangeBeforeZ0g8(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeRelation(left, right, 1)
+}
+func RangeAfter5pak(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeRelation(left, right, 2)
+}
+func RangeOverleft8k1o(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeRelation(left, right, 3)
+}
+func RangeOverrightRl1q(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeRelation(left, right, 4)
+}
+func RangeContainsUt37(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeRelation(left, right, 5)
+}
+func RangeContainedByOk2x(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeRelation(left, right, 6)
+}
+func RangeAdjacent03u0(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeRelation(left, right, 7)
+}
+func RangeOverlaps38jd(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeRelation(left, right, 8)
+}
+func RangeContainsElemWtfe(input checkruntime.RangeValue, element checkruntime.ArrayElement) checkruntime.BoolValue {
+	input = checkruntime.CopyRangeValue(input)
+	element = checkruntime.CopyArrayElement(element)
+	return rangeContainsElement(input, element, false)
+}
+func ElemContainedByRangeWkbk(element checkruntime.ArrayElement, input checkruntime.RangeValue) checkruntime.BoolValue {
+	element = checkruntime.CopyArrayElement(element)
+	input = checkruntime.CopyRangeValue(input)
+	return rangeContainsElement(input, element, true)
+}
 
 const rangeConstructorDataError = 3452544
 const rangeConstructorFlagsError = 6819553
@@ -30461,6 +30929,209 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 		return RangeFormatText(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: value}, lower, upper)
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+
+const rangeSetNoncontiguous = 3452544
+
+func rangeEmptyLike(input *checkruntime.RangePayload) checkruntime.RangeValue {
+	return checkruntime.RangeFromCoercedBounds(input.TypeName, input.ElementType, input.ElementKind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull})
+}
+func rangeCopyPayload(input *checkruntime.RangePayload) checkruntime.RangeValue {
+	if input.Empty {
+		return rangeEmptyLike(input)
+	}
+	return checkruntime.RangeFromCoercedBounds(input.TypeName, input.ElementType, input.ElementKind, false, input.LowerInclusive, input.UpperInclusive, checkruntime.CopyArrayElement(input.Bounds[0]), checkruntime.CopyArrayElement(input.Bounds[1]))
+}
+func rangeRebuild(input *checkruntime.RangePayload, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInc bool, upperInc bool) checkruntime.RangeValue {
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	initial := rangeBuiltinSerialize(input.TypeName, input.ElementType, input.ElementKind, lower, upper, lowerInc, upperInc)
+	return rangeBuiltinCanonical(initial)
+}
+func rangePayloadDifference(left *checkruntime.RangePayload, right *checkruntime.RangePayload) checkruntime.RangeValue {
+	if left.Empty || right.Empty {
+		return rangeCopyPayload(left)
+	}
+	ll := rangeEndpointCompare(left, false, right, false)
+	if ll.Kind == checkruntime.Int4ValueError {
+		error := ll.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	lu := rangeEndpointCompare(left, false, right, true)
+	if lu.Kind == checkruntime.Int4ValueError {
+		error := lu.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	ul := rangeEndpointCompare(left, true, right, false)
+	if ul.Kind == checkruntime.Int4ValueError {
+		error := ul.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	uu := rangeEndpointCompare(left, true, right, true)
+	if uu.Kind == checkruntime.Int4ValueError {
+		error := uu.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if ll.Kind == checkruntime.Int4ValueValue {
+		cLl := langruntime.CheckedI32(ll.Value)
+		if lu.Kind == checkruntime.Int4ValueValue {
+			cLu := langruntime.CheckedI32(lu.Value)
+			if ul.Kind == checkruntime.Int4ValueValue {
+				cUl := langruntime.CheckedI32(ul.Value)
+				if uu.Kind == checkruntime.Int4ValueValue {
+					cUu := langruntime.CheckedI32(uu.Value)
+					if cLl < 0 && cUu > 0 {
+						return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeSetNoncontiguous)}
+					}
+					if cLu > 0 || cUl < 0 {
+						return rangeCopyPayload(left)
+					}
+					if cLl >= 0 && cUu <= 0 {
+						return rangeEmptyLike(left)
+					}
+					if cLl <= 0 && cUl >= 0 && cUu <= 0 {
+						lower := checkruntime.CopyArrayElement(left.Bounds[0])
+						upper := checkruntime.CopyArrayElement(right.Bounds[0])
+						return rangeRebuild(left, lower, upper, left.LowerInclusive, right.LowerInclusive == false)
+					}
+					if cLl >= 0 && cUu >= 0 && cLu <= 0 {
+						lower := checkruntime.CopyArrayElement(right.Bounds[1])
+						upper := checkruntime.CopyArrayElement(left.Bounds[1])
+						return rangeRebuild(left, lower, upper, right.UpperInclusive == false, left.UpperInclusive)
+					}
+				}
+			}
+		}
+	}
+	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+}
+func rangePayloadSet(left *checkruntime.RangePayload, right *checkruntime.RangePayload, strategy int) checkruntime.RangeValue {
+	strategy = langruntime.CheckedI32(strategy)
+	if strategy == 4 {
+		return rangePayloadDifference(left, right)
+	}
+	if strategy == 3 && (left.Empty || right.Empty) {
+		return rangeEmptyLike(left)
+	}
+	if left.Empty {
+		return rangeCopyPayload(right)
+	}
+	if right.Empty {
+		return rangeCopyPayload(left)
+	}
+	if strategy == 1 || strategy == 3 {
+		overlap := rangePayloadRelation(left, right, 8)
+		if overlap.Kind == checkruntime.BoolValueError {
+			error := overlap.Error
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+		}
+		known := false
+		if overlap.Kind == checkruntime.BoolValueValue {
+			overlapping := overlap.Value
+			known = true
+			if overlapping == false {
+				if strategy == 3 {
+					return rangeEmptyLike(left)
+				}
+				adjacent := rangePayloadRelation(left, right, 7)
+				if adjacent.Kind == checkruntime.BoolValueError {
+					error := adjacent.Error
+					return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+				}
+				if adjacent.Kind == checkruntime.BoolValueUnknown {
+					return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+				}
+				if adjacent.Kind == checkruntime.BoolValueValue {
+					connected := adjacent.Value
+					if connected == false {
+						return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeSetNoncontiguous)}
+					}
+				}
+			}
+		}
+		if known == false {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+		}
+	}
+	lo := rangeEndpointCompare(left, false, right, false)
+	if lo.Kind == checkruntime.Int4ValueError {
+		error := lo.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if lo.Kind == checkruntime.Int4ValueValue {
+		lowerOrder := langruntime.CheckedI32(lo.Value)
+		hi := rangeEndpointCompare(left, true, right, true)
+		if hi.Kind == checkruntime.Int4ValueError {
+			error := hi.Error
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+		}
+		if hi.Kind == checkruntime.Int4ValueValue {
+			upperOrder := langruntime.CheckedI32(hi.Value)
+			lower := checkruntime.CopyArrayElement(right.Bounds[0])
+			upper := checkruntime.CopyArrayElement(right.Bounds[1])
+			lowerInc := right.LowerInclusive
+			upperInc := right.UpperInclusive
+			if (strategy == 3 && lowerOrder >= 0) || (strategy != 3 && lowerOrder < 0) {
+				lower = checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(left.Bounds[0]))
+				lowerInc = left.LowerInclusive
+			}
+			if (strategy == 3 && upperOrder <= 0) || (strategy != 3 && upperOrder > 0) {
+				upper = checkruntime.CopyArrayElement(checkruntime.CopyArrayElement(left.Bounds[1]))
+				upperInc = left.UpperInclusive
+			}
+			return rangeRebuild(left, lower, upper, lowerInc, upperInc)
+		}
+	}
+	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+}
+func rangeSet(left checkruntime.RangeValue, right checkruntime.RangeValue, strategy int) checkruntime.RangeValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	strategy = langruntime.CheckedI32(strategy)
+	if left.Kind == checkruntime.RangeValueError {
+		error := left.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if right.Kind == checkruntime.RangeValueError {
+		error := right.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if left.Kind == checkruntime.RangeValueNull {
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueNull}
+	}
+	if right.Kind == checkruntime.RangeValueNull {
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueNull}
+	}
+	if left.Kind == checkruntime.RangeValueValue {
+		a := checkruntime.CopyRangePayload(left.Value)
+		if right.Kind == checkruntime.RangeValueValue {
+			b := checkruntime.CopyRangePayload(right.Value)
+			if rangeSameFamily(&a, &b) {
+				return rangePayloadSet(&a, &b, strategy)
+			}
+		}
+	}
+	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+}
+func RangeUnion8koj(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.RangeValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeSet(left, right, 1)
+}
+func RangeMergeB43r(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.RangeValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeSet(left, right, 2)
+}
+func RangeIntersect4pce(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.RangeValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeSet(left, right, 3)
+}
+func RangeMinusF67g(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.RangeValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return rangeSet(left, right, 4)
 }
 
 const scalarInputInvalid = 3484946

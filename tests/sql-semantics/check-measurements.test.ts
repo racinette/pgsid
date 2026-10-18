@@ -700,6 +700,14 @@ describe('CHECK measurement boundaries', () => {
       expect(report.inputForms.types.find((forms) => forms.type === range.identity)).toMatchObject({
         boundType: range.subtype,
         scope: expect.stringContaining('scalar input requirements'),
+        coreOperations: {
+          comparisonOwner: 'tests/sql-semantics/check-range-comparisons.test.ts',
+          setOwner: 'tests/sql-semantics/check-range-set.test.ts',
+          compositionOwner: 'tests/sql-semantics/check-range-composition.test.ts',
+          stateOwner: 'tests/sql-semantics/check-range-core-state.test.ts',
+          contextRequired: [],
+          databaseLookup: false,
+        },
         textOutput: {
           owner: 'tests/sql-semantics/check-range-output.test.ts',
           formatOwner: 'tests/sql-semantics/check-range-output-format.test.ts',

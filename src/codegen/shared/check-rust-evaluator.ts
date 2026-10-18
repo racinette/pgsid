@@ -1844,23 +1844,27 @@ export function emitCheckRustEvaluator(
                   rangeSubtype &&
                   operands[index]?.type === rangeIdentity
                 ? false
-                : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
+                : type === 'pg_catalog.anyelement' &&
+                    rangeSubtype &&
+                    operands[index]?.type === rangeSubtype
                   ? false
-                  : type === 'pg_catalog.anyenum' && enumCall
-                    ? !operands[index]?.type.startsWith('enum:')
-                    : type === 'pg_catalog.anyelement' &&
-                        (jsonbConversion || jsonConversion || arrayFill)
-                      ? false
-                      : catalogScalarType(type)?.startsWith('array:') &&
-                          operands[index]?.type === catalogScalarType(type)
+                  : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
+                    ? false
+                    : type === 'pg_catalog.anyenum' && enumCall
+                      ? !operands[index]?.type.startsWith('enum:')
+                      : type === 'pg_catalog.anyelement' &&
+                          (jsonbConversion || jsonConversion || arrayFill)
                         ? false
-                        : operands[index]?.type !== type &&
-                          !(
-                            call.kind === 'cast' &&
-                            call.type === 'pg_catalog."char"' &&
-                            type === 'pg_catalog.text' &&
-                            operands[index]?.type === 'pg_catalog.bpchar'
-                          ),
+                        : catalogScalarType(type)?.startsWith('array:') &&
+                            operands[index]?.type === catalogScalarType(type)
+                          ? false
+                          : operands[index]?.type !== type &&
+                            !(
+                              call.kind === 'cast' &&
+                              call.type === 'pg_catalog."char"' &&
+                              type === 'pg_catalog.text' &&
+                              operands[index]?.type === 'pg_catalog.bpchar'
+                            ),
         )
       )
         throw new UnsupportedCheckRustExpression(
@@ -1877,6 +1881,17 @@ export function emitCheckRustEvaluator(
           `let ${name} = array_element_to_${rustValuePrefix(rustType(call.type))}(${cell});`,
         )
         return { name, type: call.type }
+      }
+      if (rangeSubtype && implementation.args.includes('pg_catalog.anyelement')) {
+        const args = operands.map((operand, index) =>
+          implementation.args[index] === 'pg_catalog.anyelement'
+            ? bind(
+                `array_element_from_${rustValuePrefix(rustType(operand.type))}(${ownedOperand(operand)})`,
+              )
+            : ownedOperand(operand),
+        )
+        callables.add(implementation.rustName)
+        return { name: bind(`${implementation.rustName}(${args.join(', ')})`), type: call.type }
       }
       if (isArrayHash(implementation)) {
         const arrayType = operands[0]?.type
@@ -4581,7 +4596,11 @@ export function emitCheckRustEvaluator(
         if (!metadata || metadata.args.length !== 2)
           throw new UnsupportedCheckRustExpression('GREATEST/LEAST needs catalog ordering')
         const compared = [selected, operand].map((value, index) => {
-          const type = ['pg_catalog.anyenum', 'pg_catalog.anyarray'].includes(metadata.args[index]!)
+          const type = [
+            'pg_catalog.anyenum',
+            'pg_catalog.anyarray',
+            'pg_catalog.anyrange',
+          ].includes(metadata.args[index]!)
             ? node.type
             : metadata.args[index]!
           return type === value.type

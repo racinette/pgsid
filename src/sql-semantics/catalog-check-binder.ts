@@ -1435,12 +1435,17 @@ const comparisonCandidate = (
   const arrayTypes = types.filter((type): type is ArrayType => type?.startsWith('array:') === true)
   const arrayIdentity =
     arrayTypes.length && arrayTypes.every((type) => type === arrayTypes[0]) ? arrayTypes[0]! : null
+  const rangeTypes = types.filter(isRangeType)
+  const rangeIdentity =
+    rangeTypes.length && rangeTypes.every((type) => type === rangeTypes[0]) ? rangeTypes[0]! : null
   const concrete = (type: string): string | null =>
     type === 'pg_catalog.anyenum'
       ? enumIdentity
       : type === 'pg_catalog.anyarray'
         ? arrayIdentity
-        : (catalogScalarType(type) ?? type)
+        : type === 'pg_catalog.anyrange'
+          ? rangeIdentity
+          : (catalogScalarType(type) ?? type)
   const viable = callables.filter(
     ({ item }) =>
       item.kind === kind &&
@@ -2057,9 +2062,11 @@ export function bindCatalogCheck(
         operands.length > 1 && !allNull,
       )
       if (!resolved || resolved.item.args[0] !== resolved.item.args[1]) return unknown
-      const comparisonType = ['pg_catalog.anyenum', 'pg_catalog.anyarray'].includes(
-        resolved.item.args[0]!,
-      )
+      const comparisonType = [
+        'pg_catalog.anyenum',
+        'pg_catalog.anyarray',
+        'pg_catalog.anyrange',
+      ].includes(resolved.item.args[0]!)
         ? type
         : resolved.item.args[0]!
       if (comparisonType !== type && builtinCast(type, comparisonType)?.method !== 'b')
@@ -4261,7 +4268,7 @@ export function bindCatalogCheck(
         const type =
           resolved.item.args[0] === 'pg_catalog.anyenum'
             ? resolved.enum && enumType(resolved.enum)
-            : resolved.item.args[0] === 'pg_catalog.anyarray'
+            : ['pg_catalog.anyarray', 'pg_catalog.anyrange'].includes(resolved.item.args[0]!)
               ? resolved.operands[0]!.kind === 'certain'
                 ? resolved.operands[0]!.expression.type
                 : resolved.operands[0]!.kind === 'call'
