@@ -15,6 +15,28 @@ CREATE TABLE stock_batches (
   CONSTRAINT nonnegative_received CHECK (received >= 0)
 );
 
+CREATE TABLE stock_fractional_counts (
+  id integer PRIMARY KEY,
+  small_count smallint,
+  ordinary_count integer,
+  bulk_count bigint,
+  fractional_count numeric,
+  choose_integer boolean,
+  recorded_small numeric,
+  recorded_ordinary numeric,
+  recorded_bulk numeric,
+  recorded_default numeric,
+  recorded_next numeric,
+  recorded_wire text COLLATE "C",
+  bypass boolean NOT NULL,
+  CONSTRAINT fractional_small_choice CHECK (CASE WHEN bypass THEN true ELSE (CASE WHEN choose_integer THEN small_count ELSE fractional_count END) IS NOT DISTINCT FROM recorded_small END),
+  CONSTRAINT fractional_ordinary_choice CHECK (CASE WHEN bypass THEN true ELSE (CASE WHEN choose_integer THEN ordinary_count ELSE fractional_count END) IS NOT DISTINCT FROM recorded_ordinary END),
+  CONSTRAINT fractional_bulk_choice CHECK (CASE WHEN bypass THEN true ELSE (CASE WHEN choose_integer THEN bulk_count ELSE fractional_count END) IS NOT DISTINCT FROM recorded_bulk END),
+  CONSTRAINT fractional_default_count CHECK (CASE WHEN bypass THEN true ELSE COALESCE(small_count,fractional_count) IS NOT DISTINCT FROM recorded_default END),
+  CONSTRAINT fractional_next_count CHECK (CASE WHEN bypass THEN true ELSE (CASE WHEN choose_integer THEN small_count+1::smallint ELSE fractional_count END) IS NOT DISTINCT FROM recorded_next END),
+  CONSTRAINT fractional_count_scale CHECK (CASE WHEN bypass THEN true ELSE encode(numeric_send(CASE WHEN choose_integer THEN small_count ELSE fractional_count END),'hex') IS NOT DISTINCT FROM recorded_wire END)
+);
+
 CREATE TABLE package_capacity (
   id integer PRIMARY KEY,
   width integer,
@@ -460,4 +482,22 @@ CREATE TABLE stock_encoded_labels (
   divisor integer,
   CONSTRAINT encoded_label_count CHECK (CASE WHEN check_count THEN cardinality(labels::name[]) IS NOT DISTINCT FROM expected_count ELSE true END),
   CONSTRAINT encoded_label_calculation CHECK (CASE WHEN check_count THEN cardinality(labels::name[])+(1/divisor)>0 ELSE true END)
+);
+
+CREATE TABLE stock_fractional_totals (
+  id integer PRIMARY KEY,
+  unit_cost numeric,
+  decimal_places smallint,
+  pack_count integer,
+  bulk_count bigint,
+  recorded_total numeric,
+  recorded_unit numeric,
+  recorded_rounded numeric,
+  recorded_scale integer,
+  bypass boolean NOT NULL,
+  CONSTRAINT fractional_total CHECK (CASE WHEN bypass THEN true ELSE unit_cost*pack_count+bulk_count=recorded_total END),
+  CONSTRAINT fractional_unit CHECK (CASE WHEN bypass THEN true ELSE unit_cost/pack_count=recorded_unit END),
+  CONSTRAINT fractional_rounding CHECK (CASE WHEN bypass THEN true ELSE round(unit_cost,decimal_places)=recorded_rounded END),
+  CONSTRAINT fractional_scale CHECK (CASE WHEN bypass THEN true ELSE scale(unit_cost+bulk_count)=recorded_scale END),
+  CONSTRAINT fractional_intermediate CHECK (CASE WHEN bypass THEN true ELSE (pack_count+1)+unit_cost>=0 END)
 );

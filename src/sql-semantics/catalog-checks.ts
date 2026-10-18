@@ -28,7 +28,10 @@ const fields = (value: unknown): Fields | null =>
 type CheckTable = {
   columns: readonly CheckColumn[]
 }
-type CheckConstraint = Pick<ConstraintInfo, 'name' | 'type' | 'definition' | 'moneyLiterals'>
+type CheckConstraint = Pick<
+  ConstraintInfo,
+  'name' | 'type' | 'definition' | 'moneyLiterals' | 'coercionContext'
+>
 
 export function lowerTableCheck(
   table: CheckTable,
@@ -60,6 +63,11 @@ export function lowerTableCheck(
     domains,
     constraint.moneyLiterals,
     literalOrigin,
+    undefined,
+    undefined,
+    constraint.coercionContext?.definition === constraint.definition
+      ? constraint.coercionContext
+      : undefined,
   )
   return { name: constraint.name, ...bound }
 }

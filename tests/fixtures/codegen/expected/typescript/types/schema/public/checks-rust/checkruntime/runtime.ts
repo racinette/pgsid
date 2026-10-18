@@ -453,6 +453,8 @@ function equalSqlErrorDescription(left: SqlErrorDescription, right: SqlErrorDesc
     return left.message === right.message;
 }
 const sqlErrorNumericOutOfRange = 3452547;
+const sqlErrorNotNullViolation = 3505682;
+const sqlErrorCheckViolation = 3505720;
 const sqlErrorNullValueNotAllowed = 3452548;
 const sqlErrorInvalidDatetimeFormat = 3452551;
 const sqlErrorDatetimeFieldOverflow = 3452552;
@@ -486,6 +488,12 @@ const sqlErrorJsonNumber = 3452663;
 const sqlErrorJsonObject = 3452664;
 const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorNotNullViolation) {
+        return { message: "not-null constraint violation" };
+    }
+    if (error.state === sqlErrorCheckViolation) {
+        return { message: "check constraint violation" };
+    }
     if (error.state === sqlErrorObjectNotReady) {
         return { message: "object not in prerequisite state" };
     }
@@ -8404,6 +8412,67 @@ export function arrayElementToJsonpath(input: ArrayElement): JsonpathValue {
     }
     return { kind: "Unknown" };
 }
+export function domainConversionStart(input: BoolValue, notNull: boolean): CheckOutcome {
+    notNull = langruntime.checkedBool(notNull);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (!(equalBoolValue(input, { kind: "Value", value: true })) && !(equalBoolValue(input, { kind: "Value", value: false }))) {
+        return { kind: "Unknown" };
+    }
+    if (notNull) {
+        if (equalBoolValue(input, { kind: "Value", value: true })) {
+            return { kind: "Error", value: makeSqlError(sqlErrorNotNullViolation) };
+        }
+    }
+    return { kind: "True" };
+}
+export function domainConversionContinues(input: CheckOutcome): boolean {
+    return equalCheckOutcome(input, { kind: "True" });
+}
+export function domainConversionCheck(input: CheckOutcome, result: CheckOutcome): CheckOutcome {
+    if (!(equalCheckOutcome(input, { kind: "True" }))) {
+        return input;
+    }
+    if (equalCheckOutcome(result, { kind: "False" })) {
+        return { kind: "Error", value: makeSqlError(sqlErrorCheckViolation) };
+    }
+    if (equalCheckOutcome(result, { kind: "Null" })) {
+        return { kind: "True" };
+    }
+    return result;
+}
+export function finishDomainConversion(input: ArrayElement, result: CheckOutcome): ArrayElement {
+    input = copyArrayElement(input);
+    if (result.kind === "Error") {
+        const error: SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCheckOutcome(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return input;
+}
+export function finishDomainArrayInput(input: ArrayTextPayload, converted: ArrayArguments): ArrayValue {
+    input = copyArrayTextPayload(input);
+    converted = copyArrayArguments(converted);
+    if (converted.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    return finishPreparedArrayText(input, converted);
+}
+export function finishArrayDomainConversion(input: ArrayValue, result: CheckOutcome): ArrayValue {
+    input = copyArrayValue(input);
+    if (result.kind === "Error") {
+        const error: SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCheckOutcome(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return input;
+}
 export interface ArrayDimension {
     readonly lower: number;
     readonly length: number;
@@ -9489,6 +9558,20 @@ export function arrayTextHasEvent(input: ArrayTextPayload, index: Int4Value): bo
     if (index.kind === "Value") {
         const position: number = langruntime.checkedI32(index.value);
         return position >= 0 && ((BigInt(langruntime.checkedI32(position))) < (BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.events.length)))))));
+    }
+    return false;
+}
+export function arrayTextEventNeedsInput(input: ArrayTextPayload, index: Int4Value): boolean {
+    input = copyArrayTextPayload(input);
+    if (index.kind === "Value") {
+        const position: number = langruntime.checkedI32(index.value);
+        if (position >= 0 && (BigInt(langruntime.checkedI32(position))) < (BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.events.length))))))) {
+            const event: ArrayTextEvent = copyArrayTextEvent(langruntime.indexStruct(input.events, langruntime.checkedIndex(langruntime.indexFromI32(position, 0)), copyArrayTextEvent));
+            if (event.kind === "Error") {
+                return false;
+            }
+            return true;
+        }
     }
     return false;
 }

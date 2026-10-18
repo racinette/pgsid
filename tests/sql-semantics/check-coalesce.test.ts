@@ -177,7 +177,14 @@ describe('COALESCE CHECK control flow', () => {
   })
 
   it('defers unavailable conversions and rejects incompatible types without selecting an implementation', async () => {
-    for (const sql of ['COALESCE(small, amount)', 'COALESCE(code, note)']) {
+    expect(lower('(COALESCE(small, amount)) IS NULL')).toMatchObject({
+      kind: 'eval-scalar',
+      expression: {
+        kind: 'null-test',
+        operand: { kind: 'coalesce', type: 'pg_catalog."numeric"' },
+      },
+    })
+    for (const sql of ['COALESCE(code, note)']) {
       await pg.query(`SELECT ${sql} FROM coalesce_checks`)
       expect(lower(`(${sql}) IS NULL`)).toEqual({ kind: 'uncertain' })
     }

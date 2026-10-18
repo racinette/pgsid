@@ -1,4 +1,7 @@
+import { arrayElementBaseType } from '../../sql-semantics/expressions.js'
+
 export function arrayElementFamily(type: string): number | null {
+  type = arrayElementBaseType(type)
   if (type.startsWith('enum:')) return 6
   const families: Readonly<Record<string, number>> = {
     'pg_catalog.int2': 1,

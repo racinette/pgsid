@@ -67,6 +67,24 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
+  if (expression.kind === 'text-to-enum') {
+    const operand = prepare(expression.operand)
+    return expression.literal
+      ? constant(expression)
+      : operand
+        ? { constant: false, null: operand.null, expressions: operand.expressions }
+        : null
+  }
+  if (expression.kind === 'array-domain-coerce') {
+    const operand = prepare(expression.operand)
+    return operand
+      ? { constant: false, null: operand.null, expressions: operand.expressions }
+      : null
+  }
+  if (expression.kind === 'domain-cast') {
+    const operand = prepare(expression.operand)
+    return operand ? { constant: false, null: false, expressions: operand.expressions } : null
+  }
   if (expression.kind === 'array-io-coerce') {
     const operand = prepare(expression.operand)
     if (!operand) return null
@@ -236,6 +254,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.kind === 'text-to-float' ||
     expression.kind === 'text-to-integer' ||
     expression.kind === 'text-to-numeric' ||
+    expression.kind === 'text-to-boolean' ||
     expression.kind === 'text-to-bit' ||
     expression.kind === 'clock-to-text' ||
     expression.kind === 'text-to-interval' ||

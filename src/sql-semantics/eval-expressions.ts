@@ -23,6 +23,23 @@ export type EvalExpression =
   | { kind: 'certain'; expression: SqlExpression }
   | { kind: 'uncertain'; type: string }
   | {
+      kind: 'domain-cast'
+      type: ScalarType
+      schema: string
+      name: string
+      notNull: boolean
+      checks: readonly { name: string; expression: EvalBoolExpression }[]
+      operand: EvalExpression
+    }
+  | {
+      kind: 'text-to-enum'
+      type: ScalarType
+      enum: EnumDefinition
+      literal: boolean
+      operand: EvalExpression
+    }
+  | { kind: 'text-to-boolean'; type: 'pg_catalog.bool'; literal?: boolean; operand: EvalExpression }
+  | {
       kind: 'boolean-logic'
       type: 'pg_catalog.bool'
       operation: 'and' | 'or' | 'not'
@@ -71,6 +88,7 @@ export type EvalExpression =
     }
   | {
       kind: 'array-text-literal'
+      conversion?: EvalExpression
       moneyLiterals?: readonly { text: string; units: string }[]
       type: ArrayType
       elementType: ArrayElementType
@@ -88,6 +106,7 @@ export type EvalExpression =
     }
   | {
       kind: 'text-to-array'
+      conversion?: EvalExpression
       type: ArrayType
       elementType: ArrayElementType
       operand: EvalExpression
@@ -113,6 +132,14 @@ export type EvalExpression =
       conversion: SqlCallableExpression
       explicit: boolean
       modifier: number
+      operand: EvalExpression
+    }
+  | {
+      kind: 'array-domain-coerce'
+      type: ArrayType
+      sourceElementType: ArrayElementType
+      elementType: ArrayElementType
+      conversion: EvalExpression
       operand: EvalExpression
     }
   | {
@@ -498,11 +525,15 @@ export function emitEvalExpression<Ast>(
     }
     if (
       node.kind === 'uncertain' ||
+      node.kind === 'domain-cast' ||
+      node.kind === 'text-to-enum' ||
+      node.kind === 'text-to-boolean' ||
       node.kind === 'array-constructor' ||
       node.kind === 'array-text-literal' ||
       node.kind === 'text-to-array' ||
       node.kind === 'array-to-text' ||
       node.kind === 'array-subscript' ||
+      node.kind === 'array-domain-coerce' ||
       node.kind === 'array-coerce' ||
       node.kind === 'array-io-coerce' ||
       node.kind === 'array-typmod'

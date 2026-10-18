@@ -1,5 +1,11 @@
+import { alignStoredDomainCoercions } from './stored-coercions.js'
 import { parseSync } from 'libpg-query'
-import type { ColumnInfo, DomainInfo, EnumInfo } from '../catalog/types.js'
+import type {
+  ColumnInfo,
+  DomainInfo,
+  EnumInfo,
+  StoredDomainCoercionContext,
+} from '../catalog/types.js'
 import { PG18_BUILTIN_GROUPS } from '../postgres/builtins/groups.generated.js'
 import {
   builtinCast,
@@ -25,6 +31,9 @@ import {
   capturedEnumSupport,
   catalogScalarType,
   arrayType,
+  domainElementType,
+  domainElementDefinition,
+  arrayElementBaseType,
   type ArrayType,
   type ArrayElementType,
   isOidType,
@@ -107,7 +116,33 @@ export function catalogArrayType(
   if (builtin?.startsWith('array:')) return builtin as ArrayType
   if (!name.endsWith('[]')) return null
   const definition = catalogEnumDefinition(name.replace(/(?:\[\])+$/u, ''), enums)
-  return definition ? arrayType(enumType(definition)) : null
+  if (definition) return arrayType(enumType(definition))
+  try {
+    const parsed = parseSync(`SELECT NULL::${name}`)
+    const select = fields(fields(parsed.stmts?.[0]?.stmt)?.['SelectStmt'])
+    const targets = select?.['targetList']
+    const target = Array.isArray(targets) ? fields(fields(targets[0])?.['ResTarget']) : null
+    const cast = fields(fields(target?.['val'])?.['TypeCast'])
+    const typeName = fields(cast?.['typeName'])
+    const names = strings(typeName?.['names'])
+    const matches = domains.filter((item) =>
+      names?.length === 2
+        ? item.schema === names[0] && item.name === names[1]
+        : names?.length === 1 && item.name === names[0],
+    )
+    if (matches.length !== 1) return null
+    const domain = matches[0]!
+    const base = catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
+    const enumBase = catalogEnumDefinition(domain.baseTypeName, enums, domain.baseTypeOid, domains)
+    const carrier = enumBase ? enumType(enumBase) : base
+    return carrier && !carrier.startsWith('array:') && !carrier.startsWith('domain:')
+      ? arrayType(
+          domainElementType(domain, carrier as Exclude<ArrayElementType, `domain:${string}`>),
+        )
+      : null
+  } catch {
+    return null
+  }
 }
 
 export function catalogDateType(
@@ -346,6 +381,25 @@ type Bound = {
   nominalDomain?: string
 }
 
+const nominalScalarType = (arg: Bound): ScalarType | null => {
+  const type = boundType(arg)
+  if (!arg.nominalDomain || !type || type.startsWith('array:')) return type
+  const [schema, name] = JSON.parse(arg.nominalDomain) as [string, string]
+  return domainElementType(
+    { schema, name },
+    arrayElementBaseType(type) as Exclude<ArrayElementType, `domain:${string}`>,
+  )
+}
+
+const implicitTypeCast = (source: string, target: string): boolean => {
+  if (source === target) return true
+  if (source.startsWith('array:') && target.startsWith('array:'))
+    return implicitTypeCast(source.slice(6), target.slice(6))
+  const from = arrayElementBaseType(source),
+    to = arrayElementBaseType(target)
+  return from === to || builtinCast(from, to)?.context === 'i'
+}
+
 const commonNominalDomain = (args: readonly Bound[]): string | undefined => {
   const domain = args[0]?.nominalDomain
   return domain !== undefined && args.every((arg) => arg.nominalDomain === domain)
@@ -518,6 +572,16 @@ const materialize = (
     }
   }
   if (bound.literal) {
+    if (type === 'pg_catalog.bool' && bound.literal.kind === 'string')
+      return {
+        kind: 'text-to-boolean',
+        type,
+        literal: true,
+        operand: {
+          kind: 'certain',
+          expression: { kind: 'text', type: 'pg_catalog.text', value: bound.literal.value },
+        },
+      }
     if (isIntegerType(type) && bound.literal.kind === 'string')
       return {
         kind: 'text-to-integer',
@@ -763,6 +827,11 @@ const candidate = (
   args: readonly Bound[],
   bindDefault?: (node: unknown) => Bound,
   explicitVariadic = false,
+  coerce: (
+    arg: Bound,
+    target: ScalarType,
+    definition?: EnumInfo,
+  ) => EvalExpression | null = implicitOperand,
 ): ResolvedCallable | null => {
   const hasOmittedDefaults =
     kind === 'function' &&
@@ -813,6 +882,7 @@ const candidate = (
         (arg) =>
           arg.type === 'pg_catalog.float4' ||
           arg.type === 'pg_catalog.float8' ||
+          arg.type === 'pg_catalog."numeric"' ||
           isOidType(arg.type),
       ))
   )
@@ -920,7 +990,7 @@ const candidate = (
     )
       return []
     const elementTypes = fullArgs.flatMap((arg, index) =>
-      item.args[index] === 'pg_catalog.anyelement' ? [boundType(arg)] : [],
+      item.args[index] === 'pg_catalog.anyelement' ? [nominalScalarType(arg)] : [],
     )
     const elementType = elementTypes[0]
     if (elementTypes.length && (!elementType || elementTypes.some((type) => type !== elementType)))
@@ -948,8 +1018,7 @@ const candidate = (
           !elementType.startsWith('array:') &&
           fullArgs.every(
             (arg, index) =>
-              item.args[index] !== 'pg_catalog.anyelement' ||
-              (arg.nominalDomain === undefined && arg.enumDomain === undefined),
+              item.args[index] !== 'pg_catalog.anyelement' || !arg.type?.startsWith('array:'),
           )
             ? arrayType(elementType as ArrayElementType)
             : null))
@@ -961,7 +1030,7 @@ const candidate = (
     )
     const compatibleArgs = fullArgs.flatMap((arg, index) => {
       const type = item.args[index]
-      if (type === 'pg_catalog.anycompatible') return [arg]
+      if (type === 'pg_catalog.anycompatible') return [{ ...arg, type: nominalScalarType(arg) }]
       if (type !== 'pg_catalog.anycompatiblearray') return []
       const source = boundType(arg)
       return [
@@ -981,7 +1050,9 @@ const candidate = (
       )
     )
       return []
-    const compatibleType = compatible ? commonType(compatibleArgs) : null
+    const compatibleType = compatible
+      ? commonType(compatibleArgs.filter((arg) => boundType(arg) !== null))
+      : null
     if (compatible && (!compatibleType || compatibleType.startsWith('array:'))) return []
     const compatibleArray = compatibleType ? arrayType(compatibleType as ArrayElementType) : null
     const definition = fullArgs.find(
@@ -1015,13 +1086,13 @@ const candidate = (
         : variadicAny
           ? materialize(arg, boundType(arg) ?? 'pg_catalog.text', arg.enum)
           : item.args[index] === 'pg_catalog.anycompatiblearray'
-            ? implicitOperand(arg, compatibleArray!, definition)
+            ? coerce(arg, compatibleArray!, definition)
             : item.args[index] === 'pg_catalog.anycompatible'
-              ? implicitOperand(arg, compatibleType!, definition)
+              ? coerce(arg, compatibleType!, definition)
               : item.args[index] === 'pg_catalog.anyarray'
                 ? materialize(arg, arrayIdentity!)
                 : item.args[index] === 'pg_catalog.anyelement'
-                  ? materialize(arg, elementType!, arg.enum)
+                  ? coerce(arg, elementType!, arg.enum)
                   : catalogScalarType(item.args[index]!)?.startsWith('array:')
                     ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
                     : isIntegerType(item.args[index]!)
@@ -1139,30 +1210,22 @@ const candidate = (
 }
 
 const commonType = (args: readonly Bound[]): ScalarType | null => {
-  const types = args.map(boundType).filter((type): type is ScalarType => type !== null)
+  let types = args.map(boundType).filter((type): type is ScalarType => type !== null)
   if (!types.length) return 'pg_catalog.text'
-  if (types.every((type) => type.startsWith('array:'))) {
-    const element = commonType(
-      types.map((type) => ({ ...unknown, type: type.slice(6) as ArrayElementType })),
-    )
-    return element && !element.startsWith('array:') ? arrayType(element as ArrayElementType) : null
-  }
+  if (types.every((type) => type === types[0])) return types[0]!
+  types = types.map((type) => arrayElementBaseType(type) as ScalarType)
+  const resolution = (type: ScalarType) =>
+    type.startsWith('array:') ? { category: 'A', preferred: false } : builtinTypeResolution(type)
   let selected = types[0]!
   for (const type of types.slice(1)) {
     if (type === selected) continue
-    const current = builtinTypeResolution(selected)
-    const next = builtinTypeResolution(type)
+    const current = resolution(selected)
+    const next = resolution(type)
     if (!current || !next || current.category !== next.category) return null
-    if (
-      !current.preferred &&
-      builtinCast(selected, type)?.context === 'i' &&
-      builtinCast(type, selected)?.context !== 'i'
-    )
+    if (!current.preferred && implicitTypeCast(selected, type) && !implicitTypeCast(type, selected))
       selected = type
   }
-  return types.every((type) => type === selected || builtinCast(type, selected)?.context === 'i')
-    ? selected
-    : null
+  return types.every((type) => implicitTypeCast(type, selected)) ? selected : null
 }
 
 const implicitOperand = (
@@ -1337,7 +1400,7 @@ const comparisonCandidate = (
       item.kind === kind &&
       item.schema === 'pg_catalog' &&
       item.name === name &&
-      (predicate ? item.result === 'pg_catalog.bool' : catalogScalarType(item.result) !== null) &&
+      (!predicate || item.result === 'pg_catalog.bool') &&
       item.args.length === args.length &&
       item.args.every((type, index) => {
         const target = concrete(type)
@@ -1398,6 +1461,7 @@ const comparisonCandidate = (
   }
   if (best.length !== 1) return null
   const selected = best[0]!
+  if (!catalogScalarType(selected.item.result)) return null
   const collation = selected.item.args.some((type) => type === 'pg_catalog.anyarray')
     ? arrayCollations(args.map((arg) => arg.collation))
     : combineCollations(args.map((arg) => arg.collation))
@@ -1451,6 +1515,7 @@ const arrayElementCollation = (
   type: ArrayElementType,
   operand?: Bound,
 ): BoundCollation | undefined => {
+  type = arrayElementBaseType(type) as ArrayElementType
   const collation = builtinTypeComparison(
     type.startsWith('enum:') ? 'pg_catalog.anyenum' : type,
   )?.collation
@@ -1481,7 +1546,44 @@ export function bindCatalogCheck(
   domains: readonly DomainInfo[] = [],
   moneyLiterals: readonly { text: string; units: string }[] = [],
   literalOrigin: 'source' | 'stored' = 'source',
+  domainStack: ReadonlySet<string> = new Set(),
+  domainInput?: boolean,
+  coercionContext?: StoredDomainCoercionContext,
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
+  const storedCoercions =
+    literalOrigin === 'stored' && coercionContext
+      ? alignStoredDomainCoercions(root, coercionContext, domains)
+      : undefined
+  if (storedCoercions === null) return { expression: { kind: 'uncertain' }, inputs: [] }
+  const modifierNeedsContext = (type: string): boolean => {
+    const base = arrayElementBaseType(type.startsWith('array:') ? type.slice(6) : type)
+    const conversion = builtinCast(base, base)
+    return (
+      conversion?.implementation !== null &&
+      conversion?.implementation !== undefined &&
+      builtinMetadata(conversion.implementation).args[2] === 'pg_catalog.bool'
+    )
+  }
+  const domainNeedsContext = (domain: DomainInfo): boolean => {
+    const seen = new Set<number>()
+    let layer: DomainInfo | undefined = domain
+    while (layer && !seen.has(layer.oid)) {
+      seen.add(layer.oid)
+      const carrier =
+        catalogArrayType(layer.baseTypeName, layer.baseTypeOid, domains, enums) ??
+        catalogBaseScalarType(layer.baseTypeName, layer.baseTypeOid, domains)
+      if (
+        layer.baseTypeMod !== undefined &&
+        layer.baseTypeMod !== -1 &&
+        carrier &&
+        modifierNeedsContext(carrier)
+      )
+        return true
+      const baseOid: number = layer.baseTypeOid
+      layer = domains.find((item) => item.oid === baseOid)
+    }
+    return false
+  }
   const moneyUnits = new Map<string, string>()
   for (const literal of moneyLiterals) {
     if (!/^-?(?:0|[1-9]\d*)$/u.test(literal.units)) continue
@@ -1491,14 +1593,173 @@ export function bindCatalogCheck(
   }
   const inputs = new Set<string>()
   const elementTypeName = (type: ArrayElementType): Fields => ({
-    names: type.startsWith('enum:')
-      ? (JSON.parse(type.slice(5)) as string[]).map((sval) => ({ String: { sval } }))
-      : [
-          { String: { sval: 'pg_catalog' } },
-          { String: { sval: type.slice('pg_catalog.'.length).replaceAll('"', '') } },
-        ],
+    names: type.startsWith('domain:')
+      ? (() => {
+          const domain = domainElementDefinition(type)!
+          return [domain.schema, domain.name].map((sval) => ({ String: { sval } }))
+        })()
+      : type.startsWith('enum:')
+        ? (JSON.parse(type.slice(5)) as string[]).map((sval) => ({ String: { sval } }))
+        : [
+            { String: { sval: 'pg_catalog' } },
+            { String: { sval: type.slice('pg_catalog.'.length).replaceAll('"', '') } },
+          ],
   })
-  const bindArray = (node: unknown, target?: { type: ArrayElementType; name: Fields }): Bound => {
+  const bindArrayElementCoercion = (
+    operand: Bound,
+    type: ArrayType,
+    element: ArrayElementType,
+    targetName: Fields,
+    inputContext = false,
+  ): Bound => {
+    if (!operand.type?.startsWith('array:') || !operand.value) return unknown
+    const sourceElementType = operand.type.slice(6) as ArrayElementType
+    const sourceNames = strings(elementTypeName(sourceElementType)['names'])!
+    const sourceDomain = domainElementDefinition(sourceElementType)
+    const sourceDefinition = sourceDomain
+      ? domains.find(
+          (item) => item.schema === sourceDomain.schema && item.name === sourceDomain.name,
+        )
+      : undefined
+    const converted = bindCatalogCheck(
+      [
+        {
+          name: '__pgsid_domain_element',
+          typeName:
+            sourceNames[0] === 'pg_catalog'
+              ? arrayElementBaseType(sourceElementType)
+              : sourceNames.map((name) => '"' + name.replaceAll('"', '""') + '"').join('.'),
+          ...(sourceDefinition ? { typeOid: sourceDefinition.oid } : {}),
+          collationIsC: true,
+          isRowType: false,
+        },
+      ],
+      {
+        NullTest: {
+          nulltesttype: 'IS_NOT_NULL',
+          arg: {
+            TypeCast: {
+              arg: {
+                ColumnRef: { fields: [{ String: { sval: '__pgsid_domain_element' } }] },
+              },
+              typeName: { ...targetName, arrayBounds: [] },
+            },
+          },
+        },
+      },
+      [],
+      enums,
+      domains,
+      moneyLiterals,
+      literalOrigin,
+      domainStack,
+      inputContext,
+    ).expression
+    if (converted.kind !== 'eval-scalar' || converted.expression.kind !== 'null-test')
+      return unknown
+    const conversion = converted.expression.operand
+    return {
+      type,
+      collation: operand.collation ?? arrayElementCollation(element as ArrayElementType),
+      value: {
+        kind: 'array-domain-coerce',
+        type,
+        sourceElementType,
+        elementType: element,
+        conversion,
+        operand: operand.value,
+      },
+    }
+  }
+  const coerceBound = (
+    arg: Bound,
+    target: ScalarType,
+    node?: unknown,
+    definition = arg.enum,
+  ): EvalExpression | null => {
+    const domain = domainElementDefinition(target)
+    if (domain) {
+      if (nominalScalarType(arg) === target) return implicitOperand(arg, domain.base, definition)
+      if (node === undefined) return null
+      return bind(
+        { TypeCast: { arg: node, typeName: elementTypeName(target as ArrayElementType) } },
+        undefined,
+        true,
+      ).value
+    }
+    if (
+      target.startsWith('array:') &&
+      arg.type !== target &&
+      (domainElementDefinition(target.slice(6)) || arg.type?.startsWith('array:domain:'))
+    ) {
+      const element = target.slice(6) as ArrayElementType
+      if (arg.type?.startsWith('array:'))
+        return bindArrayElementCoercion(
+          arg,
+          target as ArrayType,
+          element,
+          elementTypeName(element),
+          true,
+        ).value
+      if (node === undefined) return null
+      return bind(
+        {
+          TypeCast: {
+            arg: node,
+            typeName: { ...elementTypeName(element), arrayBounds: [{ Integer: { ival: -1 } }] },
+          },
+        },
+        undefined,
+        true,
+      ).value
+    }
+    return implicitOperand(arg, target, definition)
+  }
+  const modifyScalar = (
+    operand: EvalExpression,
+    type: ScalarType,
+    modifier: number,
+    explicit: boolean,
+  ): EvalExpression | null => {
+    if (!Number.isInteger(modifier) || modifier < 0 || modifier > 2147483647) return null
+    const conversion = builtinCast(type, type)
+    if (conversion?.method !== 'f' || !conversion.implementation) return null
+    const callable = builtinMetadata(conversion.implementation)
+    if (
+      callable.kind !== 'function' ||
+      ![2, 3].includes(callable.args.length) ||
+      callable.args[1] !== 'pg_catalog.int4' ||
+      (callable.args.length === 3 && callable.args[2] !== 'pg_catalog.bool')
+    )
+      return null
+    return {
+      kind: 'call',
+      call: { kind: 'function', signature: conversion.implementation, type },
+      operands: [
+        operand,
+        {
+          kind: 'certain',
+          expression: { kind: 'integer', type: 'pg_catalog.int4', value: String(modifier) },
+        },
+        ...(callable.args.length === 3
+          ? [
+              {
+                kind: 'certain' as const,
+                expression: {
+                  kind: 'boolean' as const,
+                  type: 'pg_catalog.bool' as const,
+                  value: explicit,
+                },
+              },
+            ]
+          : []),
+      ],
+    }
+  }
+  const bindArray = (
+    node: unknown,
+    target?: { type: ArrayElementType; name: Fields; modifiers?: readonly number[] },
+  ): Bound => {
     const array = fields(fields(node)?.['A_ArrayExpr'])
     if (!array) return unknown
     const members = Array.isArray(array['elements']) ? array['elements'] : []
@@ -1509,12 +1770,7 @@ export function bindCatalogCheck(
     const multidimensional =
       args.some((arg) => arg.nominalDomain === undefined && arg.type?.startsWith('array:')) ||
       members.some((member) => fields(fields(member)?.['A_ArrayExpr']))
-    if (
-      !multidimensional &&
-      (args.some((arg) => arg.type?.startsWith('array:')) ||
-        (!target && commonNominalDomain(args) !== undefined))
-    )
-      return unknown
+    if (!multidimensional && args.some((arg) => arg.type?.startsWith('array:'))) return unknown
     const candidates = multidimensional
       ? args.map((arg) => ({
           ...arg,
@@ -1522,9 +1778,21 @@ export function bindCatalogCheck(
         }))
       : args
     if (multidimensional && !target && candidates.every((arg) => arg.type === null)) return unknown
-    const inferred = target?.type ?? commonType(candidates)
+    const inferred =
+      target?.type ??
+      (multidimensional
+        ? (commonType(args)?.slice(6) as ArrayElementType | undefined)
+        : commonType(candidates))
     if (!inferred || inferred.startsWith('array:')) return unknown
-    const element = inferred as ArrayElementType
+    const nominal = !target && !multidimensional ? commonNominalDomain(args) : undefined
+    const identity = nominal ? (JSON.parse(nominal) as [string, string]) : null
+    const element =
+      identity && !inferred.startsWith('domain:')
+        ? domainElementType(
+            { schema: identity[0], name: identity[1] },
+            inferred as Exclude<ArrayElementType, `domain:${string}`>,
+          )
+        : (inferred as ArrayElementType)
     const type = arrayType(element)
     const definition = element.startsWith('enum:')
       ? enums.find((item) => enumType(item) === element)
@@ -1532,6 +1800,20 @@ export function bindCatalogCheck(
     const operands = members.map((member, index) => {
       let arg = args[index]!
       if (multidimensional) {
+        if (target?.modifiers?.length) {
+          if (fields(fields(member)?.['A_ArrayExpr'])) return arg.value
+          let value = bind({
+            TypeCast: {
+              arg: member,
+              typeName: { ...target.name, arrayBounds: [{ Integer: { ival: -1 } }] },
+            },
+          }).value
+          for (const modifier of target.modifiers) {
+            if (!value) return null
+            value = { kind: 'array-typmod', type, elementType: element, modifier, operand: value }
+          }
+          return value
+        }
         if (!arg.value && fields(fields(member)?.['A_ArrayExpr']))
           arg = bindArray(member, { type: element, name: elementTypeName(element) })
         return target
@@ -1541,12 +1823,17 @@ export function bindCatalogCheck(
                 typeName: { ...target.name, arrayBounds: [{ Integer: { ival: -1 } }] },
               },
             }).value
-          : implicitOperand(arg, type)
+          : coerceBound(arg, type, member)
       }
       if (target) arg = bind({ TypeCast: { arg: member, typeName: target.name } })
       if (arg.literal?.kind === 'string' && element !== 'pg_catalog.text')
         arg = bind({ TypeCast: { arg: member, typeName: elementTypeName(element) } })
-      return implicitOperand(arg, element, definition)
+      let value = implicitOperand(arg, arrayElementBaseType(element) as ScalarType, definition)
+      for (const modifier of target?.modifiers ?? []) {
+        if (!value) return null
+        value = modifyScalar(value, arrayElementBaseType(element) as ScalarType, modifier, true)
+      }
+      return value
     })
     if (!operands.every((operand): operand is EvalExpression => operand !== null)) return unknown
     return {
@@ -1562,7 +1849,7 @@ export function bindCatalogCheck(
     type.startsWith('array:enum:')
       ? enums.find((item) => enumType(item) === type.slice(6))
       : args.find((arg) => arg.enum)?.enum
-  const bind = (node: unknown, expectedType?: ScalarType): Bound => {
+  const bind = (node: unknown, expectedType?: ScalarType, implicitDomainInput?: boolean): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
     const indirection = fields(wrapper['A_Indirection'])
@@ -1627,12 +1914,25 @@ export function bindCatalogCheck(
         }
       }
       const elementType = operand.type.slice(6) as ArrayElementType
-      const definition = elementType.startsWith('enum:')
-        ? enums.find((item) => enumType(item) === elementType)
+      const definition = arrayElementBaseType(elementType).startsWith('enum:')
+        ? enums.find((item) => enumType(item) === arrayElementBaseType(elementType))
         : undefined
-      const type = slice ? (operand.type as ArrayType) : elementType
+      const domain = domainElementDefinition(elementType)
+      const type = slice
+        ? (operand.type as ArrayType)
+        : (arrayElementBaseType(elementType) as ScalarType)
       return {
         type,
+        ...(!slice && domain
+          ? { nominalDomain: JSON.stringify([domain.schema, domain.name]) }
+          : {}),
+        ...(!slice && domain && definition
+          ? {
+              enumDomain: domains.find(
+                (item) => item.schema === domain.schema && item.name === domain.name,
+              )?.oid,
+            }
+          : {}),
         collation: operand.collation,
         ...(!slice && definition ? { enum: definition } : {}),
         value: {
@@ -1670,7 +1970,7 @@ export function bindCatalogCheck(
       const operands = args.map((arg, index) =>
         type === 'pg_catalog.bool' && arg.type === 'pg_catalog.bool'
           ? { kind: 'check' as const, type, expression: lower(nodes[index]) }
-          : implicitOperand(arg, type, definition),
+          : coerceBound(arg, type, nodes[index], definition),
       )
       if (!operands.every((value): value is EvalExpression => value !== null)) return unknown
       const collation = type.startsWith('array:')
@@ -1730,6 +2030,7 @@ export function bindCatalogCheck(
           arg.type?.startsWith('array:') ||
           arg.type === 'pg_catalog.float4' ||
           arg.type === 'pg_catalog.float8' ||
+          arg.type === 'pg_catalog."numeric"' ||
           isOidType(arg.type),
       )
         ? (commonType(args) ?? undefined)
@@ -1764,7 +2065,7 @@ export function bindCatalogCheck(
         type === 'pg_catalog.bool' && arg.type === 'pg_catalog.bool'
           ? { kind: 'check', type, expression: lower(nodes[index]) }
           : coercedType !== undefined
-            ? implicitOperand(arg, type, definition)
+            ? coerceBound(arg, type, nodes[index], definition)
             : integerType === undefined
               ? materialize(arg, type, definition)
               : materializeInteger(arg, type),
@@ -1804,6 +2105,7 @@ export function bindCatalogCheck(
           arm.type?.startsWith('array:') ||
           arm.type === 'pg_catalog.float4' ||
           arm.type === 'pg_catalog.float8' ||
+          arm.type === 'pg_catalog."numeric"' ||
           isOidType(arm.type),
       )
         ? (commonType([otherwise, ...results]) ?? undefined)
@@ -1834,9 +2136,14 @@ export function bindCatalogCheck(
       )
         return unknown
       const definition = resultEnum(type, arms)
-      const values = arms.map((arm) =>
+      const values = arms.map((arm, index) =>
         coercedType !== undefined
-          ? implicitOperand(arm, type, definition)
+          ? coerceBound(
+              arm,
+              type,
+              index < branches.length ? branches[index]!['result'] : caseExpression['defresult'],
+              definition,
+            )
           : integerType === undefined
             ? materialize(arm, type, definition)
             : materializeInteger(arm, type),
@@ -1933,6 +2240,8 @@ export function bindCatalogCheck(
       }
     const cast = fields(wrapper['TypeCast'])
     if (cast) {
+      const capturedCoercion = storedCoercions?.get(wrapper)
+      const castInput = implicitDomainInput ?? domainInput ?? capturedCoercion?.input
       const castType = fields(cast['typeName'])
       const names = strings(castType?.['names'])
       const bounds = castType?.['arrayBounds']
@@ -1944,12 +2253,110 @@ export function bindCatalogCheck(
             : names.length === 1 && item.name === names[0],
         )
         const definition = definitions.length === 1 ? definitions[0] : undefined
+        const domainArray = catalogArrayType(
+          names.map((name) => '"' + name.replaceAll('"', '""') + '"').join('.') + '[]',
+          undefined,
+          domains,
+          enums,
+        )
         const element =
           (names.length === 1 || (names.length === 2 && names[0] === 'pg_catalog')
             ? catalogScalarType(names.at(-1)!)
-            : null) ?? (definition ? enumType(definition) : null)
+            : null) ??
+          (definition ? enumType(definition) : null) ??
+          domainArray?.slice(6)
         if (!element || element.startsWith('array:')) return unknown
         const type = arrayType(element as ArrayElementType)
+        if (element.startsWith('domain:')) {
+          if (Array.isArray(castType?.['typmods']) && castType['typmods'].length) return unknown
+          const constructor = fields(fields(cast['arg'])?.['A_ArrayExpr'])
+          if (
+            constructor &&
+            (literalOrigin === 'source' ||
+              !Array.isArray(constructor['elements']) ||
+              constructor['elements'].length === 0)
+          )
+            return bindArray(cast['arg'], {
+              type: element as ArrayElementType,
+              name: { ...castType, arrayBounds: [] },
+            })
+          const operand = bind(cast['arg'])
+          if (operand.type === type && operand.value) return operand
+          if (operand.literal?.kind === 'null') return { type, value: materialize(operand, type) }
+          if (
+            operand.literal?.kind === 'string' ||
+            [
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+              'pg_catalog.name',
+            ].includes(operand.type ?? '')
+          ) {
+            const baseType = arrayElementBaseType(element) as ArrayElementType
+            const baseArray = arrayType(baseType)
+            const mapping = bindArrayElementCoercion(
+              { type: baseArray, value: { kind: 'uncertain', type: baseArray } },
+              type,
+              element as ArrayElementType,
+              { ...castType, arrayBounds: [] },
+              true,
+            ).value
+            if (mapping?.kind !== 'array-domain-coerce') return unknown
+            const baseEnum = baseType.startsWith('enum:')
+              ? enums.find((item) => enumType(item) === baseType)
+              : undefined
+            const text = operand.literal?.kind === 'string' ? undefined : operand.value
+            const value: EvalExpression | null =
+              operand.literal?.kind === 'string'
+                ? {
+                    kind: 'array-text-literal',
+                    type,
+                    elementType: element as ArrayElementType,
+                    value: operand.literal.value!,
+                    ...(literalOrigin === 'stored' ? {} : { conversion: mapping.conversion }),
+                    ...(baseEnum ? { enum: baseEnum } : {}),
+                  }
+                : text
+                  ? {
+                      kind: 'text-to-array',
+                      type,
+                      elementType: element as ArrayElementType,
+                      operand: text,
+                      conversion: mapping.conversion,
+                      ...(baseEnum ? { enum: baseEnum } : {}),
+                    }
+                  : null
+            return value
+              ? {
+                  type,
+                  value,
+                  collation: arrayElementCollation(element as ArrayElementType, operand),
+                }
+              : unknown
+          }
+          if (!operand.type?.startsWith('array:') || !operand.value) return unknown
+          const domain = domainElementDefinition(element)!
+          const targetDomain = domains.find(
+            (item) => item.schema === domain.schema && item.name === domain.name,
+          )
+          if (
+            literalOrigin === 'stored' &&
+            castInput === undefined &&
+            targetDomain &&
+            domainNeedsContext(targetDomain)
+          )
+            return unknown
+          return bindArrayElementCoercion(
+            operand,
+            type,
+            element as ArrayElementType,
+            {
+              ...castType,
+              arrayBounds: [],
+            },
+            castInput ?? false,
+          )
+        }
         const modifiers = castType?.['typmods']
         const values = Array.isArray(modifiers)
           ? modifiers.map((modifier) => {
@@ -2011,6 +2418,13 @@ export function bindCatalogCheck(
         else {
           const operand = bind(cast['arg'])
           let value = materialize(operand, type, definition)
+          if (!value && operand.type?.startsWith('array:domain:'))
+            value = bindArrayElementCoercion(
+              operand,
+              type,
+              element as ArrayElementType,
+              elementTypeName(element as ArrayElementType),
+            ).value
           if (!value && operand.value && operand.type?.startsWith('array:'))
             value = coerceArray(
               operand.value,
@@ -2083,7 +2497,33 @@ export function bindCatalogCheck(
       if (definition) {
         const type = enumType(definition)
         const operand = bind(cast['arg'])
-        const value = materialize(operand, type, definition)
+        let value = materialize(operand, type, definition)
+        if (
+          !value &&
+          (operand.literal?.kind === 'string' ||
+            [
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+              'pg_catalog.name',
+            ].includes(operand.type ?? ''))
+        ) {
+          const text =
+            operand.literal?.kind === 'string'
+              ? materialize(operand, 'pg_catalog.text')
+              : operand.value
+          if (
+            text &&
+            (operand.literal?.kind === 'string' || definition.inputSources?.includes(operand.type!))
+          )
+            value = {
+              kind: 'text-to-enum',
+              type,
+              enum: definition,
+              literal: operand.literal?.kind === 'string',
+              operand: text,
+            }
+        }
         return value ? { type, value, enum: definition } : unknown
       }
       const castDomains = domains.filter((domain) =>
@@ -2093,87 +2533,155 @@ export function bindCatalogCheck(
       )
       if (castDomains.length && !(names?.length === 1 && catalogScalarType(names[0]!) !== null)) {
         if (castDomains.length !== 1) return unknown
-        let domain: DomainInfo | undefined = castDomains[0]!
-        const domainType =
-          catalogArrayType(domain.baseTypeName, domain.baseTypeOid, domains, enums) ??
-          catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
-        if (!domainType) return unknown
+        const target = castDomains[0]!
+        const identity = JSON.stringify([target.schema, target.name])
         if (
-          domainType !== 'pg_catalog.bool' &&
-          domainType !== 'pg_catalog.int2' &&
-          domainType !== 'pg_catalog.int4' &&
-          domainType !== 'pg_catalog.int8' &&
-          domainType !== 'pg_catalog.float4' &&
-          domainType !== 'pg_catalog.float8' &&
-          domainType !== 'pg_catalog."numeric"' &&
-          domainType !== 'pg_catalog.text' &&
-          domainType !== 'pg_catalog."varchar"' &&
-          domainType !== 'pg_catalog.bpchar' &&
-          domainType !== 'pg_catalog.name' &&
-          domainType !== 'pg_catalog.refcursor' &&
-          domainType !== 'pg_catalog."json"' &&
-          domainType !== 'pg_catalog.jsonb' &&
-          domainType !== 'pg_catalog.jsonpath' &&
-          domainType !== 'pg_catalog.point' &&
-          domainType !== 'pg_catalog.line' &&
-          domainType !== 'pg_catalog.lseg' &&
-          domainType !== 'pg_catalog.money' &&
-          domainType !== 'pg_catalog.xid' &&
-          domainType !== 'pg_catalog.cid' &&
-          domainType !== 'pg_catalog.pg_lsn' &&
-          domainType !== 'pg_catalog.tid' &&
-          domainType !== 'pg_catalog."char"' &&
-          domainType !== 'pg_catalog.xid8' &&
-          !isSnapshotType(domainType) &&
-          !isOidType(domainType) &&
-          domainType !== 'pg_catalog.polygon' &&
-          domainType !== 'pg_catalog.path' &&
-          domainType !== 'pg_catalog.circle' &&
-          domainType !== 'pg_catalog.box' &&
-          !domainType.startsWith('array:')
+          domainStack.has(identity) ||
+          (Array.isArray(castType?.['typmods']) && castType['typmods'].length)
         )
           return unknown
-        const seen = new Set<number>()
-        while (domain) {
-          if (
-            seen.has(domain.oid) ||
-            domain.notNull ||
-            domain.checks.length ||
-            domain.baseTypeMod !== -1
-          )
-            return unknown
-          seen.add(domain.oid)
-          if (
-            (catalogArrayType(domain.baseTypeName, domain.baseTypeOid, domains, enums) ??
-              catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)) !==
-            domainType
-          )
-            return unknown
-          domain = domains.find((item) => item.oid === domain!.baseTypeOid)
+        const operand = bind(cast['arg'])
+        if (operand.nominalDomain === identity) return operand
+        const chain: DomainInfo[] = []
+        let layer: DomainInfo | undefined = target
+        const visited = new Set<number>()
+        while (layer) {
+          if (visited.has(layer.oid)) return unknown
+          visited.add(layer.oid)
+          chain.push(layer)
+          layer = domains.find((item) => item.oid === layer!.baseTypeOid)
         }
-        const base = bind({
-          TypeCast: {
-            ...cast,
-            typeName: domainType.startsWith('array:')
-              ? {
-                  ...elementTypeName(domainType.slice(6) as ArrayElementType),
-                  arrayBounds: [{ Integer: { ival: -1 } }],
-                }
-              : {
-                  ...castType,
-                  names: [
-                    { String: { sval: 'pg_catalog' } },
-                    {
-                      String: { sval: domainType.slice('pg_catalog.'.length).replaceAll('"', '') },
-                    },
-                  ],
+        const enumBase = catalogEnumDefinition(
+          target.baseTypeName,
+          enums,
+          target.baseTypeOid,
+          domains,
+        )
+        const scalarType = enumBase
+          ? enumType(enumBase)
+          : (catalogArrayType(target.baseTypeName, target.baseTypeOid, domains, enums) ??
+            catalogBaseScalarType(target.baseTypeName, target.baseTypeOid, domains))
+        if (scalarType) {
+          if (chain.some((item) => item.baseTypeMod === undefined)) return unknown
+          if (
+            literalOrigin === 'stored' &&
+            castInput === undefined &&
+            modifierNeedsContext(scalarType) &&
+            chain.some((item) => item.baseTypeMod !== -1)
+          )
+            return unknown
+          const memberModifiers = [...chain]
+            .reverse()
+            .map((item) => item.baseTypeMod!)
+            .filter((modifier) => modifier !== -1)
+          const pushModifiers =
+            scalarType.startsWith('array:') &&
+            literalOrigin === 'source' &&
+            !!fields(fields(cast['arg'])?.['A_ArrayExpr']) &&
+            memberModifiers.length > 0
+          const base = pushModifiers
+            ? bindArray(cast['arg'], {
+                type: scalarType.slice(6) as ArrayElementType,
+                name: elementTypeName(scalarType.slice(6) as ArrayElementType),
+                modifiers: memberModifiers,
+              })
+            : bind({
+                TypeCast: {
+                  ...cast,
+                  typeName: scalarType.startsWith('array:')
+                    ? {
+                        ...elementTypeName(scalarType.slice(6) as ArrayElementType),
+                        arrayBounds: [{ Integer: { ival: -1 } }],
+                      }
+                    : elementTypeName(scalarType as ArrayElementType),
                 },
-          },
-        })
-        return {
-          ...base,
-          nominalDomain: JSON.stringify([castDomains[0]!.schema, castDomains[0]!.name]),
+              })
+          if (!base.value || base.type !== scalarType) return unknown
+          let value: EvalExpression = base.value
+          for (const item of [...chain].reverse()) {
+            const modifier = item.baseTypeMod!
+            if (modifier === -1) continue
+            if (scalarType.startsWith('array:')) {
+              if (pushModifiers) continue
+              if (castInput) return unknown
+              value = {
+                kind: 'array-typmod',
+                type: scalarType as ArrayType,
+                elementType: scalarType.slice(6) as ArrayElementType,
+                modifier,
+                operand: value,
+              }
+              continue
+            }
+            const modified = modifyScalar(value, scalarType, modifier, !(castInput ?? false))
+            if (!modified) return unknown
+            value = modified
+          }
+          const checks: { name: string; expression: EvalBoolExpression }[] = []
+          for (const item of [...chain].reverse())
+            for (const check of item.checks) {
+              let expression: EvalBoolExpression = { kind: 'uncertain' }
+              try {
+                const parsed = parseSync(
+                  `ALTER TABLE _pgsid_domain ADD CONSTRAINT _pgsid_domain_check ${check.definition}`,
+                )
+                const alter = fields(fields(parsed.stmts?.[0]?.stmt)?.['AlterTableStmt'])
+                const commands = alter?.['cmds']
+                const command = Array.isArray(commands) ? fields(commands[0]) : null
+                const body = fields(command?.['AlterTableCmd'])?.['def']
+                const constraint = fields(fields(body)?.['Constraint'])
+                if (constraint?.['contype'] === 'CONSTR_CHECK')
+                  expression = bindCatalogCheck(
+                    [
+                      {
+                        name: 'value',
+                        typeName: item.baseTypeName,
+                        typeOid: item.baseTypeOid,
+                        isRowType: item.isRowType,
+                        collationIsC: item.collationIsC,
+                        collationDeterministic: item.collationDeterministic,
+                        collationIsDefault: item.collationIsDefault,
+                        collationOid: item.collationOid,
+                      },
+                    ],
+                    constraint['raw_expr'],
+                    [],
+                    enums,
+                    domains,
+                    check.moneyLiterals,
+                    'stored',
+                    new Set([...domainStack, identity]),
+                    undefined,
+                    check.coercionContext?.definition === check.definition
+                      ? check.coercionContext
+                      : undefined,
+                  ).expression
+              } catch {
+                expression = { kind: 'uncertain' }
+              }
+              checks.push({ name: check.name, expression })
+            }
+          const notNull = chain.some((item) => item.notNull)
+          return {
+            ...base,
+            type: scalarType,
+            nominalDomain: identity,
+            ...(enumBase ? { enum: enumBase, enumDomain: target.oid } : {}),
+            value:
+              notNull || checks.length
+                ? {
+                    kind: 'domain-cast',
+                    type: scalarType,
+                    schema: target.schema,
+                    name: target.name,
+                    notNull,
+                    checks,
+                    operand: value,
+                  }
+                : value,
+          }
         }
+        return unknown
       }
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
       const type = names ? catalogScalarType(names.at(-1)!) : null
@@ -2702,6 +3210,17 @@ export function bindCatalogCheck(
       )
         return { type, value: { kind: 'text-to-integer', type, operand: operand.value } }
       if (
+        type === 'pg_catalog.bool' &&
+        operand.value &&
+        [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type ?? '')
+      )
+        return { type, value: { kind: 'text-to-boolean', type, operand: operand.value } }
+      if (
         type === 'pg_catalog."numeric"' &&
         operand.value &&
         [
@@ -3171,10 +3690,15 @@ export function bindCatalogCheck(
           catalogBaseScalarType(column.typeName, column.typeOid, domains))
       if (type) {
         inputs.add(column.name)
+        const element = type.startsWith('array:') ? arrayElementBaseType(type.slice(6)) : null
+        const enumDefinition = element?.startsWith('enum:')
+          ? enums.find((item) => enumType(item) === element)
+          : undefined
         return {
           type,
           value: { kind: 'input', type, name: column.name },
           nominalDomain,
+          ...(enumDefinition ? { enum: enumDefinition } : {}),
           ...(type === 'pg_catalog.name' ||
           type === 'pg_catalog.text' ||
           type === 'pg_catalog."varchar"' ||
@@ -3769,7 +4293,14 @@ export function bindCatalogCheck(
           operand: args[0]!.value,
         },
       }
-    const resolved = candidate(kind, name, args, bind, explicitVariadic)
+    const resolved = candidate(
+      kind,
+      name,
+      args,
+      bind,
+      explicitVariadic,
+      (arg, target, definition) => coerceBound(arg, target, nodes[args.indexOf(arg)], definition),
+    )
     if (!resolved) {
       if (
         kind === 'function' &&
@@ -3967,6 +4498,43 @@ export function bindCatalogCheck(
       },
     }
   }
+  const runtimeOpaque = (node: unknown): boolean => {
+    const wrapper = fields(node)
+    const subject = fields(wrapper?.['NullTest'])?.['arg'] ?? node
+    const call = fields(fields(subject)?.['FuncCall'])
+    const names = strings(call?.['funcname'])
+    if (!call || !names || names.length > 2 || (names.length === 2 && names[0] !== 'pg_catalog'))
+      return false
+    const args = call['args'] ?? []
+    if (!Array.isArray(args)) return false
+    const atomic = (arg: unknown): boolean => {
+      const item = fields(arg)
+      if (fields(item?.['A_Const']) || fields(item?.['ColumnRef'])) return true
+      const cast = fields(item?.['TypeCast']),
+        type = fields(cast?.['typeName'])
+      const typeNames = strings(type?.['names'])
+      return (
+        !!cast &&
+        !!fields(fields(cast['arg'])?.['A_Const']) &&
+        (typeNames?.join('.') === 'pg_catalog.text' || typeNames?.join('.') === 'text') &&
+        (!Array.isArray(type?.['typmods']) || type['typmods'].length === 0) &&
+        (!Array.isArray(type?.['arrayBounds']) || type['arrayBounds'].length === 0)
+      )
+    }
+    if (!args.every(atomic)) return false
+    const candidates = callables.filter(
+      ({ item }) =>
+        item.kind === 'function' &&
+        item.schema === 'pg_catalog' &&
+        item.name === names.at(-1) &&
+        (item.args.length === args.length ||
+          (item.numArgDefaults > 0 &&
+            args.length >= item.args.length - item.numArgDefaults &&
+            args.length <= item.args.length) ||
+          (item.variadic !== null && args.length >= item.args.length - 1)),
+    )
+    return candidates.length > 0 && candidates.every(({ item }) => item.volatility !== 'i')
+  }
   const lower = (node: unknown): EvalBoolExpression => {
     const wrapper = fields(node)
     if (!wrapper) return { kind: 'uncertain' }
@@ -4051,7 +4619,7 @@ export function bindCatalogCheck(
     const value = bind(node)
     return value.type === 'pg_catalog.bool' && value.value
       ? { kind: 'eval-scalar', expression: value.value }
-      : { kind: 'uncertain' }
+      : { kind: 'uncertain', ...(runtimeOpaque(node) ? { preparation: 'runtime' as const } : {}) }
   }
   const annotate = (value: unknown): unknown => {
     if (Array.isArray(value)) {
@@ -4068,7 +4636,9 @@ export function bindCatalogCheck(
     return {
       ...Object.fromEntries(entries),
       ...(isJsonpath ? { origin: literalOrigin } : {}),
-      ...(record['kind'] === 'array-text-literal' && record['elementType'] === 'pg_catalog.money'
+      ...(record['kind'] === 'array-text-literal' &&
+      typeof record['elementType'] === 'string' &&
+      arrayElementBaseType(record['elementType']) === 'pg_catalog.money'
         ? { moneyLiterals: [...moneyUnits].map(([text, units]) => ({ text, units })) }
         : {}),
     }

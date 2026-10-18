@@ -35,6 +35,7 @@ import {
 } from './check-rust-constants.js'
 import {
   enumType,
+  arrayElementBaseType,
   capturedEnumSupport,
   catalogScalarType,
   isOidType,
@@ -213,6 +214,7 @@ const arrayElementOutput = (
   element: string,
   scalar: string,
 ): { prefix: string; conversion: string; scalarRequired: boolean } => {
+  elementType = arrayElementBaseType(elementType)
   const family = arrayElementFamily(elementType)
   if (family === null)
     throw new UnsupportedCheckRustExpression('Missing array output element carrier')
@@ -458,6 +460,7 @@ export const isJsonpathTimezoneCallable = (
   item.args.join(',') === 'pg_catalog.jsonb,pg_catalog.jsonpath,pg_catalog.jsonb,pg_catalog.bool'
 
 const rustType = (type: string): string => {
+  type = arrayElementBaseType(type)
   if (type === 'pg_catalog."json"') return 'JsonValue'
   if (type === 'pg_catalog.jsonb') return 'JsonbValue'
   if (type === 'pg_catalog.jsonpath') return 'JsonpathValue'
@@ -523,6 +526,7 @@ export function emitCheckRustEvaluator(
   expression: EvalBoolExpression,
   identity?: CheckConstraintIdentity,
   executionContext: CheckExecutionContext = {},
+  preparationOnly = false,
 ): {
   source: string
   entryName: string
@@ -531,20 +535,34 @@ export function emitCheckRustEvaluator(
   requiresRegex: boolean
 } {
   const inputs = new Map<string, Input>()
+  const localInputs = new Map<string, Input>()
   const callables = new Set<string>()
+  const domainHelpers: string[] = []
+  let domainPreparationState: string | null = null
+  let domainInputPreparation: { lines: string[]; status: string } | null = null
   let next = 0
   let requiresRegex = false
   const entryName = identity ? checkRustEntryName(identity) : 'evaluate_check'
   const fresh = (prefix: string): string => `${prefix}_${next++}`
   const indent = (lines: readonly string[]): string[] => lines.map((line) => `    ${line}`)
   const constantDeclarations: string[] = []
+  const constantBindings: { name: string; type: string }[] = []
+  const declareConstant = (name: string, type: string, initializer: string): void => {
+    constantBindings.push({ name, type })
+    constantDeclarations.push(`let mut ${name}: ${type} = ${initializer};`)
+  }
   const constantLines: string[] = []
   const literalLines: string[] = []
   let valueLiteralDepth = 0
   let preparationLines = constantLines
   const preparationState = 'constant_preparation'
   let preparationDepth = 0
-  let constantOperandDepth = 0
+  const containsDomainCast = (value: unknown): boolean =>
+    value !== null &&
+    typeof value === 'object' &&
+    (('kind' in value && value.kind === 'domain-cast') ||
+      Object.values(value).some(containsDomainCast))
+  let constantOperandDepth = preparationOnly || containsDomainCast(expression) ? 1 : 0
   let arrayValidityScope: string | null = null
   const capturePreparation = <T>(emit: () => T): { value: T; lines: string[] } => {
     const outer = preparationLines
@@ -556,9 +574,17 @@ export function emitCheckRustEvaluator(
       preparationLines = outer
     }
   }
+  const prepareOpaque = (): void => {
+    if (!preparationOnly) return
+    const status = fresh('opaque_preparation')
+    preparationLines.push(
+      `let ${status} = check_unknown();`,
+      `${preparationState} = array_validity_finish(${preparationState}, ${status});`,
+    )
+  }
   const preparedGuard = (lines: readonly string[], name: string): string => {
     const guard = fresh('prepared_guard')
-    constantDeclarations.push(`let mut ${guard}: CheckOutcome = check_unknown();`)
+    declareConstant(guard, 'CheckOutcome', 'check_unknown()')
     preparationLines.push(
       ...lines,
       `${guard} = ${name};`,
@@ -599,6 +625,14 @@ export function emitCheckRustEvaluator(
     if (type.startsWith('enum:') && !nullness && (!definition || enumType(definition) !== type))
       throw new UnsupportedCheckRustExpression(`Missing Rust CHECK enum definition: ${name}`)
     const key = JSON.stringify([name, nullness])
+    const local = localInputs.get(key)
+    if (local) {
+      if (local.type !== type)
+        throw new UnsupportedCheckRustExpression(
+          'Array conversion requires a matching lexical element',
+        )
+      return local
+    }
     const existing = inputs.get(key)
     if (existing) {
       if (existing.type !== type) throw new Error(`Conflicting CHECK input type: ${name}`)
@@ -840,6 +874,8 @@ export function emitCheckRustEvaluator(
         node.kind === 'array-text-literal' ||
         (node.kind === 'text-to-numeric' && node.literal === true) ||
         (node.kind === 'text-to-integer' && node.literal === true) ||
+        (node.kind === 'text-to-enum' && node.literal === true) ||
+        (node.kind === 'text-to-boolean' && node.literal === true) ||
         (node.kind === 'certain' &&
           (node.expression.kind === 'point' ||
             node.expression.kind === 'json' ||
@@ -862,7 +898,7 @@ export function emitCheckRustEvaluator(
       }
       const prefix = rustValuePrefix(rustType(value.type))
       const name = fresh(`${prefix}_literal`)
-      constantDeclarations.push(`let mut ${name}: ${rustType(value.type)} = ${prefix}_unknown();`)
+      declareConstant(name, rustType(value.type), `${prefix}_unknown()`)
       literalLines.push(`${name} = ${value.name};`)
       return { name, type: value.type }
     }
@@ -894,7 +930,7 @@ export function emitCheckRustEvaluator(
       const kind = rustType(value.type)
       const prefix = rustValuePrefix(kind)
       const name = fresh('prepared_operand')
-      constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
+      declareConstant(name, kind, `${prefix}_unknown()`)
       preparationLines.push(`${name} = ${ownedOperand(value)};`)
       return { name, type: value.type }
     }
@@ -985,6 +1021,104 @@ export function emitCheckRustEvaluator(
       bindings.push(`let ${name} = ${call};`)
       return name
     }
+    if (node.kind === 'domain-cast') {
+      const array = node.type.startsWith('array:')
+      if (!array && arrayElementFamily(node.type) === null)
+        throw new UnsupportedCheckRustExpression(
+          'Domain conversion requires a represented value carrier',
+        )
+      const operand = emitScalar(node.operand, bindings, used)
+      if (operand.type !== node.type)
+        throw new UnsupportedCheckRustExpression(
+          'Domain conversion requires its SQL-coerced base type',
+        )
+      const prefix = rustValuePrefix(rustType(node.type))
+      const nullness = bind(`${prefix}_is_null(${ownedOperand(operand)})`)
+      const element = array ? null : bind(`array_element_from_${prefix}(${ownedOperand(operand)})`)
+      const initial = bind(`domain_conversion_start(${nullness}, ${node.notNull})`)
+      const status = fresh('domain_status')
+      bindings.push(`let mut ${status}: CheckOutcome = ${initial};`)
+      for (const check of node.checks) {
+        const checker = emitCheckRustEvaluator(
+          check.expression,
+          {
+            schema: node.schema,
+            kind: 'domain',
+            owner: node.name + ':' + entryName,
+            constraint: check.name + ':' + fresh('domain_check'),
+          },
+          executionContext,
+        )
+        domainHelpers.push(checker.source)
+        checker.callables.forEach((name) => callables.add(name))
+        requiresRegex ||= checker.requiresRegex
+        const preparer = emitCheckRustEvaluator(
+          check.expression,
+          {
+            schema: node.schema,
+            kind: 'domain',
+            owner: node.name + ':' + entryName,
+            constraint: check.name + ':' + fresh('domain_prepare'),
+          },
+          executionContext,
+          true,
+        )
+        domainHelpers.push(preparer.source)
+        preparer.callables.forEach((name) => callables.add(name))
+        requiresRegex ||= preparer.requiresRegex
+        const targetPreparation = domainInputPreparation?.lines ?? preparationLines
+        if (!domainInputPreparation) {
+          if (domainPreparationState === null) {
+            domainPreparationState = fresh('domain_preparation_status')
+            declareConstant(domainPreparationState, 'CheckOutcome', 'check_unknown()')
+          }
+          targetPreparation.push(
+            `${domainPreparationState} = array_validity_finish(${domainPreparationState}, ${preparationState});`,
+          )
+        }
+        const preparationArgs = preparer.inputs.map((input) => {
+          const name = fresh('domain_preparation_input')
+          targetPreparation.push(
+            `let ${name} = ${input.nullness ? 'bool' : rustValuePrefix(rustType(input.type))}_unknown();`,
+          )
+          return name
+        })
+        const prepared = fresh('domain_prepared')
+        targetPreparation.push(
+          `let ${prepared} = ${preparer.entryName}(${preparationArgs.join(', ')});`,
+        )
+        if (domainInputPreparation)
+          targetPreparation.push(
+            `${domainInputPreparation.status} = array_validity_finish(${domainInputPreparation.status}, ${prepared});`,
+          )
+        else
+          targetPreparation.push(
+            `${domainPreparationState} = array_validity_finish(${domainPreparationState}, ${prepared});`,
+            `${preparationState} = constant_finish(${preparationState}, ${prepared});`,
+          )
+        const args = checker.inputs.map((input) => {
+          if (input.name !== 'value' || (!input.nullness && input.type !== node.type))
+            throw new UnsupportedCheckRustExpression(
+              'Domain CHECK requires a local VALUE of its base type',
+            )
+          return input.nullness ? nullness : ownedOperand(operand)
+        })
+        const checked = fresh('domain_checked')
+        bindings.push(
+          `if domain_conversion_continues(${status}) {`,
+          `    let ${checked} = ${checker.entryName}(${args.join(', ')});`,
+          `    ${status} = domain_conversion_check(${status}, ${checked});`,
+          '};',
+        )
+      }
+      if (array)
+        return {
+          name: bind(`finish_array_domain_conversion(${ownedOperand(operand)}, ${status})`),
+          type: node.type,
+        }
+      const finished = bind(`finish_domain_conversion(${element}, ${status})`)
+      return { name: bind(`array_element_to_${prefix}(${finished})`), type: node.type }
+    }
     if (node.kind === 'array-subscript') {
       const operand = emitScalar(node.operand, bindings, used)
       const family = arrayElementFamily(node.elementType)
@@ -994,7 +1128,7 @@ export function emitCheckRustEvaluator(
         node.upper.length === 0 ||
         node.upper.length > 6 ||
         node.lower.length !== (node.slice ? node.upper.length : 0) ||
-        node.type !== (node.slice ? operand.type : node.elementType) ||
+        node.type !== (node.slice ? operand.type : arrayElementBaseType(node.elementType)) ||
         (!node.slice && node.upper.some((bound) => bound === null))
       )
         throw new UnsupportedCheckRustExpression(
@@ -1092,19 +1226,18 @@ export function emitCheckRustEvaluator(
       }
     }
     if (node.kind === 'array-text-literal' || node.kind === 'text-to-array') {
-      const family = arrayElementFamily(node.elementType)
-      const input = node.elementType.startsWith('enum:')
-        ? null
-        : builtinTypeIO(node.elementType)?.input
+      const baseType = arrayElementBaseType(node.elementType)
+      const family = arrayElementFamily(baseType)
+      const input = baseType.startsWith('enum:') ? null : builtinTypeIO(baseType)?.input
       if (
         family === null ||
-        (!node.elementType.startsWith('enum:') &&
+        (!baseType.startsWith('enum:') &&
           (!input || builtinMetadata(input).args[0] !== 'pg_catalog.cstring'))
       )
         throw new UnsupportedCheckRustExpression(
           'Array input requires its catalog element I/O identity',
         )
-      if (family === 6 && (!node.enum || enumType(node.enum) !== node.elementType))
+      if (family === 6 && (!node.enum || enumType(node.enum) !== baseType))
         throw new UnsupportedCheckRustExpression('Array enum input requires captured labels')
       const operand =
         node.kind === 'array-text-literal'
@@ -1144,22 +1277,81 @@ export function emitCheckRustEvaluator(
         `let mut ${index}: Int4Value = ${first};`,
       )
       const lines: string[] = []
-      const converted = renderArrayInputElement(
-        node.elementType,
+      let converted = renderArrayInputElement(
+        baseType,
         node.enum,
         event,
         stored,
         lines,
         node.kind === 'array-text-literal' ? node.moneyLiterals : undefined,
+        node.conversion !== undefined,
       )
+      const inputPreparation: string[] = []
+      if (node.conversion) {
+        const prefix = rustValuePrefix(rustType(baseType))
+        const scalar = fresh('domain_input_scalar')
+        lines.push(`let ${scalar} = array_element_to_${prefix}(${converted}.clone());`)
+        const key = JSON.stringify(['__pgsid_domain_element', false])
+        const outerInput = localInputs.get(key),
+          outerValidity = arrayValidityScope,
+          outerPreparation = domainInputPreparation,
+          outerDepth = preparationDepth
+        const status = fresh('domain_input_preparation'),
+          initialized = fresh('domain_input_initialized')
+        const prepared: string[] = []
+        domainInputPreparation = { lines: prepared, status }
+        localInputs.set(key, {
+          name: '__pgsid_domain_element',
+          type: baseType,
+          rustName: scalar,
+          rustType: rustType(baseType),
+        })
+        arrayValidityScope = null
+        preparationDepth = 0
+        let value: { name: string; type: string }
+        try {
+          value = emitScalar(node.conversion, lines, used)
+        } finally {
+          if (outerInput) localInputs.set(key, outerInput)
+          else localInputs.delete(key)
+          arrayValidityScope = outerValidity
+          domainInputPreparation = outerPreparation
+          preparationDepth = outerDepth
+        }
+        if (value.type !== baseType)
+          throw new UnsupportedCheckRustExpression(
+            'Domain input conversion requires its concrete base carrier',
+          )
+        const preparationStart = bind('make_bool_value(true)')
+        bindings.push(`let mut ${status}: CheckOutcome = check_from_bool(${preparationStart});`)
+        if (prepared.length) {
+          bindings.push(`let mut ${initialized}: CheckOutcome = check_unknown();`)
+          inputPreparation.push(
+            `if array_validity_unknown(${initialized}) {`,
+            `    if array_text_event_needs_input(&${payload}, ${index}) {`,
+            ...indent(indent(prepared)),
+            `        ${initialized} = check_from_bool(${preparationStart});`,
+            '    };',
+            '};',
+          )
+        }
+        const raw = fresh('domain_input_element'),
+          finished = fresh('domain_input_finished')
+        lines.push(
+          `let ${raw} = array_element_from_${prefix}(${ownedOperand(value)});`,
+          `let ${finished} = finish_domain_conversion(${raw}, ${status});`,
+        )
+        converted = finished
+      }
       bindings.push(
         `while array_text_has_event(&${payload}, ${index}) {`,
+        ...indent(inputPreparation),
         `    let ${event} = array_text_event_at(&${payload}, ${index});`,
         ...indent(lines),
         `    let ${element} = ${converted};`,
       )
       bindings.push(
-        `    ${builder} = append_array_conversion(${builder}, ${element}, true);`,
+        `    ${builder} = append_array_conversion(${builder}, ${element}, ${!node.conversion});`,
         `    ${index} = array_text_next_index(${index});`,
         '}',
       )
@@ -1167,7 +1359,9 @@ export function emitCheckRustEvaluator(
         `array_conversion_arguments(${builder}, ${rustStringLiteral(node.elementType)}, ${family})`,
       )
       return {
-        name: bind(`finish_prepared_array_text(${payload}, ${arguments_})`),
+        name: bind(
+          `${node.conversion ? 'finish_domain_array_input' : 'finish_prepared_array_text'}(${payload}, ${arguments_})`,
+        ),
         type: node.type,
       }
     }
@@ -1225,7 +1419,7 @@ export function emitCheckRustEvaluator(
       }
       preparation.forEach(prepareExpression)
       const name = fresh('constant_null')
-      constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
+      declareConstant(name, kind, `${prefix}_unknown()`)
       preparationLines.push(
         `${name} = ${prefix}_null();`,
         `if case_guard_stops(${guard}) {`,
@@ -1406,7 +1600,10 @@ export function emitCheckRustEvaluator(
               : implementation.result === 'pg_catalog.anyenum'
                 ? enumIdentity
                 : arrayFill
-                  ? `array:${operands[0]?.type}`
+                  ? call.type.startsWith('array:') &&
+                    arrayElementBaseType(call.type.slice(6)) === operands[0]?.type
+                    ? call.type
+                    : null
                   : arrayTrim || arrayReverse || arraySort || arrayExtremum
                     ? operands[0]?.type
                     : arrayStringIO && implementation.name === 'string_to_array'
@@ -1519,7 +1716,14 @@ export function emitCheckRustEvaluator(
                 type === 'pg_catalog.anycompatible' &&
                 operands[
                   arrayBucket || (arrayTransform && implementation.name === 'array_prepend') ? 1 : 0
-                ]?.type === `array:${operands[index]?.type}`
+                ]?.type.startsWith('array:') &&
+                arrayElementBaseType(
+                  operands[
+                    arrayBucket || (arrayTransform && implementation.name === 'array_prepend')
+                      ? 1
+                      : 0
+                  ]!.type.slice(6),
+                ) === operands[index]?.type
               ? false
               : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
                 ? false
@@ -1554,7 +1758,9 @@ export function emitCheckRustEvaluator(
         const elementType = arrayType.slice(6),
           family = arrayElementFamily(elementType)
         const defaults = builtinTypeComparison(
-          elementType.startsWith('enum:') ? 'pg_catalog.anyenum' : elementType,
+          arrayElementBaseType(elementType).startsWith('enum:')
+            ? 'pg_catalog.anyenum'
+            : arrayElementBaseType(elementType),
         )
         if (family === null || !defaults)
           throw new UnsupportedCheckRustExpression(
@@ -1695,9 +1901,13 @@ export function emitCheckRustEvaluator(
         return { name, type: call.type }
       }
       if (arrayFill) {
-        const elementType = operands[0]?.type,
+        const elementType = call.type.startsWith('array:') ? call.type.slice(6) : null,
           family = elementType ? arrayElementFamily(elementType) : null
-        if (family === null || !elementType || call.type !== `array:${elementType}`)
+        if (
+          family === null ||
+          !elementType ||
+          operands[0]?.type !== arrayElementBaseType(elementType)
+        )
           throw new UnsupportedCheckRustExpression(
             'Array fill requires one concrete scalar identity',
           )
@@ -1726,7 +1936,7 @@ export function emitCheckRustEvaluator(
               operand.type !==
               (implementation.args[index] === 'pg_catalog.anycompatiblearray'
                 ? transformArray
-                : transformArray.slice(6)),
+                : arrayElementBaseType(transformArray.slice(6))),
           )
         )
           throw new UnsupportedCheckRustExpression(
@@ -1771,13 +1981,16 @@ export function emitCheckRustEvaluator(
         if (
           !arrayType?.startsWith('array:') ||
           (arrayBucket
-            ? operands.length !== 2 || operands[0]?.type !== arrayType.slice(6)
+            ? operands.length !== 2 ||
+              operands[0]?.type !== arrayElementBaseType(arrayType.slice(6))
             : arraySort
               ? operands.slice(1).some((operand) => operand.type !== 'pg_catalog.bool')
               : arrayRewrite
-                ? operands.slice(1).some((operand) => operand.type !== arrayType.slice(6))
+                ? operands
+                    .slice(1)
+                    .some((operand) => operand.type !== arrayElementBaseType(arrayType.slice(6)))
                 : arraySearch
-                  ? operands[1]?.type !== arrayType.slice(6)
+                  ? operands[1]?.type !== arrayElementBaseType(arrayType.slice(6))
                   : operands.length !== 2 || operands[1]?.type !== arrayType)
         )
           throw new UnsupportedCheckRustExpression(
@@ -1794,7 +2007,9 @@ export function emitCheckRustEvaluator(
           membership ||
           ['array_eq', 'array_ne'].includes(implementation.name)
         const defaults = builtinTypeComparison(
-          elementType.startsWith('enum:') ? 'pg_catalog.anyenum' : elementType,
+          arrayElementBaseType(elementType).startsWith('enum:')
+            ? 'pg_catalog.anyenum'
+            : arrayElementBaseType(elementType),
         )
         if (family === null || !defaults)
           throw new UnsupportedCheckRustExpression(
@@ -1837,20 +2052,21 @@ export function emitCheckRustEvaluator(
               (executionContext.defaultCollation !== 'C' ||
                 executionContext.serverEncoding !== 'UTF8'))
           const emitElement = (selected: string, scalar: ReturnType<typeof builtinMetadata>) => {
+            const baseType = arrayElementBaseType(elementType)
             const prefix = rustValuePrefix(rustType(elementType))
             const args = [left, right].map((element, position) => {
               const name = fresh('array_comparison_scalar')
               scalarLines.push(`let ${name} = array_element_to_${prefix}(${element});`)
               const target = scalar.args[position]
-              if (target === elementType || target === 'pg_catalog.anyenum')
-                return { name, type: elementType }
-              if (!target || builtinCast(elementType, target)?.method !== 'b')
+              if (target === baseType || target === 'pg_catalog.anyenum')
+                return { name, type: baseType }
+              if (!target || builtinCast(baseType, target)?.method !== 'b')
                 throw new UnsupportedCheckRustExpression(
                   'Array element comparison requires its catalog binary relabel',
                 )
               return emitCall(
                 { kind: 'cast', signature: null, type: target },
-                [{ name, type: elementType }],
+                [{ name, type: baseType }],
                 scalarLines,
               )
             })
@@ -2571,6 +2787,63 @@ export function emitCheckRustEvaluator(
         type: node.type,
       }
     }
+    if (node.kind === 'array-domain-coerce') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const family = arrayElementFamily(node.elementType)
+      if (operand.type !== 'array:' + node.sourceElementType || family === null)
+        throw new UnsupportedCheckRustExpression(
+          'Domain array conversion requires concrete element carriers',
+        )
+      const payload = bind(`prepare_array_output(${ownedOperand(operand)})`)
+      const initial = bind('make_array_conversion()')
+      const first = bind('make_int4_value(0)')
+      const builder = fresh('domain_array_builder'),
+        index = fresh('domain_array_index')
+      const element = fresh('domain_array_element'),
+        scalar = fresh('domain_array_scalar')
+      const lines: string[] = []
+      const sourceType = arrayElementBaseType(node.sourceElementType)
+      const prefix = rustValuePrefix(rustType(sourceType))
+      lines.push(`let ${scalar} = array_element_to_${prefix}(${element}.clone());`)
+      const key = JSON.stringify(['__pgsid_domain_element', false])
+      const outer = localInputs.get(key),
+        outerValidity = arrayValidityScope
+      localInputs.set(key, {
+        name: '__pgsid_domain_element',
+        type: sourceType,
+        rustName: scalar,
+        rustType: rustType(sourceType),
+      })
+      arrayValidityScope = null
+      let converted: { name: string; type: string }
+      try {
+        converted = emitScalar(node.conversion, lines, used)
+      } finally {
+        if (outer) localInputs.set(key, outer)
+        else localInputs.delete(key)
+        arrayValidityScope = outerValidity
+      }
+      const targetPrefix = rustValuePrefix(rustType(arrayElementBaseType(node.elementType)))
+      const result = fresh('domain_array_converted')
+      bindings.push(
+        `let mut ${builder}: ArrayOutputPayload = ${initial};`,
+        `let mut ${index}: Int4Value = ${first};`,
+        `while array_output_has_element(&${payload}, ${index}) {`,
+        `    let ${element} = array_output_element_at(&${payload}, ${index});`,
+        ...indent(lines),
+        `    let ${result} = array_element_from_${targetPrefix}(${ownedOperand(converted)});`,
+        `    ${builder} = append_array_conversion(${builder}, ${result}, ${!rustScalarOwnCanFail(node.conversion, executionContext)});`,
+        `    ${index} = array_text_next_index(${index});`,
+        '}',
+      )
+      const arguments_ = bind(
+        `array_conversion_arguments(${builder}, ${rustStringLiteral(node.elementType)}, ${family})`,
+      )
+      return {
+        name: bind(`finish_array_coercion(${payload}, ${arguments_}, false)`),
+        type: node.type,
+      }
+    }
     if (node.kind === 'array-coerce') {
       const operand = emitScalar(node.operand, bindings, used)
       const sourceType = `array:${node.sourceElementType}`
@@ -2681,8 +2954,10 @@ export function emitCheckRustEvaluator(
           bindings,
           used,
         )
-      if (node.expression.kind === 'uncertain')
+      if (node.expression.kind === 'uncertain') {
+        if (node.expression.preparation !== 'runtime') prepareOpaque()
         return { name: bind('bool_unknown()'), type: 'pg_catalog.bool' }
+      }
       const outcome = emit(node.expression)
       bindings.push(...outcome.lines)
       for (const input of outcome.inputs) used.add(input)
@@ -2694,6 +2969,7 @@ export function emitCheckRustEvaluator(
       return { name: item.rustName, type: node.type }
     }
     if (node.kind === 'uncertain') {
+      prepareOpaque()
       const kind = rustType(node.type)
       const helper = rustValuePrefix(kind) + '_unknown'
       return { name: bind(`${helper}()`), type: node.type }
@@ -2996,6 +3272,58 @@ export function emitCheckRustEvaluator(
                     ? 'line_from_text'
                     : 'point_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-boolean') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const io = builtinTypeIO(node.type)?.input
+      const input = io ? builtinMetadata(io) : null
+      if (
+        input?.kind !== 'function' ||
+        input.args.join(',') !== 'pg_catalog.cstring' ||
+        input.result !== node.type ||
+        !input.strict ||
+        input.volatility !== 'i' ||
+        input.returnsSet ||
+        ![
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type)
+      )
+        throw new UnsupportedCheckRustExpression('Boolean input requires a character value')
+      return { name: bind(`scalar_boolean_from_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-enum') {
+      const operand = emitScalar(node.operand, bindings, used)
+      const input = node.enum.inputFunction ? builtinMetadata(node.enum.inputFunction) : null
+      if (
+        input?.kind !== 'function' ||
+        input.schema !== 'pg_catalog' ||
+        input.name !== 'enum_in' ||
+        input.args.join(',') !== 'pg_catalog.cstring,pg_catalog.oid' ||
+        !input.strict ||
+        input.returnsSet ||
+        (!node.literal && !node.enum.inputSources?.includes(operand.type)) ||
+        enumType(node.enum) !== node.type ||
+        node.enum.values.length > 2147483647 ||
+        node.enum.values.some((label) => label.includes('\0')) ||
+        ![
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type)
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Enum input requires captured labels and a character input',
+        )
+      return {
+        name: bind(
+          `scalar_enum_from_text(${ownedOperand(operand)}, ${rustStringLiteral(node.enum.values.join('\0'))}, ${node.enum.values.length})`,
+        ),
+        type: node.type,
+      }
     }
     if (node.kind === 'text-to-integer') {
       const operand = emitScalar(node.operand, bindings, used)
@@ -3562,7 +3890,7 @@ export function emitCheckRustEvaluator(
           node.call.signature === null ||
           (implementation?.kind === 'function' && implementation.strict)
         const guard = fresh('constant_operand_null')
-        constantDeclarations.push(`let mut ${guard}: CheckOutcome = check_unknown();`)
+        declareConstant(guard, 'CheckOutcome', 'check_unknown()')
         const initial = fresh('constant_operand_start')
         preparationLines.push(
           `let ${initial} = make_bool_value(false);`,
@@ -3581,7 +3909,7 @@ export function emitCheckRustEvaluator(
           const kind = rustType(value.type)
           const prefix = rustValuePrefix(kind)
           const name = fresh('constant_argument')
-          constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
+          declareConstant(name, kind, `${prefix}_unknown()`)
           preparationLines.push(`${name} = ${ownedOperand(value)};`)
           if (strict) {
             const nullness = fresh('constant_argument_nullness')
@@ -4006,7 +4334,7 @@ export function emitCheckRustEvaluator(
         if (!rest.length || !constantScalarExpression(node.operands[position]!))
           return [...operand.preparation, ...rest]
         const name = fresh('prepared_coalesce')
-        constantDeclarations.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
+        declareConstant(name, kind, `${prefix}_unknown()`)
         const nullness = fresh('prepared_nullness')
         const guard = fresh('prepared_null_guard')
         const lines = [
@@ -4320,6 +4648,7 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'uncertain') {
       const name = fresh('unknown_result')
+      if (node.preparation !== 'runtime') prepareOpaque()
       return { lines: [`let ${name} = check_unknown();`], name, inputs: new Set() }
     }
     if (node.kind === 'eval-regex') {
@@ -4385,24 +4714,62 @@ export function emitCheckRustEvaluator(
   }
   let lines = entry.lines
   let resultName = entry.name
-  if (constantLines.length || literalLines.length) {
+  if (constantLines.length || literalLines.length || preparationOnly) {
     const start = fresh('preparation_start')
     resultName = fresh('prepared_result')
+    const observed: string[] = []
+    if (preparationOnly)
+      for (const binding of constantBindings) {
+        const nullness = fresh('prepared_binding_nullness')
+        const status = fresh('prepared_binding_status')
+        const owned = [
+          'JsonValue',
+          'JsonbValue',
+          'JsonpathValue',
+          'ArrayValue',
+          'SnapshotValue',
+          'PolygonValue',
+          'PathValue',
+          'TextValue',
+          'ByteaValue',
+          'BitValue',
+          'NumericValue',
+        ].includes(binding.type)
+        const argument = binding.name + (owned ? '.clone()' : '')
+        observed.push(
+          `let ${nullness} = ${binding.type === 'CheckOutcome' ? 'bool_from_check' : rustValuePrefix(binding.type) + '_is_null'}(${argument});`,
+          `let ${status} = array_value_validity(${nullness}, true);`,
+          `${preparationState} = constant_finish(${preparationState}, ${status});`,
+        )
+      }
     lines = [
       ...constantDeclarations,
       `let ${start} = make_bool_value(true);`,
       `let mut ${preparationState}: CheckOutcome = check_from_bool(${start});`,
+      ...(domainPreparationState ? [`${domainPreparationState} = ${preparationState};`] : []),
       ...literalLines,
       ...constantLines,
+      ...observed,
+      ...(domainPreparationState
+        ? [
+            `${preparationState} = array_validity_finish(${domainPreparationState}, ${preparationState});`,
+          ]
+        : []),
       `let mut ${resultName}: CheckOutcome = ${preparationState};`,
-      `if case_guard_stops(${preparationState}) == false {`,
-      ...indent(entry.lines),
-      `    ${resultName} = ${entry.name};`,
-      '}',
+      ...(preparationOnly
+        ? []
+        : [
+            `if case_guard_stops(${preparationState}) == false {`,
+            ...indent(entry.lines),
+            `    ${resultName} = ${entry.name};`,
+            '}',
+          ]),
     ]
   }
   return {
-    source: `pub fn ${entryName}(${parameters(entry.inputs)}) -> CheckOutcome {\n${indent(lines).join('\n')}\n    ${resultName}\n}\n`,
+    source:
+      `pub fn ${entryName}(${parameters(entry.inputs)}) -> CheckOutcome {\n${indent(lines).join('\n')}\n    ${resultName}\n}\n` +
+      domainHelpers.join('\n'),
     entryName,
     inputs: ordered(entry.inputs),
     callables: [...callables],

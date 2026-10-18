@@ -1134,3 +1134,93 @@ INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) V
 INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,NULL,NULL,true,0);
 -- name: encoded_labels_skipped
 INSERT INTO stock_encoded_labels(id,labels,expected_count,check_count,divisor) VALUES(2,'bad',9,false,0);
+-- name: fractional_count_integer
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,7,9,9007199254740993,1.2300,true,7,9,9007199254740993,7,8,'00010000000000000007',false);
+-- name: fractional_count_decimal
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,7,9,9007199254740993,1.2300,false,1.2300,1.2300,1.2300,7,1.2300,'0002000000000004000108fc',false);
+-- name: fractional_count_null_integer
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,NULL,NULL,NULL,1.2300,true,NULL,NULL,NULL,1.2300,NULL,NULL,false);
+-- name: fractional_count_null_decimal
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,7,9,9007199254740993,NULL,false,NULL,NULL,NULL,7,NULL,NULL,false);
+-- name: fractional_count_all_null
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,NULL,NULL,NULL,NULL,false,NULL,NULL,NULL,NULL,NULL,NULL,false);
+-- name: fractional_count_skips_overflow
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,32767,2147483647,9223372036854775807,1.2300,false,1.2300,1.2300,1.2300,32767,1.2300,'0002000000000004000108fc',false);
+-- name: fractional_count_original_overflow
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,32767,2147483647,9223372036854775807,1.2300,true,32767,2147483647,9223372036854775807,32767,NULL,'000200010000000000030acf',false);
+-- name: fractional_count_wrong_small
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,7,9,9007199254740993,1.2300,true,8,9,9007199254740993,7,8,'00010000000000000007',false);
+-- name: fractional_count_wrong_ordinary
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,7,9,9007199254740993,1.2300,true,7,10,9007199254740993,7,8,'00010000000000000007',false);
+-- name: fractional_count_wrong_bulk
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,7,9,9007199254740993,1.2300,true,7,9,9007199254740992,7,8,'00010000000000000007',false);
+-- name: fractional_count_wrong_default
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,7,9,9007199254740993,1.2300,true,7,9,9007199254740993,8,8,'00010000000000000007',false);
+-- name: fractional_count_wrong_next
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,7,9,9007199254740993,1.2300,true,7,9,9007199254740993,7,9,'00010000000000000007',false);
+-- name: fractional_count_wrong_scale
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,7,9,9007199254740993,1.2300,false,1.2300,1.2300,1.2300,7,1.2300,'0002000000000002000108fc',false);
+-- name: fractional_count_bypassed
+INSERT INTO stock_fractional_counts (id,small_count,ordinary_count,bulk_count,fractional_count,choose_integer,recorded_small,recorded_ordinary,recorded_bulk,recorded_default,recorded_next,recorded_wire,bypass)
+VALUES (2,32767,2147483647,9223372036854775807,1.2300,true,0,0,0,0,0,'ignored',true);
+
+-- name: mixed_fractional_valid
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,1.2500,2,2,9007199254740993,9007199254740995.5000,0.625,1.25,4,false);
+
+-- name: mixed_fractional_wrong_total
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,1.2500,2,2,9007199254740993,0,0.625,1.25,4,false);
+
+-- name: mixed_fractional_wrong_unit
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,1.2500,2,2,9007199254740993,9007199254740995.5000,0,1.25,4,false);
+
+-- name: mixed_fractional_wrong_rounding
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,1.2500,2,2,9007199254740993,9007199254740995.5000,0.625,0,4,false);
+
+-- name: mixed_fractional_wrong_scale
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,1.2500,2,2,9007199254740993,9007199254740995.5000,0.625,1.25,0,false);
+
+-- name: mixed_fractional_zero_count
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,1.2500,2,0,9007199254740993,9007199254740993,0.625,1.25,4,false);
+
+-- name: mixed_fractional_null_cost
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,NULL,2,2,9007199254740993,NULL,NULL,NULL,NULL,false);
+
+-- name: mixed_fractional_null_count
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,1.2500,2,NULL,9007199254740993,9007199254740995.5000,0.625,1.25,4,false);
+
+-- name: mixed_fractional_bypassed
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,1.2500,2,2147483647,9007199254740993,0,0,0,0,true);
+
+-- name: mixed_fractional_intermediate_overflow
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,1,2,2147483647,0,2147483647,NULL,1,0,false);
+
+-- name: mixed_fractional_exact_bigint
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,1.2500,2,2,9223372036854775807,9223372036854775809.5000,0.625,1.25,4,false);
+
+-- name: mixed_fractional_nan_scale
+INSERT INTO stock_fractional_totals (id,unit_cost,decimal_places,pack_count,bulk_count,recorded_total,recorded_unit,recorded_rounded,recorded_scale,bypass)
+VALUES (2,'NaN',2,2,9007199254740993,'NaN','NaN','NaN',NULL,false);

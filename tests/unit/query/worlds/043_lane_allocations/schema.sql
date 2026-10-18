@@ -1173,3 +1173,132 @@ CREATE TABLE lane_coerced_state_shapes (
   bypass boolean,
   CONSTRAINT coerced_update_shape CHECK (CASE WHEN bypass THEN true ELSE cardinality(ARRAY[float8_accum(payload::numeric[],reading)]) IS NOT DISTINCT FROM expected_count END)
 );
+
+CREATE DOMAIN lane_number AS integer CHECK (VALUE > 0);
+CREATE DOMAIN lane_label AS text COLLATE "C";
+CREATE TABLE lane_domain_allocations (
+  slots lane_number[],
+  standby lane_number[],
+  assigned_lane lane_number,
+  labels lane_label[],
+  stages lane_stage_bound[],
+  slot_limit integer,
+  recorded_count integer,
+  recorded_layout text,
+  recorded_labels text,
+  recorded_stages text,
+  bypass boolean,
+  CONSTRAINT domain_capacity CHECK (cardinality(COALESCE(slots,standby)) <= slot_limit),
+  CONSTRAINT domain_layout CHECK (array_dims(slots) COLLATE "C" IS NOT DISTINCT FROM recorded_layout COLLATE "C"),
+  CONSTRAINT domain_constructor CHECK (cardinality(ARRAY[assigned_lane,assigned_lane]) = recorded_count),
+  CONSTRAINT domain_labels CHECK (array_sort(labels)::text COLLATE "C" IS NOT DISTINCT FROM recorded_labels COLLATE "C"),
+  CONSTRAINT domain_stages CHECK (stages::text COLLATE "C" IS NOT DISTINCT FROM recorded_stages COLLATE "C"),
+  CONSTRAINT domain_selection CHECK (CASE WHEN bypass THEN true ELSE slots[1] = assigned_lane END)
+);
+
+CREATE DOMAIN lane_required_number AS lane_number NOT NULL;
+CREATE DOMAIN lane_code AS varchar(3) COLLATE "C" CHECK (VALUE <> '');
+CREATE TABLE lane_domain_imports (
+  payload text,
+  lane integer,
+  approved_lane lane_number,
+  recorded_lane integer,
+  label text,
+  recorded_label text,
+  bypass boolean,
+  CONSTRAINT imported_domain_lane CHECK (CASE WHEN bypass THEN true ELSE payload::lane_required_number IS NOT DISTINCT FROM recorded_lane END),
+  CONSTRAINT imported_domain_bound CHECK (CASE WHEN bypass THEN true ELSE lane::lane_number <= recorded_lane END),
+  CONSTRAINT imported_domain_code CHECK (CASE WHEN bypass THEN true ELSE label::lane_code::text COLLATE "C" IS NOT DISTINCT FROM recorded_label COLLATE "C" END),
+  CONSTRAINT retained_domain_lane CHECK (approved_lane::lane_number IS NOT DISTINCT FROM recorded_lane)
+);
+
+CREATE TABLE lane_domain_bulk_imports (
+  lane integer,
+  divisor integer,
+  optional_lane integer,
+  recorded_count integer,
+  label text,
+  recorded_label text,
+  bypass boolean,
+  CONSTRAINT bulk_pushed_counts CHECK (CASE WHEN bypass THEN true ELSE cardinality(ARRAY[lane,1/divisor]::lane_number[]) = recorded_count END),
+  CONSTRAINT bulk_computed_counts CHECK (CASE WHEN bypass THEN true ELSE cardinality(ARRAY[lane,1/divisor]::integer[]::lane_number[]) = recorded_count END),
+  CONSTRAINT bulk_converted_code CHECK (CASE WHEN bypass THEN true ELSE (ARRAY[label]::text[]::lane_code[])[1]::text COLLATE "C" IS NOT DISTINCT FROM recorded_label COLLATE "C" END),
+  CONSTRAINT bulk_required_counts CHECK (CASE WHEN bypass THEN true ELSE cardinality(ARRAY[optional_lane]::integer[]::lane_required_number[]) = 1 END)
+);
+
+CREATE TABLE lane_domain_text_imports (
+  payload text,
+  required_payload text,
+  labels text,
+  recorded_count integer,
+  recorded_first integer,
+  recorded_code text,
+  bypass boolean,
+  CONSTRAINT parsed_domain_capacity CHECK (CASE WHEN bypass THEN true ELSE cardinality(payload::lane_number[]) = recorded_count END),
+  CONSTRAINT parsed_domain_first CHECK (CASE WHEN bypass THEN true ELSE (payload::lane_number[])[1] IS NOT DISTINCT FROM recorded_first END),
+  CONSTRAINT parsed_domain_required CHECK (CASE WHEN bypass THEN true ELSE cardinality(required_payload::lane_required_number[]) >= 0 END),
+  CONSTRAINT parsed_domain_code CHECK (CASE WHEN bypass THEN true ELSE (labels::lane_code[])[1]::text COLLATE "C" IS NOT DISTINCT FROM recorded_code COLLATE "C" END)
+);
+
+CREATE DOMAIN lane_pair_array AS integer[] CHECK (cardinality(VALUE)=2);
+CREATE DOMAIN lane_positive_pair AS lane_pair_array CHECK (VALUE[1]>0);
+CREATE DOMAIN lane_required_pair AS lane_positive_pair NOT NULL;
+CREATE DOMAIN lane_pair_codes AS varchar(3)[] COLLATE "C" CHECK (cardinality(VALUE)=2);
+CREATE DOMAIN lane_rounded_pair AS numeric(3,1)[] CHECK (cardinality(VALUE)=2);
+CREATE TABLE lane_array_domain_imports (
+  payload text,
+  required_payload text,
+  codes text,
+  recorded_first integer,
+  recorded_code text,
+  lane integer,
+  divisor integer,
+  approved_pair lane_pair_array,
+  recorded_approved integer,
+  bypass boolean,
+  CONSTRAINT whole_domain_precision CHECK (CASE WHEN bypass THEN true ELSE cardinality(ARRAY[lane::numeric,1::numeric/divisor::numeric]::lane_rounded_pair)=2 END),
+  CONSTRAINT whole_domain_size CHECK (CASE WHEN bypass THEN true ELSE cardinality(payload::lane_pair_array)=2 END),
+  CONSTRAINT whole_domain_required CHECK (CASE WHEN bypass THEN true ELSE (required_payload::lane_required_pair)[1] IS NOT DISTINCT FROM recorded_first END),
+  CONSTRAINT whole_domain_codes CHECK (CASE WHEN bypass THEN true ELSE (codes::lane_pair_codes)[1]::text COLLATE "C" IS NOT DISTINCT FROM recorded_code COLLATE "C" END),
+  CONSTRAINT whole_domain_constructor CHECK (CASE WHEN bypass THEN true ELSE cardinality(ARRAY[lane,1/divisor]::lane_positive_pair)=2 END),
+  CONSTRAINT whole_domain_retained CHECK (CASE WHEN bypass THEN true ELSE (approved_pair::lane_pair_array)[1] IS NOT DISTINCT FROM recorded_approved END)
+);
+
+CREATE DOMAIN lane_unblocked_number AS integer CHECK(VALUE<>0);
+CREATE TABLE lane_polymorphic_allocations (
+  lane lane_number,
+  slots lane_number[],
+  fallback lane_unblocked_number[],
+  required_slots lane_required_number[],
+  stage lane_stage_bound,
+  recorded_appended integer,
+  recorded_choice integer,
+  check_required boolean,
+  check_layout boolean,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT polymorphic_fill CHECK(CASE WHEN bypass THEN true ELSE cardinality(array_fill(lane,ARRAY[2]))=2 END),
+  CONSTRAINT polymorphic_append CHECK(CASE WHEN bypass THEN true ELSE cardinality(array_append(slots,lane))=recorded_appended END),
+  CONSTRAINT polymorphic_retained CHECK(CASE WHEN bypass THEN true ELSE (array_fill(lane,ARRAY[2]))[1]::lane_number IS NOT DISTINCT FROM lane END),
+  CONSTRAINT polymorphic_choice CHECK(CASE WHEN bypass THEN true ELSE cardinality(COALESCE(slots,fallback))=recorded_choice END),
+  CONSTRAINT polymorphic_eager CHECK(CASE WHEN bypass THEN true ELSE cardinality(GREATEST(slots,fallback))>=0 END),
+  CONSTRAINT polymorphic_required CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN check_required THEN cardinality(array_append(required_slots,NULL))>=0 ELSE true END END),
+  CONSTRAINT polymorphic_stage CHECK(CASE WHEN bypass THEN true ELSE (array_fill(stage,ARRAY[2]))[1]::lane_stage=stage::lane_stage END),
+  CONSTRAINT polymorphic_layout CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN check_layout THEN cardinality(ARRAY[slots,fallback,ARRAY[1,1/divisor]])=6 ELSE true END END)
+);
+
+CREATE TABLE lane_code_coercions (
+  approved lane_code[],
+  payload text,
+  recorded_count integer,
+  recorded_code text,
+  recorded_explicit text,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT implicit_code_capacity CHECK(CASE WHEN bypass THEN true ELSE cardinality(COALESCE(approved,payload::varchar[]))=recorded_count END),
+  CONSTRAINT explicit_code_capacity CHECK(CASE WHEN bypass THEN true ELSE cardinality(payload::varchar[]::lane_code[])=recorded_count END),
+  CONSTRAINT implicit_code_order CHECK(CASE WHEN bypass THEN true ELSE cardinality(COALESCE(approved,payload::varchar[]))+(1/divisor)>0 END),
+  CONSTRAINT explicit_code_order CHECK(CASE WHEN bypass THEN true ELSE cardinality(payload::varchar[]::lane_code[])+(1/divisor)>0 END),
+  CONSTRAINT implicit_code_value CHECK(CASE WHEN bypass THEN true ELSE (COALESCE(approved,payload::varchar[]))[1]::text COLLATE "C" IS NOT DISTINCT FROM recorded_code COLLATE "C" END),
+  CONSTRAINT explicit_code_value CHECK(CASE WHEN bypass THEN true ELSE (payload::varchar[]::lane_code[])[1]::text COLLATE "C" IS NOT DISTINCT FROM recorded_explicit COLLATE "C" END)
+);

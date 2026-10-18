@@ -91,6 +91,20 @@ export function portableCheckAtoms(
 ): EvalBoolExpression {
   const rustNames = checkRustCallableNames()
   const scalar = (value: EvalExpression): EvalExpression => {
+    if ((value.kind === 'array-text-literal' || value.kind === 'text-to-array') && value.conversion)
+      return {
+        ...value,
+        ...(value.kind === 'text-to-array' ? { operand: scalar(value.operand) } : {}),
+        conversion: scalar(value.conversion),
+      }
+    if (value.kind === 'array-domain-coerce')
+      return { ...value, operand: scalar(value.operand), conversion: scalar(value.conversion) }
+    if (value.kind === 'domain-cast')
+      return {
+        ...value,
+        operand: scalar(value.operand),
+        checks: value.checks.map((check) => ({ ...check, expression: bool(check.expression) })),
+      }
     if (value.kind === 'array-subscript')
       return {
         ...value,
@@ -100,6 +114,8 @@ export function portableCheckAtoms(
       }
     if (
       value.kind === 'clock-to-text' ||
+      value.kind === 'text-to-enum' ||
+      value.kind === 'text-to-boolean' ||
       value.kind === 'text-to-array' ||
       value.kind === 'array-to-text' ||
       value.kind === 'array-typmod' ||
