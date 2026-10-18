@@ -49,6 +49,11 @@ it('matches all JSONB scalar casts, JSON null, exact decimal scale, integer roun
     await pg.exec(
       'CREATE DOMAIN required_count AS document_count NOT NULL;CREATE DOMAIN positive_count AS document_count CHECK(VALUE>0);CREATE DOMAIN bounded_number AS numeric(6,2)',
     )
+    const constrainedDomains = ['required_count', 'positive_count', 'bounded_number']
+    for (const domain of constrainedDomains)
+      await pg.exec(
+        `CREATE TABLE domain_witness_${domain}(document retained_cast_document,bypass boolean,CHECK(CASE WHEN bypass THEN true ELSE document::${domain} IS NOT NULL END))`,
+      )
     const expressions: Record<string, string> = {}
     for (const target of targets) {
       const cast = `document::${target.type}`
@@ -93,6 +98,11 @@ it('matches all JSONB scalar casts, JSON null, exact decimal scale, integer roun
       runtime_text: `CASE WHEN bypass THEN true ELSE ${match(wire('int4send', 'source_text::jsonb::int4'))} END`,
       literal: `'1.50'::retained_cast_document::int4=2 AND 'null'::jsonb::boolean IS NULL`,
     })
+    for (const domain of constrainedDomains) {
+      expressions['constrained_' + domain] = `document::${domain} IS NOT NULL`
+      expressions['guard_constrained_' + domain] =
+        `CASE WHEN bypass THEN true ELSE document::${domain} IS NOT NULL END`
+    }
     await pg.exec(
       `CREATE TABLE jsonb_scalar_casts(document retained_cast_document,fallback jsonb,source_text text,decimal_value numeric,integer_value integer,float_value double precision,expected_wire text,expected_null boolean,expected_scale integer,bypass boolean,${Object.entries(
         expressions,
@@ -168,16 +178,6 @@ it('matches all JSONB scalar casts, JSON null, exact decimal scale, integer roun
         ),
         constraint.name,
       ).toBe(false)
-    for (const domain of ['required_count', 'positive_count', 'bounded_number']) {
-      const constraint = {
-        ...table.constraints[0]!,
-        definition: `CHECK(document::${domain} IS NOT NULL)`,
-      }
-      expect(
-        hasUncertain(lowerTableCheck(table, constraint, [], catalog.domains)!.expression),
-        domain,
-      ).toBe(true)
-    }
     for (const modifier of [
       'numeric(0)',
       'numeric(1001)',
@@ -282,6 +282,36 @@ it('matches all JSONB scalar casts, JSON null, exact decimal scale, integer roun
       const normalized = (
         await pg.query<{ value: string | null }>('SELECT $1::jsonb::text value', [source])
       ).rows[0]!.value
+      for (const domain of constrainedDomains) {
+        let outcome: Outcome
+        try {
+          const value = (
+            await pg.query<{ value: boolean }>(`SELECT $1::jsonb::${domain} IS NOT NULL AS value`, [
+              source,
+            ])
+          ).rows[0]!.value
+          outcome = { kind: value ? 'True' : 'False' }
+        } catch (e) {
+          outcome = error((e as { code: string }).code)
+        }
+        const row = { ...base, document: known(normalized) }
+        add('constrained_' + domain, row, outcome)
+        add('guard_constrained_' + domain, row, outcome)
+        add('guard_constrained_' + domain, { ...row, bypass: known(true) }, { kind: 'True' })
+        if (outcome.kind === 'Error' || outcome.kind === 'False')
+          await expect(
+            pg.query(`INSERT INTO domain_witness_${domain} VALUES($1::jsonb,false)`, [source]),
+          ).rejects.toMatchObject({
+            code:
+              outcome.kind === 'Error'
+                ? outcome.value.state.toString(36).toUpperCase().padStart(5, '0')
+                : '23514',
+          })
+        else
+          await pg.query(`INSERT INTO domain_witness_${domain} VALUES($1::jsonb,false)`, [source])
+        await pg.query(`INSERT INTO domain_witness_${domain} VALUES($1::jsonb,true)`, [source])
+        oracle.push({ input: source, domain, outcome })
+      }
       for (const target of targets) {
         let result: { wire: string | null; is_null: boolean } | { state: string }
         try {
