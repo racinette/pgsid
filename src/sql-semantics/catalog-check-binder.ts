@@ -1524,9 +1524,10 @@ const arrayElementCollation = (
   type: ArrayElementType,
   operand?: Bound,
 ): BoundCollation | undefined => {
-  type = arrayElementBaseType(type) as ArrayElementType
+  let base = arrayElementBaseType(type)
+  while (base.startsWith('array:')) base = arrayElementBaseType(base.slice(6))
   const collation = builtinTypeComparison(
-    type.startsWith('enum:') ? 'pg_catalog.anyenum' : type,
+    base.startsWith('enum:') ? 'pg_catalog.anyenum' : base,
   )?.collation
   if (!collation) return undefined
   const inherited =
@@ -4033,11 +4034,12 @@ export function bindCatalogCheck(
           : null)
       if (!sourceType?.startsWith('array:')) return unknown
       const sourceElement = sourceType.slice(6) as ArrayElementType
+      const baseElement = arrayElementBaseType(sourceElement) as ScalarType
       const definition = array.enum ?? subject.enum
       const value = materialize(array, sourceType, definition)
       const dummy = materialize(
         { type: null, value: null, literal: { kind: 'null', value: null } },
-        sourceElement,
+        baseElement,
         definition,
       )
       if (!value || !dummy) return unknown
@@ -4047,7 +4049,7 @@ export function bindCatalogCheck(
       const resolved = comparisonCandidate(
         [
           { ...subject, collation },
-          { type: sourceElement, value: dummy, enum: array.enum, collation },
+          { type: baseElement, value: dummy, enum: array.enum, collation },
         ],
         name,
         false,
@@ -4056,23 +4058,27 @@ export function bindCatalogCheck(
       const element =
         resolved.item.args[1] === 'pg_catalog.anyenum'
           ? resolved.enum && enumType(resolved.enum)
-          : catalogScalarType(resolved.item.args[1]!)
-      if (!element || element.startsWith('array:')) return unknown
-      const operand = coerceArray(
-        value,
-        sourceType as ArrayType,
-        arrayType(element as ArrayElementType),
-        'i',
-        -1,
-        enums,
-      )
+          : resolved.item.args[1] === 'pg_catalog.anyarray'
+            ? baseElement.startsWith('array:') && baseElement
+            : catalogScalarType(resolved.item.args[1]!)
+      if (!element || (element.startsWith('array:') && element !== baseElement)) return unknown
+      const targetElement = element === baseElement ? sourceElement : (element as ArrayElementType)
+      const operand =
+        element === baseElement
+          ? value
+          : coerceBound(
+              { ...array, type: sourceType, value },
+              arrayType(targetElement),
+              operator['rexpr'],
+              definition,
+            )
       if (!operand) return unknown
       return {
         type: 'pg_catalog.bool',
         value: {
           kind: 'array-quantifier',
           type: 'pg_catalog.bool',
-          elementType: element as ArrayElementType,
+          elementType: targetElement,
           operands: [resolved.operands[0]!, operand],
           comparison: {
             kind: 'operator',

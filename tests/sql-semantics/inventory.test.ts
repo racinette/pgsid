@@ -81,6 +81,12 @@ describe('PostgreSQL builtin inventory', () => {
       if (entry.comparator)
         expect(functionMetadata(entry.comparator).result).toBe('pg_catalog.int4')
     }
+    expect(builtinTypeComparison('pg_catalog.anyarray')).toMatchObject({
+      btreeClass: 'pg_catalog.array_ops',
+      hashClass: 'pg_catalog.array_ops',
+      equality: 'operator:["pg_catalog","="](pg_catalog.anyarray,pg_catalog.anyarray)',
+      comparator: 'function:["pg_catalog","btarraycmp"](pg_catalog.anyarray,pg_catalog.anyarray)',
+    })
     expect(builtinTypeComparison('pg_catalog.regclass')).toMatchObject({
       btreeClass: 'pg_catalog.oid_ops',
     })

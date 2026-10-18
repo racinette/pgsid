@@ -2241,6 +2241,35 @@ func arraySortSameElement(left checkruntime.ArrayElement, right checkruntime.Arr
 	if kind == 39 {
 		return checkruntime.ArrayElementToTid(left) == checkruntime.ArrayElementToTid(right)
 	}
+	if kind == 41 {
+		firstArray := checkruntime.ArrayElementToArray(left)
+		secondArray := checkruntime.ArrayElementToArray(right)
+		if firstArray.Kind == checkruntime.ArrayValueValue {
+			first := checkruntime.CopyArrayPayload(firstArray.Value)
+			if secondArray.Kind == checkruntime.ArrayValueValue {
+				second := checkruntime.CopyArrayPayload(secondArray.Value)
+				if first.ElementType != second.ElementType || first.ElementKind != second.ElementKind || first.NullBitmap != second.NullBitmap || len(first.Dimensions) != len(second.Dimensions) || len(first.Elements) != len(second.Elements) {
+					return false
+				}
+				dimension := 0
+				for dimension < len(first.Dimensions) {
+					if first.Dimensions[dimension].Lower != second.Dimensions[dimension].Lower || first.Dimensions[dimension].Length != second.Dimensions[dimension].Length {
+						return false
+					}
+					dimension = langruntime.CheckedAdd(dimension, 1)
+				}
+				position := 0
+				for position < len(first.Elements) {
+					if arraySortSameElement(checkruntime.CopyArrayElement(first.Elements[position]), checkruntime.CopyArrayElement(second.Elements[position])) == false {
+						return false
+					}
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				return true
+			}
+		}
+		return false
+	}
 	if kind == 12 {
 		a := checkruntime.JsonbToText(checkruntime.ArrayElementToJsonb(left))
 		b := checkruntime.JsonbToText(checkruntime.ArrayElementToJsonb(right))

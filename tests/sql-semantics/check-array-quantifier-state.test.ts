@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -25,6 +25,7 @@ it('keeps quantifier value uncertainty separate from eager argument validity and
   const pg = await PGlite.create(),
     directory = await mkdtemp(join(tmpdir(), 'pgsid-array-quantifier-state-'))
   try {
+    await mkdir('artifacts/goal-checks/array-quantifier', { recursive: true })
     const forms = {
       empty_any: 'quantity=ANY(ARRAY[]::integer[])',
       empty_all: 'quantity=ALL(ARRAY[]::integer[])',

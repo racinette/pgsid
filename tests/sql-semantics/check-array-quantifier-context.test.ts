@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
@@ -19,6 +19,7 @@ it('retains reached collation and encoding requirements, known empty and NULL ca
   const pg = await PGlite.create(),
     directory = await mkdtemp(join(tmpdir(), 'pgsid-array-quantifier-context-'))
   try {
+    await mkdir('artifacts/goal-checks/array-quantifier', { recursive: true })
     await pg.exec(
       "CREATE COLLATION quantified_locale(provider=icu,locale='und',deterministic=false);CREATE TABLE quantifier_context(probe text,payload text,quantity integer,bypass boolean);CREATE TABLE quantifier_context_oracle(LIKE quantifier_context)",
     )

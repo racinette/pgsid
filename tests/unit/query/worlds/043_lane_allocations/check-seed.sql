@@ -4222,3 +4222,55 @@ VALUES('{"{1,2}","{3,4}"}','bad','{"{1.0,2.0}","{3.0,4.0}"}',1,1,false);
 -- name: nested_cast_bypassed
 INSERT INTO lane_group_casts(groups,payload,recorded_text,recorded_first,divisor,bypass)
 VALUES('{"{1,2}","{3,4}"}','bad','wrong',-1,0,true);
+
+-- name: nested_compare_valid
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}','{1,2}',1,1,true,true,'{"{1,2}","{3,4}"}',false);
+
+-- name: nested_compare_bounds
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{"[5:6]={1,2}","{1,2}"}','{"{1,2}"}','{1,2}',1,2,true,true,'{"{1,2}","[5:6]={1,2}"}',false);
+
+-- name: nested_compare_duplicates
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{"{1,2}","{1,2}"}','{"{1,2}"}','{1,2}',1,1,true,true,'{"{1,2}","{1,2}"}',false);
+
+-- name: nested_compare_null_cell
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{NULL,"{1,2}"}','{NULL}',NULL,1,1,false,NULL,'{"{1,2}",NULL}',false);
+
+-- name: nested_compare_inner_nulls
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{"{NULL,NULL}","{1,2}"}','{"{NULL,NULL}"}','{NULL,NULL}',1,1,true,true,'{"{1,2}","{NULL,NULL}"}',false);
+
+-- name: nested_compare_nulls
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: nested_compare_empty
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{}','{}','{1,2}',0,NULL,true,false,'{}',false);
+
+-- name: nested_compare_wrong_order
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}','{1,2}',9,1,true,true,'{"{1,2}","{3,4}"}',false);
+
+-- name: nested_compare_wrong_position
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}','{1,2}',1,9,true,true,'{"{1,2}","{3,4}"}',false);
+
+-- name: nested_compare_wrong_contains
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}','{1,2}',1,1,false,true,'{"{1,2}","{3,4}"}',false);
+
+-- name: nested_compare_wrong_any
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}','{1,2}',1,1,true,false,'{"{1,2}","{3,4}"}',false);
+
+-- name: nested_compare_wrong_sort
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}','{1,2}',1,1,true,true,'wrong',false);
+
+-- name: nested_compare_bypassed
+INSERT INTO lane_group_comparisons(groups,thresholds,requested,expected_order,expected_position,expected_contains,expected_any,expected_sort,bypass)
+VALUES('{"{1,2}","{3,4}"}','{"{1,2}"}','{1,2}',9,9,false,false,'wrong',true);

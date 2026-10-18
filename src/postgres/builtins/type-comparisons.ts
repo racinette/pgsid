@@ -40,6 +40,7 @@ export async function readBuiltinTypeComparisons(pg: PGlite): Promise<BuiltinTyp
   for (const { identity, collation } of [
     ...types,
     { identity: 'pg_catalog.anyenum', collation: null },
+    { identity: 'pg_catalog.anyarray', collation: null },
   ]) {
     const supports: Record<string, Support | null> = { btree: null, hash: null }
     for (const method of ['btree', 'hash']) {
@@ -53,6 +54,7 @@ export async function readBuiltinTypeComparisons(pg: PGlite): Promise<BuiltinTyp
             )
             type = 'pg_temp._pgsid_type_comparison_enum'
           }
+          if (identity === 'pg_catalog.anyarray') type = 'pg_catalog.int4[]'
           await tx.exec(`CREATE TEMP TABLE _pgsid_type_comparison_probe(value ${type})`)
           await tx.exec(
             `CREATE INDEX _pgsid_type_comparison_index ON _pgsid_type_comparison_probe USING ${method}(value)`,

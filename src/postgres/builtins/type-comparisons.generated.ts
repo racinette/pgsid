@@ -95,6 +95,17 @@ export const PG18_TYPE_COMPARISONS = {
     hashExtended:
       'function:["pg_catalog","hash_aclitem_extended"](pg_catalog.aclitem,pg_catalog.int8)',
   },
+  'pg_catalog.anyarray': {
+    identity: 'pg_catalog.anyarray',
+    collation: null,
+    btreeClass: 'pg_catalog.array_ops',
+    hashClass: 'pg_catalog.array_ops',
+    equality: 'operator:["pg_catalog","="](pg_catalog.anyarray,pg_catalog.anyarray)',
+    comparator: 'function:["pg_catalog","btarraycmp"](pg_catalog.anyarray,pg_catalog.anyarray)',
+    hash: 'function:["pg_catalog","hash_array"](pg_catalog.anyarray)',
+    hashExtended:
+      'function:["pg_catalog","hash_array_extended"](pg_catalog.anyarray,pg_catalog.int8)',
+  },
   'pg_catalog.anyenum': {
     identity: 'pg_catalog.anyenum',
     collation: null,
