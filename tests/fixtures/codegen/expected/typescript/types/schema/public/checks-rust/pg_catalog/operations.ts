@@ -29934,6 +29934,281 @@ export function polygonFromText(input: checkruntime.TextValue): checkruntime.Pol
     }
     return { kind: "Unknown" };
 }
+const rangeConstructorDataError = 3452544;
+const rangeConstructorFlagsError = 6819553;
+const rangeConstructorIntegerOverflow = 3452547;
+const rangeConstructorDateOverflow = 3452552;
+function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, kind: number): checkruntime.Int4Value {
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    kind = langruntime.checkedI32(kind);
+    if (lower.kind === "Null") {
+        return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+    }
+    if (upper.kind === "Null") {
+        return checkruntime.makeInt4Value(langruntime.checkedSignedNegate(1));
+    }
+    if (kind === 7) {
+        const left: checkruntime.DateValue = checkruntime.arrayElementToDate(lower);
+        const right: checkruntime.DateValue = checkruntime.arrayElementToDate(upper);
+        return dateCmpU18z(left, right);
+    }
+    if (kind === 2) {
+        const left: checkruntime.Int4Value = checkruntime.arrayElementToInt4(lower);
+        const right: checkruntime.Int4Value = checkruntime.arrayElementToInt4(upper);
+        return btint4cmpE3r7(left, right);
+    }
+    if (kind === 3) {
+        const left: checkruntime.Int8Value = checkruntime.arrayElementToInt8(lower);
+        const right: checkruntime.Int8Value = checkruntime.arrayElementToInt8(upper);
+        return btint8cmpTevi(left, right);
+    }
+    if (kind === 10) {
+        const left: checkruntime.NumericValue = checkruntime.arrayElementToNumeric(lower);
+        const right: checkruntime.NumericValue = checkruntime.arrayElementToNumeric(upper);
+        return numericCmp6h4s(left, right);
+    }
+    if (kind === 4) {
+        const left: checkruntime.TimestampValue = checkruntime.arrayElementToTimestamp(lower);
+        const right: checkruntime.TimestampValue = checkruntime.arrayElementToTimestamp(upper);
+        return timestampCmpLpkm(left, right);
+    }
+    if (kind === 5) {
+        const left: checkruntime.TimestamptzValue = checkruntime.arrayElementToTimestamptz(lower);
+        const right: checkruntime.TimestamptzValue = checkruntime.arrayElementToTimestamptz(upper);
+        return timestamptzCmpCa0r(left, right);
+    }
+    return { kind: "Unknown" };
+}
+function rangeBuiltinSerialize(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInclusive: boolean, upperInclusive: boolean): checkruntime.RangeValue {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    lowerInclusive = langruntime.checkedBool(lowerInclusive);
+    upperInclusive = langruntime.checkedBool(upperInclusive);
+    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(checkruntime.copyArrayElement(lower), checkruntime.copyArrayElement(upper), kind);
+    if (comparison.kind === "Error") {
+        const error: checkruntime.SqlError = comparison.value;
+        return { kind: "Error", value: error };
+    }
+    if (comparison.kind === "Value") {
+        const order: number = langruntime.checkedI32(comparison.value);
+        if (order > 0) {
+            return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorDataError) };
+        }
+        if (order === 0 && (lowerInclusive === false || upperInclusive === false)) {
+            return checkruntime.rangeFromCoercedBounds(typeName, elementType, kind, true, false, false, { kind: "Null" }, { kind: "Null" });
+        }
+        let loInc: boolean = lowerInclusive;
+        let hiInc: boolean = upperInclusive;
+        if (lower.kind === "Null") {
+            loInc = langruntime.checkedBool(false);
+        }
+        if (upper.kind === "Null") {
+            hiInc = langruntime.checkedBool(false);
+        }
+        return checkruntime.rangeFromCoercedBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper);
+    }
+    return { kind: "Unknown" };
+}
+function rangeBuiltinCanonical(input: checkruntime.RangeValue): checkruntime.RangeValue {
+    input = checkruntime.copyRangeValue(input);
+    if (input.kind === "Value") {
+        const value: checkruntime.RangePayload = checkruntime.copyRangePayload(input.value);
+        if (value.empty) {
+            return { kind: "Value", value: value };
+        }
+        let lower: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+        let upper: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+        let loInc: boolean = value.lowerInclusive;
+        let hiInc: boolean = value.upperInclusive;
+        if (value.elementKind === 2) {
+            if (lower.kind === "Int4") {
+                const bound: number = langruntime.checkedI32(lower.value);
+                if (loInc === false) {
+                    if (bound === 2147483647) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorIntegerOverflow) };
+                    }
+                    lower = checkruntime.copyArrayElement({ kind: "Int4", value: langruntime.checkedSignedAdd(bound, 1) });
+                    loInc = langruntime.checkedBool(true);
+                }
+            }
+            if (upper.kind === "Int4") {
+                const bound: number = langruntime.checkedI32(upper.value);
+                if (hiInc) {
+                    if (bound === 2147483647) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorIntegerOverflow) };
+                    }
+                    upper = checkruntime.copyArrayElement({ kind: "Int4", value: langruntime.checkedSignedAdd(bound, 1) });
+                    hiInc = langruntime.checkedBool(false);
+                }
+            }
+        }
+        if (value.elementKind === 3) {
+            if (lower.kind === "Int8") {
+                const bound: bigint = langruntime.checkedI64(lower.value);
+                if (loInc === false) {
+                    if (bound === 9223372036854775807n) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorIntegerOverflow) };
+                    }
+                    lower = checkruntime.copyArrayElement({ kind: "Int8", value: langruntime.checkedI64Add(bound, 1n) });
+                    loInc = langruntime.checkedBool(true);
+                }
+            }
+            if (upper.kind === "Int8") {
+                const bound: bigint = langruntime.checkedI64(upper.value);
+                if (hiInc) {
+                    if (bound === 9223372036854775807n) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorIntegerOverflow) };
+                    }
+                    upper = checkruntime.copyArrayElement({ kind: "Int8", value: langruntime.checkedI64Add(bound, 1n) });
+                    hiInc = langruntime.checkedBool(false);
+                }
+            }
+        }
+        if (value.elementKind === 7) {
+            if (lower.kind === "Date") {
+                const bound: number = langruntime.checkedI32(lower.value);
+                if (!(bound === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) && !(bound === 2147483647) && loInc === false) {
+                    if (bound >= 2145031948) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorDateOverflow) };
+                    }
+                    lower = checkruntime.copyArrayElement({ kind: "Date", value: langruntime.checkedSignedAdd(bound, 1) });
+                    loInc = langruntime.checkedBool(true);
+                }
+            }
+            if (upper.kind === "Date") {
+                const bound: number = langruntime.checkedI32(upper.value);
+                if (!(bound === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) && !(bound === 2147483647) && hiInc) {
+                    if (bound >= 2145031948) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorDateOverflow) };
+                    }
+                    upper = checkruntime.copyArrayElement({ kind: "Date", value: langruntime.checkedSignedAdd(bound, 1) });
+                    hiInc = langruntime.checkedBool(false);
+                }
+            }
+        }
+        return rangeBuiltinSerialize(value.typeName, value.elementType, value.elementKind, lower, upper, loInc, hiInc);
+    }
+    return input;
+}
+function rangeBuiltinConstruct(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, flags: checkruntime.TextValue): checkruntime.RangeValue {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    if (lower.kind === "Error") {
+        const error: checkruntime.SqlError = lower.value;
+        return { kind: "Error", value: error };
+    }
+    if (upper.kind === "Error") {
+        const error: checkruntime.SqlError = upper.value;
+        return { kind: "Error", value: error };
+    }
+    if (flags.kind === "Error") {
+        const error: checkruntime.SqlError = flags.value;
+        return { kind: "Error", value: error };
+    }
+    if (flags.kind === "Null") {
+        return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorDataError) };
+    }
+    if (flags.kind === "Value") {
+        const text: string = langruntime.checkedString(flags.value);
+        const valid: boolean = text === "[]" || text === "[)" || text === "(]" || text === "()";
+        if (valid === false) {
+            return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorFlagsError) };
+        }
+        if (lower.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        if (upper.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        const loInc: boolean = text === "[]" || text === "[)";
+        const hiInc: boolean = text === "[]" || text === "(]";
+        const initial: checkruntime.RangeValue = rangeBuiltinSerialize(typeName, elementType, kind, lower, upper, loInc, hiInc);
+        return rangeBuiltinCanonical(initial);
+    }
+    return { kind: "Unknown" };
+}
+export function daterangeXa2w(lower: checkruntime.DateValue, upper: checkruntime.DateValue): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromDate(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromDate(upper);
+    return rangeBuiltinConstruct("pg_catalog.daterange", "pg_catalog.date", 7, lo, hi, checkruntime.makeTextValue("[)"));
+}
+export function daterangeZ15e(lower: checkruntime.DateValue, upper: checkruntime.DateValue, flags: checkruntime.TextValue): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromDate(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromDate(upper);
+    return rangeBuiltinConstruct("pg_catalog.daterange", "pg_catalog.date", 7, lo, hi, flags);
+}
+export function daterangeCanonicalWxsu(input: checkruntime.RangeValue): checkruntime.RangeValue {
+    input = checkruntime.copyRangeValue(input);
+    const checked: checkruntime.RangeValue = checkruntime.rangeRequireType(input, "pg_catalog.daterange", "pg_catalog.date", 7);
+    return rangeBuiltinCanonical(checked);
+}
+export function int4rangeH2la(lower: checkruntime.Int4Value, upper: checkruntime.Int4Value): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromInt4(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromInt4(upper);
+    return rangeBuiltinConstruct("pg_catalog.int4range", "pg_catalog.int4", 2, lo, hi, checkruntime.makeTextValue("[)"));
+}
+export function int4rangeDl1b(lower: checkruntime.Int4Value, upper: checkruntime.Int4Value, flags: checkruntime.TextValue): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromInt4(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromInt4(upper);
+    return rangeBuiltinConstruct("pg_catalog.int4range", "pg_catalog.int4", 2, lo, hi, flags);
+}
+export function int4rangeCanonicalRxi1(input: checkruntime.RangeValue): checkruntime.RangeValue {
+    input = checkruntime.copyRangeValue(input);
+    const checked: checkruntime.RangeValue = checkruntime.rangeRequireType(input, "pg_catalog.int4range", "pg_catalog.int4", 2);
+    return rangeBuiltinCanonical(checked);
+}
+export function int8rangeP6bp(lower: checkruntime.Int8Value, upper: checkruntime.Int8Value): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromInt8(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromInt8(upper);
+    return rangeBuiltinConstruct("pg_catalog.int8range", "pg_catalog.int8", 3, lo, hi, checkruntime.makeTextValue("[)"));
+}
+export function int8rangeK46i(lower: checkruntime.Int8Value, upper: checkruntime.Int8Value, flags: checkruntime.TextValue): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromInt8(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromInt8(upper);
+    return rangeBuiltinConstruct("pg_catalog.int8range", "pg_catalog.int8", 3, lo, hi, flags);
+}
+export function int8rangeCanonicalWenu(input: checkruntime.RangeValue): checkruntime.RangeValue {
+    input = checkruntime.copyRangeValue(input);
+    const checked: checkruntime.RangeValue = checkruntime.rangeRequireType(input, "pg_catalog.int8range", "pg_catalog.int8", 3);
+    return rangeBuiltinCanonical(checked);
+}
+export function numrangeEag6(lower: checkruntime.NumericValue, upper: checkruntime.NumericValue): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromNumeric(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromNumeric(upper);
+    return rangeBuiltinConstruct("pg_catalog.numrange", "pg_catalog.\"numeric\"", 10, lo, hi, checkruntime.makeTextValue("[)"));
+}
+export function numrange8ziy(lower: checkruntime.NumericValue, upper: checkruntime.NumericValue, flags: checkruntime.TextValue): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromNumeric(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromNumeric(upper);
+    return rangeBuiltinConstruct("pg_catalog.numrange", "pg_catalog.\"numeric\"", 10, lo, hi, flags);
+}
+export function tsrangeU3gz(lower: checkruntime.TimestampValue, upper: checkruntime.TimestampValue): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamp(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamp(upper);
+    return rangeBuiltinConstruct("pg_catalog.tsrange", "pg_catalog.\"timestamp\"", 4, lo, hi, checkruntime.makeTextValue("[)"));
+}
+export function tsrangeRglb(lower: checkruntime.TimestampValue, upper: checkruntime.TimestampValue, flags: checkruntime.TextValue): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamp(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamp(upper);
+    return rangeBuiltinConstruct("pg_catalog.tsrange", "pg_catalog.\"timestamp\"", 4, lo, hi, flags);
+}
+export function tstzrange2y9m(lower: checkruntime.TimestamptzValue, upper: checkruntime.TimestamptzValue): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamptz(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamptz(upper);
+    return rangeBuiltinConstruct("pg_catalog.tstzrange", "pg_catalog.timestamptz", 5, lo, hi, checkruntime.makeTextValue("[)"));
+}
+export function tstzrangeZuff(lower: checkruntime.TimestamptzValue, upper: checkruntime.TimestamptzValue, flags: checkruntime.TextValue): checkruntime.RangeValue {
+    const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamptz(lower);
+    const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamptz(upper);
+    return rangeBuiltinConstruct("pg_catalog.tstzrange", "pg_catalog.timestamptz", 5, lo, hi, flags);
+}
 export function isempty86tf(input: checkruntime.RangeValue): checkruntime.BoolValue {
     input = checkruntime.copyRangeValue(input);
     return checkruntime.rangeEmptyState(input);

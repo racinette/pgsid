@@ -1,4 +1,9 @@
-import { builtinCallables, builtinCast, builtinMetadata } from '../postgres/builtins/inventory.js'
+import {
+  builtinCallables,
+  builtinCast,
+  builtinMetadata,
+  isBuiltinRangeConstructor,
+} from '../postgres/builtins/inventory.js'
 
 export function isRegexArrayCallable(signature: string): boolean {
   const metadata = builtinMetadata(signature)
@@ -403,6 +408,7 @@ export function supportsTextCallableCollation(signature: string, collation?: str
         implementation.volatility === 's'))
   return (
     isIdentifierParseCallable(signature) ||
+    isBuiltinRangeConstructor(implementation) ||
     (implementation.kind === 'function' &&
       implementation.schema === 'pg_catalog' &&
       implementation.name === 'jsonb_set_lax' &&

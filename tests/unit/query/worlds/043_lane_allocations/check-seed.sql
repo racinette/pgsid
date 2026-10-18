@@ -4522,3 +4522,95 @@ VALUES('[1,1]','[2,8)','[9007199254740993,9007199254740993]','[1.00,1.00]','[200
 -- name: reservation_mixed_empty
 INSERT INTO lane_reservation_windows(span,alternate_span,loads,price_band,service_days,local_shift,instant_shift,prefer_alternate,expected_end,expected_empty,expected_lower_inc,expected_continuous_upper_inc,expected_lower_inf,expected_upper_inf,expected_lower_null,expected_upper_null,minimum,latest_local,earliest_instant,denominator,bypass)
 VALUES('[1,9)','[2,8)','[9007199254740993,9007199254740999)','empty','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-01 00:00:00.000002)','[2000-01-01 00:00:00.000001+00,2000-01-01 00:00:00.000002+00)',false,9,false,true,false,false,false,false,false,0,'2000-01-04','1999-12-31 00:00:00+00',1,false);
+
+-- name: constructor_normal
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_inclusive
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[]',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_exclusive
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','()',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_right_inclusive
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','(]',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_wrong_empty
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',true,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_wide_limit
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',false,9007199254740998,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_price_floor
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,-1,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_day_limit
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',false,9007199254741000,'2000-01-02','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_local_floor
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',false,9007199254741000,'2000-01-05','2000-01-02','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_instant_limit
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-02 00:00:00+00',1,false);
+
+-- name: constructor_invalid_flags
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','invalid',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_null_flags
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00',NULL,false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_reversed
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(4,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_flags_before_order
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(4,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','invalid',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_int4_overflow
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(2147483647,NULL,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','()',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_int8_overflow
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9223372036854775807,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[]',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_date_overflow
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','5874897-12-31','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[]',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_division_error
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',0,false);
+
+-- name: constructor_bypass
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,3,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','invalid',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',0,true);
+
+-- name: constructor_unbounded
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'[]',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_empty
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,1,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','()',true,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_point
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(1,1,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[]',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: constructor_max_lower
+INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(2147483647,NULL,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);

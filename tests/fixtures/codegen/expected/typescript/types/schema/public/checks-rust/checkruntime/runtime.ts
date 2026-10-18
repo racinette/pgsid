@@ -8458,7 +8458,7 @@ export interface RangePayload {
     readonly upperInclusive: boolean;
     readonly bounds: ArrayElement[];
 }
-function copyRangePayload(value: RangePayload): RangePayload {
+export function copyRangePayload(value: RangePayload): RangePayload {
     return { typeName: langruntime.checkedString(value.typeName), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), empty: langruntime.checkedBool(value.empty), lowerInclusive: langruntime.checkedBool(value.lowerInclusive), upperInclusive: langruntime.checkedBool(value.upperInclusive), bounds: langruntime.checkedStructs(value.bounds, copyArrayElement) };
 }
 export type RangeValue = {
