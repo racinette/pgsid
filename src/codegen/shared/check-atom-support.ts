@@ -91,11 +91,15 @@ export function portableCheckAtoms(
 ): EvalBoolExpression {
   const rustNames = checkRustCallableNames()
   const scalar = (value: EvalExpression): EvalExpression => {
-    if ((value.kind === 'array-text-literal' || value.kind === 'text-to-array') && value.conversion)
+    if (
+      (value.kind === 'array-text-literal' || value.kind === 'text-to-array') &&
+      (value.conversion || value.inputConversion)
+    )
       return {
         ...value,
         ...(value.kind === 'text-to-array' ? { operand: scalar(value.operand) } : {}),
-        conversion: scalar(value.conversion),
+        ...(value.conversion ? { conversion: scalar(value.conversion) } : {}),
+        ...(value.inputConversion ? { inputConversion: scalar(value.inputConversion) } : {}),
       }
     if (value.kind === 'array-domain-coerce')
       return { ...value, operand: scalar(value.operand), conversion: scalar(value.conversion) }

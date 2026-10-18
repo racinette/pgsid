@@ -1328,3 +1328,17 @@ CREATE TABLE lane_group_allocations (
   CONSTRAINT nested_group_fill CHECK(CASE WHEN bypass THEN true ELSE cardinality(array_fill(first_group,ARRAY[2]))=2 END),
   CONSTRAINT nested_group_scaled CHECK(CASE WHEN bypass THEN true ELSE cardinality(first_group)/divisor=expected_scaled END)
 );
+
+
+CREATE TABLE lane_group_text_imports (
+  payload text,
+  required_payload text,
+  expected_count integer,
+  expected_first integer,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT nested_text_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(payload::lane_pair_array[]) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT nested_text_first CHECK(CASE WHEN bypass THEN true ELSE ((payload::lane_pair_array[])[1])[1] IS NOT DISTINCT FROM expected_first END),
+  CONSTRAINT nested_text_required CHECK(CASE WHEN bypass THEN true ELSE cardinality(required_payload::lane_required_pair[])>=0 END),
+  CONSTRAINT nested_text_order CHECK(CASE WHEN bypass THEN true ELSE cardinality(payload::lane_pair_array[])/divisor>=0 END)
+);
