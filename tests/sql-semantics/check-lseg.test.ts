@@ -530,7 +530,7 @@ describe('portable line segments', () => {
       ),
     ).toEqual(knownResults)
   }, 120_000)
-  it('keeps constrained domain coercions deferred and resolves qualified domain names separately from builtins', async () => {
+  it('enforces geometric domains and resolves qualified domain names separately from builtins', async () => {
     await pg.exec(`CREATE DOMAIN checked_segment AS lseg CHECK(ishorizontal(VALUE));
       CREATE DOMAIN required_segment AS lseg NOT NULL;
       CREATE SCHEMA segment_shadow;CREATE DOMAIN segment_shadow.date AS lseg;
@@ -548,14 +548,20 @@ describe('portable line segments', () => {
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'segment_domains')!
     const constraints = table.constraints.filter((c) => c.type === 'check')
-    const group = prepareCheckRustGroup(
-      constraints.map((c) => ({
-        expression: lowerTableCheck(table, c, [], catalog.domains)!.expression,
-        identity: { schema: 'public', kind: 'table', owner: table.name, constraint: c.name },
+    const plans = constraints.flatMap((constraint) =>
+      (['source', 'stored'] as const).map((origin) => ({
+        expression: lowerTableCheck(table, constraint, [], catalog.domains, origin)!.expression,
+        identity: {
+          schema: 'public',
+          kind: 'table' as const,
+          owner: table.name,
+          constraint: constraint.name + '_' + origin,
+        },
       })),
     )
-    for (const [i, c] of group.checks.entries())
-      expect(c.kind, constraints[i]!.name).toBe('supported')
+    const group = prepareCheckRustGroup(plans)
+    for (const [index, check] of group.checks.entries())
+      expect(check.kind, plans[index]!.identity.constraint).toBe('supported')
     const row: Row = {
       source: known('[(0,0),(3,4)]'),
       expected: known('0000000000000000000000000000000040080000000000004010000000000000'),
@@ -575,16 +581,116 @@ describe('portable line segments', () => {
         fixtures.push({
           name,
           row: { ...row, source: known(source) },
-          expected: { kind: 'Unknown' },
+          expected:
+            source === null
+              ? name === 'required'
+                ? failure('23502')
+                : { kind: 'Null' }
+              : source === 'bad'
+                ? failure('22P02')
+                : name === 'enforced'
+                  ? failure('23514')
+                  : { kind: 'True' },
         })
+    const acceptedSource = '[(0,0),(3,0)]'
+    const acceptedWire = (
+      await pg.query<{ value: string }>(`SELECT encode(lseg_send($1::lseg),'hex') AS value`, [
+        acceptedSource,
+      ])
+    ).rows[0]!.value
+    fixtures.push({
+      name: 'enforced',
+      row: { source: known(acceptedSource), expected: known(acceptedWire) },
+      expected: { kind: 'True' },
+    })
+    fixtures.push({
+      name: 'enforced',
+      row: { source: known(acceptedSource), expected: known('00') },
+      expected: { kind: 'False' },
+    })
+    for (const name of ['enforced', 'required'])
+      fixtures.push({
+        name,
+        row: { source: known(acceptedSource), expected: known(null) },
+        expected: { kind: 'Null' },
+      })
+    const references: unknown[] = []
+    for (const constraint of constraints) {
+      const oracle = table.name + '_oracle_' + constraint.name
+      await pg.exec(
+        `CREATE TEMP TABLE ${oracle}(source text, expected bytea, CONSTRAINT checked ${constraint.definition})`,
+      )
+      const sql = constraint.definition.replace(/^CHECK\s*/u, '')
+      for (const fixture of fixtures.filter((item) => item.name === constraint.name)) {
+        const source = fixture.row.source!,
+          wire = fixture.row.expected!
+        if (
+          (source.kind !== 'Value' && source.kind !== 'Null') ||
+          (wire.kind !== 'Value' && wire.kind !== 'Null')
+        )
+          throw new Error('PostgreSQL witnesses require concrete SQL inputs')
+        const sourceValue = source.kind === 'Value' ? source.value : null
+        const hex = wire.kind === 'Value' ? wire.value : null
+        if (sourceValue !== null && typeof sourceValue !== 'string')
+          throw new Error('Expected text input')
+        if (hex !== null && typeof hex !== 'string')
+          throw new Error('Expected hexadecimal bytea input')
+        const parameters = [sourceValue, hex === null ? null : Buffer.from(hex, 'hex')]
+        let observed: Outcome
+        try {
+          const value = (
+            await pg.query<{ value: boolean | null }>(
+              `WITH candidate AS MATERIALIZED(SELECT $1::text source,$2::bytea expected) SELECT ${sql} AS value FROM candidate`,
+              parameters,
+            )
+          ).rows[0]!.value
+          observed = { kind: value === null ? 'Null' : value ? 'True' : 'False' }
+        } catch (error) {
+          observed = {
+            kind: 'Error',
+            value: { state: parseInt((error as { code: string }).code, 36) },
+          }
+        }
+        expect(observed, constraint.name + ':' + String(sourceValue)).toEqual(fixture.expected)
+        const insert = pg.query(`INSERT INTO ${oracle} VALUES($1,$2)`, parameters)
+        if (observed.kind === 'Error' || observed.kind === 'False')
+          await expect(insert).rejects.toMatchObject({
+            code:
+              observed.kind === 'Error'
+                ? observed.value.state.toString(36).toUpperCase().padStart(5, '0')
+                : '23514',
+          })
+        else await insert
+        references.push({
+          constraint: constraint.name,
+          source: sourceValue,
+          expected: hex,
+          outcome: observed,
+        })
+      }
+      await pg.exec(`DROP TABLE ${oracle}`)
+    }
+    await mkdir('artifacts/geometric-domain-casts', { recursive: true })
+    await writeFile(
+      'artifacts/geometric-domain-casts/segment.json',
+      JSON.stringify(references, null, 2) + '\n',
+    )
+    expect(references).toHaveLength(fixtures.length)
+    expect(fixtures).toHaveLength(14)
+    const parityFixtures = fixtures.flatMap((fixture) =>
+      (['source', 'stored'] as const).map((origin) => ({
+        ...fixture,
+        name: fixture.name + '_' + origin,
+      })),
+    )
     const target = join(directory, 'domains')
     await mkdir(target)
     await runCheckParity(
       target,
       'lsegdomains',
       group,
-      constraints.map((c) => c.name),
-      fixtures,
+      plans.map((plan) => plan.identity.constraint),
+      parityFixtures,
     )
   }, 120_000)
 })
