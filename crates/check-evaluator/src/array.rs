@@ -313,10 +313,19 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         if let ArrayElement::Error(error) = element {
             return ArrayValue::Error(error);
         };
+        if let ArrayElement::Array(nested) = element {
+            let checked = make_array_value(nested);
+            if let ArrayValue::Error(error) = checked {
+                return ArrayValue::Error(error);
+            };
+            if let ArrayValue::Unknown = checked {
+                return ArrayValue::Unknown;
+            };
+        };
         position += 1;
     }
     let identity: Vec<char> = input.element_type.chars().collect();
-    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 40 {
+    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 41 {
         return ArrayValue::Unknown;
     };
     position = 0;
@@ -392,6 +401,65 @@ pub fn array_from_coerced_value(
 ) -> ArrayValue {
     if let ArrayValue::Value(value) = input {
         if value.element_type != element_type || value.element_kind != element_kind {
+            return ArrayValue::Unknown;
+        };
+        return make_array_value(value);
+    };
+    input
+}
+
+fn array_tree_type_at(types: &str, level: usize) -> String {
+    let characters: Vec<char> = types.chars().collect();
+    let mut current: usize = 0;
+    let mut position: usize = 0;
+    let mut result = String::new();
+    while position < characters.len() {
+        let character = characters[position];
+        if character == '\0' {
+            if current == level {
+                return result;
+            };
+            current += 1;
+        } else if current == level {
+            result.push(character);
+        };
+        position += 1;
+    }
+    result
+}
+
+fn array_tree_identity_valid(input: &ArrayPayload, types: &str, kinds: &str, level: usize) -> bool {
+    let families: Vec<char> = kinds.chars().collect();
+    if level >= families.len() {
+        return false;
+    };
+    let family = families[level] as i32;
+    let expected_type = array_tree_type_at(types, level);
+    if input.element_type != expected_type || input.element_kind != family {
+        return false;
+    };
+    if family != 41 {
+        return level + 1 == families.len();
+    };
+    if level + 1 >= families.len() {
+        return false;
+    };
+    let mut index: usize = 0;
+    while index < input.elements.len() {
+        let element = input.elements[index].clone();
+        if let ArrayElement::Array(nested) = element {
+            if array_tree_identity_valid(&nested, types, kinds, level + 1) == false {
+                return false;
+            };
+        };
+        index += 1;
+    }
+    true
+}
+
+pub fn array_from_coerced_tree(input: ArrayValue, types: &str, kinds: &str) -> ArrayValue {
+    if let ArrayValue::Value(value) = input {
+        if array_tree_identity_valid(&value, types, kinds, 0) == false {
             return ArrayValue::Unknown;
         };
         return make_array_value(value);

@@ -4034,3 +4034,47 @@ VALUES(NULL,'{abcd,xy}',2,'abc','abc',0,false);
 -- name: catalog_coercion_bypassed
 INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
 VALUES(NULL,'bad',-1,'ignored','ignored',0,true);
+
+-- name: nested_groups_valid
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{1,2}','{3,4}',2,2,5,1,1,3,2,1,2,false);
+
+-- name: nested_groups_wrong_count
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{1,2}','{3,4}',3,2,5,1,1,3,2,1,2,false);
+
+-- name: nested_groups_wrong_first
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{1,2}','{3,4}',2,2,5,9,1,3,2,1,2,false);
+
+-- name: nested_groups_wrong_lower
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{1,2}','{3,4}',2,2,-3,1,1,3,2,1,2,false);
+
+-- name: nested_groups_wrong_slice
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{1,2}','{3,4}',2,2,5,1,2,3,2,1,2,false);
+
+-- name: nested_groups_wrong_append
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{1,2}','{3,4}',2,2,5,1,1,4,2,1,2,false);
+
+-- name: nested_groups_wrong_construct
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{1,2}','{3,4}',2,2,5,1,1,3,3,1,2,false);
+
+-- name: nested_groups_zero_divisor
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{1,2}','{3,4}',2,2,5,1,1,3,2,0,2,false);
+
+-- name: nested_groups_nulls
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,NULL,1,NULL,false);
+
+-- name: nested_groups_empty
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES('{}','{1,2}','{3,4}',0,NULL,NULL,NULL,0,1,2,1,2,false);
+
+-- name: nested_groups_bypassed
+INSERT INTO lane_group_allocations(groups,first_group,second_group,expected_count,expected_size,expected_lower,expected_first,expected_slice,expected_append,expected_construct,divisor,expected_scaled,bypass)
+VALUES('{"[5:6]={1,2}","[-3:-2]={3,4}"}','{1,2}','{3,4}',-1,-1,-1,-1,-1,-1,-1,0,-1,true);

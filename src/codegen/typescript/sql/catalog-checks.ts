@@ -1,4 +1,4 @@
-import { arrayElementFamily } from '../../shared/check-array-types.js'
+import { arrayElementFamily, arrayIdentityPlan } from '../../shared/check-array-types.js'
 import type { CheckExecutionContext } from '../../shared/check-rust-evaluator.js'
 import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo } from '../../../catalog/types.js'
@@ -336,6 +336,7 @@ export function renderTypescriptSchemaCheckArtifacts(
           }
           if (item.type.startsWith('array:')) {
             rustInputAdapters.add('checkRustArray')
+            rustInputAdapters.add('checkRustArrayValue')
             rustInputAdapters.add('checkRustArrayElement')
             rustInputAdapters.add('checkRustArrayField')
             rustInputAdapters.add('checkRustArrayProfiles')
@@ -400,6 +401,12 @@ export function renderTypescriptSchemaCheckArtifacts(
                   factory.createNumericLiteral(
                     arrayElementFamily(item.type.slice('array:'.length))!,
                   ),
+                  ...(arrayElementFamily(item.type.slice(6)) === 41
+                    ? [
+                        arrayIdentityPlan(item.type)!.types,
+                        arrayIdentityPlan(item.type)!.kinds,
+                      ].map((value) => factory.createStringLiteral(value))
+                    : []),
                 ]
               : []),
             ...(item.enum
@@ -756,10 +763,13 @@ export function renderTypescriptSchemaCheckArtifacts(
 
 const typescriptRustAdapterSource = `const checkRustArrayRecords: Readonly<Record<string,Readonly<Record<string,string>>>> = {"SqlError":{"state":"u32"},"ArrayDimension":{"lower":"i32","length":"i32"},"BoxPayload":{"highX":"i64","highY":"i64","lowX":"i64","lowY":"i64","wireKnown":"bool"},"CirclePayload":{"x":"i64","y":"i64","radius":"i64","wireKnown":"bool"},"EnumPayload":{"ordinal":"i32","labelOid":"i64"},"IntervalPayload":{"months":"i32","days":"i32","time":"i64"},"JsonPayload":{"source":"String","kind":"i32","depth":"usize"},"JsonbNode":{"kind":"i32","child":"usize","next":"usize","keyStart":"usize","keyEnd":"usize","textStart":"usize","textEnd":"usize"},"JsonbPayload":{"characters":"Vec<char>","nodes":"Vec<JsonbNode>","root":"usize"},"JsonpathNode":{"kind":"i32","next":"usize","left":"usize","right":"usize","textStart":"usize","textEnd":"usize","first":"i32","last":"i32","flags":"i32"},"JsonpathPayload":{"characters":"Vec<char>","nodes":"Vec<JsonpathNode>","root":"usize","lax":"bool"},"LinePayload":{"a":"i64","b":"i64","c":"i64","wireKnown":"bool"},"LsegPayload":{"x1":"i64","y1":"i64","x2":"i64","y2":"i64","wireKnown":"bool"},"MacAddress":{"word0":"i32","word1":"i32","word2":"i32","word3":"i32"},"NetworkAddress":{"family":"usize","prefix":"i32","word0":"i32","word1":"i32","word2":"i32","word3":"i32","word4":"i32","word5":"i32","word6":"i32","word7":"i32"},"PathPayload":{"closed":"bool","points":"Vec<PointPayload>"},"PointPayload":{"x":"i64","y":"i64","wireKnown":"bool"},"PolygonPayload":{"points":"Vec<PointPayload>","bounds":"BoxValue"},"SnapshotPayload":{"xmin":"i64","xmax":"i64","xip":"Vec<SnapshotXid>"},"SnapshotXid":{"bits":"i64"},"TimetzPayload":{"time":"i64","zone":"i32"},"Uuid":{"word0":"i32","word1":"i32","word2":"i32","word3":"i32","word4":"i32","word5":"i32","word6":"i32","word7":"i32"}}
 const checkRustArrayProfiles: Readonly<Record<string,readonly [number,string]>> = {"Int2":[1,"i32"],"Int4":[2,"i32"],"Int8":[3,"i64"],"Timestamp":[4,"i64"],"Timestamptz":[5,"i64"],"Enum":[6,"EnumPayload"],"Date":[7,"i32"],"Text":[8,"String"],"Bool":[9,"bool"],"Numeric":[10,"String"],"Json":[11,"JsonPayload"],"Jsonb":[12,"JsonbPayload"],"Network":[13,"NetworkAddress"],"Bit":[14,"String"],"Bytea":[15,"String"],"Macaddr":[16,"MacAddress"],"Macaddr8":[17,"MacAddress"],"Uuid":[18,"Uuid"],"Float4":[19,"i32"],"Float8":[20,"i64"],"Time":[21,"i64"],"Timetz":[22,"TimetzPayload"],"Interval":[23,"IntervalPayload"],"Point":[24,"PointPayload"],"Line":[25,"LinePayload"],"Lseg":[26,"LsegPayload"],"Box":[27,"BoxPayload"],"Path":[28,"PathPayload"],"Polygon":[29,"PolygonPayload"],"Circle":[30,"CirclePayload"],"Money":[31,"i64"],"InternalChar":[32,"i32"],"Oid":[33,"i64"],"Xid":[34,"i64"],"Cid":[35,"i64"],"Snapshot":[36,"SnapshotPayload"],"Xid8":[37,"i64"],"PgLsn":[38,"i64"],"Tid":[39,"i64"],"Jsonpath":[40,"JsonpathPayload"],"JsonpathStoredText":[40,"String"]}
-function checkRustArrayNullness(row: object,name: string,elementType: string,elementKind: number): _checkRust.BoolValue { return _checkRust.arrayIsNull(checkRustArray(row,name,elementType,elementKind)) }
-function checkRustArray(row: object, name: string, elementType: string, elementKind: number): _checkRust.ArrayValue {
+function checkRustArrayNullness(row: object,name: string,elementType: string,elementKind: number,...tree: string[]): _checkRust.BoolValue { return _checkRust.arrayIsNull(checkRustArray(row,name,elementType,elementKind,...tree)) }
+function checkRustArray(row: object, name: string, elementType: string, elementKind: number,...tree: string[]): _checkRust.ArrayValue {
   const input = Reflect.get(row,name)
   if (!Object.hasOwn(row,name) || input === undefined) return _checkRust.arrayUnknown()
+  return checkRustArrayValue(input,elementType,elementKind,tree.length===2 ? tree[1]!.length-1 : 0,tree)
+}
+function checkRustArrayValue(input: unknown, elementType: string, elementKind: number, depth: number, tree: string[]=[], nested=false): _checkRust.ArrayValue {
   if (input === null) return _checkRust.arrayNull()
   if (!input || typeof input !== 'object' || !('kind' in input)) return _checkRust.arrayUnknown()
   if (input.kind === 'Unknown' || input.kind === 'Null') return {kind:input.kind}
@@ -777,7 +787,7 @@ function checkRustArray(row: object, name: string, elementType: string, elementK
   }
   const elements: _checkRust.ArrayElement[]=[]
   for(const cell of value.elements) {
-    const element=checkRustArrayElement(cell,elementKind)
+    const element=checkRustArrayElement(cell,elementKind,depth)
     if (element===null) return _checkRust.arrayUnknown()
     elements.push(element)
   }
@@ -789,12 +799,21 @@ function checkRustArray(row: object, name: string, elementType: string, elementK
     else if (flag.kind==='Null' || flag.kind==='Error') nullBitmap={kind:'Null'}
     else if (flag.kind!=='Unknown') return _checkRust.arrayUnknown()
   }
-  return _checkRust.arrayFromCoercedValue({kind:'Value',value:{elementType,elementKind,dimensions,elements,nullBitmap}},elementType,elementKind)
+  const result: _checkRust.ArrayValue={kind:'Value',value:{elementType,elementKind,dimensions,elements,nullBitmap}}
+  if(nested) return result
+  return tree.length===2 ? _checkRust.arrayFromCoercedTree(result,tree[0]!,tree[1]!) : _checkRust.arrayFromCoercedValue(result,elementType,elementKind)
 }
-function checkRustArrayElement(input: unknown, family: number): _checkRust.ArrayElement | null {
+function checkRustArrayElement(input: unknown, family: number, depth: number): _checkRust.ArrayElement | null {
   if (!input || typeof input !== 'object' || !('kind' in input)) return null
   if (input.kind==='Unknown' || input.kind==='Null') return {kind:input.kind}
   if (input.kind==='Error') return 'value' in input && checkRustArrayField(input.value,'SqlError') ? {kind:'Error',value:input.value as _checkRust.SqlError} : null
+  if(input.kind==='Array' && family===41) {
+    if(depth<1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
+    const value=input.value
+    if(!('elementType' in value) || typeof value.elementType!=='string' || !('elementKind' in value) || !checkRustArrayField(value.elementKind,'i32')) return null
+    const result=checkRustArrayValue({kind:'Value',value},value.elementType,value.elementKind as number,depth-1,[],true)
+    return result.kind==='Value' ? {kind:'Array',value:result.value} : null
+  }
   if (input.kind==='Float4UnspecifiedNan' && family===19) return {kind:'Float4UnspecifiedNan'}
   if (input.kind==='Float8UnspecifiedNan' && family===20) return {kind:'Float8UnspecifiedNan'}
   if (input.kind==='BoxNonNull' && family===27) return {kind:'BoxNonNull'}

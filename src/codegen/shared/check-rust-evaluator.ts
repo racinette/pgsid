@@ -807,6 +807,10 @@ export function emitCheckRustEvaluator(
     const family = arrayElementFamily(elementType)
     if (family === null)
       throw new UnsupportedCheckRustExpression('Missing array input element carrier')
+    if (family === 41)
+      throw new UnsupportedCheckRustExpression(
+        'Nested array text input requires its element conversion plan',
+      )
     const prefix = rustValuePrefix(rustType(elementType))
     const element = fresh('array_input_element')
     if (family <= 3) {

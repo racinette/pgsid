@@ -850,8 +850,6 @@ describe('world CHECK INSERT parity', () => {
           catalog.domains,
           catalog.enums,
         )!
-        const elementType = type.slice(6)
-        const baseElementType = arrayElementBaseType(elementType)
         const profiles: Record<string, { kind: string; family: number }> = {
           'pg_catalog.int2': { kind: 'Int2', family: 1 },
           'pg_catalog.int4': { kind: 'Int4', family: 2 },
@@ -865,82 +863,107 @@ describe('world CHECK INSERT parity', () => {
           'pg_catalog.float4': { kind: 'Float4', family: 19 },
           'pg_catalog.float8': { kind: 'Float8', family: 20 },
         }
-        const definition = catalog.enums.find((item) => enumType(item) === baseElementType)
-        const profile = definition ? { kind: 'Enum', family: 6 } : profiles[baseElementType]
-        if (!profile) throw new Error('Missing array INSERT fixture conversion: ' + elementType)
-        const scalarText =
-          profile.kind === 'Float4' || profile.kind === 'Float8'
-            ? `encode(float${profile.kind === 'Float4' ? 4 : 8}send(element),'hex')`
-            : 'element::text'
-        const result = (
-          await pg.query<{ dimensions: string | null; elements: string | null }>(
-            `SELECT array_dims(${quote(name)}) AS dimensions,CASE WHEN ${quote(name)} IS NULL THEN NULL ELSE COALESCE((SELECT json_agg(${scalarText})::text FROM unnest(${quote(name)}) element),'[]') END AS elements FROM (SELECT ${expressions.join(',')}) candidate`,
+
+        type CapturedArray = {
+          dimensions: string | null
+          elements: (string | null | CapturedArray)[]
+        }
+        const profileFor = (arrayType: string) => {
+          const elementType = arrayType.slice(6)
+          const baseElementType = arrayElementBaseType(elementType)
+          const definition = catalog.enums.find((item) => enumType(item) === baseElementType)
+          const profile = baseElementType.startsWith('array:')
+            ? { kind: 'Array', family: 41 }
+            : definition
+              ? { kind: 'Enum', family: 6 }
+              : profiles[baseElementType]
+          if (!profile) throw new Error('Missing array INSERT fixture conversion: ' + elementType)
+          return { elementType, baseElementType, definition, profile }
+        }
+        const captureSql = (value: string, arrayType: string, depth: number): string => {
+          const { baseElementType, profile } = profileFor(arrayType)
+          const alias = 'array_cell_' + depth
+          const scalar =
+            profile.kind === 'Array'
+              ? captureSql(alias, baseElementType, depth + 1)
+              : profile.kind === 'Float4' || profile.kind === 'Float8'
+                ? `encode(float${profile.kind === 'Float4' ? 4 : 8}send(${alias}),'hex')`
+                : `${alias}::text`
+          return `CASE WHEN (${value}) IS NULL THEN NULL ELSE json_build_object('dimensions',array_dims(${value}),'elements',COALESCE((SELECT json_agg(${scalar}) FROM unnest(${value}) ${alias}),'[]'::json)) END`
+        }
+        const captured = (
+          await pg.query<{ value: CapturedArray | null }>(
+            `SELECT ${captureSql(quote(name), type, 0)} AS value FROM (SELECT ${expressions.join(',')}) candidate`,
           )
-        ).rows[0]!
-        if (result.elements === null) {
+        ).rows[0]!.value
+        if (captured === null) {
           portableRow[name] = null
           goRow[name] = null
           continue
         }
-        const dimensions = Array.from(
-          (result.dimensions ?? '').matchAll(/\[(-?\d+):(-?\d+)\]/gu),
-        ).map((match) => ({
-          lower: Number(match[1]),
-          length: Number(match[2]) - Number(match[1]) + 1,
-        }))
-        const raw: (string | null)[] = JSON.parse(result.elements)
-        const elements = raw.map((value) =>
-          value === null
-            ? { kind: 'Null' }
-            : {
-                kind: profile.kind,
-                value:
-                  profile.kind === 'Int4' || profile.kind === 'Int2'
-                    ? Number(value)
-                    : profile.kind === 'Int8'
-                      ? BigInt(value)
-                      : profile.kind === 'Float4'
-                        ? Buffer.from(value, 'hex').readInt32BE()
-                        : profile.kind === 'Float8'
-                          ? Buffer.from(value, 'hex').readBigInt64BE()
-                          : profile.kind === 'Enum'
-                            ? definition!.values.indexOf(value)
-                            : profile.kind === 'Bool'
-                              ? value === 'true'
-                              : value,
-              },
-        )
-        const value = {
-          kind: 'Value',
+        const convert = (
+          raw: CapturedArray,
+          arrayType: string,
+          portable: boolean,
+        ): {
+          kind: 'Value'
           value: {
-            elementType,
-            elementKind: profile.family,
-            dimensions,
-            elements,
-          },
+            elementType: string
+            elementKind: number
+            dimensions: { lower: number; length: number }[]
+            elements: unknown[]
+          }
+        } => {
+          const { elementType, baseElementType, definition, profile } = profileFor(arrayType)
+          const dimensions = Array.from(
+            (raw.dimensions ?? '').matchAll(/\[(-?\d+):(-?\d+)\]/gu),
+          ).map((match) => ({
+            lower: Number(match[1]),
+            length: Number(match[2]) - Number(match[1]) + 1,
+          }))
+          const elements = raw.elements.map((value) => {
+            if (value === null) return { kind: 'Null' }
+            if (profile.kind === 'Array')
+              return {
+                kind: 'Array',
+                value: convert(value as CapturedArray, baseElementType, portable).value,
+              }
+            const text = value as string
+            const payload =
+              profile.kind === 'Int4' || profile.kind === 'Int2'
+                ? Number(text)
+                : profile.kind === 'Int8'
+                  ? BigInt(text)
+                  : profile.kind === 'Float4'
+                    ? Buffer.from(text, 'hex').readInt32BE()
+                    : profile.kind === 'Float8'
+                      ? Buffer.from(text, 'hex').readBigInt64BE()
+                      : profile.kind === 'Enum'
+                        ? definition!.values.indexOf(text)
+                        : profile.kind === 'Bool'
+                          ? text === 'true'
+                          : text
+            if (portable && profile.kind === 'Enum')
+              return jsonbRuntime.arrayElementFromEnum(
+                jsonbRuntime.makeEnumValue(payload as number),
+              )
+            if (portable && profile.kind === 'Json')
+              return jsonbRuntime.arrayElementFromJson(
+                jsonbRuntime.makeJsonValue(payload as string),
+              )
+            if (portable && profile.kind === 'Jsonb')
+              return jsonbRuntime.arrayElementFromJsonb(
+                jsonbRuntime.makeJsonbValue(payload as string),
+              )
+            return { kind: profile.kind, value: payload }
+          })
+          return {
+            kind: 'Value',
+            value: { elementType, elementKind: profile.family, dimensions, elements },
+          }
         }
-        portableRow[name] = {
-          ...value,
-          value: {
-            ...value.value,
-            elements: elements.map((element) =>
-              element.kind === 'Enum'
-                ? jsonbRuntime.arrayElementFromEnum(
-                    jsonbRuntime.makeEnumValue(element.value as number),
-                  )
-                : element.kind === 'Json'
-                  ? jsonbRuntime.arrayElementFromJson(
-                      jsonbRuntime.makeJsonValue(element.value as string),
-                    )
-                  : element.kind === 'Jsonb'
-                    ? jsonbRuntime.arrayElementFromJsonb(
-                        jsonbRuntime.makeJsonbValue(element.value as string),
-                      )
-                    : element,
-            ),
-          },
-        }
-        goRow[name] = value
+        portableRow[name] = convert(captured, type, true)
+        goRow[name] = convert(captured, type, false)
       }
       for (const name of jsonpathColumns) {
         const source = (

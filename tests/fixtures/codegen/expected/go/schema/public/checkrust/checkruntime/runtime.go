@@ -6770,6 +6770,7 @@ const (
 	ArrayElementTid
 	ArrayElementJsonpath
 	ArrayElementJsonpathStoredText
+	ArrayElementArray
 	ArrayElementFloat4UnspecifiedNan
 	ArrayElementFloat8UnspecifiedNan
 	ArrayElementByteaUnspecified
@@ -6820,6 +6821,7 @@ type ArrayElement struct {
 	Tid                int64
 	Jsonpath           JsonpathPayload
 	JsonpathStoredText string
+	Array              ArrayPayload
 	ByteaUnspecified   int
 }
 
@@ -6913,6 +6915,8 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementJsonpath, Jsonpath: CopyJsonpathPayload(value.Jsonpath)}
 	case ArrayElementJsonpathStoredText:
 		return ArrayElement{Kind: ArrayElementJsonpathStoredText, JsonpathStoredText: langruntime.CheckedString(value.JsonpathStoredText)}
+	case ArrayElementArray:
+		return ArrayElement{Kind: ArrayElementArray, Array: CopyArrayPayload(value.Array)}
 	case ArrayElementFloat4UnspecifiedNan:
 		return ArrayElement{Kind: ArrayElementFloat4UnspecifiedNan}
 	case ArrayElementFloat8UnspecifiedNan:
@@ -6926,6 +6930,9 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 }
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementArray {
+		return 41
+	}
 	if input.Kind == ArrayElementInt2 {
 		return 1
 	}
@@ -7062,6 +7069,36 @@ func ArrayElementFamily(input ArrayElement) int {
 		return 27
 	}
 	return 0
+}
+func ArrayElementFromArray(input ArrayValue) ArrayElement {
+	input = CopyArrayValue(input)
+	if input.Kind == ArrayValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == ArrayValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == ArrayValueValue {
+		value := CopyArrayPayload(input.Value)
+		return ArrayElement{Kind: ArrayElementArray, Array: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToArray(input ArrayElement) ArrayValue {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return ArrayValue{Kind: ArrayValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return ArrayValue{Kind: ArrayValueNull}
+	}
+	if input.Kind == ArrayElementArray {
+		value := CopyArrayPayload(input.Array)
+		return ArrayValue{Kind: ArrayValueValue, Value: value}
+	}
+	return ArrayValue{Kind: ArrayValueUnknown}
 }
 func ArrayElementFromInt2(input Int2Value) ArrayElement {
 	if input.Kind == Int2ValueError {
@@ -8644,10 +8681,21 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 			error := element.Error
 			return ArrayValue{Kind: ArrayValueError, Error: error}
 		}
+		if element.Kind == ArrayElementArray {
+			nested := CopyArrayPayload(element.Array)
+			checked := MakeArrayValue(nested)
+			if checked.Kind == ArrayValueError {
+				error := checked.Error
+				return ArrayValue{Kind: ArrayValueError, Error: error}
+			}
+			if checked.Kind == ArrayValueUnknown {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
+		}
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	identity := []rune(input.ElementType)
-	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 40 {
+	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 41 {
 		return ArrayValue{Kind: ArrayValueUnknown}
 	}
 	position = langruntime.CheckedIndex(0)
@@ -8716,6 +8764,72 @@ func ArrayFromCoercedValue(input ArrayValue, elementType string, elementKind int
 	if input.Kind == ArrayValueValue {
 		value := CopyArrayPayload(input.Value)
 		if value.ElementType != elementType || value.ElementKind != elementKind {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		return MakeArrayValue(value)
+	}
+	return input
+}
+func arrayTreeTypeAt(types string, level int) string {
+	types = langruntime.CheckedString(types)
+	level = langruntime.CheckedIndex(level)
+	characters := []rune(types)
+	current := 0
+	position := 0
+	result := langruntime.NewTextBuffer("")
+	for position < len(characters) {
+		character := characters[position]
+		if character == '\x00' {
+			if current == level {
+				return string(result)
+			}
+			current = langruntime.CheckedAdd(current, 1)
+		} else if current == level {
+			result = append(result, string(langruntime.CheckedChar(character))...)
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return string(result)
+}
+func arrayTreeIdentityValid(input *ArrayPayload, types string, kinds string, level int) bool {
+	types = langruntime.CheckedString(types)
+	kinds = langruntime.CheckedString(kinds)
+	level = langruntime.CheckedIndex(level)
+	families := []rune(kinds)
+	if level >= len(families) {
+		return false
+	}
+	family := int(langruntime.CheckedChar(families[level]))
+	expectedType := arrayTreeTypeAt(types, level)
+	if input.ElementType != expectedType || input.ElementKind != family {
+		return false
+	}
+	if family != 41 {
+		return langruntime.CheckedAdd(level, 1) == len(families)
+	}
+	if langruntime.CheckedAdd(level, 1) >= len(families) {
+		return false
+	}
+	index := 0
+	for index < len(input.Elements) {
+		element := CopyArrayElement(input.Elements[index])
+		if element.Kind == ArrayElementArray {
+			nested := CopyArrayPayload(element.Array)
+			if arrayTreeIdentityValid(&nested, types, kinds, langruntime.CheckedAdd(level, 1)) == false {
+				return false
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func ArrayFromCoercedTree(input ArrayValue, types string, kinds string) ArrayValue {
+	input = CopyArrayValue(input)
+	types = langruntime.CheckedString(types)
+	kinds = langruntime.CheckedString(kinds)
+	if input.Kind == ArrayValueValue {
+		value := CopyArrayPayload(input.Value)
+		if arrayTreeIdentityValid(&value, types, kinds, 0) == false {
 			return ArrayValue{Kind: ArrayValueUnknown}
 		}
 		return MakeArrayValue(value)

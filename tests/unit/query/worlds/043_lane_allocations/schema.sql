@@ -1302,3 +1302,29 @@ CREATE TABLE lane_code_coercions (
   CONSTRAINT implicit_code_value CHECK(CASE WHEN bypass THEN true ELSE (COALESCE(approved,payload::varchar[]))[1]::text COLLATE "C" IS NOT DISTINCT FROM recorded_code COLLATE "C" END),
   CONSTRAINT explicit_code_value CHECK(CASE WHEN bypass THEN true ELSE (payload::varchar[]::lane_code[])[1]::text COLLATE "C" IS NOT DISTINCT FROM recorded_explicit COLLATE "C" END)
 );
+
+
+CREATE TABLE lane_group_allocations (
+  groups lane_pair_array[],
+  first_group lane_pair_array,
+  second_group lane_pair_array,
+  expected_count integer,
+  expected_size integer,
+  expected_lower integer,
+  expected_first integer,
+  expected_slice integer,
+  expected_append integer,
+  expected_construct integer,
+  divisor integer,
+  expected_scaled integer,
+  bypass boolean,
+  CONSTRAINT nested_group_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(groups) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT nested_group_size CHECK(CASE WHEN bypass THEN true ELSE cardinality(groups[1]) IS NOT DISTINCT FROM expected_size END),
+  CONSTRAINT nested_group_lower CHECK(CASE WHEN bypass THEN true ELSE array_lower(groups[1],1) IS NOT DISTINCT FROM expected_lower END),
+  CONSTRAINT nested_group_first CHECK(CASE WHEN bypass THEN true ELSE (groups[1])[expected_lower] IS NOT DISTINCT FROM expected_first END),
+  CONSTRAINT nested_group_slice CHECK(CASE WHEN bypass THEN true ELSE cardinality(groups[1:1]) IS NOT DISTINCT FROM expected_slice END),
+  CONSTRAINT nested_group_append CHECK(CASE WHEN bypass THEN true ELSE cardinality(array_append(groups,first_group)) IS NOT DISTINCT FROM expected_append END),
+  CONSTRAINT nested_group_constructor CHECK(CASE WHEN bypass THEN true ELSE cardinality((ARRAY[first_group,second_group])[1]) IS NOT DISTINCT FROM expected_construct END),
+  CONSTRAINT nested_group_fill CHECK(CASE WHEN bypass THEN true ELSE cardinality(array_fill(first_group,ARRAY[2]))=2 END),
+  CONSTRAINT nested_group_scaled CHECK(CASE WHEN bypass THEN true ELSE cardinality(first_group)/divisor=expected_scaled END)
+);

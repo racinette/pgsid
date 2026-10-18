@@ -406,7 +406,7 @@ export async function runCheckParity(
       .join(', ')
     const rustExpected = `CheckOutcome::${fixture.expected.kind}${fixture.expected.kind === 'Error' ? `(make_sql_error(${fixture.expected.value.state}))` : ''}`
     rustAssertions.push(
-      `assert!(${check.entryName}(${args}) == ${rustExpected}, "${fixture.name} ${index}");`,
+      `{let actual=${check.entryName}(${args});let error=match actual {CheckOutcome::Error(error)=>error.state,_=>0};assert!(actual == ${rustExpected}, "${fixture.name} ${index}: unknown={} false={} null={} true={} error={}", actual==CheckOutcome::Unknown,actual==CheckOutcome::False,actual==CheckOutcome::Null,actual==CheckOutcome::True,error);}`,
     )
     const goExpected = go.composite(go.selector(go.ident('checkruntime'), 'CheckOutcome'), [
       go.keyValue(

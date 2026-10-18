@@ -269,14 +269,14 @@ export function arrayType(elementType: ArrayElementType): ArrayType {
 
 export function domainElementType(
   definition: { schema: string; name: string },
-  base: Exclude<NonArrayScalarType, DomainElementType>,
+  base: Exclude<ScalarType, DomainElementType>,
 ): DomainElementType {
   return `domain:${JSON.stringify([definition.schema, definition.name, base])}`
 }
 
 export function domainElementDefinition(
   type: string,
-): { schema: string; name: string; base: Exclude<NonArrayScalarType, DomainElementType> } | null {
+): { schema: string; name: string; base: Exclude<ScalarType, DomainElementType> } | null {
   if (!type.startsWith('domain:')) return null
   try {
     const parts: unknown = JSON.parse(type.slice(7))
@@ -290,10 +290,14 @@ export function domainElementDefinition(
     )
       return null
     const [schema, name, base] = parts as [string, string, string]
-    if (base.startsWith('array:') || base.startsWith('domain:')) return null
-    if (!base.startsWith('enum:') && catalogScalarType(base) !== base) return null
-    if (base.startsWith('enum:')) {
-      const identity: unknown = JSON.parse(base.slice(5))
+    if (base.startsWith('domain:')) return null
+    const element = base.startsWith('array:') ? base.slice(6) : base
+    if (element.startsWith('array:')) return null
+    if (element.startsWith('domain:')) {
+      if (!base.startsWith('array:') || !domainElementDefinition(element)) return null
+    } else if (!element.startsWith('enum:') && catalogScalarType(element) !== element) return null
+    if (element.startsWith('enum:')) {
+      const identity: unknown = JSON.parse(element.slice(5))
       if (
         !Array.isArray(identity) ||
         identity.length !== 2 ||
@@ -303,7 +307,7 @@ export function domainElementDefinition(
       )
         return null
     }
-    return { schema, name, base: base as Exclude<NonArrayScalarType, DomainElementType> }
+    return { schema, name, base: base as Exclude<ScalarType, DomainElementType> }
   } catch {
     return null
   }
