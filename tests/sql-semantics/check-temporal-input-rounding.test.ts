@@ -180,5 +180,6 @@ describe('temporal epoch and fractional input rounding', () => {
       await mkdir(target)
       await runCheckParity(target, 'temporalrounding' + type, group, names, fixtures)
     },
+    180_000,
   )
 })

@@ -247,7 +247,7 @@ it('converts every concrete scalar/enum array profile and preserves empty/NULL f
       ),
       fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       references: unknown[] = [],
-      deferred = new Set(['array_stage', 'timestamptz', 'bytea', 'interval', 'money'])
+      deferred = new Set(['timestamptz', 'bytea', 'interval', 'money'])
     for (const form of forms) {
       let output: string | null = null,
         expected: Outcome

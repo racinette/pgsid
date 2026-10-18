@@ -280,7 +280,7 @@ it('converts every concrete scalar and enum profile with scalar output policies,
       ),
       fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       references: unknown[] = [],
-      deferred = new Set(['array_stage', 'timestamptz', 'bytea', 'interval', 'money'])
+      deferred = new Set(['timestamptz', 'bytea', 'interval', 'money'])
     for (const form of forms) {
       const output = (
           await pg.query<{ value: string | null }>(

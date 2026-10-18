@@ -1671,7 +1671,7 @@ VALUES (NULL, NULL, false);
 INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
 VALUES ('{NULL,NULL}', '[null,null]', false);
 
--- name: jsonb_enum_requires_catalog
+-- name: jsonb_enum_captured_labels
 INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
 VALUES ('{new,done}', '["new","done"]', false);
 
@@ -4322,3 +4322,143 @@ VALUES('{"{1,2}",NULL,"{3,4}"}',42,0,0,true);
 -- name: nested_hash_wrong_input_hash
 INSERT INTO lane_group_hashes(groups,payload,seed,expected_hash,expected_seeded,bypass)
 VALUES('{}','{NULL}',42,1,1,false);
+
+-- name: nested_json_valid
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('{"{1,2}",NULL,"{3,4}"}','{"{1,2}",NULL,"{3,4}"}','[[1,2],null,[3,4]]','[[1,2],null,[3,4]]','[[1,2],null,[3,4]]',false);
+
+-- name: nested_json_bounds_independent
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('[5:7]={"{1,2}",NULL,"{3,4}"}',NULL,'[[1,2],null,[3,4]]','[[1,2],null,[3,4]]','[[1,2],null,[3,4]]',false);
+
+-- name: nested_json_nulls
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: nested_json_empty
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('{}',NULL,'[]','[]','[]',false);
+
+-- name: nested_json_null_group
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('{NULL}',NULL,'[null]','[null]','[null]',false);
+
+-- name: nested_json_inner_nulls
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('{"{NULL,NULL}"}',NULL,'[[null,null]]','[[null,null]]','[[null,null]]',false);
+
+-- name: nested_json_multidimensional
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('[5:6][3:3]={{"{1,2}"},{"{3,4}"}}',NULL,'[[[1,2]],[[3,4]]]','[[[1,2]],[[3,4]]]','[[1,2],[3,4]]',false);
+
+-- name: nested_json_wrong_raw
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('{"{1,2}"}',NULL,'wrong','[[1,2]]','[[1,2]]',false);
+
+-- name: nested_json_wrong_binary
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('{"{1,2}"}',NULL,'[[1,2]]','[1,2]','[[1,2]]',false);
+
+-- name: nested_json_wrong_flat
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('[5:6][3:3]={{"{1,2}"},{"{3,4}"}}',NULL,'[[[1,2]],[[3,4]]]','[[[1,2]],[[3,4]]]','[[[1,2]],[[3,4]]]',false);
+
+-- name: nested_json_bad_domain_input
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('{}','{"{1}"}','[]','[]','[]',false);
+
+-- name: nested_json_bad_text_input
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('{}','bad','[]','[]','[]',false);
+
+-- name: nested_json_bypassed
+INSERT INTO lane_group_json_exports(groups,payload,expected_raw,expected_binary,expected_flat,bypass)
+VALUES('{"{1,2}"}','bad','wrong','null','null',true);
+
+-- name: enum_json_valid
+INSERT INTO lane_enum_json_exports(first_stage,second_stage,groups,expected_binary,expected_raw,expected_groups,bypass)
+VALUES('new','done','{"{new,done}"}','["new","done"]','["new", "done"]','[["new","done"]]',false);
+
+-- name: enum_json_nulls
+INSERT INTO lane_enum_json_exports(first_stage,second_stage,groups,expected_binary,expected_raw,expected_groups,bypass)
+VALUES(NULL,NULL,NULL,'[null,null]','[null, null]',NULL,false);
+
+-- name: enum_json_empty_groups
+INSERT INTO lane_enum_json_exports(first_stage,second_stage,groups,expected_binary,expected_raw,expected_groups,bypass)
+VALUES(NULL,'new','{}','[null,"new"]','[null, "new"]','[]',false);
+
+-- name: enum_json_wrong_binary
+INSERT INTO lane_enum_json_exports(first_stage,second_stage,groups,expected_binary,expected_raw,expected_groups,bypass)
+VALUES('new','done','{"{new,done}"}','["done","new"]','["new", "done"]','[["new","done"]]',false);
+
+-- name: enum_json_wrong_raw
+INSERT INTO lane_enum_json_exports(first_stage,second_stage,groups,expected_binary,expected_raw,expected_groups,bypass)
+VALUES('new','done','{"{new,done}"}','["new","done"]','wrong','[["new","done"]]',false);
+
+-- name: enum_json_wrong_groups
+INSERT INTO lane_enum_json_exports(first_stage,second_stage,groups,expected_binary,expected_raw,expected_groups,bypass)
+VALUES('new','done','{"{new,done}"}','["new","done"]','["new", "done"]','[null]',false);
+
+-- name: enum_json_bypassed
+INSERT INTO lane_enum_json_exports(first_stage,second_stage,groups,expected_binary,expected_raw,expected_groups,bypass)
+VALUES('new','done','{"{new,done}"}','null','wrong','null',true);
+
+-- name: jsonb_enum_wrong_labels
+INSERT INTO lane_jsonb_stage_arrays (stages, expected, bypass)
+VALUES ('{new,done}', '["done","new"]', false);
+
+-- name: catalog_array_valid
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{1,NULL,3}','{1010,11,NULL}','{"abcd","x ",NULL}','{1.25,12.34,NULL}','1|N|3','1010|11|N','abcd|x |N','1.3|12.3|N',2,1,false);
+
+-- name: catalog_array_empty
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{}','{}','{}','{}','','','','',NULL,1,false);
+
+-- name: catalog_array_null
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,false);
+
+-- name: catalog_array_bounds
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('[-2:0]={1,NULL,3}','{1010,11,NULL}','{"abcd","x ",NULL}','{1.25,12.34,NULL}','1|N|3','1010|11|N','abcd|x |N','1.3|12.3|N',32767,1,false);
+
+-- name: catalog_array_wrong_lanes
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{1,NULL,3}','{}','{}','{}','wrong','','','',2,1,false);
+
+-- name: catalog_array_wrong_bits
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{}','{1010,11,NULL}','{}','{}','','wrong','','',2,1,false);
+
+-- name: catalog_array_wrong_labels
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{}','{}','{"abcd","x ",NULL}','{}','','','wrong','',2,1,false);
+
+-- name: catalog_array_wrong_amounts
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{}','{}','{}','{1.25,12.34,NULL}','','','','wrong',2,1,false);
+
+-- name: catalog_array_bad_lane
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{bad}','{}','{}','{}','','','','',2,1,false);
+
+-- name: catalog_array_bad_bits
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{}','{102}','{}','{}','','','','',2,1,false);
+
+-- name: catalog_array_amount_overflow
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{}','{}','{}','{1000}','','','','',2,1,false);
+
+-- name: catalog_array_narrowing_overflow
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{}','{}','{}','{}','','','','',32768,1,false);
+
+-- name: catalog_array_division_error
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('{}','{}','{}','{}','','','','',2,0,false);
+
+-- name: catalog_array_bypassed
+INSERT INTO lane_catalog_array_exports(lanes,bits,labels,amounts,expected_lanes,expected_bits,expected_labels,expected_amounts,quantity,divisor,bypass)
+VALUES('bad','bad','bad','bad','wrong','wrong','wrong','wrong',32768,0,true);

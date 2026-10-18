@@ -6,7 +6,6 @@ import { dirname, join } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import type { Node } from 'libpg-query'
-import { Deparser } from 'pgsql-deparser'
 import { PGlite } from '@electric-sql/pglite'
 import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
 import { getStatements, parseSql } from '../../src/ast.js'
@@ -47,7 +46,7 @@ import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 import { typeName } from '../../src/codegen/typescript/type-mapping.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { worldPurpose } from '../unit/query/world-purpose.js'
-import { worldSourceDigest } from '../../scripts/check-measurements/worlds.js'
+import { deparseWorldSql, worldSourceDigest } from '../../scripts/check-measurements/worlds.js'
 // @ts-expect-error -- Espalier input policy is a runtime JavaScript rule.
 import { constantInput } from '../unit/query/espalier/worlds/[world]/check-seed.sql.mjs'
 
@@ -175,10 +174,6 @@ const jsonValueContextCases = new Map<string, string>([
       ] as const,
   ),
   ...arraySortContextCases,
-  [
-    '043_lane_allocations/jsonb_enum_requires_catalog/enum_jsonb',
-    'world_043_lane_allocations.lane_jsonb_stage_arrays.enum_jsonb',
-  ],
   ...['clock_exists', 'clock_match', 'clock_results', 'clock_first'].map(
     (name) =>
       [
@@ -282,22 +277,6 @@ for (const world of worlds) {
   }
 }
 
-class WorldDeparser extends Deparser {
-  override A_Indirection(
-    node: Parameters<Deparser['A_Indirection']>[0],
-    context: Parameters<Deparser['A_Indirection']>[1],
-  ): string {
-    const argument = this.visit(node.arg!, context)
-    const expression = super.A_Indirection(node, context)
-    if (expression.startsWith(`(${argument})`)) return expression
-    if (!expression.startsWith(argument)) throw new Error('Unexpected subscript rendering')
-    return `(${argument})${expression.slice(argument.length)}`
-  }
-}
-
-const deparseSync = (...args: ConstructorParameters<typeof Deparser>): string =>
-  new WorldDeparser(...args).deparseQuery()
-
 const declaredCheckExpressions = new Map<string, string>()
 
 async function loadWorldSql(pg: PGlite, source: string, schema: string): Promise<void> {
@@ -323,7 +302,7 @@ async function loadWorldSql(pg: PGlite, source: string, schema: string): Promise
               : relation.schemaname
           declaredCheckExpressions.set(
             `${owner}.${relation.relname}.${node.Constraint.conname}`,
-            deparseSync(node.Constraint.raw_expr),
+            deparseWorldSql(node.Constraint.raw_expr),
           )
         }
       }
@@ -345,7 +324,7 @@ async function loadWorldSql(pg: PGlite, source: string, schema: string): Promise
     for (const child of Object.values(record)) visit(child)
   }
   visit(parsed)
-  await pg.exec(deparseSync(parsed))
+  await pg.exec(deparseWorldSql(parsed))
 }
 
 const normalized = (results: Result[]): Result[] =>
@@ -555,7 +534,7 @@ describe('world CHECK INSERT parity', () => {
           const value = item.values.get(column.name)
           if (!value && column.hasDefault)
             throw new Error(`${item.name}: omitted default needs row materialization`)
-          return `CAST(${value ? deparseSync(value) : 'NULL'} AS ${column.typeName})${oracleCollation(column)} AS ${quote(column.name)}`
+          return `CAST(${value ? deparseWorldSql(value) : 'NULL'} AS ${column.typeName})${oracleCollation(column)} AS ${quote(column.name)}`
         })
       await pg.exec(`SET search_path = ${quote(item.schema)}, public`)
       const row = (await pg.query<Record<string, unknown>>(`SELECT ${expressions.join(',')}`))
@@ -1460,7 +1439,7 @@ describe('world CHECK INSERT parity', () => {
       .filter((column) => Object.hasOwn(row, column.name))
       .map(
         (column) =>
-          `CAST(${item.values.has(column.name) ? deparseSync(item.values.get(column.name)!) : 'NULL'} AS ${column.typeName})${oracleCollation(column)} AS ${quote(column.name)}`,
+          `CAST(${item.values.has(column.name) ? deparseWorldSql(item.values.get(column.name)!) : 'NULL'} AS ${column.typeName})${oracleCollation(column)} AS ${quote(column.name)}`,
       )
       .join(',')
     const generatedColumns = table.columns

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { builtinCast, functionMetadata } from '../../src/postgres/builtins/inventory.js'
@@ -367,6 +367,44 @@ describe('catalog-resolved integer CHECK casts', () => {
       })),
     )
     expect(group.checks.map((check) => check.kind)).toEqual(['supported', 'supported'])
+    for (const [column] of columns) {
+      const type = table.columns.find((item) => item.name === column)!.typeName
+      await pg.exec(`CREATE TABLE checked_domain_${column}(${column} ${type},
+        CONSTRAINT checked_target CHECK(${column}::positive_short_change>0))`)
+    }
+    const checkedCatalog = await snapshotCatalog(pg)
+    const positiveDomain = checkedCatalog.domains.find(
+      (domain) => domain.name === 'positive_short_change',
+    )!
+    const checkedPlans = columns.flatMap(([column]) => {
+      const owner = checkedCatalog.tables.find((item) => item.name === 'checked_domain_' + column)!
+      return (['source', 'stored'] as const).map((origin) => ({
+        expression: lowerTableCheck(
+          owner,
+          origin === 'source'
+            ? {
+                name: 'checked_target',
+                type: 'check',
+                definition: `CHECK(${column}::positive_short_change>0)`,
+              }
+            : owner.constraints[0]!,
+          [],
+          checkedCatalog.domains,
+          origin,
+        )!.expression,
+        identity: {
+          schema: owner.schema,
+          kind: 'table' as const,
+          owner: owner.name,
+          constraint: 'checked_' + column + '_' + origin,
+        },
+      }))
+    })
+    const checkedGroup = prepareCheckRustGroup(checkedPlans)
+    for (const check of checkedGroup.checks) expect(check.kind).toBe('supported')
+    const checkedFixtures: { name: string; row: Row; expected: Outcome }[] = []
+    const checkedReferences = []
+    let checkedInserts = 0
     const fixtures: { name: string; row: Row; expected: Outcome }[] = []
     for (const [column, type] of columns) {
       const states: Input[] = [
@@ -409,7 +447,38 @@ describe('catalog-resolved integer CHECK casts', () => {
         [],
         catalog.domains,
       )!.expression
-      expect(hasUncertain(constrained)).toBe(true)
+      expect(hasUncertain(constrained)).toBe(false)
+      for (const input of states) {
+        let expected: Outcome
+        if (input.kind === 'Unknown' || input.kind === 'Error') expected = input as Outcome
+        else {
+          const parameter = input.kind === 'Null' ? null : String(input.value)
+          try {
+            const result = (
+              await pg.query<{ value: boolean | null }>(
+                `INSERT INTO checked_domain_${column} VALUES($1)
+                RETURNING ${column}::positive_short_change>0 value`,
+                [parameter],
+              )
+            ).rows[0]!.value
+            expected = outcome(result)
+          } catch (caught) {
+            const code = (caught as { code: string }).code
+            expect(['22003', '23514']).toContain(code)
+            if (code === '23514')
+              expect(caught).toMatchObject({ constraint: positiveDomain.checks[0]!.name })
+            expected = { kind: 'Error', value: { state: parseInt(code, 36) } }
+          }
+          checkedInserts++
+          checkedReferences.push({ column, parameter, expected })
+        }
+        for (const origin of ['source', 'stored'])
+          checkedFixtures.push({
+            name: 'checked_' + column + '_' + origin,
+            row: { wide: value(1), big: value(1n), [column]: input },
+            expected,
+          })
+      }
     }
     await expect(pg.query('SELECT (-1)::positive_short_change')).rejects.toMatchObject({
       code: '23514',
@@ -420,6 +489,30 @@ describe('catalog-resolved integer CHECK casts', () => {
       group,
       columns.map(([column]) => 'domain_' + column),
       fixtures,
+    )
+    await runCheckParity(
+      await mkdtemp(join(directory, 'checked-domain-targets-')),
+      'checkedintegerdomaintargets',
+      checkedGroup,
+      checkedPlans.map((plan) => plan.identity.constraint),
+      checkedFixtures,
+    )
+    expect(fixtures).toHaveLength(20)
+    expect(checkedInserts).toBe(16)
+    expect(checkedFixtures).toHaveLength(40)
+    await mkdir('artifacts/integer-domain-context', { recursive: true })
+    await writeFile(
+      'artifacts/integer-domain-context/report.json',
+      JSON.stringify(
+        {
+          inserts: checkedInserts,
+          fixtures: checkedFixtures.length,
+          originalFixtures: fixtures.length,
+          references: checkedReferences,
+        },
+        null,
+        2,
+      ) + '\n',
     )
   }, 120_000)
 })

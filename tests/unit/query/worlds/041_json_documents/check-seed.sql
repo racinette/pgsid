@@ -912,3 +912,23 @@ VALUES (2,1,'UTF8 array element','[{"aa":1,"é":2}]',0,'{"aa": 1, "é": 2}','{"a
 -- name: normalized_element_utf8_wrong_text
 INSERT INTO normalized_elements (id,store_id,label,document,element_index,recorded_json,recorded_text,recorded_count,allow_missing,bypass)
 VALUES (2,1,'Wrong array element text','[{"aa":1,"é":2}]',0,'{"aa": 1, "é": 2}','wrong',1,false,false);
+
+-- name: cast_enum_key_one
+INSERT INTO document_enum_keys(source_enum,quantity,divisor,expected,bypass)
+VALUES('one',2,1,'{}',false);
+
+-- name: cast_enum_key_two
+INSERT INTO document_enum_keys(source_enum,quantity,divisor,expected,bypass)
+VALUES('two',NULL,1,'{}',false);
+
+-- name: cast_enum_key_null
+INSERT INTO document_enum_keys(source_enum,quantity,divisor,expected,bypass)
+VALUES(NULL,2,1,'{}',false);
+
+-- name: cast_enum_key_eager_error
+INSERT INTO document_enum_keys(source_enum,quantity,divisor,expected,bypass)
+VALUES('one',2,0,'{}',false);
+
+-- name: cast_enum_key_bypassed
+INSERT INTO document_enum_keys(source_enum,quantity,divisor,expected,bypass)
+VALUES('two',2,0,'{}',true);

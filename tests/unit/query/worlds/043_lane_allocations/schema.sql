@@ -1397,3 +1397,49 @@ CREATE TABLE lane_group_hashes (
   CONSTRAINT nested_group_seeded_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array_extended(groups,seed) IS NOT DISTINCT FROM expected_seeded END),
   CONSTRAINT nested_group_input_hash CHECK(CASE WHEN bypass OR payload IS NULL THEN true ELSE hash_array(payload::lane_pair_array[]) IS NOT DISTINCT FROM expected_hash END)
 );
+
+CREATE TABLE lane_group_json_exports (
+  groups lane_pair_array[],
+  payload text,
+  expected_raw text,
+  expected_binary jsonb,
+  expected_flat jsonb,
+  bypass boolean,
+  CONSTRAINT nested_json_raw CHECK(CASE WHEN bypass THEN true ELSE to_json(groups)::text COLLATE "C" IS NOT DISTINCT FROM expected_raw COLLATE "C" END),
+  CONSTRAINT nested_json_binary CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(groups) IS NOT DISTINCT FROM expected_binary END),
+  CONSTRAINT nested_json_flat CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_array(VARIADIC groups) IS NOT DISTINCT FROM expected_flat END),
+  CONSTRAINT nested_json_input CHECK(CASE WHEN bypass OR payload IS NULL THEN true ELSE to_jsonb(payload::lane_pair_array[]) IS NOT DISTINCT FROM expected_binary END)
+);
+
+CREATE DOMAIN lane_stage_group AS lane_stage[];
+CREATE TABLE lane_enum_json_exports (
+  first_stage lane_import_stage,
+  second_stage lane_export_stage,
+  groups lane_stage_group[],
+  expected_binary jsonb,
+  expected_raw text,
+  expected_groups jsonb,
+  bypass boolean,
+  CONSTRAINT enum_json_binary CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_array(first_stage,second_stage) IS NOT DISTINCT FROM expected_binary END),
+  CONSTRAINT enum_json_raw CHECK(CASE WHEN bypass THEN true ELSE json_build_array(first_stage,second_stage)::text COLLATE "C" IS NOT DISTINCT FROM expected_raw COLLATE "C" END),
+  CONSTRAINT enum_json_groups CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(groups) IS NOT DISTINCT FROM expected_groups END)
+);
+
+CREATE TABLE lane_catalog_array_exports (
+  lanes text,
+  bits text,
+  labels text,
+  amounts text,
+  expected_lanes text,
+  expected_bits text,
+  expected_labels text,
+  expected_amounts text,
+  quantity integer,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT catalog_lane_text CHECK(CASE WHEN bypass THEN true ELSE array_to_string(lanes::pg_catalog._int4,'|','N') COLLATE "C" IS NOT DISTINCT FROM expected_lanes COLLATE "C" END),
+  CONSTRAINT catalog_bit_text CHECK(CASE WHEN bypass THEN true ELSE array_to_string(bits::pg_catalog._bit,'|','N') COLLATE "C" IS NOT DISTINCT FROM expected_bits COLLATE "C" END),
+  CONSTRAINT catalog_label_text CHECK(CASE WHEN bypass THEN true ELSE array_to_string(labels::pg_catalog._bpchar,'|','N') COLLATE "C" IS NOT DISTINCT FROM expected_labels COLLATE "C" END),
+  CONSTRAINT catalog_amount_text CHECK(CASE WHEN bypass THEN true ELSE array_to_string(amounts::pg_catalog._numeric(4,1),'|','N') COLLATE "C" IS NOT DISTINCT FROM expected_amounts COLLATE "C" END),
+  CONSTRAINT catalog_narrowed_shape CHECK(CASE WHEN bypass THEN true ELSE cardinality(ARRAY[quantity,1/divisor]::pg_catalog._int2)=2 END)
+);

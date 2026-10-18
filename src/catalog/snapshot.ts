@@ -222,6 +222,7 @@ interface EnumTypeRow {
   input_name: string
   input_args: string[]
   input_sources: string[]
+  json_conversion: 'label' | 'cast'
 }
 
 interface EnumValueRow {
@@ -1040,6 +1041,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       outputFunction: `function:${JSON.stringify([e.output_schema, e.output_name])}(${e.output_args.join(',')})`,
       inputFunction: `function:${JSON.stringify([e.input_schema, e.input_name])}(${e.input_args.join(',')})`,
       inputSources: e.input_sources,
+      jsonConversion: e.json_conversion,
     }))
     .sort(bySchemaName)
 
@@ -1946,7 +1948,10 @@ async function queryEnumTypes(pg: PGlite): Promise<EnumTypeRow[]> {
          ('pg_catalog.name','pg_catalog.name'::regtype::oid)
        ) AS source(name,oid)
        WHERE NOT EXISTS(SELECT 1 FROM pg_cast c WHERE c.castsource=source.oid AND c.casttarget=t.oid)
-       ORDER BY source.name COLLATE "C") AS input_sources
+       ORDER BY source.name COLLATE "C") AS input_sources,
+       CASE WHEN EXISTS(SELECT 1 FROM pg_cast c
+         WHERE c.castsource=t.oid AND c.casttarget='pg_catalog.json'::regtype
+           AND c.castmethod='f') THEN 'cast' ELSE 'label' END AS json_conversion
      FROM pg_type t
      JOIN pg_namespace n ON n.oid = t.typnamespace
      JOIN pg_proc p ON p.oid = t.typoutput
