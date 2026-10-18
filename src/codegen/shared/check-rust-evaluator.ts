@@ -137,11 +137,14 @@ const jsonbConversionHelpers = new Map<string, string>(
 export const jsonbConversionHelper = (type: string): string | undefined =>
   type.startsWith('enum:') ? 'jsonb_input_from_enum' : jsonbConversionHelpers.get(type)
 
-export const supportsJsonbConversion = (type: string): boolean =>
-  type.startsWith('array:')
-    ? arrayElementFamily(type.slice(6)) !== null &&
-      jsonbConversionHelper(type.slice(6)) !== undefined
-    : jsonbConversionHelper(type) !== undefined
+export const supportsJsonbConversion = (type: string): boolean => {
+  type = arrayElementBaseType(type)
+  while (type.startsWith('array:')) {
+    if (arrayElementFamily(type.slice(6)) === null) return false
+    type = arrayElementBaseType(type.slice(6))
+  }
+  return jsonbConversionHelper(type) !== undefined
+}
 
 export const isJsonConversion = (
   item: ReturnType<typeof builtinMetadata>,
@@ -2559,7 +2562,42 @@ export function emitCheckRustEvaluator(
           key: boolean | string,
           lines: string[],
         ): string => {
-          let operand = original
+          let operand = { ...original, type: arrayElementBaseType(original.type) }
+          if (operand.type.startsWith('array:'))
+            return arrayValueInput(operand, key === true, lines)
+          const definition =
+            call.kind === 'cast'
+              ? undefined
+              : call.inputEnums?.find((item) => enumType(item) === operand.type)
+          if (
+            operand.type.startsWith('enum:') &&
+            definition &&
+            (definition.jsonConversion === 'label' ||
+              (definition.jsonConversion === 'cast' && key === true))
+          ) {
+            const text = fresh('jsonb_enum_label')
+            const output = arrayElementOutput(operand.type, definition, '', operand.name)
+            lines.push(`let ${text} = ${output.conversion};`)
+            if (definition.jsonConversion === 'cast') {
+              const input = fresh('jsonb_enum_key_input'),
+                value = fresh('jsonb_enum_key_value'),
+                marker = fresh('jsonb_enum_key_marker')
+              const conversion = builtinMetadata(
+                'function:["pg_catalog","to_jsonb"](pg_catalog.anyelement)',
+              )
+              if (conversion.kind !== 'function')
+                throw new UnsupportedCheckRustExpression(
+                  'JSON cast keys require the JSONB conversion function',
+                )
+              lines.push(
+                `let ${input} = jsonb_input_from_text(${text});`,
+                `let ${value} = ${conversion.rustName}(${input});`,
+                `let ${marker} = jsonb_input_from_jsonb(${value});`,
+              )
+              return marker
+            }
+            operand = { name: text, type: 'pg_catalog.text' }
+          }
           if (['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'].includes(operand.type)) {
             const conversion = builtinCast(operand.type, 'pg_catalog."numeric"')
             if (conversion?.method !== 'f' || !conversion.implementation)
@@ -2635,17 +2673,22 @@ export function emitCheckRustEvaluator(
           lines.push(`let ${carrier} = ${helper}(${args.join(', ')});`)
           return carrier
         }
-        const arrayInputs = (operand: { name: string; type: string }, object: boolean): string => {
+        const arrayInputs = (
+          operand: { name: string; type: string },
+          object: boolean,
+          lines = destination,
+        ): string => {
           const elementType = operand.type.slice(6)
+          const baseType = arrayElementBaseType(elementType)
           if (!operand.type.startsWith('array:') || arrayElementFamily(elementType) === null)
             throw new UnsupportedCheckRustExpression(
-              'JSONB array conversion requires a concrete scalar element identity',
+              'JSONB array conversion requires a concrete element identity',
             )
           const initial = fresh('jsonb_array_initial'),
             cursor = fresh('jsonb_array_cursor'),
             element = fresh('jsonb_array_element'),
             scalar = fresh('jsonb_array_scalar')
-          destination.push(
+          lines.push(
             `let ${initial} = prepare_jsonb_array_input(${ownedOperand(operand)});`,
             `let mut ${cursor}: JsonbArrayInputPayload = ${initial};`,
           )
@@ -2653,19 +2696,67 @@ export function emitCheckRustEvaluator(
             `let ${element} = jsonb_array_input_element(&${cursor});`,
             `let ${scalar} = array_element_to_${rustValuePrefix(rustType(elementType))}(${element});`,
           ]
-          let key: boolean | string = false
-          if (
-            !rawJson &&
-            object &&
-            ['pg_catalog.float4', 'pg_catalog.float8'].includes(elementType)
-          ) {
-            key = fresh('jsonb_array_key')
-            body.push(`let ${key} = jsonb_array_input_is_key(&${cursor});`)
+          const input = { name: scalar, type: baseType }
+          const castEnum =
+            call.kind !== 'cast' &&
+            call.inputEnums?.some(
+              (item) => enumType(item) === baseType && item.jsonConversion === 'cast',
+            )
+          if (object && (baseType.startsWith('array:') || castEnum)) {
+            const keyLines: string[] = [],
+              valueLines: string[] = []
+            const keyCarrier = scalarInput(input, true, keyLines)
+            const valueCarrier = scalarInput(input, false, valueLines)
+            body.push(
+              `if jsonb_array_input_is_key(&${cursor}) {`,
+              ...indent(keyLines),
+              `    ${cursor} = append_jsonb_array_input(${cursor}, ${keyCarrier});`,
+              '} else {',
+              ...indent(valueLines),
+              `    ${cursor} = append_jsonb_array_input(${cursor}, ${valueCarrier});`,
+              '};',
+            )
+          } else {
+            let key: boolean | string = false
+            if (
+              !rawJson &&
+              object &&
+              ['pg_catalog.float4', 'pg_catalog.float8'].includes(baseType)
+            ) {
+              key = fresh('jsonb_array_key')
+              body.push(`let ${key} = jsonb_array_input_is_key(&${cursor});`)
+            }
+            const carrier = scalarInput(input, key, body)
+            body.push(`${cursor} = append_jsonb_array_input(${cursor}, ${carrier});`)
           }
-          const carrier = scalarInput({ name: scalar, type: elementType }, key, body)
-          body.push(`${cursor} = append_jsonb_array_input(${cursor}, ${carrier});`)
-          destination.push(`while jsonb_array_input_continues(&${cursor}) {`, ...indent(body), '}')
+          lines.push(`while jsonb_array_input_continues(&${cursor}) {`, ...indent(body), '}')
           return cursor
+        }
+        const arrayValueInput = (
+          operand: { name: string; type: string },
+          key: boolean,
+          lines: string[],
+        ): string => {
+          const carrier = fresh('jsonb_array_input')
+          if (key) {
+            lines.push(`let ${carrier} = jsonb_array_key_input(${ownedOperand(operand)});`)
+            return carrier
+          }
+          const cursor = arrayInputs(operand, false, lines),
+            value = fresh('jsonb_array_value')
+          if (rawJson) {
+            const compact = fresh('json_array_compact')
+            lines.push(
+              `let ${compact} = make_bool_value(false);`,
+              `let ${value} = json_array_input_value(${cursor}, ${compact}, ${executionContext.serverEncoding === 'UTF8'});`,
+              `let ${carrier} = json_array_value_input(${ownedOperand(operand)}, ${value});`,
+            )
+          } else
+            lines.push(
+              `let ${value} = jsonb_array_input_value(${cursor});`,
+              `let ${carrier} = jsonb_array_value_input(${ownedOperand(operand)}, ${value});`,
+            )
+          return carrier
         }
         if (jsonConversion && implementation.name === 'array_to_json') {
           const cursor = arrayInputs(operands[0]!, false)
@@ -2698,30 +2789,7 @@ export function emitCheckRustEvaluator(
               builder &&
               ['json_build_object', 'jsonb_build_object'].includes(implementation.name) &&
               index % 2 === 0
-            if (operand.type.startsWith('array:')) {
-              const carrier = fresh('jsonb_array_input')
-              if (key)
-                destination.push(
-                  `let ${carrier} = jsonb_array_key_input(${ownedOperand(operand)});`,
-                )
-              else {
-                const cursor = arrayInputs(operand, false),
-                  value = fresh('jsonb_array_value')
-                if (rawJson) {
-                  const compact = fresh('json_array_compact')
-                  destination.push(
-                    `let ${compact} = make_bool_value(false);`,
-                    `let ${value} = json_array_input_value(${cursor}, ${compact}, ${executionContext.serverEncoding === 'UTF8'});`,
-                    `let ${carrier} = json_array_value_input(${ownedOperand(operand)}, ${value});`,
-                  )
-                } else
-                  destination.push(
-                    `let ${value} = jsonb_array_input_value(${cursor});`,
-                    `let ${carrier} = jsonb_array_value_input(${ownedOperand(operand)}, ${value});`,
-                  )
-              }
-              carriers.push(carrier)
-            } else carriers.push(scalarInput(operand, key, destination))
+            carriers.push(scalarInput(operand, key, destination))
           }
         if (builder && !variadic) {
           let batch = fresh('jsonb_arguments')

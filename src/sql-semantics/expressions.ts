@@ -706,6 +706,7 @@ export type SqlCallableExpression =
       collationDefault?: boolean
       variadic?: true
       enum?: EnumDefinition
+      inputEnums?: readonly EnumDefinition[]
     }
   | { kind: 'cast'; signature: string | null; type: string }
 

@@ -558,6 +558,7 @@ export interface EnumInfo {
   outputFunction?: string
   inputFunction?: string
   inputSources?: readonly string[]
+  jsonConversion?: 'label' | 'cast'
 }
 
 export interface DomainInfo {

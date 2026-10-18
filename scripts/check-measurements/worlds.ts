@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type { PGlite } from '@electric-sql/pglite'
-import { deparseSync } from 'pgsql-deparser'
+import { Deparser } from 'pgsql-deparser'
 import { parseSql } from '../../src/ast.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 
@@ -33,6 +33,22 @@ export async function worldSourceDigest(): Promise<string> {
     .digest('hex')
 }
 
+class WorldDeparser extends Deparser {
+  override A_Indirection(
+    node: Parameters<Deparser['A_Indirection']>[0],
+    context: Parameters<Deparser['A_Indirection']>[1],
+  ): string {
+    const argument = this.visit(node.arg!, context)
+    const expression = super.A_Indirection(node, context)
+    if (expression.startsWith(`(${argument})`)) return expression
+    if (!expression.startsWith(argument)) throw new Error('Unexpected subscript rendering')
+    return `(${argument})${expression.slice(argument.length)}`
+  }
+}
+
+export const deparseWorldSql = (...args: ConstructorParameters<typeof Deparser>): string =>
+  new WorldDeparser(...args).deparseQuery()
+
 export async function loadWorldCatalog(pg: PGlite) {
   for (const world of await worldSources()) {
     const schema = 'world_' + world.name
@@ -54,7 +70,7 @@ export async function loadWorldCatalog(pg: PGlite) {
         Object.values(fields).forEach(visit)
       }
       visit(parsed)
-      await pg.exec(deparseSync(parsed))
+      await pg.exec(deparseWorldSql(parsed))
     }
   }
   return snapshotCatalog(pg)

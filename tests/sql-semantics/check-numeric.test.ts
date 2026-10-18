@@ -299,14 +299,99 @@ describe('portable Rust CHECK numeric comparisons', () => {
     const domainDirectory = join(directory, 'domains')
     await mkdir(domainDirectory)
     await runCheckParity(domainDirectory, 'numericdomains', group, names, fixtures)
-    expect(
-      lowerTableCheck(
-        domainTable,
-        { name: 'constrained', type: 'check', definition: 'CHECK (a::exact_amount = b)' },
+    await pg.exec(`CREATE TABLE constrained_domain_numeric(a measured_amount,b nested_measurement,
+      CONSTRAINT constrained CHECK(a::exact_amount=b))`)
+    const constrainedCatalog = await snapshotCatalog(pg)
+    const constrainedTable = constrainedCatalog.tables.find(
+      (table) => table.name === 'constrained_domain_numeric',
+    )!
+    const constrainedPlans = (['source', 'stored'] as const).map((origin) => {
+      const plan = lowerTableCheck(
+        constrainedTable,
+        origin === 'source'
+          ? { name: 'constrained', type: 'check', definition: 'CHECK (a::exact_amount = b)' }
+          : constrainedTable.constraints[0]!,
         [],
-        catalog.domains,
-      )!.expression,
-    ).toEqual({ kind: 'uncertain' })
+        constrainedCatalog.domains,
+        origin,
+      )!
+      expect(plan.expression.kind).toBe('eval-scalar')
+      return {
+        expression: plan.expression,
+        identity: {
+          schema: constrainedTable.schema,
+          kind: 'table' as const,
+          owner: constrainedTable.name,
+          constraint: 'constrained_' + origin,
+        },
+      }
+    })
+    const constrainedGroup = prepareCheckRustGroup(constrainedPlans)
+    for (const check of constrainedGroup.checks) expect(check.kind).toBe('supported')
+    const constrainedFixtures: { name: string; row: Row; expected: Outcome }[] = []
+    const constrainedReferences = []
+    const domainConstraint = constrainedCatalog.domains.find(
+      (domain) => domain.name === 'exact_amount',
+    )!.checks[0]!.name
+    let constrainedInserts = 0
+    const addConstrained = (row: Row, expected: Outcome) => {
+      for (const origin of ['source', 'stored'])
+        constrainedFixtures.push({ name: 'constrained_' + origin, row, expected })
+    }
+    for (const a of [null, '-0.001', '-0.0004', '0', '0.0004', '0.001', '9999999.999', 'NaN'])
+      for (const b of [null, '-0.001', '0', '0.001', 'NaN']) {
+        const candidate = (
+          await pg.query<{ a: string | null; b: string | null }>(
+            'SELECT ($1::measured_amount)::text a,($2::nested_measurement)::text b',
+            [a, b],
+          )
+        ).rows[0]!
+        let expected: Outcome
+        try {
+          const result = (
+            await pg.query<{ result: boolean | null }>(
+              'WITH q AS MATERIALIZED (SELECT $1::measured_amount a,$2::nested_measurement b) SELECT a::exact_amount=b result FROM q',
+              [a, b],
+            )
+          ).rows[0]!.result
+          expected = outcome(result)
+        } catch (caught) {
+          expect(caught).toMatchObject({ code: '23514', constraint: domainConstraint })
+          expected = { kind: 'Error', value: { state: parseInt('23514', 36) } }
+        }
+        const insert = pg.query('INSERT INTO constrained_domain_numeric VALUES($1,$2)', [a, b])
+        if (expected.kind === 'True' || expected.kind === 'Null') await insert
+        else
+          await expect(insert).rejects.toMatchObject({
+            code: '23514',
+            constraint: expected.kind === 'Error' ? domainConstraint : 'constrained',
+          })
+        constrainedInserts++
+        constrainedReferences.push({ a, b, candidate, expected })
+        addConstrained({ a: value(candidate.a), b: value(candidate.b) }, expected)
+      }
+    const missing: Input = { kind: 'Unknown' }
+    const inputError: Input & Outcome = { kind: 'Error', value: { state: parseInt('22003', 36) } }
+    addConstrained({ a: missing, b: value(null) }, { kind: 'Unknown' })
+    addConstrained({ a: value(null), b: missing }, { kind: 'Unknown' })
+    addConstrained(
+      { a: value('-0.001'), b: missing },
+      { kind: 'Error', value: { state: parseInt('23514', 36) } },
+    )
+    addConstrained({ a: value('0'), b: missing }, { kind: 'Unknown' })
+    addConstrained({ a: inputError, b: value(null) }, inputError)
+    addConstrained({ a: value(null), b: inputError }, inputError)
+    const constrainedDirectory = join(directory, 'constrained-domains')
+    await mkdir(constrainedDirectory)
+    await runCheckParity(
+      constrainedDirectory,
+      'constrainednumericdomains',
+      constrainedGroup,
+      constrainedPlans.map((plan) => plan.identity.constraint),
+      constrainedFixtures,
+    )
+    expect(constrainedInserts).toBe(40)
+    expect(constrainedFixtures).toHaveLength(92)
     const cast = lowerTableCheck(
       domainTable,
       { name: 'numeric_cast', type: 'check', definition: 'CHECK (a::int4 = 0)' },
@@ -380,7 +465,22 @@ describe('portable Rust CHECK numeric comparisons', () => {
       castFixtures,
     )
     await expect(pg.query("SELECT '-0.001'::measured_amount::exact_amount")).rejects.toThrow()
-  }, 120_000)
+    await mkdir('artifacts/numeric-domain-context', { recursive: true })
+    await writeFile(
+      'artifacts/numeric-domain-context/constrained.json',
+      JSON.stringify(
+        {
+          inserts: constrainedInserts,
+          fixtures: constrainedFixtures.length,
+          originalDomainFixtures: fixtures.length,
+          originalCastFixtures: castFixtures.length,
+          references: constrainedReferences,
+        },
+        null,
+        2,
+      ) + '\n',
+    )
+  }, 180_000)
 
   it('validates exact strings and wrappers at the production TypeScript boundary', async () => {
     const output = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, [])

@@ -501,3 +501,12 @@ CREATE TABLE document_fingerprints (
  CONSTRAINT fingerprint_merged CHECK(CASE WHEN bypass THEN true ELSE jsonb_hash(document||'{"extra":true}'::jsonb)=recorded_merged END),
  CONSTRAINT fingerprint_extracted CHECK(CASE WHEN bypass THEN true ELSE jsonb_hash(document->'a')=recorded_extracted END)
 );
+
+CREATE TABLE document_enum_keys (
+ source_enum jsonb_cast_label,
+ quantity integer,
+ divisor integer,
+ expected jsonb,
+ bypass boolean,
+ CONSTRAINT custom_enum_key CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object(source_enum,quantity/divisor) IS NOT DISTINCT FROM expected END)
+);

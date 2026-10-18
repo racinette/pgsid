@@ -317,7 +317,7 @@ it('builds every concrete scalar and enum profile through ordinary and VARIADIC 
       ),
       fixtures: { name: string; row: Row; expected: Outcome }[] = [],
       references: unknown[] = [],
-      deferred = new Set(['array_stage', 'timestamptz', 'bytea', 'interval', 'money'])
+      deferred = new Set(['timestamptz', 'bytea', 'interval', 'money'])
     for (const form of forms) {
       let output: string | null = null,
         expected: Outcome

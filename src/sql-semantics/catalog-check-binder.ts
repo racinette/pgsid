@@ -1872,6 +1872,7 @@ export function bindCatalogCheck(
     }
   }
   const arrayOutputEnum = (type: string): EnumInfo | undefined => {
+    type = arrayElementBaseType(type)
     while (type.startsWith('array:')) type = arrayElementBaseType(type.slice(6))
     return type.startsWith('enum:') ? enums.find((item) => enumType(item) === type) : undefined
   }
@@ -2272,9 +2273,21 @@ export function bindCatalogCheck(
     if (cast) {
       const capturedCoercion = storedCoercions?.get(wrapper)
       const castInput = implicitDomainInput ?? domainInput ?? capturedCoercion?.input
-      const castType = fields(cast['typeName'])
-      const names = strings(castType?.['names'])
-      const bounds = castType?.['arrayBounds']
+      let castType = fields(cast['typeName'])
+      let names = strings(castType?.['names'])
+      let bounds = castType?.['arrayBounds']
+      if (
+        names?.length === 2 &&
+        names[0] === 'pg_catalog' &&
+        (!Array.isArray(bounds) || bounds.length === 0)
+      ) {
+        const catalogType = catalogScalarType(names.join('.'))
+        if (catalogType?.startsWith('array:')) {
+          castType = { ...castType, ...elementTypeName(catalogType) }
+          names = strings(castType['names'])
+          bounds = castType['arrayBounds']
+        }
+      }
       if (Array.isArray(bounds) && bounds.length) {
         if (!names) return unknown
         const definitions = enums.filter((item) =>
@@ -4586,6 +4599,27 @@ export function bindCatalogCheck(
       resolved.item.schema === 'pg_catalog' && resolved.item.name === 'array_to_string'
         ? arrayOutputEnum(boundType(args[0]!) ?? '')
         : resolved.enum
+    const inputEnums =
+      resolved.item.kind === 'function' &&
+      resolved.item.schema === 'pg_catalog' &&
+      [
+        'to_json',
+        'to_jsonb',
+        'array_to_json',
+        'json_build_array',
+        'jsonb_build_array',
+        'json_build_object',
+        'jsonb_build_object',
+      ].includes(resolved.item.name)
+        ? [
+            ...new Map(
+              args.flatMap((arg) => {
+                const definition = arrayOutputEnum(boundType(arg) ?? '')
+                return definition ? [[enumType(definition), definition] as const] : []
+              }),
+            ).values(),
+          ]
+        : []
     return {
       type,
       ...(type.startsWith('enum:') || type.startsWith('array:enum:')
@@ -4613,6 +4647,7 @@ export function bindCatalogCheck(
             ? { variadic: true as const }
             : {}),
           ...(outputEnum ? { enum: outputEnum } : {}),
+          ...(inputEnums.length ? { inputEnums } : {}),
           collation: collation?.kind,
           ...arrayDefaultCollation(resolved.signature, collation),
         },

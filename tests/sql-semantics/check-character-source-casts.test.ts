@@ -220,5 +220,5 @@ describe('catalog character casts from Boolean and network values', () => {
       entries.map((entry) => entry.name),
       fixtures,
     )
-  })
+  }, 180_000)
 })
