@@ -73,7 +73,7 @@ change to the regex transpiler unless the regex engine itself changes.
   rejected. Exported point-list records and wrappers have readonly TypeScript
   fields while construction, boundary transfers and explicit clones copy their
   storage in both targets. Clone value enum elements copy nested payload storage;
-  recursive ownership graphs remain rejected. Run `check-owned-state.test.ts`
+  recursive ownership cycles must cross an owned vector; direct value cycles remain rejected. Run `check-owned-state.test.ts`
   and `check-owned-value-batches.test.ts` for snapshots and adjacent rejection cases.
 - Regex starts use `usize::try_from(i32_value).unwrap_or(usize_fallback)`.
   Validate both operands eagerly; negative values select the fallback. Shared

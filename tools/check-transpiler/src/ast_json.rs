@@ -1588,9 +1588,28 @@ mod private_owned_state_tests {
             "enum Item { Text(String) } struct Batch { items:Vec<Item> }",
             "#[derive(Clone)] enum Item { Text(String) } fn f(items:Vec<Item>)->Vec<Item> { items.clone() }",
             "#[derive(Clone)] enum Item { Text(String) } fn f(items:&Vec<Item>)->usize { items.len() }",
-            "#[derive(Clone)] enum Item { Batch(Batch) } #[derive(Clone)] struct Batch { items:Vec<Item> }",
             "#[derive(Clone)] enum Item { Text(String) } struct Batch { items:Vec<Item> } fn f(mut input:Batch)->Batch { input.items.push(Item::Text(\"x\".to_owned())); input }",
             "#[derive(Clone)] enum Item { Text(String) } fn f()->usize { let mut items:Vec<Item>=Vec::new(); items.push(1); items.len() }",
+        ] {
+            assert!(parse(rejected).is_err(), "{rejected}");
+        }
+    }
+
+    #[test]
+    fn accepts_recursive_owned_values_only_through_vectors() {
+        for accepted in [
+            "#[derive(Clone)] pub enum Cell { Null, Number(i64), Array(Payload) } #[derive(Clone)] pub struct Payload { pub items:Vec<Cell> } pub fn copy_cell(input:Cell)->Cell { input.clone() }",
+            "#[derive(Clone)] pub enum Outer { Null, Item(OuterPayload) } #[derive(Clone)] pub struct OuterPayload { pub items:Vec<Inner> } #[derive(Clone)] pub enum Inner { Number(i32), Item(InnerPayload) } #[derive(Clone)] pub struct InnerPayload { pub items:Vec<Outer> }",
+        ] {
+            assert!(parse(accepted).is_ok(), "{accepted}");
+        }
+        for rejected in [
+            "#[derive(Clone)] enum Cell { Array(Payload) } #[derive(Clone)] struct Payload { value:Cell }",
+            "#[derive(Clone)] enum Cell { Array(Payload) } #[derive(Clone)] struct Payload { items:Vec<Cell>, direct:Cell }",
+            "#[derive(Clone)] enum Cell { Array(Payload) } #[derive(Clone)] struct Payload { items:Vec<Cell>, invalid:Vec<String> }",
+            "#[derive(Clone)] enum Cell { Array(Payload) } #[derive(Clone)] struct Payload { items:Vec<Cell>, invalid:Vec<Owned> } #[derive(Clone)] struct Owned { value:String }",
+            "#[derive(Clone)] pub enum Cell { Array(Payload) } #[derive(Clone)] pub struct Payload { items:Vec<Cell> }",
+            "enum Cell { Array(Payload) } #[derive(Clone)] struct Payload { items:Vec<Cell> }",
         ] {
             assert!(parse(rejected).is_err(), "{rejected}");
         }

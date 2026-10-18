@@ -143,6 +143,25 @@ const andAll = (values: ts.Expression[]): ts.Expression =>
           values[0]!,
         )
 
+class LocalBindings extends Map<string, { type: string; name: string }> {
+  private readonly usedNames: Set<string>
+
+  constructor(parent?: LocalBindings) {
+    super(parent)
+    this.usedNames = new Set(parent?.usedNames)
+  }
+
+  bind(rustName: string, type: string): string {
+    const base = camelCase(rustName)
+    let name = base,
+      suffix = 1
+    while (this.usedNames.has(name)) name = `${base}${suffix++}`
+    this.usedNames.add(name)
+    this.set(rustName, { type, name })
+    return name
+  }
+}
+
 class Transpiler {
   private readonly structs = new Map<string, Extract<Item, { kind: 'struct' }>>()
   private readonly enums = new Map<string, Extract<Item, { kind: 'enum' }>>()
@@ -322,13 +341,14 @@ class Transpiler {
       : comparison(left, ts.SyntaxKind.EqualsEqualsEqualsToken, right)
   }
 
-  private infer(value: Expr, locals: Map<string, string>): string | undefined {
+  private infer(value: Expr, locals: LocalBindings): string | undefined {
     switch (value.kind) {
       case 'path':
         if (value.segments.length === 2 && this.enums.has(value.segments[0]!))
           return value.segments[0]
         return (
-          locals.get(value.segments.join('::')) ?? this.constants.get(value.segments.join('::'))
+          locals.get(value.segments.join('::'))?.type ??
+          this.constants.get(value.segments.join('::'))
         )
       case 'index-from-signed':
         return 'usize'
@@ -413,7 +433,7 @@ class Transpiler {
     }
   }
 
-  private expression(value: Expr, locals: Map<string, string>): ts.Expression {
+  private expression(value: Expr, locals: LocalBindings): ts.Expression {
     switch (value.kind) {
       case 'array':
         return f.createArrayLiteralExpression(
@@ -429,9 +449,7 @@ class Transpiler {
       case 'path': {
         if (value.segments.length === 1) {
           const name = value.segments[0]!
-          return identifier(
-            locals.has(name) ? camelCase(name) : (this.names.get(name) ?? camelCase(name)),
-          )
+          return identifier(locals.get(name)?.name ?? this.names.get(name) ?? camelCase(name))
         }
         const [enumName, variant] = value.segments
         if (
@@ -688,7 +706,7 @@ class Transpiler {
     }
   }
 
-  private statements(statements: Stmt[], locals: Map<string, string>): ts.Statement[] {
+  private statements(statements: Stmt[], locals: LocalBindings): ts.Statement[] {
     const result: ts.Statement[] = []
     for (const [index, statement] of statements.entries()) {
       if (statement.kind === 'local') {
@@ -698,23 +716,16 @@ class Transpiler {
           : this.infer(statement.initializer, locals)
         if (!type) throw new Error(`cannot infer ${rustName}`)
         const value = this.clone(this.expression(statement.initializer, locals), type)
+        const name = locals.bind(rustName, type)
         result.push(
           f.createVariableStatement(
             undefined,
             f.createVariableDeclarationList(
-              [
-                f.createVariableDeclaration(
-                  camelCase(rustName),
-                  undefined,
-                  this.typeName(type),
-                  value,
-                ),
-              ],
+              [f.createVariableDeclaration(name, undefined, this.typeName(type), value)],
               statement.binding.mutable ? ts.NodeFlags.Let : ts.NodeFlags.Const,
             ),
           ),
         )
-        locals.set(rustName, type)
         continue
       }
       const value = statement.value
@@ -804,14 +815,13 @@ class Transpiler {
         )
           throw new Error('if-let pattern is not a matching payload enum variant')
         const source = this.expression(value.source, locals)
-        const branchLocals = new Map(locals)
+        const branchLocals = new LocalBindings(locals)
         const bindings: ts.Statement[] = []
         if (value.payloadBinding !== null) {
           if (!payload) throw new Error('unit variant has no payload')
           if (typeof value.payloadBinding !== 'string' || !value.payloadBinding.length)
             throw new Error('if-let payload binding must be a name or null')
-          const bound = camelCase(value.payloadBinding)
-          branchLocals.set(value.payloadBinding, this.path(payload))
+          const bound = branchLocals.bind(value.payloadBinding, this.path(payload))
           bindings.push(
             f.createVariableStatement(
               undefined,
@@ -841,12 +851,12 @@ class Transpiler {
         )
       } else if (value.kind === 'if') {
         const alternate = value.elseBody
-          ? this.statements(value.elseBody, new Map(locals))
+          ? this.statements(value.elseBody, new LocalBindings(locals))
           : undefined
         result.push(
           f.createIfStatement(
             this.expression(value.condition, locals),
-            f.createBlock(this.statements(value.body, new Map(locals)), true),
+            f.createBlock(this.statements(value.body, new LocalBindings(locals)), true),
             alternate?.length === 1 && ts.isIfStatement(alternate[0]!)
               ? alternate[0]
               : alternate
@@ -858,7 +868,7 @@ class Transpiler {
         result.push(
           f.createWhileStatement(
             this.expression(value.condition, locals),
-            f.createBlock(this.statements(value.body, new Map(locals)), true),
+            f.createBlock(this.statements(value.body, new LocalBindings(locals)), true),
           ),
         )
       else {
@@ -1065,7 +1075,7 @@ class Transpiler {
     for (const item of this.document.items) {
       switch (item.kind) {
         case 'constant': {
-          const value = this.expression(item.value, new Map())
+          const value = this.expression(item.value, new LocalBindings())
           declarations.push(
             f.createVariableStatement(
               exported(item.visibility),
@@ -1093,13 +1103,14 @@ class Transpiler {
           declarations.push(...this.emitEnum(item))
           break
         case 'function': {
-          const locals = new Map(
-            item.parameters.map((parameter) => [parameter.name, this.path(parameter.type)]),
+          const locals = new LocalBindings()
+          const parameters = item.parameters.map((item) =>
+            parameter(locals.bind(item.name, this.path(item.type)), this.type(item.type)),
           )
           const body: ts.Statement[] = []
           for (const parameter of item.parameters) {
             if (item.visibility === 'crate') continue
-            const name = camelCase(parameter.name)
+            const name = locals.get(parameter.name)!.name
             if (
               item.visibility !== 'public' &&
               parameter.type.kind === 'reference' &&
@@ -1121,7 +1132,7 @@ class Transpiler {
           declarations.push(
             this.function(
               this.names.get(item.name)!,
-              item.parameters.map((item) => parameter(camelCase(item.name), this.type(item.type))),
+              parameters,
               this.type(item.returnType),
               body,
               item.visibility,
