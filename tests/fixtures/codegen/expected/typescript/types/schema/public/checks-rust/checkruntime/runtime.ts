@@ -8704,6 +8704,17 @@ export function finishArrayDomainConversion(input: ArrayValue, result: CheckOutc
     }
     return input;
 }
+export function finishRangeDomainConversion(input: RangeValue, result: CheckOutcome): RangeValue {
+    input = copyRangeValue(input);
+    if (result.kind === "Error") {
+        const error: SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCheckOutcome(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return input;
+}
 export interface ArrayDimension {
     readonly lower: number;
     readonly length: number;

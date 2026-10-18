@@ -8561,6 +8561,17 @@ func FinishArrayDomainConversion(input ArrayValue, result CheckOutcome) ArrayVal
 	}
 	return input
 }
+func FinishRangeDomainConversion(input RangeValue, result CheckOutcome) RangeValue {
+	input = CopyRangeValue(input)
+	if result.Kind == CheckOutcomeError {
+		error := result.Error
+		return RangeValue{Kind: RangeValueError, Error: error}
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return RangeValue{Kind: RangeValueUnknown}
+	}
+	return input
+}
 
 type ArrayDimension struct {
 	Lower  int

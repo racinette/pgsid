@@ -963,6 +963,7 @@ export function emitCheckRustEvaluator(
         (node.kind === 'text-to-boolean' && node.literal === true) ||
         (node.kind === 'certain' &&
           (node.expression.kind === 'point' ||
+            node.expression.kind === 'range' ||
             node.expression.kind === 'json' ||
             node.expression.kind === 'jsonb' ||
             node.expression.kind === 'jsonpath' ||
@@ -1108,7 +1109,8 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'domain-cast') {
       const array = node.type.startsWith('array:')
-      if (!array && arrayElementFamily(node.type) === null)
+      const range = isRangeType(node.type)
+      if (!array && !range && arrayElementFamily(node.type) === null)
         throw new UnsupportedCheckRustExpression(
           'Domain conversion requires a represented value carrier',
         )
@@ -1119,7 +1121,8 @@ export function emitCheckRustEvaluator(
         )
       const prefix = rustValuePrefix(rustType(node.type))
       const nullness = bind(`${prefix}_is_null(${ownedOperand(operand)})`)
-      const element = array ? null : bind(`array_element_from_${prefix}(${ownedOperand(operand)})`)
+      const element =
+        array || range ? null : bind(`array_element_from_${prefix}(${ownedOperand(operand)})`)
       const initial = bind(`domain_conversion_start(${nullness}, ${node.notNull})`)
       const status = fresh('domain_status')
       bindings.push(`let mut ${status}: CheckOutcome = ${initial};`)
@@ -1199,6 +1202,11 @@ export function emitCheckRustEvaluator(
       if (array)
         return {
           name: bind(`finish_array_domain_conversion(${ownedOperand(operand)}, ${status})`),
+          type: node.type,
+        }
+      if (range)
+        return {
+          name: bind(`finish_range_domain_conversion(${ownedOperand(operand)}, ${status})`),
           type: node.type,
         }
       const finished = bind(`finish_domain_conversion(${element}, ${status})`)
@@ -3490,6 +3498,41 @@ export function emitCheckRustEvaluator(
                     : 'point_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
+    const emitRangeInput = (operand: { name: string; type: string }, type: string) => {
+      const range = builtinRangeType(type)
+      const signature = builtinTypeIO(type)?.input
+      const input = signature ? builtinMetadata(signature) : null
+      if (
+        !range ||
+        input?.kind !== 'function' ||
+        input.schema !== 'pg_catalog' ||
+        input.name !== 'range_in' ||
+        input.args.join(',') !== 'pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4' ||
+        input.result !== 'pg_catalog.anyrange' ||
+        !input.strict ||
+        input.volatility !== 's' ||
+        input.returnsSet ||
+        ![
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type)
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Range input requires its captured type and catalog I/O identity',
+        )
+      return {
+        name: bind(
+          `range_from_text(${ownedOperand(operand)}, ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.subtype)})`,
+        ),
+        type,
+      }
+    }
+    if (node.kind === 'text-to-range') {
+      const operand = emitScalar(node.operand, bindings, used)
+      return emitRangeInput(operand, node.type)
+    }
     if (node.kind === 'text-to-boolean') {
       const operand = emitScalar(node.operand, bindings, used)
       const io = builtinTypeIO(node.type)?.input
@@ -3721,7 +3764,11 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'certain') {
       const value = node.expression
-      if (value.kind === 'range') return { name: bind('range_null()'), type: value.type }
+      if (value.kind === 'range') {
+        if (value.value === null) return { name: bind('range_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return emitRangeInput({ name: text, type: 'pg_catalog.text' }, value.type)
+      }
       if (
         value.kind === 'temporal' &&
         (value.type === 'pg_catalog."time"' ||

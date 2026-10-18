@@ -432,7 +432,8 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
-  if (isRangeType(type) && literal.kind === 'null') return { kind: 'range', type, value: null }
+  if (isRangeType(type) && (literal.kind === 'null' || literal.kind === 'string'))
+    return { kind: 'range', type, value: literal.value }
   if (type === 'pg_catalog.jsonpath' && (literal.kind === 'null' || literal.kind === 'string'))
     return { kind: 'jsonpath', type, value: literal.value }
   if (type === 'pg_catalog.jsonb' && (literal.kind === 'null' || literal.kind === 'string'))
@@ -3402,6 +3403,17 @@ export function bindCatalogCheck(
         return text ? { type, value: { kind: 'text-to-float', type, operand: text } } : unknown
       }
       if (
+        isRangeType(type) &&
+        operand.value &&
+        [
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(operand.type ?? '')
+      )
+        return { type, value: { kind: 'text-to-range', type, operand: operand.value } }
+      if (
         type === 'pg_catalog.point' &&
         (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
         operand.value
@@ -4352,6 +4364,7 @@ export function bindCatalogCheck(
         aliasType === 'pg_catalog."json"' ||
         aliasType === 'pg_catalog.jsonb' ||
         aliasType === 'pg_catalog.jsonpath' ||
+        isRangeType(aliasType) ||
         isSnapshotType(aliasType) ||
         ((args[0]?.type === 'pg_catalog."numeric"' ||
           args[0]?.type === 'pg_catalog.refcursor' ||

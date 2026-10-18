@@ -1531,3 +1531,30 @@ CREATE TABLE lane_constructor_windows (
   CONSTRAINT constructor_default_end CHECK(CASE WHEN bypass THEN true ELSE upper(int4range(low_bound,high_bound/divisor))<=100 END),
   CONSTRAINT constructor_canonical_floor CHECK(CASE WHEN bypass THEN true ELSE lower(int4range_canonical(int4range(low_bound,high_bound,bound_flags)))>=0 END)
 );
+
+CREATE DOMAIN imported_slot AS int4range CHECK(isempty(VALUE) OR lower(VALUE)>=0);
+CREATE TABLE lane_range_imports (
+  slots text,
+  loads text,
+  prices text,
+  calendar_days text,
+  local_shift text,
+  instant_shift text,
+  expected_empty boolean,
+  expected_end integer,
+  minimum_price numeric,
+  latest_day date,
+  earliest_local timestamp,
+  latest_instant timestamptz,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT range_import_empty CHECK(CASE WHEN bypass THEN true ELSE isempty(slots::int4range) IS NOT DISTINCT FROM expected_empty END),
+  CONSTRAINT range_import_end CHECK(CASE WHEN bypass THEN true ELSE upper(int4range(slots))<=expected_end END),
+  CONSTRAINT range_import_domain_end CHECK(CASE WHEN bypass THEN true ELSE upper(slots::imported_slot)<=expected_end END),
+  CONSTRAINT range_import_loads CHECK(CASE WHEN bypass THEN true ELSE upper(loads::int8range)<=9007199254741000::bigint END),
+  CONSTRAINT range_import_prices CHECK(CASE WHEN bypass THEN true ELSE lower(prices::numrange)>=minimum_price END),
+  CONSTRAINT range_import_days CHECK(CASE WHEN bypass THEN true ELSE upper(calendar_days::daterange)<=latest_day END),
+  CONSTRAINT range_import_local CHECK(CASE WHEN bypass THEN true ELSE lower(local_shift::tsrange)>=earliest_local END),
+  CONSTRAINT range_import_instant CHECK(CASE WHEN bypass THEN true ELSE upper(instant_shift::tstzrange)<=latest_instant END),
+  CONSTRAINT range_import_start CHECK(CASE WHEN bypass THEN true ELSE lower(slots::int4range)>=1/divisor END)
+);

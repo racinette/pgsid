@@ -691,6 +691,17 @@ describe('CHECK measurement boundaries', () => {
           owner: 'tests/sql-semantics/check-platform-nan.test.ts',
         },
       })
+    for (const range of catalog.rangeTypes) {
+      const entry = report.textInput.find((item) => item.type === range.identity)!
+      expect(entry.probe.sql).toContain('isempty(')
+      expect(entry.probe.postgres.accepted).toBe(true)
+      expect(entry.probe.raw.preparation.kind).toBe('supported')
+      expect(entry.probe.stored!.preparation.kind).toBe('supported')
+      expect(report.inputForms.types.find((forms) => forms.type === range.identity)).toMatchObject({
+        boundType: range.subtype,
+        scope: expect.stringContaining('scalar input requirements'),
+      })
+    }
     const pointInput = report.textInput.find((entry) => entry.type === 'pg_catalog.point')!
     expect(pointInput.probe.postgres.accepted).toBe(true)
     expect(pointInput.probe.raw.fullyBound).toBe(true)

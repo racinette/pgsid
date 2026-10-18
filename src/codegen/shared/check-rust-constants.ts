@@ -132,7 +132,11 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.expression.elements === null
   )
     return constant(expression, true)
-  if (expression.kind === 'text-to-array' || expression.kind === 'array-to-text') {
+  if (
+    expression.kind === 'text-to-array' ||
+    expression.kind === 'array-to-text' ||
+    expression.kind === 'text-to-range'
+  ) {
     const operand = prepare(expression.operand)
     return operand
       ? { constant: false, null: operand.null, expressions: operand.expressions }

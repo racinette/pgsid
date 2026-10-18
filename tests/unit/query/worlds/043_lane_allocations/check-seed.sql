@@ -4614,3 +4614,95 @@ VALUES(1,1,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01
 -- name: constructor_max_lower
 INSERT INTO lane_constructor_windows(low_bound,high_bound,low_wide,high_wide,low_price,high_price,low_day,high_day,low_local,high_local,low_instant,high_instant,bound_flags,expected_empty,ceiling_wide,latest_day,earliest_local,latest_instant,divisor,bypass)
 VALUES(2147483647,NULL,9007199254740993,9007199254740999,1.2300,3.4500,'2000-01-01','2000-01-03','2000-01-01 00:00:00.000001','2000-01-03','2000-01-01 00:00:00+00','2000-01-03 00:00:00+00','[)',false,9007199254741000,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_normal
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_quoted
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('["1","3")','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_whitespace
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('  [ 1, 3 )  ','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_wrong_empty
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',true,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_wrong_end
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,2,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_load_limit
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254741001)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_price_floor
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,2,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_day_limit
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-02','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_local_floor
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','2000-01-02','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_instant_limit
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-02 00:00:00+00',1,false);
+
+-- name: range_import_syntax
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,3)junk','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_lower_error
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[bad,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_reverse
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[3,1)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_lower_overflow
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[2147483648,bad)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_first_syntax
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[2147483648,3','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_upper_error
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[bad,2147483648)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_domain_negative
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[-1,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_division_error
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',0,false);
+
+-- name: range_import_bypass
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('malformed','[9007199254740993,9007199254740999)','malformed','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',0,true);
+
+-- name: range_import_empty
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('empty','empty','empty','empty','empty','empty',true,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_null
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_unbounded
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('(,)','(,)','(,)','(,)','(,)','(,)',false,3,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);
+
+-- name: range_import_point
+INSERT INTO lane_range_imports(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_end,minimum_price,latest_day,earliest_local,latest_instant,divisor,bypass)
+VALUES('[1,1]','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)',false,2,0,'2000-01-05','1999-12-31','2000-01-05 00:00:00+00',1,false);

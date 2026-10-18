@@ -30103,6 +30103,147 @@ func TstzrangeZuff(lower checkruntime.TimestamptzValue, upper checkruntime.Times
 	hi := checkruntime.ArrayElementFromTimestamptz(upper)
 	return rangeBuiltinConstruct("pg_catalog.tstzrange", "pg_catalog.timestamptz", 5, lo, hi, flags)
 }
+
+const rangeInputSyntax = 3484946
+
+func rangeInputSpace(ch rune) bool {
+	ch = langruntime.CheckedChar(ch)
+	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f'
+}
+func rangeInputBound(input checkruntime.TextValue, kind int) checkruntime.ArrayElement {
+	kind = langruntime.CheckedI32(kind)
+	if kind == 2 || kind == 3 {
+		return ArrayIntegerTextElement(input, kind)
+	}
+	if kind == 10 {
+		return checkruntime.ArrayElementFromNumeric(ScalarNumericFromText(input))
+	}
+	if kind == 7 {
+		return checkruntime.ArrayElementFromDate(checkruntime.DateFromText(input))
+	}
+	if kind == 4 {
+		return checkruntime.ArrayElementFromTimestamp(checkruntime.TimestampFromText(input))
+	}
+	if kind == 5 {
+		return checkruntime.ArrayElementFromTimestamptz(checkruntime.TimestamptzFromText(input))
+	}
+	return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
+}
+func RangeFromText(input checkruntime.TextValue, typeName string, elementType string, kind int) checkruntime.RangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		chars := []rune(text)
+		position := 0
+		for position < len(chars) && rangeInputSpace(chars[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		end := len(chars)
+		for end > position && rangeInputSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		if langruntime.CheckedSubtract(end, position) == 5 {
+			if (chars[position] == 'e' || chars[position] == 'E') && (chars[langruntime.CheckedAdd(position, 1)] == 'm' || chars[langruntime.CheckedAdd(position, 1)] == 'M') && (chars[langruntime.CheckedAdd(position, 2)] == 'p' || chars[langruntime.CheckedAdd(position, 2)] == 'P') && (chars[langruntime.CheckedAdd(position, 3)] == 't' || chars[langruntime.CheckedAdd(position, 3)] == 'T') && (chars[langruntime.CheckedAdd(position, 4)] == 'y' || chars[langruntime.CheckedAdd(position, 4)] == 'Y') {
+				return checkruntime.RangeFromCoercedBounds(typeName, elementType, kind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull})
+			}
+		}
+		if position >= end {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+		}
+		opening := chars[position]
+		if opening != '[' && opening != '(' {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+		}
+		position = langruntime.CheckedAdd(position, 1)
+		lowerText := checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+		upperText := checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+		bound := 0
+		for bound < 2 {
+			if position >= end {
+				return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+			}
+			first := chars[position]
+			value := checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+			if first != ',' && first != ')' && first != ']' {
+				content := langruntime.NewTextBuffer("")
+				quoted := false
+				scanning := true
+				for scanning {
+					if position >= end {
+						return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+					}
+					ch := chars[position]
+					if quoted == false && (ch == ',' || ch == ')' || ch == ']') {
+						scanning = false
+					} else {
+						position = langruntime.CheckedAdd(position, 1)
+						if ch == '\\' {
+							if position >= end {
+								return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+							}
+							content = append(content, string(langruntime.CheckedChar(chars[position]))...)
+							position = langruntime.CheckedAdd(position, 1)
+						} else if ch == '"' {
+							if quoted && position < end && chars[position] == '"' {
+								content = append(content, string(langruntime.CheckedChar('"'))...)
+								position = langruntime.CheckedAdd(position, 1)
+							} else {
+								quoted = quoted == false
+							}
+						} else {
+							content = append(content, string(langruntime.CheckedChar(ch))...)
+						}
+					}
+				}
+				value = checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(content)}
+			}
+			if bound == 0 {
+				lowerText = value
+				if chars[position] != ',' {
+					return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+				}
+				position = langruntime.CheckedAdd(position, 1)
+			} else {
+				upperText = value
+			}
+			bound = langruntime.CheckedAdd(bound, 1)
+		}
+		closing := chars[position]
+		if (closing != ')' && closing != ']') || langruntime.CheckedAdd(position, 1) != end {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+		}
+		lower := rangeInputBound(lowerText, kind)
+		if lower.Kind == checkruntime.ArrayElementError {
+			error := lower.Error
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+		}
+		if lower.Kind == checkruntime.ArrayElementUnknown {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+		}
+		upper := rangeInputBound(upperText, kind)
+		if upper.Kind == checkruntime.ArrayElementError {
+			error := upper.Error
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+		}
+		if upper.Kind == checkruntime.ArrayElementUnknown {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+		}
+		flags := langruntime.NewTextBuffer("")
+		flags = append(flags, string(langruntime.CheckedChar(opening))...)
+		flags = append(flags, string(langruntime.CheckedChar(closing))...)
+		return rangeBuiltinConstruct(typeName, elementType, kind, lower, upper, checkruntime.MakeTextValue(string(flags)))
+	}
+	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+}
 func Isempty86tf(input checkruntime.RangeValue) checkruntime.BoolValue {
 	input = checkruntime.CopyRangeValue(input)
 	return checkruntime.RangeEmptyState(input)

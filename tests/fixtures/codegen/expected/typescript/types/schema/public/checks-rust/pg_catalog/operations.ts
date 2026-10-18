@@ -30209,6 +30209,150 @@ export function tstzrangeZuff(lower: checkruntime.TimestamptzValue, upper: check
     const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamptz(upper);
     return rangeBuiltinConstruct("pg_catalog.tstzrange", "pg_catalog.timestamptz", 5, lo, hi, flags);
 }
+const rangeInputSyntax = 3484946;
+function rangeInputSpace(ch: string): boolean {
+    ch = langruntime.checkedChar(ch);
+    return ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\v" || ch === "\f";
+}
+function rangeInputBound(input: checkruntime.TextValue, kind: number): checkruntime.ArrayElement {
+    kind = langruntime.checkedI32(kind);
+    if (kind === 2 || kind === 3) {
+        return arrayIntegerTextElement(input, kind);
+    }
+    if (kind === 10) {
+        return checkruntime.arrayElementFromNumeric(scalarNumericFromText(input));
+    }
+    if (kind === 7) {
+        return checkruntime.arrayElementFromDate(checkruntime.dateFromText(input));
+    }
+    if (kind === 4) {
+        return checkruntime.arrayElementFromTimestamp(checkruntime.timestampFromText(input));
+    }
+    if (kind === 5) {
+        return checkruntime.arrayElementFromTimestamptz(checkruntime.timestamptzFromText(input));
+    }
+    return { kind: "Unknown" };
+}
+export function rangeFromText(input: checkruntime.TextValue, typeName: string, elementType: string, kind: number): checkruntime.RangeValue {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        let position: number = 0;
+        while (position < chars.length && rangeInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        let end: number = chars.length;
+        while (end > position && rangeInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        if (langruntime.checkedSubtract(end, position) === 5) {
+            if ((langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "e" || langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "E") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "m" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "M") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "p" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "P") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))) === "t" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))) === "T") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 4))) === "y" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 4))) === "Y")) {
+                return checkruntime.rangeFromCoercedBounds(typeName, elementType, kind, true, false, false, { kind: "Null" }, { kind: "Null" });
+            }
+        }
+        if (position >= end) {
+            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+        }
+        const opening: string = langruntime.indexChar(chars, langruntime.checkedIndex(position));
+        if (!(opening === "[") && !(opening === "(")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+        }
+        position = langruntime.checkedAdd(position, 1);
+        let lowerText: checkruntime.TextValue = { kind: "Null" };
+        let upperText: checkruntime.TextValue = { kind: "Null" };
+        let bound: number = 0;
+        while (bound < 2) {
+            if (position >= end) {
+                return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+            }
+            const first: string = langruntime.indexChar(chars, langruntime.checkedIndex(position));
+            let value: checkruntime.TextValue = { kind: "Null" };
+            if (!(first === ",") && !(first === ")") && !(first === "]")) {
+                let content: string = "";
+                let quoted: boolean = false;
+                let scanning: boolean = true;
+                while (scanning) {
+                    if (position >= end) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+                    }
+                    const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(position));
+                    if (quoted === false && (ch === "," || ch === ")" || ch === "]")) {
+                        scanning = langruntime.checkedBool(false);
+                    }
+                    else {
+                        position = langruntime.checkedAdd(position, 1);
+                        if (ch === "\\") {
+                            if (position >= end) {
+                                return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+                            }
+                            content = content + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(position)));
+                            position = langruntime.checkedAdd(position, 1);
+                        }
+                        else if (ch === "\"") {
+                            if (quoted && position < end && langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "\"") {
+                                content = content + langruntime.checkedChar("\"");
+                                position = langruntime.checkedAdd(position, 1);
+                            }
+                            else {
+                                quoted = langruntime.checkedBool(quoted === false);
+                            }
+                        }
+                        else {
+                            content = content + langruntime.checkedChar(ch);
+                        }
+                    }
+                }
+                value = { kind: "Value", value: content };
+            }
+            if (bound === 0) {
+                lowerText = value;
+                if (!(langruntime.indexChar(chars, langruntime.checkedIndex(position)) === ",")) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+                }
+                position = langruntime.checkedAdd(position, 1);
+            }
+            else {
+                upperText = value;
+            }
+            bound = langruntime.checkedAdd(bound, 1);
+        }
+        const closing: string = langruntime.indexChar(chars, langruntime.checkedIndex(position));
+        if ((!(closing === ")") && !(closing === "]")) || !(langruntime.checkedAdd(position, 1) === end)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+        }
+        const lower: checkruntime.ArrayElement = rangeInputBound(lowerText, kind);
+        if (lower.kind === "Error") {
+            const error: checkruntime.SqlError = lower.value;
+            return { kind: "Error", value: error };
+        }
+        if (lower.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        const upper: checkruntime.ArrayElement = rangeInputBound(upperText, kind);
+        if (upper.kind === "Error") {
+            const error: checkruntime.SqlError = upper.value;
+            return { kind: "Error", value: error };
+        }
+        if (upper.kind === "Unknown") {
+            return { kind: "Unknown" };
+        }
+        let flags: string = "";
+        flags = flags + langruntime.checkedChar(opening);
+        flags = flags + langruntime.checkedChar(closing);
+        return rangeBuiltinConstruct(typeName, elementType, kind, lower, upper, checkruntime.makeTextValue(flags));
+    }
+    return { kind: "Unknown" };
+}
 export function isempty86tf(input: checkruntime.RangeValue): checkruntime.BoolValue {
     input = checkruntime.copyRangeValue(input);
     return checkruntime.rangeEmptyState(input);
