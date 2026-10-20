@@ -3437,9 +3437,43 @@ export function emitCheckRustEvaluator(
             ? 'pg_catalog.anyenum'
             : isRangeType(operand.type)
               ? 'pg_catalog.anyrange'
-              : operand.type)
+              : isMultirangeType(operand.type)
+                ? 'pg_catalog.anymultirange'
+                : operand.type)
       )
         throw new UnsupportedCheckRustExpression('Unsupported text output function')
+      const multirange = builtinMultirangeType(operand.type)
+      if (multirange) {
+        const memberOutput = builtinTypeIO(multirange.identity)?.output
+        const member = memberOutput ? builtinMetadata(memberOutput) : null
+        const subtypeOutput = builtinTypeIO(multirange.subtype)?.output
+        const subtype = subtypeOutput ? builtinMetadata(subtypeOutput) : null
+        if (
+          metadata.schema !== 'pg_catalog' ||
+          metadata.name !== 'multirange_out' ||
+          metadata.volatility !== 's' ||
+          metadata.returnsSet ||
+          member?.kind !== 'function' ||
+          member.schema !== 'pg_catalog' ||
+          member.name !== 'range_out' ||
+          member.volatility !== 's' ||
+          member.returnsSet ||
+          !member.strict ||
+          member.args.length !== 1 ||
+          member.args[0] !== 'pg_catalog.anyrange' ||
+          member.result !== 'pg_catalog.cstring' ||
+          subtype?.kind !== 'function' ||
+          !subtype.strict ||
+          subtype.returnsSet ||
+          subtype.args.length !== 1 ||
+          subtype.args[0] !== multirange.subtype ||
+          subtype.result !== 'pg_catalog.cstring'
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Multirange output requires captured multirange, range and subtype I/O identities',
+          )
+        return { name: bind(`multirange_to_text(${ownedOperand(operand)})`), type: node.type }
+      }
       const range = builtinRangeType(operand.type)
       if (range) {
         const subtypeOutput = builtinTypeIO(range.subtype)?.output

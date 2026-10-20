@@ -24129,6 +24129,45 @@ export function upperInf2edg(input: checkruntime.MultirangeValue): checkruntime.
     input = checkruntime.copyMultirangeValue(input);
     return checkruntime.multirangeBoundFlag(input, true, true);
 }
+export function multirangeToText(input: checkruntime.MultirangeValue): checkruntime.TextValue {
+    input = checkruntime.copyMultirangeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(input.value);
+        let output: string = "";
+        output = output + langruntime.checkedChar("{");
+        let index: number = 0;
+        while (index < payload.ranges.length) {
+            const member: checkruntime.TextValue = rangeToText(checkruntime.copyRangeValue(langruntime.indexStruct(payload.ranges, langruntime.checkedIndex(index), checkruntime.copyRangeValue)));
+            if (member.kind === "Error") {
+                const error: checkruntime.SqlError = member.value;
+                return { kind: "Error", value: error };
+            }
+            let known: boolean = false;
+            if (member.kind === "Value") {
+                const text: string = langruntime.checkedString(member.value);
+                if (index > 0) {
+                    output = output + langruntime.checkedChar(",");
+                }
+                output = output + text;
+                known = langruntime.checkedBool(true);
+            }
+            if (known === false) {
+                return { kind: "Unknown" };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        output = output + langruntime.checkedChar("}");
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 function multirangeSetRangeKnown(input: checkruntime.RangeValue): boolean {
     input = checkruntime.copyRangeValue(input);
     if (input.kind === "Value") {

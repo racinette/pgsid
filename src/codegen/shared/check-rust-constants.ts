@@ -80,7 +80,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     if (
       output.kind === 'function' &&
       output.schema === 'pg_catalog' &&
-      output.name === 'range_out' &&
+      ['range_out', 'multirange_out'].includes(output.name) &&
       output.volatility === 's'
     ) {
       const operand = prepare(expression.operand)
