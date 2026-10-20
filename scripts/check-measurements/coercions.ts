@@ -124,6 +124,23 @@ const inputForms = [
     platformDependent: [],
     unimplementedGrammar: [],
     scope: 'Outer range grammar samples; reached bounds retain their scalar input requirements',
+    binaryIO: {
+      owner: 'tests/sql-semantics/check-range-wire-hash.test.ts',
+      catalogOwner: 'tests/sql-semantics/check-range-binary-catalog.test.ts',
+      sendContext: [],
+      format: 'Flags and length-prefixed subtype wire values; no range OID',
+      receive: 'PostgreSQL internal buffer and concrete input type context',
+    },
+    hashing: {
+      owner: 'tests/sql-semantics/check-range-wire-hash.test.ts',
+      contextOwner: 'tests/sql-semantics/check-range-hash-context.test.ts',
+      stateOwner: 'tests/sql-semantics/check-range-wire-state.test.ts',
+      contextRequired:
+        forms.boundType === 'pg_catalog."numeric"'
+          ? ['nativeByteOrder for reached byte-dependent numeric hashes']
+          : [],
+      oidInput: false,
+    },
     coreOperations: {
       comparisonOwner: 'tests/sql-semantics/check-range-comparisons.test.ts',
       setOwner: 'tests/sql-semantics/check-range-set.test.ts',

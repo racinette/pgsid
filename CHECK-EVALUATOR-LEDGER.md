@@ -26,8 +26,7 @@ pnpm check-rust:measure
 A prepared evaluator may return Unknown. Count useful support from binding and executed outcomes, rather than preparation success alone. Legacy target bindings and catalog function counts are separate from Rust CHECK coverage; dedicated regex paths can work without a catalog-named implementation.
 
 The type report separates nullness from portable value representation and uses catalog row shape for column probes. Column admission is probed in PostgreSQL; rejected types remain inventoried without column probes. The surface report
-verifies live callable and cast identities, records raw/stored expression probes,
-and joins bound corpus expressions to executed world outcomes. Required generated
+verifies live callable and cast identities, records raw/stored expression probes, and joins bound corpus expressions to executed world outcomes. Required generated
 inputs and write hooks remain visible beside those outcomes. Values before a
 BEFORE ROW hook can differ from the values PostgreSQL checks.
 Callable candidates, context requirements, new representations, and expression gaps remain separate. Surface measurement rejects world outcomes whose input
@@ -256,6 +255,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit builtin range grammar, typed literals and catalog-linked character input through ordered scalar parsers and canonicalization; preserve quoting/escapes, omitted versus empty bounds, nested checked domains, eager literal versus stable runtime preparation and reached DateStyle/TimeZone deferrals with raw/stored and INSERT parity.
 - [x] Admit builtin range text output through captured range/subtype I/O, exact integer/numeric rendering, quoting/escapes, omitted and typed infinite bounds, character widths and nested domains; preserve strict states, ordered rendering, eager literal input errors, lazy stable output and reached DateStyle/TimeZone deferrals with raw/stored and INSERT parity.
 - [x] Admit builtin range ordering/equality, endpoint relations, containment, adjacency and canonical set operations through captured subtype support; preserve empty/unbounded/inclusive distinctions, exact selected bounds, non-contiguous errors, strict states and argument order, owned partial results, nominal composition and untyped literals, eager/lazy preparation and INSERT parity.
+- [x] Capture stable binary input/output links and admit builtin range wire output and hashing through subtype support; preserve flags, exact bounds/scales, seeded arithmetic, strict states, ordered output and eager/lazy preparation. Compare complete byte-order alternatives, retain context-free results and owned partial states, verify deployment-OID independence and INSERT parity, and classify internal-buffer receive separately.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

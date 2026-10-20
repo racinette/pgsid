@@ -1,4 +1,8 @@
-import { isArrayHash, nativeHashContext } from '../../src/codegen/shared/check-hash-context.js'
+import {
+  isArrayHash,
+  isRangeHash,
+  nativeHashContext,
+} from '../../src/codegen/shared/check-hash-context.js'
 import { characterEncodingContext } from '../../src/codegen/shared/check-character-context.js'
 import { jsonbTextRenderingContext } from '../../src/codegen/shared/check-jsonb-context.js'
 import assert from 'node:assert/strict'
@@ -107,6 +111,21 @@ export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
 }
 
 export function hashValueRequirements(item: BuiltinCallable) {
+  if (isRangeHash(item))
+    return [
+      {
+        kind: 'interface',
+        requirement:
+          'Resolve the concrete builtin subtype hash support from captured metadata; range OIDs are not hash inputs.',
+        owner: 'tests/sql-semantics/check-range-wire-hash.test.ts',
+      },
+      {
+        kind: 'platform',
+        requirement:
+          'Reached byte-dependent subtype hashes retain nativeByteOrder requirements. With no declared order, compare both complete range hash results; empty and unbounded ranges do not read bound hashes.',
+        owner: 'tests/sql-semantics/check-range-hash-context.test.ts',
+      },
+    ]
   if (isArrayHash(item))
     return [
       {

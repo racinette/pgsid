@@ -29934,6 +29934,102 @@ export function polygonFromText(input: checkruntime.TextValue): checkruntime.Pol
     }
     return { kind: "Unknown" };
 }
+function rangeStorageFlags(input: checkruntime.RangePayload): number {
+    if (input.empty) {
+        return 1;
+    }
+    let flags: number = 0;
+    if (input.lowerInclusive) {
+        flags = langruntime.checkedIndex(langruntime.checkedAdd(flags, 2));
+    }
+    if (input.upperInclusive) {
+        flags = langruntime.checkedIndex(langruntime.checkedAdd(flags, 4));
+    }
+    const lower: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+    const upper: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+    if (lower.kind === "Null") {
+        flags = langruntime.checkedIndex(langruntime.checkedAdd(flags, 8));
+    }
+    if (upper.kind === "Null") {
+        flags = langruntime.checkedIndex(langruntime.checkedAdd(flags, 16));
+    }
+    return flags;
+}
+export function rangeHashFlags(input: checkruntime.RangeValue): checkruntime.Int4Value {
+    input = checkruntime.copyRangeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.RangePayload = checkruntime.copyRangePayload(input.value);
+        return checkruntime.makeInt4Value(rangeStorageFlags(value));
+    }
+    return { kind: "Unknown" };
+}
+function rangeBinaryAppend(output: checkruntime.ByteaValue, bound: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    if (bound.kind === "Error") {
+        const error: checkruntime.SqlError = bound.value;
+        return { kind: "Error", value: error };
+    }
+    if (bound.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (bound.kind === "Null") {
+        return { kind: "Unknown" };
+    }
+    const length: checkruntime.Int4Value = byteaLength(bound);
+    const prefix: checkruntime.ByteaValue = int4sendFjzt(length);
+    const withLength: checkruntime.ByteaValue = byteacatZitv(output, prefix);
+    return byteacatZitv(withLength, bound);
+}
+export function rangeSendB1w5(input: checkruntime.RangeValue, lower: checkruntime.ByteaValue, upper: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    input = checkruntime.copyRangeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.RangePayload = checkruntime.copyRangePayload(input.value);
+        const flags: number = rangeStorageFlags(value);
+        const header: string = checkruntime.byteaAppendByte("", flags);
+        let result: checkruntime.ByteaValue = { kind: "Value", value: header };
+        if (value.empty) {
+            return result;
+        }
+        const lo: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+        const hi: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+        let lowerPresent: boolean = true;
+        let upperPresent: boolean = true;
+        if (lo.kind === "Null") {
+            lowerPresent = langruntime.checkedBool(false);
+        }
+        if (hi.kind === "Null") {
+            upperPresent = langruntime.checkedBool(false);
+        }
+        if (lowerPresent) {
+            result = rangeBinaryAppend(result, lower);
+            if (result.kind === "Error") {
+                const error: checkruntime.SqlError = result.value;
+                return { kind: "Error", value: error };
+            }
+            if (result.kind === "Unknown") {
+                return result;
+            }
+        }
+        if (upperPresent) {
+            result = rangeBinaryAppend(result, upper);
+        }
+        return result;
+    }
+    return { kind: "Unknown" };
+}
 function rangeSameFamily(left: checkruntime.RangePayload, right: checkruntime.RangePayload): boolean {
     return left.typeName === right.typeName && left.elementType === right.elementType && left.elementKind === right.elementKind;
 }
@@ -30681,6 +30777,140 @@ export function tstzrangeZuff(lower: checkruntime.TimestamptzValue, upper: check
     const lo: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamptz(lower);
     const hi: checkruntime.ArrayElement = checkruntime.arrayElementFromTimestamptz(upper);
     return rangeBuiltinConstruct("pg_catalog.tstzrange", "pg_catalog.timestamptz", 5, lo, hi, flags);
+}
+export function hashRangeOv3e(input: checkruntime.RangeValue, flags: checkruntime.Int4Value, lower: checkruntime.Int4Value, upper: checkruntime.Int4Value): checkruntime.Int4Value {
+    input = checkruntime.copyRangeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (flags.kind === "Error") {
+        const error: checkruntime.SqlError = flags.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.RangePayload = checkruntime.copyRangePayload(input.value);
+        let lo: checkruntime.Int4Value = checkruntime.makeInt4Value(0);
+        let hi: checkruntime.Int4Value = checkruntime.makeInt4Value(0);
+        if (value.empty === false) {
+            const a: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+            const b: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+            let lowerPresent: boolean = true;
+            let upperPresent: boolean = true;
+            if (a.kind === "Null") {
+                lowerPresent = langruntime.checkedBool(false);
+            }
+            if (b.kind === "Null") {
+                upperPresent = langruntime.checkedBool(false);
+            }
+            if (lowerPresent) {
+                lo = lower;
+            }
+            if (upperPresent) {
+                hi = upper;
+            }
+        }
+        if (lo.kind === "Error") {
+            const error: checkruntime.SqlError = lo.value;
+            return { kind: "Error", value: error };
+        }
+        if (lo.kind === "Value") {
+            const lhash: number = langruntime.checkedI32(lo.value);
+            if (hi.kind === "Error") {
+                const error: checkruntime.SqlError = hi.value;
+                return { kind: "Error", value: error };
+            }
+            if (hi.kind === "Value") {
+                const uhash: number = langruntime.checkedI32(hi.value);
+                if (flags.kind === "Value") {
+                    const basis: number = langruntime.checkedI32(flags.value);
+                    const first: bigint = arrayHashWordLow(BigInt(langruntime.checkedI32(basis)));
+                    const second: bigint = arrayHashWordLow(BigInt(langruntime.checkedI32(lhash)));
+                    const merged: bigint = checkruntime.hashXor(first, second);
+                    const rotated: bigint = langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Multiply(merged, 2n)), 4294967296n), langruntime.checkedI64Divide(merged, 2147483648n));
+                    const last: bigint = arrayHashWordLow(BigInt(langruntime.checkedI32(uhash)));
+                    return checkruntime.makeInt4Value(Number(BigInt.asIntN(32, langruntime.checkedI64(checkruntime.hashXor(rotated, last)))));
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function hashRangeExtendedAxg0(input: checkruntime.RangeValue, seed: checkruntime.Int8Value, flags: checkruntime.Int8Value, lower: checkruntime.Int8Value, upper: checkruntime.Int8Value): checkruntime.Int8Value {
+    input = checkruntime.copyRangeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (seed.kind === "Error") {
+        const error: checkruntime.SqlError = seed.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (seed.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (seed.kind === "Unknown") {
+        return { kind: "Unknown" };
+    }
+    if (flags.kind === "Error") {
+        const error: checkruntime.SqlError = flags.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.RangePayload = checkruntime.copyRangePayload(input.value);
+        let lo: checkruntime.Int8Value = checkruntime.makeInt8Value(0n);
+        let hi: checkruntime.Int8Value = checkruntime.makeInt8Value(0n);
+        if (value.empty === false) {
+            const a: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
+            const b: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
+            let lowerPresent: boolean = true;
+            let upperPresent: boolean = true;
+            if (a.kind === "Null") {
+                lowerPresent = langruntime.checkedBool(false);
+            }
+            if (b.kind === "Null") {
+                upperPresent = langruntime.checkedBool(false);
+            }
+            if (lowerPresent) {
+                lo = lower;
+            }
+            if (upperPresent) {
+                hi = upper;
+            }
+        }
+        if (lo.kind === "Error") {
+            const error: checkruntime.SqlError = lo.value;
+            return { kind: "Error", value: error };
+        }
+        if (lo.kind === "Value") {
+            if (hi.kind === "Error") {
+                const error: checkruntime.SqlError = hi.value;
+                return { kind: "Error", value: error };
+            }
+            if (hi.kind === "Value") {
+                const combined: checkruntime.Int8Value = int8xor4v56(flags, lo);
+                if (combined.kind === "Value") {
+                    const word: bigint = langruntime.checkedI64(combined.value);
+                    const low: bigint = arrayHashWordLow(word);
+                    const high: bigint = arrayHashWordLow(langruntime.checkedI64Divide((langruntime.checkedI64Subtract(word, low)), 4294967296n));
+                    const rotatedLow: bigint = langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Multiply(low, 2n)), 4294967296n), langruntime.checkedI64Divide(low, 2147483648n));
+                    let rotatedHigh: bigint = langruntime.checkedI64Add(langruntime.checkedI64Remainder((langruntime.checkedI64Multiply(high, 2n)), 4294967296n), langruntime.checkedI64Divide(high, 2147483648n));
+                    if (rotatedHigh >= 2147483648n) {
+                        rotatedHigh = langruntime.checkedI64(langruntime.checkedI64Subtract(rotatedHigh, 4294967296n));
+                    }
+                    const rotated: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(rotatedHigh, 4294967296n), rotatedLow);
+                    return int8xor4v56(checkruntime.makeInt8Value(rotated), hi);
+                }
+            }
+        }
+    }
+    return { kind: "Unknown" };
 }
 const rangeInputSyntax = 3484946;
 function rangeInputSpace(ch: string): boolean {
