@@ -6775,6 +6775,7 @@ const (
 	ArrayElementFloat8UnspecifiedNan
 	ArrayElementByteaUnspecified
 	ArrayElementBoxNonNull
+	ArrayElementRange
 )
 
 type ArrayElement struct {
@@ -6823,6 +6824,7 @@ type ArrayElement struct {
 	JsonpathStoredText string
 	Array              ArrayPayload
 	ByteaUnspecified   int
+	Range              RangePayload
 }
 
 func CopyArrayElement(value ArrayElement) ArrayElement {
@@ -6925,11 +6927,16 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementByteaUnspecified, ByteaUnspecified: langruntime.CheckedI32(value.ByteaUnspecified)}
 	case ArrayElementBoxNonNull:
 		return ArrayElement{Kind: ArrayElementBoxNonNull}
+	case ArrayElementRange:
+		return ArrayElement{Kind: ArrayElementRange, Range: CopyRangePayload(value.Range)}
 	}
 	panic("unknown enum variant")
 }
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementRange {
+		return 42
+	}
 	if input.Kind == ArrayElementArray {
 		return 41
 	}
@@ -8299,6 +8306,36 @@ func ArrayElementToJsonpath(input ArrayElement) JsonpathValue {
 	}
 	return JsonpathValue{Kind: JsonpathValueUnknown}
 }
+func ArrayElementFromRange(input RangeValue) ArrayElement {
+	input = CopyRangeValue(input)
+	if input.Kind == RangeValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == RangeValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == RangeValueValue {
+		value := CopyRangePayload(input.Value)
+		return ArrayElement{Kind: ArrayElementRange, Range: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToRange(input ArrayElement) RangeValue {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return RangeValue{Kind: RangeValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return RangeValue{Kind: RangeValueNull}
+	}
+	if input.Kind == ArrayElementRange {
+		value := CopyRangePayload(input.Range)
+		return MakeCoercedRangeValue(value)
+	}
+	return RangeValue{Kind: RangeValueUnknown}
+}
 
 type RangePayload struct {
 	TypeName       string
@@ -8885,30 +8922,39 @@ func ArrayFromCaseGuard(input CheckOutcome) ArrayValue {
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
 }
+func arrayElementOwnedState(input *ArrayPayload, position int) BoolValue {
+	position = langruntime.CheckedIndex(position)
+	element := CopyArrayElement(input.Elements[position])
+	if element.Kind == ArrayElementError {
+		error := element.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if element.Kind == ArrayElementArray {
+		nested := CopyArrayPayload(element.Array)
+		return ArrayIsNull(MakeArrayValue(nested))
+	}
+	if element.Kind == ArrayElementRange {
+		payload := CopyRangePayload(element.Range)
+		return RangeIsNull(MakeCoercedRangeValue(payload))
+	}
+	return BoolValue{Kind: BoolValueValue, Value: false}
+}
 func MakeArrayValue(input ArrayPayload) ArrayValue {
 	input = CopyArrayPayload(input)
 	position := 0
 	for position < len(input.Elements) {
-		element := CopyArrayElement(input.Elements[position])
-		if element.Kind == ArrayElementError {
-			error := element.Error
+		checked := arrayElementOwnedState(&input, position)
+		if checked.Kind == BoolValueError {
+			error := checked.Error
 			return ArrayValue{Kind: ArrayValueError, Error: error}
 		}
-		if element.Kind == ArrayElementArray {
-			nested := CopyArrayPayload(element.Array)
-			checked := MakeArrayValue(nested)
-			if checked.Kind == ArrayValueError {
-				error := checked.Error
-				return ArrayValue{Kind: ArrayValueError, Error: error}
-			}
-			if checked.Kind == ArrayValueUnknown {
-				return ArrayValue{Kind: ArrayValueUnknown}
-			}
+		if checked.Kind == BoolValueUnknown {
+			return ArrayValue{Kind: ArrayValueUnknown}
 		}
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	identity := []rune(input.ElementType)
-	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 41 {
+	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 42 {
 		return ArrayValue{Kind: ArrayValueUnknown}
 	}
 	position = langruntime.CheckedIndex(0)

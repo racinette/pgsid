@@ -635,7 +635,9 @@ pub fn array_state_probe()->BoolValue {
  mixed=append_array_dimension(mixed,1,1);mixed=append_array_argument(mixed,ArrayElement::Text("x".to_owned()));
  if array_fixture_state(finish_array_arguments(mixed))!=0 {return BoolValue::Value(false);};
  if array_fixture_state(finish_array_arguments(make_array_arguments("",2)))!=0 {return BoolValue::Value(false);};
- if array_fixture_state(finish_array_arguments(make_array_arguments("public.first",41)))!=0 {return BoolValue::Value(false);};
+ if array_fixture_state(finish_array_arguments(make_array_arguments("public.first",41)))!=3 {return BoolValue::Value(false);};
+ if array_fixture_state(finish_array_arguments(make_array_arguments("public.first",42)))!=3 {return BoolValue::Value(false);};
+ if array_fixture_state(finish_array_arguments(make_array_arguments("public.first",43)))!=0 {return BoolValue::Value(false);};
  let error=make_sql_error(3452582);let other=make_sql_error(3452547);
  let prior=ArrayArguments::Error(error);let later=append_array_argument(prior,ArrayElement::Error(other));
  if array_fixture_error(finish_array_arguments(later))!=3452582 {return BoolValue::Value(false);};

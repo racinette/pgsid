@@ -7024,6 +7024,9 @@ export type ArrayElement = {
     readonly value: number;
 } | {
     readonly kind: "BoxNonNull";
+} | {
+    readonly kind: "Range";
+    readonly value: RangePayload;
 };
 export function copyArrayElement(value: ArrayElement): ArrayElement {
     switch (value.kind) {
@@ -7076,10 +7079,14 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "Float8UnspecifiedNan": return { kind: "Float8UnspecifiedNan" };
         case "ByteaUnspecified": return { kind: "ByteaUnspecified", value: langruntime.checkedI32(value.value) };
         case "BoxNonNull": return { kind: "BoxNonNull" };
+        case "Range": return { kind: "Range", value: copyRangePayload(value.value) };
     }
 }
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
+    if (input.kind === "Range") {
+        return 42;
+    }
     if (input.kind === "Array") {
         return 41;
     }
@@ -8449,6 +8456,36 @@ export function arrayElementToJsonpath(input: ArrayElement): JsonpathValue {
     }
     return { kind: "Unknown" };
 }
+export function arrayElementFromRange(input: RangeValue): ArrayElement {
+    input = copyRangeValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: RangePayload = copyRangePayload(input.value);
+        return { kind: "Range", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToRange(input: ArrayElement): RangeValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Range") {
+        const value: RangePayload = copyRangePayload(input.value);
+        return makeCoercedRangeValue(value);
+    }
+    return { kind: "Unknown" };
+}
 export interface RangePayload {
     readonly typeName: string;
     readonly elementType: string;
@@ -8991,30 +9028,39 @@ export function arrayFromCaseGuard(input: CheckOutcome): ArrayValue {
     }
     return { kind: "Unknown" };
 }
+function arrayElementOwnedState(input: ArrayPayload, position: number): BoolValue {
+    position = langruntime.checkedIndex(position);
+    const element: ArrayElement = copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement));
+    if (element.kind === "Error") {
+        const error: SqlError = element.value;
+        return { kind: "Error", value: error };
+    }
+    if (element.kind === "Array") {
+        const nested: ArrayPayload = copyArrayPayload(element.value);
+        return arrayIsNull(makeArrayValue(nested));
+    }
+    if (element.kind === "Range") {
+        const payload: RangePayload = copyRangePayload(element.value);
+        return rangeIsNull(makeCoercedRangeValue(payload));
+    }
+    return { kind: "Value", value: false };
+}
 export function makeArrayValue(input: ArrayPayload): ArrayValue {
     input = copyArrayPayload(input);
     let position: number = 0;
     while (position < input.elements.length) {
-        const element: ArrayElement = copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement));
-        if (element.kind === "Error") {
-            const error: SqlError = element.value;
+        const checked: BoolValue = arrayElementOwnedState(input, position);
+        if (checked.kind === "Error") {
+            const error: SqlError = checked.value;
             return { kind: "Error", value: error };
         }
-        if (element.kind === "Array") {
-            const nested: ArrayPayload = copyArrayPayload(element.value);
-            const checked: ArrayValue = makeArrayValue(nested);
-            if (checked.kind === "Error") {
-                const error: SqlError = checked.value;
-                return { kind: "Error", value: error };
-            }
-            if (checked.kind === "Unknown") {
-                return { kind: "Unknown" };
-            }
+        if (checked.kind === "Unknown") {
+            return { kind: "Unknown" };
         }
         position = langruntime.checkedAdd(position, 1);
     }
     const identity: string[] = Array.from(input.elementType);
-    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 41) {
+    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 42) {
         return { kind: "Unknown" };
     }
     position = langruntime.checkedIndex(0);
