@@ -348,6 +348,53 @@ fn array_sort_same_element(left: ArrayElement, right: ArrayElement) -> bool {
     if let ArrayElement::ByteaUnspecified(_) = left {
         return false;
     };
+    if kind == 42 {
+        let first_range = array_element_to_range(left);
+        let second_range = array_element_to_range(right);
+        if let RangeValue::Value(first) = first_range {
+            if let RangeValue::Value(second) = second_range {
+                if first.type_name != second.type_name || first.element_type != second.element_type
+                    || first.element_kind != second.element_kind || first.empty != second.empty
+                    || first.lower_inclusive != second.lower_inclusive || first.upper_inclusive != second.upper_inclusive
+                    || first.bounds.len() != second.bounds.len() {
+                    return false;
+                };
+                let mut position: usize = 0;
+                while position < first.bounds.len() {
+                    if array_sort_same_element(first.bounds[position].clone(), second.bounds[position].clone()) == false {
+                        return false;
+                    };
+                    position += 1;
+                }
+                return true;
+            };
+        };
+        return false;
+    };
+    if kind == 43 {
+        let first_multi = array_element_to_multirange(left);
+        let second_multi = array_element_to_multirange(right);
+        if let MultirangeValue::Value(first) = first_multi {
+            if let MultirangeValue::Value(second) = second_multi {
+                if first.type_name != second.type_name || first.range_type != second.range_type
+                    || first.element_type != second.element_type || first.element_kind != second.element_kind
+                    || first.ranges.len() != second.ranges.len() {
+                    return false;
+                };
+                let mut position: usize = 0;
+                while position < first.ranges.len() {
+                    let first_member = array_element_from_range(first.ranges[position].clone());
+                    let second_member = array_element_from_range(second.ranges[position].clone());
+                    if array_sort_same_element(first_member, second_member) == false {
+                        return false;
+                    };
+                    position += 1;
+                }
+                return true;
+            };
+        };
+        return false;
+    };
     if kind == 1 {
         return array_element_to_int2(left) == array_element_to_int2(right);
     };

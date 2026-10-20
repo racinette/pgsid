@@ -840,6 +840,25 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
     const result=checkRustArrayValue({kind:'Value',value},value.elementType,value.elementKind as number,depth-1,tree,true)
     return result.kind==='Value' ? {kind:'Array',value:result.value} : null
   }
+  if(input.kind==='Multirange') {
+    if(family!==43 || tree.length!==6 || tree[5]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
+    const p=input.value,kind=tree[5]!.codePointAt(0)!
+    if(!('typeName' in p) || p.typeName!==tree[2] || !('rangeType' in p) || p.rangeType!==tree[3] || !('elementType' in p) || p.elementType!==tree[4] || !('elementKind' in p) || p.elementKind!==kind || !('ranges' in p) || !Array.isArray(p.ranges) || p.ranges.length>2147483647) return null
+    const ranges:_checkRust.RangeValue[]=[]
+    for(const span of p.ranges) {
+      if(!span || typeof span!=='object' || !('kind' in span)) return null
+      if(span.kind==='Unknown' || span.kind==='Null') {ranges.push({kind:span.kind});continue}
+      if(span.kind==='Error') {
+        if(!('value' in span) || !checkRustArrayField(span.value,'SqlError')) return null
+        ranges.push({kind:'Error',value:span.value as _checkRust.SqlError});continue
+      }
+      if(span.kind!=='Value' || !('value' in span)) return null
+      const value=checkRustArrayElement({kind:'Range',value:span.value},42,0,[tree[0]!,tree[1]!,tree[3]!,tree[4]!,tree[5]!])
+      if(value===null || value.kind!=='Range') return null
+      ranges.push({kind:'Value',value:value.value})
+    }
+    return {kind:'Multirange',value:{typeName:tree[2]!,rangeType:tree[3]!,elementType:tree[4]!,elementKind:kind,ranges}}
+  }
   if(input.kind==='Range') {
     if(family!==42 || tree.length!==5 || tree[4]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
     const p=input.value

@@ -534,6 +534,73 @@ pub fn array_from_coerced_range_tree(
     input
 }
 
+fn array_multirange_element_identity(
+    input: &ArrayPayload,
+    position: usize,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+) -> bool {
+    let element = input.elements[position].clone();
+    if let ArrayElement::Array(nested) = element {
+        return array_multirange_identity_valid(&nested, type_name, range_type, element_type, element_kind);
+    };
+    if let ArrayElement::Multirange(payload) = element {
+        if payload.type_name.as_str() != type_name || payload.range_type.as_str() != range_type
+            || payload.element_type.as_str() != element_type || payload.element_kind != element_kind {
+            return false;
+        };
+        let mut member: usize = 0;
+        while member < payload.ranges.len() {
+            let span = payload.ranges[member].clone();
+            if let RangeValue::Value(value) = span {
+                if value.type_name.as_str() != range_type || value.element_type.as_str() != element_type || value.element_kind != element_kind {
+                    return false;
+                };
+            };
+            member += 1;
+        }
+    };
+    true
+}
+
+fn array_multirange_identity_valid(
+    input: &ArrayPayload,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+) -> bool {
+    let mut position: usize = 0;
+    while position < input.elements.len() {
+        if array_multirange_element_identity(input, position, type_name, range_type, element_type, element_kind) == false {
+            return false;
+        };
+        position += 1;
+    }
+    true
+}
+
+pub fn array_from_coerced_multirange_tree(
+    input: ArrayValue,
+    types: &str,
+    kinds: &str,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+) -> ArrayValue {
+    if let ArrayValue::Value(payload) = input {
+        if array_tree_identity_valid(&payload, types, kinds, 0) == false
+            || array_multirange_identity_valid(&payload, type_name, range_type, element_type, element_kind) == false {
+            return ArrayValue::Unknown;
+        };
+        return make_array_value(payload);
+    };
+    input
+}
+
 pub fn make_array_arguments(element_type: &str, element_kind: i32) -> ArrayArguments {
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();

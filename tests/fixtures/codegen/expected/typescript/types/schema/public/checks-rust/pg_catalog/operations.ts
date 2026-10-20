@@ -2138,6 +2138,52 @@ function arraySortSameElement(left: checkruntime.ArrayElement, right: checkrunti
     if (left.kind === "ByteaUnspecified") {
         return false;
     }
+    if (kind === 42) {
+        const firstRange: checkruntime.RangeValue = checkruntime.arrayElementToRange(left);
+        const secondRange: checkruntime.RangeValue = checkruntime.arrayElementToRange(right);
+        if (firstRange.kind === "Value") {
+            const first: checkruntime.RangePayload = checkruntime.copyRangePayload(firstRange.value);
+            if (secondRange.kind === "Value") {
+                const second: checkruntime.RangePayload = checkruntime.copyRangePayload(secondRange.value);
+                if (!(first.typeName === second.typeName) || !(first.elementType === second.elementType) || !(first.elementKind === second.elementKind) || !(first.empty === second.empty) || !(first.lowerInclusive === second.lowerInclusive) || !(first.upperInclusive === second.upperInclusive) || !(first.bounds.length === second.bounds.length)) {
+                    return false;
+                }
+                let position: number = 0;
+                while (position < first.bounds.length) {
+                    if (arraySortSameElement(checkruntime.copyArrayElement(langruntime.indexStruct(first.bounds, langruntime.checkedIndex(position), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(second.bounds, langruntime.checkedIndex(position), checkruntime.copyArrayElement))) === false) {
+                        return false;
+                    }
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+    if (kind === 43) {
+        const firstMulti: checkruntime.MultirangeValue = checkruntime.arrayElementToMultirange(left);
+        const secondMulti: checkruntime.MultirangeValue = checkruntime.arrayElementToMultirange(right);
+        if (firstMulti.kind === "Value") {
+            const first: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(firstMulti.value);
+            if (secondMulti.kind === "Value") {
+                const second: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(secondMulti.value);
+                if (!(first.typeName === second.typeName) || !(first.rangeType === second.rangeType) || !(first.elementType === second.elementType) || !(first.elementKind === second.elementKind) || !(first.ranges.length === second.ranges.length)) {
+                    return false;
+                }
+                let position: number = 0;
+                while (position < first.ranges.length) {
+                    const firstMember: checkruntime.ArrayElement = checkruntime.arrayElementFromRange(checkruntime.copyRangeValue(langruntime.indexStruct(first.ranges, langruntime.checkedIndex(position), checkruntime.copyRangeValue)));
+                    const secondMember: checkruntime.ArrayElement = checkruntime.arrayElementFromRange(checkruntime.copyRangeValue(langruntime.indexStruct(second.ranges, langruntime.checkedIndex(position), checkruntime.copyRangeValue)));
+                    if (arraySortSameElement(firstMember, secondMember) === false) {
+                        return false;
+                    }
+                    position = langruntime.checkedAdd(position, 1);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
     if (kind === 1) {
         return checkruntime.equalInt2Value(checkruntime.arrayElementToInt2(left), checkruntime.arrayElementToInt2(right));
     }

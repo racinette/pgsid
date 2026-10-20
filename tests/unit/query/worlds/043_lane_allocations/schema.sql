@@ -1997,3 +1997,43 @@ CREATE TABLE lane_segment_fingerprints (
     hash_multirange_extended(prices,seed) IS NOT DISTINCT FROM expected_extended[3] AND hash_multirange_extended(calendar_days,seed) IS NOT DISTINCT FROM expected_extended[4] AND
     hash_multirange_extended(local_shift,seed) IS NOT DISTINCT FROM expected_extended[5] AND hash_multirange_extended(instant_shift,seed) IS NOT DISTINCT FROM expected_extended[6] END)
 );
+
+CREATE DOMAIN lane_recorded_segments AS int4multirange;
+CREATE DOMAIN lane_segment_history AS lane_recorded_segments[];
+
+CREATE TABLE lane_segment_batches (
+  slots int4multirange[],
+  loads int8multirange[],
+  prices nummultirange[],
+  calendar_days datemultirange[],
+  local_shift tsmultirange[],
+  instant_shift tstzmultirange[],
+  typed_slots lane_recorded_segments[],
+  histories lane_segment_history[],
+  head int4multirange,
+  expected_counts integer[],
+  expected_member boolean,
+  expected_sorted boolean,
+  source_ranges int4range[],
+  converted_slots int4multirange[],
+  sorted_slots int4multirange[],
+  rewritten_slots int4multirange[],
+  min_slot int4multirange,
+  verify_transforms boolean,
+  bypass boolean,
+  CONSTRAINT segment_batch_slots_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(slots) IS NOT DISTINCT FROM expected_counts[1] END),
+  CONSTRAINT segment_batch_loads_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(loads) IS NOT DISTINCT FROM expected_counts[2] END),
+  CONSTRAINT segment_batch_prices_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(prices) IS NOT DISTINCT FROM expected_counts[3] END),
+  CONSTRAINT segment_batch_calendar_days_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(calendar_days) IS NOT DISTINCT FROM expected_counts[4] END),
+  CONSTRAINT segment_batch_local_shift_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(local_shift) IS NOT DISTINCT FROM expected_counts[5] END),
+  CONSTRAINT segment_batch_instant_shift_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(instant_shift) IS NOT DISTINCT FROM expected_counts[6] END),
+  CONSTRAINT segment_batch_first CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN slots IS NULL THEN true ELSE slots[array_lower(slots,1)] IS NOT DISTINCT FROM head END END),
+  CONSTRAINT segment_batch_member CHECK(CASE WHEN bypass THEN true ELSE (head=ANY(slots)) IS NOT DISTINCT FROM expected_member END),
+  CONSTRAINT segment_batch_sorted CHECK(CASE WHEN bypass THEN true ELSE (array_sort(slots)=slots) IS NOT DISTINCT FROM expected_sorted END),
+  CONSTRAINT segment_batch_domain CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN typed_slots IS NULL THEN true ELSE typed_slots[1] IS NOT DISTINCT FROM head END END),
+  CONSTRAINT segment_batch_nested CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN histories IS NULL THEN true ELSE (histories[1])[1] IS NOT DISTINCT FROM head END END),
+  CONSTRAINT segment_batch_ordered_slots CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN verify_transforms THEN array_sort(slots) IS NOT DISTINCT FROM sorted_slots ELSE NULL END END),
+  CONSTRAINT segment_batch_rewritten_slots CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN verify_transforms THEN array_replace(slots,head,'{}'::int4multirange) IS NOT DISTINCT FROM rewritten_slots ELSE NULL END END),
+  CONSTRAINT segment_batch_catalog_cast CHECK(CASE WHEN bypass THEN true ELSE source_ranges::int4multirange[] IS NOT DISTINCT FROM converted_slots END),
+  CONSTRAINT segment_batch_min_slot CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN verify_transforms THEN (array_sort(slots))[array_lower(slots,1)] IS NOT DISTINCT FROM min_slot ELSE NULL END END)
+);

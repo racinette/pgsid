@@ -714,6 +714,15 @@ describe('CHECK measurement boundaries', () => {
         bindingOwner: 'tests/sql-semantics/check-multirange-input.test.ts',
         contextOwner: 'tests/sql-semantics/check-multirange-input-context.test.ts',
         literalOwner: 'tests/sql-semantics/check-multirange-literals.test.ts',
+        arrays: {
+          type: `array:${range.multirange}`,
+          owner: 'tests/sql-semantics/check-multirange-array.test.ts',
+          literalOwner: 'tests/sql-semantics/check-multirange-array-literals.test.ts',
+          payloadOwner: 'tests/sql-semantics/check-multirange-array-payload.test.ts',
+          hashContextOwner: 'tests/sql-semantics/check-multirange-array-hash-context.test.ts',
+          compositionOwner: 'tests/sql-semantics/check-multirange-array-composition.test.ts',
+          oidInput: false,
+        },
         binaryIO: {
           owner: 'tests/sql-semantics/check-multirange-wire-hash.test.ts',
           catalogOwner: 'tests/sql-semantics/check-multirange-binary-catalog.test.ts',

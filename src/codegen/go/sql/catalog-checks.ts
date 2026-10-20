@@ -767,11 +767,21 @@ func checkRustArrayTree(input checkruntime.ArrayValue,depth int,tree ...string) 
   return true
 }
 func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,tree ...string) bool {
-  if input.Kind < checkruntime.ArrayElementUnknown || input.Kind > checkruntime.ArrayElementRange { return false }
+  if input.Kind < checkruntime.ArrayElementUnknown || input.Kind > checkruntime.ArrayElementMultirange { return false }
   if input.Kind==checkruntime.ArrayElementUnknown || input.Kind==checkruntime.ArrayElementNull || input.Kind==checkruntime.ArrayElementError { return true }
   if input.Kind==checkruntime.ArrayElementArray {
     if depth<1 || family!=41 { return false }
     return checkRustArrayTree(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:input.Array},depth-1,tree...)
+  }
+  if input.Kind==checkruntime.ArrayElementMultirange {
+    if family!=43 || len(tree)!=6 || len(tree[5])!=1 { return false }
+    p:=input.Multirange
+    if p.TypeName!=tree[2] || p.RangeType!=tree[3] || p.ElementType!=tree[4] || p.ElementKind!=int(tree[5][0]) || len(p.Ranges)>2147483647 { return false }
+    for _,span:=range p.Ranges {
+      if span.Kind==checkruntime.RangeValueUnknown || span.Kind==checkruntime.RangeValueNull || span.Kind==checkruntime.RangeValueError { continue }
+      if span.Kind!=checkruntime.RangeValueValue || !checkRustArrayElement(checkruntime.ArrayElement{Kind:checkruntime.ArrayElementRange,Range:span.Value},42,0,tree[0],tree[1],tree[3],tree[4],tree[5]) { return false }
+    }
+    return true
   }
   if input.Kind==checkruntime.ArrayElementRange {
     if family!=42 || len(tree)!=5 || len(tree[4])!=1 { return false }
