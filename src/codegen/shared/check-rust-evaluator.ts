@@ -24,6 +24,8 @@ import {
   arrayElementDelimiter,
   arrayElementFamily,
   arrayElementIdentity,
+  arrayElementComparison,
+  arrayElementComparisonAvailable,
   arrayIdentityPlan,
   arrayRangeProfile,
   arrayMultirangeProfile,
@@ -344,31 +346,6 @@ export const isArrayStringIO = (item: ReturnType<typeof builtinMetadata>): boole
       item.result === 'pg_catalog.text' &&
       item.strict === (item.args.length === 2) &&
       item.volatility === 's'))
-
-const arrayElementComparison = (type: string) => {
-  type = arrayElementBaseType(type)
-  return builtinTypeComparison(
-    type.startsWith('array:')
-      ? 'pg_catalog.anyarray'
-      : type.startsWith('enum:')
-        ? 'pg_catalog.anyenum'
-        : isRangeType(type)
-          ? 'pg_catalog.int4range'
-          : isMultirangeType(type)
-            ? 'pg_catalog.int4multirange'
-            : type,
-  )
-}
-
-const arrayElementComparisonAvailable = (type: string, equality: boolean): boolean => {
-  while (true) {
-    const support = arrayElementComparison(type)
-    if (!(equality ? support?.equality : support?.comparator)) return false
-    type = arrayElementBaseType(type)
-    if (!type.startsWith('array:')) return true
-    type = type.slice(6)
-  }
-}
 
 export const isArrayComparison = (
   item: ReturnType<typeof builtinMetadata>,
@@ -2108,20 +2085,26 @@ export function emitCheckRustEvaluator(
         }
         if (!multirangeProfile || !rangeSubtype)
           throw new UnsupportedCheckRustExpression(
-            'Multirange binary operations need one captured builtin identity',
+            'Multirange binary operations need one captured range identity',
+          )
+        if (!multirangeBinarySend && multirangeProfile.subtypeHashEqualityCompatible !== true)
+          throw new UnsupportedCheckRustExpression(
+            'Multirange hashing requires compatible subtype equality/hash classes without runtime type-cache dependencies',
           )
         const extended = implementation.args.length === 2
         const width = extended ? '64' : '32'
-        const memberSupport = builtinTypeComparison(multirangeProfile.identity)
+        const memberSupport = builtinTypeComparison('pg_catalog.int4range')
         const memberSignature = multirangeBinarySend
-          ? builtinTypeIO(multirangeProfile.identity)?.send
+          ? multirangeProfile.send
           : extended
             ? memberSupport?.hashExtended
             : memberSupport?.hash
-        const memberMetadata = memberSignature ? builtinMetadata(memberSignature) : null
-        const outerSupport = builtinTypeComparison(multirangeIdentity!)
+        const memberMetadata = memberSignature
+          ? builtinCallables().find((item) => callableIdentity(item) === memberSignature)
+          : null
+        const outerSupport = builtinTypeComparison('pg_catalog.int4multirange')
         const outerSignature = multirangeBinarySend
-          ? builtinTypeIO(multirangeIdentity!)?.send
+          ? multirangeProfile.multirangeSend
           : extended
             ? outerSupport?.hashExtended
             : outerSupport?.hash
@@ -2138,9 +2121,13 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression(
             'Multirange binary operation requires captured range support',
           )
-        const subtypeSupport = builtinTypeComparison(rangeSubtype)
-        const subtypeHash = extended ? subtypeSupport?.hashExtended : subtypeSupport?.hash
-        const nativeContext = subtypeHash ? nativeHashContext(builtinMetadata(subtypeHash)) : null
+        const subtypeHash = extended
+          ? multirangeProfile.subtypeHashExtended
+          : multirangeProfile.subtypeHash
+        const subtypeMetadata = subtypeHash
+          ? builtinCallables().find((item) => callableIdentity(item) === subtypeHash)
+          : null
+        const nativeContext = subtypeMetadata ? nativeHashContext(subtypeMetadata) : null
         const orders = multirangeBinarySend
           ? [0]
           : hashByteOrder !== undefined
@@ -2176,7 +2163,7 @@ export function emitCheckRustEvaluator(
           const result = emitCallInner(
             { kind: 'function', signature: memberSignature, type: call.type },
             [
-              { name: member, type: multirangeProfile.identity },
+              { name: member, type: multirangeProfile.rangeType },
               ...(extended ? [operands[1]!] : []),
             ],
             body,
@@ -2206,19 +2193,24 @@ export function emitCheckRustEvaluator(
           return name
         }
         const input = operands[0]!
-        const range = builtinRangeType(input.type)
+        const range = rangeTypeProfile(input.type)
         if (!range || !rangeSubtype)
           throw new UnsupportedCheckRustExpression(
-            'Range binary operations need one captured builtin identity',
+            'Range binary operations need one captured range identity',
+          )
+        if (!rangeBinarySend && range.subtypeHashEqualityCompatible !== true)
+          throw new UnsupportedCheckRustExpression(
+            'Range hashing requires compatible subtype equality/hash classes without runtime type-cache dependencies',
           )
         const extended = implementation.args.length === 2
-        const support = builtinTypeComparison(rangeSubtype)
         const signature = rangeBinarySend
-          ? builtinTypeIO(rangeSubtype)?.send
+          ? range.subtypeSend
           : extended
-            ? support?.hashExtended
-            : support?.hash
-        const scalar = signature ? builtinMetadata(signature) : null
+            ? range.subtypeHashExtended
+            : range.subtypeHash
+        const scalar = signature
+          ? builtinCallables().find((item) => callableIdentity(item) === signature)
+          : null
         if (
           !scalar ||
           scalar.kind !== 'function' ||
@@ -2230,7 +2222,7 @@ export function emitCheckRustEvaluator(
           scalar.args.length !== (extended ? 2 : 1) ||
           (extended && scalar.args[1] !== 'pg_catalog.int8') ||
           !checkRustCallableNames().has(scalar.rustName) ||
-          (rangeBinarySend && builtinTypeIO(input.type)?.send !== call.signature)
+          (rangeBinarySend && range.send !== call.signature)
         )
           throw new UnsupportedCheckRustExpression(
             'Range binary operation requires captured subtype support',
@@ -2314,7 +2306,9 @@ export function emitCheckRustEvaluator(
         const extended = implementation.args.length === 2,
           width = extended ? '64' : '32'
         const selected = extended ? defaults.hashExtended : defaults.hash
-        const scalar = selected ? builtinMetadata(selected) : null
+        const scalar = selected
+          ? builtinCallables().find((item) => callableIdentity(item) === selected)
+          : null
         const effectiveCollation =
           call.kind === 'cast'
             ? undefined
@@ -2338,10 +2332,28 @@ export function emitCheckRustEvaluator(
         while (leafType.startsWith('array:')) leafType = arrayElementBaseType(leafType.slice(6))
         const leafSupport = arrayElementComparison(leafType)
         const leafHash = extended ? leafSupport?.hashExtended : leafSupport?.hash
-        const leafRange = builtinRangeType(leafType) ?? builtinMultirangeType(leafType)
-        const nativeSupport = leafRange ? arrayElementComparison(leafRange.subtype) : leafSupport
-        const nativeHash = extended ? nativeSupport?.hashExtended : nativeSupport?.hash
-        const nativeContext = nativeHash ? nativeHashContext(builtinMetadata(nativeHash)) : null
+        const leafRange = rangeTypeProfile(leafType) ?? multirangeTypeProfile(leafType)
+        if (
+          leafRange &&
+          (leafRange.subtypeHashEqualityCompatible !== true ||
+            (rangeTypeProfile(leafType)
+              ? leafRange.rangeHashEqualityCompatible
+              : leafRange.multirangeHashEqualityCompatible) !== true)
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Range array hashing requires compatible equality/hash classes without runtime type-cache dependencies',
+          )
+        const nativeHash = leafRange
+          ? extended
+            ? leafRange.subtypeHashExtended
+            : leafRange.subtypeHash
+          : extended
+            ? leafSupport?.hashExtended
+            : leafSupport?.hash
+        const nativeMetadata = nativeHash
+          ? builtinCallables().find((item) => callableIdentity(item) === nativeHash)
+          : null
+        const nativeContext = nativeMetadata ? nativeHashContext(nativeMetadata) : null
         const orders =
           hashByteOrder !== undefined
             ? [hashByteOrder]
@@ -2601,7 +2613,9 @@ export function emitCheckRustEvaluator(
               : call.collationDefault && executionContext.defaultCollation === 'C'
                 ? 'C'
                 : (call.collation ?? executionContext.defaultCollation)
-          const scalar = selected ? builtinMetadata(selected) : null
+          const scalar = selected
+            ? builtinCallables().find((item) => callableIdentity(item) === selected)
+            : null
           const actual =
             scalar?.kind === 'operator' ? builtinMetadata(scalar.implementation) : scalar
           const text = scalar?.args.some((type) =>
@@ -2666,7 +2680,9 @@ export function emitCheckRustEvaluator(
               `${result} = ${equality ? 'array_equality_step' : 'array_order_step'}(${compared.name});`,
             )
           } else {
-            const eq = defaults.equality ? builtinMetadata(defaults.equality) : null
+            const eq = defaults.equality
+              ? builtinCallables().find((item) => callableIdentity(item) === defaults.equality)
+              : null
             const eqActual = eq?.kind === 'operator' ? builtinMetadata(eq.implementation) : eq
             if (
               !equality &&

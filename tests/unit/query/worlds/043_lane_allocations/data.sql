@@ -304,3 +304,7 @@ VALUES('{"{[1,3)}","{[5,7)}"}','{"{[1,3)}","{[5,7)}"}','{"{\"{[1,3)}\",\"{[5,7)}
 
 INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
 VALUES('{"[1.235,3.456)","[5,7]"}','{"[1.235,3.456)","[5,7]"}','{"[1.24,3.46)","[5.00,7.00]"}','{"[1.24,3.46)","[5.00,7.00]"}',2,false);
+
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass) VALUES ('[1,3)','[1,3)','\x0200000004000000010000000400000003',0,false);
+INSERT INTO lane_segment_packets (segment_values, reference_segments, expected_wire, hash_seed, bypass) VALUES ('{[1,3),[5,7)}','{[1,3),[5,7)}','\x00000002000000110200000004000000010000000400000003000000110200000004000000050000000400000007',0,false);
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass) VALUES ('{"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}',NULL,'{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,3)\",\"[5,7)\"}"}',0,false);

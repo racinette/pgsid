@@ -208,6 +208,62 @@ it('requires selected range, multirange and scalar/domain input identities for c
   }
 }, 30_000)
 
+it('requires selected subtype hash and send links for custom scalar and array binary operations', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE DOMAIN hash_bound AS int4 CHECK(VALUE>0);CREATE TYPE hash_span AS RANGE(subtype=hash_bound,multirange_type_name=hash_set);
+   CREATE TABLE custom_binary_links(v hash_span,m hash_set,a hash_span[],b hash_set[],
+    CONSTRAINT wire CHECK(range_send(v) IS NOT NULL),CONSTRAINT multi_wire CHECK(multirange_send(m) IS NOT NULL),
+    CONSTRAINT scalar32 CHECK(hash_range(v)=0),CONSTRAINT scalar64 CHECK(hash_range_extended(v,1)=0),
+    CONSTRAINT multi32 CHECK(hash_multirange(m)=0),CONSTRAINT multi64 CHECK(hash_multirange_extended(m,1)=0),
+    CONSTRAINT array32 CHECK(hash_array(a)=0),CONSTRAINT array64 CHECK(hash_array_extended(a,1)=0),
+    CONSTRAINT array_multi32 CHECK(hash_array(b)=0),CONSTRAINT array_multi64 CHECK(hash_array_extended(b,1)=0));`)
+    const catalog = await snapshotCatalog(pg),
+      table = catalog.tables[0]!,
+      profile = catalog.rangeTypes[0]!
+    for (const check of table.constraints) {
+      const prepare = (change: Partial<RangeTypeInfo>) =>
+        prepareCheckRust(
+          portableCheckAtoms(
+            lowerTableCheck(table, check, catalog.enums, catalog.domains, 'stored', [
+              { ...profile, ...change },
+            ])!.expression,
+          ),
+        )
+      expect(prepare({}).kind, check.name).toBe('supported')
+      const fields: (keyof RangeTypeInfo)[] = check.name.includes('wire')
+        ? [
+            'subtypeSend',
+            'send',
+            ...(check.name === 'multi_wire' ? ['multirangeSend' as const] : []),
+          ]
+        : [check.name.endsWith('64') ? 'subtypeHashExtended' : 'subtypeHash']
+      for (const field of fields)
+        for (const value of [
+          null,
+          'function:["private","unavailable"](pg_catalog.int4)',
+          'function:["pg_catalog","int8send"](pg_catalog.int8)',
+        ])
+          expect(prepare({ [field]: value }).kind, check.name + '/' + field + '/' + value).toBe(
+            check.name.startsWith('array') && value === null ? 'supported' : 'unsupported',
+          )
+      expect(
+        prepare({
+          input: null,
+          output: null,
+          multirangeInput: null,
+          multirangeOutput: null,
+          subtypeInput: null,
+          subtypeOutput: null,
+        }).kind,
+        check.name + '/independent-text-io',
+      ).toBe('supported')
+    }
+  } finally {
+    await pg.close()
+  }
+}, 30_000)
+
 it('resolves captured qualified identities, companion namespaces and domain subtypes independently of catalog OIDs', async () => {
   const first = await PGlite.create(),
     second = await PGlite.create()

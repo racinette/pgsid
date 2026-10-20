@@ -739,6 +739,22 @@ export interface RangeTypeInfo extends RangeTypeMetadata {
   input: string | null
   multirangeInput: string | null
   subtypeInput: string | null
+  send: string | null
+  multirangeSend: string | null
+  subtypeSend: string | null
+  subtypeHash: string | null
+  subtypeHashExtended: string | null
+  rangeEquality: string | null
+  rangeComparator: string | null
+  rangeHash: string | null
+  rangeHashExtended: string | null
+  multirangeEquality: string | null
+  multirangeComparator: string | null
+  multirangeHash: string | null
+  multirangeHashExtended: string | null
+  subtypeHashEqualityCompatible: boolean | null
+  rangeHashEqualityCompatible: boolean | null
+  multirangeHashEqualityCompatible: boolean | null
   callables?: readonly RangeCallInfo[]
   callResolution?: RangeCallResolution
 }
