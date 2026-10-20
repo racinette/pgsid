@@ -18,6 +18,7 @@ import {
   arrayElementFamily,
   arrayIdentityPlan,
   arrayRangeProfile,
+  arrayMultirangeProfile,
 } from './check-array-types.js'
 import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-names.js'
 import {
@@ -247,12 +248,14 @@ const arrayElementOutput = (
     metadata.args[0] !==
       (definition
         ? 'pg_catalog.anyenum'
-        : isRangeType(elementType)
-          ? 'pg_catalog.anyrange'
-          : elementType === 'pg_catalog.refcursor' &&
-              elementOutput === builtinTypeIO('pg_catalog.text')?.output
-            ? 'pg_catalog.text'
-            : elementType) ||
+        : isMultirangeType(elementType)
+          ? 'pg_catalog.anymultirange'
+          : isRangeType(elementType)
+            ? 'pg_catalog.anyrange'
+            : elementType === 'pg_catalog.refcursor' &&
+                elementOutput === builtinTypeIO('pg_catalog.text')?.output
+              ? 'pg_catalog.text'
+              : elementType) ||
     metadata.result !== 'pg_catalog.cstring' ||
     (definition && enumType(definition) !== elementType)
   )
@@ -267,7 +270,7 @@ const arrayElementOutput = (
   } else if (family === 8) conversion = scalar
   else if (family === 9) conversion = `array_boolean_output(${scalar})`
   else if (family === 10) conversion = `array_numeric_output(${scalar})`
-  else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42].includes(family))
+  else if ([11, 12, 14, 16, 17, 18, 34, 35, 37, 38, 39, 40, 42, 43].includes(family))
     conversion = `${prefix}_to_text(${scalar})`
   else if (family === 13)
     conversion = `array_network_output(${scalar}, ${elementType === 'pg_catalog.cidr'})`
@@ -959,6 +962,9 @@ export function emitCheckRustEvaluator(
       scalar = stored
         ? `jsonpath_from_stored_text(${event})`
         : `jsonpath_from_text(${event}, ${executionContext.defaultCollation === 'C'}, ${executionContext.serverEncoding === 'UTF8'})`
+    } else if (family === 43) {
+      const multi = builtinMultirangeType(arrayElementBaseType(elementType))!
+      scalar = `multirange_from_text(${event}, ${rustStringLiteral(multi.multirange)}, ${rustStringLiteral(multi.identity)}, ${rustStringLiteral(multi.subtype)}, ${arrayElementFamily(multi.subtype)})`
     } else if (family === 42) {
       const range = builtinRangeType(arrayElementBaseType(elementType))!
       scalar = `range_from_text(${event}, ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.subtype)})`
@@ -1499,7 +1505,7 @@ export function emitCheckRustEvaluator(
         `    let ${element} = ${converted};`,
       )
       bindings.push(
-        `    ${builder} = append_array_conversion(${builder}, ${element}, ${!conversion && family !== 42});`,
+        `    ${builder} = append_array_conversion(${builder}, ${element}, ${!conversion && family !== 42 && family !== 43});`,
         `    ${index} = array_text_next_index(${index});`,
         '}',
       )
@@ -1508,7 +1514,7 @@ export function emitCheckRustEvaluator(
       )
       return {
         name: bind(
-          `${conversion || family === 42 ? 'finish_domain_array_input' : 'finish_prepared_array_text'}(${payload}, ${arguments_})`,
+          `${conversion || family === 42 || family === 43 ? 'finish_domain_array_input' : 'finish_prepared_array_text'}(${payload}, ${arguments_})`,
         ),
         type: node.type,
       }
@@ -2200,7 +2206,7 @@ export function emitCheckRustEvaluator(
         while (leafType.startsWith('array:')) leafType = arrayElementBaseType(leafType.slice(6))
         const leafSupport = arrayElementComparison(leafType)
         const leafHash = extended ? leafSupport?.hashExtended : leafSupport?.hash
-        const leafRange = builtinRangeType(leafType)
+        const leafRange = builtinRangeType(leafType) ?? builtinMultirangeType(leafType)
         const nativeSupport = leafRange ? arrayElementComparison(leafRange.subtype) : leafSupport
         const nativeHash = extended ? nativeSupport?.hashExtended : nativeSupport?.hash
         const nativeContext = nativeHash ? nativeHashContext(builtinMetadata(nativeHash)) : null
@@ -2249,6 +2255,7 @@ export function emitCheckRustEvaluator(
           scalar.args[0] !== baseType &&
           scalar.args[0] !== 'pg_catalog.anyenum' &&
           !(scalar.args[0] === 'pg_catalog.anyrange' && isRangeType(baseType)) &&
+          !(scalar.args[0] === 'pg_catalog.anymultirange' && isMultirangeType(baseType)) &&
           !(scalar.args[0] === 'pg_catalog.anyarray' && baseType.startsWith('array:'))
         ) {
           const target = scalar.args[0]
@@ -2265,7 +2272,7 @@ export function emitCheckRustEvaluator(
             `if array_hash_requires_scalar${width}(${hash}) {`,
           )
           if (!deferred && scalar) {
-            if (isArrayHash(scalar) || isRangeHash(scalar)) {
+            if (isArrayHash(scalar) || isRangeHash(scalar) || isMultirangeHash(scalar)) {
               const nested: string[] = []
               const result = emitCallInner(
                 {
@@ -2496,6 +2503,7 @@ export function emitCheckRustEvaluator(
                 target === baseType ||
                 target === 'pg_catalog.anyenum' ||
                 (target === 'pg_catalog.anyrange' && isRangeType(baseType)) ||
+                (target === 'pg_catalog.anymultirange' && isMultirangeType(baseType)) ||
                 (target === 'pg_catalog.anyarray' && baseType.startsWith('array:'))
               )
                 return { name, type: baseType }
@@ -3220,11 +3228,13 @@ export function emitCheckRustEvaluator(
         input.result !==
           (node.enum
             ? 'pg_catalog.anyenum'
-            : isRangeType(node.elementType)
-              ? 'pg_catalog.anyrange'
-              : node.elementType === 'pg_catalog.refcursor'
-                ? 'pg_catalog.text'
-                : node.elementType) ||
+            : isMultirangeType(node.elementType)
+              ? 'pg_catalog.anymultirange'
+              : isRangeType(node.elementType)
+                ? 'pg_catalog.anyrange'
+                : node.elementType === 'pg_catalog.refcursor'
+                  ? 'pg_catalog.text'
+                  : node.elementType) ||
         (node.enum &&
           (enumType(node.enum) !== node.elementType ||
             node.enum.values.some((label) => label.includes('\0')))) ||
@@ -3488,6 +3498,16 @@ export function emitCheckRustEvaluator(
           ),
           type: node.type,
         }
+      const arrayMulti = node.type.startsWith('array:') ? arrayMultirangeProfile(node.type) : null
+      if (arrayMulti) {
+        const plan = arrayIdentityPlan(node.type)!
+        return {
+          name: bind(
+            `array_from_coerced_multirange_tree(${item.rustName}.clone(), ${rustStringLiteral(plan.types)}, ${rustStringLiteral(plan.kinds)}, ${rustStringLiteral(arrayMulti.multirange)}, ${rustStringLiteral(arrayMulti.identity)}, ${rustStringLiteral(arrayMulti.subtype)}, ${arrayElementFamily(arrayMulti.subtype)})`,
+          ),
+          type: node.type,
+        }
+      }
       const arrayRange = node.type.startsWith('array:') ? arrayRangeProfile(node.type) : null
       if (arrayRange) {
         const plan = arrayIdentityPlan(node.type)!

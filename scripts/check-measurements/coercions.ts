@@ -141,6 +141,21 @@ const inputForms = [
             : [],
       scope: 'Ordered member output through captured range and scalar I/O identities',
     },
+    arrays: {
+      type: `array:${forms.type}`,
+      owner: 'tests/sql-semantics/check-multirange-array.test.ts',
+      literalOwner: 'tests/sql-semantics/check-multirange-array-literals.test.ts',
+      payloadOwner: 'tests/sql-semantics/check-multirange-array-payload.test.ts',
+      hashContextOwner: 'tests/sql-semantics/check-multirange-array-hash-context.test.ts',
+      compositionOwner: 'tests/sql-semantics/check-multirange-array-composition.test.ts',
+      nominalProfile:
+        'Captured multirange, member range, subtype and nested domain identities before public ownership copies',
+      temporalInput: 'Reached scalar input context and errors precede later array grammar errors',
+      temporalOutput: 'Inherited scalar DateStyle and TimeZone requirements',
+      nativeByteOrder:
+        'Inherited subtype hashes; compare complete array alternatives when unspecified',
+      oidInput: false,
+    },
     binaryIO: {
       owner: 'tests/sql-semantics/check-multirange-wire-hash.test.ts',
       catalogOwner: 'tests/sql-semantics/check-multirange-binary-catalog.test.ts',

@@ -13,8 +13,13 @@ import { getStatements, parseSql } from '../../src/ast.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import type { CatalogSnapshot, ColumnInfo } from '../../src/catalog/types.js'
 import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
-import { enumType, arrayElementBaseType, isRangeType } from '../../src/sql-semantics/expressions.js'
-import { builtinRangeType } from '../../src/postgres/builtins/inventory.js'
+import {
+  enumType,
+  arrayElementBaseType,
+  isRangeType,
+  isMultirangeType,
+} from '../../src/sql-semantics/expressions.js'
+import { builtinRangeType, builtinMultirangeType } from '../../src/postgres/builtins/inventory.js'
 import { arrayElementFamily } from '../../src/codegen/shared/check-array-types.js'
 import type { RangeInputPayload } from '../../tools/check-rust/range-input.js'
 import {
@@ -866,9 +871,16 @@ describe('world CHECK INSERT parity', () => {
 
         type CapturedArray = {
           dimensions: string | null
-          elements: (string | null | CapturedArray | CapturedRange)[]
+          elements: (string | null | CapturedArray | CapturedRange | CapturedMultirange)[]
         }
         type CapturedRange = Omit<RangeInputPayload, 'bounds'> & { bounds: (string | null)[] }
+        type CapturedMultirange = {
+          typeName: string
+          rangeType: string
+          elementType: string
+          elementKind: number
+          ranges: CapturedRange[]
+        }
         const profileFor = (arrayType: string) => {
           const elementType = arrayType.slice(6)
           const baseElementType = arrayElementBaseType(elementType)
@@ -877,27 +889,36 @@ describe('world CHECK INSERT parity', () => {
             ? { kind: 'Array', family: 41 }
             : definition
               ? { kind: 'Enum', family: 6 }
-              : isRangeType(baseElementType)
-                ? { kind: 'Range', family: 42 }
-                : profiles[baseElementType]
+              : isMultirangeType(baseElementType)
+                ? { kind: 'Multirange', family: 43 }
+                : isRangeType(baseElementType)
+                  ? { kind: 'Range', family: 42 }
+                  : profiles[baseElementType]
           if (!profile) throw new Error('Missing array INSERT fixture conversion: ' + elementType)
           return { elementType, baseElementType, definition, profile }
         }
         const captureSql = (value: string, arrayType: string, depth: number): string => {
           const { baseElementType, profile } = profileFor(arrayType)
           const alias = 'array_cell_' + depth
-          const range = builtinRangeType(baseElementType)
+          const multirange = builtinMultirangeType(baseElementType)
+          const range = builtinRangeType(baseElementType) ?? multirange
+          const rangeCell = multirange ? alias + '_member' : alias
           const rangeValue = range
-            ? `json_build_object('typeName','${range.identity}','elementType','${range.subtype}','elementKind',${arrayElementFamily(range.subtype)},'empty',isempty(${alias}),'lowerInclusive',lower_inc(${alias}),'upperInclusive',upper_inc(${alias}),'bounds',CASE WHEN isempty(${alias}) THEN '[]'::json ELSE json_build_array(${rangeBoundProjection(`lower(${alias})`, range.subtype)},${rangeBoundProjection(`upper(${alias})`, range.subtype)}) END)`
+            ? `json_build_object('typeName','${range.identity}','elementType','${range.subtype}','elementKind',${arrayElementFamily(range.subtype)},'empty',isempty(${rangeCell}),'lowerInclusive',lower_inc(${rangeCell}),'upperInclusive',upper_inc(${rangeCell}),'bounds',CASE WHEN isempty(${rangeCell}) THEN '[]'::json ELSE json_build_array(${rangeBoundProjection(`lower(${rangeCell})`, range.subtype)},${rangeBoundProjection(`upper(${rangeCell})`, range.subtype)}) END)`
+            : ''
+          const multirangeValue = multirange
+            ? `json_build_object('typeName','${multirange.multirange}','rangeType','${multirange.identity}','elementType','${multirange.subtype}','elementKind',${arrayElementFamily(multirange.subtype)},'ranges',COALESCE((SELECT json_agg(${rangeValue} ORDER BY position) FROM unnest(${alias}) WITH ORDINALITY AS members(${rangeCell},position)),'[]'::json))`
             : ''
           const scalar =
             profile.kind === 'Array'
               ? captureSql(alias, baseElementType, depth + 1)
-              : profile.kind === 'Range'
-                ? `CASE WHEN ${alias} IS NULL THEN NULL ELSE ${rangeValue} END`
-                : profile.kind === 'Float4' || profile.kind === 'Float8'
-                  ? `encode(float${profile.kind === 'Float4' ? 4 : 8}send(${alias}),'hex')`
-                  : `${alias}::text`
+              : profile.kind === 'Multirange'
+                ? `CASE WHEN ${alias} IS NULL THEN NULL ELSE ${multirangeValue} END`
+                : profile.kind === 'Range'
+                  ? `CASE WHEN ${alias} IS NULL THEN NULL ELSE ${rangeValue} END`
+                  : profile.kind === 'Float4' || profile.kind === 'Float8'
+                    ? `encode(float${profile.kind === 'Float4' ? 4 : 8}send(${alias}),'hex')`
+                    : `${alias}::text`
           return `CASE WHEN (${value}) IS NULL THEN NULL ELSE json_build_object('dimensions',array_dims(${value}),'elements',COALESCE((SELECT json_agg(${scalar}) FROM unnest(${value}) ${alias}),'[]'::json)) END`
         }
         const captured = (
@@ -937,6 +958,22 @@ describe('world CHECK INSERT parity', () => {
                 kind: 'Array',
                 value: convert(value as CapturedArray, baseElementType, portable).value,
               }
+            if (profile.kind === 'Multirange') {
+              const payload = value as CapturedMultirange
+              return {
+                kind: 'Multirange',
+                value: {
+                  ...payload,
+                  ranges: payload.ranges.map((span) => ({
+                    kind: 'Value',
+                    value: {
+                      ...span,
+                      bounds: span.bounds.map((bound) => rangeBoundCell(span.elementType, bound)),
+                    },
+                  })),
+                },
+              }
+            }
             if (profile.kind === 'Range') {
               const payload = value as CapturedRange
               return {

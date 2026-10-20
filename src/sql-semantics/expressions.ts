@@ -21,7 +21,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
   if (multirange) return multirange.multirange as MultirangeType
   if (name.endsWith('[]')) {
     const element = catalogScalarType(name.replace(/(?:\[\])+$/u, ''))
-    return element && !isMultirangeType(element) && !element.startsWith('array:')
+    return element && !element.startsWith('array:')
       ? arrayType(element as Exclude<ScalarType, ArrayType>)
       : null
   }
@@ -32,7 +32,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     const internal = name.replace(/^pg_catalog\./u, '')
     if (builtinTypeResolution('pg_catalog.' + internal)?.category !== 'A') return null
     const element = catalogScalarType(internal.slice(1))
-    return element && !isMultirangeType(element) && !element.startsWith('array:')
+    return element && !element.startsWith('array:')
       ? arrayType(element as Exclude<ScalarType, ArrayType>)
       : null
   }
@@ -365,6 +365,7 @@ function isArrayElementType(type: string): type is ArrayElementType {
   return (
     (BUILTIN_ARRAY_ELEMENT_TYPES as readonly string[]).includes(type) ||
     isRangeType(type) ||
+    isMultirangeType(type) ||
     type.startsWith('enum:') ||
     domainElementDefinition(type) !== null
   )

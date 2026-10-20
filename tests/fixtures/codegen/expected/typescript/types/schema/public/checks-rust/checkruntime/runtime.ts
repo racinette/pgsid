@@ -9480,6 +9480,67 @@ export function arrayFromCoercedRangeTree(input: ArrayValue, types: string, kind
     }
     return input;
 }
+function arrayMultirangeElementIdentity(input: ArrayPayload, position: number, typeName: string, rangeType: string, elementType: string, elementKind: number): boolean {
+    position = langruntime.checkedIndex(position);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    const element: ArrayElement = copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement));
+    if (element.kind === "Array") {
+        const nested: ArrayPayload = copyArrayPayload(element.value);
+        return arrayMultirangeIdentityValid(nested, typeName, rangeType, elementType, elementKind);
+    }
+    if (element.kind === "Multirange") {
+        const payload: MultirangePayload = copyMultirangePayload(element.value);
+        if (!(payload.typeName === typeName) || !(payload.rangeType === rangeType) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
+            return false;
+        }
+        let member: number = 0;
+        while (member < payload.ranges.length) {
+            const span: RangeValue = copyRangeValue(langruntime.indexStruct(payload.ranges, langruntime.checkedIndex(member), copyRangeValue));
+            if (span.kind === "Value") {
+                const value: RangePayload = copyRangePayload(span.value);
+                if (!(value.typeName === rangeType) || !(value.elementType === elementType) || !(value.elementKind === elementKind)) {
+                    return false;
+                }
+            }
+            member = langruntime.checkedAdd(member, 1);
+        }
+    }
+    return true;
+}
+function arrayMultirangeIdentityValid(input: ArrayPayload, typeName: string, rangeType: string, elementType: string, elementKind: number): boolean {
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    let position: number = 0;
+    while (position < input.elements.length) {
+        if (arrayMultirangeElementIdentity(input, position, typeName, rangeType, elementType, elementKind) === false) {
+            return false;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    return true;
+}
+export function arrayFromCoercedMultirangeTree(input: ArrayValue, types: string, kinds: string, typeName: string, rangeType: string, elementType: string, elementKind: number): ArrayValue {
+    input = copyArrayValue(input);
+    types = langruntime.checkedString(types);
+    kinds = langruntime.checkedString(kinds);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    if (input.kind === "Value") {
+        const payload: ArrayPayload = copyArrayPayload(input.value);
+        if (arrayTreeIdentityValid(payload, types, kinds, 0) === false || arrayMultirangeIdentityValid(payload, typeName, rangeType, elementType, elementKind) === false) {
+            return { kind: "Unknown" };
+        }
+        return makeArrayValue(payload);
+    }
+    return input;
+}
 export function makeArrayArguments(elementType: string, elementKind: number): ArrayArguments {
     elementType = langruntime.checkedString(elementType);
     elementKind = langruntime.checkedI32(elementKind);

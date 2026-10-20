@@ -2139,6 +2139,52 @@ func arraySortSameElement(left checkruntime.ArrayElement, right checkruntime.Arr
 	if left.Kind == checkruntime.ArrayElementByteaUnspecified {
 		return false
 	}
+	if kind == 42 {
+		firstRange := checkruntime.ArrayElementToRange(left)
+		secondRange := checkruntime.ArrayElementToRange(right)
+		if firstRange.Kind == checkruntime.RangeValueValue {
+			first := checkruntime.CopyRangePayload(firstRange.Value)
+			if secondRange.Kind == checkruntime.RangeValueValue {
+				second := checkruntime.CopyRangePayload(secondRange.Value)
+				if first.TypeName != second.TypeName || first.ElementType != second.ElementType || first.ElementKind != second.ElementKind || first.Empty != second.Empty || first.LowerInclusive != second.LowerInclusive || first.UpperInclusive != second.UpperInclusive || len(first.Bounds) != len(second.Bounds) {
+					return false
+				}
+				position := 0
+				for position < len(first.Bounds) {
+					if arraySortSameElement(checkruntime.CopyArrayElement(first.Bounds[position]), checkruntime.CopyArrayElement(second.Bounds[position])) == false {
+						return false
+					}
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				return true
+			}
+		}
+		return false
+	}
+	if kind == 43 {
+		firstMulti := checkruntime.ArrayElementToMultirange(left)
+		secondMulti := checkruntime.ArrayElementToMultirange(right)
+		if firstMulti.Kind == checkruntime.MultirangeValueValue {
+			first := checkruntime.CopyMultirangePayload(firstMulti.Value)
+			if secondMulti.Kind == checkruntime.MultirangeValueValue {
+				second := checkruntime.CopyMultirangePayload(secondMulti.Value)
+				if first.TypeName != second.TypeName || first.RangeType != second.RangeType || first.ElementType != second.ElementType || first.ElementKind != second.ElementKind || len(first.Ranges) != len(second.Ranges) {
+					return false
+				}
+				position := 0
+				for position < len(first.Ranges) {
+					firstMember := checkruntime.ArrayElementFromRange(checkruntime.CopyRangeValue(first.Ranges[position]))
+					secondMember := checkruntime.ArrayElementFromRange(checkruntime.CopyRangeValue(second.Ranges[position]))
+					if arraySortSameElement(firstMember, secondMember) == false {
+						return false
+					}
+					position = langruntime.CheckedAdd(position, 1)
+				}
+				return true
+			}
+		}
+		return false
+	}
 	if kind == 1 {
 		return checkruntime.ArrayElementToInt2(left) == checkruntime.ArrayElementToInt2(right)
 	}

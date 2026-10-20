@@ -9380,6 +9380,67 @@ func ArrayFromCoercedRangeTree(input ArrayValue, types string, kinds string, typ
 	}
 	return input
 }
+func arrayMultirangeElementIdentity(input *ArrayPayload, position int, typeName string, rangeType string, elementType string, elementKind int) bool {
+	position = langruntime.CheckedIndex(position)
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	element := CopyArrayElement(input.Elements[position])
+	if element.Kind == ArrayElementArray {
+		nested := CopyArrayPayload(element.Array)
+		return arrayMultirangeIdentityValid(&nested, typeName, rangeType, elementType, elementKind)
+	}
+	if element.Kind == ArrayElementMultirange {
+		payload := CopyMultirangePayload(element.Multirange)
+		if payload.TypeName != typeName || payload.RangeType != rangeType || payload.ElementType != elementType || payload.ElementKind != elementKind {
+			return false
+		}
+		member := 0
+		for member < len(payload.Ranges) {
+			span := CopyRangeValue(payload.Ranges[member])
+			if span.Kind == RangeValueValue {
+				value := CopyRangePayload(span.Value)
+				if value.TypeName != rangeType || value.ElementType != elementType || value.ElementKind != elementKind {
+					return false
+				}
+			}
+			member = langruntime.CheckedAdd(member, 1)
+		}
+	}
+	return true
+}
+func arrayMultirangeIdentityValid(input *ArrayPayload, typeName string, rangeType string, elementType string, elementKind int) bool {
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	position := 0
+	for position < len(input.Elements) {
+		if arrayMultirangeElementIdentity(input, position, typeName, rangeType, elementType, elementKind) == false {
+			return false
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	return true
+}
+func ArrayFromCoercedMultirangeTree(input ArrayValue, types string, kinds string, typeName string, rangeType string, elementType string, elementKind int) ArrayValue {
+	input = CopyArrayValue(input)
+	types = langruntime.CheckedString(types)
+	kinds = langruntime.CheckedString(kinds)
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	if input.Kind == ArrayValueValue {
+		payload := CopyArrayPayload(input.Value)
+		if arrayTreeIdentityValid(&payload, types, kinds, 0) == false || arrayMultirangeIdentityValid(&payload, typeName, rangeType, elementType, elementKind) == false {
+			return ArrayValue{Kind: ArrayValueUnknown}
+		}
+		return MakeArrayValue(payload)
+	}
+	return input
+}
 func MakeArrayArguments(elementType string, elementKind int) ArrayArguments {
 	elementType = langruntime.CheckedString(elementType)
 	elementKind = langruntime.CheckedI32(elementKind)

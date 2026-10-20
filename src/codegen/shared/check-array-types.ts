@@ -1,11 +1,12 @@
 import { arrayElementBaseType } from '../../sql-semantics/expressions.js'
-import { builtinRangeType } from '../../postgres/builtins/inventory.js'
+import { builtinRangeType, builtinMultirangeType } from '../../postgres/builtins/inventory.js'
 
 export function arrayElementFamily(type: string): number | null {
   type = arrayElementBaseType(type)
   if (type.startsWith('array:')) return 41
   if (type.startsWith('enum:')) return 6
   if (builtinRangeType(type)) return 42
+  if (builtinMultirangeType(type)) return 43
   const families: Readonly<Record<string, number>> = {
     'pg_catalog.int2': 1,
     'pg_catalog.int4': 2,
@@ -93,9 +94,24 @@ export function arrayRangeProfile(type: string) {
   return builtinRangeType(type)
 }
 
+export function arrayMultirangeProfile(type: string) {
+  while (type.startsWith('array:')) type = arrayElementBaseType(type.slice(6))
+  return builtinMultirangeType(type)
+}
+
 export function arrayInputPlan(type: string): string[] {
   const plan = arrayIdentityPlan(type)
   if (!plan) return []
+  const multi = arrayMultirangeProfile(type)
+  if (multi)
+    return [
+      plan.types,
+      plan.kinds,
+      multi.multirange,
+      multi.identity,
+      multi.subtype,
+      String.fromCharCode(arrayElementFamily(multi.subtype)!),
+    ]
   const range = arrayRangeProfile(type)
   return range
     ? [

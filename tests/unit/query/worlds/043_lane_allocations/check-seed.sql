@@ -5449,3 +5449,99 @@ INSERT INTO lane_segment_fingerprints(seed,divisor,bypass) VALUES(1,0,false);
 -- name: segment_fingerprint_bypass
 INSERT INTO lane_segment_fingerprints(slots,slot_wire,expected_hashes,seed,divisor,bypass)
 VALUES('{[1,3)}','wrong','{0}',1,0,true);
+
+-- name: segment_batch_exact
+INSERT INTO lane_segment_batches(slots,loads,prices,calendar_days,local_shift,instant_shift,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{"{[1,3),[5,9)}","{}",NULL}','{"{[9007199254740993,9007199254740999)}","{}",NULL}','{"{[1.2300,3.4500]}","{}",NULL}','{"{[2000-01-01,2000-01-03)}","{}",NULL}','{"{[2000-01-01 00:00:00.000001,2000-01-03)}","{}",NULL}','{"{[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)}","{}",NULL}','{[1,3),[5,9)}','{3,3,3,3,3,3}',true,false,false);
+
+-- name: segment_batch_empty
+INSERT INTO lane_segment_batches(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{}','{}','{}','{}','{}','{}','{0,0,0,0,0,0}',false,true,false);
+
+-- name: segment_batch_null
+INSERT INTO lane_segment_batches(bypass) VALUES(false);
+
+-- name: segment_batch_null_cells
+INSERT INTO lane_segment_batches(slots,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{NULL,NULL,NULL}','{3}',NULL,true,false);
+
+-- name: segment_batch_lower_bound
+INSERT INTO lane_segment_batches(slots,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('[-2:0]={"{[1,3)}","{}",NULL}','{[1,3)}','{3}',true,false,false);
+
+-- name: segment_batch_members_normalized
+INSERT INTO lane_segment_batches(slots,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{"{(1,3],[4,6)}","{}",NULL}','{[2,6)}','{3}',true,false,false);
+
+-- name: segment_batch_temporal_infinity
+INSERT INTO lane_segment_batches(calendar_days,local_shift,instant_shift,expected_counts,bypass)
+VALUES('{"{[-infinity,infinity]}","{}",NULL}','{"{[-infinity,infinity]}","{}",NULL}','{"{[-infinity,infinity]}","{}",NULL}','{NULL,NULL,NULL,3,3,3}',false);
+
+-- name: segment_batch_slots_count_mismatch
+INSERT INTO lane_segment_batches(slots,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{}','{1}',false,true,false);
+
+-- name: segment_batch_loads_count_mismatch
+INSERT INTO lane_segment_batches(loads,expected_counts,bypass) VALUES('{}','{NULL,1}',false);
+
+-- name: segment_batch_prices_count_mismatch
+INSERT INTO lane_segment_batches(prices,expected_counts,bypass) VALUES('{}','{NULL,NULL,1}',false);
+
+-- name: segment_batch_calendar_days_count_mismatch
+INSERT INTO lane_segment_batches(calendar_days,expected_counts,bypass) VALUES('{}','{NULL,NULL,NULL,1}',false);
+
+-- name: segment_batch_local_shift_count_mismatch
+INSERT INTO lane_segment_batches(local_shift,expected_counts,bypass) VALUES('{}','{NULL,NULL,NULL,NULL,1}',false);
+
+-- name: segment_batch_instant_shift_count_mismatch
+INSERT INTO lane_segment_batches(instant_shift,expected_counts,bypass) VALUES('{}','{NULL,NULL,NULL,NULL,NULL,1}',false);
+
+-- name: segment_batch_first_mismatch
+INSERT INTO lane_segment_batches(slots,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{"{[1,3)}"}','{[4,5)}','{1}',false,true,false);
+
+-- name: segment_batch_member_mismatch
+INSERT INTO lane_segment_batches(slots,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{"{}"}','{}','{1}',false,true,false);
+
+-- name: segment_batch_sort_mismatch
+INSERT INTO lane_segment_batches(slots,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{"{}"}','{}','{1}',true,false,false);
+
+-- name: segment_batch_domain
+INSERT INTO lane_segment_batches(typed_slots,histories,head,bypass)
+VALUES('{"{[1,3)}",NULL,"{}"}','{"{\"{[1,3)}\",NULL,\"{}\"}"}','{[1,3)}',false);
+
+-- name: segment_batch_domain_mismatch
+INSERT INTO lane_segment_batches(typed_slots,head,bypass) VALUES('{"{}"}','{[1,3)}',false);
+
+-- name: segment_batch_nested_mismatch
+INSERT INTO lane_segment_batches(histories,head,bypass) VALUES('{"{\"{}\"}"}','{[1,3)}',false);
+
+-- name: segment_batch_transforms
+INSERT INTO lane_segment_batches(slots,head,expected_counts,expected_member,expected_sorted,sorted_slots,rewritten_slots,min_slot,verify_transforms,bypass)
+VALUES('{"{[1,3)}","{}",NULL}','{[1,3)}','{3}',true,false,'{"{}","{[1,3)}",NULL}','{"{}","{}",NULL}','{}',true,false);
+
+-- name: segment_batch_ordered_slots_mismatch
+INSERT INTO lane_segment_batches(slots,head,expected_counts,expected_member,expected_sorted,sorted_slots,rewritten_slots,min_slot,verify_transforms,bypass)
+VALUES('{"{[1,3)}","{}",NULL}','{[1,3)}','{3}',true,false,'{}','{"{}","{}",NULL}','{}',true,false);
+
+-- name: segment_batch_rewritten_slots_mismatch
+INSERT INTO lane_segment_batches(slots,head,expected_counts,expected_member,expected_sorted,sorted_slots,rewritten_slots,min_slot,verify_transforms,bypass)
+VALUES('{"{[1,3)}","{}",NULL}','{[1,3)}','{3}',true,false,'{"{}","{[1,3)}",NULL}','{}','{}',true,false);
+
+-- name: segment_batch_min_slot_mismatch
+INSERT INTO lane_segment_batches(slots,head,expected_counts,expected_member,expected_sorted,sorted_slots,rewritten_slots,min_slot,verify_transforms,bypass)
+VALUES('{"{[1,3)}","{}",NULL}','{[1,3)}','{3}',true,false,'{"{}","{[1,3)}",NULL}','{"{}","{}",NULL}','{[1,3)}',true,false);
+
+-- name: segment_batch_bypass
+INSERT INTO lane_segment_batches(slots,typed_slots,histories,head,expected_counts,expected_member,expected_sorted,verify_transforms,bypass)
+VALUES('{"{}"}','{"{}"}','{"{\"{}\"}"}','{[1,3)}','{99,99,99,99,99,99}',false,false,true,true);
+
+-- name: segment_batch_catalog_cast
+INSERT INTO lane_segment_batches(source_ranges,converted_slots,bypass)
+VALUES('[-2:0]={"[1,3)",empty,NULL}','[-2:0]={"{[1,3)}","{}",NULL}',false);
+
+-- name: segment_batch_catalog_cast_mismatch
+INSERT INTO lane_segment_batches(source_ranges,converted_slots,bypass)
+VALUES('{"[1,3)"}','{}',false);
