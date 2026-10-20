@@ -307,6 +307,41 @@ const safePathTranslation = (node: Extract<EvalExpression, { kind: 'call' }>): b
   )
 }
 
+const safeFloatEncoding = (node: Extract<EvalExpression, { kind: 'call' }>): boolean => {
+  if (!node.call.signature || node.operands.length !== 2) return false
+  const metadata = builtinMetadata(node.call.signature)
+  const [input, format] = node.operands
+  if (
+    metadata.kind !== 'function' ||
+    metadata.schema !== 'pg_catalog' ||
+    metadata.name !== 'encode' ||
+    !metadata.strict ||
+    metadata.volatility !== 'i' ||
+    metadata.returnsSet ||
+    metadata.args.join(',') !== 'pg_catalog.bytea,pg_catalog.text' ||
+    metadata.result !== 'pg_catalog.text' ||
+    input?.kind !== 'call' ||
+    !input.call.signature ||
+    format?.kind !== 'certain' ||
+    format.expression.kind !== 'text' ||
+    format.expression.value === null ||
+    !['hex', 'base64', 'escape'].includes(format.expression.value.toLowerCase())
+  )
+    return false
+  const send = builtinMetadata(input.call.signature)
+  return (
+    send.kind === 'function' &&
+    send.schema === 'pg_catalog' &&
+    send.strict &&
+    send.volatility === 'i' &&
+    !send.returnsSet &&
+    send.result === 'pg_catalog.bytea' &&
+    send.args.length === 1 &&
+    ((send.name === 'float4send' && send.args[0] === 'pg_catalog.float4') ||
+      (send.name === 'float8send' && send.args[0] === 'pg_catalog.float8'))
+  )
+}
+
 export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityContext = {}): boolean {
   switch (node.kind) {
     case 'array-domain-coerce':
@@ -331,7 +366,7 @@ export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityCont
     case 'array-subscript':
       return false
     case 'call': {
-      if (safePathTranslation(node)) return false
+      if (safePathTranslation(node) || safeFloatEncoding(node)) return false
       const thresholds = node.operands[1]
       if (
         node.call.signature &&

@@ -33367,6 +33367,77 @@ export function rangeMinusF67g(left: checkruntime.RangeValue, right: checkruntim
     right = checkruntime.copyRangeValue(right);
     return rangeSet(left, right, 4);
 }
+function rangeSubdiffInteger(left: checkruntime.Int8Value, right: checkruntime.Int8Value, seconds: boolean): checkruntime.Float8Value {
+    seconds = langruntime.checkedBool(seconds);
+    const first: checkruntime.Float8Value = integerFloat8(left);
+    const second: checkruntime.Float8Value = integerFloat8(right);
+    const result: checkruntime.Float8Value = float8miR1nu(first, second);
+    if (seconds) {
+        return float8divKumj(result, checkruntime.makeFloat8Value(1000000.0));
+    }
+    return result;
+}
+function rangeSubdiffDate(input: checkruntime.DateValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalDateValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        return { kind: "Value", value: BigInt(langruntime.checkedI32(value)) };
+    }
+    return { kind: "Unknown" };
+}
+function rangeSubdiffTimestamp(input: checkruntime.TimestampValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+function rangeSubdiffTimestamptz(input: checkruntime.TimestamptzValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestamptzValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: bigint = langruntime.checkedI64(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function int4rangeSubdiffE24d(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.Float8Value {
+    return rangeSubdiffInteger(int8Mzac(left), int8Mzac(right), false);
+}
+export function int8rangeSubdiffB2ct(left: checkruntime.Int8Value, right: checkruntime.Int8Value): checkruntime.Float8Value {
+    return rangeSubdiffInteger(left, right, false);
+}
+export function numrangeSubdiffWqu8(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Float8Value {
+    const difference: checkruntime.NumericValue = numericSubYs09(left, right);
+    return float8Bkfn(difference);
+}
+export function daterangeSubdiff3xcy(left: checkruntime.DateValue, right: checkruntime.DateValue): checkruntime.Float8Value {
+    return rangeSubdiffInteger(rangeSubdiffDate(left), rangeSubdiffDate(right), false);
+}
+export function tsrangeSubdiff3mzs(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.Float8Value {
+    return rangeSubdiffInteger(rangeSubdiffTimestamp(left), rangeSubdiffTimestamp(right), true);
+}
+export function tstzrangeSubdiffOyoc(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.Float8Value {
+    return rangeSubdiffInteger(rangeSubdiffTimestamptz(left), rangeSubdiffTimestamptz(right), true);
+}
 const scalarInputInvalid = 3484946;
 const scalarInputRange = 3452547;
 export function moneyFromCapturedText(input: checkruntime.TextValue, texts: string, units: string, count: number): checkruntime.MoneyValue {

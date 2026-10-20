@@ -63,8 +63,10 @@ export function rangeCoreSamples(type: RangeType): {
 export function rangeBoundProjection(bound: string, subtype: string): string {
   if (subtype === 'pg_catalog.date')
     return `CASE WHEN ${bound}='-infinity'::date THEN '-2147483648' WHEN ${bound}='infinity'::date THEN '2147483647' ELSE (${bound}-DATE '2000-01-01')::text END`
-  if (subtype === 'pg_catalog."timestamp"' || subtype === 'pg_catalog.timestamptz')
-    return `CASE WHEN ${bound}='-infinity'::${subtype} THEN '-9223372036854775808' WHEN ${bound}='infinity'::${subtype} THEN '9223372036854775807' ELSE (extract(epoch FROM ${bound})*1000000-946684800000000)::numeric(30,0)::text END`
+  if (subtype === 'pg_catalog."timestamp"' || subtype === 'pg_catalog.timestamptz') {
+    const send = subtype === 'pg_catalog.timestamptz' ? 'timestamptz_send' : 'timestamp_send'
+    return `(('x'||encode(${send}(${bound}),'hex'))::bit(64)::bigint)::text`
+  }
   return `${bound}::text`
 }
 

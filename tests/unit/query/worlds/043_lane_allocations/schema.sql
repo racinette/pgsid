@@ -2065,3 +2065,20 @@ CREATE TABLE lane_publication_documents (
   CONSTRAINT publication_days CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(calendar_days) IS NOT DISTINCT FROM expected_days END),
   CONSTRAINT publication_instants CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(instant_windows) IS NOT DISTINCT FROM expected_instants END)
 );
+
+CREATE TABLE lane_distance_estimates (
+  slots int4range,
+  loads int8range,
+  prices numrange,
+  calendar_days daterange,
+  local_shift tsrange,
+  instant_shift tstzrange,
+  expected_distances double precision[],
+  bypass boolean,
+  CONSTRAINT distance_slots CHECK(CASE WHEN bypass THEN true ELSE int4range_subdiff(upper(slots),lower(slots)) IS NOT DISTINCT FROM expected_distances[1] END),
+  CONSTRAINT distance_loads CHECK(CASE WHEN bypass THEN true ELSE int8range_subdiff(upper(loads),lower(loads)) IS NOT DISTINCT FROM expected_distances[2] END),
+  CONSTRAINT distance_prices CHECK(CASE WHEN bypass THEN true ELSE numrange_subdiff(upper(prices),lower(prices)) IS NOT DISTINCT FROM expected_distances[3] END),
+  CONSTRAINT distance_days CHECK(CASE WHEN bypass THEN true ELSE daterange_subdiff(upper(calendar_days),lower(calendar_days)) IS NOT DISTINCT FROM expected_distances[4] END),
+  CONSTRAINT distance_local CHECK(CASE WHEN bypass THEN true ELSE tsrange_subdiff(upper(local_shift),lower(local_shift)) IS NOT DISTINCT FROM expected_distances[5] END),
+  CONSTRAINT distance_instants CHECK(CASE WHEN bypass THEN true ELSE tstzrange_subdiff(upper(instant_shift),lower(instant_shift)) IS NOT DISTINCT FROM expected_distances[6] END)
+);

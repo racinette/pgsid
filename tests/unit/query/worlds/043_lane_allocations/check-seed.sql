@@ -5594,3 +5594,58 @@ VALUES('empty','[null,null]','{"prices":null}','"(,)"',false);
 -- name: publication_wrong_instants
 INSERT INTO lane_publication_documents(instant_windows,expected_batches,expected_prices,expected_instants,bypass)
 VALUES('{}','[null,null]','{"prices":null}','"{(,)}"',false);
+
+-- name: distance_all_subtypes
+INSERT INTO lane_distance_estimates(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_distances,bypass)
+VALUES('[1,5)','[9007199254740992,9007199254740993)','[1.0000,3.00000)','[2000-01-01,2000-01-03)','["2000-01-01 00:00:00.000001","2000-01-01 00:00:00.000003")','["2000-01-01 00:00:00.000001+00","2000-01-01 00:00:00.000003+00")','{4,0,2,2,0.000002,0.000002}',false);
+
+-- name: distance_null_values
+INSERT INTO lane_distance_estimates(bypass) VALUES(false);
+
+-- name: distance_empty_values
+INSERT INTO lane_distance_estimates(slots,loads,prices,calendar_days,local_shift,instant_shift,bypass)
+VALUES('empty','empty','empty','empty','empty','empty',false);
+
+-- name: distance_unbounded_values
+INSERT INTO lane_distance_estimates(slots,loads,prices,calendar_days,local_shift,instant_shift,bypass)
+VALUES('(,)','(,)','(,)','(,)','(,)','(,)',false);
+
+-- name: distance_typed_infinity_markers
+INSERT INTO lane_distance_estimates(calendar_days,local_shift,instant_shift,expected_distances,bypass)
+VALUES('[infinity,infinity]','[infinity,infinity]','[infinity,infinity]','{NULL,NULL,NULL,0,0,0}',false);
+
+-- name: distance_bypassed_overflow
+INSERT INTO lane_distance_estimates(prices,expected_distances,bypass)
+VALUES('[0,1e309)','{NULL,NULL,0}',true);
+
+-- name: distance_wrong_slots
+INSERT INTO lane_distance_estimates(slots,expected_distances,bypass)
+VALUES('[-2147483648,2147483647)','{0}',false);
+
+-- name: distance_wrong_load_precision
+INSERT INTO lane_distance_estimates(loads,expected_distances,bypass)
+VALUES('[9007199254740992,9007199254740993)','{NULL,1}',false);
+
+-- name: distance_wrong_prices
+INSERT INTO lane_distance_estimates(prices,expected_distances,bypass)
+VALUES('[1.0000,3.00000)','{NULL,NULL,3}',false);
+
+-- name: distance_wrong_calendar
+INSERT INTO lane_distance_estimates(calendar_days,expected_distances,bypass)
+VALUES('[-infinity,infinity]','{NULL,NULL,NULL,0}',false);
+
+-- name: distance_wrong_local_microseconds
+INSERT INTO lane_distance_estimates(local_shift,expected_distances,bypass)
+VALUES('["2000-01-01 00:00:00.000001","2000-01-01 00:00:00.000003")','{NULL,NULL,NULL,NULL,2}',false);
+
+-- name: distance_wrong_instant_microseconds
+INSERT INTO lane_distance_estimates(instant_shift,expected_distances,bypass)
+VALUES('["2000-01-01 00:00:00.000001+00","2000-01-01 00:00:00.000003+00")','{NULL,NULL,NULL,NULL,NULL,2}',false);
+
+-- name: distance_numeric_float_overflow
+INSERT INTO lane_distance_estimates(prices,expected_distances,bypass)
+VALUES('[0,1e309)','{NULL,NULL,0}',false);
+
+-- name: distance_numeric_float_underflow
+INSERT INTO lane_distance_estimates(prices,expected_distances,bypass)
+VALUES('[0,1e-400)','{NULL,NULL,0}',false);

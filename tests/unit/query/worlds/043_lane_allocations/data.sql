@@ -272,3 +272,6 @@ VALUES(NULL,'{abc,xy}',2,'abc','abc',1,false);
 INSERT INTO lane_publication_documents(slot,segments,slot_batches,segment_batches,histories,prices,calendar_days,instant_windows,expected_slot,expected_segments,expected_batches,expected_prices,expected_key,expected_history,expected_days,expected_instants,bypass)
 VALUES ('[1,5)','{[1,3),[5,9)}','{"[1,5)",NULL}','{"{[1,3),[5,9)}",NULL}','{"{\"{[1,3),[5,9)}\",NULL}"}','{[1.0000,3.00000),[5.00,7.000]}','[-infinity,infinity]','{[-infinity,infinity]}',
  '"[1,5)"','"{[1,3),[5,9)}"','[["[1,5)",null],["{[1,3),[5,9)}",null]]','{"prices":"{[1.0000,3.00000),[5.00,7.000]}"}','{"[1,5)":"{[1,3),[5,9)}"}','[["{[1,3),[5,9)}",null]]','"[-infinity,infinity]"','"{[-infinity,infinity]}"',false);
+
+INSERT INTO lane_distance_estimates(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_distances,bypass)
+VALUES('[1,5)','[9007199254740992,9007199254740993)','[1.0000,3.00000)','[2000-01-01,2000-01-03)','["2000-01-01 00:00:00.000001","2000-01-01 00:00:00.000003")','["2000-01-01 00:00:00.000001+00","2000-01-01 00:00:00.000003+00")','{4,0,2,2,0.000002,0.000002}',false);
