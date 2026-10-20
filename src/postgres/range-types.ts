@@ -1,33 +1,31 @@
 import type { PGlite } from '@electric-sql/pglite'
 
-export interface RangeTypeMetadata {
-  identity: string
-  array: string
-  subtype: string
-  multirange: string
-  multirangeArray: string
-  collation: string | null
-  subtypeClass: string
-  comparator: string | null
-  canonical: string | null
-  subtypeDiff: string | null
-}
+import type { RangeTypeMetadata, RangeTypeInfo } from '../catalog/types.js'
+export type { RangeTypeMetadata } from '../catalog/types.js'
 
 const typeIdentity = `SELECT quote_ident(n.nspname)||'.'||quote_ident(t.typname)
   FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE t.oid=`
 
-export async function readRangeTypes(
+async function readRangeTypeInfos(
   pg: PGlite,
-  schema: string | null = null,
-): Promise<RangeTypeMetadata[]> {
+  schema: string | null,
+  schemas: readonly string[] | null,
+): Promise<RangeTypeInfo[]> {
   const rows = (
     await pg.query<{
+      schema: string
+      name: string
+      multirange_schema: string
+      multirange_name: string
       identity: string
       array: string
       subtype: string
       multirange: string
       multirange_array: string
       collation: string | null
+      collation_deterministic: boolean | null
+      collation_is_c: boolean | null
+      collation_is_default: boolean | null
       subtype_class: string
       comparator_schema: string | null
       comparator_name: string | null
@@ -39,7 +37,8 @@ export async function readRangeTypes(
       diff_name: string | null
       diff_args: string[] | null
     }>(
-      `SELECT (${typeIdentity} r.rngtypid) AS identity,
+      `SELECT n.nspname AS schema,rt.typname AS name,mn.nspname AS multirange_schema,mt.typname AS multirange_name,
+        (${typeIdentity} r.rngtypid) AS identity,
         (${typeIdentity} rt.typarray) AS array,
         (${typeIdentity} r.rngsubtype) AS subtype,
         (${typeIdentity} r.rngmultitypid) AS multirange,
@@ -47,6 +46,9 @@ export async function readRangeTypes(
         (SELECT quote_ident(cn.nspname)||'.'||quote_ident(c.collname)
           FROM pg_collation c JOIN pg_namespace cn ON cn.oid=c.collnamespace
           WHERE c.oid=r.rngcollation) AS collation,
+        rco.collisdeterministic AS collation_deterministic,
+        CASE WHEN r.rngcollation=0 THEN NULL ELSE r.rngcollation='pg_catalog."C"'::regcollation END AS collation_is_c,
+        CASE WHEN r.rngcollation=0 THEN NULL ELSE r.rngcollation='pg_catalog."default"'::regcollation END AS collation_is_default,
         quote_ident(onsp.nspname)||'.'||quote_ident(o.opcname) AS subtype_class,
         pn.nspname AS comparator_schema,p.proname AS comparator_name,
         (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
@@ -61,8 +63,10 @@ export async function readRangeTypes(
         JOIN pg_type rt ON rt.oid=r.rngtypid
         JOIN pg_namespace n ON n.oid=rt.typnamespace
         JOIN pg_type mt ON mt.oid=r.rngmultitypid
+        JOIN pg_namespace mn ON mn.oid=mt.typnamespace
         JOIN pg_opclass o ON o.oid=r.rngsubopc
         JOIN pg_namespace onsp ON onsp.oid=o.opcnamespace
+        LEFT JOIN pg_collation rco ON rco.oid=r.rngcollation
         LEFT JOIN pg_amproc ap ON ap.amprocfamily=o.opcfamily
           AND ap.amproclefttype=o.opcintype AND ap.amprocrighttype=o.opcintype
           AND ap.amprocnum=1
@@ -73,11 +77,19 @@ export async function readRangeTypes(
         LEFT JOIN pg_proc d ON d.oid=r.rngsubdiff
         LEFT JOIN pg_namespace dn ON dn.oid=d.pronamespace
         WHERE ($1::text IS NULL OR n.nspname=$1)
-        ORDER BY 1`,
-      [schema],
+          AND ($2::text[] IS NULL OR n.nspname=ANY($2::text[]))
+        ORDER BY identity`,
+      [schema, schemas],
     )
   ).rows
   return rows.map((row) => ({
+    schema: row.schema,
+    name: row.name,
+    multirangeSchema: row.multirange_schema,
+    multirangeName: row.multirange_name,
+    collationDeterministic: row.collation_deterministic,
+    collationIsC: row.collation_is_c,
+    collationIsDefault: row.collation_is_default,
     identity: row.identity,
     array: row.array,
     subtype: row.subtype,
@@ -98,4 +110,30 @@ export async function readRangeTypes(
         ? null
         : `function:${JSON.stringify([row.diff_schema, row.diff_name])}(${(row.diff_args ?? []).join(',')})`,
   }))
+}
+
+export async function readRangeTypes(
+  pg: PGlite,
+  schema: string | null = null,
+): Promise<RangeTypeMetadata[]> {
+  const rows = await readRangeTypeInfos(pg, schema, null)
+  return rows.map(
+    ({
+      schema: _schema,
+      name: _name,
+      multirangeSchema: _multirangeSchema,
+      multirangeName: _multirangeName,
+      collationDeterministic: _deterministic,
+      collationIsC: _isC,
+      collationIsDefault: _isDefault,
+      ...metadata
+    }) => metadata,
+  )
+}
+
+export async function readCatalogRangeTypes(
+  pg: PGlite,
+  schemas: readonly string[],
+): Promise<RangeTypeInfo[]> {
+  return readRangeTypeInfos(pg, null, schemas)
 }

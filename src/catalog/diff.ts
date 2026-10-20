@@ -343,6 +343,14 @@ export function comparableStates(snapshot: CatalogSnapshot): Map<EntityId, unkno
     out.set(`${t.schema}.${t.name}`, compositeTypeState(t))
   }
 
+  for (const range of snapshot.rangeTypes) {
+    out.set(`${range.schema}.${range.name}`, range)
+    out.set(`${range.multirangeSchema}.${range.multirangeName}`, {
+      range: range.identity,
+      profile: range,
+    })
+  }
+
   // Sequences.
   for (const s of snapshot.sequences) {
     out.set(`${s.schema}.${s.name}`, sequenceState(s))
@@ -422,6 +430,7 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     enums: [],
     domains: [],
     compositeTypes: [],
+    rangeTypes: [],
     sequences: [],
     extensions: [],
     schemas: [],
