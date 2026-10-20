@@ -523,11 +523,39 @@ export function jsonValueRequirements(item: BuiltinCallable) {
   ]
 }
 
+export function rangeValueRequirements(item: BuiltinCallable) {
+  if (
+    item.kind !== 'function' ||
+    item.schema !== 'pg_catalog' ||
+    !item.strict ||
+    item.volatility !== 'i' ||
+    item.returnsSet ||
+    !(
+      (item.name === 'range_intersect_agg_transfn' &&
+        item.args.join(',') === 'pg_catalog.anyrange,pg_catalog.anyrange' &&
+        item.result === 'pg_catalog.anyrange') ||
+      (item.name === 'multirange_intersect_agg_transfn' &&
+        item.args.join(',') === 'pg_catalog.anymultirange,pg_catalog.anymultirange' &&
+        item.result === 'pg_catalog.anymultirange')
+    )
+  )
+    return null
+  return [
+    {
+      kind: 'execution',
+      requirement:
+        'Requires aggregate execution context. Direct non-NULL CHECK calls raise XX000 before reading range contents; catalog strictness preserves NULL results. Aggregate expressions and set-returning expansion are forbidden in CHECKs.',
+      owner: 'tests/sql-semantics/check-range-callable-boundaries.test.ts',
+    },
+  ]
+}
+
 export function callableBoundary(item: BuiltinCallable, represented: ReadonlySet<string>) {
   const categories: string[] = []
   const types = [...item.args, item.result]
   if (item.kind === 'aggregate' || item.kind === 'window') categories.push(item.kind)
   if (item.returnsSet) categories.push('set-returning')
+  if (rangeValueRequirements(item)) categories.push('aggregate-execution-context')
   if (types.some((type) => ['pg_catalog.internal', 'pg_catalog.cstring'].includes(type)))
     categories.push('internal-interface')
   if (item.volatility === 's') categories.push('session-or-database-state')

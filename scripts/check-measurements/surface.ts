@@ -17,6 +17,7 @@ import {
   jsonValueRequirements,
   hashValueRequirements,
   characterValueRequirements,
+  rangeValueRequirements,
 } from './catalog.js'
 import { bindProbe, inspectExpression, quote, valueRepresentation } from './probes.js'
 import { loadWorldCatalog, verifyWorldDigest, worldSourceDigest, writeReport } from './worlds.js'
@@ -103,6 +104,7 @@ export async function measureSurface(pg: PGlite) {
       implementationPresent:
         implementation.kind === 'function' && available.has(implementation.rustName),
       valueRequirements:
+        rangeValueRequirements(implementation) ??
         hashValueRequirements(implementation) ??
         characterValueRequirements(implementation) ??
         jsonValueRequirements(implementation) ??
