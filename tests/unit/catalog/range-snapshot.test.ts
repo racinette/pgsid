@@ -240,10 +240,20 @@ it('compares profiles and quoted type identities across independent catalog OIDs
     'subtypeSend',
     'subtypeHash',
     'subtypeHashExtended',
+    'jsonCast',
+    'multirangeJsonCast',
   ] as const) {
     const changed = structuredClone(snapshots[0]!)
     const range = changed.rangeTypes.find((r) => r.name === 'Continuous')!
     range[field] = 'new captured support'
+    expect(diffCatalogs(snapshots[0]!, changed).modified.map((item) => item.entityId)).toEqual([
+      'Range.Types.Continuous',
+      'public.Continuous Set',
+    ])
+  }
+  for (const field of ['jsonConversion', 'multirangeJsonConversion'] as const) {
+    const changed = structuredClone(snapshots[0]!)
+    changed.rangeTypes.find((r) => r.name === 'Continuous')![field] = 'cast'
     expect(diffCatalogs(snapshots[0]!, changed).modified.map((item) => item.entityId)).toEqual([
       'Range.Types.Continuous',
       'public.Continuous Set',

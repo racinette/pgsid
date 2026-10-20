@@ -16603,6 +16603,41 @@ func JsonbInputFromMultirange(input checkruntime.MultirangeValue) checkruntime.J
 	text := MultirangeToText(input)
 	return checkruntime.JsonbInputFromText(text)
 }
+func jsonbDeferredRangeInput(nullness checkruntime.BoolValue, category int, key bool) checkruntime.JsonbInput {
+	category = langruntime.CheckedI32(category)
+	if nullness.Kind == checkruntime.BoolValueError {
+		error := nullness.Error
+		return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputError, Error: error}
+	}
+	if nullness.Kind == checkruntime.BoolValueValue {
+		value := nullness.Value
+		if value {
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputNull}
+		}
+		if category == 2 && key {
+			return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputConvertedError, ConvertedError: checkruntime.MakeSqlError(jsonbBuildParameter)}
+		}
+	}
+	return checkruntime.JsonbInput{Kind: checkruntime.JsonbInputUnknown}
+}
+func JsonbRangeInputCategory(input checkruntime.RangeValue, category int, key bool) checkruntime.JsonbInput {
+	input = checkruntime.CopyRangeValue(input)
+	category = langruntime.CheckedI32(category)
+	if category == 1 {
+		return JsonbInputFromRange(input)
+	}
+	nullness := checkruntime.RangeIsNull(input)
+	return jsonbDeferredRangeInput(nullness, category, key)
+}
+func JsonbMultirangeInputCategory(input checkruntime.MultirangeValue, category int, key bool) checkruntime.JsonbInput {
+	input = checkruntime.CopyMultirangeValue(input)
+	category = langruntime.CheckedI32(category)
+	if category == 1 {
+		return JsonbInputFromMultirange(input)
+	}
+	nullness := checkruntime.MultirangeIsNull(input)
+	return jsonbDeferredRangeInput(nullness, category, key)
+}
 
 type jsonbRelationFrame struct {
 	left       int

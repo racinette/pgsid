@@ -30,6 +30,9 @@ CREATE TABLE custom_payloads(v saved_custom_span,w "Custom.Range".integer_span,m
  CONSTRAINT constructed_empty CHECK(isempty("Custom.Range".integer_set())),
  CONSTRAINT rendered_range CHECK(v::text COLLATE "C"='[1,2]' COLLATE "C"),
  CONSTRAINT rendered_multirange CHECK(m::text COLLATE "C"='{[1,2]}' COLLATE "C"),
+ CONSTRAINT json_range CHECK(to_jsonb(v)::text COLLATE "C"='"[1,2]"' COLLATE "C"),
+ CONSTRAINT json_multirange CHECK(to_json(m)::text COLLATE "C"='"{[1,2]}"' COLLATE "C"),
+ CONSTRAINT json_domain CHECK(to_jsonb(p)::text COLLATE "C"='"[1,2]"' COLLATE "C"),
  CONSTRAINT rendered_domain CHECK(p::text COLLATE "C"='[1,2]' COLLATE "C"));
 CREATE TABLE custom_callbacks(v "Custom.Range".reverse_span,w "Custom.Range".reverse_span,e int4,bypass bool,
  CONSTRAINT bound CHECK(lower(v)=e),CONSTRAINT ordered CHECK(v<w),CONSTRAINT guarded CHECK(CASE WHEN bypass THEN true ELSE v<w END),
@@ -49,10 +52,13 @@ CREATE TABLE custom_array_payloads(windows custom_windows,typed custom_array_cel
  CONSTRAINT typed_cell CHECK(CASE WHEN bypass THEN true ELSE typed[1] IS NOT DISTINCT FROM head END),
  CONSTRAINT history CHECK(CASE WHEN bypass THEN true ELSE (histories[1])[1] IS NOT DISTINCT FROM head END),
  CONSTRAINT sorted CHECK(CASE WHEN bypass THEN true ELSE array_sort(windows)=windows END),
+ CONSTRAINT json_windows CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(windows)::text COLLATE "C"='["[1,2]", "[1,2]", "[3,4]"]' COLLATE "C" END),
+ CONSTRAINT json_history CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(histories)::text COLLATE "C"='[["[1,2]", "[1,2]", "[3,4]"]]' COLLATE "C" END),
  CONSTRAINT packed CHECK(CASE WHEN bypass THEN true ELSE "Custom.Range".integer_set(VARIADIC windows) IS NOT DISTINCT FROM expected_pack END));
 CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,bypass bool,
  CONSTRAINT counted CHECK(CASE WHEN bypass THEN true ELSE cardinality(windows)=3 END),
  CONSTRAINT fetched CHECK(CASE WHEN bypass THEN true ELSE windows[1] IS NOT DISTINCT FROM head END),
+ CONSTRAINT json_sets CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(windows)::text COLLATE "C"='["{[1,2]}", "{[1,2]}", "{[3,4]}"]' COLLATE "C" END),
  CONSTRAINT sorted CHECK(CASE WHEN bypass THEN true ELSE array_sort(windows)=windows END));`
   try {
     await pg.exec(schema)
@@ -64,6 +70,7 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
       {
         enums: catalog.enums,
         rangeTypes: catalog.rangeTypes,
+        executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' },
       },
     )
     const shifted = await PGlite.create()
@@ -81,6 +88,7 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
         {
           enums: other.enums,
           rangeTypes: other.rangeTypes,
+          executionContext: { defaultCollation: 'C', serverEncoding: 'UTF8' },
         },
       )
       expect(alternate).toEqual(ts)
@@ -90,7 +98,7 @@ CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,
     const go = renderGoSchemaArtifacts(
       catalog,
       parseConfigString(
-        'schema: schema.sql\nsql:\n  codegen:\n    go:\n      schema: {outDir: schema}\n',
+        'schema: schema.sql\nsql:\n  codegen:\n    checks: {defaultCollation: C, serverEncoding: UTF8}\n    go:\n      schema: {outDir: schema}\n',
       ),
       {},
       join(root, 'schema'),

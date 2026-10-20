@@ -2318,3 +2318,35 @@ CREATE TABLE lane_window_fingerprints (
   CONSTRAINT retained_window_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array(retained_windows) IS NULL END),
   CONSTRAINT retained_window_seeded_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array_extended(retained_windows,hash_seed) IS NULL END)
 );
+
+CREATE TABLE lane_window_documents (
+  window_value lane_retained_window,
+  windows lane_position_window[],
+  histories lane_flexible_window_list[],
+  expected_window text,
+  expected_windows text,
+  expected_histories text,
+  bypass boolean,
+  CONSTRAINT window_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(window_value)::text COLLATE "C" IS NOT DISTINCT FROM expected_window COLLATE "C" END),
+  CONSTRAINT window_array_document CHECK(CASE WHEN bypass THEN true ELSE array_to_json(windows)::text COLLATE "C" IS NOT DISTINCT FROM expected_windows COLLATE "C" END),
+  CONSTRAINT window_history_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(histories)::text COLLATE "C" IS NOT DISTINCT FROM expected_histories COLLATE "C" END)
+);
+CREATE TABLE lane_segment_documents (
+  segment_values lane_position_segments,
+  segment_batches lane_position_segments[],
+  expected_segments text,
+  expected_batches text,
+  bypass boolean,
+  CONSTRAINT segment_document CHECK(CASE WHEN bypass THEN true ELSE to_json(segment_values)::text COLLATE "C" IS NOT DISTINCT FROM expected_segments COLLATE "C" END),
+  CONSTRAINT segment_array_document CHECK(CASE WHEN bypass THEN true ELSE to_jsonb(segment_batches)::text COLLATE "C" IS NOT DISTINCT FROM expected_batches COLLATE "C" END)
+);
+CREATE TABLE lane_window_document_keys (
+  window_value lane_position_window,
+  windows lane_position_window[],
+  expected_document text,
+  expected_flattened text,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT window_document_key CHECK(CASE WHEN bypass THEN true ELSE jsonb_build_object(window_value,1/divisor)::text COLLATE "C" IS NOT DISTINCT FROM expected_document COLLATE "C" END),
+  CONSTRAINT window_variadic_keys CHECK(CASE WHEN bypass THEN true ELSE json_build_object(VARIADIC windows)::text COLLATE "C" IS NOT DISTINCT FROM expected_flattened COLLATE "C" END)
+);

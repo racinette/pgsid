@@ -67,7 +67,10 @@ const nullableTextFields = [
   'multirangeComparator',
   'multirangeHash',
   'multirangeHashExtended',
+  'jsonCast',
+  'multirangeJsonCast',
 ] as const
+const jsonCategoryFields = ['jsonConversion', 'multirangeJsonConversion'] as const
 const nullableFlags = [
   'collationDeterministic',
   'collationIsC',
@@ -86,12 +89,24 @@ function capturedDefinition(type: string): (RangeTypeInfo & { elementType: Range
     const value: unknown = JSON.parse(type.slice(prefix))
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null
     const data = value as Record<string, unknown>
-    const keys = ['elementType', ...textFields, ...nullableTextFields, ...nullableFlags]
+    const keys = [
+      'elementType',
+      ...textFields,
+      ...nullableTextFields,
+      ...nullableFlags,
+      ...jsonCategoryFields,
+    ]
     if (Object.keys(data).length !== keys.length || keys.some((key) => !Object.hasOwn(data, key)))
       return null
     if (textFields.some((key) => !validText(data[key]))) return null
     if (nullableTextFields.some((key) => data[key] !== null && !validText(data[key]))) return null
     if (nullableFlags.some((key) => data[key] !== null && typeof data[key] !== 'boolean'))
+      return null
+    if (
+      jsonCategoryFields.some(
+        (key) => data[key] !== null && data[key] !== 'output' && data[key] !== 'cast',
+      )
+    )
       return null
     if (
       typeof data['elementType'] !== 'string' ||
@@ -115,7 +130,7 @@ export function capturedRangeType(
 ): CapturedRangeType | null {
   if (!Object.hasOwn(subtypeKinds, elementType)) return null
   const fields: Record<string, unknown> = { elementType }
-  for (const key of [...textFields, ...nullableTextFields, ...nullableFlags])
+  for (const key of [...textFields, ...nullableTextFields, ...nullableFlags, ...jsonCategoryFields])
     fields[key] = profile[key]
   const result: CapturedRangeType = `range:${JSON.stringify(fields)}`
   return capturedDefinition(result) ? result : null
@@ -158,6 +173,10 @@ function builtinProfile(profile: RangeTypeMetadata): RangeProfile {
     subtypeHashEqualityCompatible: true,
     rangeHashEqualityCompatible: true,
     multirangeHashEqualityCompatible: true,
+    jsonConversion: 'output',
+    multirangeJsonConversion: 'output',
+    jsonCast: null,
+    multirangeJsonCast: null,
     elementType: profile.subtype as RangeSubtype,
     rangeType: profile.identity as BuiltinRangeType,
     multirangeType: profile.multirange as BuiltinMultirangeType,

@@ -407,3 +407,94 @@ CREATE TABLE "Types.A".arrays(value "Types.A".list_alias,typed "Types.A".nested[
     await second.close()
   }
 }, 30_000)
+
+it('captures JSON function casts independently for ranges and multiranges while ignoring JSONB-only and I/O casts', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE SCHEMA "Json.Types";
+      CREATE TYPE "Json.Types".plain AS RANGE(subtype=int4,multirange_type_name=plain_set);
+      CREATE TYPE "Json.Types".converted AS RANGE(subtype=int4,multirange_type_name=converted_set);
+      CREATE FUNCTION "Json.Types".convert("Json.Types".converted) RETURNS json LANGUAGE SQL IMMUTABLE AS $$SELECT '{"range":true}'::json$$;
+      CREATE FUNCTION "Json.Types".convert(public.converted_set) RETURNS json LANGUAGE SQL IMMUTABLE AS $$SELECT '{"multi":true}'::json$$;
+      CREATE CAST("Json.Types".converted AS json) WITH FUNCTION "Json.Types".convert("Json.Types".converted);
+      CREATE CAST(public.converted_set AS json) WITH FUNCTION "Json.Types".convert(public.converted_set);
+      CREATE TYPE "Json.Types".binary_only AS RANGE(subtype=int4);
+      CREATE FUNCTION "Json.Types".binary_json("Json.Types".binary_only) RETURNS jsonb LANGUAGE SQL IMMUTABLE AS $$SELECT '{"binary":true}'::jsonb$$;
+      CREATE CAST("Json.Types".binary_only AS jsonb) WITH FUNCTION "Json.Types".binary_json("Json.Types".binary_only);
+      CREATE TYPE "Json.Types".io_only AS RANGE(subtype=int4);
+      CREATE CAST("Json.Types".io_only AS json) WITH INOUT;`)
+    const catalog = await snapshotCatalog(pg)
+    for (const name of ['plain', 'binary_only', 'io_only']) {
+      const profile = catalog.rangeTypes.find((profile) => profile.name === name)!
+      expect(profile).toMatchObject({
+        jsonConversion: 'output',
+        multirangeJsonConversion: 'output',
+        jsonCast: null,
+        multirangeJsonCast: null,
+      })
+      expect(
+        (
+          await pg.query<{ value: string }>(
+            `SELECT to_jsonb('[1,3)'::"Json.Types".${name})::text value`,
+          )
+        ).rows[0]!.value,
+      ).toBe('"[1,3)"')
+    }
+    const profile = catalog.rangeTypes.find((profile) => profile.name === 'converted')!
+    expect(profile).toMatchObject({
+      jsonConversion: 'cast',
+      multirangeJsonConversion: 'cast',
+      jsonCast: 'function:["Json.Types","convert"]("Json.Types".converted)',
+      multirangeJsonCast: 'function:["Json.Types","convert"](public.converted_set)',
+    })
+    await pg.exec('DROP CAST(public.converted_set AS json)')
+    const rangeOnly = (await snapshotCatalog(pg)).rangeTypes.find(
+      (profile) => profile.name === 'converted',
+    )!
+    expect(rangeOnly).toMatchObject({
+      jsonConversion: 'cast',
+      multirangeJsonConversion: 'output',
+      multirangeJsonCast: null,
+    })
+    await pg.exec(`DROP CAST("Json.Types".converted AS json);
+      CREATE CAST(public.converted_set AS json) WITH FUNCTION "Json.Types".convert(public.converted_set);`)
+    const multiOnly = (await snapshotCatalog(pg)).rangeTypes.find(
+      (profile) => profile.name === 'converted',
+    )!
+    expect(multiOnly).toMatchObject({
+      jsonConversion: 'output',
+      jsonCast: null,
+      multirangeJsonConversion: 'cast',
+    })
+    await pg.exec(
+      'CREATE CAST("Json.Types".converted AS json) WITH FUNCTION "Json.Types".convert("Json.Types".converted)',
+    )
+    const encoded = capturedRangeType(profile, 'pg_catalog.int4')!
+    expect(rangeTypeProfile(encoded)).toMatchObject({
+      jsonConversion: 'cast',
+      multirangeJsonConversion: 'cast',
+      jsonCast: profile.jsonCast,
+      multirangeJsonCast: profile.multirangeJsonCast,
+    })
+    for (const category of ['label', true, {}, '']) {
+      const data = JSON.parse(encoded.slice(6)) as Record<string, unknown>
+      data['jsonConversion'] = category
+      expect(rangeTypeProfile('range:' + JSON.stringify(data))).toBeNull()
+    }
+    for (const type of ['"Json.Types".converted', 'public.converted_set']) {
+      const text = type.startsWith('public.') ? '{[1,3)}' : '[1,3)'
+      const reference = type.startsWith('public.') ? '{"multi":true}' : '{"range":true}'
+      for (const fn of ['to_json', 'to_jsonb'])
+        expect(
+          (
+            await pg.query<{ value: boolean }>(`SELECT ${fn}($1::${type})::jsonb=$2::jsonb value`, [
+              text,
+              reference,
+            ])
+          ).rows[0]!.value,
+        ).toBe(true)
+    }
+  } finally {
+    await pg.close()
+  }
+}, 30_000)

@@ -16682,6 +16682,44 @@ export function jsonbInputFromMultirange(input: checkruntime.MultirangeValue): c
     const text: checkruntime.TextValue = multirangeToText(input);
     return checkruntime.jsonbInputFromText(text);
 }
+function jsonbDeferredRangeInput(nullness: checkruntime.BoolValue, category: number, key: boolean): checkruntime.JsonbInput {
+    category = langruntime.checkedI32(category);
+    key = langruntime.checkedBool(key);
+    if (nullness.kind === "Error") {
+        const error: checkruntime.SqlError = nullness.value;
+        return { kind: "Error", value: error };
+    }
+    if (nullness.kind === "Value") {
+        const value: boolean = langruntime.checkedBool(nullness.value);
+        if (value) {
+            return { kind: "Null" };
+        }
+        if (category === 2 && key) {
+            return { kind: "ConvertedError", value: checkruntime.makeSqlError(jsonbBuildParameter) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function jsonbRangeInputCategory(input: checkruntime.RangeValue, category: number, key: boolean): checkruntime.JsonbInput {
+    input = checkruntime.copyRangeValue(input);
+    category = langruntime.checkedI32(category);
+    key = langruntime.checkedBool(key);
+    if (category === 1) {
+        return jsonbInputFromRange(input);
+    }
+    const nullness: checkruntime.BoolValue = checkruntime.rangeIsNull(input);
+    return jsonbDeferredRangeInput(nullness, category, key);
+}
+export function jsonbMultirangeInputCategory(input: checkruntime.MultirangeValue, category: number, key: boolean): checkruntime.JsonbInput {
+    input = checkruntime.copyMultirangeValue(input);
+    category = langruntime.checkedI32(category);
+    key = langruntime.checkedBool(key);
+    if (category === 1) {
+        return jsonbInputFromMultirange(input);
+    }
+    const nullness: checkruntime.BoolValue = checkruntime.multirangeIsNull(input);
+    return jsonbDeferredRangeInput(nullness, category, key);
+}
 interface JsonbRelationFrame {
     left: number;
     right: number;
