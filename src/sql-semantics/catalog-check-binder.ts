@@ -1499,7 +1499,12 @@ const comparisonCandidate = (
     multirangeTypes.length && multirangeTypes.every((type) => type === multirangeTypes[0])
       ? multirangeTypes[0]!
       : null
-  const rangeTypes = types.filter(isRangeType)
+  const rangeTypes = [
+    ...types.filter(isRangeType),
+    ...(multirangeIdentity
+      ? [builtinMultirangeType(multirangeIdentity)!.identity as RangeType]
+      : []),
+  ]
   const rangeIdentity =
     rangeTypes.length && rangeTypes.every((type) => type === rangeTypes[0]) ? rangeTypes[0]! : null
   const concrete = (type: string): string | null =>
@@ -1509,9 +1514,11 @@ const comparisonCandidate = (
         ? arrayIdentity
         : type === 'pg_catalog.anymultirange'
           ? multirangeIdentity
-          : type === 'pg_catalog.anyrange'
-            ? rangeIdentity
-            : (catalogScalarType(type) ?? type)
+          : type === 'pg_catalog.anyelement' && multirangeIdentity
+            ? builtinMultirangeType(multirangeIdentity)!.subtype
+            : type === 'pg_catalog.anyrange'
+              ? rangeIdentity
+              : (catalogScalarType(type) ?? type)
   const viable = callables.filter(
     ({ item }) =>
       item.kind === kind &&
@@ -1523,6 +1530,13 @@ const comparisonCandidate = (
         const target = concrete(type)
         const source = types[index]!
         if (!target || (type === 'pg_catalog.anyenum' && args[index]!.enumDomain !== undefined))
+          return false
+        if (
+          type === 'pg_catalog.anyelement' &&
+          multirangeIdentity &&
+          source !== null &&
+          source !== target
+        )
           return false
         return (
           source === null ||
@@ -2132,6 +2146,7 @@ export function bindCatalogCheck(
         'pg_catalog.anyenum',
         'pg_catalog.anyarray',
         'pg_catalog.anyrange',
+        'pg_catalog.anymultirange',
       ].includes(resolved.item.args[0]!)
         ? type
         : resolved.item.args[0]!
@@ -4336,7 +4351,9 @@ export function bindCatalogCheck(
         const type =
           resolved.item.args[0] === 'pg_catalog.anyenum'
             ? resolved.enum && enumType(resolved.enum)
-            : ['pg_catalog.anyarray', 'pg_catalog.anyrange'].includes(resolved.item.args[0]!)
+            : ['pg_catalog.anyarray', 'pg_catalog.anyrange', 'pg_catalog.anymultirange'].includes(
+                  resolved.item.args[0]!,
+                )
               ? resolved.operands[0]!.kind === 'certain'
                 ? resolved.operands[0]!.expression.type
                 : resolved.operands[0]!.kind === 'call'
