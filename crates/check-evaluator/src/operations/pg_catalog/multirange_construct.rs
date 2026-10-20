@@ -352,13 +352,29 @@ fn multirange_construct_empty(
     element_type: &str,
     element_kind: i32,
 ) -> MultirangeValue {
+    multirange_construct_empty_with_support(
+        type_name,
+        range_type,
+        element_type,
+        element_kind,
+        range_builtin_support(range_type, element_type, element_kind),
+    )
+}
+
+pub fn multirange_construct_empty_with_support(
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    support: RangeSupport,
+) -> MultirangeValue {
     let ranges: Vec<RangeValue> = Vec::new();
     make_coerced_multirange_value(MultirangePayload {
         type_name: type_name.to_owned(),
         range_type: range_type.to_owned(),
         element_type: element_type.to_owned(),
         element_kind: element_kind,
-        support: range_builtin_support(range_type, element_type, element_kind),
+        support,
         ranges: ranges,
     })
 }
@@ -405,6 +421,36 @@ fn multirange_construct_array(
     element_type: &str,
     element_kind: i32,
 ) -> MultirangeValue {
+    multirange_construct_array_with_support(
+        input,
+        type_name,
+        range_type,
+        element_type,
+        element_kind,
+        range_builtin_support(range_type, element_type, element_kind),
+    )
+}
+
+pub fn multirange_construct_single_with_support(
+    input: RangeValue,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    support: RangeSupport,
+) -> MultirangeValue {
+    let typed = range_require_support(input, support);
+    multirange_construct_single(typed, type_name, range_type, element_type, element_kind)
+}
+
+pub fn multirange_construct_array_with_support(
+    input: ArrayValue,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    support: RangeSupport,
+) -> MultirangeValue {
     if let ArrayValue::Error(error) = input {
         return MultirangeValue::Error(error);
     };
@@ -443,6 +489,7 @@ fn multirange_construct_array(
                     element_type,
                     element_kind,
                 );
+                typed = range_require_support(typed, support);
                 if let RangeValue::Value(span) = typed {
                     typed = make_coerced_range_value(span);
                 };
@@ -464,7 +511,7 @@ fn multirange_construct_array(
             range_type: range_type.to_owned(),
             element_type: element_type.to_owned(),
             element_kind: element_kind,
-            support: range_builtin_support(range_type, element_type, element_kind),
+            support,
             ranges: ranges,
         });
     };

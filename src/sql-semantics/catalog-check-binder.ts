@@ -6,11 +6,17 @@ import {
   type RangeProfile,
 } from './range-profiles.js'
 import { alignStoredDomainCoercions } from './stored-coercions.js'
+import {
+  rangeConstructorImplementation,
+  rangeCallTypeKey,
+  resolveRangeCall,
+} from './range-callables.js'
 import { parseSync } from 'libpg-query'
 import type {
   ColumnInfo,
   DomainInfo,
   RangeTypeInfo,
+  RangeCallInfo,
   EnumInfo,
   StoredDomainCoercionContext,
 } from '../catalog/types.js'
@@ -4519,6 +4525,14 @@ export function bindCatalogCheck(
     const call = fields(wrapper['FuncCall'])
     if (call) {
       const names = strings(call['funcname'])
+      if (names?.length === 2 && Array.isArray(call['args'] ?? [])) {
+        const captured = bindRangeCall(
+          names,
+          (call['args'] ?? []) as unknown[],
+          call['func_variadic'] === true,
+        )
+        if (captured) return captured
+      }
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
       const name = names?.at(-1)
       const args = call['args'] ?? []
@@ -4561,6 +4575,118 @@ export function bindCatalogCheck(
       }
     }
     return unknown
+  }
+  const bindRangeCall = (
+    names: readonly string[],
+    nodes: readonly unknown[],
+    explicitVariadic: boolean,
+  ): Bound | null => {
+    const candidates = new Map<string, RangeCallInfo>()
+    for (const profile of rangeTypes)
+      for (const callable of profile.callables ?? [])
+        if (callable.schema === names[0] && callable.name === names[1])
+          candidates.set(JSON.stringify([callable.schema, callable.name, callable.args]), callable)
+    const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
+    const sqlName = names.map(quote).join('.')
+    const castType = catalogBaseScalarType(sqlName, undefined, domains, rangeTypes)
+    if (!candidates.size && !isRangeType(castType) && !isMultirangeType(castType)) return null
+    if (!rangeTypes.some((p) => p.callables !== undefined)) return unknown
+    const actualNodes = nodes.map((node) => fields(fields(node)?.['NamedArgExpr'])?.['arg'] ?? node)
+    const args = actualNodes.map((node) => bind(node))
+    if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+    const rawType = (type: string): string => {
+      const domain = domainElementDefinition(type)
+      if (domain) return [domain.schema, domain.name].map(quote).join('.')
+      if (type.startsWith('array:')) return 'array:' + rawType(type.slice(6))
+      const range = rangeTypeProfile(type),
+        multi = multirangeTypeProfile(type)
+      if (range) return range.identity
+      if (multi) return multi.multirange
+      if (type.startsWith('enum:'))
+        return (JSON.parse(type.slice(5)) as string[]).map(quote).join('.')
+      return type
+    }
+    const castBase = castType ? rawType(castType) : null
+    const selection = resolveRangeCall(
+      [...candidates.values()],
+      args.map((arg, i) => {
+        const type = boundType(arg),
+          nominal = nominalScalarType(arg)
+        const named = fields(fields(nodes[i])?.['NamedArgExpr'])?.['name']
+        return {
+          type: nominal ? rawType(nominal) : type ? rawType(type) : null,
+          base: type ? rawType(type) : null,
+          ...(typeof named === 'string' ? { name: named } : {}),
+        }
+      }),
+      explicitVariadic,
+      castBase && (isRangeType(castType) || isMultirangeType(castType))
+        ? { type: sqlName, base: castBase }
+        : null,
+      rangeTypes.find((p) => p.callResolution)?.callResolution,
+    )
+    if (selection.kind === 'cast')
+      return bind({
+        TypeCast: {
+          arg: actualNodes[0],
+          typeName: { names: names.map((sval) => ({ String: { sval } })) },
+        },
+      })
+    if (selection.kind !== 'call') return unknown
+    const callable = selection.callable,
+      profile = rangeTypes.find(
+        (p) => p.identity === callable.result || p.multirange === callable.result,
+      )
+    const type = catalogBaseScalarType(callable.result, undefined, domains, rangeTypes)
+    const unavailable: Bound = unknown
+    const implementation = profile ? rangeConstructorImplementation(profile, callable) : null
+    if (!implementation || !type || (!isRangeType(type) && !isMultirangeType(type)))
+      return unavailable
+    if (selection.order.some((i) => i < 0)) return unavailable
+    if (implementation === 'multirange_constructor2' && !selection.expanded) {
+      const array = args[selection.order[0]!]!.value,
+        profile = multirangeTypeProfile(type)
+      if (
+        array?.kind === 'array-constructor' &&
+        !array.multidimensional &&
+        array.elementType === profile?.rangeType
+      )
+        return {
+          type,
+          value: {
+            kind: 'captured-range-call',
+            type,
+            callable,
+            operands: array.operands,
+            expanded: true,
+          },
+        }
+    }
+    const operands = selection.order.map((index, position) => {
+      const target = selection.targets[position]!
+      const domain = domains.find(
+        (d) =>
+          rangeCallTypeKey([d.schema, d.name].map(quote).join('.')) === rangeCallTypeKey(target),
+      )
+      const carrier = catalogBaseScalarType(target, domain?.oid, domains, rangeTypes)
+      const scalar =
+        domain && carrier
+          ? domainElementType(domain, carrier as Exclude<ScalarType, `domain:${string}`>)
+          : carrier
+      return scalar ? coerceBound(args[index]!, scalar, actualNodes[index]) : null
+    })
+    if (!operands.every((operand): operand is EvalExpression => operand !== null))
+      return unavailable
+    return {
+      type,
+      value: {
+        kind: 'captured-range-call',
+        type,
+        callable,
+        operands,
+        expanded: selection.expanded,
+      },
+    }
   }
   const bindCall = (
     kind: 'operator' | 'function',

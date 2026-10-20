@@ -24,6 +24,10 @@ CREATE DOMAIN saved_custom_span AS "Custom.Range".integer_span;
 CREATE TABLE custom_payloads(v saved_custom_span,w "Custom.Range".integer_span,m integer_set,n integer_set,p "Custom.Range".positive_span,e "Custom.Range".positive,
  CONSTRAINT bound CHECK(lower(v)=e),CONSTRAINT adjacent CHECK(NOT(v -|- w)),
  CONSTRAINT multi CHECK(NOT(m -|- n)),CONSTRAINT nominal_element CHECK(p @> e),
+ CONSTRAINT constructed_range CHECK("Custom.Range".integer_span(e,upper(v),'[]')=v),
+ CONSTRAINT constructed_single CHECK("Custom.Range".integer_set(v)=m),
+ CONSTRAINT constructed_many CHECK("Custom.Range".integer_set(v,v)=m),
+ CONSTRAINT constructed_empty CHECK(isempty("Custom.Range".integer_set())),
  CONSTRAINT rendered_range CHECK(v::text COLLATE "C"='[1,2]' COLLATE "C"),
  CONSTRAINT rendered_multirange CHECK(m::text COLLATE "C"='{[1,2]}' COLLATE "C"),
  CONSTRAINT rendered_domain CHECK(p::text COLLATE "C"='[1,2]' COLLATE "C"));
@@ -32,9 +36,11 @@ CREATE TABLE custom_callbacks(v "Custom.Range".reverse_span,w "Custom.Range".rev
  CONSTRAINT rendered CHECK(v::text COLLATE "C"='[4,1]' COLLATE "C"));
 CREATE TABLE custom_hulls(m opaque_set,CONSTRAINT hull CHECK(isempty(range_merge(m))));
 CREATE TABLE custom_imports(payload text,expected "Custom.Range".integer_span,bypass bool,
- CONSTRAINT parsed CHECK(CASE WHEN bypass THEN true ELSE payload::"Custom.Range".integer_span IS NOT DISTINCT FROM expected END));
+ CONSTRAINT parsed CHECK(CASE WHEN bypass THEN true ELSE payload::"Custom.Range".integer_span IS NOT DISTINCT FROM expected END),
+ CONSTRAINT called CHECK(CASE WHEN bypass THEN true ELSE "Custom.Range".integer_span(payload) IS NOT DISTINCT FROM expected END));
 CREATE TABLE custom_multi_imports(payload text,expected integer_set,bypass bool,
- CONSTRAINT parsed CHECK(CASE WHEN bypass THEN true ELSE payload::integer_set IS NOT DISTINCT FROM expected END));`
+ CONSTRAINT parsed CHECK(CASE WHEN bypass THEN true ELSE payload::integer_set IS NOT DISTINCT FROM expected END),
+ CONSTRAINT called CHECK(CASE WHEN bypass THEN true ELSE public.integer_set(payload) IS NOT DISTINCT FROM expected END));`
   try {
     await pg.exec(schema)
     const catalog = await snapshotCatalog(pg)

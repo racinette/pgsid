@@ -5905,3 +5905,135 @@ VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,true,false);
 -- name: flexible_multi_import_omitted_bounds
 INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
 VALUES('{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}',1,false,false);
+
+-- name: built_windows_valid
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass)
+VALUES(1,3,'[]','[1,3]','[1,3)',false);
+
+-- name: built_windows_wrong_flags_result
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass)
+VALUES(1,3,'[]','[1,3)','[1,3)',false);
+
+-- name: built_windows_wrong_default_result
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass)
+VALUES(1,3,'[]','[1,3]','[1,3]',false);
+
+-- name: built_windows_invalid_flags
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass)
+VALUES(1,3,'invalid','[1,3]','[1,3)',false);
+
+-- name: built_windows_null_flags
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass)
+VALUES(1,3,NULL,'[1,3]','[1,3)',false);
+
+-- name: built_windows_reversed
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass)
+VALUES(3,1,'[]','empty','empty',false);
+
+-- name: built_windows_empty
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass)
+VALUES(1,1,'()','empty','empty',false);
+
+-- name: built_windows_lower_omitted
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass)
+VALUES(NULL,3,'[]','(,3]','(,3)',false);
+
+-- name: built_windows_unbounded
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass)
+VALUES(NULL,NULL,'[]','(,)','(,)',false);
+
+-- name: built_windows_skipped
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass)
+VALUES(3,1,'invalid',NULL,NULL,true);
+
+-- name: built_prices_rounded
+INSERT INTO lane_built_prices(lower_price,upper_price,expected_window,expected_label,bypass)
+VALUES(1.235,3.456,'[1.24,3.46)','[1.24,3.46)',false);
+
+-- name: built_prices_wrong_window
+INSERT INTO lane_built_prices(lower_price,upper_price,expected_window,expected_label,bypass)
+VALUES(1.235,3.456,'empty','[1.24,3.46)',false);
+
+-- name: built_prices_wrong_scale
+INSERT INTO lane_built_prices(lower_price,upper_price,expected_window,expected_label,bypass)
+VALUES(1.235,3.456,'[1.24,3.46)','[1.240,3.460)',false);
+
+-- name: built_prices_domain_violation
+INSERT INTO lane_built_prices(lower_price,upper_price,expected_window,expected_label,bypass)
+VALUES(-1,3,'empty','empty',false);
+
+-- name: built_prices_precision_overflow
+INSERT INTO lane_built_prices(lower_price,upper_price,expected_window,expected_label,bypass)
+VALUES(999.995,1000,'empty','empty',false);
+
+-- name: built_prices_unbounded
+INSERT INTO lane_built_prices(lower_price,upper_price,expected_window,expected_label,bypass)
+VALUES(NULL,NULL,'(,)','(,)',false);
+
+-- name: built_prices_skipped
+INSERT INTO lane_built_prices(lower_price,upper_price,expected_window,expected_label,bypass)
+VALUES(-1,1000,NULL,NULL,true);
+
+-- name: built_segments_adjacent
+INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass)
+VALUES('[1,3)','[3,5)','{[1,3)}','{[1,5)}',false);
+
+-- name: built_segments_empty
+INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass)
+VALUES('empty','empty','{}','{}',false);
+
+-- name: built_segments_null_member
+INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass)
+VALUES(NULL,'[3,5)',NULL,NULL,false);
+
+-- name: built_segments_null_skipped
+INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass)
+VALUES(NULL,NULL,NULL,NULL,true);
+
+-- name: built_segments_empty_member
+INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass)
+VALUES('empty','[3,5)','{}','{[3,5)}',false);
+
+-- name: built_segments_disjoint
+INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass)
+VALUES('[5,7)','[1,3)','{[5,7)}','{[1,3),[5,7)}',false);
+
+-- name: built_segments_wrong_single
+INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass)
+VALUES('[1,3)','[3,5)','{}','{[1,5)}',false);
+
+-- name: built_segments_wrong_many
+INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass)
+VALUES('[1,3)','[3,5)','{[1,3)}','{}',false);
+
+-- name: built_segments_unbounded
+INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass)
+VALUES('(,)','[3,5)','{(,)}','{(,)}',false);
+
+-- name: called_imports_valid
+INSERT INTO lane_called_imports(window_text,segment_text,expected_window,expected_segments,bypass)
+VALUES('[1,3]','{[3,5),[1,3)}','[1,3]','{[1,5)}',false);
+
+-- name: called_imports_wrong_window
+INSERT INTO lane_called_imports(window_text,segment_text,expected_window,expected_segments,bypass)
+VALUES('[1,3]','{[3,5),[1,3)}','empty','{[1,5)}',false);
+
+-- name: called_imports_wrong_segments
+INSERT INTO lane_called_imports(window_text,segment_text,expected_window,expected_segments,bypass)
+VALUES('[1,3]','{[3,5),[1,3)}','[1,3]','{}',false);
+
+-- name: called_imports_bad_window
+INSERT INTO lane_called_imports(window_text,segment_text,expected_window,expected_segments,bypass)
+VALUES('[bad,3]','{[3,5)}','empty','{[3,5)}',false);
+
+-- name: called_imports_bad_segments
+INSERT INTO lane_called_imports(window_text,segment_text,expected_window,expected_segments,bypass)
+VALUES('empty','{[3,5)}junk','empty','{}',false);
+
+-- name: called_imports_nulls
+INSERT INTO lane_called_imports(window_text,segment_text,expected_window,expected_segments,bypass)
+VALUES(NULL,NULL,NULL,NULL,false);
+
+-- name: called_imports_skipped
+INSERT INTO lane_called_imports(window_text,segment_text,expected_window,expected_segments,bypass)
+VALUES('bad','bad',NULL,NULL,true);

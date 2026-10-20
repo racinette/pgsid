@@ -113,7 +113,7 @@ it('captures user range and multirange support in snapshots with selected identi
     })
     expect(
       snapshot.rangeTypes.every(
-        ({ callables, ...profile }) =>
+        ({ callables, callResolution: _resolution, ...profile }) =>
           Array.isArray(callables) &&
           Object.values(profile).every(
             (v) => v === null || typeof v === 'string' || typeof v === 'boolean',
@@ -128,7 +128,7 @@ it('captures user range and multirange support in snapshots with selected identi
       builtin.every((r) => Object.values(r).every((v) => v === null || typeof v === 'string')),
     ).toBe(true)
     expect(JSON.parse(JSON.stringify(snapshot)).rangeTypes).toEqual(snapshot.rangeTypes)
-    const { callables: _callables, ...continuousState } = continuous
+    const { callables: _callables, callResolution: _resolution, ...continuousState } = continuous
     expect(comparableStates(snapshot).get('Range.Types.Continuous')).toEqual(continuousState)
     expect(comparableStates(snapshot).get('public.Continuous Set')).toEqual({
       range: continuous.identity,
@@ -186,7 +186,22 @@ it('compares profiles and quoted type identities across independent catalog OIDs
     }
   }
   expect(oids[0]).not.toBe(oids[1])
-  expect(snapshots[0]!.rangeTypes).toEqual(snapshots[1]!.rangeTypes)
+  const stableProfiles = (snapshot: CatalogSnapshot) =>
+    snapshot.rangeTypes.map(({ callResolution: _resolution, ...profile }) => profile)
+  expect(stableProfiles(snapshots[0]!)).toEqual(stableProfiles(snapshots[1]!))
+  const firstResolution = snapshots[0]!.rangeTypes[0]!.callResolution!,
+    secondResolution = snapshots[1]!.rangeTypes[0]!.callResolution!
+  expect(secondResolution.implicitCasts).toEqual(firstResolution.implicitCasts)
+  expect(secondResolution.types.filter((t) => t.identity !== 'public.unrelated_domain')).toEqual(
+    firstResolution.types,
+  )
+  expect(secondResolution.types.find((t) => t.identity === 'public.unrelated_domain')).toEqual({
+    identity: 'public.unrelated_domain',
+    base: 'pg_catalog.text',
+    element: null,
+    category: 'S',
+    preferred: false,
+  })
   expect(diffCatalogs(snapshots[0]!, snapshots[1]!)).toEqual({
     added: [],
     removed: [],

@@ -27,6 +27,7 @@ import {
   arrayMultirangeProfile,
 } from './check-array-types.js'
 import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-names.js'
+import { rangeConstructorImplementation } from '../../sql-semantics/range-callables.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
   builtinCast,
@@ -1168,6 +1169,95 @@ export function emitCheckRustEvaluator(
       const name = fresh('value')
       bindings.push(`let ${name} = ${call};`)
       return name
+    }
+    if (node.kind === 'captured-range-call') {
+      const profile = rangeTypeProfile(node.type) ?? multirangeTypeProfile(node.type)
+      const implementation = profile ? rangeConstructorImplementation(profile, node.callable) : null
+      if (!profile?.captured || !implementation)
+        throw new UnsupportedCheckRustExpression(
+          'Custom constructor requires its selected captured implementation',
+        )
+      const operands = node.operands.map((operand) => emitScalar(operand, bindings, used))
+      const support = rangeProfileSupport(profile)
+      const compiled = bind(`make_range_support(${support.comparison},${support.canonical})`)
+      const metadata = `${rustStringLiteral(profile.multirange)},${rustStringLiteral(profile.identity)},${rustStringLiteral(profile.subtype)},${arrayElementFamily(profile.elementType)},${compiled}`
+      if (implementation === 'range_constructor2' || implementation === 'range_constructor3') {
+        const flags =
+          implementation === 'range_constructor3'
+            ? operands[2]
+            : { name: bind('make_text_value("[)")'), type: 'pg_catalog.text' }
+        if (
+          operands.length !== (implementation === 'range_constructor2' ? 2 : 3) ||
+          operands.slice(0, 2).some((operand) => operand.type !== profile.elementType) ||
+          flags?.type !== 'pg_catalog.text' ||
+          node.type !== profile.rangeType
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Custom range constructor requires its concrete coerced bounds',
+          )
+        const lower = bind(
+          `array_element_from_${rustValuePrefix(rustType(profile.elementType))}(${ownedOperand(operands[0]!)})`,
+        )
+        const upper = bind(
+          `array_element_from_${rustValuePrefix(rustType(profile.elementType))}(${ownedOperand(operands[1]!)})`,
+        )
+        return {
+          type: node.type,
+          name: bind(
+            `range_construct_with_support(${rustStringLiteral(profile.identity)},${rustStringLiteral(profile.subtype)},${arrayElementFamily(profile.elementType)},${lower},${upper},${ownedOperand(flags)},${compiled})`,
+          ),
+        }
+      }
+      if (node.type !== profile.multirangeType)
+        throw new UnsupportedCheckRustExpression(
+          'Custom multirange constructor requires its declared result',
+        )
+      if (implementation === 'multirange_constructor0' && operands.length === 0)
+        return {
+          type: node.type,
+          name: bind(`multirange_construct_empty_with_support(${metadata})`),
+        }
+      if (
+        implementation === 'multirange_constructor1' &&
+        operands.length === 1 &&
+        operands[0]!.type === profile.rangeType
+      )
+        return {
+          type: node.type,
+          name: bind(
+            `multirange_construct_single_with_support(${ownedOperand(operands[0]!)},${metadata})`,
+          ),
+        }
+      if (implementation === 'multirange_constructor2') {
+        let array: string
+        if (node.expanded) {
+          if (operands.some((operand) => operand.type !== profile.rangeType))
+            throw new UnsupportedCheckRustExpression(
+              'Custom variadic multirange requires matching range arguments',
+            )
+          const initial = bind(`make_array_arguments(${rustStringLiteral(profile.identity)},42)`),
+            builder = fresh('multirange_constructor_members')
+          bindings.push(`let mut ${builder}:ArrayArguments=${initial};`)
+          for (const operand of operands) {
+            const cell = bind(`array_element_from_range(${ownedOperand(operand)})`)
+            bindings.push(`${builder}=append_array_argument(${builder},${cell});`)
+          }
+          array = bind(`finish_array_constructor(${builder})`)
+        } else {
+          if (operands.length !== 1 || operands[0]!.type !== `array:${profile.rangeType}`)
+            throw new UnsupportedCheckRustExpression(
+              'Custom variadic multirange requires its declared range array',
+            )
+          array = ownedOperand(operands[0]!)
+        }
+        return {
+          type: node.type,
+          name: bind(`multirange_construct_array_with_support(${array},${metadata})`),
+        }
+      }
+      throw new UnsupportedCheckRustExpression(
+        'Custom constructor arguments do not match the selected declaration',
+      )
     }
     if (node.kind === 'domain-cast') {
       const array = node.type.startsWith('array:')

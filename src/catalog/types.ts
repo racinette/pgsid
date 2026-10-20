@@ -714,6 +714,17 @@ export interface RangeCallInfo {
   implementation: string | null
 }
 
+export interface RangeCallResolution {
+  types: readonly {
+    identity: string
+    base: string | null
+    element: string | null
+    category: string
+    preferred: boolean
+  }[]
+  implicitCasts: readonly { source: string; target: string; method: 'f' | 'b' | 'i' }[]
+}
+
 export interface RangeTypeInfo extends RangeTypeMetadata {
   schema: string
   name: string
@@ -729,6 +740,7 @@ export interface RangeTypeInfo extends RangeTypeMetadata {
   multirangeInput: string | null
   subtypeInput: string | null
   callables?: readonly RangeCallInfo[]
+  callResolution?: RangeCallResolution
 }
 
 export interface CatalogSnapshot {

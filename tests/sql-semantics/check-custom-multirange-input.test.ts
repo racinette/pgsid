@@ -47,6 +47,7 @@ it('binds custom multirange text input through selected scalar/domain input, ord
     const targets = profiles.flatMap((profile, family) =>
       [
         { name: 'cast', expr: `payload::${profile.multirange}` },
+        { name: 'function', expr: `${profile.multirange}(payload)` },
         { name: 'domain', expr: `payload::input_nested_${family}` },
         { name: 'checked', expr: `payload::input_checked_${family}` },
         { name: 'varchar', expr: `(payload::varchar)::${profile.multirange}` },

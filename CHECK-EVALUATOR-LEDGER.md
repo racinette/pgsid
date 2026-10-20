@@ -48,8 +48,7 @@ explicit partial-input cases in addition to database comparisons.
 
 Done per form when the binder produces a meaningful expression, production
 evaluators execute it in every target, and expression probes plus world INSERT
-cases demonstrate the supported boundary. Broader row/composite representations
-are a separate prerequisite if a row-comparison slice requires them.
+cases demonstrate the supported boundary. Broader row/composite representations are a separate prerequisite if a row-comparison slice requires them.
 
 ## Resolve uncertain corpus expressions
 
@@ -258,7 +257,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish owned range grammar plans before custom subtype input binding; retain decoded bound text, quoted-empty versus omitted bounds, complete grammar before lower/upper conversion, empty/NULL/Unknown/error states and captured support when finishing. Verify domain input order, omitted NOT NULL bounds, unavailable callbacks, snapshots and native/Rust/Go/TypeScript parity while preserving builtin parsing.
 - [x] Admit custom range/multirange text casts and eager typed literals through captured input identities and ordered scalar/domain conversion, including omission, typmods, domain preparation, member input before later syntax, final normalization, SQL errors, lazy branches and reached unavailable support. Recover stored owned literals without rechecking subtype domains, comparisons or canonicalizers; verify independent catalogs, public adapters and native/Rust/Go/TypeScript INSERT parity.
 - [x] Establish an owned multirange member cursor that converts completed members before later syntax and normalizes only after complete outer input; verify omitted subtype-domain bounds, preparation/error order, unavailable support, borrowed scans, owned snapshots and native/Rust/Go/TypeScript parity while preserving builtin parsing.
-- [ ] Complete custom constructors and casts written as function calls, remaining I/O, additional subtype backends and custom array integration; builtin operations are covered.
+- [x] Execute captured custom range/multirange constructors and type-name calls with exact/default/variadic/named overload selection and captured implicit cast eligibility; preserve subtype domains, preparation, callback requirements, actual renamed implementations, stored variadic arrays, public adapters and native/Rust/Go/TypeScript INSERT parity. Defer selected user functions, omitted default expressions and missing resolution context.
+- [ ] Complete captured constructor default expressions, remaining custom range I/O, additional subtype backends and custom array integration; builtin operations are covered.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.

@@ -82,9 +82,20 @@ export function callableIdentity(metadata: FunctionMetadata | OperatorMetadata):
   return `${metadata.kind}:${name}(${metadata.args.join(',')})`
 }
 
+async function finishCatalogReads<T extends readonly unknown[] | []>(
+  reads: T,
+): Promise<{ -readonly [K in keyof T]: Awaited<T[K]> }> {
+  try {
+    return await Promise.all(reads)
+  } catch (error) {
+    await Promise.allSettled(reads)
+    throw error
+  }
+}
+
 export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
   const [version, functions, operators, casts, types, btree, typeIO, rangeTypes] =
-    await Promise.all([
+    await finishCatalogReads([
       pg.query<{ server_version_num: string }>('SHOW server_version_num'),
       pg.query<{
         schema: string

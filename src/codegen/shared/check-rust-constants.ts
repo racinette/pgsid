@@ -361,6 +361,18 @@ function prepare(expression: EvalExpression): Preparation | null {
           : [...first.expressions, ...remaining],
     }
   }
+  if (expression.kind === 'captured-range-call') {
+    const prepared = prepareAll(expression.operands)
+    if (!prepared || expression.callable.volatility !== 'i') return null
+    const isConstant = prepared.every((operand) => operand.constant)
+    return {
+      constant: isConstant,
+      null: false,
+      expressions: isConstant
+        ? [{ kind: 'value', expression }]
+        : prepared.flatMap((operand) => operand.expressions),
+    }
+  }
   if (expression.kind !== 'call') return null
   const operands = expression.operands.map(prepare)
   if (operands.some((operand) => operand === null)) return null
