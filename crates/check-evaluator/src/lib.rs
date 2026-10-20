@@ -62,6 +62,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/boolean.rs");
     include!("operations/pg_catalog/array_metadata.rs");
     include!("operations/pg_catalog/range_metadata.rs");
+    include!("operations/pg_catalog/range_subdiff.rs");
     include!("operations/pg_catalog/multirange_metadata.rs");
     include!("operations/pg_catalog/multirange_construct.rs");
     include!("operations/pg_catalog/multirange_compare.rs");

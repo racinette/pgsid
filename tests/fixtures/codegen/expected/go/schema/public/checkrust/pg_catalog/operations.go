@@ -33230,6 +33230,76 @@ func RangeMinusF67g(left checkruntime.RangeValue, right checkruntime.RangeValue)
 	right = checkruntime.CopyRangeValue(right)
 	return rangeSet(left, right, 4)
 }
+func rangeSubdiffInteger(left checkruntime.Int8Value, right checkruntime.Int8Value, seconds bool) checkruntime.Float8Value {
+	first := integerFloat8(left)
+	second := integerFloat8(right)
+	result := Float8miR1nu(first, second)
+	if seconds {
+		return Float8divKumj(result, checkruntime.MakeFloat8Value(float64(1000000.0)))
+	}
+	return result
+}
+func rangeSubdiffDate(input checkruntime.DateValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.DateValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.DateValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(langruntime.CheckedI32(value))}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func rangeSubdiffTimestamp(input checkruntime.TimestampValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.TimestampValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.TimestampValueValue {
+		value := input.Value
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func rangeSubdiffTimestamptz(input checkruntime.TimestamptzValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.TimestamptzValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.TimestamptzValueValue {
+		value := input.Value
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Int4rangeSubdiffE24d(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.Float8Value {
+	return rangeSubdiffInteger(Int8Mzac(left), Int8Mzac(right), false)
+}
+func Int8rangeSubdiffB2ct(left checkruntime.Int8Value, right checkruntime.Int8Value) checkruntime.Float8Value {
+	return rangeSubdiffInteger(left, right, false)
+}
+func NumrangeSubdiffWqu8(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Float8Value {
+	difference := NumericSubYs09(left, right)
+	return Float8Bkfn(difference)
+}
+func DaterangeSubdiff3xcy(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.Float8Value {
+	return rangeSubdiffInteger(rangeSubdiffDate(left), rangeSubdiffDate(right), false)
+}
+func TsrangeSubdiff3mzs(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.Float8Value {
+	return rangeSubdiffInteger(rangeSubdiffTimestamp(left), rangeSubdiffTimestamp(right), true)
+}
+func TstzrangeSubdiffOyoc(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.Float8Value {
+	return rangeSubdiffInteger(rangeSubdiffTimestamptz(left), rangeSubdiffTimestamptz(right), true)
+}
 
 const scalarInputInvalid = 3484946
 const scalarInputRange = 3452547

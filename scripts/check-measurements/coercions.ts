@@ -229,6 +229,9 @@ const inputForms = [
     },
     coreOperations: {
       comparisonOwner: 'tests/sql-semantics/check-range-comparisons.test.ts',
+      subtypeDistanceOwner: 'tests/sql-semantics/check-range-subdiff.test.ts',
+      subtypeDistance:
+        'Captured scalar support; cast-before-subtraction units and exact numeric subtraction',
       setOwner: 'tests/sql-semantics/check-range-set.test.ts',
       compositionOwner: 'tests/sql-semantics/check-range-composition.test.ts',
       stateOwner: 'tests/sql-semantics/check-range-core-state.test.ts',
