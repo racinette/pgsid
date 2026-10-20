@@ -1,6 +1,6 @@
 import type { PGlite } from '@electric-sql/pglite'
 
-import type { RangeTypeMetadata, RangeTypeInfo } from '../catalog/types.js'
+import type { RangeTypeMetadata, RangeTypeInfo, RangeCallInfo } from '../catalog/types.js'
 export type { RangeTypeMetadata } from '../catalog/types.js'
 
 const typeIdentity = `SELECT quote_ident(n.nspname)||'.'||quote_ident(t.typname)
@@ -13,6 +13,61 @@ const functionIdentity = (oid: string): string => `(SELECT json_build_object(
   FROM pg_proc p JOIN pg_namespace fn ON fn.oid=p.pronamespace WHERE p.oid=${oid})`
 const signature = (fn: SelectedFunction): string | null =>
   fn ? `function:${JSON.stringify([fn.schema, fn.name])}(${fn.args.join(',')})` : null
+
+async function readRangeCallables(
+  pg: PGlite,
+  identities: readonly string[],
+): Promise<Map<string, RangeCallInfo[]>> {
+  const result = new Map<string, RangeCallInfo[]>()
+  if (!identities.length) return result
+  const rows = (
+    await pg.query<RangeCallInfo & { range: string }>(
+      `WITH RECURSIVE relatives(root,type) AS (
+         SELECT r.rngtypid,t.type FROM pg_range r
+         CROSS JOIN LATERAL (VALUES(r.rngtypid),(r.rngmultitypid)) t(type)
+         WHERE (${typeIdentity} r.rngtypid)=ANY($1::text[])
+         UNION ALL
+         SELECT r.root,d.oid FROM relatives r JOIN pg_type d ON d.typbasetype=r.type
+         WHERE d.typtype='d'
+       ), names(root,namespace,name) AS (
+         SELECT r.root,t.typnamespace,t.typname FROM relatives r JOIN pg_type t ON t.oid=r.type
+         UNION
+         SELECT r.root,p.pronamespace,p.proname FROM relatives r
+         JOIN pg_proc p ON p.prorettype=r.type
+         JOIN pg_language l ON l.oid=p.prolang
+         WHERE l.lanname='internal' AND p.prosrc IN (
+           'range_constructor2','range_constructor3',
+           'multirange_constructor0','multirange_constructor1','multirange_constructor2')
+       )
+       SELECT (${typeIdentity} candidates.root) AS range,
+         n.nspname AS schema,p.proname AS name,
+         CASE p.prokind WHEN 'f' THEN 'function' WHEN 'a' THEN 'aggregate'
+           WHEN 'w' THEN 'window' ELSE 'procedure' END AS kind,
+         ARRAY(SELECT (${typeIdentity} u.t)
+           FROM unnest(p.proargtypes) WITH ORDINALITY u(t,ord) ORDER BY u.ord) AS args,
+         ARRAY(SELECT p.proargnames[u.ord]
+           FROM unnest(coalesce(p.proallargtypes,p.proargtypes::oid[])) WITH ORDINALITY u(t,ord)
+           WHERE p.proargmodes IS NULL OR p.proargmodes[u.ord] IN ('i','b','v')
+           ORDER BY u.ord) AS "argumentNames",
+         (${typeIdentity} p.prorettype) AS result,
+         p.proisstrict AS strict,p.provolatile AS volatility,p.proretset AS "returnsSet",
+         (${typeIdentity} p.provariadic) AS variadic,p.pronargdefaults AS "numArgDefaults",
+         CASE WHEN l.lanname='internal' THEN p.prosrc ELSE NULL END AS implementation
+       FROM names candidates
+       JOIN pg_proc p ON p.pronamespace=candidates.namespace AND p.proname=candidates.name
+       JOIN pg_namespace n ON n.oid=p.pronamespace
+       JOIN pg_language l ON l.oid=p.prolang
+       ORDER BY range,n.nspname,p.proname,args,p.prokind`,
+      [identities],
+    )
+  ).rows
+  for (const { range, ...callable } of rows) {
+    const group = result.get(range) ?? []
+    group.push(callable)
+    result.set(range, group)
+  }
+  return result
+}
 
 async function readRangeTypeInfos(
   pg: PGlite,
@@ -103,6 +158,10 @@ async function readRangeTypeInfos(
       [schema, schemas],
     )
   ).rows
+  const callables = await readRangeCallables(
+    pg,
+    rows.map((row) => row.identity),
+  )
   return rows.map((row) => ({
     schema: row.schema,
     name: row.name,
@@ -136,6 +195,7 @@ async function readRangeTypeInfos(
     input: signature(row.input),
     multirangeInput: signature(row.multirange_input),
     subtypeInput: signature(row.subtype_input),
+    callables: callables.get(row.identity) ?? [],
   }))
 }
 
@@ -159,6 +219,7 @@ export async function readRangeTypes(
       input: _input,
       multirangeInput: _multirangeInput,
       subtypeInput: _subtypeInput,
+      callables: _callables,
       ...metadata
     }) => metadata,
   )
