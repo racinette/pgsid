@@ -17,6 +17,7 @@ import {
 
 export type OwnedArrayInputCell =
   | RangeInputCell
+  | { kind: 'Text'; value: string }
   | { kind: 'Range'; value: RangeInputPayload }
   | { kind: 'Multirange'; value: MultirangeInputPayload }
   | { kind: 'Array'; value: OwnedArrayInputPayload }

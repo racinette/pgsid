@@ -2,6 +2,8 @@ import type { PGlite } from '@electric-sql/pglite'
 import type { RangeType } from '../../src/sql-semantics/expressions.js'
 import type { OwnedArrayInputPayload } from '../../tools/check-rust/array-input.js'
 import { readRangeFixture } from './check-range-fixtures.js'
+import { rangeTypeProfile } from '../../src/sql-semantics/range-profiles.js'
+import { arrayElementIdentity } from '../../src/codegen/shared/check-array-types.js'
 
 export function rangeArrayText(values: readonly (string | null)[], lower = 1): string {
   const body =
@@ -21,27 +23,28 @@ export async function readRangeArrayFixture(
   text: string | null,
 ): Promise<OwnedArrayInputPayload | null> {
   if (text === null) return null
+  const identity = rangeTypeProfile(type)!.identity
   const shape = (
     await pg.query<{ lower: number; length: number }>(
-      `SELECT array_lower($1::${type}[],d) AS lower,array_length($1::${type}[],d) AS length FROM generate_series(1,array_ndims($1::${type}[])) d`,
+      `SELECT array_lower($1::${identity}[],d) AS lower,array_length($1::${identity}[],d) AS length FROM generate_series(1,array_ndims($1::${identity}[])) d`,
       [text],
     )
   ).rows
   const cells = (
     await pg.query<{ value: string | null }>(
-      `SELECT value::text FROM unnest($1::${type}[]) WITH ORDINALITY AS input(value,position) ORDER BY position`,
+      `SELECT value::text FROM unnest($1::${identity}[]) WITH ORDINALITY AS input(value,position) ORDER BY position`,
       [text],
     )
   ).rows
   const elements: OwnedArrayInputPayload['elements'] = []
   for (const cell of cells) {
-    const span = await readRangeFixture(pg, `SELECT $1::${type} AS span`, 'span', type, [
+    const span = await readRangeFixture(pg, `SELECT $1::${identity} AS span`, 'span', type, [
       cell.value,
     ])
     elements.push(span === null ? { kind: 'Null' } : { kind: 'Range', value: span })
   }
   return {
-    elementType: type,
+    elementType: arrayElementIdentity(type),
     elementKind: 42,
     dimensions: shape,
     elements,

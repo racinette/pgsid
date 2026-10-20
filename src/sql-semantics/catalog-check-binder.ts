@@ -3,6 +3,7 @@ import {
   rangeTypeProfile,
   multirangeTypeProfile,
   rangeTypeOutput,
+  rangeTypeInput,
   type RangeProfile,
 } from './range-profiles.js'
 import { alignStoredDomainCoercions } from './stored-coercions.js'
@@ -121,6 +122,7 @@ export function catalogArrayType(
   oid: number | undefined,
   domains: readonly DomainInfo[],
   enums: readonly EnumInfo[] = [],
+  rangeTypes: readonly RangeTypeInfo[] = [],
   elementDomains: ReadonlySet<number> = new Set(),
 ): ArrayType | null {
   const seen = new Set<number>()
@@ -133,7 +135,32 @@ export function catalogArrayType(
   }
   const builtin = catalogScalarType(name)
   if (builtin?.startsWith('array:')) return builtin as ArrayType
+  const relative =
+    !name.endsWith('[]') &&
+    rangeTypes.find(
+      (p) =>
+        rangeCallTypeKey(p.array) === rangeCallTypeKey(name) ||
+        rangeCallTypeKey(p.multirangeArray) === rangeCallTypeKey(name),
+    )
+  if (relative) {
+    const scalar = catalogBaseScalarType(
+      rangeCallTypeKey(relative.array) === rangeCallTypeKey(name)
+        ? relative.identity
+        : relative.multirange,
+      undefined,
+      domains,
+      rangeTypes,
+    )
+    return scalar ? arrayType(scalar as ArrayElementType) : null
+  }
   if (!name.endsWith('[]')) return null
+  const scalar = catalogBaseScalarType(
+    name.replace(/(?:\[\])+$/u, ''),
+    undefined,
+    domains,
+    rangeTypes,
+  )
+  if (isRangeType(scalar) || isMultirangeType(scalar)) return arrayType(scalar)
   const definition = catalogEnumDefinition(name.replace(/(?:\[\])+$/u, ''), enums)
   if (definition) return arrayType(enumType(definition))
   try {
@@ -158,8 +185,9 @@ export function catalogArrayType(
         domain.baseTypeOid,
         domains,
         enums,
+        rangeTypes,
         new Set([...elementDomains, domain.oid]),
-      ) ?? catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
+      ) ?? catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains, rangeTypes)
     const enumBase = catalogEnumDefinition(domain.baseTypeName, enums, domain.baseTypeOid, domains)
     const carrier = enumBase ? enumType(enumBase) : base
     return carrier && !carrier.startsWith('domain:')
@@ -1490,7 +1518,8 @@ const coerceArray = (
   ) {
     const sourceEnum = enums.find((item) => enumType(item) === from)
     const definition = enums.find((item) => enumType(item) === to)
-    const output = sourceEnum?.outputFunction ?? builtinTypeIO(from)?.output
+    const output =
+      sourceEnum?.outputFunction ?? rangeTypeOutput(from) ?? builtinTypeIO(from)?.output
     const input = definition
       ? callables.find(
           ({ item }) =>
@@ -1500,7 +1529,7 @@ const coerceArray = (
             item.args.join(',') === 'pg_catalog.cstring,pg_catalog.oid' &&
             item.result === 'pg_catalog.anyenum',
         )?.signature
-      : builtinTypeIO(to)?.input
+      : (rangeTypeInput(to) ?? builtinTypeIO(to)?.input)
     if (!input || !output) return null
     return {
       kind: 'array-io-coerce',
@@ -1801,7 +1830,7 @@ export function bindCatalogCheck(
     while (layer && !seen.has(layer.oid)) {
       seen.add(layer.oid)
       const carrier =
-        catalogArrayType(layer.baseTypeName, layer.baseTypeOid, domains, enums) ??
+        catalogArrayType(layer.baseTypeName, layer.baseTypeOid, domains, enums, rangeTypes) ??
         catalogBaseScalarType(layer.baseTypeName, layer.baseTypeOid, domains, rangeTypes)
       if (
         layer.baseTypeMod !== undefined &&
@@ -2510,12 +2539,16 @@ export function bindCatalogCheck(
       let castType = fields(cast['typeName'])
       let names = strings(castType?.['names'])
       let bounds = castType?.['arrayBounds']
-      if (
-        names?.length === 2 &&
-        names[0] === 'pg_catalog' &&
-        (!Array.isArray(bounds) || bounds.length === 0)
-      ) {
-        const catalogType = catalogScalarType(names.join('.'))
+      if (names?.length === 2 && (!Array.isArray(bounds) || bounds.length === 0)) {
+        const catalogType =
+          (names[0] === 'pg_catalog' ? catalogScalarType(names.join('.')) : null) ??
+          catalogArrayType(
+            names.map((n) => '"' + n.replaceAll('"', '""') + '"').join('.'),
+            undefined,
+            domains,
+            enums,
+            rangeTypes,
+          )
         if (catalogType?.startsWith('array:')) {
           castType = { ...castType, ...elementTypeName(catalogType) }
           names = strings(castType['names'])
@@ -2535,12 +2568,19 @@ export function bindCatalogCheck(
           undefined,
           domains,
           enums,
+          rangeTypes,
         )
         const element =
           (names.length === 1 || (names.length === 2 && names[0] === 'pg_catalog')
             ? catalogScalarType(names.at(-1)!)
             : null) ??
           (definition ? enumType(definition) : null) ??
+          catalogBaseScalarType(
+            names.map((n) => '"' + n.replaceAll('"', '""') + '"').join('.'),
+            undefined,
+            domains,
+            rangeTypes,
+          ) ??
           domainArray?.slice(6)
         if (!element || element.startsWith('array:')) return unknown
         const type = arrayType(element as ArrayElementType)
@@ -2919,7 +2959,13 @@ export function bindCatalogCheck(
         )
         const scalarType = enumBase
           ? enumType(enumBase)
-          : (catalogArrayType(target.baseTypeName, target.baseTypeOid, domains, enums) ??
+          : (catalogArrayType(
+              target.baseTypeName,
+              target.baseTypeOid,
+              domains,
+              enums,
+              rangeTypes,
+            ) ??
             catalogBaseScalarType(target.baseTypeName, target.baseTypeOid, domains, rangeTypes))
         if (scalarType) {
           if (chain.some((item) => item.baseTypeMod === undefined)) return unknown
@@ -4082,7 +4128,7 @@ export function bindCatalogCheck(
       }
       const type =
         column &&
-        (catalogArrayType(column.typeName, column.typeOid, domains, enums) ??
+        (catalogArrayType(column.typeName, column.typeOid, domains, enums, rangeTypes) ??
           catalogBaseScalarType(column.typeName, column.typeOid, domains, rangeTypes))
       if (type) {
         inputs.add(column.name)
@@ -4548,7 +4594,7 @@ export function bindCatalogCheck(
       if (
         column?.isRowType === false &&
         !catalogBaseScalarType(column.typeName, column.typeOid, domains, rangeTypes) &&
-        !catalogArrayType(column.typeName, column.typeOid, domains, enums)
+        !catalogArrayType(column.typeName, column.typeOid, domains, enums, rangeTypes)
       ) {
         inputs.add(column.name)
         return {
@@ -4668,7 +4714,9 @@ export function bindCatalogCheck(
         (d) =>
           rangeCallTypeKey([d.schema, d.name].map(quote).join('.')) === rangeCallTypeKey(target),
       )
-      const carrier = catalogBaseScalarType(target, domain?.oid, domains, rangeTypes)
+      const carrier =
+        catalogArrayType(target, domain?.oid, domains, enums, rangeTypes) ??
+        catalogBaseScalarType(target, domain?.oid, domains, rangeTypes)
       const scalar =
         domain && carrier
           ? domainElementType(domain, carrier as Exclude<ScalarType, `domain:${string}`>)
@@ -5270,6 +5318,36 @@ export function bindCatalogCheck(
     const result = entries.every(([key, item]) => item === record[key])
       ? record
       : Object.fromEntries(entries)
+    if (
+      ['array-text-literal', 'text-to-array', 'array-io-coerce'].includes(String(result['kind'])) &&
+      typeof result['elementType'] === 'string'
+    ) {
+      const element = arrayElementBaseType(result['elementType'])
+      const profile = rangeTypeProfile(element) ?? multirangeTypeProfile(element)
+      if (profile?.captured) {
+        const conversion = rangeConversion(element),
+          stored = rangeConversion(element, true)
+        const input = (converted: EvalExpression, saved: boolean): EvalExpression => {
+          const shared = {
+            operand: {
+              kind: 'input' as const,
+              name: '__pgsid_array_text_element',
+              type: 'pg_catalog.text' as const,
+            },
+            conversion: converted,
+            ...(saved ? { origin: 'stored' as const } : {}),
+          }
+          return isRangeType(element)
+            ? { kind: 'text-to-range', type: element, ...shared }
+            : { kind: 'text-to-multirange', type: element as MultirangeType, ...shared }
+        }
+        return {
+          ...result,
+          ...(conversion ? { inputConversion: input(conversion, false) } : {}),
+          ...(stored ? { storedInputConversion: input(stored, true) } : {}),
+        }
+      }
+    }
     const literal = result['kind'] === 'certain' ? fields(result['expression']) : null
     const type =
       literal?.['kind'] === 'range' || literal?.['kind'] === 'multirange'

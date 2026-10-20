@@ -99,6 +99,7 @@ export type EvalExpression =
   | {
       kind: 'array-text-literal'
       inputConversion?: EvalExpression
+      storedInputConversion?: EvalExpression
       conversion?: EvalExpression
       moneyLiterals?: readonly { text: string; units: string }[]
       type: ArrayType
@@ -118,6 +119,7 @@ export type EvalExpression =
   | {
       kind: 'text-to-array'
       inputConversion?: EvalExpression
+      storedInputConversion?: EvalExpression
       conversion?: EvalExpression
       type: ArrayType
       elementType: ArrayElementType
@@ -126,6 +128,7 @@ export type EvalExpression =
     }
   | {
       kind: 'array-io-coerce'
+      inputConversion?: EvalExpression
       type: ArrayType
       sourceElementType: ArrayElementType
       elementType: ArrayElementType

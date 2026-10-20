@@ -40,7 +40,20 @@ CREATE TABLE custom_imports(payload text,expected "Custom.Range".integer_span,by
  CONSTRAINT called CHECK(CASE WHEN bypass THEN true ELSE "Custom.Range".integer_span(payload) IS NOT DISTINCT FROM expected END));
 CREATE TABLE custom_multi_imports(payload text,expected integer_set,bypass bool,
  CONSTRAINT parsed CHECK(CASE WHEN bypass THEN true ELSE payload::integer_set IS NOT DISTINCT FROM expected END),
- CONSTRAINT called CHECK(CASE WHEN bypass THEN true ELSE public.integer_set(payload) IS NOT DISTINCT FROM expected END));`
+ CONSTRAINT called CHECK(CASE WHEN bypass THEN true ELSE public.integer_set(payload) IS NOT DISTINCT FROM expected END));
+CREATE DOMAIN custom_array_cell AS "Custom.Range".integer_span;
+CREATE DOMAIN custom_windows AS "Custom.Range".integer_span[];
+CREATE TABLE custom_array_payloads(windows custom_windows,typed custom_array_cell[],histories custom_windows[],head "Custom.Range".integer_span,expected_pack integer_set,bypass bool,
+ CONSTRAINT counted CHECK(CASE WHEN bypass THEN true ELSE cardinality(windows)=3 END),
+ CONSTRAINT fetched CHECK(CASE WHEN bypass THEN true ELSE windows[1] IS NOT DISTINCT FROM head END),
+ CONSTRAINT typed_cell CHECK(CASE WHEN bypass THEN true ELSE typed[1] IS NOT DISTINCT FROM head END),
+ CONSTRAINT history CHECK(CASE WHEN bypass THEN true ELSE (histories[1])[1] IS NOT DISTINCT FROM head END),
+ CONSTRAINT sorted CHECK(CASE WHEN bypass THEN true ELSE array_sort(windows)=windows END),
+ CONSTRAINT packed CHECK(CASE WHEN bypass THEN true ELSE "Custom.Range".integer_set(VARIADIC windows) IS NOT DISTINCT FROM expected_pack END));
+CREATE TABLE custom_multi_array_payloads(windows integer_set[],head integer_set,bypass bool,
+ CONSTRAINT counted CHECK(CASE WHEN bypass THEN true ELSE cardinality(windows)=3 END),
+ CONSTRAINT fetched CHECK(CASE WHEN bypass THEN true ELSE windows[1] IS NOT DISTINCT FROM head END),
+ CONSTRAINT sorted CHECK(CASE WHEN bypass THEN true ELSE array_sort(windows)=windows END));`
   try {
     await pg.exec(schema)
     const catalog = await snapshotCatalog(pg)
@@ -150,6 +163,102 @@ CREATE TABLE custom_multi_imports(payload text,expected integer_set,bypass bool,
       e: 1,
     }
     const imported = { payload: '[1,2]', expected: v, bypass: false }
+    const array = {
+      kind: 'Value',
+      value: {
+        elementType: v.value.typeName,
+        elementKind: 42,
+        dimensions: [{ lower: 1, length: 3 }],
+        elements: [v, v, w].map((span) => ({ kind: 'Range', value: structuredClone(span.value) })),
+        nullBitmap: { kind: 'Value', value: false },
+      },
+    }
+    const arrayPack = pack('integer_set', v)
+    arrayPack.value.ranges.push(w)
+    const arrays = {
+      windows: array,
+      typed: {
+        kind: 'Value',
+        value: { ...structuredClone(array.value), elementType: '"public"."custom_array_cell"' },
+      },
+      histories: {
+        kind: 'Value',
+        value: {
+          elementType: '"public"."custom_windows"',
+          elementKind: 41,
+          dimensions: [{ lower: 1, length: 1 }],
+          elements: [{ kind: 'Array', value: structuredClone(array.value) }],
+          nullBitmap: { kind: 'Value', value: false },
+        },
+      },
+      head: v,
+      expected_pack: arrayPack,
+      bypass: false,
+    }
+    for (const forge of [false, true]) {
+      const results = structuredClone(arrays)
+      if (forge) {
+        for (const cell of results.windows.value.elements)
+          Object.assign(cell.value, { support: { comparison: 99, canonical: 99 } })
+        for (const cell of results.typed.value.elements)
+          Object.assign(cell.value, { support: { comparison: 99, canonical: 99 } })
+        for (const cell of results.histories.value.elements[0]!.value.elements)
+          Object.assign(cell.value, { support: { comparison: 99, canonical: 99 } })
+      }
+      const before = structuredClone(results)
+      for (const result of Object.values(
+        resultMap(generated.evaluatePublicCustomArrayPayloadsChecks(results)),
+      ))
+        expect(result).toEqual({ certain: true, value: true })
+      expect(results).toEqual(before)
+      const multiWindows = {
+        ...structuredClone(array.value),
+        elementType: 'public.integer_set',
+        elementKind: 43,
+        elements: [v, v, w].map((value) => ({
+          kind: 'Multirange',
+          value: structuredClone(pack('integer_set', value).value),
+        })),
+      }
+      if (forge)
+        for (const cell of multiWindows.elements) {
+          Object.assign(cell.value, { support: { comparison: 99, canonical: 99 } })
+          for (const member of cell.value.ranges)
+            Object.assign(member.value, { support: { comparison: 99, canonical: 99 } })
+        }
+      const multiInput = {
+          windows: { kind: 'Value', value: multiWindows },
+          head: pack('integer_set', v),
+          bypass: false,
+        },
+        multiBefore = structuredClone(multiInput)
+      for (const result of Object.values(
+        resultMap(generated.evaluatePublicCustomMultiArrayPayloadsChecks(multiInput)),
+      ))
+        expect(result).toEqual({ certain: true, value: true })
+      expect(multiInput).toEqual(multiBefore)
+      multiInput.windows.value.elements[0]!.value.rangeType = 'pg_catalog.int4range'
+      expect(
+        resultMap(generated.evaluatePublicCustomMultiArrayPayloadsChecks(multiInput)).fetched,
+      ).toMatchObject({ certain: false })
+      for (const result of Object.values(
+        resultMap(
+          generated.evaluatePublicCustomMultiArrayPayloadsChecks({ ...multiInput, bypass: true }),
+        ),
+      ))
+        expect(result).toEqual({ certain: true, value: true })
+    }
+    const wrongArrays = structuredClone(arrays)
+    wrongArrays.windows.value.elementType = 'pg_catalog.int4range'
+    expect(
+      resultMap(generated.evaluatePublicCustomArrayPayloadsChecks(wrongArrays)).counted,
+    ).toMatchObject({ certain: false })
+    for (const result of Object.values(
+      resultMap(
+        generated.evaluatePublicCustomArrayPayloadsChecks({ ...wrongArrays, bypass: true }),
+      ),
+    ))
+      expect(result).toEqual({ certain: true, value: true })
     expect(resultMap(generated.evaluatePublicCustomImportsChecks(imported)).parsed).toEqual({
       certain: true,
       value: true,
@@ -242,6 +351,12 @@ CREATE TABLE custom_multi_imports(payload text,expected integer_set,bypass bool,
       { code: '22000' },
     )
     await pg.exec(`INSERT INTO custom_multi_imports VALUES('{[1,2]}','{[1,2]}',false)`)
+    await pg.exec(
+      `INSERT INTO custom_array_payloads VALUES(ARRAY['[1,2]'::"Custom.Range".integer_span,'[1,2]'::"Custom.Range".integer_span,'[3,4]'::"Custom.Range".integer_span],ARRAY['[1,2]'::custom_array_cell,'[1,2]'::custom_array_cell,'[3,4]'::custom_array_cell],ARRAY[ARRAY['[1,2]'::"Custom.Range".integer_span,'[1,2]'::"Custom.Range".integer_span,'[3,4]'::"Custom.Range".integer_span]::custom_windows],'[1,2]','{[1,2],[3,4]}',false)`,
+    )
+    await pg.exec(
+      `INSERT INTO custom_multi_array_payloads VALUES(ARRAY['{[1,2]}'::integer_set,'{[1,2]}'::integer_set,'{[3,4]}'::integer_set],'{[1,2]}',false)`,
+    )
     await expect(
       pg.exec(`INSERT INTO custom_multi_imports VALUES('{[1,3]}','{[1,2]}',false)`),
     ).rejects.toMatchObject({ code: '23514' })
@@ -252,7 +367,7 @@ CREATE TABLE custom_multi_imports(payload text,expected integer_set,bypass bool,
     await writeFile(
       join(root, 'schema/public/custom_test.go'),
       `package public
-import("testing";checkruntime "custompayload/schema/public/checkrust/checkruntime";custom "custompayload/schema/schema_437573746f6d2e52616e6765")
+import("testing";"fmt";checkruntime "custompayload/schema/public/checkrust/checkruntime";custom "custompayload/schema/schema_437573746f6d2e52616e6765")
 func span(name string,lo int,hi int,element string,forge bool)checkruntime.RangeValue{
  support:=checkruntime.RangeSupport{};if forge{support=checkruntime.RangeSupport{Comparison:2,Canonical:2}}
  return checkruntime.MakeCoercedRangeValue(checkruntime.RangePayload{TypeName:"\\"Custom.Range\\"."+name,ElementType:element,ElementKind:2,Support:support,LowerInclusive:true,UpperInclusive:true,Bounds:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementInt4,Int4:lo},{Kind:checkruntime.ArrayElementInt4,Int4:hi}}})
@@ -261,6 +376,29 @@ func pack(name string,value checkruntime.RangeValue)checkruntime.MultirangeValue
  return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName:"public."+name,RangeType:value.Value.TypeName,ElementType:value.Value.ElementType,ElementKind:2,Support:value.Value.Support,Ranges:[]checkruntime.RangeValue{value}})
 }
 func TestCustomProfiles(t *testing.T){
+ for _,forgeArray:=range []bool{false,true}{
+  av:=span("integer_span",1,2,"pg_catalog.int4",false);bv:=span("integer_span",3,4,"pg_catalog.int4",false)
+  windows:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:av.Value.TypeName,ElementKind:42,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:3}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementRange,Range:av.Value},{Kind:checkruntime.ArrayElementRange,Range:av.Value},{Kind:checkruntime.ArrayElementRange,Range:bv.Value}},NullBitmap:checkruntime.MakeBoolValue(false)}}
+  if forgeArray{for i:=range windows.Value.Elements{windows.Value.Elements[i].Range.Support=checkruntime.MakeRangeSupport(99,99)}}
+  typed:=checkruntime.CopyArrayValue(windows);typed.Value.ElementType=fmt.Sprintf("%q.%q","public","custom_array_cell")
+  histories:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:fmt.Sprintf("%q.%q","public","custom_windows"),ElementKind:41,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:1}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementArray,Array:checkruntime.CopyArrayValue(windows).Value}},NullBitmap:checkruntime.MakeBoolValue(false)}}
+  expected:=pack("integer_set",av);expected.Value.Ranges=append(expected.Value.Ranges,bv);skipArrays:=false
+  inputArrays:=PublicCustomArrayPayloadsCheckInput{Windows:KnownCheckValue(windows),Typed:KnownCheckValue(typed),Histories:KnownCheckValue(histories),Head:KnownCheckValue(av),ExpectedPack:KnownCheckValue(expected),Bypass:KnownCheckValue(&skipArrays)}
+  for _,c:=range EvaluatePublicCustomArrayPayloadsChecks(inputArrays){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom array",forgeArray,c)}}
+  if forgeArray && windows.Value.Elements[0].Range.Support.Comparison!=99{t.Fatal("array snapshot was mutated")}
+  wrong:=checkruntime.CopyArrayValue(windows);wrong.Value.ElementType="pg_catalog.int4range";inputArrays.Windows=KnownCheckValue(wrong)
+  for _,c:=range EvaluatePublicCustomArrayPayloadsChecks(inputArrays){if c.Constraint=="counted"&&c.Result.Certain{t.Fatal("array identity",c)}}
+  skipArrays=true;for _,c:=range EvaluatePublicCustomArrayPayloadsChecks(inputArrays){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped array",c)}}
+  mv:=pack("integer_set",av);mw:=pack("integer_set",bv)
+  multis:=checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:checkruntime.ArrayPayload{ElementType:"public.integer_set",ElementKind:43,Dimensions:[]checkruntime.ArrayDimension{{Lower:1,Length:3}},Elements:[]checkruntime.ArrayElement{{Kind:checkruntime.ArrayElementMultirange,Multirange:mv.Value},{Kind:checkruntime.ArrayElementMultirange,Multirange:mv.Value},{Kind:checkruntime.ArrayElementMultirange,Multirange:mw.Value}},NullBitmap:checkruntime.MakeBoolValue(false)}}
+  if forgeArray{for i:=range multis.Value.Elements{multis.Value.Elements[i].Multirange.Support=checkruntime.MakeRangeSupport(99,99);for j:=range multis.Value.Elements[i].Multirange.Ranges{multis.Value.Elements[i].Multirange.Ranges[j].Value.Support=checkruntime.MakeRangeSupport(99,99)}}}
+  skipMultis:=false;multiInput:=PublicCustomMultiArrayPayloadsCheckInput{Windows:KnownCheckValue(multis),Head:KnownCheckValue(pack("integer_set",av)),Bypass:KnownCheckValue(&skipMultis)}
+  for _,c:=range EvaluatePublicCustomMultiArrayPayloadsChecks(multiInput){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom multirange array",forgeArray,c)}}
+  if forgeArray&&multis.Value.Elements[0].Multirange.Support.Comparison!=99{t.Fatal("multirange array snapshot was mutated")}
+  wrongMulti:=checkruntime.CopyArrayValue(multis);wrongMulti.Value.Elements[0].Multirange.RangeType="pg_catalog.int4range";multiInput.Windows=KnownCheckValue(wrongMulti)
+  for _,c:=range EvaluatePublicCustomMultiArrayPayloadsChecks(multiInput){if c.Constraint=="fetched"&&c.Result.Certain{t.Fatal("multirange array member identity",c)}}
+  skipMultis=true;for _,c:=range EvaluatePublicCustomMultiArrayPayloadsChecks(multiInput){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped multirange array",c)}}
+ }
  for _,forge:=range []bool{false,true}{
   v:=span("integer_span",1,2,"pg_catalog.int4",forge);w:=span("integer_span",3,4,"pg_catalog.int4",forge);e:=custom.Positive(1)
   input:=PublicCustomPayloadsCheckInput{V:KnownCheckValue(v),W:KnownCheckValue(w),M:KnownCheckValue(pack("integer_set",v)),N:KnownCheckValue(pack("integer_set",w)),P:KnownCheckValue(span("positive_span",1,2,"\\"Custom.Range\\".positive",forge)),E:KnownCheckValue(&e)}

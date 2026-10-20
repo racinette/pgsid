@@ -1,5 +1,9 @@
 import { multirangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
-import { arrayElementFamily, arrayInputPlan } from '../../shared/check-array-types.js'
+import {
+  arrayElementFamily,
+  arrayElementIdentity,
+  arrayInputPlan,
+} from '../../shared/check-array-types.js'
 import type { CatalogSnapshot, ColumnInfo, DomainInfo, TableInfo } from '../../../catalog/types.js'
 import type { Config, GoTypeImport } from '../../../config/schema.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
@@ -96,7 +100,7 @@ export function renderGoSchemaCheckArtifacts(
   } | null
 } {
   const portableValueType = (name: string, oid: number | undefined): string | null => {
-    if (catalogArrayType(name, oid, domains, catalog.enums)) return 'ArrayValue'
+    if (catalogArrayType(name, oid, domains, catalog.enums, catalog.rangeTypes)) return 'ArrayValue'
     if (catalogRangeType(name, oid, domains, catalog.rangeTypes)) return 'RangeValue'
     if (catalogMultirangeType(name, oid, domains, catalog.rangeTypes)) return 'MultirangeValue'
     if (catalogJsonType(name, oid, domains)) return 'JsonValue'
@@ -520,7 +524,7 @@ export function renderGoSchemaCheckArtifacts(
               : []),
             ...(item.type.startsWith('array:')
               ? [
-                  go.string(item.type.slice('array:'.length)),
+                  go.string(arrayElementIdentity(item.type.slice('array:'.length))),
                   go.number(arrayElementFamily(item.type.slice('array:'.length))!),
                   ...arrayInputPlan(item.type).map((value) => go.string(value)),
                 ]
@@ -762,6 +766,8 @@ func checkRustArray[T any](field CheckOptional[T], elementType string, elementKi
   depth:=0
   if len(tree)>=2 { depth=len(tree[1])-1 }
   if !checkRustArrayTree(input,depth,tree...) { return checkruntime.ArrayUnknown() }
+  if len(tree)==7 && len(tree[4])==1 && len(tree[5])==1 && len(tree[6])==1 { return checkruntime.ArrayFromCoercedRangeProfileTree(input,tree[0],tree[1],tree[2],tree[3],int(tree[4][0]),int(tree[5][0]),int(tree[6][0])) }
+  if len(tree)==8 && len(tree[5])==1 && len(tree[6])==1 && len(tree[7])==1 { return checkruntime.ArrayFromCoercedMultirangeProfileTree(input,tree[0],tree[1],tree[2],tree[3],tree[4],int(tree[5][0]),int(tree[6][0]),int(tree[7][0])) }
   if len(tree)>=2 { return checkruntime.ArrayFromCoercedTree(input,tree[0],tree[1]) }
   return checkruntime.ArrayFromCoercedValue(input,elementType,elementKind)
 }
@@ -780,7 +786,7 @@ func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,
     return checkRustArrayTree(checkruntime.ArrayValue{Kind:checkruntime.ArrayValueValue,Value:input.Array},depth-1,tree...)
   }
   if input.Kind==checkruntime.ArrayElementMultirange {
-    if family!=43 || len(tree)!=6 || len(tree[5])!=1 { return false }
+    if family!=43 || (len(tree)!=6 && len(tree)!=8) || len(tree[5])!=1 { return false }
     p:=input.Multirange
     if p.TypeName!=tree[2] || p.RangeType!=tree[3] || p.ElementType!=tree[4] || p.ElementKind!=int(tree[5][0]) || len(p.Ranges)>2147483647 { return false }
     for _,span:=range p.Ranges {
@@ -790,7 +796,7 @@ func checkRustArrayElement(input checkruntime.ArrayElement,family int,depth int,
     return true
   }
   if input.Kind==checkruntime.ArrayElementRange {
-    if family!=42 || len(tree)!=5 || len(tree[4])!=1 { return false }
+    if family!=42 || (len(tree)!=5 && len(tree)!=7) || len(tree[4])!=1 { return false }
     p:=input.Range
     if p.TypeName!=tree[2] || p.ElementType!=tree[3] || p.ElementKind!=int(tree[4][0]) || len(p.Bounds)>2 { return false }
     for _,bound:=range p.Bounds { if !checkRustArrayElement(bound,p.ElementKind,0) { return false } }

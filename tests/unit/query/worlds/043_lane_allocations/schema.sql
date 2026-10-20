@@ -2223,3 +2223,62 @@ CREATE TABLE lane_called_imports (
   CONSTRAINT called_import_window CHECK(CASE WHEN bypass THEN true ELSE lane_retained_window(window_text) IS NOT DISTINCT FROM expected_window END),
   CONSTRAINT called_import_segments CHECK(CASE WHEN bypass THEN true ELSE lane_position_segments(segment_text) IS NOT DISTINCT FROM expected_segments END)
 );
+
+CREATE DOMAIN lane_flexible_window_list AS lane_position_window[];
+CREATE DOMAIN lane_flexible_segment_list AS lane_position_segments[];
+
+CREATE TABLE lane_flexible_window_batches (
+  windows lane_flexible_window_list,
+  recorded lane_retained_window[],
+  histories lane_flexible_window_list[],
+  position integer,
+  selected_window lane_position_window,
+  expected_count integer,
+  expected_member boolean,
+  sorted_windows lane_position_window[],
+  expected_pack lane_position_segments,
+  bypass boolean,
+  CONSTRAINT flexible_batch_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(windows) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT flexible_batch_selected CHECK(CASE WHEN bypass THEN true ELSE windows[position] IS NOT DISTINCT FROM selected_window END),
+  CONSTRAINT flexible_batch_member CHECK(CASE WHEN bypass THEN true ELSE (selected_window=ANY(windows)) IS NOT DISTINCT FROM expected_member END),
+  CONSTRAINT flexible_batch_sorted CHECK(CASE WHEN bypass THEN true ELSE array_sort(windows) IS NOT DISTINCT FROM sorted_windows END),
+  CONSTRAINT flexible_batch_recorded CHECK(CASE WHEN bypass THEN true ELSE recorded[position] IS NOT DISTINCT FROM selected_window END),
+  CONSTRAINT flexible_batch_history CHECK(CASE WHEN bypass THEN true ELSE (histories[1])[position] IS NOT DISTINCT FROM selected_window END),
+  CONSTRAINT flexible_batch_packed CHECK(CASE WHEN bypass THEN true ELSE lane_position_segments(VARIADIC windows) IS NOT DISTINCT FROM expected_pack END)
+);
+
+CREATE TABLE lane_flexible_segment_batches (
+  segments lane_flexible_segment_list,
+  recorded lane_retained_segments[],
+  histories lane_flexible_segment_list[],
+  position integer,
+  selected_segments lane_position_segments,
+  expected_count integer,
+  expected_member boolean,
+  sorted_segments lane_position_segments[],
+  payload text,
+  pieces text[],
+  bypass boolean,
+  CONSTRAINT flexible_segment_count CHECK(CASE WHEN bypass THEN true ELSE cardinality(segments) IS NOT DISTINCT FROM expected_count END),
+  CONSTRAINT flexible_segment_selected CHECK(CASE WHEN bypass THEN true ELSE segments[position] IS NOT DISTINCT FROM selected_segments END),
+  CONSTRAINT flexible_segment_member CHECK(CASE WHEN bypass THEN true ELSE (selected_segments=ANY(segments)) IS NOT DISTINCT FROM expected_member END),
+  CONSTRAINT flexible_segment_sorted CHECK(CASE WHEN bypass THEN true ELSE array_sort(segments) IS NOT DISTINCT FROM sorted_segments END),
+  CONSTRAINT flexible_segment_recorded CHECK(CASE WHEN bypass THEN true ELSE recorded[position] IS NOT DISTINCT FROM selected_segments END),
+  CONSTRAINT flexible_segment_history CHECK(CASE WHEN bypass THEN true ELSE (histories[1])[position] IS NOT DISTINCT FROM selected_segments END),
+  CONSTRAINT flexible_segment_input CHECK(CASE WHEN bypass THEN true ELSE payload::lane_position_segments[] IS NOT DISTINCT FROM segments END),
+  CONSTRAINT flexible_segment_pieces CHECK(CASE WHEN bypass THEN true ELSE pieces::lane_position_segments[] IS NOT DISTINCT FROM segments END),
+  CONSTRAINT flexible_segment_output CHECK(CASE WHEN bypass THEN true ELSE segments::text COLLATE "C" IS NOT DISTINCT FROM payload COLLATE "C" END)
+);
+
+CREATE TABLE lane_flexible_price_batches (
+  payload text,
+  pieces text[],
+  expected lane_price_window[],
+  expected_label text,
+  expected_scale integer,
+  bypass boolean,
+  CONSTRAINT flexible_price_input CHECK(CASE WHEN bypass THEN true ELSE payload::lane_price_window[] IS NOT DISTINCT FROM expected END),
+  CONSTRAINT flexible_price_pieces CHECK(CASE WHEN bypass THEN true ELSE pieces::lane_price_window[] IS NOT DISTINCT FROM expected END),
+  CONSTRAINT flexible_price_output CHECK(CASE WHEN bypass THEN true ELSE expected::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
+  CONSTRAINT flexible_price_scale CHECK(CASE WHEN bypass THEN true ELSE scale(lower(expected[1])) IS NOT DISTINCT FROM expected_scale END)
+);
