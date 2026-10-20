@@ -35,7 +35,7 @@ fn multirange_set_partial_span(lower:ArrayElement,upper:ArrayElement)->RangeValu
 }
 fn multirange_set_partial_pack(first:RangeValue,second:RangeValue,two:bool)->MultirangeValue {
  let mut spans:Vec<RangeValue>=Vec::new();spans.push(first);if two {spans.push(second);};
- make_coerced_multirange_value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,ranges:spans})
+ make_coerced_multirange_value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),ranges:spans})
 }
 pub fn multirange_set_partial(mode:Int4Value)->BoolValue {
  let span=multirange_set_partial_span(ArrayElement::Unknown,ArrayElement::Int4(3));

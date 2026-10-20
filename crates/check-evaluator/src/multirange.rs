@@ -4,6 +4,7 @@ pub struct MultirangePayload {
     pub range_type: String,
     pub element_type: String,
     pub element_kind: i32,
+    pub support: RangeSupport,
     pub ranges: Vec<RangeValue>,
 }
 
@@ -23,47 +24,116 @@ pub fn multirange_null() -> MultirangeValue {
     MultirangeValue::Null
 }
 
-fn multirange_component_state(input: &MultirangePayload, position: usize) -> BoolValue {
-    let span = input.ranges[position].clone();
+fn multirange_component(
+    input: &MultirangePayload,
+    position: usize,
+    support: RangeSupport,
+) -> RangeValue {
+    let mut span = input.ranges[position].clone();
+    if let RangeValue::Value(payload) = span {
+        span = make_coerced_range_value(payload);
+    };
     let typed = range_require_type(
         span,
         input.range_type.as_str(),
         input.element_type.as_str(),
         input.element_kind,
     );
-    if let RangeValue::Error(error) = typed {
-        return BoolValue::Error(error);
+    let supported = range_require_support(typed, support);
+    if let RangeValue::Error(error) = supported {
+        return RangeValue::Error(error);
     };
-    if let RangeValue::Value(payload) = typed {
+    if let RangeValue::Value(payload) = supported {
         if payload.empty {
-            return BoolValue::Unknown;
+            return RangeValue::Unknown;
         };
-        let checked = make_coerced_range_value(payload);
-        return range_is_null(checked);
+        return RangeValue::Value(payload);
     };
-    BoolValue::Unknown
+    RangeValue::Unknown
 }
 
 pub fn make_coerced_multirange_value(input: MultirangePayload) -> MultirangeValue {
-    if input.type_name.as_str() == ""
-        || input.range_type.as_str() == ""
-        || input.element_type.as_str() == ""
-        || input.element_kind < 1
+    let payload = input;
+    let mut support = payload.support;
+    if payload.type_name.as_str() == ""
+        || payload.range_type.as_str() == ""
+        || payload.element_type.as_str() == ""
+        || payload.element_kind < 1
     {
         return MultirangeValue::Unknown;
     };
+    let expected = range_builtin_support(
+        payload.range_type.as_str(),
+        payload.element_type.as_str(),
+        payload.element_kind,
+    );
+    if range_support_equal(support, range_unknown_support()) {
+        support = expected;
+    };
+    if range_support_valid(support, payload.element_kind) == false {
+        return MultirangeValue::Unknown;
+    };
+    if range_support_equal(expected, range_unknown_support()) == false
+        && range_support_equal(support, expected) == false
+    {
+        return MultirangeValue::Unknown;
+    };
+    let mut ranges: Vec<RangeValue> = Vec::new();
     let mut index: usize = 0;
-    while index < input.ranges.len() {
-        let state = multirange_component_state(&input, index);
-        if let BoolValue::Error(error) = state {
+    while index < payload.ranges.len() {
+        let member = multirange_component(&payload, index, support);
+        if let RangeValue::Error(error) = member {
             return MultirangeValue::Error(error);
         };
-        if state != BoolValue::Value(false) {
+        let mut known = false;
+        if let RangeValue::Value(span) = member {
+            ranges.push(RangeValue::Value(span));
+            known = true;
+        };
+        if known == false {
             return MultirangeValue::Unknown;
         };
         index += 1;
     }
-    MultirangeValue::Value(input)
+    MultirangeValue::Value(MultirangePayload {
+        type_name: payload.type_name,
+        range_type: payload.range_type,
+        element_type: payload.element_type,
+        element_kind: payload.element_kind,
+        support,
+        ranges,
+    })
+}
+
+pub fn multirange_from_profiled_ranges(
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    ranges: Vec<RangeValue>,
+    support: RangeSupport,
+) -> MultirangeValue {
+    make_coerced_multirange_value(MultirangePayload {
+        type_name: type_name.to_owned(),
+        range_type: range_type.to_owned(),
+        element_type: element_type.to_owned(),
+        element_kind,
+        support,
+        ranges,
+    })
+}
+
+pub fn multirange_require_support(
+    input: MultirangeValue,
+    expected: RangeSupport,
+) -> MultirangeValue {
+    if let MultirangeValue::Value(payload) = input {
+        if range_support_equal(payload.support, expected) == false {
+            return MultirangeValue::Unknown;
+        };
+        return MultirangeValue::Value(payload);
+    };
+    input
 }
 
 pub fn multirange_require_type(

@@ -1,6 +1,12 @@
 import { go, type GoExpression } from '../../src/codegen/go/ast.js'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
-import { rangeGoInput, rangeRustInput, type RangeInputPayload } from './range-input.js'
+import {
+  rangeGoInput,
+  rangeRustInput,
+  rangeTypescriptInput,
+  type RangeSupportFactory,
+  type RangeInputPayload,
+} from './range-input.js'
 
 export type MultirangeInputRange =
   | { kind: 'Value'; value: RangeInputPayload }
@@ -12,6 +18,7 @@ export type MultirangeInputPayload = {
   rangeType: string
   elementType: string
   elementKind: number
+  support?: { comparison: number; canonical: number }
   ranges: MultirangeInputRange[]
 }
 
@@ -23,7 +30,7 @@ export function multirangeRustInput(payload: MultirangeInputPayload): string {
         ? `RangeValue::Error(make_sql_error(${span.value.state}))`
         : `RangeValue::${span.kind}`,
   )
-  return `make_coerced_multirange_value(MultirangePayload {type_name:${rustStringLiteral(payload.typeName)}.to_owned(),range_type:${rustStringLiteral(payload.rangeType)}.to_owned(),element_type:${rustStringLiteral(payload.elementType)}.to_owned(),element_kind:${payload.elementKind},ranges:vec![${ranges.join(',')}]})`
+  return `make_coerced_multirange_value(MultirangePayload {type_name:${rustStringLiteral(payload.typeName)}.to_owned(),range_type:${rustStringLiteral(payload.rangeType)}.to_owned(),element_type:${rustStringLiteral(payload.elementType)}.to_owned(),element_kind:${payload.elementKind},support:${payload.support ? `RangeSupport {comparison:${payload.support.comparison},canonical:${payload.support.canonical}}` : `range_builtin_support(${rustStringLiteral(payload.rangeType)},${rustStringLiteral(payload.elementType)},${payload.elementKind})`},ranges:vec![${ranges.join(',')}]})`
 }
 
 export function multirangeGoInput(payload: MultirangeInputPayload): GoExpression {
@@ -34,6 +41,19 @@ export function multirangeGoInput(payload: MultirangeInputPayload): GoExpression
       go.keyValue('RangeType', go.string(payload.rangeType)),
       go.keyValue('ElementType', go.string(payload.elementType)),
       go.keyValue('ElementKind', go.number(payload.elementKind)),
+      go.keyValue(
+        'Support',
+        payload.support
+          ? go.composite(runtime('RangeSupport'), [
+              go.keyValue('Comparison', go.number(payload.support.comparison)),
+              go.keyValue('Canonical', go.number(payload.support.canonical)),
+            ])
+          : go.call(runtime('RangeBuiltinSupport'), [
+              go.string(payload.rangeType),
+              go.string(payload.elementType),
+              go.number(payload.elementKind),
+            ]),
+      ),
       go.keyValue(
         'Ranges',
         go.composite(
@@ -59,4 +79,21 @@ export function multirangeGoInput(payload: MultirangeInputPayload): GoExpression
       ),
     ]),
   ])
+}
+
+export function multirangeTypescriptInput(
+  payload: MultirangeInputPayload,
+  runtime: RangeSupportFactory,
+) {
+  return {
+    ...payload,
+    support:
+      payload.support ??
+      runtime.rangeBuiltinSupport(payload.rangeType, payload.elementType, payload.elementKind),
+    ranges: payload.ranges.map((span) =>
+      span.kind === 'Value'
+        ? { kind: span.kind, value: rangeTypescriptInput(span.value, runtime) }
+        : span,
+    ),
+  }
 }

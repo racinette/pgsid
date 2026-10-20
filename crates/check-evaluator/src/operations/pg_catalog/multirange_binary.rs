@@ -8,6 +8,7 @@ pub(crate) fn multirange_binary_payload(input: MultirangeValue) -> MultirangePay
         range_type: String::new(),
         element_type: String::new(),
         element_kind: 0,
+        support: range_unknown_support(),
         ranges: ranges,
     }
 }

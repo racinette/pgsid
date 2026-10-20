@@ -29,7 +29,7 @@ fn multirange_state_span(lower:ArrayElement,upper:ArrayElement)->RangeValue {
  range_from_coerced_bounds("pg_catalog.int4range","pg_catalog.int4",2,false,true,false,lower,upper)
 }
 fn multirange_state_pack(ranges:Vec<RangeValue>)->MultirangeValue {
- make_coerced_multirange_value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,ranges})
+ make_coerced_multirange_value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),ranges})
 }
 fn multirange_state_single(span:RangeValue)->MultirangeValue {
  let mut ranges:Vec<RangeValue>=Vec::new();ranges.push(span);multirange_state_pack(ranges)
@@ -37,14 +37,14 @@ fn multirange_state_single(span:RangeValue)->MultirangeValue {
 fn multirange_state_revise(span:RangeValue)->RangeValue {
  if let RangeValue::Value(payload)=span {
   let mut bounds=payload.bounds;bounds[1]=ArrayElement::Int4(2);
-  return make_coerced_range_value(RangePayload {type_name:payload.type_name,element_type:payload.element_type,element_kind:payload.element_kind,empty:payload.empty,lower_inclusive:payload.lower_inclusive,upper_inclusive:payload.upper_inclusive,bounds});
+  return make_coerced_range_value(RangePayload {type_name:payload.type_name,element_type:payload.element_type,element_kind:payload.element_kind,support:payload.support,empty:payload.empty,lower_inclusive:payload.lower_inclusive,upper_inclusive:payload.upper_inclusive,bounds});
  };
  span
 }
 fn multirange_state_replace(input:MultirangeValue,span:RangeValue)->MultirangeValue {
  if let MultirangeValue::Value(payload)=input {
   let mut ranges=payload.ranges;ranges[0]=span;
-  return make_coerced_multirange_value(MultirangePayload {type_name:payload.type_name,range_type:payload.range_type,element_type:payload.element_type,element_kind:payload.element_kind,ranges});
+  return make_coerced_multirange_value(MultirangePayload {type_name:payload.type_name,range_type:payload.range_type,element_type:payload.element_type,element_kind:payload.element_kind,support:payload.support,ranges});
  };
  input
 }
@@ -88,7 +88,7 @@ pub fn multirange_state_probe(mode:Int4Value)->BoolValue {
    let mut bounds:Vec<ArrayElement>=Vec::new();
    if selected==10 {bounds.push(ArrayElement::Text("bad bound tag".to_owned()));} else {bounds.push(ArrayElement::Error(first));};
    bounds.push(ArrayElement::Int4(3));
-   let malformed=RangeValue::Value(RangePayload {type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,empty:false,lower_inclusive:true,upper_inclusive:false,bounds});
+   let malformed=RangeValue::Value(RangePayload {type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds});
    return multirange_is_null(multirange_state_single(malformed));
   };
   if selected==11 || selected==12 || selected==13 {
@@ -120,7 +120,7 @@ pub fn multirange_state_probe(mode:Int4Value)->BoolValue {
    let mut type_name="pg_catalog.int4multirange".to_owned();let mut range_type="pg_catalog.int4range".to_owned();let mut element_type="pg_catalog.int4".to_owned();let mut element_kind:i32=2;
    if selected==20 {type_name="".to_owned();};if selected==21 {range_type="".to_owned();};if selected==22 {element_type="".to_owned();};if selected==23 {element_kind=0;};
    let mut ranges:Vec<RangeValue>=Vec::new();ranges.push(span);
-   return multirange_is_null(make_coerced_multirange_value(MultirangePayload {type_name,range_type,element_type,element_kind,ranges}));
+   return multirange_is_null(make_coerced_multirange_value(MultirangePayload {type_name,range_type,element_type,element_kind,support:range_unknown_support(),ranges}));
   };
   if selected==24 {return multirange_is_null(multirange_from_case_guard(CheckOutcome::Error(first)));};
   if selected==25 {return multirange_is_null(multirange_from_case_guard(CheckOutcome::Unknown));};

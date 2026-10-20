@@ -54,7 +54,7 @@ pub fn range_output_state_probe() -> BoolValue {
   let mut bounds: Vec<ArrayElement> = Vec::new();
   bounds.push(ArrayElement::Null);
   bounds.push(ArrayElement::Int4(10));
-  let span = make_coerced_range_value(RangePayload { type_name: "pg_catalog.int4range".to_owned(), element_type: "pg_catalog.int4".to_owned(), element_kind: 2, empty: false, lower_inclusive: false, upper_inclusive: false, bounds });
+  let span = make_coerced_range_value(RangePayload { type_name: "pg_catalog.int4range".to_owned(), element_type: "pg_catalog.int4".to_owned(), element_kind: 2, support: range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2), empty: false, lower_inclusive: false, upper_inclusive: false, bounds });
   let snapshot = span.clone();
   let failure = TextValue::Error(make_sql_error(3360674));
   if range_format_text(span.clone(), failure.clone(), make_text_value("10")) != make_text_value("(,10)") { return BoolValue::Value(false); };

@@ -22729,7 +22729,7 @@ func MultirangeBinaryPayload(input checkruntime.MultirangeValue) checkruntime.Mu
 		return payload
 	}
 	ranges := []checkruntime.RangeValue{}
-	return checkruntime.MultirangePayload{TypeName: "", RangeType: "", ElementType: "", ElementKind: 0, Ranges: ranges}
+	return checkruntime.MultirangePayload{TypeName: "", RangeType: "", ElementType: "", ElementKind: 0, Support: checkruntime.RangeUnknownSupport(), Ranges: ranges}
 }
 func MultirangeBinaryCount(input *checkruntime.MultirangePayload) checkruntime.Int4Value {
 	if input.TypeName == "" || len(input.Ranges) > 2147483647 {
@@ -22826,10 +22826,10 @@ func HashMultirangeExtendedCoup(input checkruntime.Int8Value) checkruntime.Int8V
 	return input
 }
 func multirangeSameFamily(left *checkruntime.MultirangePayload, right *checkruntime.MultirangePayload) bool {
-	return left.TypeName == right.TypeName && left.RangeType == right.RangeType && left.ElementType == right.ElementType && left.ElementKind == right.ElementKind
+	return left.TypeName == right.TypeName && left.RangeType == right.RangeType && left.ElementType == right.ElementType && left.ElementKind == right.ElementKind && checkruntime.RangeSupportEqual(left.Support, right.Support)
 }
 func multirangeSpanFamily(input *checkruntime.MultirangePayload, span *checkruntime.RangePayload) bool {
-	return input.RangeType == span.TypeName && input.ElementType == span.ElementType && input.ElementKind == span.ElementKind
+	return input.RangeType == span.TypeName && input.ElementType == span.ElementType && input.ElementKind == span.ElementKind && checkruntime.RangeSupportEqual(input.Support, span.Support)
 }
 func multirangeMemberRelation(left *checkruntime.MultirangePayload, li int, right *checkruntime.MultirangePayload, ri int, strategy int) checkruntime.BoolValue {
 	li = langruntime.CheckedIndex(li)
@@ -23250,7 +23250,7 @@ func multirangeElementDirection(span *checkruntime.RangePayload, element checkru
 		hasUpper = false
 	}
 	if hasLower {
-		compared := rangeBuiltinCompare(lower, checkruntime.CopyArrayElement(element), span.ElementKind)
+		compared := rangeBuiltinCompare(lower, checkruntime.CopyArrayElement(element), span.Support.Comparison)
 		if compared.Kind == checkruntime.Int4ValueValue {
 			order := langruntime.CheckedI32(compared.Value)
 			if order > 0 || (order == 0 && span.LowerInclusive == false) {
@@ -23262,7 +23262,7 @@ func multirangeElementDirection(span *checkruntime.RangePayload, element checkru
 		}
 	}
 	if hasUpper {
-		compared := rangeBuiltinCompare(upper, element, span.ElementKind)
+		compared := rangeBuiltinCompare(upper, element, span.Support.Comparison)
 		if compared.Kind == checkruntime.Int4ValueValue {
 			order := langruntime.CheckedI32(compared.Value)
 			if order < 0 || (order == 0 && span.UpperInclusive == false) {
@@ -23855,7 +23855,7 @@ func multirangeConstructNormalize(input checkruntime.MultirangePayload) checkrun
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: input.TypeName, RangeType: input.RangeType, ElementType: input.ElementType, ElementKind: input.ElementKind, Ranges: ranges})
+	return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: input.TypeName, RangeType: input.RangeType, ElementType: input.ElementType, ElementKind: input.ElementKind, Support: input.Support, Ranges: ranges})
 }
 func multirangeConstructEmpty(typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
 	typeName = langruntime.CheckedString(typeName)
@@ -23863,7 +23863,7 @@ func multirangeConstructEmpty(typeName string, rangeType string, elementType str
 	elementType = langruntime.CheckedString(elementType)
 	elementKind = langruntime.CheckedI32(elementKind)
 	ranges := []checkruntime.RangeValue{}
-	return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Ranges: ranges})
+	return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind), Ranges: ranges})
 }
 func multirangeConstructSingle(input checkruntime.RangeValue, typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
 	input = checkruntime.CopyRangeValue(input)
@@ -23885,13 +23885,13 @@ func multirangeConstructSingle(input checkruntime.RangeValue, typeName string, r
 	}
 	if typed.Kind == checkruntime.RangeValueValue {
 		payload := checkruntime.CopyRangePayload(typed.Value)
-		if payload.Empty {
-			return multirangeConstructEmpty(typeName, rangeType, elementType, elementKind)
-		}
+		support := payload.Support
 		ranges := []checkruntime.RangeValue{}
-		langruntime.CheckedAdd(len(ranges), 1)
-		ranges = append(ranges, checkruntime.CopyRangeValue(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: payload}))
-		return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Ranges: ranges})
+		if payload.Empty == false {
+			langruntime.CheckedAdd(len(ranges), 1)
+			ranges = append(ranges, checkruntime.CopyRangeValue(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: payload}))
+		}
+		return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: support, Ranges: ranges})
 	}
 	return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
 }
@@ -23957,7 +23957,7 @@ func multirangeConstructArray(input checkruntime.ArrayValue, typeName string, ra
 		if unknown {
 			return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
 		}
-		return multirangeConstructNormalize(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Ranges: ranges})
+		return multirangeConstructNormalize(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind), Ranges: ranges})
 	}
 	return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
 }
@@ -24142,7 +24142,7 @@ func MultirangeFromText(input checkruntime.TextValue, typeName string, rangeType
 		if position != len(chars) {
 			return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
 		}
-		return multirangeConstructNormalize(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Ranges: ranges})
+		return multirangeConstructNormalize(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind), Ranges: ranges})
 	}
 	return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
 }
@@ -24237,7 +24237,7 @@ func multirangeSetBooleanFailure(input checkruntime.BoolValue) checkruntime.Mult
 }
 func multirangeSetResult(input *checkruntime.MultirangePayload, ranges []checkruntime.RangeValue) checkruntime.MultirangeValue {
 	ranges = langruntime.CheckedStructs(ranges, checkruntime.CopyRangeValue)
-	return multirangeConstructNormalize(checkruntime.MultirangePayload{TypeName: langruntime.CheckedString(input.TypeName), RangeType: langruntime.CheckedString(input.RangeType), ElementType: langruntime.CheckedString(input.ElementType), ElementKind: input.ElementKind, Ranges: ranges})
+	return multirangeConstructNormalize(checkruntime.MultirangePayload{TypeName: langruntime.CheckedString(input.TypeName), RangeType: langruntime.CheckedString(input.RangeType), ElementType: langruntime.CheckedString(input.ElementType), ElementKind: input.ElementKind, Support: input.Support, Ranges: ranges})
 }
 func multirangeSetUnion(left *checkruntime.MultirangePayload, right *checkruntime.MultirangePayload) checkruntime.MultirangeValue {
 	ranges := []checkruntime.RangeValue{}
@@ -24509,7 +24509,7 @@ func RangeMergeF619(input checkruntime.MultirangeValue) checkruntime.RangeValue 
 	if input.Kind == checkruntime.MultirangeValueValue {
 		payload := checkruntime.CopyMultirangePayload(input.Value)
 		if len(payload.Ranges) == 0 {
-			return checkruntime.RangeFromCoercedBounds(payload.RangeType, payload.ElementType, payload.ElementKind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull})
+			return checkruntime.RangeFromProfiledBounds(payload.RangeType, payload.ElementType, payload.ElementKind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, payload.Support)
 		}
 		first := checkruntime.CopyRangeValue(payload.Ranges[0])
 		if len(payload.Ranges) == 1 {
@@ -24528,7 +24528,7 @@ func RangeMergeF619(input checkruntime.MultirangeValue) checkruntime.RangeValue 
 			a := checkruntime.CopyRangePayload(first.Value)
 			if last.Kind == checkruntime.RangeValueValue {
 				b := checkruntime.CopyRangePayload(last.Value)
-				return checkruntime.RangeFromCoercedBounds(payload.RangeType, payload.ElementType, payload.ElementKind, false, a.LowerInclusive, b.UpperInclusive, checkruntime.CopyArrayElement(a.Bounds[0]), checkruntime.CopyArrayElement(b.Bounds[1]))
+				return checkruntime.RangeFromProfiledBounds(payload.RangeType, payload.ElementType, payload.ElementKind, false, a.LowerInclusive, b.UpperInclusive, checkruntime.CopyArrayElement(a.Bounds[0]), checkruntime.CopyArrayElement(b.Bounds[1]), payload.Support)
 			}
 		}
 	}
@@ -31792,7 +31792,7 @@ func RangeSendB1w5(input checkruntime.RangeValue, lower checkruntime.ByteaValue,
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
 func rangeSameFamily(left *checkruntime.RangePayload, right *checkruntime.RangePayload) bool {
-	return left.TypeName == right.TypeName && left.ElementType == right.ElementType && left.ElementKind == right.ElementKind
+	return left.TypeName == right.TypeName && left.ElementType == right.ElementType && left.ElementKind == right.ElementKind && checkruntime.RangeSupportEqual(left.Support, right.Support)
 }
 func rangeEndpointCompare(left *checkruntime.RangePayload, leftUpper bool, right *checkruntime.RangePayload, rightUpper bool) checkruntime.Int4Value {
 	li := 0
@@ -31832,7 +31832,7 @@ func rangeEndpointCompare(left *checkruntime.RangePayload, leftUpper bool, right
 		}
 		return checkruntime.MakeInt4Value(1)
 	}
-	comparison := rangeBuiltinCompare(a, b, left.ElementKind)
+	comparison := rangeBuiltinCompare(a, b, left.Support.Comparison)
 	if comparison.Kind == checkruntime.Int4ValueValue {
 		order := langruntime.CheckedI32(comparison.Value)
 		if order != 0 {
@@ -31942,7 +31942,7 @@ func rangeBoundsAdjacent(left *checkruntime.RangePayload, right *checkruntime.Ra
 	if b.Kind == checkruntime.ArrayElementNull {
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
 	}
-	comparison := rangeBuiltinCompare(checkruntime.CopyArrayElement(a), checkruntime.CopyArrayElement(b), left.ElementKind)
+	comparison := rangeBuiltinCompare(checkruntime.CopyArrayElement(a), checkruntime.CopyArrayElement(b), left.Support.Comparison)
 	if comparison.Kind == checkruntime.Int4ValueError {
 		error := comparison.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -31952,7 +31952,10 @@ func rangeBoundsAdjacent(left *checkruntime.RangePayload, right *checkruntime.Ra
 		if order == 0 {
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: left.UpperInclusive != right.LowerInclusive}
 		}
-		if order < 0 && (left.ElementKind == 2 || left.ElementKind == 3 || left.ElementKind == 7) {
+		if order < 0 && left.Support.Canonical == 0 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+		if order < 0 && (left.Support.Canonical == 2 || left.Support.Canonical == 3 || left.Support.Canonical == 7) {
 			flags := langruntime.NewTextBuffer("")
 			if left.UpperInclusive {
 				flags = append(flags, string(langruntime.CheckedChar('('))...)
@@ -31964,7 +31967,7 @@ func rangeBoundsAdjacent(left *checkruntime.RangePayload, right *checkruntime.Ra
 			} else {
 				flags = append(flags, string(langruntime.CheckedChar(']'))...)
 			}
-			gap := rangeBuiltinConstruct(left.TypeName, left.ElementType, left.ElementKind, a, b, checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(flags)})
+			gap := RangeConstructWithSupport(left.TypeName, left.ElementType, left.ElementKind, a, b, checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: string(flags)}, left.Support)
 			return checkruntime.RangeEmptyState(gap)
 		}
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
@@ -32134,7 +32137,7 @@ func rangeContainsElement(input checkruntime.RangeValue, element checkruntime.Ar
 			hasUpper = false
 		}
 		if hasLower {
-			comparison := rangeBuiltinCompare(lower, checkruntime.CopyArrayElement(element), span.ElementKind)
+			comparison := rangeBuiltinCompare(lower, checkruntime.CopyArrayElement(element), span.Support.Comparison)
 			if comparison.Kind == checkruntime.Int4ValueError {
 				error := comparison.Error
 				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -32152,7 +32155,7 @@ func rangeContainsElement(input checkruntime.RangeValue, element checkruntime.Ar
 			}
 		}
 		if hasUpper {
-			comparison := rangeBuiltinCompare(upper, element, span.ElementKind)
+			comparison := rangeBuiltinCompare(upper, element, span.Support.Comparison)
 			if comparison.Kind == checkruntime.Int4ValueError {
 				error := comparison.Error
 				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -32307,13 +32310,13 @@ func rangeBuiltinCompare(lower checkruntime.ArrayElement, upper checkruntime.Arr
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
-func rangeBuiltinSerialize(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInclusive bool, upperInclusive bool) checkruntime.RangeValue {
+func rangeProfileSerialize(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInclusive bool, upperInclusive bool, support checkruntime.RangeSupport) checkruntime.RangeValue {
 	typeName = langruntime.CheckedString(typeName)
 	elementType = langruntime.CheckedString(elementType)
 	kind = langruntime.CheckedI32(kind)
 	lower = checkruntime.CopyArrayElement(lower)
 	upper = checkruntime.CopyArrayElement(upper)
-	comparison := rangeBuiltinCompare(checkruntime.CopyArrayElement(lower), checkruntime.CopyArrayElement(upper), kind)
+	comparison := rangeBuiltinCompare(checkruntime.CopyArrayElement(lower), checkruntime.CopyArrayElement(upper), support.Comparison)
 	if comparison.Kind == checkruntime.Int4ValueError {
 		error := comparison.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
@@ -32324,7 +32327,7 @@ func rangeBuiltinSerialize(typeName string, elementType string, kind int, lower 
 			return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorDataError)}
 		}
 		if order == 0 && (lowerInclusive == false || upperInclusive == false) {
-			return checkruntime.RangeFromCoercedBounds(typeName, elementType, kind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull})
+			return checkruntime.RangeFromProfiledBounds(typeName, elementType, kind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, support)
 		}
 		loInc := lowerInclusive
 		hiInc := upperInclusive
@@ -32334,7 +32337,7 @@ func rangeBuiltinSerialize(typeName string, elementType string, kind int, lower 
 		if upper.Kind == checkruntime.ArrayElementNull {
 			hiInc = false
 		}
-		return checkruntime.RangeFromCoercedBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper)
+		return checkruntime.RangeFromProfiledBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper, support)
 	}
 	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 }
@@ -32345,11 +32348,17 @@ func rangeBuiltinCanonical(input checkruntime.RangeValue) checkruntime.RangeValu
 		if value.Empty {
 			return checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: value}
 		}
+		if value.Support.Canonical == 0 {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+		}
+		if value.Support.Canonical == 1 {
+			return checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: value}
+		}
 		lower := checkruntime.CopyArrayElement(value.Bounds[0])
 		upper := checkruntime.CopyArrayElement(value.Bounds[1])
 		loInc := value.LowerInclusive
 		hiInc := value.UpperInclusive
-		if value.ElementKind == 2 {
+		if value.Support.Canonical == 2 {
 			if lower.Kind == checkruntime.ArrayElementInt4 {
 				bound := langruntime.CheckedI32(lower.Int4)
 				if loInc == false {
@@ -32371,7 +32380,7 @@ func rangeBuiltinCanonical(input checkruntime.RangeValue) checkruntime.RangeValu
 				}
 			}
 		}
-		if value.ElementKind == 3 {
+		if value.Support.Canonical == 3 {
 			if lower.Kind == checkruntime.ArrayElementInt8 {
 				bound := lower.Int8
 				if loInc == false {
@@ -32393,7 +32402,7 @@ func rangeBuiltinCanonical(input checkruntime.RangeValue) checkruntime.RangeValu
 				}
 			}
 		}
-		if value.ElementKind == 7 {
+		if value.Support.Canonical == 7 {
 			if lower.Kind == checkruntime.ArrayElementDate {
 				bound := langruntime.CheckedI32(lower.Date)
 				if bound != langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) && bound != 2147483647 && loInc == false {
@@ -32415,11 +32424,20 @@ func rangeBuiltinCanonical(input checkruntime.RangeValue) checkruntime.RangeValu
 				}
 			}
 		}
-		return rangeBuiltinSerialize(value.TypeName, value.ElementType, value.ElementKind, lower, upper, loInc, hiInc)
+		return rangeProfileSerialize(value.TypeName, value.ElementType, value.ElementKind, lower, upper, loInc, hiInc, value.Support)
 	}
 	return input
 }
 func rangeBuiltinConstruct(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, flags checkruntime.TextValue) checkruntime.RangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	support := checkruntime.RangeBuiltinSupport(typeName, elementType, kind)
+	return RangeConstructWithSupport(typeName, elementType, kind, lower, upper, flags, support)
+}
+func RangeConstructWithSupport(typeName string, elementType string, kind int, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, flags checkruntime.TextValue, support checkruntime.RangeSupport) checkruntime.RangeValue {
 	typeName = langruntime.CheckedString(typeName)
 	elementType = langruntime.CheckedString(elementType)
 	kind = langruntime.CheckedI32(kind)
@@ -32436,6 +32454,9 @@ func rangeBuiltinConstruct(typeName string, elementType string, kind int, lower 
 	if flags.Kind == checkruntime.TextValueError {
 		error := flags.Error
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: error}
+	}
+	if checkruntime.RangeSupportValid(support, kind) == false {
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
 	}
 	if flags.Kind == checkruntime.TextValueNull {
 		return checkruntime.RangeValue{Kind: checkruntime.RangeValueError, Error: checkruntime.MakeSqlError(rangeConstructorDataError)}
@@ -32454,7 +32475,7 @@ func rangeBuiltinConstruct(typeName string, elementType string, kind int, lower 
 		}
 		loInc := text == "[]" || text == "[)"
 		hiInc := text == "[]" || text == "(]"
-		initial := rangeBuiltinSerialize(typeName, elementType, kind, lower, upper, loInc, hiInc)
+		initial := rangeProfileSerialize(typeName, elementType, kind, lower, upper, loInc, hiInc, support)
 		return rangeBuiltinCanonical(initial)
 	}
 	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
@@ -33031,18 +33052,18 @@ func RangeToText(input checkruntime.RangeValue) checkruntime.TextValue {
 const rangeSetNoncontiguous = 3452544
 
 func rangeEmptyLike(input *checkruntime.RangePayload) checkruntime.RangeValue {
-	return checkruntime.RangeFromCoercedBounds(input.TypeName, input.ElementType, input.ElementKind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull})
+	return checkruntime.RangeFromProfiledBounds(input.TypeName, input.ElementType, input.ElementKind, true, false, false, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, checkruntime.ArrayElement{Kind: checkruntime.ArrayElementNull}, input.Support)
 }
 func rangeCopyPayload(input *checkruntime.RangePayload) checkruntime.RangeValue {
 	if input.Empty {
 		return rangeEmptyLike(input)
 	}
-	return checkruntime.RangeFromCoercedBounds(input.TypeName, input.ElementType, input.ElementKind, false, input.LowerInclusive, input.UpperInclusive, checkruntime.CopyArrayElement(input.Bounds[0]), checkruntime.CopyArrayElement(input.Bounds[1]))
+	return checkruntime.RangeFromProfiledBounds(input.TypeName, input.ElementType, input.ElementKind, false, input.LowerInclusive, input.UpperInclusive, checkruntime.CopyArrayElement(input.Bounds[0]), checkruntime.CopyArrayElement(input.Bounds[1]), input.Support)
 }
 func rangeRebuild(input *checkruntime.RangePayload, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement, lowerInc bool, upperInc bool) checkruntime.RangeValue {
 	lower = checkruntime.CopyArrayElement(lower)
 	upper = checkruntime.CopyArrayElement(upper)
-	initial := rangeBuiltinSerialize(input.TypeName, input.ElementType, input.ElementKind, lower, upper, lowerInc, upperInc)
+	initial := rangeProfileSerialize(input.TypeName, input.ElementType, input.ElementKind, lower, upper, lowerInc, upperInc, input.Support)
 	return rangeBuiltinCanonical(initial)
 }
 func rangePayloadDifference(left *checkruntime.RangePayload, right *checkruntime.RangePayload) checkruntime.RangeValue {

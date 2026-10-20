@@ -128,6 +128,7 @@ pub fn multirange_from_text(
             range_type: range_type.to_owned(),
             element_type: element_type.to_owned(),
             element_kind,
+            support: range_builtin_support(range_type, element_type, element_kind),
             ranges,
         });
     };

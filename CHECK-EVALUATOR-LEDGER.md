@@ -15,9 +15,7 @@ Measure each boundary separately:
 | `artifacts/check-worlds/report.json`                                           | Actual INSERT outcomes, Unknown results, and unexercised constraints                     |
 | `artifacts/check-coercions/report.json`                                        | Explicit cast pairs and runtime text conversions, compared in raw/stored CHECKs          |
 
-Generated artifacts are ignored by Git. The census and type-audit producers live under maintained `scripts/check-measurements/`.
-
-Refresh world outcomes before measuring the surface. Run from the repository root:
+Generated artifacts are ignored by Git. The census and type-audit producers live under maintained `scripts/check-measurements/`. Refresh world outcomes before measuring the surface. Run from the repository root:
 
 ```bash
 pnpm check-rust:measure
@@ -257,6 +255,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish owned multirange array cells and admit builtin multirange arrays and nested/domain cells through captured multirange/range/subtype profiles; validate public inputs before copying and compose metadata, indexing, constructors, comparisons, membership, searches, rewrites, transformations, catalog array casts, text I/O and hashes. Preserve checked domains, exact selected wire scales, exact duplicate sort ties, unspecified unequal tie representations, eager literals, lazy/context-dependent input and complete byte-order alternatives; verify native/raw/stored INSERT parity and retain database/internal interface requirements separately.
 - [x] Admit range/multirange JSON string conversion and recursive arrays through captured polymorphic output identities and shared subtype formatters; preserve exact numeric scales, domain cells, object keys, typed VARIADIC builders, raw/stored composition, NULL/Unknown/error states, lazy branches and reached DateStyle/TimeZone requirements; verify native/Rust/Go/TypeScript INSERT parity.
 - [x] Admit builtin range subtype-distance support through captured scalar signatures, conversion before floating subtraction, raw temporal infinity markers, timestamp seconds and exact numeric subtraction before float conversion; preserve rounding, strict states, overflow/underflow, domains, constant preparation, lazy composition and native/Rust/Go/TypeScript INSERT parity.
+- [x] Establish owned comparison/canonicalization profiles for ranges and multiranges before custom CHECK admission; preserve continuous versus discrete semantics, empty profiles, member normalization, builtin input defaults, readonly support, nested array snapshots and reached unavailable-support deferral across Rust/Go/TypeScript and PostgreSQL.
 - [ ] Ranges and multiranges, including CHECK admission through captured custom type profiles after their subtype operations; builtin operations are covered, while custom profiles currently lower to Unknown.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

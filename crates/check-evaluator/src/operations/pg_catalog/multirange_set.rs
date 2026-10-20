@@ -25,6 +25,7 @@ fn multirange_set_result(input: &MultirangePayload, ranges: Vec<RangeValue>) -> 
         range_type: input.range_type.clone(),
         element_type: input.element_type.clone(),
         element_kind: input.element_kind,
+        support: input.support,
         ranges,
     })
 }
@@ -300,7 +301,7 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
     };
     if let MultirangeValue::Value(payload) = input {
         if payload.ranges.len() == 0 {
-            return range_from_coerced_bounds(
+            return range_from_profiled_bounds(
                 payload.range_type.as_str(),
                 payload.element_type.as_str(),
                 payload.element_kind,
@@ -309,6 +310,7 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
                 false,
                 ArrayElement::Null,
                 ArrayElement::Null,
+                payload.support,
             );
         };
         let first = payload.ranges[0].clone();
@@ -324,7 +326,7 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
         };
         if let RangeValue::Value(a) = first {
             if let RangeValue::Value(b) = last {
-                return range_from_coerced_bounds(
+                return range_from_profiled_bounds(
                     payload.range_type.as_str(),
                     payload.element_type.as_str(),
                     payload.element_kind,
@@ -333,6 +335,7 @@ pub fn sql__pg_catalog__range_merge__f619(input: MultirangeValue) -> RangeValue 
                     b.upper_inclusive,
                     a.bounds[0].clone(),
                     b.bounds[1].clone(),
+                    payload.support,
                 );
             };
         };

@@ -1,7 +1,7 @@
 const RANGE_SET_NONCONTIGUOUS: u32 = 3452544;
 
 fn range_empty_like(input: &RangePayload) -> RangeValue {
-    range_from_coerced_bounds(
+    range_from_profiled_bounds(
         input.type_name.as_str(),
         input.element_type.as_str(),
         input.element_kind,
@@ -10,6 +10,7 @@ fn range_empty_like(input: &RangePayload) -> RangeValue {
         false,
         ArrayElement::Null,
         ArrayElement::Null,
+        input.support,
     )
 }
 
@@ -17,7 +18,7 @@ fn range_copy_payload(input: &RangePayload) -> RangeValue {
     if input.empty {
         return range_empty_like(input);
     };
-    range_from_coerced_bounds(
+    range_from_profiled_bounds(
         input.type_name.as_str(),
         input.element_type.as_str(),
         input.element_kind,
@@ -26,6 +27,7 @@ fn range_copy_payload(input: &RangePayload) -> RangeValue {
         input.upper_inclusive,
         input.bounds[0].clone(),
         input.bounds[1].clone(),
+        input.support,
     )
 }
 
@@ -36,7 +38,7 @@ fn range_rebuild(
     lower_inc: bool,
     upper_inc: bool,
 ) -> RangeValue {
-    let initial = range_builtin_serialize(
+    let initial = range_profile_serialize(
         input.type_name.as_str(),
         input.element_type.as_str(),
         input.element_kind,
@@ -44,6 +46,7 @@ fn range_rebuild(
         upper,
         lower_inc,
         upper_inc,
+        input.support,
     );
     range_builtin_canonical(initial)
 }

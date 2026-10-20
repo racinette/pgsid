@@ -8527,17 +8527,58 @@ export function arrayElementToMultirange(input: ArrayElement): MultirangeValue {
     }
     return { kind: "Unknown" };
 }
+export interface RangeSupport {
+    readonly comparison: number;
+    readonly canonical: number;
+}
+export function rangeUnknownSupport(): RangeSupport {
+    return { comparison: 0, canonical: 0 };
+}
+export function rangeBuiltinSupport(typeName: string, elementType: string, kind: number): RangeSupport {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    if (typeName === "pg_catalog.int4range" && elementType === "pg_catalog.int4" && kind === 2) {
+        return { comparison: 2, canonical: 2 };
+    }
+    if (typeName === "pg_catalog.int8range" && elementType === "pg_catalog.int8" && kind === 3) {
+        return { comparison: 3, canonical: 3 };
+    }
+    if (typeName === "pg_catalog.daterange" && elementType === "pg_catalog.date" && kind === 7) {
+        return { comparison: 7, canonical: 7 };
+    }
+    if (typeName === "pg_catalog.numrange" && elementType === "pg_catalog.\"numeric\"" && kind === 10) {
+        return { comparison: 10, canonical: 1 };
+    }
+    if (typeName === "pg_catalog.tsrange" && elementType === "pg_catalog.\"timestamp\"" && kind === 4) {
+        return { comparison: 4, canonical: 1 };
+    }
+    if (typeName === "pg_catalog.tstzrange" && elementType === "pg_catalog.timestamptz" && kind === 5) {
+        return { comparison: 5, canonical: 1 };
+    }
+    return rangeUnknownSupport();
+}
+export function rangeSupportEqual(left: RangeSupport, right: RangeSupport): boolean {
+    return left.comparison === right.comparison && left.canonical === right.canonical;
+}
+export function rangeSupportValid(input: RangeSupport, kind: number): boolean {
+    kind = langruntime.checkedI32(kind);
+    const comparison: boolean = input.comparison === 0 || (input.comparison === kind && (kind === 2 || kind === 3 || kind === 4 || kind === 5 || kind === 7 || kind === 10));
+    const canonical: boolean = input.canonical === 0 || input.canonical === 1 || (input.canonical === kind && (kind === 2 || kind === 3 || kind === 7));
+    return comparison && canonical;
+}
 export interface RangePayload {
     readonly typeName: string;
     readonly elementType: string;
     readonly elementKind: number;
+    readonly support: RangeSupport;
     readonly empty: boolean;
     readonly lowerInclusive: boolean;
     readonly upperInclusive: boolean;
     readonly bounds: ArrayElement[];
 }
 export function copyRangePayload(value: RangePayload): RangePayload {
-    return { typeName: langruntime.checkedString(value.typeName), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), empty: langruntime.checkedBool(value.empty), lowerInclusive: langruntime.checkedBool(value.lowerInclusive), upperInclusive: langruntime.checkedBool(value.upperInclusive), bounds: langruntime.checkedStructs(value.bounds, copyArrayElement) };
+    return { typeName: langruntime.checkedString(value.typeName), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), support: value.support, empty: langruntime.checkedBool(value.empty), lowerInclusive: langruntime.checkedBool(value.lowerInclusive), upperInclusive: langruntime.checkedBool(value.upperInclusive), bounds: langruntime.checkedStructs(value.bounds, copyArrayElement) };
 }
 export type RangeValue = {
     readonly kind: "Unknown";
@@ -8564,41 +8605,69 @@ export function rangeUnknown(): RangeValue {
 export function rangeNull(): RangeValue {
     return { kind: "Null" };
 }
+function rangePayloadWithSupport(input: RangePayload, support: RangeSupport): RangePayload {
+    input = copyRangePayload(input);
+    return { typeName: input.typeName, elementType: input.elementType, elementKind: input.elementKind, support: support, empty: input.empty, lowerInclusive: input.lowerInclusive, upperInclusive: input.upperInclusive, bounds: input.bounds };
+}
 export function makeCoercedRangeValue(input: RangePayload): RangeValue {
     input = copyRangePayload(input);
-    if (input.typeName === "" || input.elementType === "" || input.elementKind < 1) {
+    const value: RangePayload = input;
+    let support: RangeSupport = value.support;
+    if (value.typeName === "" || value.elementType === "" || value.elementKind < 1) {
         return { kind: "Unknown" };
     }
-    if (input.empty) {
-        if (!(input.bounds.length === 0) || input.lowerInclusive || input.upperInclusive) {
+    if (rangeSupportEqual(support, rangeUnknownSupport())) {
+        support = rangeBuiltinSupport(value.typeName, value.elementType, value.elementKind);
+    }
+    if (rangeSupportValid(support, value.elementKind) === false) {
+        return { kind: "Unknown" };
+    }
+    const expected: RangeSupport = rangeBuiltinSupport(value.typeName, value.elementType, value.elementKind);
+    if (rangeSupportEqual(expected, rangeUnknownSupport()) === false && rangeSupportEqual(support, expected) === false) {
+        return { kind: "Unknown" };
+    }
+    if (value.empty) {
+        if (!(value.bounds.length === 0) || value.lowerInclusive || value.upperInclusive) {
             return { kind: "Unknown" };
         }
-        return { kind: "Value", value: input };
+        return { kind: "Value", value: rangePayloadWithSupport(value, support) };
     }
-    if (!(input.bounds.length === 2)) {
+    if (!(value.bounds.length === 2)) {
         return { kind: "Unknown" };
     }
     let index: number = 0;
-    while (index < input.bounds.length) {
-        const bound: ArrayElement = copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(index), copyArrayElement));
+    while (index < value.bounds.length) {
+        const bound: ArrayElement = copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(index), copyArrayElement));
         if (bound.kind === "Error") {
             const error: SqlError = bound.value;
             return { kind: "Error", value: error };
         }
         const kind: number = arrayElementFamily(copyArrayElement(bound));
-        if (!(kind === 0) && !(kind === input.elementKind)) {
+        if (!(kind === 0) && !(kind === value.elementKind)) {
             return { kind: "Unknown" };
         }
         if (bound.kind === "Null") {
-            if ((index === 0 && input.lowerInclusive) || (index === 1 && input.upperInclusive)) {
+            if ((index === 0 && value.lowerInclusive) || (index === 1 && value.upperInclusive)) {
                 return { kind: "Unknown" };
             }
         }
         index = langruntime.checkedAdd(index, 1);
     }
-    return { kind: "Value", value: input };
+    return { kind: "Value", value: rangePayloadWithSupport(value, support) };
 }
 export function rangeFromCoercedBounds(typeName: string, elementType: string, elementKind: number, empty: boolean, lowerInclusive: boolean, upperInclusive: boolean, lower: ArrayElement, upper: ArrayElement): RangeValue {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    empty = langruntime.checkedBool(empty);
+    lowerInclusive = langruntime.checkedBool(lowerInclusive);
+    upperInclusive = langruntime.checkedBool(upperInclusive);
+    lower = copyArrayElement(lower);
+    upper = copyArrayElement(upper);
+    const support: RangeSupport = rangeBuiltinSupport(typeName, elementType, elementKind);
+    return rangeFromProfiledBounds(typeName, elementType, elementKind, empty, lowerInclusive, upperInclusive, lower, upper, support);
+}
+export function rangeFromProfiledBounds(typeName: string, elementType: string, elementKind: number, empty: boolean, lowerInclusive: boolean, upperInclusive: boolean, lower: ArrayElement, upper: ArrayElement, support: RangeSupport): RangeValue {
     typeName = langruntime.checkedString(typeName);
     elementType = langruntime.checkedString(elementType);
     elementKind = langruntime.checkedI32(elementKind);
@@ -8612,7 +8681,7 @@ export function rangeFromCoercedBounds(typeName: string, elementType: string, el
         langruntime.pushStruct(bounds, lower, copyArrayElement);
         langruntime.pushStruct(bounds, upper, copyArrayElement);
     }
-    return makeCoercedRangeValue({ typeName: typeName, elementType: elementType, elementKind: elementKind, empty: empty, lowerInclusive: lowerInclusive, upperInclusive: upperInclusive, bounds: bounds });
+    return makeCoercedRangeValue({ typeName: typeName, elementType: elementType, elementKind: elementKind, support: support, empty: empty, lowerInclusive: lowerInclusive, upperInclusive: upperInclusive, bounds: bounds });
 }
 export function rangeRequireType(input: RangeValue, typeName: string, elementType: string, elementKind: number): RangeValue {
     input = copyRangeValue(input);
@@ -8622,6 +8691,21 @@ export function rangeRequireType(input: RangeValue, typeName: string, elementTyp
     if (input.kind === "Value") {
         const value: RangePayload = copyRangePayload(input.value);
         if (!(value.typeName === typeName) || !(value.elementType === elementType) || !(value.elementKind === elementKind)) {
+            return { kind: "Unknown" };
+        }
+        const expected: RangeSupport = rangeBuiltinSupport(typeName, elementType, elementKind);
+        if (rangeSupportEqual(expected, rangeUnknownSupport()) === false && rangeSupportEqual(value.support, expected) === false) {
+            return { kind: "Unknown" };
+        }
+        return { kind: "Value", value: value };
+    }
+    return input;
+}
+export function rangeRequireSupport(input: RangeValue, expected: RangeSupport): RangeValue {
+    input = copyRangeValue(input);
+    if (input.kind === "Value") {
+        const value: RangePayload = copyRangePayload(input.value);
+        if (rangeSupportEqual(value.support, expected) === false) {
             return { kind: "Unknown" };
         }
         return { kind: "Value", value: value };
@@ -8726,10 +8810,11 @@ export interface MultirangePayload {
     readonly rangeType: string;
     readonly elementType: string;
     readonly elementKind: number;
+    readonly support: RangeSupport;
     readonly ranges: RangeValue[];
 }
 export function copyMultirangePayload(value: MultirangePayload): MultirangePayload {
-    return { typeName: langruntime.checkedString(value.typeName), rangeType: langruntime.checkedString(value.rangeType), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), ranges: langruntime.checkedStructs(value.ranges, copyRangeValue) };
+    return { typeName: langruntime.checkedString(value.typeName), rangeType: langruntime.checkedString(value.rangeType), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), support: value.support, ranges: langruntime.checkedStructs(value.ranges, copyRangeValue) };
 }
 export type MultirangeValue = {
     readonly kind: "Unknown";
@@ -8756,42 +8841,84 @@ export function multirangeUnknown(): MultirangeValue {
 export function multirangeNull(): MultirangeValue {
     return { kind: "Null" };
 }
-function multirangeComponentState(input: MultirangePayload, position: number): BoolValue {
+function multirangeComponent(input: MultirangePayload, position: number, support: RangeSupport): RangeValue {
     position = langruntime.checkedIndex(position);
-    const span: RangeValue = copyRangeValue(langruntime.indexStruct(input.ranges, langruntime.checkedIndex(position), copyRangeValue));
+    let span: RangeValue = copyRangeValue(langruntime.indexStruct(input.ranges, langruntime.checkedIndex(position), copyRangeValue));
+    if (span.kind === "Value") {
+        const payload: RangePayload = copyRangePayload(span.value);
+        span = copyRangeValue(makeCoercedRangeValue(payload));
+    }
     const typed: RangeValue = rangeRequireType(span, input.rangeType, input.elementType, input.elementKind);
-    if (typed.kind === "Error") {
-        const error: SqlError = typed.value;
+    const supported: RangeValue = rangeRequireSupport(typed, support);
+    if (supported.kind === "Error") {
+        const error: SqlError = supported.value;
         return { kind: "Error", value: error };
     }
-    if (typed.kind === "Value") {
-        const payload: RangePayload = copyRangePayload(typed.value);
+    if (supported.kind === "Value") {
+        const payload: RangePayload = copyRangePayload(supported.value);
         if (payload.empty) {
             return { kind: "Unknown" };
         }
-        const checked: RangeValue = makeCoercedRangeValue(payload);
-        return rangeIsNull(checked);
+        return { kind: "Value", value: payload };
     }
     return { kind: "Unknown" };
 }
 export function makeCoercedMultirangeValue(input: MultirangePayload): MultirangeValue {
     input = copyMultirangePayload(input);
-    if (input.typeName === "" || input.rangeType === "" || input.elementType === "" || input.elementKind < 1) {
+    const payload: MultirangePayload = input;
+    let support: RangeSupport = payload.support;
+    if (payload.typeName === "" || payload.rangeType === "" || payload.elementType === "" || payload.elementKind < 1) {
         return { kind: "Unknown" };
     }
+    const expected: RangeSupport = rangeBuiltinSupport(payload.rangeType, payload.elementType, payload.elementKind);
+    if (rangeSupportEqual(support, rangeUnknownSupport())) {
+        support = expected;
+    }
+    if (rangeSupportValid(support, payload.elementKind) === false) {
+        return { kind: "Unknown" };
+    }
+    if (rangeSupportEqual(expected, rangeUnknownSupport()) === false && rangeSupportEqual(support, expected) === false) {
+        return { kind: "Unknown" };
+    }
+    let ranges: RangeValue[] = [];
     let index: number = 0;
-    while (index < input.ranges.length) {
-        const state: BoolValue = multirangeComponentState(input, index);
-        if (state.kind === "Error") {
-            const error: SqlError = state.value;
+    while (index < payload.ranges.length) {
+        const member: RangeValue = multirangeComponent(payload, index, support);
+        if (member.kind === "Error") {
+            const error: SqlError = member.value;
             return { kind: "Error", value: error };
         }
-        if (!(equalBoolValue(state, { kind: "Value", value: false }))) {
+        let known: boolean = false;
+        if (member.kind === "Value") {
+            const span: RangePayload = copyRangePayload(member.value);
+            langruntime.pushStruct(ranges, { kind: "Value", value: span }, copyRangeValue);
+            known = langruntime.checkedBool(true);
+        }
+        if (known === false) {
             return { kind: "Unknown" };
         }
         index = langruntime.checkedAdd(index, 1);
     }
-    return { kind: "Value", value: input };
+    return { kind: "Value", value: { typeName: payload.typeName, rangeType: payload.rangeType, elementType: payload.elementType, elementKind: payload.elementKind, support: support, ranges: ranges } };
+}
+export function multirangeFromProfiledRanges(typeName: string, rangeType: string, elementType: string, elementKind: number, ranges: RangeValue[], support: RangeSupport): MultirangeValue {
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    ranges = langruntime.checkedStructs(ranges, copyRangeValue);
+    return makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: support, ranges: ranges });
+}
+export function multirangeRequireSupport(input: MultirangeValue, expected: RangeSupport): MultirangeValue {
+    input = copyMultirangeValue(input);
+    if (input.kind === "Value") {
+        const payload: MultirangePayload = copyMultirangePayload(input.value);
+        if (rangeSupportEqual(payload.support, expected) === false) {
+            return { kind: "Unknown" };
+        }
+        return { kind: "Value", value: payload };
+    }
+    return input;
 }
 export function multirangeRequireType(input: MultirangeValue, typeName: string, rangeType: string, elementType: string, elementKind: number): MultirangeValue {
     input = copyMultirangeValue(input);
@@ -9257,39 +9384,38 @@ export function arrayFromCaseGuard(input: CheckOutcome): ArrayValue {
     }
     return { kind: "Unknown" };
 }
-function arrayElementOwnedState(input: ArrayPayload, position: number): BoolValue {
-    position = langruntime.checkedIndex(position);
-    const element: ArrayElement = copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement));
-    if (element.kind === "Error") {
-        const error: SqlError = element.value;
-        return { kind: "Error", value: error };
-    }
+function arrayCoercedOwnedElement(element: ArrayElement): ArrayElement {
+    element = copyArrayElement(element);
     if (element.kind === "Array") {
         const nested: ArrayPayload = copyArrayPayload(element.value);
-        return arrayIsNull(makeArrayValue(nested));
+        return arrayElementFromArray(makeArrayValue(nested));
     }
     if (element.kind === "Range") {
         const payload: RangePayload = copyRangePayload(element.value);
-        return rangeIsNull(makeCoercedRangeValue(payload));
+        return arrayElementFromRange(makeCoercedRangeValue(payload));
     }
     if (element.kind === "Multirange") {
         const payload: MultirangePayload = copyMultirangePayload(element.value);
-        return multirangeIsNull(makeCoercedMultirangeValue(payload));
+        return arrayElementFromMultirange(makeCoercedMultirangeValue(payload));
     }
-    return { kind: "Value", value: false };
+    return element;
 }
 export function makeArrayValue(input: ArrayPayload): ArrayValue {
     input = copyArrayPayload(input);
+    let elements: ArrayElement[] = input.elements;
     let position: number = 0;
-    while (position < input.elements.length) {
-        const checked: BoolValue = arrayElementOwnedState(input, position);
+    while (position < elements.length) {
+        const checked: ArrayElement = arrayCoercedOwnedElement(copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement)));
         if (checked.kind === "Error") {
             const error: SqlError = checked.value;
             return { kind: "Error", value: error };
         }
         if (checked.kind === "Unknown") {
-            return { kind: "Unknown" };
+            if (arrayElementFamily(copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement))) >= 41) {
+                return { kind: "Unknown" };
+            }
         }
+        elements[langruntime.checkedIndexIn(elements, position)] = copyArrayElement(checked);
         position = langruntime.checkedAdd(position, 1);
     }
     const identity: string[] = Array.from(input.elementType);
@@ -9324,12 +9450,12 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         count = langruntime.checkedI64(langruntime.checkedI64Multiply(count, length));
         position = langruntime.checkedAdd(position, 1);
     }
-    if (!(count === BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(input.elements.length))))))) {
+    if (!(count === BigInt(langruntime.checkedI32((langruntime.checkedI32(langruntime.checkedIndex(elements.length))))))) {
         return { kind: "Unknown" };
     }
     position = langruntime.checkedIndex(0);
-    while (position < input.elements.length) {
-        const kind: number = arrayElementFamily(copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement)));
+    while (position < elements.length) {
+        const kind: number = arrayElementFamily(copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement)));
         if (!(kind === 0) && !(kind === input.elementKind)) {
             return { kind: "Unknown" };
         }
@@ -9343,8 +9469,8 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         return { kind: "Unknown" };
     }
     position = langruntime.checkedIndex(0);
-    while (position < input.elements.length) {
-        const element: ArrayElement = copyArrayElement(langruntime.indexStruct(input.elements, langruntime.checkedIndex(position), copyArrayElement));
+    while (position < elements.length) {
+        const element: ArrayElement = copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement));
         if (element.kind === "Null") {
             if (equalBoolValue(nullBitmap, { kind: "Value", value: false })) {
                 return { kind: "Unknown" };
@@ -9353,7 +9479,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         }
         position = langruntime.checkedAdd(position, 1);
     }
-    return { kind: "Value", value: { elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: input.elements, nullBitmap: nullBitmap } };
+    return { kind: "Value", value: { elementType: input.elementType, elementKind: input.elementKind, dimensions: input.dimensions, elements: elements, nullBitmap: nullBitmap } };
 }
 export function arrayFromCoercedValue(input: ArrayValue, elementType: string, elementKind: number): ArrayValue {
     input = copyArrayValue(input);
