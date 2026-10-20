@@ -1899,3 +1899,35 @@ CREATE TABLE lane_segment_algebra (
   CONSTRAINT segment_algebra_constructor CHECK(CASE WHEN bypass THEN true ELSE
     CASE WHEN verify_constructor THEN int4multirange(int4range(1,3/divisor))-slots IS NOT DISTINCT FROM constructed ELSE NULL END END)
 );
+
+CREATE TABLE lane_segment_imports (
+  slot_text text,
+  load_text text,
+  price_text text,
+  day_text text,
+  local_text text,
+  instant_text text,
+  expected_slots int4multirange,
+  expected_loads lane_load_segments,
+  expected_prices nummultirange,
+  expected_days datemultirange,
+  expected_local tsmultirange,
+  expected_instant tstzmultirange,
+  fallback_slots text,
+  selected_slots int4multirange,
+  expected_empty boolean,
+  choose_import boolean,
+  require_bounded boolean,
+  bypass boolean,
+  CONSTRAINT segment_import_slots CHECK(CASE WHEN bypass THEN true ELSE slot_text::int4multirange IS NOT DISTINCT FROM expected_slots END),
+  CONSTRAINT segment_import_loads CHECK(CASE WHEN bypass THEN true ELSE load_text::lane_load_segments IS NOT DISTINCT FROM expected_loads END),
+  CONSTRAINT segment_import_prices CHECK(CASE WHEN bypass THEN true ELSE price_text::nummultirange IS NOT DISTINCT FROM expected_prices END),
+  CONSTRAINT segment_import_days CHECK(CASE WHEN bypass THEN true ELSE day_text::datemultirange IS NOT DISTINCT FROM expected_days END),
+  CONSTRAINT segment_import_local CHECK(CASE WHEN bypass THEN true ELSE local_text::tsmultirange IS NOT DISTINCT FROM expected_local END),
+  CONSTRAINT segment_import_instant CHECK(CASE WHEN bypass THEN true ELSE instant_text::tstzmultirange IS NOT DISTINCT FROM expected_instant END),
+  CONSTRAINT segment_import_empty CHECK(CASE WHEN bypass THEN true ELSE isempty(int4multirange(slot_text)) IS NOT DISTINCT FROM expected_empty END),
+  CONSTRAINT segment_import_selection CHECK(CASE WHEN bypass THEN true ELSE
+    CASE WHEN choose_import THEN COALESCE(NULLIF((slot_text::varchar)::int4multirange,'{}'),(fallback_slots::bpchar)::int4multirange) IS NOT DISTINCT FROM selected_slots ELSE NULL END END),
+  CONSTRAINT segment_import_bounded CHECK(CASE WHEN bypass THEN true ELSE
+    CASE WHEN require_bounded THEN slot_text::lane_bounded_segments IS NOT DISTINCT FROM expected_slots ELSE NULL END END)
+);

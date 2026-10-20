@@ -444,8 +444,8 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
-  if (isMultirangeType(type) && literal.kind === 'null')
-    return { kind: 'multirange', type, value: null }
+  if (isMultirangeType(type) && (literal.kind === 'null' || literal.kind === 'string'))
+    return { kind: 'multirange', type, value: literal.value }
   if (isRangeType(type) && (literal.kind === 'null' || literal.kind === 'string'))
     return { kind: 'range', type, value: literal.value }
   if (type === 'pg_catalog.jsonpath' && (literal.kind === 'null' || literal.kind === 'string'))
@@ -1238,7 +1238,13 @@ const candidate = (
   if (kind === 'operator' && args.length === 2) {
     const known = types.filter((type) => type !== null)
     if (known.length === 1 && args.some((arg, index) => types[index] === null && arg.literal)) {
-      const assumed = matches.filter(({ item }) => item.args.every((type) => type === known[0]))
+      const assumed = matches.filter(({ item }) =>
+        item.args.every(
+          (type) =>
+            type === known[0] ||
+            (isMultirangeType(known[0]) && type === 'pg_catalog.anymultirange'),
+        ),
+      )
       if (assumed.length === 1) return assumed[0]!
     }
   }
@@ -3500,7 +3506,7 @@ export function bindCatalogCheck(
         return text ? { type, value: { kind: 'text-to-float', type, operand: text } } : unknown
       }
       if (
-        isRangeType(type) &&
+        (isRangeType(type) || isMultirangeType(type)) &&
         operand.value &&
         [
           'pg_catalog.text',
@@ -3509,7 +3515,9 @@ export function bindCatalogCheck(
           'pg_catalog.name',
         ].includes(operand.type ?? '')
       )
-        return { type, value: { kind: 'text-to-range', type, operand: operand.value } }
+        return isMultirangeType(type)
+          ? { type, value: { kind: 'text-to-multirange', type, operand: operand.value } }
+          : { type, value: { kind: 'text-to-range', type, operand: operand.value } }
       if (
         type === 'pg_catalog.point' &&
         (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
@@ -4467,6 +4475,15 @@ export function bindCatalogCheck(
         aliasType === 'pg_catalog.jsonb' ||
         aliasType === 'pg_catalog.jsonpath' ||
         isRangeType(aliasType) ||
+        (isMultirangeType(aliasType) &&
+          !explicitVariadic &&
+          (args[0]?.literal !== undefined ||
+            [
+              'pg_catalog.text',
+              'pg_catalog."varchar"',
+              'pg_catalog.bpchar',
+              'pg_catalog.name',
+            ].includes(args[0]?.type ?? ''))) ||
         isSnapshotType(aliasType) ||
         ((args[0]?.type === 'pg_catalog."numeric"' ||
           args[0]?.type === 'pg_catalog.refcursor' ||

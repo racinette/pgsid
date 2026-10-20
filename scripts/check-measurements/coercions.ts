@@ -1,4 +1,5 @@
 import { rangeInputForms } from '../../tests/sql-semantics/check-range-input-forms.js'
+import { multirangeInputForms } from '../../tests/sql-semantics/check-multirange-input-forms.js'
 import {
   jsonpathInputForms,
   invalidJsonpathInputForms,
@@ -115,6 +116,21 @@ const nanBinaryPrecision = {
 } as const
 
 const inputForms = [
+  ...multirangeInputForms.map((forms) => ({
+    ...forms,
+    suite: 'tests/sql-semantics/check-multirange-input-values.test.ts',
+    bindingOwner: 'tests/sql-semantics/check-multirange-input.test.ts',
+    contextOwner: 'tests/sql-semantics/check-multirange-input-context.test.ts',
+    literalOwner: 'tests/sql-semantics/check-multirange-literals.test.ts',
+    contextRequired: forms.deferred,
+    platformDependent: [],
+    unimplementedGrammar: [],
+    scope:
+      'Outer multirange grammar and ordered member input; reached bounds retain their scalar input requirements',
+    normalization:
+      'Shared builtin range canonicalization and multirange constructor sorting/merging',
+    oidInput: false,
+  })),
   ...rangeInputForms.map((forms) => ({
     ...forms,
     suite: 'tests/sql-semantics/check-range-input.test.ts',
