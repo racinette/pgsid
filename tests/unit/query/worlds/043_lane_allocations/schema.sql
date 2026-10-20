@@ -1775,3 +1775,60 @@ CREATE TABLE lane_segment_assembly (
   CONSTRAINT segment_assembly_coalesce CHECK(CASE WHEN bypass THEN true ELSE upper(COALESCE(first_slot::int4multirange,int4multirange(VARIADIC slot_parts),NULL::int4multirange)) IS NOT DISTINCT FROM chosen_ceiling END),
   CONSTRAINT segment_assembly_zero CHECK(CASE WHEN bypass THEN true ELSE isempty(int4multirange())=expected_zero_empty END)
 );
+
+CREATE DOMAIN lane_bounded_segments AS int4multirange
+  CHECK(isempty(VALUE) OR lower(VALUE) IS NOT NULL);
+
+CREATE TABLE lane_segment_compatibility (
+  slots int4multirange,
+  other_slots int4multirange,
+  loads lane_load_segments,
+  other_loads lane_load_segments,
+  prices nummultirange,
+  other_prices nummultirange,
+  calendar_days datemultirange,
+  other_days datemultirange,
+  local_shift tsmultirange,
+  other_local tsmultirange,
+  instant_shift tstzmultirange,
+  other_instant tstzmultirange,
+  reserved_span lane_recorded_range,
+  checkpoint integer,
+  alternatives lane_recorded_range[],
+  preferred int4multirange,
+  expected_order integer,
+  expected_contains boolean,
+  expected_overlap boolean,
+  expected_adjacent boolean,
+  expected_span boolean,
+  expected_checkpoint boolean,
+  expected_alternative boolean,
+  require_bounded boolean,
+  bypass boolean,
+  CONSTRAINT segment_compatibility_order CHECK(CASE WHEN bypass THEN true ELSE
+    multirange_cmp(slots,other_slots) IS NOT DISTINCT FROM expected_order AND multirange_cmp(loads,other_loads) IS NOT DISTINCT FROM expected_order AND
+    multirange_cmp(prices,other_prices) IS NOT DISTINCT FROM expected_order AND multirange_cmp(calendar_days,other_days) IS NOT DISTINCT FROM expected_order AND
+    multirange_cmp(local_shift,other_local) IS NOT DISTINCT FROM expected_order AND multirange_cmp(instant_shift,other_instant) IS NOT DISTINCT FROM expected_order END),
+  CONSTRAINT segment_compatibility_contains CHECK(CASE WHEN bypass THEN true ELSE
+    (slots @> other_slots) IS NOT DISTINCT FROM expected_contains AND (loads @> other_loads) IS NOT DISTINCT FROM expected_contains AND
+    (prices @> other_prices) IS NOT DISTINCT FROM expected_contains AND (calendar_days @> other_days) IS NOT DISTINCT FROM expected_contains AND
+    (local_shift @> other_local) IS NOT DISTINCT FROM expected_contains AND (instant_shift @> other_instant) IS NOT DISTINCT FROM expected_contains END),
+  CONSTRAINT segment_compatibility_overlap CHECK(CASE WHEN bypass THEN true ELSE
+    (slots && other_slots) IS NOT DISTINCT FROM expected_overlap AND (loads && other_loads) IS NOT DISTINCT FROM expected_overlap AND
+    (prices && other_prices) IS NOT DISTINCT FROM expected_overlap AND (calendar_days && other_days) IS NOT DISTINCT FROM expected_overlap AND
+    (local_shift && other_local) IS NOT DISTINCT FROM expected_overlap AND (instant_shift && other_instant) IS NOT DISTINCT FROM expected_overlap END),
+  CONSTRAINT segment_compatibility_adjacent CHECK(CASE WHEN bypass THEN true ELSE
+    (slots -|- other_slots) IS NOT DISTINCT FROM expected_adjacent AND (loads -|- other_loads) IS NOT DISTINCT FROM expected_adjacent AND
+    (prices -|- other_prices) IS NOT DISTINCT FROM expected_adjacent AND (calendar_days -|- other_days) IS NOT DISTINCT FROM expected_adjacent AND
+    (local_shift -|- other_local) IS NOT DISTINCT FROM expected_adjacent AND (instant_shift -|- other_instant) IS NOT DISTINCT FROM expected_adjacent END),
+  CONSTRAINT segment_compatibility_span CHECK(CASE WHEN bypass THEN true ELSE
+    (slots @> reserved_span) IS NOT DISTINCT FROM expected_span AND (reserved_span <@ slots) IS NOT DISTINCT FROM expected_span END),
+  CONSTRAINT segment_compatibility_checkpoint CHECK(CASE WHEN bypass THEN true ELSE
+    (slots @> checkpoint) IS NOT DISTINCT FROM expected_checkpoint AND (checkpoint <@ slots) IS NOT DISTINCT FROM expected_checkpoint END),
+  CONSTRAINT segment_compatibility_choice CHECK(CASE WHEN bypass THEN true ELSE
+    greatest(NULLIF(slots,other_slots),COALESCE(other_slots,slots))=preferred END),
+  CONSTRAINT segment_compatibility_alternatives CHECK(CASE WHEN bypass THEN true ELSE
+    (slots @> ANY(alternatives)) IS NOT DISTINCT FROM expected_alternative END),
+  CONSTRAINT segment_compatibility_bounded CHECK(CASE WHEN bypass THEN true ELSE
+    CASE WHEN require_bounded THEN slots::lane_bounded_segments IS NOT DISTINCT FROM slots ELSE NULL END END)
+);

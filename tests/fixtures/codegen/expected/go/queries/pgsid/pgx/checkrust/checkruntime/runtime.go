@@ -8797,6 +8797,17 @@ func FinishRangeDomainConversion(input RangeValue, result CheckOutcome) RangeVal
 	}
 	return input
 }
+func FinishMultirangeDomainConversion(input MultirangeValue, result CheckOutcome) MultirangeValue {
+	input = CopyMultirangeValue(input)
+	if result.Kind == CheckOutcomeError {
+		error := result.Error
+		return MultirangeValue{Kind: MultirangeValueError, Error: error}
+	}
+	if result == (CheckOutcome{Kind: CheckOutcomeUnknown}) {
+		return MultirangeValue{Kind: MultirangeValueUnknown}
+	}
+	return input
+}
 
 type ArrayDimension struct {
 	Lower  int

@@ -22667,6 +22667,702 @@ func moneyWords(input checkruntime.MoneyValue) checkruntime.TextValue {
 func CashWordsAtzl(input checkruntime.MoneyValue) checkruntime.TextValue {
 	return moneyWords(input)
 }
+func multirangeSameFamily(left *checkruntime.MultirangePayload, right *checkruntime.MultirangePayload) bool {
+	return left.TypeName == right.TypeName && left.RangeType == right.RangeType && left.ElementType == right.ElementType && left.ElementKind == right.ElementKind
+}
+func multirangeSpanFamily(input *checkruntime.MultirangePayload, span *checkruntime.RangePayload) bool {
+	return input.RangeType == span.TypeName && input.ElementType == span.ElementType && input.ElementKind == span.ElementKind
+}
+func multirangeMemberRelation(left *checkruntime.MultirangePayload, li int, right *checkruntime.MultirangePayload, ri int, strategy int) checkruntime.BoolValue {
+	li = langruntime.CheckedIndex(li)
+	ri = langruntime.CheckedIndex(ri)
+	strategy = langruntime.CheckedI32(strategy)
+	a := checkruntime.CopyRangeValue(left.Ranges[li])
+	b := checkruntime.CopyRangeValue(right.Ranges[ri])
+	return rangeRelation(a, b, strategy)
+}
+func multirangeExtreme(input *checkruntime.MultirangePayload, upper bool) checkruntime.RangeValue {
+	position := 0
+	if upper {
+		position = langruntime.CheckedIndex(langruntime.CheckedSubtract(len(input.Ranges), 1))
+	}
+	return checkruntime.CopyRangeValue(input.Ranges[position])
+}
+func multirangeEndpointOrder(left checkruntime.RangeValue, leftUpper bool, right checkruntime.RangeValue, rightUpper bool) checkruntime.Int4Value {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	if left.Kind == checkruntime.RangeValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.RangeValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.RangeValueValue {
+		a := checkruntime.CopyRangePayload(left.Value)
+		if right.Kind == checkruntime.RangeValueValue {
+			b := checkruntime.CopyRangePayload(right.Value)
+			return rangeEndpointCompare(&a, leftUpper, &b, rightUpper)
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func multirangeDirectionalAdjacent(left checkruntime.RangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	if left.Kind == checkruntime.RangeValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.RangeValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left.Kind == checkruntime.RangeValueValue {
+		a := checkruntime.CopyRangePayload(left.Value)
+		if right.Kind == checkruntime.RangeValueValue {
+			b := checkruntime.CopyRangePayload(right.Value)
+			return rangeBoundsAdjacent(&a, &b)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func multirangePayloadCompare(left *checkruntime.MultirangePayload, right *checkruntime.MultirangePayload) checkruntime.Int4Value {
+	index := 0
+	for index < len(left.Ranges) && index < len(right.Ranges) {
+		a := checkruntime.CopyRangeValue(left.Ranges[index])
+		b := checkruntime.CopyRangeValue(right.Ranges[index])
+		compared := RangeCmp8jgl(a, b)
+		if compared != checkruntime.MakeInt4Value(0) {
+			return compared
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if len(left.Ranges) < len(right.Ranges) {
+		return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+	}
+	if len(left.Ranges) > len(right.Ranges) {
+		return checkruntime.MakeInt4Value(1)
+	}
+	return checkruntime.MakeInt4Value(0)
+}
+func multirangeCompare(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.Int4Value {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	if left.Kind == checkruntime.MultirangeValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.MultirangeValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left.Kind == checkruntime.MultirangeValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if right.Kind == checkruntime.MultirangeValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.MultirangeValueValue {
+		a := checkruntime.CopyMultirangePayload(left.Value)
+		if right.Kind == checkruntime.MultirangeValueValue {
+			b := checkruntime.CopyMultirangePayload(right.Value)
+			if multirangeSameFamily(&a, &b) {
+				return multirangePayloadCompare(&a, &b)
+			}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func multirangeEqual(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	if left.Kind == checkruntime.MultirangeValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.MultirangeValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left.Kind == checkruntime.MultirangeValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if right.Kind == checkruntime.MultirangeValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.MultirangeValueValue {
+		a := checkruntime.CopyMultirangePayload(left.Value)
+		if right.Kind == checkruntime.MultirangeValueValue {
+			b := checkruntime.CopyMultirangePayload(right.Value)
+			if multirangeSameFamily(&a, &b) == false {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+			if len(a.Ranges) != len(b.Ranges) {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+			}
+			index := 0
+			for index < len(a.Ranges) {
+				x := checkruntime.CopyRangeValue(a.Ranges[index])
+				y := checkruntime.CopyRangeValue(b.Ranges[index])
+				compared := RangeCmp8jgl(x, y)
+				if compared != checkruntime.MakeInt4Value(0) {
+					return rangeOrderBoolean(compared, 3)
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func multirangePayloadRelation(left *checkruntime.MultirangePayload, right *checkruntime.MultirangePayload, strategy int) checkruntime.BoolValue {
+	strategy = langruntime.CheckedI32(strategy)
+	if strategy == 6 {
+		return multirangePayloadRelation(right, left, 5)
+	}
+	if strategy == 5 && len(right.Ranges) == 0 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+	}
+	if len(left.Ranges) == 0 || len(right.Ranges) == 0 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+	}
+	if strategy >= 1 && strategy <= 4 {
+		a := multirangeExtreme(left, strategy == 1 || strategy == 3)
+		b := multirangeExtreme(right, strategy == 2 || strategy == 3)
+		compared := multirangeEndpointOrder(a, strategy == 1 || strategy == 3, b, strategy == 2 || strategy == 3)
+		if strategy == 1 {
+			return rangeOrderBoolean(compared, 1)
+		}
+		if strategy == 2 {
+			return rangeOrderBoolean(compared, 5)
+		}
+		if strategy == 3 {
+			return rangeOrderBoolean(compared, 2)
+		}
+		return rangeOrderBoolean(compared, 4)
+	}
+	if strategy == 7 {
+		a := multirangeExtreme(left, true)
+		b := multirangeExtreme(right, false)
+		first := multirangeDirectionalAdjacent(a, b)
+		if first != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+			return first
+		}
+		reverseLeft := multirangeExtreme(right, true)
+		reverseRight := multirangeExtreme(left, false)
+		return multirangeDirectionalAdjacent(reverseLeft, reverseRight)
+	}
+	li := 0
+	ri := 0
+	for ri < len(right.Ranges) {
+		advancing := true
+		for advancing {
+			before := multirangeMemberRelation(left, li, right, ri, 1)
+			if before == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+				li = langruntime.CheckedAdd(li, 1)
+				if li >= len(left.Ranges) {
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+				}
+			} else {
+				if before != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+					return before
+				}
+				advancing = false
+			}
+		}
+		current := multirangeMemberRelation(left, li, right, ri, strategy)
+		if strategy == 5 && current != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) {
+			return current
+		}
+		if strategy == 8 && current != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+			return current
+		}
+		ri = langruntime.CheckedAdd(ri, 1)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: strategy == 5}
+}
+func multirangeRelation(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue, strategy int) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	strategy = langruntime.CheckedI32(strategy)
+	if left.Kind == checkruntime.MultirangeValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.MultirangeValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left.Kind == checkruntime.MultirangeValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if right.Kind == checkruntime.MultirangeValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.MultirangeValueValue {
+		a := checkruntime.CopyMultirangePayload(left.Value)
+		if right.Kind == checkruntime.MultirangeValueValue {
+			b := checkruntime.CopyMultirangePayload(right.Value)
+			if multirangeSameFamily(&a, &b) {
+				return multirangePayloadRelation(&a, &b, strategy)
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func multirangeSearchSpan(input *checkruntime.MultirangePayload, span *checkruntime.RangePayload, contains bool) checkruntime.BoolValue {
+	if span.Empty {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: contains}
+	}
+	lower := 0
+	upper := int(int32(len(input.Ranges)))
+	for lower < upper {
+		middle := langruntime.CheckedSignedAdd(lower, langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(upper, lower)), 2))
+		position := langruntime.IndexFromI32(middle, 0)
+		member := checkruntime.CopyRangeValue(input.Ranges[position])
+		if member.Kind == checkruntime.RangeValueError {
+			error := member.Error
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+		}
+		if member.Kind == checkruntime.RangeValueNull {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+		if member.Kind == checkruntime.RangeValueUnknown {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+		if member.Kind == checkruntime.RangeValueValue {
+			candidate := checkruntime.CopyRangePayload(member.Value)
+			before := rangeEndpointCompare(span, true, &candidate, false)
+			if before.Kind == checkruntime.Int4ValueError {
+				error := before.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			known := false
+			if before.Kind == checkruntime.Int4ValueValue {
+				order := langruntime.CheckedI32(before.Value)
+				known = true
+				if order < 0 {
+					upper = langruntime.CheckedI32(middle)
+				} else {
+					after := rangeEndpointCompare(span, false, &candidate, true)
+					if after.Kind == checkruntime.Int4ValueError {
+						error := after.Error
+						return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+					}
+					decided := false
+					if after.Kind == checkruntime.Int4ValueValue {
+						direction := langruntime.CheckedI32(after.Value)
+						decided = true
+						if direction > 0 {
+							lower = langruntime.CheckedI32(langruntime.CheckedSignedAdd(middle, 1))
+						} else {
+							if contains {
+								return rangePayloadRelation(&candidate, span, 5)
+							}
+							return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+						}
+					}
+					if decided == false {
+						return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+					}
+				}
+			}
+			if known == false {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+}
+func multirangeSpanContains(input *checkruntime.MultirangePayload, span *checkruntime.RangePayload) checkruntime.BoolValue {
+	if len(input.Ranges) == 0 {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+	}
+	if span.Empty {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+	}
+	first := multirangeExtreme(input, false)
+	last := multirangeExtreme(input, true)
+	lo := multirangeEndpointOrder(rangeCopyPayload(span), false, first, false)
+	if lo.Kind == checkruntime.Int4ValueError {
+		error := lo.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if lo.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(lo.Value)
+		if order > 0 {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+		}
+		hi := multirangeEndpointOrder(rangeCopyPayload(span), true, last, true)
+		return rangeOrderBoolean(hi, 4)
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func multirangeSpanRelation(input checkruntime.MultirangeValue, span checkruntime.RangeValue, strategy int, multiFirst bool) checkruntime.BoolValue {
+	input = checkruntime.CopyMultirangeValue(input)
+	span = checkruntime.CopyRangeValue(span)
+	strategy = langruntime.CheckedI32(strategy)
+	if multiFirst == false {
+		if span.Kind == checkruntime.RangeValueError {
+			error := span.Error
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+		}
+	}
+	if input.Kind == checkruntime.MultirangeValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if span.Kind == checkruntime.RangeValueError {
+		error := span.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.MultirangeValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if span.Kind == checkruntime.RangeValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.MultirangeValueValue {
+		a := checkruntime.CopyMultirangePayload(input.Value)
+		if span.Kind == checkruntime.RangeValueValue {
+			b := checkruntime.CopyRangePayload(span.Value)
+			if multirangeSpanFamily(&a, &b) == false {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+			if strategy == 5 || strategy == 6 {
+				if (multiFirst && strategy == 5) || (multiFirst == false && strategy == 6) {
+					return multirangeSearchSpan(&a, &b, true)
+				}
+				return multirangeSpanContains(&a, &b)
+			}
+			if len(a.Ranges) == 0 || b.Empty {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+			}
+			if strategy == 8 {
+				return multirangeSearchSpan(&a, &b, false)
+			}
+			if strategy == 7 {
+				first := multirangeExtreme(&a, false)
+				adjacent := multirangeDirectionalAdjacent(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: checkruntime.CopyRangePayload(b)}, first)
+				if adjacent != (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+					return adjacent
+				}
+				last := multirangeExtreme(&a, true)
+				return multirangeDirectionalAdjacent(last, checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: b})
+			}
+			leftUpper := strategy == 1 || strategy == 3
+			rightUpper := strategy == 2 || strategy == 3
+			multiUpper := leftUpper
+			if multiFirst == false {
+				multiUpper = rightUpper
+			}
+			member := multirangeExtreme(&a, multiUpper)
+			compared := checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+			if multiFirst {
+				compared = multirangeEndpointOrder(member, leftUpper, checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: b}, rightUpper)
+			} else {
+				compared = multirangeEndpointOrder(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: b}, leftUpper, member, rightUpper)
+			}
+			if strategy == 1 {
+				return rangeOrderBoolean(compared, 1)
+			}
+			if strategy == 2 {
+				return rangeOrderBoolean(compared, 5)
+			}
+			if strategy == 3 {
+				return rangeOrderBoolean(compared, 2)
+			}
+			return rangeOrderBoolean(compared, 4)
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func multirangeElementDirection(span *checkruntime.RangePayload, element checkruntime.ArrayElement) checkruntime.Int4Value {
+	element = checkruntime.CopyArrayElement(element)
+	lower := checkruntime.CopyArrayElement(span.Bounds[0])
+	upper := checkruntime.CopyArrayElement(span.Bounds[1])
+	hasLower := true
+	hasUpper := true
+	if lower.Kind == checkruntime.ArrayElementNull {
+		hasLower = false
+	}
+	if upper.Kind == checkruntime.ArrayElementNull {
+		hasUpper = false
+	}
+	if hasLower {
+		compared := rangeBuiltinCompare(lower, checkruntime.CopyArrayElement(element), span.ElementKind)
+		if compared.Kind == checkruntime.Int4ValueValue {
+			order := langruntime.CheckedI32(compared.Value)
+			if order > 0 || (order == 0 && span.LowerInclusive == false) {
+				return checkruntime.MakeInt4Value(langruntime.CheckedSignedNegate(1))
+			}
+		}
+		if multirangeOrderKnown(compared) == false {
+			return compared
+		}
+	}
+	if hasUpper {
+		compared := rangeBuiltinCompare(upper, element, span.ElementKind)
+		if compared.Kind == checkruntime.Int4ValueValue {
+			order := langruntime.CheckedI32(compared.Value)
+			if order < 0 || (order == 0 && span.UpperInclusive == false) {
+				return checkruntime.MakeInt4Value(1)
+			}
+		}
+		if multirangeOrderKnown(compared) == false {
+			return compared
+		}
+	}
+	return checkruntime.MakeInt4Value(0)
+}
+func multirangeContainsElement(input checkruntime.MultirangeValue, element checkruntime.ArrayElement, elementFirst bool) checkruntime.BoolValue {
+	input = checkruntime.CopyMultirangeValue(input)
+	element = checkruntime.CopyArrayElement(element)
+	if elementFirst {
+		if element.Kind == checkruntime.ArrayElementError {
+			error := element.Error
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+		}
+	}
+	if input.Kind == checkruntime.MultirangeValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if element.Kind == checkruntime.ArrayElementError {
+		error := element.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input.Kind == checkruntime.MultirangeValueNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if element.Kind == checkruntime.ArrayElementNull {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if element.Kind == checkruntime.ArrayElementUnknown {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input.Kind == checkruntime.MultirangeValueValue {
+		payload := checkruntime.CopyMultirangePayload(input.Value)
+		if checkruntime.ArrayElementFamily(checkruntime.CopyArrayElement(element)) != payload.ElementKind {
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+		}
+		lower := 0
+		upper := int(int32(len(payload.Ranges)))
+		for lower < upper {
+			middle := langruntime.CheckedSignedAdd(lower, langruntime.CheckedSignedDivide((langruntime.CheckedSignedSubtract(upper, lower)), 2))
+			position := langruntime.IndexFromI32(middle, 0)
+			member := checkruntime.CopyRangeValue(payload.Ranges[position])
+			if member.Kind == checkruntime.RangeValueError {
+				error := member.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			if member.Kind == checkruntime.RangeValueNull {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+			if member.Kind == checkruntime.RangeValueUnknown {
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+			}
+			if member.Kind == checkruntime.RangeValueValue {
+				span := checkruntime.CopyRangePayload(member.Value)
+				compared := multirangeElementDirection(&span, checkruntime.CopyArrayElement(element))
+				if compared.Kind == checkruntime.Int4ValueError {
+					error := compared.Error
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+				}
+				known := false
+				if compared.Kind == checkruntime.Int4ValueValue {
+					order := langruntime.CheckedI32(compared.Value)
+					known = true
+					if order == 0 {
+						return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}
+					}
+					if order < 0 {
+						upper = langruntime.CheckedI32(middle)
+					} else {
+						lower = langruntime.CheckedI32(langruntime.CheckedSignedAdd(middle, 1))
+					}
+				}
+				if known == false {
+					return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+				}
+			}
+		}
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func ElemContainedByMultirange1fqy(left checkruntime.ArrayElement, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyArrayElement(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeContainsElement(right, left, true)
+}
+func MultirangeAdjacentMultirangeVolo(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeRelation(left, right, 7)
+}
+func MultirangeAdjacentRangeZ75g(left checkruntime.MultirangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return multirangeSpanRelation(left, right, 7, true)
+}
+func MultirangeAfterMultirangeNrvn(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeRelation(left, right, 2)
+}
+func MultirangeAfterRangeR05j(left checkruntime.MultirangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return multirangeSpanRelation(left, right, 2, true)
+}
+func MultirangeBeforeMultirange8hjl(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeRelation(left, right, 1)
+}
+func MultirangeBeforeRange5v34(left checkruntime.MultirangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return multirangeSpanRelation(left, right, 1, true)
+}
+func MultirangeCmpMafd(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.Int4Value {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeCompare(left, right)
+}
+func MultirangeContainedByMultirange9c9u(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeRelation(left, right, 6)
+}
+func MultirangeContainedByRangeMuhz(left checkruntime.MultirangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return multirangeSpanRelation(left, right, 6, true)
+}
+func MultirangeContainsElemAq4j(left checkruntime.MultirangeValue, right checkruntime.ArrayElement) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyArrayElement(right)
+	return multirangeContainsElement(left, right, false)
+}
+func MultirangeContainsMultirangeXn5h(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeRelation(left, right, 5)
+}
+func MultirangeContainsRangeBpqf(left checkruntime.MultirangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return multirangeSpanRelation(left, right, 5, true)
+}
+func MultirangeEq9xy5(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeEqual(left, right)
+}
+func MultirangeGeM1wr(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	order := multirangeCompare(left, right)
+	return rangeOrderBoolean(order, 4)
+}
+func MultirangeGt3xub(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	order := multirangeCompare(left, right)
+	return rangeOrderBoolean(order, 5)
+}
+func MultirangeLe3kuk(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	order := multirangeCompare(left, right)
+	return rangeOrderBoolean(order, 2)
+}
+func MultirangeLt8rid(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	order := multirangeCompare(left, right)
+	return rangeOrderBoolean(order, 1)
+}
+func MultirangeNeFjyh(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	equal := multirangeEqual(left, right)
+	return checkruntime.BoolNotValue(equal)
+}
+func MultirangeOverlapsMultirange93jh(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeRelation(left, right, 8)
+}
+func MultirangeOverlapsRangeLju4(left checkruntime.MultirangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return multirangeSpanRelation(left, right, 8, true)
+}
+func MultirangeOverleftMultirangeLj1m(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeRelation(left, right, 3)
+}
+func MultirangeOverleftRangeQ948(left checkruntime.MultirangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return multirangeSpanRelation(left, right, 3, true)
+}
+func MultirangeOverrightMultirange20d6(left checkruntime.MultirangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeRelation(left, right, 4)
+}
+func MultirangeOverrightRangeJ24k(left checkruntime.MultirangeValue, right checkruntime.RangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyMultirangeValue(left)
+	right = checkruntime.CopyRangeValue(right)
+	return multirangeSpanRelation(left, right, 4, true)
+}
+func RangeAdjacentMultirange8wks(left checkruntime.RangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeSpanRelation(right, left, 7, false)
+}
+func RangeAfterMultirange5u82(left checkruntime.RangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeSpanRelation(right, left, 2, false)
+}
+func RangeBeforeMultirangeEaoa(left checkruntime.RangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeSpanRelation(right, left, 1, false)
+}
+func RangeContainedByMultirangeOyeg(left checkruntime.RangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeSpanRelation(right, left, 6, false)
+}
+func RangeContainsMultirangeN92i(left checkruntime.RangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeSpanRelation(right, left, 5, false)
+}
+func RangeOverlapsMultirange5sb2(left checkruntime.RangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeSpanRelation(right, left, 8, false)
+}
+func RangeOverleftMultirangeZjel(left checkruntime.RangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeSpanRelation(right, left, 3, false)
+}
+func RangeOverrightMultirangeC1uw(left checkruntime.RangeValue, right checkruntime.MultirangeValue) checkruntime.BoolValue {
+	left = checkruntime.CopyRangeValue(left)
+	right = checkruntime.CopyMultirangeValue(right)
+	return multirangeSpanRelation(right, left, 4, false)
+}
 
 const multirangeNullMember = 3452548
 const multirangeArrayDimensions = 3405888

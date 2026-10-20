@@ -1134,7 +1134,8 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'domain-cast') {
       const array = node.type.startsWith('array:')
       const range = isRangeType(node.type)
-      if (!array && !range && arrayElementFamily(node.type) === null)
+      const multirange = isMultirangeType(node.type)
+      if (!array && !range && !multirange && arrayElementFamily(node.type) === null)
         throw new UnsupportedCheckRustExpression(
           'Domain conversion requires a represented value carrier',
         )
@@ -1146,7 +1147,9 @@ export function emitCheckRustEvaluator(
       const prefix = rustValuePrefix(rustType(node.type))
       const nullness = bind(`${prefix}_is_null(${ownedOperand(operand)})`)
       const element =
-        array || range ? null : bind(`array_element_from_${prefix}(${ownedOperand(operand)})`)
+        array || range || multirange
+          ? null
+          : bind(`array_element_from_${prefix}(${ownedOperand(operand)})`)
       const initial = bind(`domain_conversion_start(${nullness}, ${node.notNull})`)
       const status = fresh('domain_status')
       bindings.push(`let mut ${status}: CheckOutcome = ${initial};`)
@@ -1231,6 +1234,11 @@ export function emitCheckRustEvaluator(
       if (range)
         return {
           name: bind(`finish_range_domain_conversion(${ownedOperand(operand)}, ${status})`),
+          type: node.type,
+        }
+      if (multirange)
+        return {
+          name: bind(`finish_multirange_domain_conversion(${ownedOperand(operand)}, ${status})`),
           type: node.type,
         }
       const finished = bind(`finish_domain_conversion(${element}, ${status})`)
@@ -4769,6 +4777,7 @@ export function emitCheckRustEvaluator(
             'pg_catalog.anyenum',
             'pg_catalog.anyarray',
             'pg_catalog.anyrange',
+            'pg_catalog.anymultirange',
           ].includes(metadata.args[index]!)
             ? node.type
             : metadata.args[index]!

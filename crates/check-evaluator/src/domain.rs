@@ -66,3 +66,16 @@ pub fn finish_range_domain_conversion(input: RangeValue, result: CheckOutcome) -
     };
     input
 }
+
+pub fn finish_multirange_domain_conversion(
+    input: MultirangeValue,
+    result: CheckOutcome,
+) -> MultirangeValue {
+    if let CheckOutcome::Error(error) = result {
+        return MultirangeValue::Error(error);
+    };
+    if result == CheckOutcome::Unknown {
+        return MultirangeValue::Unknown;
+    };
+    input
+}

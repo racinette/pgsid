@@ -8933,6 +8933,17 @@ export function finishRangeDomainConversion(input: RangeValue, result: CheckOutc
     }
     return input;
 }
+export function finishMultirangeDomainConversion(input: MultirangeValue, result: CheckOutcome): MultirangeValue {
+    input = copyMultirangeValue(input);
+    if (result.kind === "Error") {
+        const error: SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalCheckOutcome(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return input;
+}
 export interface ArrayDimension {
     readonly lower: number;
     readonly length: number;

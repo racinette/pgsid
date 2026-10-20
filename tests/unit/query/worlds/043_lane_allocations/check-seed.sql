@@ -5153,3 +5153,63 @@ INSERT INTO lane_segment_assembly(slot_parts,choose_parts,bypass) VALUES('{{NULL
 -- name: segment_assembly_bypass
 INSERT INTO lane_segment_assembly(first_slot,second_slot,slot_parts,slot_floor,slot_ceiling,chosen_floor,chosen_ceiling,expected_zero_empty,choose_parts,bypass)
 VALUES('empty','empty','{{NULL},{"[1,3)"}}',99,99,99,99,false,true,true);
+
+-- name: segment_compatibility_null
+INSERT INTO lane_segment_compatibility(bypass) VALUES(false);
+
+-- name: segment_compatibility_empty
+INSERT INTO lane_segment_compatibility(slots,other_slots,loads,other_loads,prices,other_prices,calendar_days,other_days,local_shift,other_local,instant_shift,other_instant,preferred,expected_order,expected_contains,expected_overlap,expected_adjacent,require_bounded,bypass)
+VALUES('{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}',0,true,false,false,true,false);
+
+-- name: segment_compatibility_equal
+INSERT INTO lane_segment_compatibility(slots,other_slots,loads,other_loads,prices,other_prices,calendar_days,other_days,local_shift,other_local,instant_shift,other_instant,reserved_span,checkpoint,alternatives,preferred,expected_order,expected_contains,expected_overlap,expected_adjacent,expected_span,expected_checkpoint,expected_alternative,require_bounded,bypass)
+VALUES('{[1,3),[5,7)}','{[1,3),[5,7)}','{[9007199254740993,9007199254740995)}','{[9007199254740993,9007199254740995)}','{[1.2300,3.00]}','{[1.23,3.0000]}','{[2000-01-01,2000-01-03)}','{[2000-01-01,2000-01-03)}','{[2000-01-01,2000-01-03)}','{[2000-01-01,2000-01-03)}','{[2000-01-01 00:00+00,2000-01-03 00:00+00)}','{[2000-01-01 00:00+00,2000-01-03 00:00+00)}','[1,2)',5,'{"[3,5)","[5,6)"}','{[1,3),[5,7)}',0,true,true,false,true,true,true,true,false);
+
+-- name: segment_compatibility_adjacent
+INSERT INTO lane_segment_compatibility(slots,other_slots,loads,other_loads,prices,other_prices,calendar_days,other_days,local_shift,other_local,instant_shift,other_instant,reserved_span,checkpoint,alternatives,preferred,expected_order,expected_contains,expected_overlap,expected_adjacent,expected_span,expected_checkpoint,expected_alternative,bypass)
+VALUES('{[1,3)}','{[3,5)}','{[1,3)}','{[3,5)}','{[1,3)}','{[3,5)}','{[2000-01-01,2000-01-03)}','{[2000-01-03,2000-01-05)}','{[2000-01-01,2000-01-03)}','{[2000-01-03,2000-01-05)}','{[2000-01-01 00:00+00,2000-01-03 00:00+00)}','{[2000-01-03 00:00+00,2000-01-05 00:00+00)}','[3,5)',3,'{"[3,5)"}','{[3,5)}',-1,false,false,true,false,false,false,false);
+
+-- name: segment_compatibility_gap
+INSERT INTO lane_segment_compatibility(slots,reserved_span,checkpoint,alternatives,preferred,expected_span,expected_checkpoint,expected_alternative,require_bounded,bypass)
+VALUES('{[1,3),[5,7)}','[2,6)',4,'{"[3,5)",empty}','{[1,3),[5,7)}',false,false,true,true,false);
+
+-- name: segment_compatibility_empty_alternatives
+INSERT INTO lane_segment_compatibility(slots,alternatives,expected_alternative,bypass)
+VALUES('{}','{}',false,false);
+
+-- name: segment_compatibility_order_mismatch
+INSERT INTO lane_segment_compatibility(expected_order,bypass) VALUES(0,false);
+
+-- name: segment_compatibility_contains_mismatch
+INSERT INTO lane_segment_compatibility(expected_contains,bypass) VALUES(false,false);
+
+-- name: segment_compatibility_overlap_mismatch
+INSERT INTO lane_segment_compatibility(expected_overlap,bypass) VALUES(false,false);
+
+-- name: segment_compatibility_adjacent_mismatch
+INSERT INTO lane_segment_compatibility(expected_adjacent,bypass) VALUES(false,false);
+
+-- name: segment_compatibility_span_mismatch
+INSERT INTO lane_segment_compatibility(slots,reserved_span,expected_span,bypass)
+VALUES('{[1,3),[5,7)}','[2,6)',true,false);
+
+-- name: segment_compatibility_checkpoint_mismatch
+INSERT INTO lane_segment_compatibility(slots,checkpoint,expected_checkpoint,bypass)
+VALUES('{[1,3),[5,7)}',4,true,false);
+
+-- name: segment_compatibility_choice_mismatch
+INSERT INTO lane_segment_compatibility(slots,preferred,bypass) VALUES('{[1,3)}','{}',false);
+
+-- name: segment_compatibility_alternative_mismatch
+INSERT INTO lane_segment_compatibility(slots,alternatives,expected_alternative,bypass)
+VALUES('{[1,3)}','{"[3,5)"}',true,false);
+
+-- name: segment_compatibility_unbounded_error
+INSERT INTO lane_segment_compatibility(slots,require_bounded,bypass) VALUES('{(,)}',true,false);
+
+-- name: segment_compatibility_bounded_null
+INSERT INTO lane_segment_compatibility(require_bounded,bypass) VALUES(true,false);
+
+-- name: segment_compatibility_bypass
+INSERT INTO lane_segment_compatibility(slots,other_slots,expected_order,expected_contains,expected_overlap,expected_adjacent,preferred,require_bounded,bypass)
+VALUES('{(,)}','{}',99,false,true,true,'{[1,3)}',true,true);
