@@ -701,6 +701,10 @@ describe('CHECK measurement boundaries', () => {
       expect(multirange.probe.postgres.accepted).toBe(true)
       expect(multirange.probe.raw.preparation.kind).toBe('supported')
       expect(multirange.probe.stored!.preparation.kind).toBe('supported')
+      const multirangeOutput = report.textOutput.find((item) => item.type === range.multirange)!
+      expect(multirangeOutput.probe.postgres.accepted).toBe(true)
+      expect(multirangeOutput.probe.raw.preparation.kind).toBe('supported')
+      expect(multirangeOutput.probe.stored!.preparation.kind).toBe('supported')
       expect(
         report.inputForms.types.find((forms) => forms.type === range.multirange),
       ).toMatchObject({
@@ -710,6 +714,16 @@ describe('CHECK measurement boundaries', () => {
         bindingOwner: 'tests/sql-semantics/check-multirange-input.test.ts',
         contextOwner: 'tests/sql-semantics/check-multirange-input-context.test.ts',
         literalOwner: 'tests/sql-semantics/check-multirange-literals.test.ts',
+        textOutput: {
+          owner: 'tests/sql-semantics/check-multirange-output.test.ts',
+          stateOwner: 'tests/sql-semantics/check-multirange-output-state.test.ts',
+          contextRequired:
+            range.subtype === 'pg_catalog.date' || range.subtype === 'pg_catalog."timestamp"'
+              ? ['DateStyle for reached finite member bounds']
+              : range.subtype === 'pg_catalog.timestamptz'
+                ? ['DateStyle and TimeZone for reached finite member bounds']
+                : [],
+        },
         unimplementedGrammar: [],
         oidInput: false,
       })

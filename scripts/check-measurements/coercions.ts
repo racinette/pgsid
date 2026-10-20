@@ -129,6 +129,18 @@ const inputForms = [
       'Outer multirange grammar and ordered member input; reached bounds retain their scalar input requirements',
     normalization:
       'Shared builtin range canonicalization and multirange constructor sorting/merging',
+    textOutput: {
+      owner: 'tests/sql-semantics/check-multirange-output.test.ts',
+      stateOwner: 'tests/sql-semantics/check-multirange-output-state.test.ts',
+      handled: ['NULL', 'empty', 'unbounded members', 'typed infinite bounds'],
+      contextRequired:
+        forms.boundType === 'pg_catalog.date' || forms.boundType === 'pg_catalog."timestamp"'
+          ? ['DateStyle for reached finite member bounds']
+          : forms.boundType === 'pg_catalog.timestamptz'
+            ? ['DateStyle and TimeZone for reached finite member bounds']
+            : [],
+      scope: 'Ordered member output through captured range and scalar I/O identities',
+    },
     oidInput: false,
   })),
   ...rangeInputForms.map((forms) => ({

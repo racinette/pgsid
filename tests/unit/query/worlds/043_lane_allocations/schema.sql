@@ -1931,3 +1931,35 @@ CREATE TABLE lane_segment_imports (
   CONSTRAINT segment_import_bounded CHECK(CASE WHEN bypass THEN true ELSE
     CASE WHEN require_bounded THEN slot_text::lane_bounded_segments IS NOT DISTINCT FROM expected_slots ELSE NULL END END)
 );
+
+CREATE TABLE lane_segment_exports (
+  slots int4multirange,
+  loads lane_load_segments,
+  prices nummultirange,
+  calendar_days datemultirange,
+  local_shift tsmultirange,
+  instant_shift tstzmultirange,
+  slot_label text,
+  load_label text,
+  price_label text,
+  day_label text,
+  local_label text,
+  instant_label text,
+  short_label text,
+  padded_label text,
+  preferred int4multirange,
+  divisor integer,
+  verify_constructor boolean,
+  bypass boolean,
+  CONSTRAINT segment_export_slots CHECK(CASE WHEN bypass THEN true ELSE slots::text IS NOT DISTINCT FROM slot_label END),
+  CONSTRAINT segment_export_loads CHECK(CASE WHEN bypass THEN true ELSE text(loads) IS NOT DISTINCT FROM load_label END),
+  CONSTRAINT segment_export_prices CHECK(CASE WHEN bypass THEN true ELSE prices::varchar IS NOT DISTINCT FROM price_label END),
+  CONSTRAINT segment_export_days CHECK(CASE WHEN bypass THEN true ELSE calendar_days::text IS NOT DISTINCT FROM day_label END),
+  CONSTRAINT segment_export_local CHECK(CASE WHEN bypass THEN true ELSE local_shift::text IS NOT DISTINCT FROM local_label END),
+  CONSTRAINT segment_export_instant CHECK(CASE WHEN bypass THEN true ELSE instant_shift::text IS NOT DISTINCT FROM instant_label END),
+  CONSTRAINT segment_export_short CHECK(CASE WHEN bypass THEN true ELSE (slots::varchar(3))::text IS NOT DISTINCT FROM short_label END),
+  CONSTRAINT segment_export_padded CHECK(CASE WHEN bypass THEN true ELSE (slots::char(32))::text IS NOT DISTINCT FROM padded_label END),
+  CONSTRAINT segment_export_choice CHECK(CASE WHEN bypass THEN true ELSE COALESCE(NULLIF(slots,preferred),preferred)::text IS NOT DISTINCT FROM slot_label END),
+  CONSTRAINT segment_export_constructor CHECK(CASE WHEN bypass THEN true ELSE
+    CASE WHEN verify_constructor THEN int4multirange(int4range(1,3/divisor))::text=slot_label ELSE NULL END END)
+);

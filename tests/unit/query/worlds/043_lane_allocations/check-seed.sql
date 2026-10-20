@@ -5332,3 +5332,66 @@ VALUES('{[1,3)}','{[1,3)}',false,'{bad}','{[1,3)}',true,false);
 -- name: segment_import_bypass
 INSERT INTO lane_segment_imports(slot_text,load_text,price_text,day_text,local_text,instant_text,fallback_slots,choose_import,require_bounded,bypass)
 VALUES('{bad}','{bad}','{bad}','{bad}','{bad}','{bad}','{bad}',true,true,true);
+
+-- name: segment_export_null
+INSERT INTO lane_segment_exports(bypass) VALUES(false);
+
+-- name: segment_export_empty
+INSERT INTO lane_segment_exports(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_label,load_label,price_label,day_label,local_label,instant_label,short_label,padded_label,bypass)
+VALUES('{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}',false);
+
+-- name: segment_export_members
+INSERT INTO lane_segment_exports(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_label,load_label,price_label,day_label,local_label,instant_label,short_label,padded_label,preferred,bypass)
+VALUES('{[1,3),[5,9)}','{[9007199254740993,9007199254740995),[9007199254740997,9007199254740999)}','{[1.0000,3.00000),[5.00,7.000]}','{[-infinity,-infinity],[infinity,infinity]}','{[-infinity,-infinity],[infinity,infinity]}','{[-infinity,-infinity],[infinity,infinity]}','{[1,3),[5,9)}','{[9007199254740993,9007199254740995),[9007199254740997,9007199254740999)}','{[1.0000,3.00000),[5.00,7.000]}','{[-infinity,-infinity],[infinity,infinity]}','{[-infinity,-infinity],[infinity,infinity]}','{[-infinity,-infinity],[infinity,infinity]}','{[1','{[1,3),[5,9)}','{[1,3),[5,9)}',false);
+
+-- name: segment_export_unbounded
+INSERT INTO lane_segment_exports(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_label,load_label,price_label,day_label,local_label,instant_label,short_label,padded_label,bypass)
+VALUES('{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,','{(,)}',false);
+
+-- name: segment_export_infinite
+INSERT INTO lane_segment_exports(prices,price_label,bypass) VALUES('{[NaN,NaN]}','{[NaN,NaN]}',false);
+
+-- name: segment_export_slot_mismatch
+INSERT INTO lane_segment_exports(slot_label,bypass) VALUES('{}',false);
+
+-- name: segment_export_load_mismatch
+INSERT INTO lane_segment_exports(load_label,bypass) VALUES('{}',false);
+
+-- name: segment_export_price_mismatch
+INSERT INTO lane_segment_exports(price_label,bypass) VALUES('{}',false);
+
+-- name: segment_export_day_mismatch
+INSERT INTO lane_segment_exports(day_label,bypass) VALUES('{}',false);
+
+-- name: segment_export_local_mismatch
+INSERT INTO lane_segment_exports(local_label,bypass) VALUES('{}',false);
+
+-- name: segment_export_instant_mismatch
+INSERT INTO lane_segment_exports(instant_label,bypass) VALUES('{}',false);
+
+-- name: segment_export_short_mismatch
+INSERT INTO lane_segment_exports(short_label,bypass) VALUES('{}',false);
+
+-- name: segment_export_padded_mismatch
+INSERT INTO lane_segment_exports(padded_label,bypass) VALUES('{}',false);
+
+-- name: segment_export_choice_mismatch
+INSERT INTO lane_segment_exports(preferred,bypass) VALUES('{}',false);
+
+-- name: segment_export_constructor_match
+INSERT INTO lane_segment_exports(slots,slot_label,short_label,padded_label,divisor,verify_constructor,bypass)
+VALUES('{[1,3)}','{[1,3)}','{[1','{[1,3)}',1,true,false);
+
+-- name: segment_export_constructor_mismatch
+INSERT INTO lane_segment_exports(slots,slot_label,short_label,padded_label,divisor,verify_constructor,bypass)
+VALUES('{[1,5)}','{[1,5)}','{[1','{[1,5)}',1,true,false);
+
+-- name: segment_export_constructor_error
+INSERT INTO lane_segment_exports(divisor,verify_constructor,bypass) VALUES(0,true,false);
+
+-- name: segment_export_constructor_skip
+INSERT INTO lane_segment_exports(divisor,verify_constructor,bypass) VALUES(0,false,false);
+
+-- name: segment_export_bypass
+INSERT INTO lane_segment_exports(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_label,load_label,price_label,day_label,local_label,instant_label,short_label,padded_label,divisor,verify_constructor,bypass)
+VALUES('{[1,3)}','{}','{}','{[2000-01-01,2000-01-03)}','{[2000-01-01,2000-01-03)}','{["2000-01-01 00:00+00","2000-01-03 00:00+00")}','wrong','wrong','wrong','wrong','wrong','wrong','wrong','wrong',0,true,true);
