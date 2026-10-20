@@ -9763,6 +9763,103 @@ export function arrayFromCoercedMultirangeTree(input: ArrayValue, types: string,
     }
     return input;
 }
+function arrayElementWithRangeProfile(input: ArrayElement, multirangeType: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number): ArrayElement {
+    input = copyArrayElement(input);
+    multirangeType = langruntime.checkedString(multirangeType);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    if (input.kind === "Array") {
+        const nested: ArrayPayload = copyArrayPayload(input.value);
+        const converted: ArrayValue = arrayWithRangeProfile({ kind: "Value", value: nested }, multirangeType, rangeType, elementType, elementKind, comparison, canonical);
+        return arrayElementFromArray(converted);
+    }
+    if (input.kind === "Range") {
+        const span: RangePayload = copyRangePayload(input.value);
+        const converted: RangeValue = rangeFromCoercedProfile({ kind: "Value", value: span }, rangeType, elementType, elementKind, comparison, canonical);
+        return arrayElementFromRange(converted);
+    }
+    if (input.kind === "Multirange") {
+        const spans: MultirangePayload = copyMultirangePayload(input.value);
+        const converted: MultirangeValue = multirangeFromCoercedProfile({ kind: "Value", value: spans }, multirangeType, rangeType, elementType, elementKind, comparison, canonical);
+        return arrayElementFromMultirange(converted);
+    }
+    return input;
+}
+function arrayWithRangeProfile(input: ArrayValue, multirangeType: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number): ArrayValue {
+    input = copyArrayValue(input);
+    multirangeType = langruntime.checkedString(multirangeType);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    if (input.kind === "Value") {
+        const payload: ArrayPayload = copyArrayPayload(input.value);
+        let elements: ArrayElement[] = payload.elements;
+        let position: number = 0;
+        while (position < elements.length) {
+            const element: ArrayElement = copyArrayElement(langruntime.indexStruct(elements, langruntime.checkedIndex(position), copyArrayElement));
+            let convert: boolean = true;
+            if (element.kind === "Unknown") {
+                convert = langruntime.checkedBool(false);
+            }
+            if (convert) {
+                const converted: ArrayElement = arrayElementWithRangeProfile(element, multirangeType, rangeType, elementType, elementKind, comparison, canonical);
+                if (converted.kind === "Error") {
+                    const error: SqlError = converted.value;
+                    return { kind: "Error", value: error };
+                }
+                if (converted.kind === "Unknown") {
+                    return { kind: "Unknown" };
+                }
+                elements[langruntime.checkedIndexIn(elements, position)] = copyArrayElement(converted);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        return makeArrayValue({ nullBitmap: payload.nullBitmap, elementType: payload.elementType, elementKind: payload.elementKind, dimensions: payload.dimensions, elements: elements });
+    }
+    return input;
+}
+export function arrayFromCoercedRangeProfileTree(input: ArrayValue, types: string, kinds: string, typeName: string, elementType: string, elementKind: number, comparison: number, canonical: number): ArrayValue {
+    input = copyArrayValue(input);
+    types = langruntime.checkedString(types);
+    kinds = langruntime.checkedString(kinds);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    if (input.kind === "Value") {
+        const payload: ArrayPayload = copyArrayPayload(input.value);
+        if (arrayTreeIdentityValid(payload, types, kinds, 0) === false || arrayRangeIdentityValid(payload, typeName, elementType, elementKind) === false) {
+            return { kind: "Unknown" };
+        }
+        return arrayWithRangeProfile({ kind: "Value", value: payload }, "", typeName, elementType, elementKind, comparison, canonical);
+    }
+    return input;
+}
+export function arrayFromCoercedMultirangeProfileTree(input: ArrayValue, types: string, kinds: string, typeName: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number): ArrayValue {
+    input = copyArrayValue(input);
+    types = langruntime.checkedString(types);
+    kinds = langruntime.checkedString(kinds);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    if (input.kind === "Value") {
+        const payload: ArrayPayload = copyArrayPayload(input.value);
+        if (arrayTreeIdentityValid(payload, types, kinds, 0) === false || arrayMultirangeIdentityValid(payload, typeName, rangeType, elementType, elementKind) === false) {
+            return { kind: "Unknown" };
+        }
+        return arrayWithRangeProfile({ kind: "Value", value: payload }, typeName, rangeType, elementType, elementKind, comparison, canonical);
+    }
+    return input;
+}
 export function makeArrayArguments(elementType: string, elementKind: number): ArrayArguments {
     elementType = langruntime.checkedString(elementType);
     elementKind = langruntime.checkedI32(elementKind);

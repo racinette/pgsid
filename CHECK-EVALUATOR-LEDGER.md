@@ -43,8 +43,7 @@ Done when a fresh checkout can regenerate the reports without recovering scripts
 
 Verify each form independently, including NULL,
 Unknown, SQL errors, ordered computation validity, strict runtime NULL propagation, eager literals, lazy branches and safe unresolved choices whose probes retain their guards. Compare raw SQL
-and stored CHECK definitions. Unknown has no PostgreSQL counterpart and needs
-explicit partial-input cases in addition to database comparisons.
+and stored CHECK definitions. Unknown has no PostgreSQL counterpart and needs explicit partial-input cases in addition to database comparisons.
 
 Done per form when the binder produces a meaningful expression, production
 evaluators execute it in every target, and expression probes plus world INSERT
@@ -258,6 +257,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit custom range/multirange text casts and eager typed literals through captured input identities and ordered scalar/domain conversion, including omission, typmods, domain preparation, member input before later syntax, final normalization, SQL errors, lazy branches and reached unavailable support. Recover stored owned literals without rechecking subtype domains, comparisons or canonicalizers; verify independent catalogs, public adapters and native/Rust/Go/TypeScript INSERT parity.
 - [x] Establish an owned multirange member cursor that converts completed members before later syntax and normalizes only after complete outer input; verify omitted subtype-domain bounds, preparation/error order, unavailable support, borrowed scans, owned snapshots and native/Rust/Go/TypeScript parity while preserving builtin parsing.
 - [x] Execute captured custom range/multirange constructors and type-name calls with exact/default/variadic/named overload selection and captured implicit cast eligibility; preserve subtype domains, preparation, callback requirements, actual renamed implementations, stored variadic arrays, public adapters and native/Rust/Go/TypeScript INSERT parity. Defer selected user functions, omitted default expressions and missing resolution context.
+- [x] Establish recursive owned profile attachment for custom range/multirange array cells before SQL array admission; validate nominal trees, preserve stored bounds/scales, dimensions, NULL/error/partial states and independent snapshots, replace caller support with compiled profiles without rechecking domains or invoking callbacks, and verify native INSERT plus Rust/Go/TypeScript parity.
 - [ ] Complete captured constructor default expressions, remaining custom range I/O, additional subtype backends and custom array integration; builtin operations are covered.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

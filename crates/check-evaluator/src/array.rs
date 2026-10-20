@@ -628,6 +628,167 @@ pub fn array_from_coerced_multirange_tree(
     input
 }
 
+fn array_element_with_range_profile(
+    input: ArrayElement,
+    multirange_type: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    comparison: i32,
+    canonical: i32,
+) -> ArrayElement {
+    if let ArrayElement::Array(nested) = input {
+        let converted = array_with_range_profile(
+            ArrayValue::Value(nested),
+            multirange_type,
+            range_type,
+            element_type,
+            element_kind,
+            comparison,
+            canonical,
+        );
+        return array_element_from_array(converted);
+    };
+    if let ArrayElement::Range(span) = input {
+        let converted = range_from_coerced_profile(
+            RangeValue::Value(span),
+            range_type,
+            element_type,
+            element_kind,
+            comparison,
+            canonical,
+        );
+        return array_element_from_range(converted);
+    };
+    if let ArrayElement::Multirange(spans) = input {
+        let converted = multirange_from_coerced_profile(
+            MultirangeValue::Value(spans),
+            multirange_type,
+            range_type,
+            element_type,
+            element_kind,
+            comparison,
+            canonical,
+        );
+        return array_element_from_multirange(converted);
+    };
+    input
+}
+
+fn array_with_range_profile(
+    input: ArrayValue,
+    multirange_type: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    comparison: i32,
+    canonical: i32,
+) -> ArrayValue {
+    if let ArrayValue::Value(payload) = input {
+        let mut elements = payload.elements;
+        let mut position: usize = 0;
+        while position < elements.len() {
+            let element = elements[position].clone();
+            let mut convert = true;
+            if let ArrayElement::Unknown = element {
+                convert = false;
+            };
+            if convert {
+                let converted = array_element_with_range_profile(
+                    element,
+                    multirange_type,
+                    range_type,
+                    element_type,
+                    element_kind,
+                    comparison,
+                    canonical,
+                );
+                if let ArrayElement::Error(error) = converted {
+                    return ArrayValue::Error(error);
+                };
+                if let ArrayElement::Unknown = converted {
+                    return ArrayValue::Unknown;
+                };
+                elements[position] = converted;
+            };
+            position += 1;
+        }
+        return make_array_value(ArrayPayload {
+            null_bitmap: payload.null_bitmap,
+            element_type: payload.element_type,
+            element_kind: payload.element_kind,
+            dimensions: payload.dimensions,
+            elements,
+        });
+    };
+    input
+}
+
+pub fn array_from_coerced_range_profile_tree(
+    input: ArrayValue,
+    types: &str,
+    kinds: &str,
+    type_name: &str,
+    element_type: &str,
+    element_kind: i32,
+    comparison: i32,
+    canonical: i32,
+) -> ArrayValue {
+    if let ArrayValue::Value(payload) = input {
+        if array_tree_identity_valid(&payload, types, kinds, 0) == false
+            || array_range_identity_valid(&payload, type_name, element_type, element_kind) == false
+        {
+            return ArrayValue::Unknown;
+        };
+        return array_with_range_profile(
+            ArrayValue::Value(payload),
+            "",
+            type_name,
+            element_type,
+            element_kind,
+            comparison,
+            canonical,
+        );
+    };
+    input
+}
+
+pub fn array_from_coerced_multirange_profile_tree(
+    input: ArrayValue,
+    types: &str,
+    kinds: &str,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    comparison: i32,
+    canonical: i32,
+) -> ArrayValue {
+    if let ArrayValue::Value(payload) = input {
+        if array_tree_identity_valid(&payload, types, kinds, 0) == false
+            || array_multirange_identity_valid(
+                &payload,
+                type_name,
+                range_type,
+                element_type,
+                element_kind,
+            ) == false
+        {
+            return ArrayValue::Unknown;
+        };
+        return array_with_range_profile(
+            ArrayValue::Value(payload),
+            type_name,
+            range_type,
+            element_type,
+            element_kind,
+            comparison,
+            canonical,
+        );
+    };
+    input
+}
+
 pub fn make_array_arguments(element_type: &str, element_kind: i32) -> ArrayArguments {
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();
