@@ -284,3 +284,6 @@ VALUES ('[1,5)','{[1,3),[5,9)}','{"[1,5)",NULL}','{"{[1,3),[5,9)}",NULL}','{"{\"
 
 INSERT INTO lane_distance_estimates(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_distances,bypass)
 VALUES('[1,5)','[9007199254740992,9007199254740993)','[1.0000,3.00000)','[2000-01-01,2000-01-03)','["2000-01-01 00:00:00.000001","2000-01-01 00:00:00.000003")','["2000-01-01 00:00:00.000001+00","2000-01-01 00:00:00.000003+00")','{4,0,2,2,0.000002,0.000002}',false);
+
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);

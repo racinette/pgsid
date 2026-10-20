@@ -99,19 +99,21 @@ it('requires captured range, member and subtype output identities before local t
   }
 }, 30_000)
 
-it('requires selected range and scalar/domain input identities for custom text casts', async () => {
+it('requires selected range, multirange and scalar/domain input identities for custom text casts', async () => {
   const pg = await PGlite.create()
   try {
     await pg.exec(`CREATE TYPE input_span AS RANGE(subtype=int4);
       CREATE DOMAIN positive_input AS int4 CHECK(VALUE>0);
       CREATE TYPE domain_input_span AS RANGE(subtype=positive_input);
       CREATE TABLE plain_input(payload text,CHECK(isempty(payload::input_span)));
-      CREATE TABLE domain_input(payload text,CHECK(isempty(payload::domain_input_span)));`)
+      CREATE TABLE domain_input(payload text,CHECK(isempty(payload::domain_input_span)));
+      CREATE TABLE plain_multi_input(payload text,CHECK(isempty(payload::input_span_multirange)));
+      CREATE TABLE domain_multi_input(payload text,CHECK(isempty(payload::domain_input_span_multirange)));`)
     const catalog = await snapshotCatalog(pg)
     for (const table of catalog.tables) {
       const profile = catalog.rangeTypes.find(
         (profile) =>
-          profile.name === (table.name === 'plain_input' ? 'input_span' : 'domain_input_span'),
+          profile.name === (table.name.startsWith('plain_') ? 'input_span' : 'domain_input_span'),
       )!
       const lower = (range: RangeTypeInfo) =>
         lowerTableCheck(table, table.constraints[0]!, catalog.enums, catalog.domains, 'stored', [
@@ -127,6 +129,15 @@ it('requires selected range and scalar/domain input identities for custom text c
         { subtypeInput: null },
         { subtypeInput: 'function:["private","scalar_input"](pg_catalog.cstring)' },
         { subtypeInput: 'function:["pg_catalog","int8in"](pg_catalog.cstring)' },
+        ...(table.name.includes('multi')
+          ? [
+              { multirangeInput: null },
+              {
+                multirangeInput:
+                  'function:["private","multirange_input"](pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4)',
+              },
+            ]
+          : []),
       ]) {
         const expression = lower({ ...profile, ...change })
         expect(

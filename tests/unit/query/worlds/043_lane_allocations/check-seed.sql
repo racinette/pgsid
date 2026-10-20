@@ -5817,3 +5817,91 @@ VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,true,false);
 -- name: flexible_import_omitted_domain_bounds
 INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
 VALUES('(,)','(,)','(,)','(,)','(,)','(,)',NULL,1,false,false);
+
+-- name: flexible_multi_import_valid
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_wrong_slots
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_wrong_positive
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_wrong_prices
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_wrong_label
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{}',1,false,false);
+
+-- name: flexible_multi_import_wrong_stored_literal
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',0,false,false);
+
+-- name: flexible_multi_import_wrong_empty_flag
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,true,false);
+
+-- name: flexible_multi_import_outer_grammar
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{}junk','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_overflow_before_suffix
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[2147483648,3)junk}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_reversed_member
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[3,1)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_later_member_error
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[1,3),[bad,9)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_current_subtype_check
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[1,5)}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_domain_before_later_member
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[1,5),[bad,8)}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_incomplete_member_grammar
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[1,bad','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_quoted_empty_bound
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{["",5]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_trailing_comma
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{empty,}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_price_precision
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[999.995,1000]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_price_domain
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[-1,3]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+-- name: flexible_multi_import_skipped_invalid
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('malformed','{[1,bad]}','{[-1,3]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,true);
+
+-- name: flexible_multi_import_empty
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{}','{empty}','{}','{}','{}','{}','{}',1,true,false);
+
+-- name: flexible_multi_import_null
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,true,false);
+
+-- name: flexible_multi_import_omitted_bounds
+INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
+VALUES('{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}',1,false,false);

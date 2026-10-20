@@ -1021,6 +1021,7 @@ export function emitCheckRustEvaluator(
         (node.kind === 'text-to-enum' && node.literal === true) ||
         (node.kind === 'text-to-boolean' && node.literal === true) ||
         (node.kind === 'text-to-range' && node.literal === true) ||
+        (node.kind === 'text-to-multirange' && node.literal === true) ||
         (node.kind === 'certain' &&
           (node.expression.kind === 'point' ||
             node.expression.kind === 'range' ||
@@ -4106,18 +4107,29 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'text-to-range') {
       const operand = emitScalar(node.operand, bindings, used)
-      return emitRangeInput(
-        operand,
-        node.type,
-        node.conversion,
-        node.literal === true && node.origin === 'stored',
-      )
+      return emitRangeInput(operand, node.type, node.conversion, node.origin === 'stored')
     }
-    const emitMultirangeInput = (operand: { name: string; type: string }, type: string) => {
-      const multirange = builtinMultirangeType(type)
-      const signature = builtinTypeIO(type)?.input
+    const emitMultirangeInput = (
+      operand: { name: string; type: string },
+      type: string,
+      conversion?: EvalExpression,
+      stored = false,
+    ) => {
+      const multirange = multirangeTypeProfile(type)
+      const signature = stored
+        ? builtinTypeIO('pg_catalog.int4multirange')?.input
+        : multirange?.multirangeInput
+      const rangeSignature = stored
+        ? builtinTypeIO('pg_catalog.int4range')?.input
+        : multirange?.input
+      if (
+        signature !== builtinTypeIO('pg_catalog.int4multirange')?.input ||
+        rangeSignature !== builtinTypeIO('pg_catalog.int4range')?.input
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Multirange input requires its selected catalog implementations',
+        )
       const metadata = signature ? builtinMetadata(signature) : null
-      const rangeSignature = multirange ? builtinTypeIO(multirange.identity)?.input : null
       const rangeInput = rangeSignature ? builtinMetadata(rangeSignature) : null
       const inputTypes = 'pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4'
       if (
@@ -4148,6 +4160,69 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           'Multirange input requires its captured multirange/range profiles and catalog I/O identities',
         )
+      if (multirange.captured) {
+        if (
+          !conversion ||
+          (stored &&
+            multirange.multirangeOutput !== builtinTypeIO('pg_catalog.int4multirange')?.output)
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Custom multirange input requires its captured member conversion and I/O identities',
+          )
+        const initial = bind(`prepare_multirange_text(${ownedOperand(operand)})`)
+        const cursor = fresh('multirange_input_cursor')
+        bindings.push(`let mut ${cursor}:MultirangeTextPayload=${initial};`)
+        const text = fresh('multirange_input_member')
+        const key = JSON.stringify(['__pgsid_multirange_text_member', false])
+        const outer = localInputs.get(key),
+          outerValidity = arrayValidityScope,
+          outerPreparation = domainInputPreparation,
+          outerDepth = preparationDepth
+        const body: string[] = [`let ${text}=multirange_text_member(&${cursor});`]
+        localInputs.set(key, {
+          name: '__pgsid_multirange_text_member',
+          type: 'pg_catalog.text',
+          rustName: text,
+          rustType: 'TextValue',
+        })
+        arrayValidityScope = null
+        domainInputPreparation = null
+        preparationDepth = 0
+        let member: { name: string; type: string }
+        try {
+          member = emitScalar(
+            {
+              kind: 'text-to-range',
+              type: multirange.rangeType,
+              operand: {
+                kind: 'input',
+                type: 'pg_catalog.text',
+                name: '__pgsid_multirange_text_member',
+              },
+              conversion,
+              ...(stored ? { origin: 'stored' } : {}),
+            },
+            body,
+            used,
+          )
+        } finally {
+          if (outer) localInputs.set(key, outer)
+          else localInputs.delete(key)
+          arrayValidityScope = outerValidity
+          domainInputPreparation = outerPreparation
+          preparationDepth = outerDepth
+        }
+        body.push(`${cursor}=append_multirange_text(${cursor},${ownedOperand(member)});`)
+        bindings.push(`while multirange_text_has_member(&${cursor}) {`, ...indent(body), '}')
+        const support = rangeProfileSupport(multirange)
+        const profile = bind(`make_range_support(${support.comparison},${support.canonical})`)
+        return {
+          name: bind(
+            `${stored ? 'finish_multirange_stored_text' : 'finish_multirange_text'}(${cursor},${rustStringLiteral(multirange.multirange)},${rustStringLiteral(multirange.identity)},${rustStringLiteral(multirange.subtype)},${arrayElementFamily(multirange.elementType)},${profile})`,
+          ),
+          type,
+        }
+      }
       return {
         name: bind(
           `multirange_from_text(${ownedOperand(operand)}, ${rustStringLiteral(multirange.multirange)}, ${rustStringLiteral(multirange.identity)}, ${rustStringLiteral(multirange.subtype)}, ${arrayElementFamily(multirange.subtype)})`,
@@ -4157,7 +4232,12 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'text-to-multirange') {
       const operand = emitScalar(node.operand, bindings, used)
-      return emitMultirangeInput(operand, node.type)
+      return emitMultirangeInput(
+        operand,
+        node.type,
+        node.conversion,
+        node.literal === true && node.origin === 'stored',
+      )
     }
     if (node.kind === 'text-to-boolean') {
       const operand = emitScalar(node.operand, bindings, used)

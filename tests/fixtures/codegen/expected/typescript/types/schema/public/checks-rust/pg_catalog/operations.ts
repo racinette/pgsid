@@ -24300,6 +24300,15 @@ export function finishMultirangeText(input: checkruntime.MultirangeTextPayload, 
     }
     return typed;
 }
+export function finishMultirangeStoredText(input: checkruntime.MultirangeTextPayload, typeName: string, rangeType: string, elementType: string, elementKind: number, support: checkruntime.RangeSupport): checkruntime.MultirangeValue {
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (!(input.state === 2)) {
+        return { kind: "Unknown" };
+    }
+    return checkruntime.multirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, input.ranges, support);
+}
 export function multirangeFromText(input: checkruntime.TextValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
     typeName = langruntime.checkedString(typeName);
     rangeType = langruntime.checkedString(rangeType);

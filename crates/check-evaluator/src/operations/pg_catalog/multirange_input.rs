@@ -264,6 +264,30 @@ pub(crate) fn finish_multirange_text(
     typed
 }
 
+pub(crate) fn finish_multirange_stored_text(
+    input: MultirangeTextPayload,
+    type_name: &str,
+    range_type: &str,
+    element_type: &str,
+    element_kind: i32,
+    support: RangeSupport,
+) -> MultirangeValue {
+    if input.state == 0 {
+        return MultirangeValue::Null;
+    };
+    if input.state != 2 {
+        return MultirangeValue::Unknown;
+    };
+    multirange_from_profiled_ranges(
+        type_name,
+        range_type,
+        element_type,
+        element_kind,
+        input.ranges,
+        support,
+    )
+}
+
 pub fn multirange_from_text(
     input: TextValue,
     type_name: &str,

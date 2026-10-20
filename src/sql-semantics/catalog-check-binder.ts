@@ -5089,7 +5089,7 @@ export function bindCatalogCheck(
     const key = JSON.stringify([type, stored])
     if (rangeConversions.has(key)) return rangeConversions.get(key)!
     rangeConversions.set(key, null)
-    const profile = rangeTypeProfile(type)
+    const profile = rangeTypeProfile(type) ?? multirangeTypeProfile(type)
     if (!profile?.captured) return null
     const names = catalogTypeNames(stored ? profile.elementType : profile.subtype)
     if (!names) return null
@@ -5146,16 +5146,20 @@ export function bindCatalogCheck(
       : Object.fromEntries(entries)
     const literal = result['kind'] === 'certain' ? fields(result['expression']) : null
     const type =
-      literal?.['kind'] === 'range'
+      literal?.['kind'] === 'range' || literal?.['kind'] === 'multirange'
         ? literal['type']
-        : result['kind'] === 'text-to-range'
+        : result['kind'] === 'text-to-range' || result['kind'] === 'text-to-multirange'
           ? result['type']
           : null
-    if (typeof type !== 'string' || !rangeTypeProfile(type)?.captured) return result
+    if (
+      typeof type !== 'string' ||
+      !(rangeTypeProfile(type) ?? multirangeTypeProfile(type))?.captured
+    )
+      return result
     if (literal && typeof literal['value'] === 'string') {
       const conversion = rangeConversion(type, literalOrigin === 'stored')
       return {
-        kind: 'text-to-range',
+        kind: literal['kind'] === 'multirange' ? 'text-to-multirange' : 'text-to-range',
         type,
         literal: true,
         origin: literalOrigin,

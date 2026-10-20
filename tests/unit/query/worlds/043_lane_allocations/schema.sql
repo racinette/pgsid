@@ -2155,3 +2155,28 @@ CREATE TABLE lane_flexible_imports (
 );
 
 ALTER DOMAIN lane_positive_position ADD CONSTRAINT live_minimum CHECK(VALUE>2) NOT VALID;
+
+CREATE DOMAIN lane_retained_segments AS lane_position_segments;
+CREATE DOMAIN lane_sample_position AS integer NOT NULL CHECK(VALUE>0);
+CREATE TYPE lane_sample_window AS RANGE(subtype=lane_sample_position,multirange_type_name=lane_sample_set);
+
+CREATE TABLE lane_flexible_multi_imports (
+  slot_text text,
+  positive_text text,
+  price_text text,
+  expected_slots lane_retained_segments,
+  expected_positive lane_sample_set,
+  expected_prices lane_price_window_multirange,
+  price_label text,
+  limit_position integer,
+  expected_empty boolean,
+  bypass boolean,
+  CONSTRAINT flexible_multi_import_slots CHECK(CASE WHEN bypass THEN true ELSE slot_text::lane_retained_segments IS NOT DISTINCT FROM expected_slots END),
+  CONSTRAINT flexible_multi_import_positive CHECK(CASE WHEN bypass THEN true ELSE positive_text::lane_sample_set IS NOT DISTINCT FROM expected_positive END),
+  CONSTRAINT flexible_multi_import_prices CHECK(CASE WHEN bypass THEN true ELSE price_text::lane_price_window_multirange IS NOT DISTINCT FROM expected_prices END),
+  CONSTRAINT flexible_multi_import_label CHECK(CASE WHEN bypass THEN true ELSE (price_text::lane_price_window_multirange)::text COLLATE "C" IS NOT DISTINCT FROM price_label COLLATE "C" END),
+  CONSTRAINT flexible_multi_import_literal CHECK(CASE WHEN bypass THEN true ELSE lower('{[1,3),[5,7)}'::lane_sample_set)<=limit_position AND upper('{[1,3),[5,7)}'::lane_sample_set)=7 END),
+  CONSTRAINT flexible_multi_import_empty CHECK(CASE WHEN bypass THEN true ELSE isempty(COALESCE(slot_text::lane_position_segments,'{}'::lane_position_segments)) IS NOT DISTINCT FROM expected_empty END)
+);
+
+ALTER DOMAIN lane_sample_position ADD CONSTRAINT live_minimum CHECK(VALUE>2) NOT VALID;

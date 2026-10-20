@@ -24189,6 +24189,15 @@ func FinishMultirangeText(input checkruntime.MultirangeTextPayload, typeName str
 	}
 	return typed
 }
+func FinishMultirangeStoredText(input checkruntime.MultirangeTextPayload, typeName string, rangeType string, elementType string, elementKind int, support checkruntime.RangeSupport) checkruntime.MultirangeValue {
+	if input.State == 0 {
+		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueNull}
+	}
+	if input.State != 2 {
+		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+	}
+	return checkruntime.MultirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, input.Ranges, support)
+}
 func MultirangeFromText(input checkruntime.TextValue, typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
 	typeName = langruntime.CheckedString(typeName)
 	rangeType = langruntime.CheckedString(rangeType)
