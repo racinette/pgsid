@@ -22763,6 +22763,506 @@ function moneyWords(input: checkruntime.MoneyValue): checkruntime.TextValue {
 export function cashWordsAtzl(input: checkruntime.MoneyValue): checkruntime.TextValue {
     return moneyWords(input);
 }
+const multirangeNullMember = 3452548;
+const multirangeArrayDimensions = 3405888;
+function multirangeConstructOrder(input: checkruntime.MultirangePayload, left: number, right: number): checkruntime.Int4Value {
+    left = langruntime.checkedIndex(left);
+    right = langruntime.checkedIndex(right);
+    const a: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(input.ranges, langruntime.checkedIndex(left), checkruntime.copyRangeValue));
+    const b: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(input.ranges, langruntime.checkedIndex(right), checkruntime.copyRangeValue));
+    return rangeCmp8jgl(a, b);
+}
+function multirangeOrderKnown(input: checkruntime.Int4Value): boolean {
+    if (input.kind === "Value") {
+        return true;
+    }
+    return false;
+}
+function multirangeOrderNumber(input: checkruntime.Int4Value): number {
+    if (input.kind === "Value") {
+        const value: number = langruntime.checkedI32(input.value);
+        return value;
+    }
+    return 0;
+}
+function multirangeOrderFailure(input: checkruntime.Int4Value): checkruntime.MultirangeValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+function multirangeConstructMedian(input: checkruntime.MultirangePayload, a: number, b: number, c: number): checkruntime.Int4Value {
+    a = langruntime.checkedIndex(a);
+    b = langruntime.checkedIndex(b);
+    c = langruntime.checkedIndex(c);
+    const ab: checkruntime.Int4Value = multirangeConstructOrder(input, a, b);
+    if (multirangeOrderKnown(ab) === false) {
+        return ab;
+    }
+    const bc: checkruntime.Int4Value = multirangeConstructOrder(input, b, c);
+    if (multirangeOrderKnown(bc) === false) {
+        return bc;
+    }
+    if (multirangeOrderNumber(ab) < 0 && multirangeOrderNumber(bc) < 0) {
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(b)));
+    }
+    if (multirangeOrderNumber(ab) >= 0 && multirangeOrderNumber(bc) > 0) {
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(b)));
+    }
+    const ac: checkruntime.Int4Value = multirangeConstructOrder(input, a, c);
+    if (multirangeOrderKnown(ac) === false) {
+        return ac;
+    }
+    if (multirangeOrderNumber(ac) < 0) {
+        if (multirangeOrderNumber(ab) < 0) {
+            return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(c)));
+        }
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(a)));
+    }
+    if (multirangeOrderNumber(ab) < 0) {
+        return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(a)));
+    }
+    return checkruntime.makeInt4Value(langruntime.checkedI32(langruntime.checkedIndex(c)));
+}
+function multirangeConstructNormalize(input: checkruntime.MultirangePayload): checkruntime.MultirangeValue {
+    input = checkruntime.copyMultirangePayload(input);
+    let order: number[] = [];
+    let index: number = 0;
+    while (index < input.ranges.length) {
+        langruntime.pushIndex(order, index);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let starts: number[] = [];
+    let lengths: number[] = [];
+    langruntime.pushIndex(starts, 0);
+    langruntime.pushIndex(lengths, order.length);
+    let tasks: number = 1;
+    while (tasks > 0) {
+        tasks = langruntime.checkedIndex(langruntime.checkedSubtract(tasks, 1));
+        const start: number = langruntime.indexNumber(starts, langruntime.checkedIndex(tasks));
+        const count: number = langruntime.indexNumber(lengths, langruntime.checkedIndex(tasks));
+        const end: number = langruntime.checkedAdd(start, count);
+        let partition: boolean = count >= 7;
+        if (count < 7) {
+            let next: number = langruntime.checkedAdd(start, 1);
+            while (next < end) {
+                let position: number = next;
+                let shifting: boolean = true;
+                while (position > start && shifting) {
+                    const compared: checkruntime.Int4Value = multirangeConstructOrder(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1))), langruntime.indexNumber(order, langruntime.checkedIndex(position)));
+                    if (multirangeOrderKnown(compared) === false) {
+                        return multirangeOrderFailure(compared);
+                    }
+                    if (multirangeOrderNumber(compared) > 0) {
+                        const saved: number = langruntime.indexNumber(order, langruntime.checkedIndex(position));
+                        order[langruntime.checkedIndexIn(order, position)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(position, 1))));
+                        order[langruntime.checkedIndexIn(order, langruntime.checkedSubtract(position, 1))] = langruntime.checkedIndex(saved);
+                        position = langruntime.checkedIndex(langruntime.checkedSubtract(position, 1));
+                    }
+                    else {
+                        shifting = langruntime.checkedBool(false);
+                    }
+                }
+                next = langruntime.checkedAdd(next, 1);
+            }
+        }
+        if (partition) {
+            let next: number = langruntime.checkedAdd(start, 1);
+            let presorted: boolean = true;
+            while (next < end && presorted) {
+                const compared: checkruntime.Int4Value = multirangeConstructOrder(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(next, 1))), langruntime.indexNumber(order, langruntime.checkedIndex(next)));
+                if (multirangeOrderKnown(compared) === false) {
+                    return multirangeOrderFailure(compared);
+                }
+                if (multirangeOrderNumber(compared) > 0) {
+                    presorted = langruntime.checkedBool(false);
+                }
+                next = langruntime.checkedAdd(next, 1);
+            }
+            partition = langruntime.checkedBool(presorted === false);
+        }
+        if (partition) {
+            const half: number = langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(count))), 2);
+            const middle: number = langruntime.checkedAdd(start, langruntime.indexFromI32(half, 0));
+            let pivot: number = langruntime.indexNumber(order, langruntime.checkedIndex(middle));
+            if (count > 7) {
+                let low: number = langruntime.indexNumber(order, langruntime.checkedIndex(start));
+                let mid: number = pivot;
+                let high: number = langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)));
+                if (count > 40) {
+                    const eighth: number = langruntime.checkedSignedDivide((langruntime.checkedI32(langruntime.checkedIndex(count))), 8);
+                    const distance: number = langruntime.indexFromI32(eighth, 0);
+                    const loChoice: checkruntime.Int4Value = multirangeConstructMedian(input, low, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedAdd(start, distance))), langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedAdd(langruntime.checkedAdd(start, distance), distance))));
+                    if (multirangeOrderKnown(loChoice) === false) {
+                        return multirangeOrderFailure(loChoice);
+                    }
+                    low = langruntime.checkedIndex(langruntime.indexFromI32(multirangeOrderNumber(loChoice), 0));
+                    const midChoice: checkruntime.Int4Value = multirangeConstructMedian(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(middle, distance))), mid, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedAdd(middle, distance))));
+                    if (multirangeOrderKnown(midChoice) === false) {
+                        return multirangeOrderFailure(midChoice);
+                    }
+                    mid = langruntime.checkedIndex(langruntime.indexFromI32(multirangeOrderNumber(midChoice), 0));
+                    const hiChoice: checkruntime.Int4Value = multirangeConstructMedian(input, langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(end, 1), (langruntime.checkedAdd(distance, distance))))), langruntime.indexNumber(order, langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(end, 1), distance))), high);
+                    if (multirangeOrderKnown(hiChoice) === false) {
+                        return multirangeOrderFailure(hiChoice);
+                    }
+                    high = langruntime.checkedIndex(langruntime.indexFromI32(multirangeOrderNumber(hiChoice), 0));
+                }
+                const choice: checkruntime.Int4Value = multirangeConstructMedian(input, low, mid, high);
+                if (multirangeOrderKnown(choice) === false) {
+                    return multirangeOrderFailure(choice);
+                }
+                pivot = langruntime.checkedIndex(langruntime.indexFromI32(multirangeOrderNumber(choice), 0));
+            }
+            let pivotPosition: number = start;
+            while (!(langruntime.indexNumber(order, langruntime.checkedIndex(pivotPosition)) === pivot)) {
+                pivotPosition = langruntime.checkedAdd(pivotPosition, 1);
+            }
+            const saved: number = langruntime.indexNumber(order, langruntime.checkedIndex(start));
+            order[langruntime.checkedIndexIn(order, start)] = langruntime.checkedIndex(pivot);
+            order[langruntime.checkedIndexIn(order, pivotPosition)] = langruntime.checkedIndex(saved);
+            let equalLow: number = langruntime.checkedAdd(start, 1);
+            let scanLow: number = equalLow;
+            let scanHigh: number = langruntime.checkedSubtract(end, 1);
+            let equalHigh: number = scanHigh;
+            let searching: boolean = true;
+            while (searching) {
+                let advance: boolean = true;
+                while (scanLow <= scanHigh && advance) {
+                    const compared: checkruntime.Int4Value = multirangeConstructOrder(input, langruntime.indexNumber(order, langruntime.checkedIndex(scanLow)), pivot);
+                    if (multirangeOrderKnown(compared) === false) {
+                        return multirangeOrderFailure(compared);
+                    }
+                    const comparison: number = multirangeOrderNumber(compared);
+                    if (comparison <= 0) {
+                        if (comparison === 0) {
+                            const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(equalLow));
+                            order[langruntime.checkedIndexIn(order, equalLow)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(scanLow)));
+                            order[langruntime.checkedIndexIn(order, scanLow)] = langruntime.checkedIndex(saved1);
+                            equalLow = langruntime.checkedAdd(equalLow, 1);
+                        }
+                        scanLow = langruntime.checkedAdd(scanLow, 1);
+                    }
+                    else {
+                        advance = langruntime.checkedBool(false);
+                    }
+                }
+                advance = langruntime.checkedBool(true);
+                while (scanLow <= scanHigh && advance) {
+                    const compared: checkruntime.Int4Value = multirangeConstructOrder(input, langruntime.indexNumber(order, langruntime.checkedIndex(scanHigh)), pivot);
+                    if (multirangeOrderKnown(compared) === false) {
+                        return multirangeOrderFailure(compared);
+                    }
+                    const comparison: number = multirangeOrderNumber(compared);
+                    if (comparison >= 0) {
+                        if (comparison === 0) {
+                            const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(equalHigh));
+                            order[langruntime.checkedIndexIn(order, equalHigh)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(scanHigh)));
+                            order[langruntime.checkedIndexIn(order, scanHigh)] = langruntime.checkedIndex(saved1);
+                            equalHigh = langruntime.checkedIndex(langruntime.checkedSubtract(equalHigh, 1));
+                        }
+                        scanHigh = langruntime.checkedIndex(langruntime.checkedSubtract(scanHigh, 1));
+                    }
+                    else {
+                        advance = langruntime.checkedBool(false);
+                    }
+                }
+                if (scanLow > scanHigh) {
+                    searching = langruntime.checkedBool(false);
+                }
+                else {
+                    const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(scanLow));
+                    order[langruntime.checkedIndexIn(order, scanLow)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(scanHigh)));
+                    order[langruntime.checkedIndexIn(order, scanHigh)] = langruntime.checkedIndex(saved1);
+                    scanLow = langruntime.checkedAdd(scanLow, 1);
+                    scanHigh = langruntime.checkedIndex(langruntime.checkedSubtract(scanHigh, 1));
+                }
+            }
+            let swapCount: number = langruntime.checkedSubtract(equalLow, start);
+            if (swapCount > langruntime.checkedSubtract(scanLow, equalLow)) {
+                swapCount = langruntime.checkedIndex(langruntime.checkedSubtract(scanLow, equalLow));
+            }
+            let swapped: number = 0;
+            while (swapped < swapCount) {
+                const left: number = langruntime.checkedAdd(start, swapped);
+                const right: number = langruntime.checkedAdd(langruntime.checkedSubtract(scanLow, swapCount), swapped);
+                const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(left));
+                order[langruntime.checkedIndexIn(order, left)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(right)));
+                order[langruntime.checkedIndexIn(order, right)] = langruntime.checkedIndex(saved1);
+                swapped = langruntime.checkedAdd(swapped, 1);
+            }
+            swapCount = langruntime.checkedIndex(langruntime.checkedSubtract(equalHigh, scanHigh));
+            if (swapCount > langruntime.checkedSubtract(langruntime.checkedSubtract(end, equalHigh), 1)) {
+                swapCount = langruntime.checkedIndex(langruntime.checkedSubtract(langruntime.checkedSubtract(end, equalHigh), 1));
+            }
+            swapped = langruntime.checkedIndex(0);
+            while (swapped < swapCount) {
+                const left: number = langruntime.checkedAdd(scanLow, swapped);
+                const right: number = langruntime.checkedAdd(langruntime.checkedSubtract(end, swapCount), swapped);
+                const saved1: number = langruntime.indexNumber(order, langruntime.checkedIndex(left));
+                order[langruntime.checkedIndexIn(order, left)] = langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(right)));
+                order[langruntime.checkedIndexIn(order, right)] = langruntime.checkedIndex(saved1);
+                swapped = langruntime.checkedAdd(swapped, 1);
+            }
+            const leftCount: number = langruntime.checkedSubtract(scanLow, equalLow);
+            const rightCount: number = langruntime.checkedSubtract(equalHigh, scanHigh);
+            let largeStart: number = start;
+            let largeCount: number = leftCount;
+            let smallStart: number = langruntime.checkedSubtract(end, rightCount);
+            let smallCount: number = rightCount;
+            if (leftCount <= rightCount) {
+                largeStart = langruntime.checkedIndex(smallStart);
+                largeCount = langruntime.checkedIndex(rightCount);
+                smallStart = langruntime.checkedIndex(start);
+                smallCount = langruntime.checkedIndex(leftCount);
+            }
+            if (largeCount > 1) {
+                if (tasks < starts.length) {
+                    starts[langruntime.checkedIndexIn(starts, tasks)] = langruntime.checkedIndex(largeStart);
+                    lengths[langruntime.checkedIndexIn(lengths, tasks)] = langruntime.checkedIndex(largeCount);
+                }
+                else {
+                    langruntime.pushIndex(starts, largeStart);
+                    langruntime.pushIndex(lengths, largeCount);
+                }
+                tasks = langruntime.checkedAdd(tasks, 1);
+            }
+            if (smallCount > 1) {
+                if (tasks < starts.length) {
+                    starts[langruntime.checkedIndexIn(starts, tasks)] = langruntime.checkedIndex(smallStart);
+                    lengths[langruntime.checkedIndexIn(lengths, tasks)] = langruntime.checkedIndex(smallCount);
+                }
+                else {
+                    langruntime.pushIndex(starts, smallStart);
+                    langruntime.pushIndex(lengths, smallCount);
+                }
+                tasks = langruntime.checkedAdd(tasks, 1);
+            }
+        }
+    }
+    let ranges: checkruntime.RangeValue[] = [];
+    index = langruntime.checkedIndex(0);
+    while (index < order.length) {
+        const current: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(input.ranges, langruntime.checkedIndex(langruntime.indexNumber(order, langruntime.checkedIndex(index))), checkruntime.copyRangeValue));
+        if (current.kind === "Value") {
+            const payload: checkruntime.RangePayload = checkruntime.copyRangePayload(current.value);
+            if (payload.empty === false) {
+                let emitMember: boolean = ranges.length === 0;
+                if (ranges.length > 0) {
+                    const last: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(ranges, langruntime.checkedIndex(langruntime.checkedSubtract(ranges.length, 1)), checkruntime.copyRangeValue));
+                    if (last.kind === "Value") {
+                        const previous: checkruntime.RangePayload = checkruntime.copyRangePayload(last.value);
+                        const adjacent: checkruntime.BoolValue = rangePayloadRelation(previous, payload, 7);
+                        if (adjacent.kind === "Error") {
+                            const error: checkruntime.SqlError = adjacent.value;
+                            return { kind: "Error", value: error };
+                        }
+                        if (adjacent.kind === "Unknown") {
+                            return { kind: "Unknown" };
+                        }
+                        if (checkruntime.equalBoolValue(adjacent, { kind: "Value", value: false })) {
+                            const before: checkruntime.BoolValue = rangePayloadRelation(previous, payload, 1);
+                            if (before.kind === "Error") {
+                                const error: checkruntime.SqlError = before.value;
+                                return { kind: "Error", value: error };
+                            }
+                            if (before.kind === "Unknown") {
+                                return { kind: "Unknown" };
+                            }
+                            emitMember = langruntime.checkedBool(checkruntime.equalBoolValue(before, { kind: "Value", value: true }));
+                        }
+                        if (emitMember === false) {
+                            const merged: checkruntime.RangeValue = rangePayloadSet(previous, payload, 2);
+                            if (merged.kind === "Error") {
+                                const error: checkruntime.SqlError = merged.value;
+                                return { kind: "Error", value: error };
+                            }
+                            if (merged.kind === "Unknown") {
+                                return { kind: "Unknown" };
+                            }
+                            const position: number = langruntime.checkedSubtract(ranges.length, 1);
+                            ranges[langruntime.checkedIndexIn(ranges, position)] = checkruntime.copyRangeValue(merged);
+                        }
+                    }
+                }
+                if (emitMember) {
+                    langruntime.pushStruct(ranges, { kind: "Value", value: payload }, checkruntime.copyRangeValue);
+                }
+            }
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return checkruntime.makeCoercedMultirangeValue({ typeName: input.typeName, rangeType: input.rangeType, elementType: input.elementType, elementKind: input.elementKind, ranges: ranges });
+}
+function multirangeConstructEmpty(typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    const ranges: checkruntime.RangeValue[] = [];
+    return checkruntime.makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, ranges: ranges });
+}
+function multirangeConstructSingle(input: checkruntime.RangeValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
+    input = checkruntime.copyRangeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    let typed: checkruntime.RangeValue = checkruntime.rangeRequireType(input, rangeType, elementType, elementKind);
+    if (typed.kind === "Value") {
+        const payload: checkruntime.RangePayload = checkruntime.copyRangePayload(typed.value);
+        typed = checkruntime.copyRangeValue(checkruntime.makeCoercedRangeValue(payload));
+    }
+    if (typed.kind === "Error") {
+        const error: checkruntime.SqlError = typed.value;
+        return { kind: "Error", value: error };
+    }
+    if (typed.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (typed.kind === "Value") {
+        const payload: checkruntime.RangePayload = checkruntime.copyRangePayload(typed.value);
+        if (payload.empty) {
+            return multirangeConstructEmpty(typeName, rangeType, elementType, elementKind);
+        }
+        let ranges: checkruntime.RangeValue[] = [];
+        langruntime.pushStruct(ranges, { kind: "Value", value: payload }, checkruntime.copyRangeValue);
+        return checkruntime.makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, ranges: ranges });
+    }
+    return { kind: "Unknown" };
+}
+function multirangeConstructArray(input: checkruntime.ArrayValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
+    input = checkruntime.copyArrayValue(input);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.ArrayPayload = checkruntime.copyArrayPayload(input.value);
+        if (!(payload.elementType === rangeType) || !(payload.elementKind === 42)) {
+            return { kind: "Unknown" };
+        }
+        if (payload.dimensions.length > 1) {
+            return { kind: "Error", value: checkruntime.makeSqlError(multirangeArrayDimensions) };
+        }
+        let ranges: checkruntime.RangeValue[] = [];
+        let index: number = 0;
+        let unknown: boolean = false;
+        while (index < payload.elements.length) {
+            const cell: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(payload.elements, langruntime.checkedIndex(index), checkruntime.copyArrayElement));
+            const family: number = checkruntime.arrayElementFamily(checkruntime.copyArrayElement(cell));
+            if (!(family === 0) && !(family === 42)) {
+                return { kind: "Unknown" };
+            }
+            if (cell.kind === "Error") {
+                const error: checkruntime.SqlError = cell.value;
+                return { kind: "Error", value: error };
+            }
+            if (cell.kind === "Null") {
+                return { kind: "Error", value: checkruntime.makeSqlError(multirangeNullMember) };
+            }
+            if (cell.kind === "Unknown") {
+                unknown = langruntime.checkedBool(true);
+            }
+            if (cell.kind === "Range") {
+                const span: checkruntime.RangePayload = checkruntime.copyRangePayload(cell.value);
+                let typed: checkruntime.RangeValue = checkruntime.rangeRequireType({ kind: "Value", value: span }, rangeType, elementType, elementKind);
+                if (typed.kind === "Value") {
+                    const span1: checkruntime.RangePayload = checkruntime.copyRangePayload(typed.value);
+                    typed = checkruntime.copyRangeValue(checkruntime.makeCoercedRangeValue(span1));
+                }
+                if (typed.kind === "Error") {
+                    const error: checkruntime.SqlError = typed.value;
+                    return { kind: "Error", value: error };
+                }
+                if (typed.kind === "Unknown") {
+                    return { kind: "Unknown" };
+                }
+                langruntime.pushStruct(ranges, typed, checkruntime.copyRangeValue);
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (unknown) {
+            return { kind: "Unknown" };
+        }
+        return multirangeConstructNormalize({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, ranges: ranges });
+    }
+    return { kind: "Unknown" };
+}
+export function datemultirangeQjle(): checkruntime.MultirangeValue {
+    return multirangeConstructEmpty("pg_catalog.datemultirange", "pg_catalog.daterange", "pg_catalog.date", 7);
+}
+export function datemultirangeJpar(input: checkruntime.ArrayValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyArrayValue(input);
+    return multirangeConstructArray(input, "pg_catalog.datemultirange", "pg_catalog.daterange", "pg_catalog.date", 7);
+}
+export function datemultirangeMwip(input: checkruntime.RangeValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyRangeValue(input);
+    return multirangeConstructSingle(input, "pg_catalog.datemultirange", "pg_catalog.daterange", "pg_catalog.date", 7);
+}
+export function int4multirangeQvfa(): checkruntime.MultirangeValue {
+    return multirangeConstructEmpty("pg_catalog.int4multirange", "pg_catalog.int4range", "pg_catalog.int4", 2);
+}
+export function int4multirange809e(input: checkruntime.ArrayValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyArrayValue(input);
+    return multirangeConstructArray(input, "pg_catalog.int4multirange", "pg_catalog.int4range", "pg_catalog.int4", 2);
+}
+export function int4multirangeWeie(input: checkruntime.RangeValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyRangeValue(input);
+    return multirangeConstructSingle(input, "pg_catalog.int4multirange", "pg_catalog.int4range", "pg_catalog.int4", 2);
+}
+export function int8multirangeDjko(): checkruntime.MultirangeValue {
+    return multirangeConstructEmpty("pg_catalog.int8multirange", "pg_catalog.int8range", "pg_catalog.int8", 3);
+}
+export function int8multirangeX1sx(input: checkruntime.ArrayValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyArrayValue(input);
+    return multirangeConstructArray(input, "pg_catalog.int8multirange", "pg_catalog.int8range", "pg_catalog.int8", 3);
+}
+export function int8multirangeJzn4(input: checkruntime.RangeValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyRangeValue(input);
+    return multirangeConstructSingle(input, "pg_catalog.int8multirange", "pg_catalog.int8range", "pg_catalog.int8", 3);
+}
+export function nummultirangeQnke(): checkruntime.MultirangeValue {
+    return multirangeConstructEmpty("pg_catalog.nummultirange", "pg_catalog.numrange", "pg_catalog.\"numeric\"", 10);
+}
+export function nummultirangeVoqt(input: checkruntime.ArrayValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyArrayValue(input);
+    return multirangeConstructArray(input, "pg_catalog.nummultirange", "pg_catalog.numrange", "pg_catalog.\"numeric\"", 10);
+}
+export function nummultirange88ec(input: checkruntime.RangeValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyRangeValue(input);
+    return multirangeConstructSingle(input, "pg_catalog.nummultirange", "pg_catalog.numrange", "pg_catalog.\"numeric\"", 10);
+}
+export function tsmultirangeBmb3(): checkruntime.MultirangeValue {
+    return multirangeConstructEmpty("pg_catalog.tsmultirange", "pg_catalog.tsrange", "pg_catalog.\"timestamp\"", 4);
+}
+export function tsmultirangePp1p(input: checkruntime.ArrayValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyArrayValue(input);
+    return multirangeConstructArray(input, "pg_catalog.tsmultirange", "pg_catalog.tsrange", "pg_catalog.\"timestamp\"", 4);
+}
+export function tsmultirangeKuha(input: checkruntime.RangeValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyRangeValue(input);
+    return multirangeConstructSingle(input, "pg_catalog.tsmultirange", "pg_catalog.tsrange", "pg_catalog.\"timestamp\"", 4);
+}
+export function tstzmultirange3xsg(): checkruntime.MultirangeValue {
+    return multirangeConstructEmpty("pg_catalog.tstzmultirange", "pg_catalog.tstzrange", "pg_catalog.timestamptz", 5);
+}
+export function tstzmultirangeHkj9(input: checkruntime.ArrayValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyArrayValue(input);
+    return multirangeConstructArray(input, "pg_catalog.tstzmultirange", "pg_catalog.tstzrange", "pg_catalog.timestamptz", 5);
+}
+export function tstzmultirangeZ001(input: checkruntime.RangeValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyRangeValue(input);
+    return multirangeConstructSingle(input, "pg_catalog.tstzmultirange", "pg_catalog.tstzrange", "pg_catalog.timestamptz", 5);
+}
 export function isemptyT80p(input: checkruntime.MultirangeValue): checkruntime.BoolValue {
     input = checkruntime.copyMultirangeValue(input);
     return checkruntime.multirangeEmptyState(input);

@@ -22667,6 +22667,512 @@ func moneyWords(input checkruntime.MoneyValue) checkruntime.TextValue {
 func CashWordsAtzl(input checkruntime.MoneyValue) checkruntime.TextValue {
 	return moneyWords(input)
 }
+
+const multirangeNullMember = 3452548
+const multirangeArrayDimensions = 3405888
+
+func multirangeConstructOrder(input *checkruntime.MultirangePayload, left int, right int) checkruntime.Int4Value {
+	left = langruntime.CheckedIndex(left)
+	right = langruntime.CheckedIndex(right)
+	a := checkruntime.CopyRangeValue(input.Ranges[left])
+	b := checkruntime.CopyRangeValue(input.Ranges[right])
+	return RangeCmp8jgl(a, b)
+}
+func multirangeOrderKnown(input checkruntime.Int4Value) bool {
+	if input.Kind == checkruntime.Int4ValueValue {
+		return true
+	}
+	return false
+}
+func multirangeOrderNumber(input checkruntime.Int4Value) int {
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		return value
+	}
+	return 0
+}
+func multirangeOrderFailure(input checkruntime.Int4Value) checkruntime.MultirangeValue {
+	if input.Kind == checkruntime.Int4ValueError {
+		error := input.Error
+		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: error}
+	}
+	return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+}
+func multirangeConstructMedian(input *checkruntime.MultirangePayload, a int, b int, c int) checkruntime.Int4Value {
+	a = langruntime.CheckedIndex(a)
+	b = langruntime.CheckedIndex(b)
+	c = langruntime.CheckedIndex(c)
+	ab := multirangeConstructOrder(input, a, b)
+	if multirangeOrderKnown(ab) == false {
+		return ab
+	}
+	bc := multirangeConstructOrder(input, b, c)
+	if multirangeOrderKnown(bc) == false {
+		return bc
+	}
+	if multirangeOrderNumber(ab) < 0 && multirangeOrderNumber(bc) < 0 {
+		return checkruntime.MakeInt4Value(int(int32(b)))
+	}
+	if multirangeOrderNumber(ab) >= 0 && multirangeOrderNumber(bc) > 0 {
+		return checkruntime.MakeInt4Value(int(int32(b)))
+	}
+	ac := multirangeConstructOrder(input, a, c)
+	if multirangeOrderKnown(ac) == false {
+		return ac
+	}
+	if multirangeOrderNumber(ac) < 0 {
+		if multirangeOrderNumber(ab) < 0 {
+			return checkruntime.MakeInt4Value(int(int32(c)))
+		}
+		return checkruntime.MakeInt4Value(int(int32(a)))
+	}
+	if multirangeOrderNumber(ab) < 0 {
+		return checkruntime.MakeInt4Value(int(int32(a)))
+	}
+	return checkruntime.MakeInt4Value(int(int32(c)))
+}
+func multirangeConstructNormalize(input checkruntime.MultirangePayload) checkruntime.MultirangeValue {
+	input = checkruntime.CopyMultirangePayload(input)
+	order := []int{}
+	index := 0
+	for index < len(input.Ranges) {
+		langruntime.CheckedAdd(len(order), 1)
+		order = append(order, langruntime.CheckedIndex(index))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	starts := []int{}
+	lengths := []int{}
+	langruntime.CheckedAdd(len(starts), 1)
+	starts = append(starts, langruntime.CheckedIndex(0))
+	langruntime.CheckedAdd(len(lengths), 1)
+	lengths = append(lengths, langruntime.CheckedIndex(len(order)))
+	tasks := 1
+	for tasks > 0 {
+		tasks = langruntime.CheckedIndex(langruntime.CheckedSubtract(tasks, 1))
+		start := starts[tasks]
+		count := lengths[tasks]
+		end := langruntime.CheckedAdd(start, count)
+		partition := count >= 7
+		if count < 7 {
+			next := langruntime.CheckedAdd(start, 1)
+			for next < end {
+				position := next
+				shifting := true
+				for position > start && shifting {
+					compared := multirangeConstructOrder(&input, order[langruntime.CheckedSubtract(position, 1)], order[position])
+					if multirangeOrderKnown(compared) == false {
+						return multirangeOrderFailure(compared)
+					}
+					if multirangeOrderNumber(compared) > 0 {
+						saved := order[position]
+						order[position] = langruntime.CheckedIndex(order[langruntime.CheckedSubtract(position, 1)])
+						order[langruntime.CheckedSubtract(position, 1)] = langruntime.CheckedIndex(saved)
+						position = langruntime.CheckedIndex(langruntime.CheckedSubtract(position, 1))
+					} else {
+						shifting = false
+					}
+				}
+				next = langruntime.CheckedAdd(next, 1)
+			}
+		}
+		if partition {
+			next := langruntime.CheckedAdd(start, 1)
+			presorted := true
+			for next < end && presorted {
+				compared := multirangeConstructOrder(&input, order[langruntime.CheckedSubtract(next, 1)], order[next])
+				if multirangeOrderKnown(compared) == false {
+					return multirangeOrderFailure(compared)
+				}
+				if multirangeOrderNumber(compared) > 0 {
+					presorted = false
+				}
+				next = langruntime.CheckedAdd(next, 1)
+			}
+			partition = presorted == false
+		}
+		if partition {
+			half := langruntime.CheckedSignedDivide((int(int32(count))), 2)
+			middle := langruntime.CheckedAdd(start, langruntime.IndexFromI32(half, 0))
+			pivot := order[middle]
+			if count > 7 {
+				low := order[start]
+				mid := pivot
+				high := order[langruntime.CheckedSubtract(end, 1)]
+				if count > 40 {
+					eighth := langruntime.CheckedSignedDivide((int(int32(count))), 8)
+					distance := langruntime.IndexFromI32(eighth, 0)
+					loChoice := multirangeConstructMedian(&input, low, order[langruntime.CheckedAdd(start, distance)], order[langruntime.CheckedAdd(langruntime.CheckedAdd(start, distance), distance)])
+					if multirangeOrderKnown(loChoice) == false {
+						return multirangeOrderFailure(loChoice)
+					}
+					low = langruntime.CheckedIndex(langruntime.IndexFromI32(multirangeOrderNumber(loChoice), 0))
+					midChoice := multirangeConstructMedian(&input, order[langruntime.CheckedSubtract(middle, distance)], mid, order[langruntime.CheckedAdd(middle, distance)])
+					if multirangeOrderKnown(midChoice) == false {
+						return multirangeOrderFailure(midChoice)
+					}
+					mid = langruntime.CheckedIndex(langruntime.IndexFromI32(multirangeOrderNumber(midChoice), 0))
+					hiChoice := multirangeConstructMedian(&input, order[langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, 1), (langruntime.CheckedAdd(distance, distance)))], order[langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, 1), distance)], high)
+					if multirangeOrderKnown(hiChoice) == false {
+						return multirangeOrderFailure(hiChoice)
+					}
+					high = langruntime.CheckedIndex(langruntime.IndexFromI32(multirangeOrderNumber(hiChoice), 0))
+				}
+				choice := multirangeConstructMedian(&input, low, mid, high)
+				if multirangeOrderKnown(choice) == false {
+					return multirangeOrderFailure(choice)
+				}
+				pivot = langruntime.CheckedIndex(langruntime.IndexFromI32(multirangeOrderNumber(choice), 0))
+			}
+			pivotPosition := start
+			for order[pivotPosition] != pivot {
+				pivotPosition = langruntime.CheckedAdd(pivotPosition, 1)
+			}
+			saved := order[start]
+			order[start] = langruntime.CheckedIndex(pivot)
+			order[pivotPosition] = langruntime.CheckedIndex(saved)
+			equalLow := langruntime.CheckedAdd(start, 1)
+			scanLow := equalLow
+			scanHigh := langruntime.CheckedSubtract(end, 1)
+			equalHigh := scanHigh
+			searching := true
+			for searching {
+				advance := true
+				for scanLow <= scanHigh && advance {
+					compared := multirangeConstructOrder(&input, order[scanLow], pivot)
+					if multirangeOrderKnown(compared) == false {
+						return multirangeOrderFailure(compared)
+					}
+					comparison := multirangeOrderNumber(compared)
+					if comparison <= 0 {
+						if comparison == 0 {
+							saved := order[equalLow]
+							order[equalLow] = langruntime.CheckedIndex(order[scanLow])
+							order[scanLow] = langruntime.CheckedIndex(saved)
+							equalLow = langruntime.CheckedAdd(equalLow, 1)
+						}
+						scanLow = langruntime.CheckedAdd(scanLow, 1)
+					} else {
+						advance = false
+					}
+				}
+				advance = true
+				for scanLow <= scanHigh && advance {
+					compared := multirangeConstructOrder(&input, order[scanHigh], pivot)
+					if multirangeOrderKnown(compared) == false {
+						return multirangeOrderFailure(compared)
+					}
+					comparison := multirangeOrderNumber(compared)
+					if comparison >= 0 {
+						if comparison == 0 {
+							saved := order[equalHigh]
+							order[equalHigh] = langruntime.CheckedIndex(order[scanHigh])
+							order[scanHigh] = langruntime.CheckedIndex(saved)
+							equalHigh = langruntime.CheckedIndex(langruntime.CheckedSubtract(equalHigh, 1))
+						}
+						scanHigh = langruntime.CheckedIndex(langruntime.CheckedSubtract(scanHigh, 1))
+					} else {
+						advance = false
+					}
+				}
+				if scanLow > scanHigh {
+					searching = false
+				} else {
+					saved := order[scanLow]
+					order[scanLow] = langruntime.CheckedIndex(order[scanHigh])
+					order[scanHigh] = langruntime.CheckedIndex(saved)
+					scanLow = langruntime.CheckedAdd(scanLow, 1)
+					scanHigh = langruntime.CheckedIndex(langruntime.CheckedSubtract(scanHigh, 1))
+				}
+			}
+			swapCount := langruntime.CheckedSubtract(equalLow, start)
+			if swapCount > langruntime.CheckedSubtract(scanLow, equalLow) {
+				swapCount = langruntime.CheckedIndex(langruntime.CheckedSubtract(scanLow, equalLow))
+			}
+			swapped := 0
+			for swapped < swapCount {
+				left := langruntime.CheckedAdd(start, swapped)
+				right := langruntime.CheckedAdd(langruntime.CheckedSubtract(scanLow, swapCount), swapped)
+				saved := order[left]
+				order[left] = langruntime.CheckedIndex(order[right])
+				order[right] = langruntime.CheckedIndex(saved)
+				swapped = langruntime.CheckedAdd(swapped, 1)
+			}
+			swapCount = langruntime.CheckedIndex(langruntime.CheckedSubtract(equalHigh, scanHigh))
+			if swapCount > langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, equalHigh), 1) {
+				swapCount = langruntime.CheckedIndex(langruntime.CheckedSubtract(langruntime.CheckedSubtract(end, equalHigh), 1))
+			}
+			swapped = langruntime.CheckedIndex(0)
+			for swapped < swapCount {
+				left := langruntime.CheckedAdd(scanLow, swapped)
+				right := langruntime.CheckedAdd(langruntime.CheckedSubtract(end, swapCount), swapped)
+				saved := order[left]
+				order[left] = langruntime.CheckedIndex(order[right])
+				order[right] = langruntime.CheckedIndex(saved)
+				swapped = langruntime.CheckedAdd(swapped, 1)
+			}
+			leftCount := langruntime.CheckedSubtract(scanLow, equalLow)
+			rightCount := langruntime.CheckedSubtract(equalHigh, scanHigh)
+			largeStart := start
+			largeCount := leftCount
+			smallStart := langruntime.CheckedSubtract(end, rightCount)
+			smallCount := rightCount
+			if leftCount <= rightCount {
+				largeStart = langruntime.CheckedIndex(smallStart)
+				largeCount = langruntime.CheckedIndex(rightCount)
+				smallStart = langruntime.CheckedIndex(start)
+				smallCount = langruntime.CheckedIndex(leftCount)
+			}
+			if largeCount > 1 {
+				if tasks < len(starts) {
+					starts[tasks] = langruntime.CheckedIndex(largeStart)
+					lengths[tasks] = langruntime.CheckedIndex(largeCount)
+				} else {
+					langruntime.CheckedAdd(len(starts), 1)
+					starts = append(starts, langruntime.CheckedIndex(largeStart))
+					langruntime.CheckedAdd(len(lengths), 1)
+					lengths = append(lengths, langruntime.CheckedIndex(largeCount))
+				}
+				tasks = langruntime.CheckedAdd(tasks, 1)
+			}
+			if smallCount > 1 {
+				if tasks < len(starts) {
+					starts[tasks] = langruntime.CheckedIndex(smallStart)
+					lengths[tasks] = langruntime.CheckedIndex(smallCount)
+				} else {
+					langruntime.CheckedAdd(len(starts), 1)
+					starts = append(starts, langruntime.CheckedIndex(smallStart))
+					langruntime.CheckedAdd(len(lengths), 1)
+					lengths = append(lengths, langruntime.CheckedIndex(smallCount))
+				}
+				tasks = langruntime.CheckedAdd(tasks, 1)
+			}
+		}
+	}
+	ranges := []checkruntime.RangeValue{}
+	index = langruntime.CheckedIndex(0)
+	for index < len(order) {
+		current := checkruntime.CopyRangeValue(input.Ranges[order[index]])
+		if current.Kind == checkruntime.RangeValueValue {
+			payload := checkruntime.CopyRangePayload(current.Value)
+			if payload.Empty == false {
+				emitMember := len(ranges) == 0
+				if len(ranges) > 0 {
+					last := checkruntime.CopyRangeValue(ranges[langruntime.CheckedSubtract(len(ranges), 1)])
+					if last.Kind == checkruntime.RangeValueValue {
+						previous := checkruntime.CopyRangePayload(last.Value)
+						adjacent := rangePayloadRelation(&previous, &payload, 7)
+						if adjacent.Kind == checkruntime.BoolValueError {
+							error := adjacent.Error
+							return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: error}
+						}
+						if adjacent.Kind == checkruntime.BoolValueUnknown {
+							return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+						}
+						if adjacent == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+							before := rangePayloadRelation(&previous, &payload, 1)
+							if before.Kind == checkruntime.BoolValueError {
+								error := before.Error
+								return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: error}
+							}
+							if before.Kind == checkruntime.BoolValueUnknown {
+								return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+							}
+							emitMember = before == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true})
+						}
+						if emitMember == false {
+							merged := rangePayloadSet(&previous, &payload, 2)
+							if merged.Kind == checkruntime.RangeValueError {
+								error := merged.Error
+								return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: error}
+							}
+							if merged.Kind == checkruntime.RangeValueUnknown {
+								return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+							}
+							position := langruntime.CheckedSubtract(len(ranges), 1)
+							ranges[position] = checkruntime.CopyRangeValue(merged)
+						}
+					}
+				}
+				if emitMember {
+					langruntime.CheckedAdd(len(ranges), 1)
+					ranges = append(ranges, checkruntime.CopyRangeValue(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: payload}))
+				}
+			}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: input.TypeName, RangeType: input.RangeType, ElementType: input.ElementType, ElementKind: input.ElementKind, Ranges: ranges})
+}
+func multirangeConstructEmpty(typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	ranges := []checkruntime.RangeValue{}
+	return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Ranges: ranges})
+}
+func multirangeConstructSingle(input checkruntime.RangeValue, typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	typed := checkruntime.RangeRequireType(input, rangeType, elementType, elementKind)
+	if typed.Kind == checkruntime.RangeValueValue {
+		payload := checkruntime.CopyRangePayload(typed.Value)
+		typed = checkruntime.CopyRangeValue(checkruntime.MakeCoercedRangeValue(payload))
+	}
+	if typed.Kind == checkruntime.RangeValueError {
+		error := typed.Error
+		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: error}
+	}
+	if typed.Kind == checkruntime.RangeValueNull {
+		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueNull}
+	}
+	if typed.Kind == checkruntime.RangeValueValue {
+		payload := checkruntime.CopyRangePayload(typed.Value)
+		if payload.Empty {
+			return multirangeConstructEmpty(typeName, rangeType, elementType, elementKind)
+		}
+		ranges := []checkruntime.RangeValue{}
+		langruntime.CheckedAdd(len(ranges), 1)
+		ranges = append(ranges, checkruntime.CopyRangeValue(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: payload}))
+		return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Ranges: ranges})
+	}
+	return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+}
+func multirangeConstructArray(input checkruntime.ArrayValue, typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
+	input = checkruntime.CopyArrayValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	if input.Kind == checkruntime.ArrayValueError {
+		error := input.Error
+		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: error}
+	}
+	if input.Kind == checkruntime.ArrayValueNull {
+		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueNull}
+	}
+	if input.Kind == checkruntime.ArrayValueValue {
+		payload := checkruntime.CopyArrayPayload(input.Value)
+		if payload.ElementType != rangeType || payload.ElementKind != 42 {
+			return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+		}
+		if len(payload.Dimensions) > 1 {
+			return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: checkruntime.MakeSqlError(multirangeArrayDimensions)}
+		}
+		ranges := []checkruntime.RangeValue{}
+		index := 0
+		unknown := false
+		for index < len(payload.Elements) {
+			cell := checkruntime.CopyArrayElement(payload.Elements[index])
+			family := checkruntime.ArrayElementFamily(checkruntime.CopyArrayElement(cell))
+			if family != 0 && family != 42 {
+				return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+			}
+			if cell.Kind == checkruntime.ArrayElementError {
+				error := cell.Error
+				return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: error}
+			}
+			if cell.Kind == checkruntime.ArrayElementNull {
+				return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: checkruntime.MakeSqlError(multirangeNullMember)}
+			}
+			if cell.Kind == checkruntime.ArrayElementUnknown {
+				unknown = true
+			}
+			if cell.Kind == checkruntime.ArrayElementRange {
+				span := checkruntime.CopyRangePayload(cell.Range)
+				typed := checkruntime.RangeRequireType(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: span}, rangeType, elementType, elementKind)
+				if typed.Kind == checkruntime.RangeValueValue {
+					span := checkruntime.CopyRangePayload(typed.Value)
+					typed = checkruntime.CopyRangeValue(checkruntime.MakeCoercedRangeValue(span))
+				}
+				if typed.Kind == checkruntime.RangeValueError {
+					error := typed.Error
+					return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: error}
+				}
+				if typed.Kind == checkruntime.RangeValueUnknown {
+					return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+				}
+				langruntime.CheckedAdd(len(ranges), 1)
+				ranges = append(ranges, checkruntime.CopyRangeValue(typed))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if unknown {
+			return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+		}
+		return multirangeConstructNormalize(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Ranges: ranges})
+	}
+	return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+}
+func DatemultirangeQjle() checkruntime.MultirangeValue {
+	return multirangeConstructEmpty("pg_catalog.datemultirange", "pg_catalog.daterange", "pg_catalog.date", 7)
+}
+func DatemultirangeJpar(input checkruntime.ArrayValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyArrayValue(input)
+	return multirangeConstructArray(input, "pg_catalog.datemultirange", "pg_catalog.daterange", "pg_catalog.date", 7)
+}
+func DatemultirangeMwip(input checkruntime.RangeValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	return multirangeConstructSingle(input, "pg_catalog.datemultirange", "pg_catalog.daterange", "pg_catalog.date", 7)
+}
+func Int4multirangeQvfa() checkruntime.MultirangeValue {
+	return multirangeConstructEmpty("pg_catalog.int4multirange", "pg_catalog.int4range", "pg_catalog.int4", 2)
+}
+func Int4multirange809e(input checkruntime.ArrayValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyArrayValue(input)
+	return multirangeConstructArray(input, "pg_catalog.int4multirange", "pg_catalog.int4range", "pg_catalog.int4", 2)
+}
+func Int4multirangeWeie(input checkruntime.RangeValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	return multirangeConstructSingle(input, "pg_catalog.int4multirange", "pg_catalog.int4range", "pg_catalog.int4", 2)
+}
+func Int8multirangeDjko() checkruntime.MultirangeValue {
+	return multirangeConstructEmpty("pg_catalog.int8multirange", "pg_catalog.int8range", "pg_catalog.int8", 3)
+}
+func Int8multirangeX1sx(input checkruntime.ArrayValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyArrayValue(input)
+	return multirangeConstructArray(input, "pg_catalog.int8multirange", "pg_catalog.int8range", "pg_catalog.int8", 3)
+}
+func Int8multirangeJzn4(input checkruntime.RangeValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	return multirangeConstructSingle(input, "pg_catalog.int8multirange", "pg_catalog.int8range", "pg_catalog.int8", 3)
+}
+func NummultirangeQnke() checkruntime.MultirangeValue {
+	return multirangeConstructEmpty("pg_catalog.nummultirange", "pg_catalog.numrange", "pg_catalog.\"numeric\"", 10)
+}
+func NummultirangeVoqt(input checkruntime.ArrayValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyArrayValue(input)
+	return multirangeConstructArray(input, "pg_catalog.nummultirange", "pg_catalog.numrange", "pg_catalog.\"numeric\"", 10)
+}
+func Nummultirange88ec(input checkruntime.RangeValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	return multirangeConstructSingle(input, "pg_catalog.nummultirange", "pg_catalog.numrange", "pg_catalog.\"numeric\"", 10)
+}
+func TsmultirangeBmb3() checkruntime.MultirangeValue {
+	return multirangeConstructEmpty("pg_catalog.tsmultirange", "pg_catalog.tsrange", "pg_catalog.\"timestamp\"", 4)
+}
+func TsmultirangePp1p(input checkruntime.ArrayValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyArrayValue(input)
+	return multirangeConstructArray(input, "pg_catalog.tsmultirange", "pg_catalog.tsrange", "pg_catalog.\"timestamp\"", 4)
+}
+func TsmultirangeKuha(input checkruntime.RangeValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	return multirangeConstructSingle(input, "pg_catalog.tsmultirange", "pg_catalog.tsrange", "pg_catalog.\"timestamp\"", 4)
+}
+func Tstzmultirange3xsg() checkruntime.MultirangeValue {
+	return multirangeConstructEmpty("pg_catalog.tstzmultirange", "pg_catalog.tstzrange", "pg_catalog.timestamptz", 5)
+}
+func TstzmultirangeHkj9(input checkruntime.ArrayValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyArrayValue(input)
+	return multirangeConstructArray(input, "pg_catalog.tstzmultirange", "pg_catalog.tstzrange", "pg_catalog.timestamptz", 5)
+}
+func TstzmultirangeZ001(input checkruntime.RangeValue) checkruntime.MultirangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	return multirangeConstructSingle(input, "pg_catalog.tstzmultirange", "pg_catalog.tstzrange", "pg_catalog.timestamptz", 5)
+}
 func IsemptyT80p(input checkruntime.MultirangeValue) checkruntime.BoolValue {
 	input = checkruntime.CopyMultirangeValue(input)
 	return checkruntime.MultirangeEmptyState(input)

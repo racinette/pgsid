@@ -1742,3 +1742,36 @@ CREATE TABLE lane_shift_segments (
   CONSTRAINT shift_segments_present CHECK(CASE WHEN bypass THEN true ELSE (slots IS NULL)=expected_missing END),
   CONSTRAINT shift_segments_choice CHECK(CASE WHEN bypass THEN true ELSE lower(CASE WHEN choose_alternate THEN alternate_loads ELSE COALESCE(loads,NULL::int8multirange) END) IS NOT DISTINCT FROM load_floor END)
 );
+
+CREATE TABLE lane_segment_assembly (
+  first_slot lane_recorded_range,
+  second_slot lane_recorded_range,
+  slot_parts lane_recorded_range[],
+  load_parts int8range[],
+  price_parts numrange[],
+  day_parts daterange[],
+  local_parts tsrange[],
+  instant_parts tstzrange[],
+  slot_floor integer,
+  slot_ceiling integer,
+  load_ceiling bigint,
+  price_floor numeric,
+  day_ceiling date,
+  local_floor timestamp,
+  instant_ceiling timestamptz,
+  chosen_floor integer,
+  chosen_ceiling integer,
+  expected_zero_empty boolean,
+  choose_parts boolean,
+  bypass boolean,
+  CONSTRAINT segment_assembly_pair CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN first_slot IS NULL OR second_slot IS NULL THEN true ELSE lower(int4multirange(first_slot,second_slot)) IS NOT DISTINCT FROM slot_floor END END),
+  CONSTRAINT segment_assembly_slots CHECK(CASE WHEN bypass THEN true ELSE upper(int4multirange(VARIADIC slot_parts)) IS NOT DISTINCT FROM slot_ceiling END),
+  CONSTRAINT segment_assembly_loads CHECK(CASE WHEN bypass THEN true ELSE upper(int8multirange(VARIADIC load_parts)) IS NOT DISTINCT FROM load_ceiling END),
+  CONSTRAINT segment_assembly_prices CHECK(CASE WHEN bypass THEN true ELSE lower(nummultirange(VARIADIC price_parts)) IS NOT DISTINCT FROM price_floor END),
+  CONSTRAINT segment_assembly_days CHECK(CASE WHEN bypass THEN true ELSE upper(datemultirange(VARIADIC day_parts)) IS NOT DISTINCT FROM day_ceiling END),
+  CONSTRAINT segment_assembly_local CHECK(CASE WHEN bypass THEN true ELSE lower(tsmultirange(VARIADIC local_parts)) IS NOT DISTINCT FROM local_floor END),
+  CONSTRAINT segment_assembly_instant CHECK(CASE WHEN bypass THEN true ELSE upper(tstzmultirange(VARIADIC instant_parts)) IS NOT DISTINCT FROM instant_ceiling END),
+  CONSTRAINT segment_assembly_case CHECK(CASE WHEN bypass THEN true ELSE lower(CASE WHEN choose_parts THEN int4multirange(VARIADIC slot_parts) ELSE int4multirange(first_slot) END) IS NOT DISTINCT FROM chosen_floor END),
+  CONSTRAINT segment_assembly_coalesce CHECK(CASE WHEN bypass THEN true ELSE upper(COALESCE(first_slot::int4multirange,int4multirange(VARIADIC slot_parts),NULL::int4multirange)) IS NOT DISTINCT FROM chosen_ceiling END),
+  CONSTRAINT segment_assembly_zero CHECK(CASE WHEN bypass THEN true ELSE isempty(int4multirange())=expected_zero_empty END)
+);

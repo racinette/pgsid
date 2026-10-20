@@ -5083,3 +5083,73 @@ INSERT INTO lane_shift_segments(loads,alternate_loads,load_floor,choose_alternat
 -- name: shift_segments_bypass
 INSERT INTO lane_shift_segments(slots,loads,slot_floor,load_floor,expected_empty,expected_bounded,expected_missing,bypass)
 VALUES('{}','{[1,3)}',99,99,false,true,true,true);
+
+-- name: segment_assembly_null
+INSERT INTO lane_segment_assembly(expected_zero_empty,bypass) VALUES(true,false);
+
+-- name: segment_assembly_empty
+INSERT INTO lane_segment_assembly(first_slot,second_slot,slot_parts,load_parts,price_parts,day_parts,local_parts,instant_parts,expected_zero_empty,bypass)
+VALUES('empty','empty','{}','{}','{}','{}','{}','{}',true,false);
+
+-- name: segment_assembly_parts
+INSERT INTO lane_segment_assembly(first_slot,second_slot,slot_parts,load_parts,price_parts,day_parts,local_parts,instant_parts,slot_floor,slot_ceiling,load_ceiling,price_floor,day_ceiling,local_floor,instant_ceiling,chosen_floor,chosen_ceiling,choose_parts,expected_zero_empty,bypass)
+VALUES('[7,9)','[1,3)','{"[7,9)","[1,3)","[3,7)"}','{"[9007199254740997,9007199254740999)","[9007199254740993,9007199254740995)"}','{"[1.2300,3.0000]","[1.230000,3.0]","[7,9]"}','{"[2000-01-05,2000-01-07)","[2000-01-01,2000-01-03)"}','{"[2000-01-05,2000-01-07)","[2000-01-01,2000-01-03)"}','{"[2000-01-05 00:00+00,2000-01-07 00:00+00)","[2000-01-01 00:00+00,2000-01-03 00:00+00)"}',1,9,9007199254740999,1.23,'2000-01-07','2000-01-01','2000-01-07 00:00+00',1,9,true,true,false);
+
+-- name: segment_assembly_lower_bound
+INSERT INTO lane_segment_assembly(slot_parts,slot_ceiling,chosen_floor,chosen_ceiling,choose_parts,expected_zero_empty,bypass)
+VALUES('[-2:0]={"[7,9)","[1,3)",empty}',9,1,9,true,true,false);
+
+-- name: segment_assembly_unbounded
+INSERT INTO lane_segment_assembly(first_slot,second_slot,slot_parts,load_parts,price_parts,day_parts,local_parts,instant_parts,expected_zero_empty,bypass)
+VALUES('(,)','empty','{"(,)",empty}','{"(,)"}','{"(,)"}','{"(,)"}','{"(,)"}','{"(,)"}',true,false);
+
+-- name: segment_assembly_infinities
+INSERT INTO lane_segment_assembly(price_parts,day_parts,local_parts,instant_parts,price_floor,day_ceiling,local_floor,instant_ceiling,expected_zero_empty,bypass)
+VALUES('{"[NaN,NaN]"}','{"[-infinity,infinity]"}','{"[-infinity,infinity]"}','{"[-infinity,infinity]"}','NaN','infinity','-infinity','infinity',true,false);
+
+-- name: segment_assembly_pair_mismatch
+INSERT INTO lane_segment_assembly(first_slot,second_slot,slot_floor,chosen_floor,chosen_ceiling,bypass)
+VALUES('[7,9)','[1,3)',7,7,9,false);
+
+-- name: segment_assembly_slot_mismatch
+INSERT INTO lane_segment_assembly(slot_parts,slot_ceiling,chosen_ceiling,bypass)
+VALUES('{"[1,3)"}',9,3,false);
+
+-- name: segment_assembly_load_mismatch
+INSERT INTO lane_segment_assembly(load_parts,load_ceiling,bypass) VALUES('{"[1,3)"}',9,false);
+
+-- name: segment_assembly_price_mismatch
+INSERT INTO lane_segment_assembly(price_parts,price_floor,bypass) VALUES('{"[1,3]"}',9,false);
+
+-- name: segment_assembly_day_mismatch
+INSERT INTO lane_segment_assembly(day_parts,day_ceiling,bypass) VALUES('{"[2000-01-01,2000-01-03)"}','2000-01-02',false);
+
+-- name: segment_assembly_local_mismatch
+INSERT INTO lane_segment_assembly(local_parts,local_floor,bypass) VALUES('{"[2000-01-01,2000-01-03)"}','2000-01-02',false);
+
+-- name: segment_assembly_instant_mismatch
+INSERT INTO lane_segment_assembly(instant_parts,instant_ceiling,bypass) VALUES('{"[2000-01-01 00:00+00,2000-01-03 00:00+00)"}','2000-01-02 00:00+00',false);
+
+-- name: segment_assembly_case_mismatch
+INSERT INTO lane_segment_assembly(first_slot,chosen_floor,chosen_ceiling,choose_parts,bypass) VALUES('[1,3)',9,3,false,false);
+
+-- name: segment_assembly_coalesce_mismatch
+INSERT INTO lane_segment_assembly(first_slot,chosen_floor,chosen_ceiling,bypass) VALUES('[1,3)',1,9,false);
+
+-- name: segment_assembly_zero_mismatch
+INSERT INTO lane_segment_assembly(expected_zero_empty,bypass) VALUES(false,false);
+
+-- name: segment_assembly_null_member
+INSERT INTO lane_segment_assembly(first_slot,slot_parts,chosen_floor,chosen_ceiling,choose_parts,bypass)
+VALUES('[1,3)','{NULL}',1,3,false,false);
+
+-- name: segment_assembly_dimensions
+INSERT INTO lane_segment_assembly(first_slot,slot_parts,chosen_floor,chosen_ceiling,choose_parts,bypass)
+VALUES('[1,3)','{{"[1,3)"},{"[5,7)"}}',1,3,false,false);
+
+-- name: segment_assembly_dimensions_before_null
+INSERT INTO lane_segment_assembly(slot_parts,choose_parts,bypass) VALUES('{{NULL},{"[1,3)"}}',true,false);
+
+-- name: segment_assembly_bypass
+INSERT INTO lane_segment_assembly(first_slot,second_slot,slot_parts,slot_floor,slot_ceiling,chosen_floor,chosen_ceiling,expected_zero_empty,choose_parts,bypass)
+VALUES('empty','empty','{{NULL},{"[1,3)"}}',99,99,99,99,false,true,true);

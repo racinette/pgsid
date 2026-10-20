@@ -162,8 +162,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish compact interval grammar, clock precision and scalar time constructors.
 - [x] Establish interval scaling, calendar arithmetic, precision-aware literals,
       and clock input/output.
-- [x] Establish temporal field extraction, hashes, interval truncation, timestamp
-      binning, and local calendar age.
+- [x] Establish temporal field extraction, hashes, interval truncation, timestamp binning, and local calendar age.
 - [x] Establish temporal range checks, fixed interval timezones, SQL-coerced wide offsets, and ISO alternative interval input.
 - [x] Establish explicit-zone calendar adjustments, non-strict temporal overlaps, legacy timestamp field extraction, and the measured session-timezone
       requirement for instant calendar age.
@@ -256,6 +255,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit builtin range arrays and nested/domain cells through captured nominal subtype profiles; validate public inputs before copies, preserve typed nullness, and compose metadata, subscripts, constructors, comparisons, searches, rewrites, transformations, text I/O and hashes. Retain reached temporal context, ordered errors, checked element domains, eager literals, lazy runtime input and complete byte-order alternatives; verify deployment-OID independence and INSERT parity.
 - [x] Establish owned SQL-coerced multirange values before schema admission; preserve stored member order, exact typed bounds, nominal range/subtype identity, empty versus NULL, partial bounds and ordered errors. Verify boundary accessors, independent extracted/reinserted snapshots and the narrow owned wrapper against native INSERTs in Rust, Go and TypeScript.
 - [x] Bind builtin multiranges and scalar boundary results through captured profiles, nested domains, typed NULLs and CASE/COALESCE; validate nominal member/bound payloads before public copies, preserve raw query conversion and verify deployment-OID independence and INSERT parity. Keep member-array admission separate.
+- [x] Admit builtin empty, single-range and variadic multirange constructors plus catalog range casts; sort/merge stored members with exact equal-bound selection and numeric scales, preserve subtype/canonical profiles, domain-array unwrapping, shape/NULL error order, partial values, input snapshots and eager/lazy composition; verify raw/stored and INSERT parity.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

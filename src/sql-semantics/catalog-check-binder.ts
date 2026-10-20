@@ -1369,6 +1369,28 @@ const coerceArray = (
   const from = source.slice(6) as ArrayElementType,
     to = target.slice(6) as ArrayElementType,
     conversion = builtinCast(from, to)
+  const sourceBase = arrayElementBaseType(from)
+  if (from.startsWith('domain:') && sourceBase !== from && !sourceBase.startsWith('array:')) {
+    const definition = enums.find((item) => enumType(item) === sourceBase)
+    if (sourceBase.startsWith('enum:') && !definition) return null
+    const baseArray = arrayType(sourceBase as ArrayElementType)
+    const stripped: EvalExpression = {
+      kind: 'array-domain-coerce',
+      type: baseArray,
+      sourceElementType: from,
+      elementType: sourceBase as ArrayElementType,
+      operand,
+      conversion: {
+        kind: 'input',
+        name: '__pgsid_domain_element',
+        type: sourceBase as ScalarType,
+        ...(definition ? { enum: definition } : {}),
+      },
+    }
+    return sourceBase === to
+      ? stripped
+      : coerceArray(stripped, baseArray, target, context, modifier, enums)
+  }
   if (
     context === 'e' &&
     (conversion?.method === 'i' ||
