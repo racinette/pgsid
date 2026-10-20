@@ -7031,6 +7031,9 @@ export type ArrayElement = {
 } | {
     readonly kind: "Range";
     readonly value: RangePayload;
+} | {
+    readonly kind: "Multirange";
+    readonly value: MultirangePayload;
 };
 export function copyArrayElement(value: ArrayElement): ArrayElement {
     switch (value.kind) {
@@ -7084,10 +7087,14 @@ export function copyArrayElement(value: ArrayElement): ArrayElement {
         case "ByteaUnspecified": return { kind: "ByteaUnspecified", value: langruntime.checkedI32(value.value) };
         case "BoxNonNull": return { kind: "BoxNonNull" };
         case "Range": return { kind: "Range", value: copyRangePayload(value.value) };
+        case "Multirange": return { kind: "Multirange", value: copyMultirangePayload(value.value) };
     }
 }
 export function arrayElementFamily(input: ArrayElement): number {
     input = copyArrayElement(input);
+    if (input.kind === "Multirange") {
+        return 43;
+    }
     if (input.kind === "Range") {
         return 42;
     }
@@ -8490,6 +8497,36 @@ export function arrayElementToRange(input: ArrayElement): RangeValue {
     }
     return { kind: "Unknown" };
 }
+export function arrayElementFromMultirange(input: MultirangeValue): ArrayElement {
+    input = copyMultirangeValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: MultirangePayload = copyMultirangePayload(input.value);
+        return { kind: "Multirange", value: value };
+    }
+    return { kind: "Unknown" };
+}
+export function arrayElementToMultirange(input: ArrayElement): MultirangeValue {
+    input = copyArrayElement(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Multirange") {
+        const value: MultirangePayload = copyMultirangePayload(input.value);
+        return makeCoercedMultirangeValue(value);
+    }
+    return { kind: "Unknown" };
+}
 export interface RangePayload {
     readonly typeName: string;
     readonly elementType: string;
@@ -9235,6 +9272,10 @@ function arrayElementOwnedState(input: ArrayPayload, position: number): BoolValu
         const payload: RangePayload = copyRangePayload(element.value);
         return rangeIsNull(makeCoercedRangeValue(payload));
     }
+    if (element.kind === "Multirange") {
+        const payload: MultirangePayload = copyMultirangePayload(element.value);
+        return multirangeIsNull(makeCoercedMultirangeValue(payload));
+    }
     return { kind: "Value", value: false };
 }
 export function makeArrayValue(input: ArrayPayload): ArrayValue {
@@ -9252,7 +9293,7 @@ export function makeArrayValue(input: ArrayPayload): ArrayValue {
         position = langruntime.checkedAdd(position, 1);
     }
     const identity: string[] = Array.from(input.elementType);
-    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 42) {
+    if (identity.length === 0 || input.elementKind < 1 || input.elementKind > 43) {
         return { kind: "Unknown" };
     }
     position = langruntime.checkedIndex(0);

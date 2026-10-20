@@ -317,6 +317,9 @@ fn array_element_owned_state(input: &ArrayPayload, position: usize) -> BoolValue
     if let ArrayElement::Range(payload) = element {
         return range_is_null(make_coerced_range_value(payload));
     };
+    if let ArrayElement::Multirange(payload) = element {
+        return multirange_is_null(make_coerced_multirange_value(payload));
+    };
     BoolValue::Value(false)
 }
 
@@ -333,7 +336,7 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         position += 1;
     }
     let identity: Vec<char> = input.element_type.chars().collect();
-    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 42 {
+    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 43 {
         return ArrayValue::Unknown;
     };
     position = 0;
