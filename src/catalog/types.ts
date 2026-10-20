@@ -699,6 +699,21 @@ export interface RangeTypeMetadata {
   subtypeDiff: string | null
 }
 
+export interface RangeCallInfo {
+  schema: string
+  name: string
+  kind: 'function' | 'aggregate' | 'window' | 'procedure'
+  args: string[]
+  argumentNames: (string | null)[]
+  result: string
+  strict: boolean
+  volatility: 'i' | 's' | 'v'
+  returnsSet: boolean
+  variadic: string | null
+  numArgDefaults: number
+  implementation: string | null
+}
+
 export interface RangeTypeInfo extends RangeTypeMetadata {
   schema: string
   name: string
@@ -713,6 +728,7 @@ export interface RangeTypeInfo extends RangeTypeMetadata {
   input: string | null
   multirangeInput: string | null
   subtypeInput: string | null
+  callables?: readonly RangeCallInfo[]
 }
 
 export interface CatalogSnapshot {

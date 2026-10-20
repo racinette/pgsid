@@ -112,10 +112,12 @@ it('captures user range and multirange support in snapshots with selected identi
       subtypeOutput: 'function:["pg_catalog","array_out"](pg_catalog.anyarray)',
     })
     expect(
-      snapshot.rangeTypes.every((r) =>
-        Object.values(r).every(
-          (v) => v === null || typeof v === 'string' || typeof v === 'boolean',
-        ),
+      snapshot.rangeTypes.every(
+        ({ callables, ...profile }) =>
+          Array.isArray(callables) &&
+          Object.values(profile).every(
+            (v) => v === null || typeof v === 'string' || typeof v === 'boolean',
+          ),
       ),
     ).toBe(true)
     expect(await readCatalogRangeTypes(pg, [])).toEqual([])
@@ -126,10 +128,11 @@ it('captures user range and multirange support in snapshots with selected identi
       builtin.every((r) => Object.values(r).every((v) => v === null || typeof v === 'string')),
     ).toBe(true)
     expect(JSON.parse(JSON.stringify(snapshot)).rangeTypes).toEqual(snapshot.rangeTypes)
-    expect(comparableStates(snapshot).get('Range.Types.Continuous')).toEqual(continuous)
+    const { callables: _callables, ...continuousState } = continuous
+    expect(comparableStates(snapshot).get('Range.Types.Continuous')).toEqual(continuousState)
     expect(comparableStates(snapshot).get('public.Continuous Set')).toEqual({
       range: continuous.identity,
-      profile: continuous,
+      profile: continuousState,
     })
     const constructors = snapshot.functions.filter((fn) => fn.returnType === continuous.multirange)
     expect(constructors).toHaveLength(3)
