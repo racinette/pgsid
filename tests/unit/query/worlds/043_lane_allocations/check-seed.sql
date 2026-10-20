@@ -5213,3 +5213,59 @@ INSERT INTO lane_segment_compatibility(require_bounded,bypass) VALUES(true,false
 -- name: segment_compatibility_bypass
 INSERT INTO lane_segment_compatibility(slots,other_slots,expected_order,expected_contains,expected_overlap,expected_adjacent,preferred,require_bounded,bypass)
 VALUES('{(,)}','{}',99,false,true,true,'{[1,3)}',true,true);
+
+-- name: segment_algebra_null
+INSERT INTO lane_segment_algebra(bypass) VALUES(false);
+
+-- name: segment_algebra_empty
+INSERT INTO lane_segment_algebra(slots,other_slots,loads,other_loads,prices,other_prices,calendar_days,other_days,local_shift,other_local,instant_shift,other_instant,combined_slots,combined_loads,combined_prices,combined_days,combined_local,combined_instant,shared_slots,shared_loads,shared_prices,shared_days,shared_local,shared_instant,remaining_slots,remaining_loads,remaining_prices,remaining_days,remaining_local,remaining_instant,slot_hull,load_hull,price_hull,day_hull,local_hull,instant_hull,preferred,require_bounded,bypass)
+VALUES('{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','{}','empty','empty','empty','empty','empty','empty','{}',true,false);
+
+-- name: segment_algebra_stitch
+INSERT INTO lane_segment_algebra(slots,other_slots,loads,other_loads,prices,other_prices,calendar_days,other_days,local_shift,other_local,instant_shift,other_instant,combined_slots,combined_loads,combined_prices,combined_days,combined_local,combined_instant,shared_slots,shared_loads,shared_prices,shared_days,shared_local,shared_instant,remaining_slots,remaining_loads,remaining_prices,remaining_days,remaining_local,remaining_instant,slot_hull,load_hull,price_hull,day_hull,local_hull,instant_hull,preferred,require_bounded,bypass)
+VALUES('{[1,3),[5,7)}','{[2,6)}','{[1,3),[5,7)}','{[2,6)}','{[1.0000,3.00),[5.0,7.000)}','{[2.00000,6.00000)}','{[2000-01-01,2000-01-03),[2000-01-05,2000-01-07)}','{[2000-01-02,2000-01-06)}','{[2000-01-01,2000-01-03),[2000-01-05,2000-01-07)}','{[2000-01-02,2000-01-06)}','{[2000-01-01 00:00+00,2000-01-03 00:00+00),[2000-01-05 00:00+00,2000-01-07 00:00+00)}','{[2000-01-02 00:00+00,2000-01-06 00:00+00)}','{[1,7)}','{[1,7)}','{[1,7)}','{[2000-01-01,2000-01-07)}','{[2000-01-01,2000-01-07)}','{[2000-01-01 00:00+00,2000-01-07 00:00+00)}','{[2,3),[5,6)}','{[2,3),[5,6)}','{[2,3),[5,6)}','{[2000-01-02,2000-01-03),[2000-01-05,2000-01-06)}','{[2000-01-02,2000-01-03),[2000-01-05,2000-01-06)}','{[2000-01-02 00:00+00,2000-01-03 00:00+00),[2000-01-05 00:00+00,2000-01-06 00:00+00)}','{[1,2),[6,7)}','{[1,2),[6,7)}','{[1,2),[6,7)}','{[2000-01-01,2000-01-02),[2000-01-06,2000-01-07)}','{[2000-01-01,2000-01-02),[2000-01-06,2000-01-07)}','{[2000-01-01 00:00+00,2000-01-02 00:00+00),[2000-01-06 00:00+00,2000-01-07 00:00+00)}','[1,7)','[1,7)','[1,7)','[2000-01-01,2000-01-07)','[2000-01-01,2000-01-07)','[2000-01-01 00:00+00,2000-01-07 00:00+00)','{[2,6)}',true,false);
+
+-- name: segment_algebra_multiple_cuts
+INSERT INTO lane_segment_algebra(slots,other_slots,combined_slots,shared_slots,remaining_slots,slot_hull,preferred,require_bounded,bypass)
+VALUES('{[1,7)}','{[3,4),[5,6)}','{[1,7)}','{[3,4),[5,6)}','{[1,3),[4,5),[6,7)}','[1,7)','{[3,4),[5,6)}',true,false);
+
+-- name: segment_algebra_union_mismatch
+INSERT INTO lane_segment_algebra(slots,other_slots,combined_slots,shared_slots,remaining_slots,slot_hull,bypass)
+VALUES('{[1,7)}','{[3,4),[5,6)}','{}','{[3,4),[5,6)}','{[1,3),[4,5),[6,7)}','[1,7)',false);
+
+-- name: segment_algebra_intersection_mismatch
+INSERT INTO lane_segment_algebra(slots,other_slots,combined_slots,shared_slots,remaining_slots,slot_hull,bypass)
+VALUES('{[1,7)}','{[3,4),[5,6)}','{[1,7)}','{}','{[1,3),[4,5),[6,7)}','[1,7)',false);
+
+-- name: segment_algebra_difference_mismatch
+INSERT INTO lane_segment_algebra(slots,other_slots,combined_slots,shared_slots,remaining_slots,slot_hull,bypass)
+VALUES('{[1,7)}','{[3,4),[5,6)}','{[1,7)}','{[3,4),[5,6)}','{}','[1,7)',false);
+
+-- name: segment_algebra_hull_mismatch
+INSERT INTO lane_segment_algebra(slot_hull,bypass) VALUES('empty',false);
+
+-- name: segment_algebra_choice_mismatch
+INSERT INTO lane_segment_algebra(slots,other_slots,combined_slots,shared_slots,remaining_slots,slot_hull,preferred,bypass)
+VALUES('{}','{}','{}','{}','{}','empty','{(,)}',false);
+
+-- name: segment_algebra_unbounded_error
+INSERT INTO lane_segment_algebra(slots,other_slots,combined_slots,shared_slots,remaining_slots,slot_hull,require_bounded,bypass)
+VALUES('{(,)}','{}','{(,)}','{}','{(,)}','(,)',true,false);
+
+-- name: segment_algebra_constructor_match
+INSERT INTO lane_segment_algebra(slots,slot_hull,constructed,divisor,verify_constructor,bypass)
+VALUES('{[1,3)}','[1,3)','{}',1,true,false);
+
+-- name: segment_algebra_constructor_mismatch
+INSERT INTO lane_segment_algebra(slots,slot_hull,constructed,divisor,verify_constructor,bypass)
+VALUES('{[1,3)}','[1,3)','{(,)}',1,true,false);
+
+-- name: segment_algebra_division_error
+INSERT INTO lane_segment_algebra(divisor,verify_constructor,bypass) VALUES(0,true,false);
+
+-- name: segment_algebra_skip_constructor
+INSERT INTO lane_segment_algebra(divisor,verify_constructor,bypass) VALUES(0,false,false);
+
+-- name: segment_algebra_bypass
+INSERT INTO lane_segment_algebra(slots,other_slots,combined_slots,preferred,divisor,verify_constructor,require_bounded,bypass)
+VALUES('{(,)}','{}','{}','{}',0,true,true,true);

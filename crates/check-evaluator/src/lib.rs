@@ -65,6 +65,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/multirange_metadata.rs");
     include!("operations/pg_catalog/multirange_construct.rs");
     include!("operations/pg_catalog/multirange_compare.rs");
+    include!("operations/pg_catalog/multirange_set.rs");
     include!("operations/pg_catalog/range_construct.rs");
     include!("operations/pg_catalog/range_input.rs");
     include!("operations/pg_catalog/range_output.rs");

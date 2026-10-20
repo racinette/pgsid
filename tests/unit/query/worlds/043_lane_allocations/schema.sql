@@ -1832,3 +1832,70 @@ CREATE TABLE lane_segment_compatibility (
   CONSTRAINT segment_compatibility_bounded CHECK(CASE WHEN bypass THEN true ELSE
     CASE WHEN require_bounded THEN slots::lane_bounded_segments IS NOT DISTINCT FROM slots ELSE NULL END END)
 );
+
+CREATE TABLE lane_segment_algebra (
+  slots int4multirange,
+  other_slots int4multirange,
+  loads lane_load_segments,
+  other_loads lane_load_segments,
+  prices nummultirange,
+  other_prices nummultirange,
+  calendar_days datemultirange,
+  other_days datemultirange,
+  local_shift tsmultirange,
+  other_local tsmultirange,
+  instant_shift tstzmultirange,
+  other_instant tstzmultirange,
+  combined_slots int4multirange,
+  combined_loads int8multirange,
+  combined_prices nummultirange,
+  combined_days datemultirange,
+  combined_local tsmultirange,
+  combined_instant tstzmultirange,
+  shared_slots int4multirange,
+  shared_loads int8multirange,
+  shared_prices nummultirange,
+  shared_days datemultirange,
+  shared_local tsmultirange,
+  shared_instant tstzmultirange,
+  remaining_slots int4multirange,
+  remaining_loads int8multirange,
+  remaining_prices nummultirange,
+  remaining_days datemultirange,
+  remaining_local tsmultirange,
+  remaining_instant tstzmultirange,
+  slot_hull int4range,
+  load_hull int8range,
+  price_hull numrange,
+  day_hull daterange,
+  local_hull tsrange,
+  instant_hull tstzrange,
+  preferred int4multirange,
+  constructed int4multirange,
+  divisor integer,
+  verify_constructor boolean,
+  require_bounded boolean,
+  bypass boolean,
+  CONSTRAINT segment_algebra_union CHECK(CASE WHEN bypass THEN true ELSE
+    slots+other_slots IS NOT DISTINCT FROM combined_slots AND loads+other_loads IS NOT DISTINCT FROM combined_loads AND
+    prices+other_prices IS NOT DISTINCT FROM combined_prices AND calendar_days+other_days IS NOT DISTINCT FROM combined_days AND
+    local_shift+other_local IS NOT DISTINCT FROM combined_local AND instant_shift+other_instant IS NOT DISTINCT FROM combined_instant END),
+  CONSTRAINT segment_algebra_intersection CHECK(CASE WHEN bypass THEN true ELSE
+    slots*other_slots IS NOT DISTINCT FROM shared_slots AND loads*other_loads IS NOT DISTINCT FROM shared_loads AND
+    prices*other_prices IS NOT DISTINCT FROM shared_prices AND calendar_days*other_days IS NOT DISTINCT FROM shared_days AND
+    local_shift*other_local IS NOT DISTINCT FROM shared_local AND instant_shift*other_instant IS NOT DISTINCT FROM shared_instant END),
+  CONSTRAINT segment_algebra_difference CHECK(CASE WHEN bypass THEN true ELSE
+    slots-other_slots IS NOT DISTINCT FROM remaining_slots AND loads-other_loads IS NOT DISTINCT FROM remaining_loads AND
+    prices-other_prices IS NOT DISTINCT FROM remaining_prices AND calendar_days-other_days IS NOT DISTINCT FROM remaining_days AND
+    local_shift-other_local IS NOT DISTINCT FROM remaining_local AND instant_shift-other_instant IS NOT DISTINCT FROM remaining_instant END),
+  CONSTRAINT segment_algebra_hull CHECK(CASE WHEN bypass THEN true ELSE
+    range_merge(slots) IS NOT DISTINCT FROM slot_hull AND range_merge(loads) IS NOT DISTINCT FROM load_hull AND
+    range_merge(prices) IS NOT DISTINCT FROM price_hull AND range_merge(calendar_days) IS NOT DISTINCT FROM day_hull AND
+    range_merge(local_shift) IS NOT DISTINCT FROM local_hull AND range_merge(instant_shift) IS NOT DISTINCT FROM instant_hull END),
+  CONSTRAINT segment_algebra_choice CHECK(CASE WHEN bypass THEN true ELSE
+    greatest(NULLIF(slots-other_slots,slots*other_slots),COALESCE(other_slots,slots))=preferred END),
+  CONSTRAINT segment_algebra_bounded CHECK(CASE WHEN bypass THEN true ELSE
+    CASE WHEN require_bounded THEN (slots-other_slots)::lane_bounded_segments IS NOT DISTINCT FROM remaining_slots ELSE NULL END END),
+  CONSTRAINT segment_algebra_constructor CHECK(CASE WHEN bypass THEN true ELSE
+    CASE WHEN verify_constructor THEN int4multirange(int4range(1,3/divisor))-slots IS NOT DISTINCT FROM constructed ELSE NULL END END)
+);
