@@ -1,3 +1,4 @@
+import { readCatalogRangeTypes } from '../postgres/range-types.js'
 import { captureDomainCoercionContext, type DomainCoercionIdentity } from './coercion-context.js'
 import { captureMoneyLiterals } from './money-literals.js'
 import { readBuiltinCatalog } from '../postgres/builtins/catalog.js'
@@ -681,6 +682,11 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryPartitionBounds(pg),
   ])
 
+  const rangeTypes = await readCatalogRangeTypes(
+    pg,
+    schemaRows.map((schema) => schema.name),
+  )
+
   // Global type-name map (oid → format_type name) for resolving arg OIDs.
   const typeNames = new Map<number, string>()
   for (const t of typeRows) typeNames.set(t.oid, t.name)
@@ -1159,6 +1165,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     enums,
     domains,
     compositeTypes,
+    rangeTypes,
     sequences,
     extensions,
     schemas,

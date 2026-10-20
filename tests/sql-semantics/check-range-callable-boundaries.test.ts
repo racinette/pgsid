@@ -106,6 +106,7 @@ it('records captured custom range profiles awaiting CHECK admission without assu
     ).rejects.toMatchObject({ code: '23514' })
     const catalog = await snapshotCatalog(pg),
       table = catalog.tables.find((t) => t.name === 'pending_ranges')!
+    expect(catalog.rangeTypes).toMatchObject(profiles)
     for (const origin of ['source', 'stored'] as const) {
       const expression = lowerTableCheck(
         table,

@@ -686,6 +686,29 @@ export interface OperatorInfo {
   volatility: 'i' | 's' | 'v'
 }
 
+export interface RangeTypeMetadata {
+  identity: string
+  array: string
+  subtype: string
+  multirange: string
+  multirangeArray: string
+  collation: string | null
+  subtypeClass: string
+  comparator: string | null
+  canonical: string | null
+  subtypeDiff: string | null
+}
+
+export interface RangeTypeInfo extends RangeTypeMetadata {
+  schema: string
+  name: string
+  multirangeSchema: string
+  multirangeName: string
+  collationDeterministic: boolean | null
+  collationIsC: boolean | null
+  collationIsDefault: boolean | null
+}
+
 export interface CatalogSnapshot {
   tables: TableInfo[]
   views: ViewInfo[]
@@ -696,6 +719,7 @@ export interface CatalogSnapshot {
   enums: EnumInfo[]
   domains: DomainInfo[]
   compositeTypes: CompositeTypeInfo[]
+  rangeTypes: RangeTypeInfo[]
   sequences: SequenceInfo[]
   extensions: ExtensionInfo[]
   schemas: SchemaInfo[]
