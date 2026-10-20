@@ -344,7 +344,7 @@ export function comparableStates(snapshot: CatalogSnapshot): Map<EntityId, unkno
   }
 
   for (const range of snapshot.rangeTypes) {
-    const { callables: _callables, ...state } = range
+    const { callables: _callables, callResolution: _callResolution, ...state } = range
     out.set(`${range.schema}.${range.name}`, state)
     out.set(`${range.multirangeSchema}.${range.multirangeName}`, {
       range: range.identity,

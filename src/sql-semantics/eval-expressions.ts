@@ -18,8 +18,16 @@ import {
 import type { EvalBoolExpression } from './check-expressions.js'
 import type { TypedSqlExpression } from './signatures.js'
 import { builtinMetadata } from '../postgres/builtins/inventory.js'
+import type { RangeCallInfo } from '../catalog/types.js'
 
 export type EvalExpression =
+  | {
+      kind: 'captured-range-call'
+      type: RangeType | MultirangeType
+      callable: RangeCallInfo
+      operands: readonly EvalExpression[]
+      expanded: boolean
+    }
   | { kind: 'check'; type: 'pg_catalog.bool'; expression: EvalBoolExpression }
   | { kind: 'input'; type: ScalarType; name: string; enum?: EnumDefinition }
   | { kind: 'certain'; expression: SqlExpression }
@@ -567,6 +575,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'nullif' ||
       node.kind === 'minmax' ||
       node.kind === 'row-compare' ||
+      node.kind === 'captured-range-call' ||
       node.kind === 'interval-literal' ||
       node.kind === 'clock-to-text' ||
       node.kind === 'text-to-interval' ||

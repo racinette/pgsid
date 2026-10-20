@@ -344,6 +344,8 @@ const safeFloatEncoding = (node: Extract<EvalExpression, { kind: 'call' }>): boo
 
 export function rustScalarOwnCanFail(node: EvalExpression, context: ValidityContext = {}): boolean {
   switch (node.kind) {
+    case 'captured-range-call':
+      return true
     case 'array-domain-coerce':
       return true
     case 'domain-cast':

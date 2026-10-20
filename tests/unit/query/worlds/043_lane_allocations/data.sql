@@ -287,3 +287,11 @@ VALUES('[1,5)','[9007199254740992,9007199254740993)','[1.0000,3.00000)','[2000-0
 
 INSERT INTO lane_flexible_multi_imports(slot_text,positive_text,price_text,expected_slots,expected_positive,expected_prices,price_label,limit_position,expected_empty,bypass)
 VALUES('{[5,7),[1,3),[3,5)}','{[3,5),[7,9]}','{[1.235,3.456),[5,7]}','{[1,7)}','{[3,5),[7,9]}','{[1.24,3.46),[5.00,7.00]}','{[1.24,3.46),[5.00,7.00]}',1,false,false);
+
+INSERT INTO lane_built_windows(start_position,finish_position,bounds,expected_window,expected_default,bypass) VALUES(1,3,'[]','[1,3]','[1,3)',false);
+
+INSERT INTO lane_built_prices(lower_price,upper_price,expected_window,expected_label,bypass) VALUES(1.235,3.456,'[1.24,3.46)','[1.24,3.46)',false);
+
+INSERT INTO lane_built_segments(first_window,second_window,expected_single,expected_many,bypass) VALUES('[1,3)','[3,5)','{[1,3)}','{[1,5)}',false);
+
+INSERT INTO lane_called_imports(window_text,segment_text,expected_window,expected_segments,bypass) VALUES('[1,3]','{[3,5),[1,3)}','[1,3]','{[1,5)}',false);

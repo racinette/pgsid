@@ -47,6 +47,7 @@ it('binds custom range text input through selected scalar/domain input, ordered 
     const targets = profiles.flatMap((profile, family) =>
       [
         { name: 'cast', expr: `payload::${profile.identity}` },
+        { name: 'function', expr: `${profile.identity}(payload)` },
         { name: 'domain', expr: `payload::input_nested_${family}` },
         { name: 'checked', expr: `payload::input_checked_${family}` },
         { name: 'varchar', expr: `(payload::varchar)::${profile.identity}` },

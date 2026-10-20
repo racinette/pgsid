@@ -1,6 +1,11 @@
 import type { PGlite } from '@electric-sql/pglite'
 
-import type { RangeTypeMetadata, RangeTypeInfo, RangeCallInfo } from '../catalog/types.js'
+import type {
+  RangeTypeMetadata,
+  RangeTypeInfo,
+  RangeCallInfo,
+  RangeCallResolution,
+} from '../catalog/types.js'
 export type { RangeTypeMetadata } from '../catalog/types.js'
 
 const typeIdentity = `SELECT quote_ident(n.nspname)||'.'||quote_ident(t.typname)
@@ -67,6 +72,43 @@ async function readRangeCallables(
     result.set(range, group)
   }
   return result
+}
+
+async function readRangeCallResolution(
+  pg: PGlite,
+  callables: ReadonlyMap<string, readonly RangeCallInfo[]>,
+): Promise<RangeCallResolution> {
+  const types = [
+    ...new Set(
+      [...callables.values()].flatMap((group) =>
+        group.flatMap((callable) => [
+          ...callable.args,
+          callable.result,
+          ...(callable.variadic ? [callable.variadic] : []),
+        ]),
+      ),
+    ),
+  ]
+  const [typeRows, castRows] = await Promise.all([
+    pg.query<RangeCallResolution['types'][number]>(
+      `WITH RECURSIVE needed(type) AS (
+         SELECT ty.oid FROM pg_type ty WHERE (${typeIdentity} ty.oid)=ANY($1::text[]) OR ty.typtype='d'
+         UNION
+         SELECT child.type FROM needed n JOIN pg_type t ON t.oid=n.type
+         CROSS JOIN LATERAL (VALUES(t.typbasetype),(t.typelem)) child(type)
+         WHERE child.type!=0
+       ) SELECT (${typeIdentity} ty.oid) AS identity,
+         (${typeIdentity} ty.typbasetype) AS base,
+         CASE WHEN et.typarray=ty.oid THEN (${typeIdentity} ty.typelem) ELSE NULL END AS element,ty.typcategory AS category,ty.typispreferred AS preferred
+         FROM needed n JOIN pg_type ty ON ty.oid=n.type LEFT JOIN pg_type et ON et.oid=ty.typelem ORDER BY identity`,
+      [types],
+    ),
+    pg.query<RangeCallResolution['implicitCasts'][number]>(
+      `SELECT (${typeIdentity} c.castsource) AS source,(${typeIdentity} c.casttarget) AS target,c.castmethod AS method
+       FROM pg_cast c WHERE c.castcontext='i' ORDER BY source,target`,
+    ),
+  ])
+  return { types: typeRows.rows, implicitCasts: castRows.rows }
 }
 
 async function readRangeTypeInfos(
@@ -162,6 +204,7 @@ async function readRangeTypeInfos(
     pg,
     rows.map((row) => row.identity),
   )
+  const callResolution = rows.length ? await readRangeCallResolution(pg, callables) : undefined
   return rows.map((row) => ({
     schema: row.schema,
     name: row.name,
@@ -196,6 +239,7 @@ async function readRangeTypeInfos(
     multirangeInput: signature(row.multirange_input),
     subtypeInput: signature(row.subtype_input),
     callables: callables.get(row.identity) ?? [],
+    ...(callResolution ? { callResolution } : {}),
   }))
 }
 
@@ -220,6 +264,7 @@ export async function readRangeTypes(
       multirangeInput: _multirangeInput,
       subtypeInput: _subtypeInput,
       callables: _callables,
+      callResolution: _callResolution,
       ...metadata
     }) => metadata,
   )

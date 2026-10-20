@@ -2180,3 +2180,46 @@ CREATE TABLE lane_flexible_multi_imports (
 );
 
 ALTER DOMAIN lane_sample_position ADD CONSTRAINT live_minimum CHECK(VALUE>2) NOT VALID;
+
+CREATE TABLE lane_built_windows (
+  start_position integer,
+  finish_position integer,
+  bounds text,
+  expected_window lane_retained_window,
+  expected_default lane_position_window,
+  bypass boolean,
+  CONSTRAINT built_window_flags CHECK(CASE WHEN bypass THEN true ELSE lane_position_window(start_position,finish_position,bounds) IS NOT DISTINCT FROM expected_window END),
+  CONSTRAINT built_window_default CHECK(CASE WHEN bypass THEN true ELSE COALESCE(NULL::lane_retained_window,lane_position_window(start_position,finish_position)) IS NOT DISTINCT FROM expected_default END)
+);
+
+CREATE TABLE lane_built_prices (
+  lower_price numeric,
+  upper_price numeric,
+  expected_window lane_price_window,
+  expected_label text,
+  bypass boolean,
+  CONSTRAINT built_price_bounds CHECK(CASE WHEN bypass THEN true ELSE lane_price_window(lower_price,upper_price) IS NOT DISTINCT FROM expected_window END),
+  CONSTRAINT built_price_label CHECK(CASE WHEN bypass THEN true ELSE lane_price_window(lower_price,upper_price)::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END)
+);
+
+CREATE TABLE lane_built_segments (
+  first_window lane_position_window,
+  second_window lane_position_window,
+  expected_single lane_position_segments,
+  expected_many lane_retained_segments,
+  bypass boolean,
+  CONSTRAINT built_segments_empty CHECK(isempty(lane_position_segments())),
+  CONSTRAINT built_segments_single CHECK(CASE WHEN bypass THEN true ELSE lane_position_segments(first_window) IS NOT DISTINCT FROM expected_single END),
+  CONSTRAINT built_segments_many CHECK(CASE WHEN bypass THEN true ELSE lane_position_segments(first_window,second_window) IS NOT DISTINCT FROM expected_many END),
+  CONSTRAINT built_segments_variadic CHECK(CASE WHEN bypass THEN true ELSE lane_position_segments(VARIADIC ARRAY[first_window,second_window,first_window]) IS NOT DISTINCT FROM expected_many END)
+);
+
+CREATE TABLE lane_called_imports (
+  window_text text,
+  segment_text text,
+  expected_window lane_retained_window,
+  expected_segments lane_position_segments,
+  bypass boolean,
+  CONSTRAINT called_import_window CHECK(CASE WHEN bypass THEN true ELSE lane_retained_window(window_text) IS NOT DISTINCT FROM expected_window END),
+  CONSTRAINT called_import_segments CHECK(CASE WHEN bypass THEN true ELSE lane_position_segments(segment_text) IS NOT DISTINCT FROM expected_segments END)
+);

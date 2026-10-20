@@ -23965,8 +23965,15 @@ function multirangeConstructEmpty(typeName: string, rangeType: string, elementTy
     rangeType = langruntime.checkedString(rangeType);
     elementType = langruntime.checkedString(elementType);
     elementKind = langruntime.checkedI32(elementKind);
+    return multirangeConstructEmptyWithSupport(typeName, rangeType, elementType, elementKind, checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind));
+}
+export function multirangeConstructEmptyWithSupport(typeName: string, rangeType: string, elementType: string, elementKind: number, support: checkruntime.RangeSupport): checkruntime.MultirangeValue {
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
     const ranges: checkruntime.RangeValue[] = [];
-    return checkruntime.makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind), ranges: ranges });
+    return checkruntime.makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: support, ranges: ranges });
 }
 function multirangeConstructSingle(input: checkruntime.RangeValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
     input = checkruntime.copyRangeValue(input);
@@ -23998,6 +24005,23 @@ function multirangeConstructSingle(input: checkruntime.RangeValue, typeName: str
     return { kind: "Unknown" };
 }
 function multirangeConstructArray(input: checkruntime.ArrayValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
+    input = checkruntime.copyArrayValue(input);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    return multirangeConstructArrayWithSupport(input, typeName, rangeType, elementType, elementKind, checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind));
+}
+export function multirangeConstructSingleWithSupport(input: checkruntime.RangeValue, typeName: string, rangeType: string, elementType: string, elementKind: number, support: checkruntime.RangeSupport): checkruntime.MultirangeValue {
+    input = checkruntime.copyRangeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    const typed: checkruntime.RangeValue = checkruntime.rangeRequireSupport(input, support);
+    return multirangeConstructSingle(typed, typeName, rangeType, elementType, elementKind);
+}
+export function multirangeConstructArrayWithSupport(input: checkruntime.ArrayValue, typeName: string, rangeType: string, elementType: string, elementKind: number, support: checkruntime.RangeSupport): checkruntime.MultirangeValue {
     input = checkruntime.copyArrayValue(input);
     typeName = langruntime.checkedString(typeName);
     rangeType = langruntime.checkedString(rangeType);
@@ -24040,6 +24064,7 @@ function multirangeConstructArray(input: checkruntime.ArrayValue, typeName: stri
             if (cell.kind === "Range") {
                 const span: checkruntime.RangePayload = checkruntime.copyRangePayload(cell.value);
                 let typed: checkruntime.RangeValue = checkruntime.rangeRequireType({ kind: "Value", value: span }, rangeType, elementType, elementKind);
+                typed = checkruntime.copyRangeValue(checkruntime.rangeRequireSupport(typed, support));
                 if (typed.kind === "Value") {
                     const span1: checkruntime.RangePayload = checkruntime.copyRangePayload(typed.value);
                     typed = checkruntime.copyRangeValue(checkruntime.makeCoercedRangeValue(span1));
@@ -24058,7 +24083,7 @@ function multirangeConstructArray(input: checkruntime.ArrayValue, typeName: stri
         if (unknown) {
             return { kind: "Unknown" };
         }
-        return multirangeConstructNormalize({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind), ranges: ranges });
+        return multirangeConstructNormalize({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: support, ranges: ranges });
     }
     return { kind: "Unknown" };
 }

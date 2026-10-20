@@ -23862,8 +23862,15 @@ func multirangeConstructEmpty(typeName string, rangeType string, elementType str
 	rangeType = langruntime.CheckedString(rangeType)
 	elementType = langruntime.CheckedString(elementType)
 	elementKind = langruntime.CheckedI32(elementKind)
+	return MultirangeConstructEmptyWithSupport(typeName, rangeType, elementType, elementKind, checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind))
+}
+func MultirangeConstructEmptyWithSupport(typeName string, rangeType string, elementType string, elementKind int, support checkruntime.RangeSupport) checkruntime.MultirangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
 	ranges := []checkruntime.RangeValue{}
-	return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind), Ranges: ranges})
+	return checkruntime.MakeCoercedMultirangeValue(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: support, Ranges: ranges})
 }
 func multirangeConstructSingle(input checkruntime.RangeValue, typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
 	input = checkruntime.CopyRangeValue(input)
@@ -23896,6 +23903,23 @@ func multirangeConstructSingle(input checkruntime.RangeValue, typeName string, r
 	return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
 }
 func multirangeConstructArray(input checkruntime.ArrayValue, typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
+	input = checkruntime.CopyArrayValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	return MultirangeConstructArrayWithSupport(input, typeName, rangeType, elementType, elementKind, checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind))
+}
+func MultirangeConstructSingleWithSupport(input checkruntime.RangeValue, typeName string, rangeType string, elementType string, elementKind int, support checkruntime.RangeSupport) checkruntime.MultirangeValue {
+	input = checkruntime.CopyRangeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	typed := checkruntime.RangeRequireSupport(input, support)
+	return multirangeConstructSingle(typed, typeName, rangeType, elementType, elementKind)
+}
+func MultirangeConstructArrayWithSupport(input checkruntime.ArrayValue, typeName string, rangeType string, elementType string, elementKind int, support checkruntime.RangeSupport) checkruntime.MultirangeValue {
 	input = checkruntime.CopyArrayValue(input)
 	typeName = langruntime.CheckedString(typeName)
 	rangeType = langruntime.CheckedString(rangeType)
@@ -23938,6 +23962,7 @@ func multirangeConstructArray(input checkruntime.ArrayValue, typeName string, ra
 			if cell.Kind == checkruntime.ArrayElementRange {
 				span := checkruntime.CopyRangePayload(cell.Range)
 				typed := checkruntime.RangeRequireType(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: span}, rangeType, elementType, elementKind)
+				typed = checkruntime.CopyRangeValue(checkruntime.RangeRequireSupport(typed, support))
 				if typed.Kind == checkruntime.RangeValueValue {
 					span := checkruntime.CopyRangePayload(typed.Value)
 					typed = checkruntime.CopyRangeValue(checkruntime.MakeCoercedRangeValue(span))
@@ -23957,7 +23982,7 @@ func multirangeConstructArray(input checkruntime.ArrayValue, typeName string, ra
 		if unknown {
 			return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
 		}
-		return multirangeConstructNormalize(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind), Ranges: ranges})
+		return multirangeConstructNormalize(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: support, Ranges: ranges})
 	}
 	return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
 }
