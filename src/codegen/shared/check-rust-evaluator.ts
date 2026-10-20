@@ -1,4 +1,9 @@
-import { nativeHashContext, isArrayHash, isRangeHash } from './check-hash-context.js'
+import {
+  nativeHashContext,
+  isArrayHash,
+  isRangeHash,
+  isMultirangeHash,
+} from './check-hash-context.js'
 import { characterEncodingContext } from './check-character-context.js'
 import { jsonbTextRenderingContext } from './check-jsonb-context.js'
 import {
@@ -430,6 +435,16 @@ export const isRangeBinarySend = (item: ReturnType<typeof builtinMetadata>): boo
   item.schema === 'pg_catalog' &&
   item.name === 'range_send' &&
   item.args.join(',') === 'pg_catalog.anyrange' &&
+  item.result === 'pg_catalog.bytea' &&
+  item.strict &&
+  item.volatility === 's' &&
+  !item.returnsSet
+
+export const isMultirangeBinarySend = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'multirange_send' &&
+  item.args.join(',') === 'pg_catalog.anymultirange' &&
   item.result === 'pg_catalog.bytea' &&
   item.strict &&
   item.volatility === 's' &&
@@ -1714,6 +1729,7 @@ export function emitCheckRustEvaluator(
       const arrayBucket = isArrayBucket(implementation)
       const arrayBinarySend = isArrayBinarySend(implementation)
       const rangeBinarySend = isRangeBinarySend(implementation)
+      const multirangeBinarySend = isMultirangeBinarySend(implementation)
       const arrayRewrite = isArrayRewrite(implementation)
       const arrayTransform = isArrayTransform(implementation)
       const enumSupport = capturedEnumSupport(implementation)
@@ -1790,6 +1806,7 @@ export function emitCheckRustEvaluator(
           !enumSupport &&
           !arrayBinarySend &&
           !rangeBinarySend &&
+          !multirangeBinarySend &&
           !arrayStringIO &&
           !jsonbConversion &&
           !jsonConversion &&
@@ -1944,6 +1961,105 @@ export function emitCheckRustEvaluator(
         )
         callables.add(implementation.rustName)
         return { name: bind(`${implementation.rustName}(${args.join(', ')})`), type: call.type }
+      }
+      if (multirangeBinarySend || isMultirangeHash(implementation)) {
+        const bindMultirange = (expression: string): string => {
+          const name = fresh('multirange_binary_value')
+          destination.push(`let ${name} = ${expression};`)
+          return name
+        }
+        if (!multirangeProfile || !rangeSubtype)
+          throw new UnsupportedCheckRustExpression(
+            'Multirange binary operations need one captured builtin identity',
+          )
+        const extended = implementation.args.length === 2
+        const width = extended ? '64' : '32'
+        const memberSupport = builtinTypeComparison(multirangeProfile.identity)
+        const memberSignature = multirangeBinarySend
+          ? builtinTypeIO(multirangeProfile.identity)?.send
+          : extended
+            ? memberSupport?.hashExtended
+            : memberSupport?.hash
+        const memberMetadata = memberSignature ? builtinMetadata(memberSignature) : null
+        const outerSupport = builtinTypeComparison(multirangeIdentity!)
+        const outerSignature = multirangeBinarySend
+          ? builtinTypeIO(multirangeIdentity!)?.send
+          : extended
+            ? outerSupport?.hashExtended
+            : outerSupport?.hash
+        if (
+          !memberMetadata ||
+          memberMetadata.kind !== 'function' ||
+          !memberSignature ||
+          outerSignature !== call.signature ||
+          !(multirangeBinarySend
+            ? isRangeBinarySend(memberMetadata)
+            : isRangeHash(memberMetadata)) ||
+          !checkRustCallableNames().has(memberMetadata.rustName)
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Multirange binary operation requires captured range support',
+          )
+        const subtypeSupport = builtinTypeComparison(rangeSubtype)
+        const subtypeHash = extended ? subtypeSupport?.hashExtended : subtypeSupport?.hash
+        const nativeContext = subtypeHash ? nativeHashContext(builtinMetadata(subtypeHash)) : null
+        const orders = multirangeBinarySend
+          ? [0]
+          : hashByteOrder !== undefined
+            ? [hashByteOrder]
+            : nativeContext && executionContext.nativeByteOrder === undefined
+              ? [1, 2]
+              : [executionContext.nativeByteOrder === 'big' ? 2 : 1]
+        const input = operands[0]!
+        const seed = extended ? operands[1]!.name : fresh('multirange_binary_seed')
+        if (!extended && !multirangeBinarySend)
+          destination.push(`let ${seed} = make_int8_value(0i64);`)
+        const state = bindMultirange(`multirange_is_null(${ownedOperand(input)})`)
+        const payload = bindMultirange(`multirange_binary_payload(${ownedOperand(input)})`)
+        const count = bindMultirange(`multirange_binary_count(&${payload})`)
+        const initial = bindMultirange(
+          multirangeBinarySend
+            ? `multirange_binary_initial_send(${state}, ${count})`
+            : `multirange_binary_initial${width}(${state}, ${count}, ${seed})`,
+        )
+        const index = fresh('multirange_binary_index')
+        const start = bindMultirange('make_int4_value(0)')
+        const results = orders.map(() => fresh('multirange_binary_result'))
+        destination.push(
+          `let mut ${index}: Int4Value = ${start};`,
+          ...results.map(
+            (result) =>
+              `let mut ${result}: ${rustType(call.type)} = ${initial}${multirangeBinarySend ? '.clone()' : ''};`,
+          ),
+        )
+        const member = fresh('multirange_binary_member')
+        const body = [`let ${member} = multirange_binary_member(&${payload}, ${index});`]
+        for (const [position, order] of orders.entries()) {
+          const result = emitCallInner(
+            { kind: 'function', signature: memberSignature, type: call.type },
+            [
+              { name: member, type: multirangeProfile.identity },
+              ...(extended ? [operands[1]!] : []),
+            ],
+            body,
+            undefined,
+            order,
+          )
+          body.push(
+            `${results[position]} = ${multirangeBinarySend ? 'multirange_binary_append' : 'array_hash_step' + width}(${results[position]}, ${ownedOperand(result)});`,
+          )
+        }
+        body.push(`${index} = array_text_next_index(${index});`)
+        const first = results[0]!
+        const condition = multirangeBinarySend
+          ? `multirange_binary_continues_send(${count}, ${index}, ${first}.clone())`
+          : `multirange_binary_continues${width}(${count}, ${index}, ${first}, ${results[1] ?? first})`
+        destination.push(`while ${condition} {`, ...indent(body), '}')
+        const finished = multirangeBinarySend
+          ? first
+          : bindMultirange(`array_hash_finish${width}(${first}, ${results[1] ?? first})`)
+        callables.add(implementation.rustName)
+        return { name: bindMultirange(`${implementation.rustName}(${finished})`), type: call.type }
       }
       if (rangeBinarySend || isRangeHash(implementation)) {
         const bindRange = (expression: string): string => {

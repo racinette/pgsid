@@ -1,5 +1,10 @@
 import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
-import { nativeHashContext, isArrayHash, isRangeHash } from './check-hash-context.js'
+import {
+  nativeHashContext,
+  isArrayHash,
+  isRangeHash,
+  isMultirangeHash,
+} from './check-hash-context.js'
 import { characterEncodingContext } from './check-character-context.js'
 import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
@@ -10,6 +15,7 @@ import {
   builtinTypeComparison,
   builtinTypeResolution,
   builtinRangeType,
+  builtinMultirangeType,
 } from '../../postgres/builtins/inventory.js'
 import {
   capturedEnumSupport,
@@ -130,8 +136,10 @@ export function rustCallCanFail(
   if (!call.signature) return true
   if (nativeHashContext(builtinMetadata(call.signature))) return false
   const hash = builtinMetadata(call.signature)
-  if (isRangeHash(hash)) {
-    const range = builtinRangeType(types[0] ?? '')
+  if (isRangeHash(hash) || isMultirangeHash(hash)) {
+    const range = isMultirangeHash(hash)
+      ? builtinMultirangeType(types[0] ?? '')
+      : builtinRangeType(types[0] ?? '')
     const support = range ? builtinTypeComparison(range.subtype) : null
     if (hash.args.length === 1 ? support?.hash : support?.hashExtended) return false
   }

@@ -5395,3 +5395,57 @@ INSERT INTO lane_segment_exports(divisor,verify_constructor,bypass) VALUES(0,fal
 -- name: segment_export_bypass
 INSERT INTO lane_segment_exports(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_label,load_label,price_label,day_label,local_label,instant_label,short_label,padded_label,divisor,verify_constructor,bypass)
 VALUES('{[1,3)}','{}','{}','{[2000-01-01,2000-01-03)}','{[2000-01-01,2000-01-03)}','{["2000-01-01 00:00+00","2000-01-03 00:00+00")}','wrong','wrong','wrong','wrong','wrong','wrong','wrong','wrong',0,true,true);
+
+-- name: segment_fingerprint_null
+INSERT INTO lane_segment_fingerprints(bypass) VALUES(false);
+
+-- name: segment_fingerprint_empty
+INSERT INTO lane_segment_fingerprints(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_wire,load_wire,price_wire,day_wire,local_wire,instant_wire,expected_hashes,expected_extended,seed,divisor,bypass)
+VALUES('{}','{}','{}','{}','{}','{}','00000000','00000000','00000000','00000000','00000000','00000000','{1,1,1,1,1,1}','{1,1,1,1,1,1}',-9223372036854775808,1,false);
+
+-- name: segment_fingerprint_unbounded
+INSERT INTO lane_segment_fingerprints(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_wire,load_wire,price_wire,day_wire,local_wire,instant_wire,expected_hashes,expected_extended,seed,divisor,bypass)
+VALUES('{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','000000010000000118','000000010000000118','000000010000000118','000000010000000118','000000010000000118','000000010000000118','{1061745630,1061745630,1061745630,1061745630,1061745630,1061745630}','{5258174587795226266,5258174587795226266,5258174587795226266,5258174587795226266,5258174587795226266,5258174587795226266}',9223372036854775807,1,false);
+
+-- name: segment_fingerprint_members
+INSERT INTO lane_segment_fingerprints(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_wire,load_wire,price_wire,day_wire,local_wire,instant_wire,expected_hashes,expected_extended,seed,divisor,bypass)
+VALUES('{[1,3),[5,9)}','{[9007199254740993,9007199254740995),[9007199254740997,9007199254740999)}','{[-0.00,1.2300],[5.0,7.000]}','{[1999-01-01,1999-01-03),[2000-02-01,2000-03-01)}','{[1999-01-01,1999-01-03),[2000-02-01,2000-03-01)}','{["1999-01-01 00:00+00","1999-01-03 00:00+00"),["2000-02-01 00:00+00","2000-03-01 00:00+00")}','00000002000000110200000004000000010000000400000003000000110200000004000000050000000400000009','0000000200000019020000000800200000000000010000000800200000000000030000001902000000080020000000000005000000080020000000000007','000000020000001d060000000800000000000000020000000c0002000000000004000108fc0000001d060000000a000100000000000100050000000a00010000000000030007','00000002000000110200000004fffffe9300000004fffffe950000001102000000040000001f000000040000003c','00000002000000190200000008ffffe35173ec200000000008ffffe379af9ae0000000001902000000080000026f9d14a00000000008000004b6fe7a8000','00000002000000190200000008ffffe35173ec200000000008ffffe379af9ae0000000001902000000080000026f9d14a00000000008000004b6fe7a8000','{-779448746,-108636752,-808191130,854729286,-1510840962,-1510840962}','{-8539227411847283524,4805019064695293433,-1528901044398895936,-5885653030751959418,-212868382300139622,-212868382300139622}',9007199254740993,1,false);
+
+-- name: segment_fingerprint_infinite
+INSERT INTO lane_segment_fingerprints(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_wire,load_wire,price_wire,day_wire,local_wire,instant_wire,expected_hashes,expected_extended,seed,divisor,bypass)
+VALUES('{[2147483647,)}','{[9223372036854775807,)}','{[Infinity,NaN]}','{[-infinity,-infinity],[infinity,infinity]}','{[-infinity,-infinity],[infinity,infinity]}','{[-infinity,-infinity],[infinity,infinity]}','000000010000000912000000047fffffff','000000010000000d12000000087fffffffffffffff','0000000100000019060000000800000000d00000200000000800000000c0000000','000000020000001106000000048000000000000004800000000000001106000000047fffffff000000047fffffff','0000000200000019060000000880000000000000000000000880000000000000000000001906000000087fffffffffffffff000000087fffffffffffffff','0000000200000019060000000880000000000000000000000880000000000000000000001906000000087fffffffffffffff000000087fffffffffffffff','{188216784,-1257724136,1132062207,601122141,93078437,93078437}','{-1241140806331707964,-5770663370216186485,-5916936074440047504,-563615234929104170,4642685491379832524,4642685491379832524}',-1,1,false);
+
+-- name: segment_fingerprint_slot_wire_mismatch
+INSERT INTO lane_segment_fingerprints(slot_wire,bypass) VALUES('ff',false);
+
+-- name: segment_fingerprint_load_wire_mismatch
+INSERT INTO lane_segment_fingerprints(load_wire,bypass) VALUES('ff',false);
+
+-- name: segment_fingerprint_price_wire_mismatch
+INSERT INTO lane_segment_fingerprints(price_wire,bypass) VALUES('ff',false);
+
+-- name: segment_fingerprint_day_wire_mismatch
+INSERT INTO lane_segment_fingerprints(day_wire,bypass) VALUES('ff',false);
+
+-- name: segment_fingerprint_local_wire_mismatch
+INSERT INTO lane_segment_fingerprints(local_wire,bypass) VALUES('ff',false);
+
+-- name: segment_fingerprint_instant_wire_mismatch
+INSERT INTO lane_segment_fingerprints(instant_wire,bypass) VALUES('ff',false);
+
+-- name: segment_fingerprint_hash_mismatch
+INSERT INTO lane_segment_fingerprints(expected_hashes,bypass) VALUES('{1}',false);
+
+-- name: segment_fingerprint_extended_mismatch
+INSERT INTO lane_segment_fingerprints(expected_extended,seed,divisor,bypass) VALUES('{1}',0,1,false);
+
+-- name: segment_fingerprint_seed_null
+INSERT INTO lane_segment_fingerprints(slots,slot_wire,expected_hashes,seed,divisor,bypass)
+VALUES('{}','00000000','{1}',NULL,1,false);
+
+-- name: segment_fingerprint_seed_error
+INSERT INTO lane_segment_fingerprints(seed,divisor,bypass) VALUES(1,0,false);
+
+-- name: segment_fingerprint_bypass
+INSERT INTO lane_segment_fingerprints(slots,slot_wire,expected_hashes,seed,divisor,bypass)
+VALUES('{[1,3)}','wrong','{0}',1,0,true);

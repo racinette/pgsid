@@ -714,6 +714,22 @@ describe('CHECK measurement boundaries', () => {
         bindingOwner: 'tests/sql-semantics/check-multirange-input.test.ts',
         contextOwner: 'tests/sql-semantics/check-multirange-input-context.test.ts',
         literalOwner: 'tests/sql-semantics/check-multirange-literals.test.ts',
+        binaryIO: {
+          owner: 'tests/sql-semantics/check-multirange-wire-hash.test.ts',
+          catalogOwner: 'tests/sql-semantics/check-multirange-binary-catalog.test.ts',
+          sendContext: [],
+          format: expect.stringContaining('no multirange OID'),
+          receive: expect.stringContaining('PostgreSQL internal buffer'),
+        },
+        hashing: {
+          contextOwner: 'tests/sql-semantics/check-multirange-hash-context.test.ts',
+          stateOwner: 'tests/sql-semantics/check-multirange-wire-state.test.ts',
+          contextRequired:
+            range.subtype === 'pg_catalog."numeric"'
+              ? ['nativeByteOrder for reached byte-dependent numeric hashes']
+              : [],
+          oidInput: false,
+        },
         textOutput: {
           owner: 'tests/sql-semantics/check-multirange-output.test.ts',
           stateOwner: 'tests/sql-semantics/check-multirange-output-state.test.ts',

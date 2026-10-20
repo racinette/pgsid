@@ -1963,3 +1963,37 @@ CREATE TABLE lane_segment_exports (
   CONSTRAINT segment_export_constructor CHECK(CASE WHEN bypass THEN true ELSE
     CASE WHEN verify_constructor THEN int4multirange(int4range(1,3/divisor))::text=slot_label ELSE NULL END END)
 );
+
+CREATE TABLE lane_segment_fingerprints (
+  slots int4multirange,
+  loads lane_load_segments,
+  prices nummultirange,
+  calendar_days datemultirange,
+  local_shift tsmultirange,
+  instant_shift tstzmultirange,
+  slot_wire text,
+  load_wire text,
+  price_wire text,
+  day_wire text,
+  local_wire text,
+  instant_wire text,
+  expected_hashes integer[],
+  expected_extended bigint[],
+  seed bigint,
+  divisor integer,
+  bypass boolean,
+  CONSTRAINT segment_fingerprint_slots CHECK(CASE WHEN bypass THEN true ELSE encode(multirange_send(slots),'hex') IS NOT DISTINCT FROM slot_wire END),
+  CONSTRAINT segment_fingerprint_loads CHECK(CASE WHEN bypass THEN true ELSE encode(multirange_send(loads),'hex') IS NOT DISTINCT FROM load_wire END),
+  CONSTRAINT segment_fingerprint_prices CHECK(CASE WHEN bypass THEN true ELSE encode(multirange_send(prices),'hex') IS NOT DISTINCT FROM price_wire END),
+  CONSTRAINT segment_fingerprint_days CHECK(CASE WHEN bypass THEN true ELSE encode(multirange_send(calendar_days),'hex') IS NOT DISTINCT FROM day_wire END),
+  CONSTRAINT segment_fingerprint_local CHECK(CASE WHEN bypass THEN true ELSE encode(multirange_send(local_shift),'hex') IS NOT DISTINCT FROM local_wire END),
+  CONSTRAINT segment_fingerprint_instant CHECK(CASE WHEN bypass THEN true ELSE encode(multirange_send(instant_shift),'hex') IS NOT DISTINCT FROM instant_wire END),
+  CONSTRAINT segment_fingerprint_hashes CHECK(CASE WHEN bypass THEN true ELSE
+    hash_multirange(slots) IS NOT DISTINCT FROM expected_hashes[1] AND hash_multirange(loads) IS NOT DISTINCT FROM expected_hashes[2] AND
+    hash_multirange(prices) IS NOT DISTINCT FROM expected_hashes[3] AND hash_multirange(calendar_days) IS NOT DISTINCT FROM expected_hashes[4] AND
+    hash_multirange(local_shift) IS NOT DISTINCT FROM expected_hashes[5] AND hash_multirange(instant_shift) IS NOT DISTINCT FROM expected_hashes[6] END),
+  CONSTRAINT segment_fingerprint_extended CHECK(CASE WHEN bypass THEN true ELSE
+    hash_multirange_extended(slots,seed/divisor) IS NOT DISTINCT FROM expected_extended[1] AND hash_multirange_extended(loads,seed) IS NOT DISTINCT FROM expected_extended[2] AND
+    hash_multirange_extended(prices,seed) IS NOT DISTINCT FROM expected_extended[3] AND hash_multirange_extended(calendar_days,seed) IS NOT DISTINCT FROM expected_extended[4] AND
+    hash_multirange_extended(local_shift,seed) IS NOT DISTINCT FROM expected_extended[5] AND hash_multirange_extended(instant_shift,seed) IS NOT DISTINCT FROM expected_extended[6] END)
+);

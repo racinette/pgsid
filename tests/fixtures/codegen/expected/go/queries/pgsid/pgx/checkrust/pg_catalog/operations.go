@@ -22667,6 +22667,108 @@ func moneyWords(input checkruntime.MoneyValue) checkruntime.TextValue {
 func CashWordsAtzl(input checkruntime.MoneyValue) checkruntime.TextValue {
 	return moneyWords(input)
 }
+func MultirangeBinaryPayload(input checkruntime.MultirangeValue) checkruntime.MultirangePayload {
+	if input.Kind == checkruntime.MultirangeValueValue {
+		payload := checkruntime.CopyMultirangePayload(input.Value)
+		return payload
+	}
+	ranges := []checkruntime.RangeValue{}
+	return checkruntime.MultirangePayload{TypeName: "", RangeType: "", ElementType: "", ElementKind: 0, Ranges: ranges}
+}
+func MultirangeBinaryCount(input *checkruntime.MultirangePayload) checkruntime.Int4Value {
+	if input.TypeName == "" || len(input.Ranges) > 2147483647 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: int(int32(len(input.Ranges)))}
+}
+func MultirangeBinaryMember(input *checkruntime.MultirangePayload, index checkruntime.Int4Value) checkruntime.RangeValue {
+	if index.Kind == checkruntime.Int4ValueValue {
+		offset := langruntime.CheckedI32(index.Value)
+		position := langruntime.IndexFromI32(offset, len(input.Ranges))
+		if position < len(input.Ranges) {
+			return checkruntime.CopyRangeValue(input.Ranges[position])
+		}
+	}
+	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+}
+func MultirangeBinaryInitial32(state checkruntime.BoolValue, count checkruntime.Int4Value, seed checkruntime.Int8Value) checkruntime.Int4Value {
+	if state.Kind == checkruntime.BoolValueError {
+		error := state.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if state == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: true}) || seed == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if state == (checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}) {
+		if count.Kind == checkruntime.Int4ValueValue {
+			if seed.Kind == checkruntime.Int8ValueValue {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func MultirangeBinaryInitial64(state checkruntime.BoolValue, count checkruntime.Int4Value, seed checkruntime.Int8Value) checkruntime.Int8Value {
+	return Int8Mzac(MultirangeBinaryInitial32(state, count, seed))
+}
+func MultirangeBinaryInitialSend(state checkruntime.BoolValue, count checkruntime.Int4Value) checkruntime.ByteaValue {
+	initial := MultirangeBinaryInitial32(state, count, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(0)})
+	if initial == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}) {
+		return Int4sendFjzt(count)
+	}
+	return Int4sendFjzt(initial)
+}
+func multirangeBinaryHasMember(count checkruntime.Int4Value, index checkruntime.Int4Value) bool {
+	if count.Kind == checkruntime.Int4ValueValue {
+		length := langruntime.CheckedI32(count.Value)
+		if index.Kind == checkruntime.Int4ValueValue {
+			offset := langruntime.CheckedI32(index.Value)
+			return offset >= 0 && offset < length
+		}
+	}
+	return false
+}
+func MultirangeBinaryContinues32(count checkruntime.Int4Value, index checkruntime.Int4Value, first checkruntime.Int4Value, second checkruntime.Int4Value) bool {
+	if first.Kind == checkruntime.Int4ValueValue {
+		if second.Kind == checkruntime.Int4ValueValue {
+			return multirangeBinaryHasMember(count, index)
+		}
+	}
+	return false
+}
+func MultirangeBinaryContinues64(count checkruntime.Int4Value, index checkruntime.Int4Value, first checkruntime.Int8Value, second checkruntime.Int8Value) bool {
+	if first.Kind == checkruntime.Int8ValueValue {
+		if second.Kind == checkruntime.Int8ValueValue {
+			return multirangeBinaryHasMember(count, index)
+		}
+	}
+	return false
+}
+func MultirangeBinaryContinuesSend(count checkruntime.Int4Value, index checkruntime.Int4Value, output checkruntime.ByteaValue) bool {
+	if output.Kind == checkruntime.ByteaValueValue {
+		return multirangeBinaryHasMember(count, index)
+	}
+	if output.Kind == checkruntime.ByteaValueUnspecified {
+		return multirangeBinaryHasMember(count, index)
+	}
+	return false
+}
+func MultirangeBinaryAppend(output checkruntime.ByteaValue, member checkruntime.ByteaValue) checkruntime.ByteaValue {
+	return rangeBinaryAppend(output, member)
+}
+func MultirangeSendAwvx(input checkruntime.ByteaValue) checkruntime.ByteaValue {
+	return input
+}
+func HashMultirange603b(input checkruntime.Int4Value) checkruntime.Int4Value {
+	return input
+}
+func HashMultirangeExtendedCoup(input checkruntime.Int8Value) checkruntime.Int8Value {
+	return input
+}
 func multirangeSameFamily(left *checkruntime.MultirangePayload, right *checkruntime.MultirangePayload) bool {
 	return left.TypeName == right.TypeName && left.RangeType == right.RangeType && left.ElementType == right.ElementType && left.ElementKind == right.ElementKind
 }

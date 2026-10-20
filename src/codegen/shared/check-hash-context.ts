@@ -65,3 +65,21 @@ export function isRangeHash(item: BuiltinCallable): boolean {
         item.result === 'pg_catalog.int8'))
   )
 }
+
+export function isMultirangeHash(item: BuiltinCallable): boolean {
+  return (
+    item.kind === 'function' &&
+    item.schema === 'pg_catalog' &&
+    item.strict &&
+    item.volatility === 'i' &&
+    !item.returnsSet &&
+    item.args[0] === 'pg_catalog.anymultirange' &&
+    ((item.name === 'hash_multirange' &&
+      item.args.length === 1 &&
+      item.result === 'pg_catalog.int4') ||
+      (item.name === 'hash_multirange_extended' &&
+        item.args.length === 2 &&
+        item.args[1] === 'pg_catalog.int8' &&
+        item.result === 'pg_catalog.int8'))
+  )
+}
