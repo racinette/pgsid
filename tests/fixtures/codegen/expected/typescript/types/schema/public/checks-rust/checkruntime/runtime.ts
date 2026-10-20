@@ -8531,6 +8531,11 @@ export interface RangeSupport {
     readonly comparison: number;
     readonly canonical: number;
 }
+export function makeRangeSupport(comparison: number, canonical: number): RangeSupport {
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    return { comparison: comparison, canonical: canonical };
+}
 export interface RangeTextPayload {
     empty: boolean;
     lowerPresent: boolean;

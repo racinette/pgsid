@@ -6,6 +6,9 @@ VALUES('[1,2]','[3,4]','{[1,2],[5,6]}','{[2,3]}',2,1,true,false,true,false,true,
 
 INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
 VALUES('[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','{[1,2],','[1,2]',false);
+
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[3,5]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,false);
 INSERT INTO lane_batches (first_batch, second_batch, expected_layout, slot_limit)
 VALUES ('[0:1]={1,NULL}'::integer[], '[0:1]={3,4}'::integer[], '[1:2][0:1]', 4);
 INSERT INTO lane_candidates (first_lane, second_lane, divisor, expected_count, expected_layout, bypass)

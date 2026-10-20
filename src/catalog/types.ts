@@ -710,6 +710,9 @@ export interface RangeTypeInfo extends RangeTypeMetadata {
   output: string | null
   multirangeOutput: string | null
   subtypeOutput: string | null
+  input: string | null
+  multirangeInput: string | null
+  subtypeInput: string | null
 }
 
 export interface CatalogSnapshot {

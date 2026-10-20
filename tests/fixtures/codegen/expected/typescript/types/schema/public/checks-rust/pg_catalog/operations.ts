@@ -33038,6 +33038,51 @@ export function rangeTextBoundPresent(plan: checkruntime.RangeTextPlan, upper: b
     }
     return false;
 }
+export function rangeTextBoundContinues(input: checkruntime.ArrayElement): boolean {
+    input = checkruntime.copyArrayElement(input);
+    if (input.kind === "Error") {
+        return false;
+    }
+    if (input.kind === "Unknown") {
+        return false;
+    }
+    return true;
+}
+export function rangeStoredTextBound(input: checkruntime.ArrayElement): checkruntime.ArrayElement {
+    input = checkruntime.copyArrayElement(input);
+    if (input.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    return input;
+}
+export function rangeStoredTextInitial(plan: checkruntime.RangeTextPlan, typeName: string, elementType: string, kind: number, support: checkruntime.RangeSupport): checkruntime.RangeValue {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    const initial: checkruntime.RangeValue = rangeTextInitial(plan, typeName, elementType, kind, support);
+    if (initial.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    return initial;
+}
+export function finishRangeStoredText(plan: checkruntime.RangeTextPlan, typeName: string, elementType: string, kind: number, support: checkruntime.RangeSupport, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement): checkruntime.RangeValue {
+    plan = checkruntime.copyRangeTextPlan(plan);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    if (rangeTextNeedsBounds(checkruntime.copyRangeTextPlan(plan)) === false) {
+        return rangeStoredTextInitial(plan, typeName, elementType, kind, support);
+    }
+    const flags: checkruntime.TextValue = rangeTextFlags(plan);
+    if (flags.kind === "Value") {
+        const text: string = langruntime.checkedString(flags.value);
+        return checkruntime.rangeFromProfiledBounds(typeName, elementType, kind, false, text === "[]" || text === "[)", text === "[]" || text === "(]", rangeStoredTextBound(lower), rangeStoredTextBound(upper), support);
+    }
+    return { kind: "Unknown" };
+}
 export function rangeTextInitial(plan: checkruntime.RangeTextPlan, typeName: string, elementType: string, kind: number, support: checkruntime.RangeSupport): checkruntime.RangeValue {
     plan = checkruntime.copyRangeTextPlan(plan);
     typeName = langruntime.checkedString(typeName);

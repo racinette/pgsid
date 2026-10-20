@@ -32899,6 +32899,51 @@ func RangeTextBoundPresent(plan checkruntime.RangeTextPlan, upper bool) bool {
 	}
 	return false
 }
+func RangeTextBoundContinues(input checkruntime.ArrayElement) bool {
+	input = checkruntime.CopyArrayElement(input)
+	if input.Kind == checkruntime.ArrayElementError {
+		return false
+	}
+	if input.Kind == checkruntime.ArrayElementUnknown {
+		return false
+	}
+	return true
+}
+func RangeStoredTextBound(input checkruntime.ArrayElement) checkruntime.ArrayElement {
+	input = checkruntime.CopyArrayElement(input)
+	if input.Kind == checkruntime.ArrayElementError {
+		return checkruntime.ArrayElement{Kind: checkruntime.ArrayElementUnknown}
+	}
+	return input
+}
+func RangeStoredTextInitial(plan checkruntime.RangeTextPlan, typeName string, elementType string, kind int, support checkruntime.RangeSupport) checkruntime.RangeValue {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	initial := RangeTextInitial(plan, typeName, elementType, kind, support)
+	if initial.Kind == checkruntime.RangeValueError {
+		return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+	}
+	return initial
+}
+func FinishRangeStoredText(plan checkruntime.RangeTextPlan, typeName string, elementType string, kind int, support checkruntime.RangeSupport, lower checkruntime.ArrayElement, upper checkruntime.ArrayElement) checkruntime.RangeValue {
+	plan = checkruntime.CopyRangeTextPlan(plan)
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	lower = checkruntime.CopyArrayElement(lower)
+	upper = checkruntime.CopyArrayElement(upper)
+	if RangeTextNeedsBounds(checkruntime.CopyRangeTextPlan(plan)) == false {
+		return RangeStoredTextInitial(plan, typeName, elementType, kind, support)
+	}
+	flags := RangeTextFlags(plan)
+	if flags.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(flags.Value)
+		return checkruntime.RangeFromProfiledBounds(typeName, elementType, kind, false, text == "[]" || text == "[)", text == "[]" || text == "(]", RangeStoredTextBound(lower), RangeStoredTextBound(upper), support)
+	}
+	return checkruntime.RangeValue{Kind: checkruntime.RangeValueUnknown}
+}
 func RangeTextInitial(plan checkruntime.RangeTextPlan, typeName string, elementType string, kind int, support checkruntime.RangeSupport) checkruntime.RangeValue {
 	plan = checkruntime.CopyRangeTextPlan(plan)
 	typeName = langruntime.CheckedString(typeName)

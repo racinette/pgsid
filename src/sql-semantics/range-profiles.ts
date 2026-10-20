@@ -51,6 +51,9 @@ const nullableTextFields = [
   'output',
   'multirangeOutput',
   'subtypeOutput',
+  'input',
+  'multirangeInput',
+  'subtypeInput',
 ] as const
 const nullableFlags = ['collationDeterministic', 'collationIsC', 'collationIsDefault'] as const
 const validText = (value: unknown): value is string =>
@@ -116,6 +119,9 @@ function builtinProfile(profile: RangeTypeMetadata): RangeProfile {
     output: builtinTypeIO(profile.identity)?.output ?? null,
     multirangeOutput: builtinTypeIO(profile.multirange)?.output ?? null,
     subtypeOutput: builtinTypeIO(profile.subtype)?.output ?? null,
+    input: builtinTypeIO(profile.identity)?.input ?? null,
+    multirangeInput: builtinTypeIO(profile.multirange)?.input ?? null,
+    subtypeInput: builtinTypeIO(profile.subtype)?.input ?? null,
     elementType: profile.subtype as RangeSubtype,
     rangeType: profile.identity as BuiltinRangeType,
     multirangeType: profile.multirange as BuiltinMultirangeType,

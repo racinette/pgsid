@@ -234,7 +234,14 @@ export type EvalExpression =
   | { kind: 'text-to-oid'; type: OidType; operand: EvalExpression }
   | { kind: 'text-to-polygon'; type: 'pg_catalog.polygon'; operand: EvalExpression }
   | { kind: 'text-to-path'; type: 'pg_catalog.path'; operand: EvalExpression }
-  | { kind: 'text-to-range'; type: RangeType; operand: EvalExpression }
+  | {
+      kind: 'text-to-range'
+      type: RangeType
+      operand: EvalExpression
+      conversion?: EvalExpression
+      literal?: true
+      origin?: 'source' | 'stored'
+    }
   | { kind: 'text-to-multirange'; type: MultirangeType; operand: EvalExpression }
   | { kind: 'text-to-circle'; type: 'pg_catalog.circle'; operand: EvalExpression }
   | { kind: 'text-to-box'; type: 'pg_catalog.box'; operand: EvalExpression }

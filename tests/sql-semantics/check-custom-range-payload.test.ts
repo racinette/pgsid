@@ -30,7 +30,9 @@ CREATE TABLE custom_payloads(v saved_custom_span,w "Custom.Range".integer_span,m
 CREATE TABLE custom_callbacks(v "Custom.Range".reverse_span,w "Custom.Range".reverse_span,e int4,bypass bool,
  CONSTRAINT bound CHECK(lower(v)=e),CONSTRAINT ordered CHECK(v<w),CONSTRAINT guarded CHECK(CASE WHEN bypass THEN true ELSE v<w END),
  CONSTRAINT rendered CHECK(v::text COLLATE "C"='[4,1]' COLLATE "C"));
-CREATE TABLE custom_hulls(m opaque_set,CONSTRAINT hull CHECK(isempty(range_merge(m))));`
+CREATE TABLE custom_hulls(m opaque_set,CONSTRAINT hull CHECK(isempty(range_merge(m))));
+CREATE TABLE custom_imports(payload text,expected "Custom.Range".integer_span,bypass bool,
+ CONSTRAINT parsed CHECK(CASE WHEN bypass THEN true ELSE payload::"Custom.Range".integer_span IS NOT DISTINCT FROM expected END));`
   try {
     await pg.exec(schema)
     const catalog = await snapshotCatalog(pg)
@@ -139,6 +141,28 @@ CREATE TABLE custom_hulls(m opaque_set,CONSTRAINT hull CHECK(isempty(range_merge
       p: span('positive_span', 1, 2, '"Custom.Range".positive'),
       e: 1,
     }
+    const imported = { payload: '[1,2]', expected: v, bypass: false }
+    expect(resultMap(generated.evaluatePublicCustomImportsChecks(imported)).parsed).toEqual({
+      certain: true,
+      value: true,
+    })
+    expect(
+      resultMap(generated.evaluatePublicCustomImportsChecks({ ...imported, payload: '[1,3]' }))
+        .parsed,
+    ).toEqual({ certain: true, value: false })
+    expect(
+      resultMap(generated.evaluatePublicCustomImportsChecks({ ...imported, payload: '[bad,3]' }))
+        .parsed,
+    ).toMatchObject({ certain: true, error: '22P02' })
+    expect(
+      resultMap(
+        generated.evaluatePublicCustomImportsChecks({
+          ...imported,
+          payload: '[bad,3]',
+          bypass: true,
+        }),
+      ).parsed,
+    ).toEqual({ certain: true, value: true })
     for (const result of Object.values(
       resultMap(generated.evaluatePublicCustomPayloadsChecks(row)),
     ))
@@ -217,6 +241,11 @@ func TestCustomProfiles(t *testing.T){
   bad:=v;bad.Value.TypeName="pg_catalog.int4range";input.V=KnownCheckValue(bad)
   for _,c:=range EvaluatePublicCustomPayloadsChecks(input){if c.Constraint=="bound"&&c.Result.Certain{t.Fatal("nominal identity",c)}}
  }
+ payload:="[1,2]";skip:=false;expectedRange:=span("integer_span",1,2,"pg_catalog.int4",false)
+ imported:=PublicCustomImportsCheckInput{Payload:KnownCheckValue(&payload),Expected:KnownCheckValue(expectedRange),Bypass:KnownCheckValue(&skip)}
+ for _,c:=range EvaluatePublicCustomImportsChecks(imported){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom input",c)}}
+ payload="[bad,3]";for _,c:=range EvaluatePublicCustomImportsChecks(imported){if !c.Result.Certain||c.Result.Value.Error!="22P02"{t.Fatal("input error",c)}}
+ skip=true;for _,c:=range EvaluatePublicCustomImportsChecks(imported){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped input",c)}}
  e:=int32(4);bypass:=true
  reverse:=PublicCustomCallbacksCheckInput{V:KnownCheckValue(span("reverse_span",4,1,"pg_catalog.int4",true)),W:KnownCheckValue(span("reverse_span",3,1,"pg_catalog.int4",true)),E:KnownCheckValue(&e),Bypass:KnownCheckValue(&bypass)}
  for _,c:=range EvaluatePublicCustomCallbacksChecks(reverse){if c.Constraint=="ordered"{if c.Result.Certain{t.Fatal("unavailable comparator",c)}}else if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("callback independent",c)}}

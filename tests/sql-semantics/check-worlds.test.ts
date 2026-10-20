@@ -1,4 +1,5 @@
 import { readMultirangeFixture } from './check-multirange-fixtures.js'
+import { WorldCheckOracles } from './check-world-oracles.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
@@ -289,55 +290,7 @@ for (const world of worlds) {
   }
 }
 
-const declaredCheckExpressions = new Map<string, string>()
-
-async function loadWorldSql(pg: PGlite, source: string, schema: string): Promise<void> {
-  const parsed = await parseSql(source)
-  const visit = (value: unknown): void => {
-    if (!value || typeof value !== 'object') return
-    const record = value as Record<string, unknown>
-    const capture = (
-      relation: { relname?: string; schemaname?: string },
-      nodes: readonly Node[],
-    ): void => {
-      for (const node of nodes) {
-        if ('ColumnDef' in node) capture(relation, node.ColumnDef.constraints ?? [])
-        if (
-          'Constraint' in node &&
-          node.Constraint.contype === 'CONSTR_CHECK' &&
-          node.Constraint.conname &&
-          node.Constraint.raw_expr
-        ) {
-          const owner =
-            relation.schemaname === undefined || relation.schemaname === 'public'
-              ? schema
-              : relation.schemaname
-          declaredCheckExpressions.set(
-            `${owner}.${relation.relname}.${node.Constraint.conname}`,
-            deparseWorldSql(node.Constraint.raw_expr),
-          )
-        }
-      }
-    }
-    const create = record['CreateStmt'] as
-      { relation?: { relname?: string; schemaname?: string }; tableElts?: Node[] } | undefined
-    if (create?.relation) capture(create.relation, create.tableElts ?? [])
-    const alter = record['AlterTableStmt'] as
-      { relation?: { relname?: string; schemaname?: string }; cmds?: Node[] } | undefined
-    if (alter?.relation)
-      for (const command of alter.cmds ?? [])
-        if ('AlterTableCmd' in command && command.AlterTableCmd.def)
-          capture(alter.relation, [command.AlterTableCmd.def])
-    if (record['schemaname'] === 'public') record['schemaname'] = schema
-    const setting = record['VariableSetStmt'] as { name?: string; args?: Node[] } | undefined
-    if (setting?.name === 'search_path')
-      for (const arg of setting.args ?? [])
-        if ('A_Const' in arg && arg.A_Const.sval?.sval === 'public') arg.A_Const.sval.sval = schema
-    for (const child of Object.values(record)) visit(child)
-  }
-  visit(parsed)
-  await pg.exec(deparseWorldSql(parsed))
-}
+const checkOracles = new WorldCheckOracles()
 
 const normalized = (results: Result[]): Result[] =>
   results.map(({ constraint, result, message }) => ({
@@ -426,7 +379,7 @@ describe('world CHECK INSERT parity', () => {
         `CREATE SCHEMA ${quote(world.schema)}; SET search_path = ${quote(world.schema)}, public`,
       )
       for (const file of ['schema.sql', 'data.sql'])
-        await loadWorldSql(
+        await checkOracles.load(
           pg,
           await readFile(join(worldsDirectory, world.name, file), 'utf8'),
           world.schema,
@@ -1599,13 +1552,7 @@ describe('world CHECK INSERT parity', () => {
           : 'unknown'
       ]++
       coverage.set(identity, counts)
-      const definition = table.constraints.find(
-        (candidate) => candidate.name === constraint,
-      )!.definition
-      expect(definition).toMatch(/^CHECK \(/u)
-      const expression =
-        declaredCheckExpressions.get(identity) ??
-        definition.slice('CHECK '.length).replace(/(?:\s+(?:NOT VALID|NO INHERIT))+$/u, '')
+      const expression = checkOracles.expression(identity, 'candidate')
       let expected: OracleOutcome
       try {
         expected = (

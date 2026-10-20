@@ -4,6 +4,13 @@ pub struct RangeSupport {
     pub canonical: i32,
 }
 
+pub fn make_range_support(comparison: i32, canonical: i32) -> RangeSupport {
+    RangeSupport {
+        comparison,
+        canonical,
+    }
+}
+
 #[derive(Clone)]
 pub struct RangeTextPayload {
     pub empty: bool,

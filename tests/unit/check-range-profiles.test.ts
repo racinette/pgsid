@@ -99,6 +99,47 @@ it('requires captured range, member and subtype output identities before local t
   }
 }, 30_000)
 
+it('requires selected range and scalar/domain input identities for custom text casts', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE TYPE input_span AS RANGE(subtype=int4);
+      CREATE DOMAIN positive_input AS int4 CHECK(VALUE>0);
+      CREATE TYPE domain_input_span AS RANGE(subtype=positive_input);
+      CREATE TABLE plain_input(payload text,CHECK(isempty(payload::input_span)));
+      CREATE TABLE domain_input(payload text,CHECK(isempty(payload::domain_input_span)));`)
+    const catalog = await snapshotCatalog(pg)
+    for (const table of catalog.tables) {
+      const profile = catalog.rangeTypes.find(
+        (profile) =>
+          profile.name === (table.name === 'plain_input' ? 'input_span' : 'domain_input_span'),
+      )!
+      const lower = (range: RangeTypeInfo) =>
+        lowerTableCheck(table, table.constraints[0]!, catalog.enums, catalog.domains, 'stored', [
+          range,
+        ])!.expression
+      expect(prepareCheckRust(portableCheckAtoms(lower(profile))).kind).toBe('supported')
+      for (const change of [
+        { input: null },
+        {
+          input:
+            'function:["private","range_input"](pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4)',
+        },
+        { subtypeInput: null },
+        { subtypeInput: 'function:["private","scalar_input"](pg_catalog.cstring)' },
+        { subtypeInput: 'function:["pg_catalog","int8in"](pg_catalog.cstring)' },
+      ]) {
+        const expression = lower({ ...profile, ...change })
+        expect(
+          hasUncertain(expression) ||
+            prepareCheckRust(portableCheckAtoms(expression)).kind === 'unsupported',
+        ).toBe(true)
+      }
+    }
+  } finally {
+    await pg.close()
+  }
+}, 30_000)
+
 it('resolves captured qualified identities, companion namespaces and domain subtypes independently of catalog OIDs', async () => {
   const first = await PGlite.create(),
     second = await PGlite.create()
