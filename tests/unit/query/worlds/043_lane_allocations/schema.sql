@@ -2108,3 +2108,24 @@ CREATE TABLE lane_flexible_windows (
   CONSTRAINT flexible_hull CHECK(CASE WHEN bypass THEN true ELSE lower(range_merge(segments)) IS NOT DISTINCT FROM expected_start END),
   CONSTRAINT flexible_fallback CHECK(CASE WHEN bypass THEN true ELSE lower(COALESCE(allocated,NULL::lane_position_window)) IS NOT DISTINCT FROM expected_start END)
 );
+
+CREATE TYPE lane_quote_window AS RANGE(subtype=numeric);
+CREATE DOMAIN lane_publication_label AS text CHECK(VALUE IS NULL OR octet_length(VALUE)<=16);
+
+CREATE TABLE lane_flexible_publications (
+  allocated lane_retained_window,
+  segments lane_position_segments,
+  quote_window lane_quote_window,
+  allocation_label text,
+  segment_label text,
+  quote_label text,
+  short_label text,
+  padded_label text,
+  bypass boolean,
+  CONSTRAINT flexible_publication_allocation CHECK(CASE WHEN bypass THEN true ELSE allocated::text COLLATE "C" IS NOT DISTINCT FROM allocation_label COLLATE "C" END),
+  CONSTRAINT flexible_publication_segments CHECK(CASE WHEN bypass THEN true ELSE segments::text COLLATE "C" IS NOT DISTINCT FROM segment_label COLLATE "C" END),
+  CONSTRAINT flexible_publication_quote CHECK(CASE WHEN bypass THEN true ELSE quote_window::text COLLATE "C" IS NOT DISTINCT FROM quote_label COLLATE "C" END),
+  CONSTRAINT flexible_publication_short CHECK(CASE WHEN bypass THEN true ELSE (segments::varchar(7))::text COLLATE "C" IS NOT DISTINCT FROM short_label COLLATE "C" END),
+  CONSTRAINT flexible_publication_padded CHECK(CASE WHEN bypass THEN true ELSE (allocated::char(16))::text COLLATE "C" IS NOT DISTINCT FROM padded_label COLLATE "C" END),
+  CONSTRAINT flexible_publication_checked CHECK(CASE WHEN bypass THEN true ELSE (segments::lane_publication_label)::text COLLATE "C" IS NOT DISTINCT FROM segment_label COLLATE "C" END)
+);

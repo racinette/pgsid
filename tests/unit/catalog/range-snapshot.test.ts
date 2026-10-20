@@ -61,6 +61,9 @@ it('captures user range and multirange support in snapshots with selected identi
       collationDeterministic: null,
       collationIsC: null,
       collationIsDefault: null,
+      output: 'function:["pg_catalog","range_out"](pg_catalog.anyrange)',
+      multirangeOutput: 'function:["pg_catalog","multirange_out"](pg_catalog.anymultirange)',
+      subtypeOutput: 'function:["pg_catalog","int4out"](pg_catalog.int4)',
     })
     expect(
       (
@@ -89,14 +92,17 @@ it('captures user range and multirange support in snapshots with selected identi
     expect(snapshot.rangeTypes.find((r) => r.name === 'positive_ranges')).toMatchObject({
       subtype: '"Range.Types".positive',
       comparator: 'function:["pg_catalog","btint4cmp"](pg_catalog.int4,pg_catalog.int4)',
+      subtypeOutput: 'function:["pg_catalog","int4out"](pg_catalog.int4)',
     })
     expect(snapshot.rangeTypes.find((r) => r.name === 'ratings')).toMatchObject({
       subtype: '"Range.Types".rating',
       comparator: 'function:["pg_catalog","enum_cmp"](pg_catalog.anyenum,pg_catalog.anyenum)',
+      subtypeOutput: 'function:["pg_catalog","enum_out"](pg_catalog.anyenum)',
     })
     expect(snapshot.rangeTypes.find((r) => r.name === 'vectors')).toMatchObject({
       subtype: 'pg_catalog._int4',
       comparator: 'function:["pg_catalog","btarraycmp"](pg_catalog.anyarray,pg_catalog.anyarray)',
+      subtypeOutput: 'function:["pg_catalog","array_out"](pg_catalog.anyarray)',
     })
     expect(
       snapshot.rangeTypes.every((r) =>

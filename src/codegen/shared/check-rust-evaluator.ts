@@ -2,6 +2,7 @@ import {
   rangeTypeProfile,
   multirangeTypeProfile,
   rangeProfileSupport,
+  rangeTypeOutput,
 } from '../../sql-semantics/range-profiles.js'
 import {
   nativeHashContext,
@@ -3592,9 +3593,21 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'io-to-text') {
       const operand = emitScalar(node.operand, bindings, used)
-      const output = node.enum?.outputFunction ?? builtinTypeIO(operand.type)?.output
+      const output =
+        node.enum?.outputFunction ??
+        rangeTypeOutput(operand.type) ??
+        builtinTypeIO(operand.type)?.output
       if (!output || output !== node.output)
         throw new UnsupportedCheckRustExpression('Text output needs its catalog I/O identity')
+      const range = rangeTypeProfile(operand.type)
+      const multirange = multirangeTypeProfile(operand.type)
+      if (
+        (range && output !== builtinTypeIO('pg_catalog.int4range')?.output) ||
+        (multirange && output !== builtinTypeIO('pg_catalog.int4multirange')?.output)
+      )
+        throw new UnsupportedCheckRustExpression(
+          'Range text output needs its selected catalog implementation',
+        )
       const metadata = builtinMetadata(output)
       if (
         metadata.kind !== 'function' ||
@@ -3611,11 +3624,17 @@ export function emitCheckRustEvaluator(
                 : operand.type)
       )
         throw new UnsupportedCheckRustExpression('Unsupported text output function')
-      const multirange = builtinMultirangeType(operand.type)
       if (multirange) {
-        const memberOutput = builtinTypeIO(multirange.identity)?.output
+        const memberOutput = multirange.output
+        const subtypeOutput = multirange.subtypeOutput
+        if (
+          memberOutput !== builtinTypeIO('pg_catalog.int4range')?.output ||
+          subtypeOutput !== builtinTypeIO(multirange.elementType)?.output
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Multirange text output needs selected range and subtype implementations',
+          )
         const member = memberOutput ? builtinMetadata(memberOutput) : null
-        const subtypeOutput = builtinTypeIO(multirange.subtype)?.output
         const subtype = subtypeOutput ? builtinMetadata(subtypeOutput) : null
         if (
           metadata.schema !== 'pg_catalog' ||
@@ -3635,7 +3654,7 @@ export function emitCheckRustEvaluator(
           !subtype.strict ||
           subtype.returnsSet ||
           subtype.args.length !== 1 ||
-          subtype.args[0] !== multirange.subtype ||
+          subtype.args[0] !== multirange.elementType ||
           subtype.result !== 'pg_catalog.cstring'
         )
           throw new UnsupportedCheckRustExpression(
@@ -3643,9 +3662,12 @@ export function emitCheckRustEvaluator(
           )
         return { name: bind(`multirange_to_text(${ownedOperand(operand)})`), type: node.type }
       }
-      const range = builtinRangeType(operand.type)
       if (range) {
-        const subtypeOutput = builtinTypeIO(range.subtype)?.output
+        const subtypeOutput = range.subtypeOutput
+        if (subtypeOutput !== builtinTypeIO(range.elementType)?.output)
+          throw new UnsupportedCheckRustExpression(
+            'Range text output needs its selected subtype implementation',
+          )
         const subtype = subtypeOutput ? builtinMetadata(subtypeOutput) : null
         if (
           metadata.name !== 'range_out' ||
@@ -3656,7 +3678,7 @@ export function emitCheckRustEvaluator(
           !subtype.strict ||
           subtype.returnsSet ||
           subtype.args.length !== 1 ||
-          subtype.args[0] !== range.subtype ||
+          subtype.args[0] !== range.elementType ||
           subtype.result !== 'pg_catalog.cstring'
         )
           throw new UnsupportedCheckRustExpression(
