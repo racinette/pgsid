@@ -5022,3 +5022,64 @@ VALUES('{"{empty}"}','[1,3)',false);
 -- name: range_batch_bypass
 INSERT INTO lane_range_batches(slots,typed_slots,histories,head,expected_counts,expected_member,expected_sorted,bypass)
 VALUES('{empty}','{empty}','{"{empty}"}','[1,3)','{99,99,99,99,99,99}',false,false,true);
+
+-- name: shift_segments_null
+INSERT INTO lane_shift_segments(expected_missing,bypass) VALUES(true,false);
+
+-- name: shift_segments_empty
+INSERT INTO lane_shift_segments(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_bounded,expected_missing,bypass)
+VALUES('{}','{}','{}','{}','{}','{}',true,false,false,false);
+
+-- name: shift_segments_separated
+INSERT INTO lane_shift_segments(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_floor,load_floor,price_ceiling,day_floor,local_ceiling,instant_floor,expected_empty,expected_bounded,expected_missing,choose_alternate,bypass)
+VALUES('{[7,9),[1,3)}','{[9007199254740997,9007199254740999),[9007199254740993,9007199254740995)}','{[1.2300,2.4500],[7.000,9.1000]}','{[2000-01-01,2000-01-03),[2000-01-05,2000-01-07)}','{[2000-01-01,2000-01-02),[2000-01-05,2000-01-07)}','{[2000-01-01 00:00+00,2000-01-02 00:00+00),[2000-01-05 00:00+00,2000-01-07 00:00+00)}',1,9007199254740993,9.1000,'2000-01-01','2000-01-07','2000-01-01 00:00+00',false,true,false,false,false);
+
+-- name: shift_segments_merged
+INSERT INTO lane_shift_segments(slots,slot_floor,expected_empty,expected_bounded,expected_missing,bypass)
+VALUES('{empty,[2,4),[1,3),[1,3)}',1,false,true,false,false);
+
+-- name: shift_segments_unbounded
+INSERT INTO lane_shift_segments(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_empty,expected_bounded,expected_missing,bypass)
+VALUES('{(,)}','{(,)}','{(,)}','{(,)}','{(,)}','{(,)}',false,false,false,false);
+
+-- name: shift_segments_infinities
+INSERT INTO lane_shift_segments(prices,calendar_days,local_shift,instant_shift,price_ceiling,day_floor,local_ceiling,instant_floor,bypass)
+VALUES('{[NaN,NaN]}','{[-infinity,infinity]}','{[-infinity,infinity]}','{[-infinity,infinity]}','NaN','-infinity','infinity','-infinity',false);
+
+-- name: shift_segments_alternate
+INSERT INTO lane_shift_segments(loads,alternate_loads,load_floor,choose_alternate,bypass)
+VALUES('{[5,9)}','{[5,6),[10,12)}',5,true,false);
+
+-- name: shift_segments_slot_mismatch
+INSERT INTO lane_shift_segments(slots,slot_floor,bypass) VALUES('{[1,3)}',2,false);
+
+-- name: shift_segments_load_mismatch
+INSERT INTO lane_shift_segments(loads,load_floor,bypass) VALUES('{[1,3)}',2,false);
+
+-- name: shift_segments_price_mismatch
+INSERT INTO lane_shift_segments(prices,price_ceiling,bypass) VALUES('{[1,3],[7,9]}',3,false);
+
+-- name: shift_segments_day_mismatch
+INSERT INTO lane_shift_segments(calendar_days,day_floor,bypass) VALUES('{[2000-01-01,2000-01-03)}','2000-01-02',false);
+
+-- name: shift_segments_local_mismatch
+INSERT INTO lane_shift_segments(local_shift,local_ceiling,bypass) VALUES('{[2000-01-01,2000-01-03)}','2000-01-02',false);
+
+-- name: shift_segments_instant_mismatch
+INSERT INTO lane_shift_segments(instant_shift,instant_floor,bypass) VALUES('{[2000-01-01 00:00+00,2000-01-03 00:00+00)}','2000-01-02 00:00+00',false);
+
+-- name: shift_segments_empty_mismatch
+INSERT INTO lane_shift_segments(slots,expected_empty,bypass) VALUES('{}',false,false);
+
+-- name: shift_segments_bounded_mismatch
+INSERT INTO lane_shift_segments(slots,slot_floor,expected_bounded,bypass) VALUES('{[1,3)}',1,false,false);
+
+-- name: shift_segments_present_mismatch
+INSERT INTO lane_shift_segments(expected_missing,bypass) VALUES(false,false);
+
+-- name: shift_segments_choice_mismatch
+INSERT INTO lane_shift_segments(loads,alternate_loads,load_floor,choose_alternate,bypass) VALUES('{[1,3)}','{[5,7)}',1,true,false);
+
+-- name: shift_segments_bypass
+INSERT INTO lane_shift_segments(slots,loads,slot_floor,load_floor,expected_empty,expected_bounded,expected_missing,bypass)
+VALUES('{}','{[1,3)}',99,99,false,true,true,true);

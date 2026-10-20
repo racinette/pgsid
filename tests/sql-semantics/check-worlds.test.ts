@@ -1,3 +1,4 @@
+import { readMultirangeFixture } from './check-multirange-fixtures.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
@@ -20,6 +21,7 @@ import {
   catalogDateType,
   catalogArrayType,
   catalogRangeType,
+  catalogMultirangeType,
   catalogTemporalType,
   catalogNumericType,
   catalogFloatType,
@@ -659,6 +661,13 @@ describe('world CHECK INSERT parity', () => {
               null,
         )
         .map((column) => column.name)
+      const multirangeColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogMultirangeType(column.typeName, column.typeOid, catalog.domains) !== null,
+        )
+        .map((column) => column.name)
       const rangeColumns = table.columns
         .filter(
           (column) =>
@@ -1085,6 +1094,18 @@ describe('world CHECK INSERT parity', () => {
         portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
         goRow[name] = payload
       }
+      for (const name of multirangeColumns) {
+        const column = table.columns.find((column) => column.name === name)!
+        const type = catalogMultirangeType(column.typeName, column.typeOid, catalog.domains)!
+        const text = (
+          await pg.query<{ value: string | null }>(
+            `SELECT ${quote(name)}::text value FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.value
+        const payload = await readMultirangeFixture(pg, type, text)
+        portableRow[name] = payload === null ? null : { kind: 'Value', value: payload }
+        goRow[name] = payload
+      }
       for (const name of rangeColumns) {
         const column = table.columns.find((column) => column.name === name)!
         const type = catalogRangeType(column.typeName, column.typeOid, catalog.domains)!
@@ -1274,6 +1295,7 @@ describe('world CHECK INSERT parity', () => {
         jsonpathColumns,
         arrayColumns,
         rangeColumns,
+        multirangeColumns,
         oidColumns,
         moneyColumns,
         polygonColumns,

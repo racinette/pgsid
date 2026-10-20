@@ -22,6 +22,7 @@ import {
   builtinTypeComparison,
   builtinTypeResolution,
   builtinRangeType,
+  builtinMultirangeType,
   isBuiltinRangeConstructor,
 } from '../../postgres/builtins/inventory.js'
 import { checkRustCallableNames } from './check-rust-source.js'
@@ -49,6 +50,7 @@ import {
   isOidAliasType,
   isSnapshotType,
   isRangeType,
+  isMultirangeType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
   type EnumDefinition,
@@ -531,6 +533,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.tid') return 'TidValue'
   if (type === 'pg_catalog.xid8') return 'Xid8Value'
   if (isSnapshotType(type)) return 'SnapshotValue'
+  if (isMultirangeType(type)) return 'MultirangeValue'
   if (isRangeType(type)) return 'RangeValue'
   if (isOidType(type)) return 'OidValue'
   if (type === 'pg_catalog.polygon') return 'PolygonValue'
@@ -718,6 +721,7 @@ export function emitCheckRustEvaluator(
       'ArrayValue',
       'SnapshotValue',
       'RangeValue',
+      'MultirangeValue',
       'PolygonValue',
       'PathValue',
       'TextValue',
@@ -1713,37 +1717,50 @@ export function emitCheckRustEvaluator(
       )
       const enumCall = enumOperands.length > 0
       const enumIdentity = enumOperands[0]
-      const rangeTypes = implementation.args.flatMap((type, index) =>
-        type === 'pg_catalog.anyrange' ? [operands[index]?.type] : [],
+      const multirangeTypes = implementation.args.flatMap((type, index) =>
+        type === 'pg_catalog.anymultirange' ? [operands[index]?.type] : [],
       )
+      const multirangeIdentity = multirangeTypes[0]
+      const multirangeProfile =
+        multirangeIdentity && multirangeTypes.every((type) => type === multirangeIdentity)
+          ? builtinMultirangeType(multirangeIdentity)
+          : null
+      const rangeTypes = [
+        ...(multirangeProfile ? [multirangeProfile.identity] : []),
+        ...implementation.args.flatMap((type, index) =>
+          type === 'pg_catalog.anyrange' ? [operands[index]?.type] : [],
+        ),
+      ]
       const rangeIdentity = rangeTypes[0]
       const rangeSubtype =
         rangeIdentity && rangeTypes.every((type) => type === rangeIdentity)
           ? builtinRangeType(rangeIdentity)?.subtype
           : undefined
       const resultType =
-        rangeSubtype && implementation.result === 'pg_catalog.anyelement'
-          ? rangeSubtype
-          : rangeSubtype && implementation.result === 'pg_catalog.anyrange'
-            ? rangeIdentity
-            : arraySearch && implementation.name === 'array_positions'
-              ? 'array:pg_catalog.int4'
-              : arrayTransform || arrayRewrite
-                ? transformArray
-                : enumSupport && implementation.result === 'pg_catalog.anyarray'
-                  ? `array:${enumIdentity}`
-                  : implementation.result === 'pg_catalog.anyenum'
-                    ? enumIdentity
-                    : arrayFill
-                      ? call.type.startsWith('array:') &&
-                        arrayElementBaseType(call.type.slice(6)) === operands[0]?.type
-                        ? call.type
-                        : null
-                      : arrayTrim || arrayReverse || arraySort || arrayExtremum
-                        ? operands[0]?.type
-                        : arrayStringIO && implementation.name === 'string_to_array'
-                          ? 'array:pg_catalog.text'
-                          : (catalogScalarType(implementation.result) ?? implementation.result)
+        multirangeProfile && implementation.result === 'pg_catalog.anymultirange'
+          ? multirangeIdentity
+          : rangeSubtype && implementation.result === 'pg_catalog.anyelement'
+            ? rangeSubtype
+            : rangeSubtype && implementation.result === 'pg_catalog.anyrange'
+              ? rangeIdentity
+              : arraySearch && implementation.name === 'array_positions'
+                ? 'array:pg_catalog.int4'
+                : arrayTransform || arrayRewrite
+                  ? transformArray
+                  : enumSupport && implementation.result === 'pg_catalog.anyarray'
+                    ? `array:${enumIdentity}`
+                    : implementation.result === 'pg_catalog.anyenum'
+                      ? enumIdentity
+                      : arrayFill
+                        ? call.type.startsWith('array:') &&
+                          arrayElementBaseType(call.type.slice(6)) === operands[0]?.type
+                          ? call.type
+                          : null
+                        : arrayTrim || arrayReverse || arraySort || arrayExtremum
+                          ? operands[0]?.type
+                          : arrayStringIO && implementation.name === 'string_to_array'
+                            ? 'array:pg_catalog.text'
+                            : (catalogScalarType(implementation.result) ?? implementation.result)
       if (
         metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
@@ -1862,31 +1879,35 @@ export function emitCheckRustEvaluator(
                   ]!.type.slice(6),
                 ) === operands[index]?.type
               ? false
-              : type === 'pg_catalog.anyrange' &&
-                  rangeSubtype &&
-                  operands[index]?.type === rangeIdentity
+              : type === 'pg_catalog.anymultirange' &&
+                  multirangeProfile &&
+                  operands[index]?.type === multirangeIdentity
                 ? false
-                : type === 'pg_catalog.anyelement' &&
+                : type === 'pg_catalog.anyrange' &&
                     rangeSubtype &&
-                    operands[index]?.type === rangeSubtype
+                    operands[index]?.type === rangeIdentity
                   ? false
-                  : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
+                  : type === 'pg_catalog.anyelement' &&
+                      rangeSubtype &&
+                      operands[index]?.type === rangeSubtype
                     ? false
-                    : type === 'pg_catalog.anyenum' && enumCall
-                      ? !operands[index]?.type.startsWith('enum:')
-                      : type === 'pg_catalog.anyelement' &&
-                          (jsonbConversion || jsonConversion || arrayFill)
-                        ? false
-                        : catalogScalarType(type)?.startsWith('array:') &&
-                            operands[index]?.type === catalogScalarType(type)
+                    : type === 'pg_catalog.anyarray' && operands[index]?.type.startsWith('array:')
+                      ? false
+                      : type === 'pg_catalog.anyenum' && enumCall
+                        ? !operands[index]?.type.startsWith('enum:')
+                        : type === 'pg_catalog.anyelement' &&
+                            (jsonbConversion || jsonConversion || arrayFill)
                           ? false
-                          : operands[index]?.type !== type &&
-                            !(
-                              call.kind === 'cast' &&
-                              call.type === 'pg_catalog."char"' &&
-                              type === 'pg_catalog.text' &&
-                              operands[index]?.type === 'pg_catalog.bpchar'
-                            ),
+                          : catalogScalarType(type)?.startsWith('array:') &&
+                              operands[index]?.type === catalogScalarType(type)
+                            ? false
+                            : operands[index]?.type !== type &&
+                              !(
+                                call.kind === 'cast' &&
+                                call.type === 'pg_catalog."char"' &&
+                                type === 'pg_catalog.text' &&
+                                operands[index]?.type === 'pg_catalog.bpchar'
+                              ),
         )
       )
         throw new UnsupportedCheckRustExpression(
@@ -3326,6 +3347,14 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'input') {
       const item = input(node.name, node.type, false, node.enum)
       used.add(item.name)
+      const multirange = builtinMultirangeType(node.type)
+      if (multirange)
+        return {
+          name: bind(
+            `multirange_require_type(${item.rustName}.clone(), ${rustStringLiteral(multirange.multirange)}, ${rustStringLiteral(multirange.identity)}, ${rustStringLiteral(multirange.subtype)}, ${arrayElementFamily(multirange.subtype)})`,
+          ),
+          type: node.type,
+        }
       const range = builtinRangeType(node.type)
       if (range)
         return {
@@ -3943,6 +3972,7 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'certain') {
       const value = node.expression
+      if (value.kind === 'multirange') return { name: bind('multirange_null()'), type: value.type }
       if (value.kind === 'range') {
         if (value.value === null) return { name: bind('range_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -4249,6 +4279,7 @@ export function emitCheckRustEvaluator(
         !node.operand.type.startsWith('enum:') &&
         !isOidType(node.operand.type) &&
         !isRangeType(node.operand.type) &&
+        !isMultirangeType(node.operand.type) &&
         ![
           'pg_catalog.inet',
           'pg_catalog.cidr',
@@ -4817,6 +4848,7 @@ export function emitCheckRustEvaluator(
               'ArrayValue',
               'SnapshotValue',
               'RangeValue',
+              'MultirangeValue',
               'PolygonValue',
               'PathValue',
               'TextValue',
@@ -5179,6 +5211,7 @@ export function emitCheckRustEvaluator(
           'ArrayValue',
           'SnapshotValue',
           'RangeValue',
+          'MultirangeValue',
           'PolygonValue',
           'PathValue',
           'TextValue',

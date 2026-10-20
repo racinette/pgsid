@@ -317,7 +317,7 @@ it('binds concrete range subtypes, nested domains, structural calls, CASE/COALES
       ) + '\n',
     )
     for (const type of Object.keys(PG18_RANGE_TYPES))
-      expect(catalogScalarType(type + '[]')).toBeNull()
+      expect(catalogScalarType(type + '[]')).toBe('array:' + type)
   } finally {
     await pg.close()
     await rm(directory, { recursive: true, force: true })
