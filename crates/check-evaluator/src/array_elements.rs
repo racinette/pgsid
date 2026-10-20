@@ -49,9 +49,13 @@ pub enum ArrayElement {
     Float8UnspecifiedNan,
     ByteaUnspecified(i32),
     BoxNonNull,
+    Range(RangePayload),
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::Range(_) = input {
+        return 42;
+    };
     if let ArrayElement::Array(_) = input {
         return 41;
     };
@@ -1287,4 +1291,30 @@ pub fn array_element_to_jsonpath(input: ArrayElement) -> JsonpathValue {
         return JsonpathValue::Value(value);
     };
     JsonpathValue::Unknown
+}
+
+pub fn array_element_from_range(input: RangeValue) -> ArrayElement {
+    if let RangeValue::Error(error) = input {
+        return ArrayElement::Error(error);
+    };
+    if let RangeValue::Null = input {
+        return ArrayElement::Null;
+    };
+    if let RangeValue::Value(value) = input {
+        return ArrayElement::Range(value);
+    };
+    ArrayElement::Unknown
+}
+
+pub fn array_element_to_range(input: ArrayElement) -> RangeValue {
+    if let ArrayElement::Error(error) = input {
+        return RangeValue::Error(error);
+    };
+    if let ArrayElement::Null = input {
+        return RangeValue::Null;
+    };
+    if let ArrayElement::Range(value) = input {
+        return make_coerced_range_value(value);
+    };
+    RangeValue::Unknown
 }

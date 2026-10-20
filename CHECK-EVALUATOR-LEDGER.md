@@ -165,8 +165,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
       and clock input/output.
 - [x] Establish temporal field extraction, hashes, interval truncation, timestamp
       binning, and local calendar age.
-- [x] Establish temporal range checks, fixed interval timezones, SQL-coerced wide
-      offsets, and ISO alternative interval input.
+- [x] Establish temporal range checks, fixed interval timezones, SQL-coerced wide offsets, and ISO alternative interval input.
 - [x] Establish explicit-zone calendar adjustments, non-strict temporal overlaps,
       legacy timestamp field extraction, and the measured session-timezone
       requirement for instant calendar age.
@@ -256,6 +255,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit builtin range text output through captured range/subtype I/O, exact integer/numeric rendering, quoting/escapes, omitted and typed infinite bounds, character widths and nested domains; preserve strict states, ordered rendering, eager literal input errors, lazy stable output and reached DateStyle/TimeZone deferrals with raw/stored and INSERT parity.
 - [x] Admit builtin range ordering/equality, endpoint relations, containment, adjacency and canonical set operations through captured subtype support; preserve empty/unbounded/inclusive distinctions, exact selected bounds, non-contiguous errors, strict states and argument order, owned partial results, nominal composition and untyped literals, eager/lazy preparation and INSERT parity.
 - [x] Capture stable binary input/output links and admit builtin range wire output and hashing through subtype support; preserve flags, exact bounds/scales, seeded arithmetic, strict states, ordered output and eager/lazy preparation. Compare complete byte-order alternatives, retain context-free results and owned partial states, verify deployment-OID independence and INSERT parity, and classify internal-buffer receive separately.
+- [x] Establish owned range array cells before SQL admission; preserve typed bounds, NULL/Unknown/errors, nested array-valued domain cells, independent extracted/reinserted snapshots and malformed-bound deferral; verify native INSERT and Rust/Go/TypeScript representation parity.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

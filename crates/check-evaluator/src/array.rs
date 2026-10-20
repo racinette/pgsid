@@ -306,26 +306,34 @@ pub fn array_from_case_guard(input: CheckOutcome) -> ArrayValue {
     ArrayValue::Unknown
 }
 
+fn array_element_owned_state(input: &ArrayPayload, position: usize) -> BoolValue {
+    let element = input.elements[position].clone();
+    if let ArrayElement::Error(error) = element {
+        return BoolValue::Error(error);
+    };
+    if let ArrayElement::Array(nested) = element {
+        return array_is_null(make_array_value(nested));
+    };
+    if let ArrayElement::Range(payload) = element {
+        return range_is_null(make_coerced_range_value(payload));
+    };
+    BoolValue::Value(false)
+}
+
 pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
     let mut position: usize = 0;
     while position < input.elements.len() {
-        let element = input.elements[position].clone();
-        if let ArrayElement::Error(error) = element {
+        let checked = array_element_owned_state(&input, position);
+        if let BoolValue::Error(error) = checked {
             return ArrayValue::Error(error);
         };
-        if let ArrayElement::Array(nested) = element {
-            let checked = make_array_value(nested);
-            if let ArrayValue::Error(error) = checked {
-                return ArrayValue::Error(error);
-            };
-            if let ArrayValue::Unknown = checked {
-                return ArrayValue::Unknown;
-            };
+        if let BoolValue::Unknown = checked {
+            return ArrayValue::Unknown;
         };
         position += 1;
     }
     let identity: Vec<char> = input.element_type.chars().collect();
-    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 41 {
+    if identity.len() == 0 || input.element_kind < 1 || input.element_kind > 42 {
         return ArrayValue::Unknown;
     };
     position = 0;
