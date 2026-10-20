@@ -2082,3 +2082,29 @@ CREATE TABLE lane_distance_estimates (
   CONSTRAINT distance_local CHECK(CASE WHEN bypass THEN true ELSE tsrange_subdiff(upper(local_shift),lower(local_shift)) IS NOT DISTINCT FROM expected_distances[5] END),
   CONSTRAINT distance_instants CHECK(CASE WHEN bypass THEN true ELSE tstzrange_subdiff(upper(instant_shift),lower(instant_shift)) IS NOT DISTINCT FROM expected_distances[6] END)
 );
+
+CREATE TYPE lane_position_window AS RANGE(subtype=integer,multirange_type_name=lane_position_segments);
+CREATE DOMAIN lane_retained_window AS lane_position_window;
+
+CREATE TABLE lane_flexible_windows (
+  allocated lane_retained_window,
+  standby lane_position_window,
+  segments lane_position_segments,
+  competing lane_position_segments,
+  position integer,
+  expected_start integer,
+  expected_contains boolean,
+  expected_adjacent boolean,
+  expected_overlap boolean,
+  expected_empty boolean,
+  expected_intersection_empty boolean,
+  bypass boolean,
+  CONSTRAINT flexible_start CHECK(CASE WHEN bypass THEN true ELSE lower(allocated) IS NOT DISTINCT FROM expected_start END),
+  CONSTRAINT flexible_contains CHECK(CASE WHEN bypass THEN true ELSE (allocated @> position) IS NOT DISTINCT FROM expected_contains END),
+  CONSTRAINT flexible_adjacent CHECK(CASE WHEN bypass THEN true ELSE (allocated -|- standby) IS NOT DISTINCT FROM expected_adjacent END),
+  CONSTRAINT flexible_overlap CHECK(CASE WHEN bypass THEN true ELSE (segments && competing) IS NOT DISTINCT FROM expected_overlap END),
+  CONSTRAINT flexible_empty CHECK(CASE WHEN bypass THEN true ELSE isempty(segments) IS NOT DISTINCT FROM expected_empty END),
+  CONSTRAINT flexible_intersection CHECK(CASE WHEN bypass THEN true ELSE isempty(allocated*standby) IS NOT DISTINCT FROM expected_intersection_empty END),
+  CONSTRAINT flexible_hull CHECK(CASE WHEN bypass THEN true ELSE lower(range_merge(segments)) IS NOT DISTINCT FROM expected_start END),
+  CONSTRAINT flexible_fallback CHECK(CASE WHEN bypass THEN true ELSE lower(COALESCE(allocated,NULL::lane_position_window)) IS NOT DISTINCT FROM expected_start END)
+);

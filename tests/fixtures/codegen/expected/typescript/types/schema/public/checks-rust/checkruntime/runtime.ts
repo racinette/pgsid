@@ -8701,6 +8701,23 @@ export function rangeRequireType(input: RangeValue, typeName: string, elementTyp
     }
     return input;
 }
+export function rangeFromCoercedProfile(input: RangeValue, typeName: string, elementType: string, elementKind: number, comparison: number, canonical: number): RangeValue {
+    input = copyRangeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    if (input.kind === "Value") {
+        const payload: RangePayload = copyRangePayload(input.value);
+        if (!(payload.typeName === typeName) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
+            return { kind: "Unknown" };
+        }
+        const support: RangeSupport = { comparison: comparison, canonical: canonical };
+        return makeCoercedRangeValue(rangePayloadWithSupport(payload, support));
+    }
+    return input;
+}
 export function rangeRequireSupport(input: RangeValue, expected: RangeSupport): RangeValue {
     input = copyRangeValue(input);
     if (input.kind === "Value") {
@@ -8908,6 +8925,29 @@ export function multirangeFromProfiledRanges(typeName: string, rangeType: string
     elementKind = langruntime.checkedI32(elementKind);
     ranges = langruntime.checkedStructs(ranges, copyRangeValue);
     return makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: support, ranges: ranges });
+}
+export function multirangeFromCoercedProfile(input: MultirangeValue, typeName: string, rangeType: string, elementType: string, elementKind: number, comparison: number, canonical: number): MultirangeValue {
+    input = copyMultirangeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    comparison = langruntime.checkedI32(comparison);
+    canonical = langruntime.checkedI32(canonical);
+    if (input.kind === "Value") {
+        const payload: MultirangePayload = copyMultirangePayload(input.value);
+        if (!(payload.typeName === typeName) || !(payload.rangeType === rangeType) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
+            return { kind: "Unknown" };
+        }
+        let ranges: RangeValue[] = payload.ranges;
+        let index: number = 0;
+        while (index < ranges.length) {
+            ranges[langruntime.checkedIndexIn(ranges, index)] = copyRangeValue(rangeFromCoercedProfile(copyRangeValue(langruntime.indexStruct(ranges, langruntime.checkedIndex(index), copyRangeValue)), rangeType, elementType, elementKind, comparison, canonical));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return multirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, ranges, { comparison: comparison, canonical: canonical });
+    }
+    return input;
 }
 export function multirangeRequireSupport(input: MultirangeValue, expected: RangeSupport): MultirangeValue {
     input = copyMultirangeValue(input);

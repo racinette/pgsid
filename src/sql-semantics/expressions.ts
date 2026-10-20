@@ -8,11 +8,18 @@ import {
 } from '../postgres/builtins/inventory.js'
 import type { CallableMetadata } from '../postgres/builtins/catalog.js'
 import type { EnumInfo } from '../catalog/types.js'
-import type { PG18_RANGE_TYPES } from '../postgres/builtins/type-ranges.generated.js'
+import {
+  isCapturedRangeType,
+  isCapturedMultirangeType,
+  type RangeType,
+  type MultirangeType,
+} from './range-profiles.js'
+export type { RangeType, MultirangeType } from './range-profiles.js'
 import type { CallableEmitter, SqlBindingGroup, TypedSqlExpression } from './signatures.js'
 import { equalityOperation, supportsTextCallableCollation } from './collation.js'
 
 export const catalogScalarType = (name: string): ScalarType | null => {
+  if (isCapturedRangeType(name) || isCapturedMultirangeType(name)) return name
   const range = builtinRangeType(name.startsWith('pg_catalog.') ? name : 'pg_catalog.' + name)
   if (range) return range.identity as RangeType
   const multirange = builtinMultirangeType(
@@ -148,12 +155,11 @@ export type PgLsnType = 'pg_catalog.pg_lsn'
 export type TidType = 'pg_catalog.tid'
 export type Xid8Type = 'pg_catalog.xid8'
 export type SnapshotType = 'pg_catalog.pg_snapshot' | 'pg_catalog.txid_snapshot'
-export type MultirangeType = (typeof PG18_RANGE_TYPES)[keyof typeof PG18_RANGE_TYPES]['multirange']
 export const isMultirangeType = (type: string | null | undefined): type is MultirangeType =>
-  typeof type === 'string' && builtinMultirangeType(type) !== null
-export type RangeType = keyof typeof PG18_RANGE_TYPES
+  typeof type === 'string' &&
+  (builtinMultirangeType(type) !== null || isCapturedMultirangeType(type))
 export const isRangeType = (type: string | null | undefined): type is RangeType =>
-  typeof type === 'string' && builtinRangeType(type) !== null
+  typeof type === 'string' && (builtinRangeType(type) !== null || isCapturedRangeType(type))
 export const isSnapshotType = (type: string | null | undefined): type is SnapshotType =>
   type === 'pg_catalog.pg_snapshot' || type === 'pg_catalog.txid_snapshot'
 export const oidAliasTypes = [

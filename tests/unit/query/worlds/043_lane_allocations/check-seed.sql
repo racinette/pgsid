@@ -5649,3 +5649,51 @@ VALUES('[0,1e309)','{NULL,NULL,0}',false);
 -- name: distance_numeric_float_underflow
 INSERT INTO lane_distance_estimates(prices,expected_distances,bypass)
 VALUES('[0,1e-400)','{NULL,NULL,0}',false);
+
+-- name: flexible_continuous_integer
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES('[1,2]','[3,4]','{[1,2],[5,6]}','{[2,3]}',2,1,true,false,true,false,true,false);
+
+-- name: flexible_wrong_start
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES('[1,2]','[3,4]','{[1,2],[5,6]}','{[2,3]}',2,2,true,false,true,false,true,false);
+
+-- name: flexible_wrong_contains
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES('[1,2]','[3,4]','{[1,2],[5,6]}','{[2,3]}',2,1,false,false,true,false,true,false);
+
+-- name: flexible_wrong_adjacent
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES('[1,2]','[3,4]','{[1,2],[5,6]}','{[2,3]}',2,1,true,true,true,false,true,false);
+
+-- name: flexible_wrong_overlap
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES('[1,2]','[3,4]','{[1,2],[5,6]}','{[2,3]}',2,1,true,false,false,false,true,false);
+
+-- name: flexible_wrong_empty
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES('[1,2]','[3,4]','{[1,2],[5,6]}','{[2,3]}',2,1,true,false,true,true,true,false);
+
+-- name: flexible_wrong_intersection
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES('[1,2]','[3,4]','{[1,2],[5,6]}','{[2,3]}',2,1,true,false,true,false,false,false);
+
+-- name: flexible_wrong_hull
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES('[1,2]','[3,4]','{[5,6]}','{[2,3]}',2,1,true,false,true,false,true,false);
+
+-- name: flexible_missing_start
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES(NULL,'[3,4]','{[1,2],[5,6]}','{[2,3]}',2,1,true,false,true,false,true,false);
+
+-- name: flexible_skipped_missing_start
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES(NULL,'[3,4]','{[1,2],[5,6]}','{[2,3]}',2,1,true,false,true,false,true,true);
+
+-- name: flexible_all_null
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: flexible_touching_windows
+INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
+VALUES('[1,2]','[2,3]','{[1,2],[5,6]}','{[2,3]}',2,1,true,true,true,false,false,false);

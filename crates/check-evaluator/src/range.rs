@@ -241,6 +241,30 @@ pub fn range_require_type(
     input
 }
 
+pub fn range_from_coerced_profile(
+    input: RangeValue,
+    type_name: &str,
+    element_type: &str,
+    element_kind: i32,
+    comparison: i32,
+    canonical: i32,
+) -> RangeValue {
+    if let RangeValue::Value(payload) = input {
+        if payload.type_name.as_str() != type_name
+            || payload.element_type.as_str() != element_type
+            || payload.element_kind != element_kind
+        {
+            return RangeValue::Unknown;
+        };
+        let support = RangeSupport {
+            comparison,
+            canonical,
+        };
+        return make_coerced_range_value(range_payload_with_support(payload, support));
+    };
+    input
+}
+
 pub fn range_require_support(input: RangeValue, expected: RangeSupport) -> RangeValue {
     if let RangeValue::Value(value) = input {
         if range_support_equal(value.support, expected) == false {

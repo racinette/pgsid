@@ -212,6 +212,7 @@ export function renderTypescriptQueryArtifacts(
       rustModuleSpecifier: options.checkRustModuleSpecifier,
       executionContext: config.sql.codegen?.checks,
       enums: options.catalog?.enums,
+      rangeTypes: options.catalog?.rangeTypes,
     },
     Boolean(options.checkRustModuleSpecifier),
   )

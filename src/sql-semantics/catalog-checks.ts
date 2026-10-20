@@ -1,5 +1,11 @@
 import { parseSync, type Node } from 'libpg-query'
-import type { ConstraintInfo, DomainInfo, EnumInfo, TableInfo } from '../catalog/types.js'
+import type {
+  ConstraintInfo,
+  DomainInfo,
+  EnumInfo,
+  TableInfo,
+  RangeTypeInfo,
+} from '../catalog/types.js'
 import type { EvalBoolExpression } from './check-expressions.js'
 import { bindCatalogCheck, type CheckColumn } from './catalog-check-binder.js'
 
@@ -39,6 +45,7 @@ export function lowerTableCheck(
   enums: readonly EnumInfo[] = [],
   domains: readonly DomainInfo[] = [],
   literalOrigin: 'source' | 'stored' = 'stored',
+  rangeTypes: readonly RangeTypeInfo[] = [],
 ): CatalogCheckPlan | null {
   if (constraint.type !== 'check') throw new Error('Expected a table CHECK constraint')
   let parsed: ReturnType<typeof parseSync>
@@ -68,6 +75,8 @@ export function lowerTableCheck(
     constraint.coercionContext?.definition === constraint.definition
       ? constraint.coercionContext
       : undefined,
+    undefined,
+    rangeTypes,
   )
   return { name: constraint.name, ...bound }
 }
@@ -77,6 +86,7 @@ export function lowerDomainCheck(
   check: DomainInfo['checks'][number],
   enums: readonly EnumInfo[] = [],
   domains: readonly DomainInfo[] = [],
+  rangeTypes: readonly RangeTypeInfo[] = [],
 ): CatalogCheckPlan | null {
   return lowerTableCheck(
     {
@@ -96,6 +106,8 @@ export function lowerDomainCheck(
     { ...check, type: 'check' },
     enums,
     domains,
+    'stored',
+    rangeTypes,
   )
 }
 
@@ -104,13 +116,14 @@ export function catalogCheckGroups(
   domains: readonly DomainInfo[],
   selectedDomains: readonly DomainInfo[] = domains,
   enums: readonly EnumInfo[] = [],
+  rangeTypes: readonly RangeTypeInfo[] = [],
 ): CatalogCheckGroup[] {
   const groups: CatalogCheckGroup[] = []
   for (const table of tables) {
     const checks = table.constraints
       .filter((constraint) => constraint.type === 'check' && constraint.enforced)
       .flatMap((constraint) => {
-        const plan = lowerTableCheck(table, constraint, enums, domains)
+        const plan = lowerTableCheck(table, constraint, enums, domains, 'stored', rangeTypes)
         return plan
           ? [
               {
@@ -155,6 +168,7 @@ export function catalogCheckGroups(
           check,
           enums,
           domains,
+          rangeTypes,
         )
         return plan
           ? [

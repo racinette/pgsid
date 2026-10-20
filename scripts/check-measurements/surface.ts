@@ -196,7 +196,13 @@ export async function measureSurface(pg: PGlite) {
     }
   })
   const outcomeByConstraint = new Map(outcomes.constraints.map((row) => [row.constraint, row]))
-  const groups = catalogCheckGroups(catalog.tables, catalog.domains, [], catalog.enums)
+  const groups = catalogCheckGroups(
+    catalog.tables,
+    catalog.domains,
+    [],
+    catalog.enums,
+    catalog.rangeTypes,
+  )
   const constraints = groups.flatMap((group) =>
     group.checks.map(({ plan }) => {
       const identity = `${group.source.schema}.${group.source.name}.${plan.name}`

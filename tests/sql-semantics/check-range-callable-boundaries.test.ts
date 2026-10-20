@@ -14,6 +14,8 @@ import { readRangeTypes } from '../../src/postgres/range-types.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { hasUncertain } from '../../scripts/check-measurements/probes.js'
+import { prepareCheckRust } from '../../src/codegen/shared/check-rust-source.js'
+import { portableCheckAtoms } from '../../src/codegen/shared/check-atom-support.js'
 
 it('classifies range aggregate context, forbidden CHECK expansion and internal I/O separately from value operations', async () => {
   const pg = await PGlite.create()
@@ -80,7 +82,7 @@ it('classifies range aggregate context, forbidden CHECK expansion and internal I
   }
 }, 30_000)
 
-it('records captured custom range profiles awaiting CHECK admission without assuming deployment OIDs', async () => {
+it('admits custom range core checks only with captured profiles and represented subtype backends', async () => {
   const pg = await PGlite.create()
   try {
     await pg.exec(
@@ -116,7 +118,35 @@ it('records captured custom range profiles awaiting CHECK admission without assu
         origin,
       )!.expression
       expect(hasUncertain(expression)).toBe(true)
+      const captured = lowerTableCheck(
+        table,
+        table.constraints[0]!,
+        catalog.enums,
+        catalog.domains,
+        origin,
+        catalog.rangeTypes,
+      )!.expression
+      expect(hasUncertain(captured)).toBe(false)
+      expect(prepareCheckRust(portableCheckAtoms(captured)).kind).toBe('supported')
     }
+    await pg.exec(
+      'CREATE TYPE public.words_span AS RANGE(subtype=text,collation="C");CREATE TABLE public.word_spans(payload public.words_span,CHECK(isempty(payload)))',
+    )
+    const words = await snapshotCatalog(pg),
+      wordTable = words.tables.find((table) => table.name === 'word_spans')!
+    expect(words.rangeTypes.some((range) => range.name === 'words_span')).toBe(true)
+    expect(
+      hasUncertain(
+        lowerTableCheck(
+          wordTable,
+          wordTable.constraints[0]!,
+          words.enums,
+          words.domains,
+          'stored',
+          words.rangeTypes,
+        )!.expression,
+      ),
+    ).toBe(true)
   } finally {
     await pg.close()
   }

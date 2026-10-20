@@ -1,4 +1,9 @@
 import {
+  rangeTypeProfile,
+  multirangeTypeProfile,
+  rangeProfileSupport,
+} from '../../sql-semantics/range-profiles.js'
+import {
   nativeHashContext,
   isArrayHash,
   isRangeHash,
@@ -153,9 +158,9 @@ const jsonbConversionHelpers = new Map<string, string>(
 export const jsonbConversionHelper = (type: string): string | undefined =>
   type.startsWith('enum:')
     ? 'jsonb_input_from_enum'
-    : isRangeType(type)
+    : builtinRangeType(type)
       ? 'jsonb_input_from_range'
-      : isMultirangeType(type)
+      : builtinMultirangeType(type)
         ? 'jsonb_input_from_multirange'
         : jsonbConversionHelpers.get(type)
 
@@ -1760,10 +1765,10 @@ export function emitCheckRustEvaluator(
       const multirangeIdentity = multirangeTypes[0]
       const multirangeProfile =
         multirangeIdentity && multirangeTypes.every((type) => type === multirangeIdentity)
-          ? builtinMultirangeType(multirangeIdentity)
+          ? multirangeTypeProfile(multirangeIdentity)
           : null
       const rangeTypes = [
-        ...(multirangeProfile ? [multirangeProfile.identity] : []),
+        ...(multirangeProfile ? [multirangeProfile.rangeType] : []),
         ...implementation.args.flatMap((type, index) =>
           type === 'pg_catalog.anyrange' ? [operands[index]?.type] : [],
         ),
@@ -1771,7 +1776,7 @@ export function emitCheckRustEvaluator(
       const rangeIdentity = rangeTypes[0]
       const rangeSubtype =
         rangeIdentity && rangeTypes.every((type) => type === rangeIdentity)
-          ? builtinRangeType(rangeIdentity)?.subtype
+          ? rangeTypeProfile(rangeIdentity)?.elementType
           : undefined
       const resultType =
         multirangeProfile && implementation.result === 'pg_catalog.anymultirange'
@@ -3492,7 +3497,16 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'input') {
       const item = input(node.name, node.type, false, node.enum)
       used.add(item.name)
-      const multirange = builtinMultirangeType(node.type)
+      const multirange = multirangeTypeProfile(node.type)
+      if (multirange?.captured) {
+        const support = rangeProfileSupport(multirange)
+        return {
+          name: bind(
+            `multirange_from_coerced_profile(${item.rustName}.clone(), ${rustStringLiteral(multirange.multirange)}, ${rustStringLiteral(multirange.identity)}, ${rustStringLiteral(multirange.subtype)}, ${arrayElementFamily(multirange.elementType)}, ${support.comparison}, ${support.canonical})`,
+          ),
+          type: node.type,
+        }
+      }
       if (multirange)
         return {
           name: bind(
@@ -3500,7 +3514,16 @@ export function emitCheckRustEvaluator(
           ),
           type: node.type,
         }
-      const range = builtinRangeType(node.type)
+      const range = rangeTypeProfile(node.type)
+      if (range?.captured) {
+        const support = rangeProfileSupport(range)
+        return {
+          name: bind(
+            `range_from_coerced_profile(${item.rustName}.clone(), ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.elementType)}, ${support.comparison}, ${support.canonical})`,
+          ),
+          type: node.type,
+        }
+      }
       if (range)
         return {
           name: bind(

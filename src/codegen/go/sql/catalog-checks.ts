@@ -1,4 +1,4 @@
-import { builtinMultirangeType } from '../../../postgres/builtins/inventory.js'
+import { multirangeTypeProfile } from '../../../sql-semantics/range-profiles.js'
 import { arrayElementFamily, arrayInputPlan } from '../../shared/check-array-types.js'
 import type { CatalogSnapshot, ColumnInfo, DomainInfo, TableInfo } from '../../../catalog/types.js'
 import type { Config, GoTypeImport } from '../../../config/schema.js'
@@ -97,8 +97,8 @@ export function renderGoSchemaCheckArtifacts(
 } {
   const portableValueType = (name: string, oid: number | undefined): string | null => {
     if (catalogArrayType(name, oid, domains, catalog.enums)) return 'ArrayValue'
-    if (catalogRangeType(name, oid, domains)) return 'RangeValue'
-    if (catalogMultirangeType(name, oid, domains)) return 'MultirangeValue'
+    if (catalogRangeType(name, oid, domains, catalog.rangeTypes)) return 'RangeValue'
+    if (catalogMultirangeType(name, oid, domains, catalog.rangeTypes)) return 'MultirangeValue'
     if (catalogJsonType(name, oid, domains)) return 'JsonValue'
     if (catalogJsonbType(name, oid, domains)) return 'JsonbValue'
     if (catalogJsonpathType(name, oid, domains)) return 'JsonpathValue'
@@ -134,7 +134,13 @@ export function renderGoSchemaCheckArtifacts(
                 ? 'TimestamptzValue'
                 : null
   }
-  const groups = catalogCheckGroups(tables, domains, selectedDomains, catalog.enums)
+  const groups = catalogCheckGroups(
+    tables,
+    domains,
+    selectedDomains,
+    catalog.enums,
+    catalog.rangeTypes,
+  )
   if (!groups.length) return { checks: '', rust: null, rustFiles: null }
   const rustGroup = rust
     ? prepareCheckRustGroup(
@@ -501,7 +507,7 @@ export function renderGoSchemaCheckArtifacts(
                       ? 'checkInputText'
                       : 'checkInputBoolean',
             )
-          const multirange = builtinMultirangeType(item.type)
+          const multirange = multirangeTypeProfile(item.type)
           return go.call(go.ident(helper), [
             go.selector(row, goName(item.name)),
             ...(multirange
@@ -509,7 +515,7 @@ export function renderGoSchemaCheckArtifacts(
                   go.string(multirange.multirange),
                   go.string(multirange.identity),
                   go.string(multirange.subtype),
-                  go.number(arrayElementFamily(multirange.subtype)!),
+                  go.number(arrayElementFamily(multirange.elementType)!),
                 ]
               : []),
             ...(item.type.startsWith('array:')
