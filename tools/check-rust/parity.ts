@@ -1,6 +1,12 @@
 import { isOidType, isRangeType } from '../../src/sql-semantics/expressions.js'
 import { rangeRustInput, rangeGoInput, type RangeInputPayload } from './range-input.js'
 import { arrayRustInput, arrayGoInput, type OwnedArrayInputPayload } from './array-input.js'
+import {
+  multirangeRustInput,
+  multirangeGoInput,
+  type MultirangeInputPayload,
+} from './multirange-input.js'
+import { builtinMultirangeType } from '../../src/postgres/builtins/inventory.js'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -39,6 +45,7 @@ export type Input =
         | { time: bigint; months: number; days: number }
         | RangeInputPayload
         | OwnedArrayInputPayload
+        | MultirangeInputPayload
     }
   | { kind: 'Null' }
   | { kind: 'Unknown' }
@@ -85,93 +92,95 @@ export async function runCheckParity(
     return result[0]!.toLowerCase() + result.slice(1)
   }
   const prefixOf = (type: string): string =>
-    isRangeType(type)
-      ? 'range'
-      : type.startsWith('array:')
-        ? 'array'
-        : type === 'pg_catalog.jsonpath'
-          ? 'jsonpath'
-          : type === 'pg_catalog.jsonb'
-            ? 'jsonb'
-            : type === 'pg_catalog."json"'
-              ? 'json'
-              : type === 'pg_catalog."char"'
-                ? 'internal_char'
-                : type === 'pg_catalog.xid'
-                  ? 'xid'
-                  : type === 'pg_catalog.cid'
-                    ? 'cid'
-                    : type === 'pg_catalog.pg_lsn'
-                      ? 'pg_lsn'
-                      : type === 'pg_catalog.tid'
-                        ? 'tid'
-                        : type === 'pg_catalog.xid8'
-                          ? 'xid8'
-                          : isOidType(type)
-                            ? 'oid'
-                            : type === 'pg_catalog.money'
-                              ? 'money'
-                              : type === 'pg_catalog.polygon'
-                                ? 'polygon'
-                                : type === 'pg_catalog.path'
-                                  ? 'path'
-                                  : type === 'pg_catalog.circle'
-                                    ? 'circle'
-                                    : type === 'pg_catalog.box'
-                                      ? 'box'
-                                      : type === 'pg_catalog.lseg'
-                                        ? 'lseg'
-                                        : type === 'pg_catalog.line'
-                                          ? 'line'
-                                          : type === 'pg_catalog.point'
-                                            ? 'point'
-                                            : type === 'pg_catalog."time"'
-                                              ? 'time'
-                                              : type === 'pg_catalog.timetz'
-                                                ? 'timetz'
-                                                : type === 'pg_catalog."interval"'
-                                                  ? 'interval'
-                                                  : type === 'pg_catalog.float4' ||
-                                                      type === 'pg_catalog.float8'
-                                                    ? type.slice('pg_catalog.'.length)
-                                                    : type === 'pg_catalog."bit"' ||
-                                                        type === 'pg_catalog.varbit'
-                                                      ? 'bit'
-                                                      : type === 'pg_catalog.uuid'
-                                                        ? 'uuid'
-                                                        : type === 'pg_catalog.inet' ||
-                                                            type === 'pg_catalog.cidr'
-                                                          ? 'network'
-                                                          : type === 'pg_catalog.macaddr'
-                                                            ? 'macaddr'
-                                                            : type === 'pg_catalog.macaddr8'
-                                                              ? 'macaddr8'
-                                                              : type === 'pg_catalog.bytea'
-                                                                ? 'bytea'
-                                                                : type.startsWith('enum:')
-                                                                  ? 'enum'
-                                                                  : type === 'pg_catalog.int2'
-                                                                    ? 'int2'
-                                                                    : type === 'pg_catalog.int4'
-                                                                      ? 'int4'
-                                                                      : type === 'pg_catalog.int8'
-                                                                        ? 'int8'
-                                                                        : type ===
-                                                                            'pg_catalog."numeric"'
-                                                                          ? 'numeric'
+    builtinMultirangeType(type)
+      ? 'multirange'
+      : isRangeType(type)
+        ? 'range'
+        : type.startsWith('array:')
+          ? 'array'
+          : type === 'pg_catalog.jsonpath'
+            ? 'jsonpath'
+            : type === 'pg_catalog.jsonb'
+              ? 'jsonb'
+              : type === 'pg_catalog."json"'
+                ? 'json'
+                : type === 'pg_catalog."char"'
+                  ? 'internal_char'
+                  : type === 'pg_catalog.xid'
+                    ? 'xid'
+                    : type === 'pg_catalog.cid'
+                      ? 'cid'
+                      : type === 'pg_catalog.pg_lsn'
+                        ? 'pg_lsn'
+                        : type === 'pg_catalog.tid'
+                          ? 'tid'
+                          : type === 'pg_catalog.xid8'
+                            ? 'xid8'
+                            : isOidType(type)
+                              ? 'oid'
+                              : type === 'pg_catalog.money'
+                                ? 'money'
+                                : type === 'pg_catalog.polygon'
+                                  ? 'polygon'
+                                  : type === 'pg_catalog.path'
+                                    ? 'path'
+                                    : type === 'pg_catalog.circle'
+                                      ? 'circle'
+                                      : type === 'pg_catalog.box'
+                                        ? 'box'
+                                        : type === 'pg_catalog.lseg'
+                                          ? 'lseg'
+                                          : type === 'pg_catalog.line'
+                                            ? 'line'
+                                            : type === 'pg_catalog.point'
+                                              ? 'point'
+                                              : type === 'pg_catalog."time"'
+                                                ? 'time'
+                                                : type === 'pg_catalog.timetz'
+                                                  ? 'timetz'
+                                                  : type === 'pg_catalog."interval"'
+                                                    ? 'interval'
+                                                    : type === 'pg_catalog.float4' ||
+                                                        type === 'pg_catalog.float8'
+                                                      ? type.slice('pg_catalog.'.length)
+                                                      : type === 'pg_catalog."bit"' ||
+                                                          type === 'pg_catalog.varbit'
+                                                        ? 'bit'
+                                                        : type === 'pg_catalog.uuid'
+                                                          ? 'uuid'
+                                                          : type === 'pg_catalog.inet' ||
+                                                              type === 'pg_catalog.cidr'
+                                                            ? 'network'
+                                                            : type === 'pg_catalog.macaddr'
+                                                              ? 'macaddr'
+                                                              : type === 'pg_catalog.macaddr8'
+                                                                ? 'macaddr8'
+                                                                : type === 'pg_catalog.bytea'
+                                                                  ? 'bytea'
+                                                                  : type.startsWith('enum:')
+                                                                    ? 'enum'
+                                                                    : type === 'pg_catalog.int2'
+                                                                      ? 'int2'
+                                                                      : type === 'pg_catalog.int4'
+                                                                        ? 'int4'
+                                                                        : type === 'pg_catalog.int8'
+                                                                          ? 'int8'
                                                                           : type ===
-                                                                              'pg_catalog."timestamp"'
-                                                                            ? 'timestamp'
+                                                                              'pg_catalog."numeric"'
+                                                                            ? 'numeric'
                                                                             : type ===
-                                                                                'pg_catalog.timestamptz'
-                                                                              ? 'timestamptz'
+                                                                                'pg_catalog."timestamp"'
+                                                                              ? 'timestamp'
                                                                               : type ===
-                                                                                  'pg_catalog.date'
-                                                                                ? 'date'
+                                                                                  'pg_catalog.timestamptz'
+                                                                                ? 'timestamptz'
                                                                                 : type ===
-                                                                                    'pg_catalog.bool'
-                                                                                  ? 'bool'
-                                                                                  : 'text'
+                                                                                    'pg_catalog.date'
+                                                                                  ? 'date'
+                                                                                  : type ===
+                                                                                      'pg_catalog.bool'
+                                                                                    ? 'bool'
+                                                                                    : 'text'
   const inputCode = (input: Input, type: string, definition?: EnumDefinition): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -179,6 +188,7 @@ export async function runCheckParity(
     if (input.kind === 'Error')
       return `${pascal(prefix)}Value::Error(make_sql_error(${input.value.state}))`
     if (prefix === 'array') return arrayRustInput(input.value as OwnedArrayInputPayload)
+    if (prefix === 'multirange') return multirangeRustInput(input.value as MultirangeInputPayload)
     if (prefix === 'range') return rangeRustInput(input.value as RangeInputPayload)
     if (prefix === 'jsonpath')
       return `jsonpath_from_coerced_source_utf8(make_text_value(${rustStringLiteral(input.value as string)}))`
@@ -218,6 +228,7 @@ export async function runCheckParity(
       if ('a' in parts) return `make_line_bits(${parts.a}i64, ${parts.b}i64, ${parts.c}i64)`
       if ('bounds' in parts) throw new Error('Range payload requires a range input type')
       if ('dimensions' in parts) throw new Error('Array payload requires an array input type')
+      if ('ranges' in parts) throw new Error('Multirange payload requires a multirange input type')
       const args =
         'zone' in parts
           ? `${parts.time}i64, ${parts.zone}`
@@ -256,6 +267,8 @@ export async function runCheckParity(
       return rangeGoInput(input.value as RangeInputPayload)
     if (prefix === 'Array' && input.kind === 'Value')
       return arrayGoInput(input.value as OwnedArrayInputPayload)
+    if (prefix === 'Multirange' && input.kind === 'Value')
+      return multirangeGoInput(input.value as MultirangeInputPayload)
     if (input.kind === 'Null' || input.kind === 'Unknown')
       return go.call(runtime(prefix + input.kind), [])
     if (input.kind === 'Error')
@@ -354,6 +367,7 @@ export async function runCheckParity(
         ])
       if ('bounds' in parts) throw new Error('Range payload requires a range input type')
       if ('dimensions' in parts) throw new Error('Array payload requires an array input type')
+      if ('ranges' in parts) throw new Error('Multirange payload requires a multirange input type')
       return go.call(
         runtime('Make' + prefix + 'Value'),
         'zone' in parts

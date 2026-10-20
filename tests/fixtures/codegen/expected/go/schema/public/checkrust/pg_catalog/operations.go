@@ -22667,6 +22667,34 @@ func moneyWords(input checkruntime.MoneyValue) checkruntime.TextValue {
 func CashWordsAtzl(input checkruntime.MoneyValue) checkruntime.TextValue {
 	return moneyWords(input)
 }
+func IsemptyT80p(input checkruntime.MultirangeValue) checkruntime.BoolValue {
+	input = checkruntime.CopyMultirangeValue(input)
+	return checkruntime.MultirangeEmptyState(input)
+}
+func LowerEyri(input checkruntime.MultirangeValue) checkruntime.ArrayElement {
+	input = checkruntime.CopyMultirangeValue(input)
+	return checkruntime.MultirangeBound(input, false)
+}
+func Upper8wv4(input checkruntime.MultirangeValue) checkruntime.ArrayElement {
+	input = checkruntime.CopyMultirangeValue(input)
+	return checkruntime.MultirangeBound(input, true)
+}
+func LowerInc0qlg(input checkruntime.MultirangeValue) checkruntime.BoolValue {
+	input = checkruntime.CopyMultirangeValue(input)
+	return checkruntime.MultirangeBoundFlag(input, false, false)
+}
+func UpperIncAqou(input checkruntime.MultirangeValue) checkruntime.BoolValue {
+	input = checkruntime.CopyMultirangeValue(input)
+	return checkruntime.MultirangeBoundFlag(input, true, false)
+}
+func LowerInf8sw0(input checkruntime.MultirangeValue) checkruntime.BoolValue {
+	input = checkruntime.CopyMultirangeValue(input)
+	return checkruntime.MultirangeBoundFlag(input, false, true)
+}
+func UpperInf2edg(input checkruntime.MultirangeValue) checkruntime.BoolValue {
+	input = checkruntime.CopyMultirangeValue(input)
+	return checkruntime.MultirangeBoundFlag(input, true, true)
+}
 func NameFromTextWithLimit(input checkruntime.TextValue, limit checkruntime.Int4Value) checkruntime.TextValue {
 	if input.Kind == checkruntime.TextValueError {
 		error := input.Error

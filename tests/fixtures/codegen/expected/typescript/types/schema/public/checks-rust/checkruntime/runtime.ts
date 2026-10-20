@@ -8680,6 +8680,183 @@ export function rangeBoundFlag(input: RangeValue, upper: boolean, infinite: bool
     }
     return { kind: "Unknown" };
 }
+export interface MultirangePayload {
+    readonly typeName: string;
+    readonly rangeType: string;
+    readonly elementType: string;
+    readonly elementKind: number;
+    readonly ranges: RangeValue[];
+}
+function copyMultirangePayload(value: MultirangePayload): MultirangePayload {
+    return { typeName: langruntime.checkedString(value.typeName), rangeType: langruntime.checkedString(value.rangeType), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), ranges: langruntime.checkedStructs(value.ranges, copyRangeValue) };
+}
+export type MultirangeValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+} | {
+    readonly kind: "Value";
+    readonly value: MultirangePayload;
+};
+export function copyMultirangeValue(value: MultirangeValue): MultirangeValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Error": return { kind: "Error", value: value.value };
+        case "Value": return { kind: "Value", value: copyMultirangePayload(value.value) };
+    }
+}
+export function multirangeUnknown(): MultirangeValue {
+    return { kind: "Unknown" };
+}
+export function multirangeNull(): MultirangeValue {
+    return { kind: "Null" };
+}
+function multirangeComponentState(input: MultirangePayload, position: number): BoolValue {
+    position = langruntime.checkedIndex(position);
+    const span: RangeValue = copyRangeValue(langruntime.indexStruct(input.ranges, langruntime.checkedIndex(position), copyRangeValue));
+    const typed: RangeValue = rangeRequireType(span, input.rangeType, input.elementType, input.elementKind);
+    if (typed.kind === "Error") {
+        const error: SqlError = typed.value;
+        return { kind: "Error", value: error };
+    }
+    if (typed.kind === "Value") {
+        const payload: RangePayload = copyRangePayload(typed.value);
+        if (payload.empty) {
+            return { kind: "Unknown" };
+        }
+        const checked: RangeValue = makeCoercedRangeValue(payload);
+        return rangeIsNull(checked);
+    }
+    return { kind: "Unknown" };
+}
+export function makeCoercedMultirangeValue(input: MultirangePayload): MultirangeValue {
+    input = copyMultirangePayload(input);
+    if (input.typeName === "" || input.rangeType === "" || input.elementType === "" || input.elementKind < 1) {
+        return { kind: "Unknown" };
+    }
+    let index: number = 0;
+    while (index < input.ranges.length) {
+        const state: BoolValue = multirangeComponentState(input, index);
+        if (state.kind === "Error") {
+            const error: SqlError = state.value;
+            return { kind: "Error", value: error };
+        }
+        if (!(equalBoolValue(state, { kind: "Value", value: false }))) {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: input };
+}
+export function multirangeRequireType(input: MultirangeValue, typeName: string, rangeType: string, elementType: string, elementKind: number): MultirangeValue {
+    input = copyMultirangeValue(input);
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    if (input.kind === "Value") {
+        const payload: MultirangePayload = copyMultirangePayload(input.value);
+        if (!(payload.typeName === typeName) || !(payload.rangeType === rangeType) || !(payload.elementType === elementType) || !(payload.elementKind === elementKind)) {
+            return { kind: "Unknown" };
+        }
+        return makeCoercedMultirangeValue(payload);
+    }
+    return input;
+}
+export function multirangeIsNull(input: MultirangeValue): BoolValue {
+    input = copyMultirangeValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Value", value: true };
+    }
+    if (input.kind === "Value") {
+        return { kind: "Value", value: false };
+    }
+    return { kind: "Unknown" };
+}
+export function multirangeFromCaseGuard(input: CheckOutcome): MultirangeValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function multirangeEmptyState(input: MultirangeValue): BoolValue {
+    input = copyMultirangeValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: MultirangePayload = copyMultirangePayload(input.value);
+        return { kind: "Value", value: payload.ranges.length === 0 };
+    }
+    return { kind: "Unknown" };
+}
+function multirangeBoundaryAt(input: MultirangePayload, upper: boolean): RangeValue {
+    upper = langruntime.checkedBool(upper);
+    if (input.ranges.length === 0) {
+        return { kind: "Null" };
+    }
+    let position: number = 0;
+    if (upper) {
+        position = langruntime.checkedIndex(langruntime.checkedSubtract(input.ranges.length, 1));
+    }
+    return copyRangeValue(langruntime.indexStruct(input.ranges, langruntime.checkedIndex(position), copyRangeValue));
+}
+export function multirangeBoundary(input: MultirangeValue, upper: boolean): RangeValue {
+    input = copyMultirangeValue(input);
+    upper = langruntime.checkedBool(upper);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: MultirangePayload = copyMultirangePayload(input.value);
+        return multirangeBoundaryAt(payload, upper);
+    }
+    return { kind: "Unknown" };
+}
+export function multirangeBound(input: MultirangeValue, upper: boolean): ArrayElement {
+    input = copyMultirangeValue(input);
+    upper = langruntime.checkedBool(upper);
+    const boundary: RangeValue = multirangeBoundary(input, upper);
+    return rangeBound(boundary, upper);
+}
+export function multirangeBoundFlag(input: MultirangeValue, upper: boolean, infinite: boolean): BoolValue {
+    input = copyMultirangeValue(input);
+    upper = langruntime.checkedBool(upper);
+    infinite = langruntime.checkedBool(infinite);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: MultirangePayload = copyMultirangePayload(input.value);
+        if (payload.ranges.length === 0) {
+            return { kind: "Value", value: false };
+        }
+        const boundary: RangeValue = multirangeBoundaryAt(payload, upper);
+        return rangeBoundFlag(boundary, upper, infinite);
+    }
+    return { kind: "Unknown" };
+}
 export function domainConversionStart(input: BoolValue, notNull: boolean): CheckOutcome {
     notNull = langruntime.checkedBool(notNull);
     if (input.kind === "Error") {

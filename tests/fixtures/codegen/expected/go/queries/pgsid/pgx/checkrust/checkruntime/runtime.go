@@ -8538,6 +8538,190 @@ func RangeBoundFlag(input RangeValue, upper bool, infinite bool) BoolValue {
 	}
 	return BoolValue{Kind: BoolValueUnknown}
 }
+
+type MultirangePayload struct {
+	TypeName    string
+	RangeType   string
+	ElementType string
+	ElementKind int
+	Ranges      []RangeValue
+}
+
+func copyMultirangePayload(value MultirangePayload) MultirangePayload {
+	return MultirangePayload{TypeName: langruntime.CheckedString(value.TypeName), RangeType: langruntime.CheckedString(value.RangeType), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Ranges: langruntime.CheckedStructs(value.Ranges, CopyRangeValue)}
+}
+
+type MultirangeValueKind uint8
+
+const (
+	MultirangeValueUnknown MultirangeValueKind = iota
+	MultirangeValueNull
+	MultirangeValueError
+	MultirangeValueValue
+)
+
+type MultirangeValue struct {
+	Kind  MultirangeValueKind
+	Error SqlError
+	Value MultirangePayload
+}
+
+func CopyMultirangeValue(value MultirangeValue) MultirangeValue {
+	switch value.Kind {
+	case MultirangeValueUnknown:
+		return MultirangeValue{Kind: MultirangeValueUnknown}
+	case MultirangeValueNull:
+		return MultirangeValue{Kind: MultirangeValueNull}
+	case MultirangeValueError:
+		return MultirangeValue{Kind: MultirangeValueError, Error: value.Error}
+	case MultirangeValueValue:
+		return MultirangeValue{Kind: MultirangeValueValue, Value: copyMultirangePayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
+func MultirangeUnknown() MultirangeValue {
+	return MultirangeValue{Kind: MultirangeValueUnknown}
+}
+func MultirangeNull() MultirangeValue {
+	return MultirangeValue{Kind: MultirangeValueNull}
+}
+func multirangeComponentState(input *MultirangePayload, position int) BoolValue {
+	position = langruntime.CheckedIndex(position)
+	span := CopyRangeValue(input.Ranges[position])
+	typed := RangeRequireType(span, input.RangeType, input.ElementType, input.ElementKind)
+	if typed.Kind == RangeValueError {
+		error := typed.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if typed.Kind == RangeValueValue {
+		payload := CopyRangePayload(typed.Value)
+		if payload.Empty {
+			return BoolValue{Kind: BoolValueUnknown}
+		}
+		checked := MakeCoercedRangeValue(payload)
+		return RangeIsNull(checked)
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
+func MakeCoercedMultirangeValue(input MultirangePayload) MultirangeValue {
+	input = copyMultirangePayload(input)
+	if input.TypeName == "" || input.RangeType == "" || input.ElementType == "" || input.ElementKind < 1 {
+		return MultirangeValue{Kind: MultirangeValueUnknown}
+	}
+	index := 0
+	for index < len(input.Ranges) {
+		state := multirangeComponentState(&input, index)
+		if state.Kind == BoolValueError {
+			error := state.Error
+			return MultirangeValue{Kind: MultirangeValueError, Error: error}
+		}
+		if state != (BoolValue{Kind: BoolValueValue, Value: false}) {
+			return MultirangeValue{Kind: MultirangeValueUnknown}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return MultirangeValue{Kind: MultirangeValueValue, Value: input}
+}
+func MultirangeRequireType(input MultirangeValue, typeName string, rangeType string, elementType string, elementKind int) MultirangeValue {
+	input = CopyMultirangeValue(input)
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	if input.Kind == MultirangeValueValue {
+		payload := copyMultirangePayload(input.Value)
+		if payload.TypeName != typeName || payload.RangeType != rangeType || payload.ElementType != elementType || payload.ElementKind != elementKind {
+			return MultirangeValue{Kind: MultirangeValueUnknown}
+		}
+		return MakeCoercedMultirangeValue(payload)
+	}
+	return input
+}
+func MultirangeIsNull(input MultirangeValue) BoolValue {
+	input = CopyMultirangeValue(input)
+	if input.Kind == MultirangeValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == MultirangeValueNull {
+		return BoolValue{Kind: BoolValueValue, Value: true}
+	}
+	if input.Kind == MultirangeValueValue {
+		return BoolValue{Kind: BoolValueValue, Value: false}
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
+func MultirangeFromCaseGuard(input CheckOutcome) MultirangeValue {
+	if input.Kind == CheckOutcomeError {
+		error := input.Error
+		return MultirangeValue{Kind: MultirangeValueError, Error: error}
+	}
+	return MultirangeValue{Kind: MultirangeValueUnknown}
+}
+func MultirangeEmptyState(input MultirangeValue) BoolValue {
+	input = CopyMultirangeValue(input)
+	if input.Kind == MultirangeValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == MultirangeValueNull {
+		return BoolValue{Kind: BoolValueNull}
+	}
+	if input.Kind == MultirangeValueValue {
+		payload := copyMultirangePayload(input.Value)
+		return BoolValue{Kind: BoolValueValue, Value: len(payload.Ranges) == 0}
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
+func multirangeBoundaryAt(input *MultirangePayload, upper bool) RangeValue {
+	if len(input.Ranges) == 0 {
+		return RangeValue{Kind: RangeValueNull}
+	}
+	position := 0
+	if upper {
+		position = langruntime.CheckedIndex(langruntime.CheckedSubtract(len(input.Ranges), 1))
+	}
+	return CopyRangeValue(input.Ranges[position])
+}
+func MultirangeBoundary(input MultirangeValue, upper bool) RangeValue {
+	input = CopyMultirangeValue(input)
+	if input.Kind == MultirangeValueError {
+		error := input.Error
+		return RangeValue{Kind: RangeValueError, Error: error}
+	}
+	if input.Kind == MultirangeValueNull {
+		return RangeValue{Kind: RangeValueNull}
+	}
+	if input.Kind == MultirangeValueValue {
+		payload := copyMultirangePayload(input.Value)
+		return multirangeBoundaryAt(&payload, upper)
+	}
+	return RangeValue{Kind: RangeValueUnknown}
+}
+func MultirangeBound(input MultirangeValue, upper bool) ArrayElement {
+	input = CopyMultirangeValue(input)
+	boundary := MultirangeBoundary(input, upper)
+	return RangeBound(boundary, upper)
+}
+func MultirangeBoundFlag(input MultirangeValue, upper bool, infinite bool) BoolValue {
+	input = CopyMultirangeValue(input)
+	if input.Kind == MultirangeValueError {
+		error := input.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if input.Kind == MultirangeValueNull {
+		return BoolValue{Kind: BoolValueNull}
+	}
+	if input.Kind == MultirangeValueValue {
+		payload := copyMultirangePayload(input.Value)
+		if len(payload.Ranges) == 0 {
+			return BoolValue{Kind: BoolValueValue, Value: false}
+		}
+		boundary := multirangeBoundaryAt(&payload, upper)
+		return RangeBoundFlag(boundary, upper, infinite)
+	}
+	return BoolValue{Kind: BoolValueUnknown}
+}
 func DomainConversionStart(input BoolValue, notNull bool) CheckOutcome {
 	if input.Kind == BoolValueError {
 		error := input.Error
