@@ -24128,83 +24128,62 @@ export function tstzmultirangeZ001(input: checkruntime.RangeValue): checkruntime
     input = checkruntime.copyRangeValue(input);
     return multirangeConstructSingle(input, "pg_catalog.tstzmultirange", "pg_catalog.tstzrange", "pg_catalog.timestamptz", 5);
 }
-export function multirangeFromText(input: checkruntime.TextValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
-    typeName = langruntime.checkedString(typeName);
-    rangeType = langruntime.checkedString(rangeType);
-    elementType = langruntime.checkedString(elementType);
-    elementKind = langruntime.checkedI32(elementKind);
-    if (input.kind === "Error") {
-        const error: checkruntime.SqlError = input.value;
-        return { kind: "Error", value: error };
+function multirangeTextPayload(characters: string[], position: number, member: string, started: boolean, ranges: checkruntime.RangeValue[], state: number, error: checkruntime.SqlError): checkruntime.MultirangeTextPayload {
+    characters = langruntime.checkedChars(characters);
+    position = langruntime.checkedIndex(position);
+    member = langruntime.checkedString(member);
+    started = langruntime.checkedBool(started);
+    ranges = langruntime.checkedStructs(ranges, checkruntime.copyRangeValue);
+    state = langruntime.checkedI32(state);
+    return { characters: characters, position: position, member: member, started: started, ranges: ranges, state: state, error: error };
+}
+function multirangeTextFailure(input: checkruntime.MultirangeTextPayload, error: checkruntime.SqlError): checkruntime.MultirangeTextPayload {
+    input = checkruntime.copyMultirangeTextPayload(input);
+    return multirangeTextPayload(input.characters, input.position, input.member, input.started, input.ranges, langruntime.checkedSignedNegate(2), error);
+}
+function multirangeTextAdvance(input: checkruntime.MultirangeTextPayload): checkruntime.MultirangeTextPayload {
+    input = checkruntime.copyMultirangeTextPayload(input);
+    if (!(input.state === 1)) {
+        return input;
     }
-    if (input.kind === "Null") {
-        return { kind: "Null" };
+    const characters: string[] = input.characters;
+    let position: number = input.position;
+    const ranges: checkruntime.RangeValue[] = input.ranges;
+    while (position < characters.length && rangeInputSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+        position = langruntime.checkedAdd(position, 1);
     }
-    if (input.kind === "Value") {
-        const text: string = langruntime.checkedString(input.value);
-        const chars: string[] = Array.from(text);
-        let position: number = 0;
-        while (position < chars.length && rangeInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position)))) {
+    if (input.started && position < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(position)) === ",") {
+        position = langruntime.checkedAdd(position, 1);
+        while (position < characters.length && rangeInputSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
             position = langruntime.checkedAdd(position, 1);
         }
-        if (position >= chars.length) {
-            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
-        }
-        if (!(langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "{")) {
-            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
-        }
+    }
+    else if (position < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "}") {
         position = langruntime.checkedAdd(position, 1);
-        let state: number = 0;
-        let seen: boolean = false;
-        let member: string = "";
-        let ranges: checkruntime.RangeValue[] = [];
-        while (position < chars.length && !(state === 6)) {
-            const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(position));
-            if (state >= 1 && state <= 4) {
-                member = member + langruntime.checkedChar(ch);
-            }
+        while (position < characters.length && rangeInputSpace(langruntime.indexChar(characters, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        let state: number = 2;
+        if (!(position === characters.length)) {
+            state = langruntime.checkedI32(langruntime.checkedSignedNegate(2));
+        }
+        return multirangeTextPayload(characters, position, "", input.started, ranges, state, checkruntime.makeSqlError(rangeInputSyntax));
+    }
+    else if (input.started) {
+        return multirangeTextPayload(characters, position, "", true, ranges, langruntime.checkedSignedNegate(2), checkruntime.makeSqlError(rangeInputSyntax));
+    }
+    let member: string = "";
+    let state: number = 0;
+    if (position < characters.length && (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "[" || langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "(")) {
+        state = langruntime.checkedI32(1);
+        member = member + langruntime.checkedChar(langruntime.indexChar(characters, langruntime.checkedIndex(position)));
+        position = langruntime.checkedAdd(position, 1);
+        while (position < characters.length && !(state === 5)) {
+            const ch: string = langruntime.indexChar(characters, langruntime.checkedIndex(position));
+            member = member + langruntime.checkedChar(ch);
             if (rangeInputSpace(ch) === false) {
-                if (state === 0) {
-                    if (ch === "[" || ch === "(") {
-                        member = langruntime.checkedString("");
-                        member = member + langruntime.checkedChar(ch);
-                        state = langruntime.checkedI32(1);
-                    }
-                    else if (ch === "}" && seen === false) {
-                        state = langruntime.checkedI32(6);
-                    }
-                    else {
-                        let empty: boolean = false;
-                        if (langruntime.checkedAdd(position, 4) < chars.length) {
-                            empty = langruntime.checkedBool((langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "e" || langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "E") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "m" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "M") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "p" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "P") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))) === "t" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))) === "T") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 4))) === "y" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 4))) === "Y"));
-                        }
-                        if (empty === false) {
-                            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
-                        }
-                        position = langruntime.checkedAdd(position, 4);
-                        seen = langruntime.checkedBool(true);
-                        state = langruntime.checkedI32(5);
-                    }
-                }
-                else if (state === 1) {
+                if (state === 1) {
                     if (ch === ")" || ch === "]") {
-                        const parsed: checkruntime.RangeValue = rangeFromText({ kind: "Value", value: langruntime.checkedString(member) }, rangeType, elementType, elementKind);
-                        if (parsed.kind === "Error") {
-                            const error: checkruntime.SqlError = parsed.value;
-                            return { kind: "Error", value: error };
-                        }
-                        let known: boolean = false;
-                        if (parsed.kind === "Value") {
-                            const payload: checkruntime.RangePayload = checkruntime.copyRangePayload(parsed.value);
-                            known = langruntime.checkedBool(true);
-                            if (payload.empty === false) {
-                                langruntime.pushStruct(ranges, { kind: "Value", value: payload }, checkruntime.copyRangeValue);
-                            }
-                        }
-                        if (known === false) {
-                            return { kind: "Unknown" };
-                        }
-                        seen = langruntime.checkedBool(true);
                         state = langruntime.checkedI32(5);
                     }
                     else if (ch === "\"") {
@@ -24219,7 +24198,7 @@ export function multirangeFromText(input: checkruntime.TextValue, typeName: stri
                 }
                 else if (state === 3) {
                     if (ch === "\"") {
-                        if (langruntime.checkedAdd(position, 1) < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\"") {
+                        if (langruntime.checkedAdd(position, 1) < characters.length && langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\"") {
                             member = member + langruntime.checkedChar("\"");
                             position = langruntime.checkedAdd(position, 1);
                         }
@@ -24234,30 +24213,105 @@ export function multirangeFromText(input: checkruntime.TextValue, typeName: stri
                 else if (state === 4) {
                     state = langruntime.checkedI32(3);
                 }
-                else if (ch === ",") {
-                    state = langruntime.checkedI32(0);
-                }
-                else if (ch === "}") {
-                    state = langruntime.checkedI32(6);
-                }
-                else {
-                    return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
-                }
             }
             position = langruntime.checkedAdd(position, 1);
         }
-        if (!(state === 6)) {
-            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+    }
+    else if (langruntime.checkedAdd(position, 4) < characters.length) {
+        const empty: boolean = (langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "e" || langruntime.indexChar(characters, langruntime.checkedIndex(position)) === "E") && (langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "m" || langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "M") && (langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "p" || langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "P") && (langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))) === "t" || langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))) === "T") && (langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 4))) === "y" || langruntime.indexChar(characters, langruntime.checkedIndex(langruntime.checkedAdd(position, 4))) === "Y");
+        if (empty) {
+            member = langruntime.checkedString("empty");
+            position = langruntime.checkedAdd(position, 5);
+            state = langruntime.checkedI32(5);
         }
-        while (position < chars.length && rangeInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position)))) {
+    }
+    let resultState: number = langruntime.checkedSignedNegate(2);
+    if (state === 5) {
+        resultState = langruntime.checkedI32(1);
+    }
+    return multirangeTextPayload(characters, position, member, true, ranges, resultState, checkruntime.makeSqlError(rangeInputSyntax));
+}
+export function prepareMultirangeText(input: checkruntime.TextValue): checkruntime.MultirangeTextPayload {
+    const characters: string[] = [];
+    const ranges: checkruntime.RangeValue[] = [];
+    const initial: checkruntime.MultirangeTextPayload = multirangeTextPayload(characters, 0, "", false, ranges, langruntime.checkedSignedNegate(1), checkruntime.makeSqlError(rangeInputSyntax));
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return multirangeTextFailure(initial, error);
+    }
+    if (input.kind === "Null") {
+        return multirangeTextPayload(initial.characters, 0, initial.member, false, initial.ranges, 0, initial.error);
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const characters1: string[] = Array.from(text);
+        let position: number = 0;
+        while (position < characters1.length && rangeInputSpace(langruntime.indexChar(characters1, langruntime.checkedIndex(position)))) {
             position = langruntime.checkedAdd(position, 1);
         }
-        if (!(position === chars.length)) {
-            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+        if (position < characters1.length && langruntime.indexChar(characters1, langruntime.checkedIndex(position)) === "{") {
+            return multirangeTextAdvance(multirangeTextPayload(characters1, langruntime.checkedAdd(position, 1), "", false, initial.ranges, 1, initial.error));
         }
-        return multirangeConstructNormalize({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind), ranges: ranges });
+        return multirangeTextFailure(initial, checkruntime.makeSqlError(rangeInputSyntax));
     }
-    return { kind: "Unknown" };
+    return initial;
+}
+export function multirangeTextHasMember(input: checkruntime.MultirangeTextPayload): boolean {
+    return input.state === 1;
+}
+export function multirangeTextMember(input: checkruntime.MultirangeTextPayload): checkruntime.TextValue {
+    if (input.state === 1) {
+        return { kind: "Value", value: langruntime.checkedString(input.member) };
+    }
+    return { kind: "Null" };
+}
+export function appendMultirangeText(input: checkruntime.MultirangeTextPayload, member: checkruntime.RangeValue): checkruntime.MultirangeTextPayload {
+    if (!(input.state === 1)) {
+        return input;
+    }
+    if (member.kind === "Error") {
+        const error: checkruntime.SqlError = member.value;
+        return multirangeTextFailure(input, error);
+    }
+    if (member.kind === "Value") {
+        const payload: checkruntime.RangePayload = checkruntime.copyRangePayload(member.value);
+        let ranges: checkruntime.RangeValue[] = input.ranges;
+        if (payload.empty === false) {
+            langruntime.pushStruct(ranges, { kind: "Value", value: payload }, checkruntime.copyRangeValue);
+        }
+        return multirangeTextAdvance(multirangeTextPayload(input.characters, input.position, "", true, ranges, 1, input.error));
+    }
+    return multirangeTextPayload(input.characters, input.position, input.member, input.started, input.ranges, langruntime.checkedSignedNegate(1), input.error);
+}
+export function finishMultirangeText(input: checkruntime.MultirangeTextPayload, typeName: string, rangeType: string, elementType: string, elementKind: number, support: checkruntime.RangeSupport): checkruntime.MultirangeValue {
+    if (input.state === langruntime.checkedSignedNegate(2)) {
+        return { kind: "Error", value: input.error };
+    }
+    if (input.state === 0) {
+        return { kind: "Null" };
+    }
+    if (!(input.state === 2)) {
+        return { kind: "Unknown" };
+    }
+    const typed: checkruntime.MultirangeValue = checkruntime.multirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, input.ranges, support);
+    if (typed.kind === "Value") {
+        const payload: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(typed.value);
+        return multirangeConstructNormalize(payload);
+    }
+    return typed;
+}
+export function multirangeFromText(input: checkruntime.TextValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    let cursor: checkruntime.MultirangeTextPayload = prepareMultirangeText(input);
+    while (multirangeTextHasMember(cursor)) {
+        const text: checkruntime.TextValue = multirangeTextMember(cursor);
+        const member: checkruntime.RangeValue = rangeFromText(text, rangeType, elementType, elementKind);
+        cursor = appendMultirangeText(cursor, member);
+    }
+    return finishMultirangeText(cursor, typeName, rangeType, elementType, elementKind, checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind));
 }
 export function isemptyT80p(input: checkruntime.MultirangeValue): checkruntime.BoolValue {
     input = checkruntime.copyMultirangeValue(input);

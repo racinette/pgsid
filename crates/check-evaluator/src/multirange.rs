@@ -16,6 +16,22 @@ pub enum MultirangeValue {
     Value(MultirangePayload),
 }
 
+#[derive(Clone)]
+pub struct MultirangeTextPayload {
+    pub characters: Vec<char>,
+    pub position: usize,
+    pub member: String,
+    pub started: bool,
+    pub ranges: Vec<RangeValue>,
+    pub state: i32,
+    pub error: SqlError,
+}
+
+#[derive(Clone)]
+pub enum MultirangeTextPlan {
+    Value(MultirangeTextPayload),
+}
+
 pub fn multirange_unknown() -> MultirangeValue {
     MultirangeValue::Unknown
 }

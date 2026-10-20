@@ -361,7 +361,7 @@ fn check_block(
                 let (pattern, mutable) = match &local.pat {
                     Pat::Ident(pattern) if pattern.mutability.is_none() => (pattern, false),
                     Pat::Type(typed) if typed.attrs.is_empty() => {
-                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload") || path.path.is_ident("ArrayOutputPayload")))
+                        if !matches!(&*typed.ty, Type::Path(path) if path.qself.is_none() && (path.path.is_ident("ArrayArguments") || path.path.is_ident("ArraySortPayload") || path.path.is_ident("JsonbArrayInputPayload") || path.path.is_ident("ArrayOutputPayload") || path.path.is_ident("MultirangeTextPayload")))
                         {
                             type_name(&typed.ty)?;
                         };
@@ -1294,6 +1294,34 @@ pub fn evaluate_check(input: ArrayValue) -> CheckOutcome {
         check_source(source).unwrap();
         for invalid in [
             source.replace("input: ArrayValue", "input: JsonbArrayInputPayload"),
+            source.replace("&plan", "&mut plan"),
+            source.replace("&plan", "&missing"),
+            source.replace("let mut plan", "let plan"),
+        ] {
+            assert!(check_source(&invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn multirange_text_inputs_are_internal_mutable_records() {
+        let source = r#"
+pub fn evaluate_check(input: TextValue) -> CheckOutcome {
+    let initial = prepare_multirange_text(input);
+    let mut plan: MultirangeTextPayload = initial;
+    while multirange_text_has_member(&plan) {
+        let text = multirange_text_member(&plan);
+        let member = range_from_text(text, "pg_catalog.int4range", "pg_catalog.int4", 2);
+        plan = append_multirange_text(plan, member);
+    }
+    let support = make_range_support(2, 2);
+    let result = finish_multirange_text(plan, "pg_catalog.int4multirange", "pg_catalog.int4range", "pg_catalog.int4", 2, support);
+    let nullness = multirange_is_null(result);
+    check_from_bool(nullness)
+}
+"#;
+        check_source(source).unwrap();
+        for invalid in [
+            source.replace("input: TextValue", "input: MultirangeTextPayload"),
             source.replace("&plan", "&mut plan"),
             source.replace("&plan", "&missing"),
             source.replace("let mut plan", "let plan"),

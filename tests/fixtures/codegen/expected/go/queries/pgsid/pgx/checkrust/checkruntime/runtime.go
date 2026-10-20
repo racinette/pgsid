@@ -8768,6 +8768,39 @@ func CopyMultirangeValue(value MultirangeValue) MultirangeValue {
 	}
 	panic("unknown enum variant")
 }
+
+type MultirangeTextPayload struct {
+	Characters []rune
+	Position   int
+	Member     string
+	Started    bool
+	Ranges     []RangeValue
+	State      int
+	Error      SqlError
+}
+
+func CopyMultirangeTextPayload(value MultirangeTextPayload) MultirangeTextPayload {
+	return MultirangeTextPayload{Characters: langruntime.CheckedChars(value.Characters), Position: langruntime.CheckedIndex(value.Position), Member: langruntime.CheckedString(value.Member), Started: value.Started, Ranges: langruntime.CheckedStructs(value.Ranges, CopyRangeValue), State: langruntime.CheckedI32(value.State), Error: value.Error}
+}
+
+type MultirangeTextPlanKind uint8
+
+const (
+	MultirangeTextPlanValue MultirangeTextPlanKind = iota
+)
+
+type MultirangeTextPlan struct {
+	Kind  MultirangeTextPlanKind
+	Value MultirangeTextPayload
+}
+
+func copyMultirangeTextPlan(value MultirangeTextPlan) MultirangeTextPlan {
+	switch value.Kind {
+	case MultirangeTextPlanValue:
+		return MultirangeTextPlan{Kind: MultirangeTextPlanValue, Value: CopyMultirangeTextPayload(value.Value)}
+	}
+	panic("unknown enum variant")
+}
 func MultirangeUnknown() MultirangeValue {
 	return MultirangeValue{Kind: MultirangeValueUnknown}
 }
