@@ -4882,3 +4882,63 @@ VALUES('[1,4)','[3,6)','[1,6)','[3,4)','[1,3)','[1,6)','[3,6)',2,true,0,false);
 -- name: range_algebra_bypass
 INSERT INTO lane_range_algebra(slots,other_slots,combined,shared,remaining,hull,preferred,needle,expected_contains,divisor,bypass)
 VALUES('[1,7)','[3,6)','empty','empty','empty','empty','empty',2,false,0,true);
+
+-- name: range_fingerprint_exact
+INSERT INTO lane_range_fingerprints(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_wire,load_wire,price_wire,day_wire,local_wire,instant_wire,expected_hashes,expected_extended,seed,divisor,bypass)
+VALUES('[1,3)','[9007199254740993,9007199254740999)','[1.2300,3.4500]','[2000-01-01,2000-01-03)','[2000-01-01 00:00:00.000001,2000-01-03)','[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)','0200000004000000010000000400000003','02000000080020000000000001000000080020000000000007','060000000c0002000000000004000108fc0000000c000200000000000400031194','0200000004000000000000000400000002','0200000008000000000000000100000008000000283baec000','0200000008000000000000000100000008000000283baec000','{1703467254,-1554099970,-1380870083,467592261,1748224218,1748224218}','{-4335437796229240288,-8589005862461177276,-1238855550051607966,917891151693048008,-4764102050186199970,-4764102050186199970}',-1,1,false);
+
+-- name: range_fingerprint_empty
+INSERT INTO lane_range_fingerprints(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_wire,load_wire,price_wire,day_wire,local_wire,instant_wire,expected_hashes,expected_extended,seed,divisor,bypass)
+VALUES('empty','empty','empty','empty','empty','empty','01','01','01','01','01','01','{484847245,484847245,484847245,484847245,484847245,484847245}','{-7341197756718502259,-7341197756718502259,-7341197756718502259,-7341197756718502259,-7341197756718502259,-7341197756718502259}',0,1,false);
+
+-- name: range_fingerprint_unbounded
+INSERT INTO lane_range_fingerprints(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_wire,load_wire,price_wire,day_wire,local_wire,instant_wire,expected_hashes,expected_extended,seed,divisor,bypass)
+VALUES('(,)','(,)','(,)','(,)','(,)','(,)','18','18','18','18','18','18','{1061745599,1061745599,1061745599,1061745599,1061745599,1061745599}','{8453741880185254847,8453741880185254847,8453741880185254847,8453741880185254847,8453741880185254847,8453741880185254847}',0,1,false);
+
+-- name: range_fingerprint_extremes
+INSERT INTO lane_range_fingerprints(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_wire,load_wire,price_wire,day_wire,local_wire,instant_wire,expected_hashes,expected_extended,seed,divisor,bypass)
+VALUES('[-2147483648,2147483647)','[-9223372036854775808,9223372036854775807)','[Infinity,NaN]','[-infinity,infinity]','[-infinity,infinity]','[-infinity,infinity]','020000000480000000000000047fffffff','02000000088000000000000000000000087fffffffffffffff','060000000800000000d00000200000000800000000c0000000','060000000480000000000000047fffffff','06000000088000000000000000000000087fffffffffffffff','06000000088000000000000000000000087fffffffffffffff','{927879312,-697390468,1132062176,-217445220,304805488,304805488}','{-5959418261589374919,8557432845489565814,-7393449346706181345,5461890362622359935,-8050897746859982544,-8050897746859982544}',-9223372036854775808,1,false);
+
+-- name: range_fingerprint_null
+INSERT INTO lane_range_fingerprints(slots,loads,prices,calendar_days,local_shift,instant_shift,slot_wire,load_wire,price_wire,day_wire,local_wire,instant_wire,expected_hashes,expected_extended,seed,divisor,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: range_fingerprint_slot_mismatch
+INSERT INTO lane_range_fingerprints(slots,slot_wire,expected_hashes,bypass)
+VALUES('[1,3)','ff','{1703467254,NULL,NULL,NULL,NULL,NULL}',false);
+
+-- name: range_fingerprint_load_mismatch
+INSERT INTO lane_range_fingerprints(loads,load_wire,expected_hashes,bypass)
+VALUES('[9007199254740993,9007199254740999)','ff','{NULL,-1554099970,NULL,NULL,NULL,NULL}',false);
+
+-- name: range_fingerprint_price_mismatch
+INSERT INTO lane_range_fingerprints(prices,price_wire,expected_hashes,bypass)
+VALUES('[1.2300,3.4500]','ff','{NULL,NULL,-1380870083,NULL,NULL,NULL}',false);
+
+-- name: range_fingerprint_day_mismatch
+INSERT INTO lane_range_fingerprints(calendar_days,day_wire,expected_hashes,bypass)
+VALUES('[2000-01-01,2000-01-03)','ff','{NULL,NULL,NULL,467592261,NULL,NULL}',false);
+
+-- name: range_fingerprint_local_mismatch
+INSERT INTO lane_range_fingerprints(local_shift,local_wire,expected_hashes,bypass)
+VALUES('[2000-01-01 00:00:00.000001,2000-01-03)','ff','{NULL,NULL,NULL,NULL,1748224218,NULL}',false);
+
+-- name: range_fingerprint_instant_mismatch
+INSERT INTO lane_range_fingerprints(instant_shift,instant_wire,expected_hashes,bypass)
+VALUES('[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)','ff','{NULL,NULL,NULL,NULL,NULL,1748224218}',false);
+
+-- name: range_fingerprint_hash_mismatch
+INSERT INTO lane_range_fingerprints(expected_hashes,bypass)
+VALUES('{0,NULL,NULL,NULL,NULL,NULL}',false);
+
+-- name: range_fingerprint_extended_mismatch
+INSERT INTO lane_range_fingerprints(expected_extended,bypass)
+VALUES('{0,NULL,NULL,NULL,NULL,NULL}',false);
+
+-- name: range_fingerprint_seed_error
+INSERT INTO lane_range_fingerprints(seed,divisor,bypass)
+VALUES(1,0,false);
+
+-- name: range_fingerprint_bypass
+INSERT INTO lane_range_fingerprints(slots,slot_wire,seed,divisor,bypass)
+VALUES('[1,3)','ff',1,0,true);

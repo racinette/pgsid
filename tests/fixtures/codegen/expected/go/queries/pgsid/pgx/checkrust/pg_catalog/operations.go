@@ -29828,6 +29828,102 @@ func PolygonFromText(input checkruntime.TextValue) checkruntime.PolygonValue {
 	}
 	return checkruntime.PolygonValue{Kind: checkruntime.PolygonValueUnknown}
 }
+func rangeStorageFlags(input *checkruntime.RangePayload) int {
+	if input.Empty {
+		return 1
+	}
+	flags := 0
+	if input.LowerInclusive {
+		flags = langruntime.CheckedIndex(langruntime.CheckedAdd(flags, 2))
+	}
+	if input.UpperInclusive {
+		flags = langruntime.CheckedIndex(langruntime.CheckedAdd(flags, 4))
+	}
+	lower := checkruntime.CopyArrayElement(input.Bounds[0])
+	upper := checkruntime.CopyArrayElement(input.Bounds[1])
+	if lower.Kind == checkruntime.ArrayElementNull {
+		flags = langruntime.CheckedIndex(langruntime.CheckedAdd(flags, 8))
+	}
+	if upper.Kind == checkruntime.ArrayElementNull {
+		flags = langruntime.CheckedIndex(langruntime.CheckedAdd(flags, 16))
+	}
+	return flags
+}
+func RangeHashFlags(input checkruntime.RangeValue) checkruntime.Int4Value {
+	input = checkruntime.CopyRangeValue(input)
+	if input.Kind == checkruntime.RangeValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.RangeValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.RangeValueValue {
+		value := checkruntime.CopyRangePayload(input.Value)
+		return checkruntime.MakeInt4Value(rangeStorageFlags(&value))
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func rangeBinaryAppend(output checkruntime.ByteaValue, bound checkruntime.ByteaValue) checkruntime.ByteaValue {
+	if bound.Kind == checkruntime.ByteaValueError {
+		error := bound.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if bound.Kind == checkruntime.ByteaValueUnknown {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if bound.Kind == checkruntime.ByteaValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	length := byteaLength(bound)
+	prefix := Int4sendFjzt(length)
+	withLength := ByteacatZitv(output, prefix)
+	return ByteacatZitv(withLength, bound)
+}
+func RangeSendB1w5(input checkruntime.RangeValue, lower checkruntime.ByteaValue, upper checkruntime.ByteaValue) checkruntime.ByteaValue {
+	input = checkruntime.CopyRangeValue(input)
+	if input.Kind == checkruntime.RangeValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input.Kind == checkruntime.RangeValueNull {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.RangeValueValue {
+		value := checkruntime.CopyRangePayload(input.Value)
+		flags := rangeStorageFlags(&value)
+		header := checkruntime.ByteaAppendByte("", flags)
+		result := checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: header}
+		if value.Empty {
+			return result
+		}
+		lo := checkruntime.CopyArrayElement(value.Bounds[0])
+		hi := checkruntime.CopyArrayElement(value.Bounds[1])
+		lowerPresent := true
+		upperPresent := true
+		if lo.Kind == checkruntime.ArrayElementNull {
+			lowerPresent = false
+		}
+		if hi.Kind == checkruntime.ArrayElementNull {
+			upperPresent = false
+		}
+		if lowerPresent {
+			result = rangeBinaryAppend(result, lower)
+			if result.Kind == checkruntime.ByteaValueError {
+				error := result.Error
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+			}
+			if result.Kind == checkruntime.ByteaValueUnknown {
+				return result
+			}
+		}
+		if upperPresent {
+			result = rangeBinaryAppend(result, upper)
+		}
+		return result
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 func rangeSameFamily(left *checkruntime.RangePayload, right *checkruntime.RangePayload) bool {
 	return left.TypeName == right.TypeName && left.ElementType == right.ElementType && left.ElementKind == right.ElementKind
 }
@@ -30570,6 +30666,140 @@ func TstzrangeZuff(lower checkruntime.TimestamptzValue, upper checkruntime.Times
 	lo := checkruntime.ArrayElementFromTimestamptz(lower)
 	hi := checkruntime.ArrayElementFromTimestamptz(upper)
 	return rangeBuiltinConstruct("pg_catalog.tstzrange", "pg_catalog.timestamptz", 5, lo, hi, flags)
+}
+func HashRangeOv3e(input checkruntime.RangeValue, flags checkruntime.Int4Value, lower checkruntime.Int4Value, upper checkruntime.Int4Value) checkruntime.Int4Value {
+	input = checkruntime.CopyRangeValue(input)
+	if input.Kind == checkruntime.RangeValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.RangeValueNull {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if flags.Kind == checkruntime.Int4ValueError {
+		error := flags.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.RangeValueValue {
+		value := checkruntime.CopyRangePayload(input.Value)
+		lo := checkruntime.MakeInt4Value(0)
+		hi := checkruntime.MakeInt4Value(0)
+		if value.Empty == false {
+			a := checkruntime.CopyArrayElement(value.Bounds[0])
+			b := checkruntime.CopyArrayElement(value.Bounds[1])
+			lowerPresent := true
+			upperPresent := true
+			if a.Kind == checkruntime.ArrayElementNull {
+				lowerPresent = false
+			}
+			if b.Kind == checkruntime.ArrayElementNull {
+				upperPresent = false
+			}
+			if lowerPresent {
+				lo = lower
+			}
+			if upperPresent {
+				hi = upper
+			}
+		}
+		if lo.Kind == checkruntime.Int4ValueError {
+			error := lo.Error
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+		}
+		if lo.Kind == checkruntime.Int4ValueValue {
+			lhash := langruntime.CheckedI32(lo.Value)
+			if hi.Kind == checkruntime.Int4ValueError {
+				error := hi.Error
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+			}
+			if hi.Kind == checkruntime.Int4ValueValue {
+				uhash := langruntime.CheckedI32(hi.Value)
+				if flags.Kind == checkruntime.Int4ValueValue {
+					basis := langruntime.CheckedI32(flags.Value)
+					first := arrayHashWordLow(int64(langruntime.CheckedI32(basis)))
+					second := arrayHashWordLow(int64(langruntime.CheckedI32(lhash)))
+					merged := checkruntime.HashXor(first, second)
+					rotated := langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Multiply(merged, int64(2))), int64(4294967296)), langruntime.CheckedI64Divide(merged, int64(2147483648)))
+					last := arrayHashWordLow(int64(langruntime.CheckedI32(uhash)))
+					return checkruntime.MakeInt4Value(int(int32(checkruntime.HashXor(rotated, last))))
+				}
+			}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func HashRangeExtendedAxg0(input checkruntime.RangeValue, seed checkruntime.Int8Value, flags checkruntime.Int8Value, lower checkruntime.Int8Value, upper checkruntime.Int8Value) checkruntime.Int8Value {
+	input = checkruntime.CopyRangeValue(input)
+	if input.Kind == checkruntime.RangeValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if seed.Kind == checkruntime.Int8ValueError {
+		error := seed.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.RangeValueNull {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if seed.Kind == checkruntime.Int8ValueNull {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if seed.Kind == checkruntime.Int8ValueUnknown {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if flags.Kind == checkruntime.Int8ValueError {
+		error := flags.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input.Kind == checkruntime.RangeValueValue {
+		value := checkruntime.CopyRangePayload(input.Value)
+		lo := checkruntime.MakeInt8Value(int64(0))
+		hi := checkruntime.MakeInt8Value(int64(0))
+		if value.Empty == false {
+			a := checkruntime.CopyArrayElement(value.Bounds[0])
+			b := checkruntime.CopyArrayElement(value.Bounds[1])
+			lowerPresent := true
+			upperPresent := true
+			if a.Kind == checkruntime.ArrayElementNull {
+				lowerPresent = false
+			}
+			if b.Kind == checkruntime.ArrayElementNull {
+				upperPresent = false
+			}
+			if lowerPresent {
+				lo = lower
+			}
+			if upperPresent {
+				hi = upper
+			}
+		}
+		if lo.Kind == checkruntime.Int8ValueError {
+			error := lo.Error
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+		}
+		if lo.Kind == checkruntime.Int8ValueValue {
+			if hi.Kind == checkruntime.Int8ValueError {
+				error := hi.Error
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+			}
+			if hi.Kind == checkruntime.Int8ValueValue {
+				combined := Int8xor4v56(flags, lo)
+				if combined.Kind == checkruntime.Int8ValueValue {
+					word := combined.Value
+					low := arrayHashWordLow(word)
+					high := arrayHashWordLow(langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(word, low)), int64(4294967296)))
+					rotatedLow := langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Multiply(low, int64(2))), int64(4294967296)), langruntime.CheckedI64Divide(low, int64(2147483648)))
+					rotatedHigh := langruntime.CheckedI64Add(langruntime.CheckedI64Remainder((langruntime.CheckedI64Multiply(high, int64(2))), int64(4294967296)), langruntime.CheckedI64Divide(high, int64(2147483648)))
+					if rotatedHigh >= int64(2147483648) {
+						rotatedHigh = langruntime.CheckedI64Subtract(rotatedHigh, int64(4294967296))
+					}
+					rotated := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(rotatedHigh, int64(4294967296)), rotatedLow)
+					return Int8xor4v56(checkruntime.MakeInt8Value(rotated), hi)
+				}
+			}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
 
 const rangeInputSyntax = 3484946

@@ -46,6 +46,8 @@ export interface BuiltinTypeIO {
   identity: string
   input: string | null
   output: string | null
+  send: string | null
+  receive: string | null
 }
 
 export interface BuiltinBtreeComparison {
@@ -212,18 +214,34 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
         output_schema: string | null
         output_name: string | null
         output_args: string[] | null
+        send_schema: string | null
+        send_name: string | null
+        send_args: string[] | null
+        receive_schema: string | null
+        receive_name: string | null
+        receive_args: string[] | null
       }>(`SELECT quote_ident(n.nspname) || '.' || quote_ident(t.typname) AS identity,
       ins.nspname AS input_schema, ip.proname AS input_name,
       (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
         FROM unnest(ip.proargtypes) WITH ORDINALITY u(t, ord)) AS input_args,
       outs.nspname AS output_schema, op.proname AS output_name,
       (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
-        FROM unnest(op.proargtypes) WITH ORDINALITY u(t, ord)) AS output_args
+        FROM unnest(op.proargtypes) WITH ORDINALITY u(t, ord)) AS output_args,
+      sends.nspname AS send_schema, sp.proname AS send_name,
+      (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
+        FROM unnest(sp.proargtypes) WITH ORDINALITY u(t, ord)) AS send_args,
+      receives.nspname AS receive_schema, rp.proname AS receive_name,
+      (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
+        FROM unnest(rp.proargtypes) WITH ORDINALITY u(t, ord)) AS receive_args
       FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
       LEFT JOIN pg_proc ip ON ip.oid = t.typinput
       LEFT JOIN pg_namespace ins ON ins.oid = ip.pronamespace
       LEFT JOIN pg_proc op ON op.oid = t.typoutput
       LEFT JOIN pg_namespace outs ON outs.oid = op.pronamespace
+      LEFT JOIN pg_proc sp ON sp.oid = t.typsend
+      LEFT JOIN pg_namespace sends ON sends.oid = sp.pronamespace
+      LEFT JOIN pg_proc rp ON rp.oid = t.typreceive
+      LEFT JOIN pg_namespace receives ON receives.oid = rp.pronamespace
       WHERE n.nspname = 'pg_catalog' ORDER BY 1`),
       readRangeTypes(pg, 'pg_catalog'),
     ])
@@ -266,6 +284,14 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
         row.output_name === null
           ? null
           : `function:${JSON.stringify([row.output_schema, row.output_name])}(${(row.output_args ?? []).join(',')})`,
+      send:
+        row.send_name === null
+          ? null
+          : `function:${JSON.stringify([row.send_schema, row.send_name])}(${(row.send_args ?? []).join(',')})`,
+      receive:
+        row.receive_name === null
+          ? null
+          : `function:${JSON.stringify([row.receive_schema, row.receive_name])}(${(row.receive_args ?? []).join(',')})`,
     })),
     btreeComparisons: btree.rows.map((row) => ({
       operator: `operator:${JSON.stringify([row.operator_schema, row.operator_name])}(${row.left},${row.right})`,

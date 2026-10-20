@@ -1,4 +1,4 @@
-import { nativeHashContext, isArrayHash } from './check-hash-context.js'
+import { nativeHashContext, isArrayHash, isRangeHash } from './check-hash-context.js'
 import { characterEncodingContext } from './check-character-context.js'
 import { jsonbTextRenderingContext } from './check-jsonb-context.js'
 import {
@@ -415,6 +415,16 @@ export const isArrayBinarySend = (item: ReturnType<typeof builtinMetadata>): boo
   item.args.length === 1 &&
   item.args[0] === 'pg_catalog.anyarray' &&
   item.result === 'pg_catalog.bytea'
+
+export const isRangeBinarySend = (item: ReturnType<typeof builtinMetadata>): boolean =>
+  item.kind === 'function' &&
+  item.schema === 'pg_catalog' &&
+  item.name === 'range_send' &&
+  item.args.join(',') === 'pg_catalog.anyrange' &&
+  item.result === 'pg_catalog.bytea' &&
+  item.strict &&
+  item.volatility === 's' &&
+  !item.returnsSet
 
 const isArraySort = (item: ReturnType<typeof builtinMetadata>): boolean =>
   item.kind === 'function' &&
@@ -1680,6 +1690,7 @@ export function emitCheckRustEvaluator(
       const arrayExtremum = isArrayExtremum(implementation)
       const arrayBucket = isArrayBucket(implementation)
       const arrayBinarySend = isArrayBinarySend(implementation)
+      const rangeBinarySend = isRangeBinarySend(implementation)
       const arrayRewrite = isArrayRewrite(implementation)
       const arrayTransform = isArrayTransform(implementation)
       const enumSupport = capturedEnumSupport(implementation)
@@ -1742,6 +1753,7 @@ export function emitCheckRustEvaluator(
         (implementation.volatility !== 'i' &&
           !enumSupport &&
           !arrayBinarySend &&
+          !rangeBinarySend &&
           !arrayStringIO &&
           !jsonbConversion &&
           !jsonConversion &&
@@ -1892,6 +1904,103 @@ export function emitCheckRustEvaluator(
         )
         callables.add(implementation.rustName)
         return { name: bind(`${implementation.rustName}(${args.join(', ')})`), type: call.type }
+      }
+      if (rangeBinarySend || isRangeHash(implementation)) {
+        const bindRange = (expression: string): string => {
+          const name = fresh('range_binary_value')
+          destination.push(`let ${name} = ${expression};`)
+          return name
+        }
+        const input = operands[0]!
+        const range = builtinRangeType(input.type)
+        if (!range || !rangeSubtype)
+          throw new UnsupportedCheckRustExpression(
+            'Range binary operations need one captured builtin identity',
+          )
+        const extended = implementation.args.length === 2
+        const support = builtinTypeComparison(rangeSubtype)
+        const signature = rangeBinarySend
+          ? builtinTypeIO(rangeSubtype)?.send
+          : extended
+            ? support?.hashExtended
+            : support?.hash
+        const scalar = signature ? builtinMetadata(signature) : null
+        if (
+          !scalar ||
+          scalar.kind !== 'function' ||
+          !scalar.strict ||
+          scalar.returnsSet ||
+          scalar.volatility !== 'i' ||
+          scalar.result !== call.type ||
+          scalar.args[0] !== rangeSubtype ||
+          scalar.args.length !== (extended ? 2 : 1) ||
+          (extended && scalar.args[1] !== 'pg_catalog.int8') ||
+          !checkRustCallableNames().has(scalar.rustName) ||
+          (rangeBinarySend && builtinTypeIO(input.type)?.send !== call.signature)
+        )
+          throw new UnsupportedCheckRustExpression(
+            'Range binary operation requires captured subtype support',
+          )
+        const bounds = [false, true].map((upper) => {
+          const cell = bindRange(`range_bound(${ownedOperand(input)}, ${upper})`)
+          return {
+            name: bindRange(`array_element_to_${rustValuePrefix(rustType(rangeSubtype))}(${cell})`),
+            type: rangeSubtype,
+          }
+        })
+        if (rangeBinarySend) {
+          const bytes = bounds.map((bound) =>
+            emitCallInner(
+              { kind: 'function', signature: signature!, type: 'pg_catalog.bytea' },
+              [bound],
+              destination,
+            ),
+          )
+          callables.add(implementation.rustName)
+          return {
+            name: bindRange(
+              `${implementation.rustName}(${ownedOperand(input)}, ${bytes.map(ownedOperand).join(', ')})`,
+            ),
+            type: call.type,
+          }
+        }
+        const flags = {
+          name: bindRange(`range_hash_flags(${ownedOperand(input)})`),
+          type: 'pg_catalog.int4' as const,
+        }
+        const flagSupport = builtinTypeComparison('pg_catalog.int4')!
+        const flagSignature = (extended ? flagSupport.hashExtended : flagSupport.hash)!
+        const seed = extended ? operands[1]! : null
+        const basis = emitCallInner(
+          { kind: 'function', signature: flagSignature, type: call.type },
+          [flags, ...(seed ? [seed] : [])],
+          destination,
+        )
+        const context = nativeHashContext(scalar)
+        const orders =
+          context && executionContext.nativeByteOrder === undefined
+            ? [1, 2]
+            : [executionContext.nativeByteOrder === 'big' ? 2 : 1]
+        const alternatives = orders.map((order) => {
+          const hashes = bounds.map((bound) => {
+            const args = [
+              ownedOperand(bound),
+              ...(seed ? [ownedOperand(seed)] : []),
+              ...(context ? [String(order)] : []),
+            ]
+            callables.add(scalar.rustName)
+            return bindRange(`${scalar.rustName}(${args.join(', ')})`)
+          })
+          callables.add(implementation.rustName)
+          return bindRange(
+            `${implementation.rustName}(${ownedOperand(input)}, ${seed ? ownedOperand(seed) + ', ' : ''}${ownedOperand(basis)}, ${hashes.join(', ')})`,
+          )
+        })
+        const name =
+          alternatives.length === 1
+            ? alternatives[0]!
+            : bindRange(`array_hash_finish${extended ? '64' : '32'}(${alternatives.join(', ')})`)
+        return { name, type: call.type }
       }
       if (isArrayHash(implementation)) {
         const arrayType = operands[0]?.type

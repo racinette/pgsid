@@ -67,6 +67,11 @@ describe('CHECK measurement boundaries', () => {
     const io = structuredClone(catalog)
     io.typeIO[0]!.output = null
     expect(() => verifyCatalog(io)).toThrow('type I/O links')
+    for (const member of ['send', 'receive'] as const) {
+      const binaryIO = structuredClone(catalog)
+      binaryIO.typeIO.find((entry) => entry.identity === 'pg_catalog.int4')![member] = null
+      expect(() => verifyCatalog(binaryIO)).toThrow('type I/O links')
+    }
     const duplicateIO = structuredClone(catalog)
     duplicateIO.typeIO.push(duplicateIO.typeIO[0]!)
     expect(() => verifyCatalog(duplicateIO)).toThrow('Duplicate type I/O identity')
@@ -700,6 +705,22 @@ describe('CHECK measurement boundaries', () => {
       expect(report.inputForms.types.find((forms) => forms.type === range.identity)).toMatchObject({
         boundType: range.subtype,
         scope: expect.stringContaining('scalar input requirements'),
+        binaryIO: {
+          owner: 'tests/sql-semantics/check-range-wire-hash.test.ts',
+          catalogOwner: 'tests/sql-semantics/check-range-binary-catalog.test.ts',
+          sendContext: [],
+          format: expect.stringContaining('no range OID'),
+          receive: expect.stringContaining('PostgreSQL internal buffer'),
+        },
+        hashing: {
+          contextOwner: 'tests/sql-semantics/check-range-hash-context.test.ts',
+          stateOwner: 'tests/sql-semantics/check-range-wire-state.test.ts',
+          contextRequired:
+            range.subtype === 'pg_catalog."numeric"'
+              ? ['nativeByteOrder for reached byte-dependent numeric hashes']
+              : [],
+          oidInput: false,
+        },
         coreOperations: {
           comparisonOwner: 'tests/sql-semantics/check-range-comparisons.test.ts',
           setOwner: 'tests/sql-semantics/check-range-set.test.ts',

@@ -64,7 +64,7 @@ try {
   for (const io of catalog.typeIO) {
     if (ioKeys.has(io.identity)) throw new Error(`Duplicate type I/O identity: ${io.identity}`)
     ioKeys.add(io.identity)
-    for (const identity of [io.input, io.output])
+    for (const identity of [io.input, io.output, io.send, io.receive])
       if (identity !== null && !callableIds.has(identity))
         throw new Error(`Type I/O references an absent callable: ${identity}`)
   }
