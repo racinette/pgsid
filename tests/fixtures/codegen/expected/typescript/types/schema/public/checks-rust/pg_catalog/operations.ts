@@ -23998,6 +23998,331 @@ export function upperInf2edg(input: checkruntime.MultirangeValue): checkruntime.
     input = checkruntime.copyMultirangeValue(input);
     return checkruntime.multirangeBoundFlag(input, true, true);
 }
+function multirangeSetRangeKnown(input: checkruntime.RangeValue): boolean {
+    input = checkruntime.copyRangeValue(input);
+    if (input.kind === "Value") {
+        return true;
+    }
+    return false;
+}
+function multirangeSetRangeFailure(input: checkruntime.RangeValue): checkruntime.MultirangeValue {
+    input = checkruntime.copyRangeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+function multirangeSetBooleanFailure(input: checkruntime.BoolValue): checkruntime.MultirangeValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+function multirangeSetResult(input: checkruntime.MultirangePayload, ranges: checkruntime.RangeValue[]): checkruntime.MultirangeValue {
+    ranges = langruntime.checkedStructs(ranges, checkruntime.copyRangeValue);
+    return multirangeConstructNormalize({ typeName: langruntime.checkedString(input.typeName), rangeType: langruntime.checkedString(input.rangeType), elementType: langruntime.checkedString(input.elementType), elementKind: input.elementKind, ranges: ranges });
+}
+function multirangeSetUnion(left: checkruntime.MultirangePayload, right: checkruntime.MultirangePayload): checkruntime.MultirangeValue {
+    let ranges: checkruntime.RangeValue[] = [];
+    let index: number = 0;
+    while (index < left.ranges.length) {
+        langruntime.pushStruct(ranges, checkruntime.copyRangeValue(langruntime.indexStruct(left.ranges, langruntime.checkedIndex(index), checkruntime.copyRangeValue)), checkruntime.copyRangeValue);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    index = langruntime.checkedIndex(0);
+    while (index < right.ranges.length) {
+        langruntime.pushStruct(ranges, checkruntime.copyRangeValue(langruntime.indexStruct(right.ranges, langruntime.checkedIndex(index), checkruntime.copyRangeValue)), checkruntime.copyRangeValue);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return multirangeSetResult(left, ranges);
+}
+function multirangeSetSplit(left: checkruntime.RangeValue, right: checkruntime.RangeValue): checkruntime.BoolValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.RangePayload = checkruntime.copyRangePayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.RangePayload = checkruntime.copyRangePayload(right.value);
+            const lo: checkruntime.Int4Value = rangeEndpointCompare(a, false, b, false);
+            if (lo.kind === "Error") {
+                const error: checkruntime.SqlError = lo.value;
+                return { kind: "Error", value: error };
+            }
+            if (lo.kind === "Value") {
+                const lowerOrder: number = langruntime.checkedI32(lo.value);
+                if (lowerOrder >= 0) {
+                    return { kind: "Value", value: false };
+                }
+                const hi: checkruntime.Int4Value = rangeEndpointCompare(a, true, b, true);
+                return rangeOrderBoolean(hi, 5);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+function multirangeSetCut(left: checkruntime.RangeValue, right: checkruntime.RangeValue, upper: boolean): checkruntime.RangeValue {
+    left = checkruntime.copyRangeValue(left);
+    right = checkruntime.copyRangeValue(right);
+    upper = langruntime.checkedBool(upper);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.RangePayload = checkruntime.copyRangePayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.RangePayload = checkruntime.copyRangePayload(right.value);
+            if (upper) {
+                return rangeRebuild(a, checkruntime.copyArrayElement(langruntime.indexStruct(b.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(a.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), b.upperInclusive === false, a.upperInclusive);
+            }
+            return rangeRebuild(a, checkruntime.copyArrayElement(langruntime.indexStruct(a.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(b.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), a.lowerInclusive, b.lowerInclusive === false);
+        }
+    }
+    return { kind: "Unknown" };
+}
+function multirangeSetDifference(left: checkruntime.MultirangePayload, right: checkruntime.MultirangePayload): checkruntime.MultirangeValue {
+    let ranges: checkruntime.RangeValue[] = [];
+    let li: number = 0;
+    let ri: number = 0;
+    while (li < left.ranges.length) {
+        let current: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(left.ranges, langruntime.checkedIndex(li), checkruntime.copyRangeValue));
+        if (multirangeSetRangeKnown(checkruntime.copyRangeValue(current)) === false) {
+            return multirangeSetRangeFailure(current);
+        }
+        let advancing: boolean = true;
+        while (ri < right.ranges.length && advancing) {
+            const before: checkruntime.BoolValue = rangeRelation(checkruntime.copyRangeValue(langruntime.indexStruct(right.ranges, langruntime.checkedIndex(ri), checkruntime.copyRangeValue)), checkruntime.copyRangeValue(current), 1);
+            if (checkruntime.equalBoolValue(before, { kind: "Value", value: true })) {
+                ri = langruntime.checkedAdd(ri, 1);
+            }
+            else {
+                if (!(checkruntime.equalBoolValue(before, { kind: "Value", value: false }))) {
+                    return multirangeSetBooleanFailure(before);
+                }
+                advancing = langruntime.checkedBool(false);
+            }
+        }
+        let cutting: boolean = true;
+        while (ri < right.ranges.length && cutting) {
+            const other: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(right.ranges, langruntime.checkedIndex(ri), checkruntime.copyRangeValue));
+            const split: checkruntime.BoolValue = multirangeSetSplit(checkruntime.copyRangeValue(current), checkruntime.copyRangeValue(other));
+            if (checkruntime.equalBoolValue(split, { kind: "Value", value: true })) {
+                const low: checkruntime.RangeValue = multirangeSetCut(checkruntime.copyRangeValue(current), checkruntime.copyRangeValue(other), false);
+                if (multirangeSetRangeKnown(checkruntime.copyRangeValue(low)) === false) {
+                    return multirangeSetRangeFailure(low);
+                }
+                langruntime.pushStruct(ranges, low, checkruntime.copyRangeValue);
+                current = checkruntime.copyRangeValue(multirangeSetCut(current, other, true));
+                if (multirangeSetRangeKnown(checkruntime.copyRangeValue(current)) === false) {
+                    return multirangeSetRangeFailure(current);
+                }
+                ri = langruntime.checkedAdd(ri, 1);
+            }
+            else {
+                if (!(checkruntime.equalBoolValue(split, { kind: "Value", value: false }))) {
+                    return multirangeSetBooleanFailure(split);
+                }
+                const overlap: checkruntime.BoolValue = rangeRelation(checkruntime.copyRangeValue(current), checkruntime.copyRangeValue(other), 8);
+                if (checkruntime.equalBoolValue(overlap, { kind: "Value", value: true })) {
+                    current = checkruntime.copyRangeValue(rangeSet(current, checkruntime.copyRangeValue(other), 4));
+                    if (multirangeSetRangeKnown(checkruntime.copyRangeValue(current)) === false) {
+                        return multirangeSetRangeFailure(current);
+                    }
+                    if (checkruntime.equalBoolValue(checkruntime.rangeEmptyState(checkruntime.copyRangeValue(current)), { kind: "Value", value: true })) {
+                        cutting = langruntime.checkedBool(false);
+                    }
+                    else {
+                        const before: checkruntime.BoolValue = rangeRelation(checkruntime.copyRangeValue(current), other, 1);
+                        if (checkruntime.equalBoolValue(before, { kind: "Value", value: true })) {
+                            cutting = langruntime.checkedBool(false);
+                        }
+                        else {
+                            if (!(checkruntime.equalBoolValue(before, { kind: "Value", value: false }))) {
+                                return multirangeSetBooleanFailure(before);
+                            }
+                            ri = langruntime.checkedAdd(ri, 1);
+                        }
+                    }
+                }
+                else {
+                    if (!(checkruntime.equalBoolValue(overlap, { kind: "Value", value: false }))) {
+                        return multirangeSetBooleanFailure(overlap);
+                    }
+                    cutting = langruntime.checkedBool(false);
+                }
+            }
+        }
+        langruntime.pushStruct(ranges, current, checkruntime.copyRangeValue);
+        li = langruntime.checkedAdd(li, 1);
+    }
+    return multirangeSetResult(left, ranges);
+}
+function multirangeSetIntersection(left: checkruntime.MultirangePayload, right: checkruntime.MultirangePayload): checkruntime.MultirangeValue {
+    let ranges: checkruntime.RangeValue[] = [];
+    let li: number = 0;
+    let ri: number = 0;
+    while (li < left.ranges.length && ri < right.ranges.length) {
+        const current: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(left.ranges, langruntime.checkedIndex(li), checkruntime.copyRangeValue));
+        let advancing: boolean = true;
+        while (ri < right.ranges.length && advancing) {
+            const before: checkruntime.BoolValue = rangeRelation(checkruntime.copyRangeValue(langruntime.indexStruct(right.ranges, langruntime.checkedIndex(ri), checkruntime.copyRangeValue)), checkruntime.copyRangeValue(current), 1);
+            if (checkruntime.equalBoolValue(before, { kind: "Value", value: true })) {
+                ri = langruntime.checkedAdd(ri, 1);
+            }
+            else {
+                if (!(checkruntime.equalBoolValue(before, { kind: "Value", value: false }))) {
+                    return multirangeSetBooleanFailure(before);
+                }
+                advancing = langruntime.checkedBool(false);
+            }
+        }
+        let intersecting: boolean = true;
+        while (ri < right.ranges.length && intersecting) {
+            const other: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(right.ranges, langruntime.checkedIndex(ri), checkruntime.copyRangeValue));
+            const overlap: checkruntime.BoolValue = rangeRelation(checkruntime.copyRangeValue(current), checkruntime.copyRangeValue(other), 8);
+            if (checkruntime.equalBoolValue(overlap, { kind: "Value", value: true })) {
+                const part: checkruntime.RangeValue = rangeSet(checkruntime.copyRangeValue(current), checkruntime.copyRangeValue(other), 3);
+                if (multirangeSetRangeKnown(checkruntime.copyRangeValue(part)) === false) {
+                    return multirangeSetRangeFailure(part);
+                }
+                langruntime.pushStruct(ranges, part, checkruntime.copyRangeValue);
+                const consumed: checkruntime.BoolValue = rangeRelation(other, checkruntime.copyRangeValue(current), 3);
+                if (checkruntime.equalBoolValue(consumed, { kind: "Value", value: true })) {
+                    ri = langruntime.checkedAdd(ri, 1);
+                }
+                else {
+                    if (!(checkruntime.equalBoolValue(consumed, { kind: "Value", value: false }))) {
+                        return multirangeSetBooleanFailure(consumed);
+                    }
+                    intersecting = langruntime.checkedBool(false);
+                }
+            }
+            else {
+                if (!(checkruntime.equalBoolValue(overlap, { kind: "Value", value: false }))) {
+                    return multirangeSetBooleanFailure(overlap);
+                }
+                intersecting = langruntime.checkedBool(false);
+            }
+        }
+        li = langruntime.checkedAdd(li, 1);
+    }
+    return multirangeSetResult(left, ranges);
+}
+function multirangeSet(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue, strategy: number): checkruntime.MultirangeValue {
+    left = checkruntime.copyMultirangeValue(left);
+    right = checkruntime.copyMultirangeValue(right);
+    strategy = langruntime.checkedI32(strategy);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (left.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (right.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(right.value);
+            if (multirangeSameFamily(a, b) === false) {
+                return { kind: "Unknown" };
+            }
+            if (strategy === 3 && (a.ranges.length === 0 || b.ranges.length === 0)) {
+                const empty: checkruntime.RangeValue[] = [];
+                return multirangeSetResult(a, empty);
+            }
+            if (a.ranges.length === 0) {
+                if (strategy === 1) {
+                    return { kind: "Value", value: b };
+                }
+                return { kind: "Value", value: a };
+            }
+            if (b.ranges.length === 0) {
+                return { kind: "Value", value: a };
+            }
+            if (strategy === 1) {
+                return multirangeSetUnion(a, b);
+            }
+            if (strategy === 3) {
+                return multirangeSetIntersection(a, b);
+            }
+            return multirangeSetDifference(a, b);
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function multirangeUnion3oae(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue): checkruntime.MultirangeValue {
+    left = checkruntime.copyMultirangeValue(left);
+    right = checkruntime.copyMultirangeValue(right);
+    return multirangeSet(left, right, 1);
+}
+export function multirangeIntersectEzyb(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue): checkruntime.MultirangeValue {
+    left = checkruntime.copyMultirangeValue(left);
+    right = checkruntime.copyMultirangeValue(right);
+    return multirangeSet(left, right, 3);
+}
+export function multirangeMinus8qbr(left: checkruntime.MultirangeValue, right: checkruntime.MultirangeValue): checkruntime.MultirangeValue {
+    left = checkruntime.copyMultirangeValue(left);
+    right = checkruntime.copyMultirangeValue(right);
+    return multirangeSet(left, right, 4);
+}
+export function rangeMergeF619(input: checkruntime.MultirangeValue): checkruntime.RangeValue {
+    input = checkruntime.copyMultirangeValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(input.value);
+        if (payload.ranges.length === 0) {
+            return checkruntime.rangeFromCoercedBounds(payload.rangeType, payload.elementType, payload.elementKind, true, false, false, { kind: "Null" }, { kind: "Null" });
+        }
+        const first: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(payload.ranges, langruntime.checkedIndex(0), checkruntime.copyRangeValue));
+        if (payload.ranges.length === 1) {
+            return first;
+        }
+        const last: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(payload.ranges, langruntime.checkedIndex(langruntime.checkedSubtract(payload.ranges.length, 1)), checkruntime.copyRangeValue));
+        if (first.kind === "Error") {
+            const error: checkruntime.SqlError = first.value;
+            return { kind: "Error", value: error };
+        }
+        if (last.kind === "Error") {
+            const error: checkruntime.SqlError = last.value;
+            return { kind: "Error", value: error };
+        }
+        if (first.kind === "Value") {
+            const a: checkruntime.RangePayload = checkruntime.copyRangePayload(first.value);
+            if (last.kind === "Value") {
+                const b: checkruntime.RangePayload = checkruntime.copyRangePayload(last.value);
+                return checkruntime.rangeFromCoercedBounds(payload.rangeType, payload.elementType, payload.elementKind, false, a.lowerInclusive, b.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(a.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(b.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)));
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function nameFromTextWithLimit(input: checkruntime.TextValue, limit: checkruntime.Int4Value): checkruntime.TextValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
