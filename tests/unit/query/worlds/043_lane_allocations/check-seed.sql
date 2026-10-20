@@ -6317,3 +6317,99 @@ VALUES ('[-2:-1]={"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}',NULL,'{"{\"[1,3)\",\"[5,
 -- name: custom_window_fingerprint_skipped
 INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
 VALUES ('{"[1,3)","[5,7)"}','{"[1,4)","[5,7)"}','{"[1,3)","[5,7)"}','{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,4)\",\"[5,7)\"}"}',0,true);
+
+-- name: custom_window_document_valid
+INSERT INTO lane_window_documents (window_value, windows, histories, expected_window, expected_windows, expected_histories, bypass)
+VALUES ('[1,3)','{"[1,3)",NULL}',NULL,'"[1,3)"','["[1,3)",null]',NULL,false);
+
+-- name: custom_window_document_wrong_scalar
+INSERT INTO lane_window_documents (window_value, windows, histories, expected_window, expected_windows, expected_histories, bypass)
+VALUES ('[1,3)','{"[1,3)",NULL}',NULL,'"[1,4)"','["[1,3)",null]',NULL,false);
+
+-- name: custom_window_document_wrong_array
+INSERT INTO lane_window_documents (window_value, windows, histories, expected_window, expected_windows, expected_histories, bypass)
+VALUES ('[1,3)','{"[1,3)",NULL}',NULL,'"[1,3)"','["[1,4)",null]',NULL,false);
+
+-- name: custom_window_document_history
+INSERT INTO lane_window_documents (window_value, windows, histories, expected_window, expected_windows, expected_histories, bypass)
+VALUES (NULL,NULL,'{"{\"[1,3)\",NULL}"}',NULL,NULL,'[["[1,3)", null]]',false);
+
+-- name: custom_window_document_wrong_history
+INSERT INTO lane_window_documents (window_value, windows, histories, expected_window, expected_windows, expected_histories, bypass)
+VALUES (NULL,NULL,'{"{\"[1,3)\",NULL}"}',NULL,NULL,'[["[1,4)", null]]',false);
+
+-- name: custom_window_document_empty
+INSERT INTO lane_window_documents (window_value, windows, histories, expected_window, expected_windows, expected_histories, bypass)
+VALUES ('empty','{}','{}','"empty"','[]','[]',false);
+
+-- name: custom_window_document_unbounded
+INSERT INTO lane_window_documents (window_value, windows, histories, expected_window, expected_windows, expected_histories, bypass)
+VALUES ('(,)','{"(,)"}',NULL,'"(,)"','["(,)"]',NULL,false);
+
+-- name: custom_window_document_null
+INSERT INTO lane_window_documents (window_value, windows, histories, expected_window, expected_windows, expected_histories, bypass)
+VALUES (NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: custom_window_document_skipped
+INSERT INTO lane_window_documents (window_value, windows, histories, expected_window, expected_windows, expected_histories, bypass)
+VALUES ('[1,3)','{"[1,3)"}',NULL,'wrong','wrong','wrong',true);
+
+-- name: custom_segment_document_valid
+INSERT INTO lane_segment_documents (segment_values, segment_batches, expected_segments, expected_batches, bypass)
+VALUES ('{[1,3),[5,7)}','{"{[1,3),[5,7)}",NULL}','"{[1,3),[5,7)}"','["{[1,3),[5,7)}", null]',false);
+
+-- name: custom_segment_document_wrong_scalar
+INSERT INTO lane_segment_documents (segment_values, segment_batches, expected_segments, expected_batches, bypass)
+VALUES ('{[1,3),[5,7)}','{"{[1,3),[5,7)}",NULL}','"{[1,4),[5,7)}"','["{[1,3),[5,7)}", null]',false);
+
+-- name: custom_segment_document_wrong_array
+INSERT INTO lane_segment_documents (segment_values, segment_batches, expected_segments, expected_batches, bypass)
+VALUES ('{[1,3),[5,7)}','{"{[1,3),[5,7)}",NULL}','"{[1,3),[5,7)}"','["{[1,4),[5,7)}", null]',false);
+
+-- name: custom_segment_document_empty
+INSERT INTO lane_segment_documents (segment_values, segment_batches, expected_segments, expected_batches, bypass)
+VALUES ('{}','{}','"{}"','[]',false);
+
+-- name: custom_segment_document_null
+INSERT INTO lane_segment_documents (segment_values, segment_batches, expected_segments, expected_batches, bypass)
+VALUES (NULL,NULL,NULL,NULL,false);
+
+-- name: custom_segment_document_skipped
+INSERT INTO lane_segment_documents (segment_values, segment_batches, expected_segments, expected_batches, bypass)
+VALUES ('{[1,3)}','{"{[1,3)}"}','wrong','wrong',true);
+
+-- name: custom_window_document_key_valid
+INSERT INTO lane_window_document_keys (window_value, windows, expected_document, expected_flattened, divisor, bypass)
+VALUES ('[1,3)','{"[1,3)","[5,7)"}','{"[1,3)": 1}','{"[1,3)" : "[5,7)"}',1,false);
+
+-- name: custom_window_document_key_wrong
+INSERT INTO lane_window_document_keys (window_value, windows, expected_document, expected_flattened, divisor, bypass)
+VALUES ('[1,3)','{"[1,3)","[5,7)"}','{"[1,3)": 2}','{"[1,3)" : "[5,7)"}',1,false);
+
+-- name: custom_window_document_key_wrong_flattened
+INSERT INTO lane_window_document_keys (window_value, windows, expected_document, expected_flattened, divisor, bypass)
+VALUES ('[1,3)','{"[1,3)","[5,7)"}','{"[1,3)": 1}','{"[1,3)" : "[5,8)"}',1,false);
+
+-- name: custom_window_document_key_empty
+INSERT INTO lane_window_document_keys (window_value, windows, expected_document, expected_flattened, divisor, bypass)
+VALUES ('empty','{}','{"empty": 1}','{}',1,false);
+
+-- name: custom_window_document_key_null
+INSERT INTO lane_window_document_keys (window_value, windows, expected_document, expected_flattened, divisor, bypass)
+VALUES (NULL,NULL,NULL,NULL,1,false);
+
+-- name: custom_window_document_key_null_cell
+INSERT INTO lane_window_document_keys (window_value, windows, expected_document, expected_flattened, divisor, bypass)
+VALUES ('[1,3)','{NULL,"[5,7)"}','{"[1,3)": 1}',NULL,1,false);
+
+-- name: custom_window_document_key_odd
+INSERT INTO lane_window_document_keys (window_value, windows, expected_document, expected_flattened, divisor, bypass)
+VALUES ('[1,3)','{"[1,3)"}','{"[1,3)": 1}',NULL,1,false);
+
+-- name: custom_window_document_key_eager_error
+INSERT INTO lane_window_document_keys (window_value, windows, expected_document, expected_flattened, divisor, bypass)
+VALUES (NULL,NULL,NULL,NULL,0,false);
+
+-- name: custom_window_document_key_skipped
+INSERT INTO lane_window_document_keys (window_value, windows, expected_document, expected_flattened, divisor, bypass)
+VALUES (NULL,'{NULL,"[5,7)"}','wrong','wrong',0,true);

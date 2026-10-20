@@ -224,6 +224,8 @@ async function readRangeTypeInfos(
       send: SelectedFunction
       multirange_send: SelectedFunction
       subtype_send: SelectedFunction
+      json_cast: SelectedFunction
+      multirange_json_cast: SelectedFunction
     }>(
       `SELECT n.nspname AS schema,rt.typname AS name,mn.nspname AS multirange_schema,mt.typname AS multirange_name,
         (${typeIdentity} r.rngtypid) AS identity,
@@ -255,7 +257,9 @@ async function readRangeTypeInfos(
         ${functionIdentity('st.typinput')} AS subtype_input,
         ${functionIdentity('rt.typsend')} AS send,
         ${functionIdentity('mt.typsend')} AS multirange_send,
-        ${functionIdentity('st.typsend')} AS subtype_send
+        ${functionIdentity('st.typsend')} AS subtype_send,
+        ${functionIdentity("(SELECT castfunc FROM pg_cast WHERE castsource=rt.oid AND casttarget='pg_catalog.json'::regtype AND castmethod='f')")} AS json_cast,
+        ${functionIdentity("(SELECT castfunc FROM pg_cast WHERE castsource=mt.oid AND casttarget='pg_catalog.json'::regtype AND castmethod='f')")} AS multirange_json_cast
         FROM pg_range r
         JOIN pg_type rt ON rt.oid=r.rngtypid
         JOIN pg_namespace n ON n.oid=rt.typnamespace
@@ -338,6 +342,10 @@ async function readRangeTypeInfos(
     subtypeHashEqualityCompatible: supports.get(row.subtype)!.hashEqualityCompatible,
     rangeHashEqualityCompatible: supports.get(row.identity)!.hashEqualityCompatible,
     multirangeHashEqualityCompatible: supports.get(row.multirange)!.hashEqualityCompatible,
+    jsonConversion: row.json_cast ? 'cast' : 'output',
+    multirangeJsonConversion: row.multirange_json_cast ? 'cast' : 'output',
+    jsonCast: signature(row.json_cast),
+    multirangeJsonCast: signature(row.multirange_json_cast),
     callables: callables.get(row.identity) ?? [],
     ...(callResolution ? { callResolution } : {}),
   }))
@@ -379,6 +387,10 @@ export async function readRangeTypes(
       subtypeHashEqualityCompatible: _subtypeHashEqualityCompatible,
       rangeHashEqualityCompatible: _rangeHashEqualityCompatible,
       multirangeHashEqualityCompatible: _multirangeHashEqualityCompatible,
+      jsonConversion: _jsonConversion,
+      multirangeJsonConversion: _multirangeJsonConversion,
+      jsonCast: _jsonCast,
+      multirangeJsonCast: _multirangeJsonCast,
       callables: _callables,
       callResolution: _callResolution,
       ...metadata

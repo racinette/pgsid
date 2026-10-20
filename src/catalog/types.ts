@@ -755,6 +755,10 @@ export interface RangeTypeInfo extends RangeTypeMetadata {
   subtypeHashEqualityCompatible: boolean | null
   rangeHashEqualityCompatible: boolean | null
   multirangeHashEqualityCompatible: boolean | null
+  jsonConversion: 'output' | 'cast' | null
+  multirangeJsonConversion: 'output' | 'cast' | null
+  jsonCast: string | null
+  multirangeJsonCast: string | null
   callables?: readonly RangeCallInfo[]
   callResolution?: RangeCallResolution
 }

@@ -166,9 +166,9 @@ const jsonbConversionHelpers = new Map<string, string>(
 export const jsonbConversionHelper = (type: string): string | undefined =>
   type.startsWith('enum:')
     ? 'jsonb_input_from_enum'
-    : builtinRangeType(type)
+    : rangeTypeProfile(type)
       ? 'jsonb_input_from_range'
-      : builtinMultirangeType(type)
+      : multirangeTypeProfile(type)
         ? 'jsonb_input_from_multirange'
         : jsonbConversionHelpers.get(type)
 
@@ -3049,6 +3049,29 @@ export function emitCheckRustEvaluator(
           let operand = { ...original, type: arrayElementBaseType(original.type) }
           if (operand.type.startsWith('array:'))
             return arrayValueInput(operand, key === true, lines)
+          const range = rangeTypeProfile(operand.type),
+            multirange = multirangeTypeProfile(operand.type),
+            profile = range ?? multirange
+          if (profile?.captured) {
+            const conversion = range ? profile.jsonConversion : profile.multirangeJsonConversion,
+              cast = range ? profile.jsonCast : profile.multirangeJsonCast,
+              rangeOutput = builtinTypeIO('pg_catalog.int4range')?.output,
+              multirangeOutput = builtinTypeIO('pg_catalog.int4multirange')?.output,
+              outputKnown =
+                profile.output === rangeOutput &&
+                (!multirange || profile.multirangeOutput === multirangeOutput) &&
+                profile.subtypeOutput === builtinTypeIO(profile.elementType)?.output,
+              category =
+                conversion === 'cast' && cast !== null
+                  ? 2
+                  : conversion === 'output' && cast === null && outputKnown
+                    ? 1
+                    : 0,
+              carrier = fresh('jsonb_range_input'),
+              helper = range ? 'jsonb_range_input_category' : 'jsonb_multirange_input_category'
+            lines.push(`let ${carrier} = ${helper}(${ownedOperand(operand)}, ${category}, ${key});`)
+            return carrier
+          }
           const definition =
             call.kind === 'cast'
               ? undefined
@@ -3190,7 +3213,13 @@ export function emitCheckRustEvaluator(
             call.inputEnums?.some(
               (item) => enumType(item) === baseType && item.jsonConversion === 'cast',
             )
-          if (object && (baseType.startsWith('array:') || castEnum)) {
+          if (
+            object &&
+            (baseType.startsWith('array:') ||
+              castEnum ||
+              rangeTypeProfile(baseType)?.captured ||
+              multirangeTypeProfile(baseType)?.captured)
+          ) {
             const keyLines: string[] = [],
               valueLines: string[] = []
             const keyCarrier = scalarInput(input, true, keyLines)
