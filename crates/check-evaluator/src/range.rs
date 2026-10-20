@@ -1,8 +1,79 @@
+#[derive(Clone, Copy)]
+pub struct RangeSupport {
+    pub comparison: i32,
+    pub canonical: i32,
+}
+
+pub fn range_unknown_support() -> RangeSupport {
+    RangeSupport {
+        comparison: 0,
+        canonical: 0,
+    }
+}
+
+pub fn range_builtin_support(type_name: &str, element_type: &str, kind: i32) -> RangeSupport {
+    if type_name == "pg_catalog.int4range" && element_type == "pg_catalog.int4" && kind == 2 {
+        return RangeSupport {
+            comparison: 2,
+            canonical: 2,
+        };
+    };
+    if type_name == "pg_catalog.int8range" && element_type == "pg_catalog.int8" && kind == 3 {
+        return RangeSupport {
+            comparison: 3,
+            canonical: 3,
+        };
+    };
+    if type_name == "pg_catalog.daterange" && element_type == "pg_catalog.date" && kind == 7 {
+        return RangeSupport {
+            comparison: 7,
+            canonical: 7,
+        };
+    };
+    if type_name == "pg_catalog.numrange" && element_type == "pg_catalog.\"numeric\"" && kind == 10
+    {
+        return RangeSupport {
+            comparison: 10,
+            canonical: 1,
+        };
+    };
+    if type_name == "pg_catalog.tsrange" && element_type == "pg_catalog.\"timestamp\"" && kind == 4
+    {
+        return RangeSupport {
+            comparison: 4,
+            canonical: 1,
+        };
+    };
+    if type_name == "pg_catalog.tstzrange" && element_type == "pg_catalog.timestamptz" && kind == 5
+    {
+        return RangeSupport {
+            comparison: 5,
+            canonical: 1,
+        };
+    };
+    range_unknown_support()
+}
+
+pub fn range_support_equal(left: RangeSupport, right: RangeSupport) -> bool {
+    left.comparison == right.comparison && left.canonical == right.canonical
+}
+
+pub fn range_support_valid(input: RangeSupport, kind: i32) -> bool {
+    let comparison = input.comparison == 0
+        || (input.comparison == kind
+            && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 7 || kind == 10));
+    let canonical = input.canonical == 0
+        || input.canonical == 1
+        || (input.canonical == kind && (kind == 2 || kind == 3 || kind == 7));
+    comparison && canonical
+}
+
 #[derive(Clone)]
 pub struct RangePayload {
     pub type_name: String,
     pub element_type: String,
     pub element_kind: i32,
+    pub support: RangeSupport,
     pub empty: bool,
     pub lower_inclusive: bool,
     pub upper_inclusive: bool,
@@ -25,38 +96,73 @@ pub fn range_null() -> RangeValue {
     RangeValue::Null
 }
 
+fn range_payload_with_support(input: RangePayload, support: RangeSupport) -> RangePayload {
+    RangePayload {
+        type_name: input.type_name,
+        element_type: input.element_type,
+        element_kind: input.element_kind,
+        support,
+        empty: input.empty,
+        lower_inclusive: input.lower_inclusive,
+        upper_inclusive: input.upper_inclusive,
+        bounds: input.bounds,
+    }
+}
+
 pub fn make_coerced_range_value(input: RangePayload) -> RangeValue {
-    if input.type_name.as_str() == "" || input.element_type.as_str() == "" || input.element_kind < 1
+    let value = input;
+    let mut support = value.support;
+    if value.type_name.as_str() == "" || value.element_type.as_str() == "" || value.element_kind < 1
     {
         return RangeValue::Unknown;
     };
-    if input.empty {
-        if input.bounds.len() != 0 || input.lower_inclusive || input.upper_inclusive {
+    if range_support_equal(support, range_unknown_support()) {
+        support = range_builtin_support(
+            value.type_name.as_str(),
+            value.element_type.as_str(),
+            value.element_kind,
+        );
+    };
+    if range_support_valid(support, value.element_kind) == false {
+        return RangeValue::Unknown;
+    };
+    let expected = range_builtin_support(
+        value.type_name.as_str(),
+        value.element_type.as_str(),
+        value.element_kind,
+    );
+    if range_support_equal(expected, range_unknown_support()) == false
+        && range_support_equal(support, expected) == false
+    {
+        return RangeValue::Unknown;
+    };
+    if value.empty {
+        if value.bounds.len() != 0 || value.lower_inclusive || value.upper_inclusive {
             return RangeValue::Unknown;
         };
-        return RangeValue::Value(input);
+        return RangeValue::Value(range_payload_with_support(value, support));
     };
-    if input.bounds.len() != 2 {
+    if value.bounds.len() != 2 {
         return RangeValue::Unknown;
     };
     let mut index: usize = 0;
-    while index < input.bounds.len() {
-        let bound = input.bounds[index].clone();
+    while index < value.bounds.len() {
+        let bound = value.bounds[index].clone();
         if let ArrayElement::Error(error) = bound {
             return RangeValue::Error(error);
         };
         let kind = array_element_family(bound.clone());
-        if kind != 0 && kind != input.element_kind {
+        if kind != 0 && kind != value.element_kind {
             return RangeValue::Unknown;
         };
         if let ArrayElement::Null = bound {
-            if (index == 0 && input.lower_inclusive) || (index == 1 && input.upper_inclusive) {
+            if (index == 0 && value.lower_inclusive) || (index == 1 && value.upper_inclusive) {
                 return RangeValue::Unknown;
             };
         };
         index += 1;
     }
-    RangeValue::Value(input)
+    RangeValue::Value(range_payload_with_support(value, support))
 }
 
 pub fn range_from_coerced_bounds(
@@ -69,6 +175,31 @@ pub fn range_from_coerced_bounds(
     lower: ArrayElement,
     upper: ArrayElement,
 ) -> RangeValue {
+    let support = range_builtin_support(type_name, element_type, element_kind);
+    range_from_profiled_bounds(
+        type_name,
+        element_type,
+        element_kind,
+        empty,
+        lower_inclusive,
+        upper_inclusive,
+        lower,
+        upper,
+        support,
+    )
+}
+
+pub fn range_from_profiled_bounds(
+    type_name: &str,
+    element_type: &str,
+    element_kind: i32,
+    empty: bool,
+    lower_inclusive: bool,
+    upper_inclusive: bool,
+    lower: ArrayElement,
+    upper: ArrayElement,
+    support: RangeSupport,
+) -> RangeValue {
     let mut bounds: Vec<ArrayElement> = Vec::new();
     if empty == false {
         bounds.push(lower);
@@ -78,6 +209,7 @@ pub fn range_from_coerced_bounds(
         type_name: type_name.to_owned(),
         element_type: element_type.to_owned(),
         element_kind,
+        support,
         empty,
         lower_inclusive,
         upper_inclusive,
@@ -96,6 +228,22 @@ pub fn range_require_type(
             || value.element_type.as_str() != element_type
             || value.element_kind != element_kind
         {
+            return RangeValue::Unknown;
+        };
+        let expected = range_builtin_support(type_name, element_type, element_kind);
+        if range_support_equal(expected, range_unknown_support()) == false
+            && range_support_equal(value.support, expected) == false
+        {
+            return RangeValue::Unknown;
+        };
+        return RangeValue::Value(value);
+    };
+    input
+}
+
+pub fn range_require_support(input: RangeValue, expected: RangeSupport) -> RangeValue {
+    if let RangeValue::Value(value) = input {
+        if range_support_equal(value.support, expected) == false {
             return RangeValue::Unknown;
         };
         return RangeValue::Value(value);

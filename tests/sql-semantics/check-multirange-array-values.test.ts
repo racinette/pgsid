@@ -322,11 +322,11 @@ fn multi_array_state_span(lower:ArrayElement,upper:ArrayElement)->RangeValue {
 }
 fn multi_array_state_bad_span(lower:ArrayElement,upper:ArrayElement)->RangeValue {
  let mut bounds:Vec<ArrayElement>=Vec::new();bounds.push(lower);bounds.push(upper);
- RangeValue::Value(RangePayload {type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,empty:false,lower_inclusive:true,upper_inclusive:false,bounds})
+ RangeValue::Value(RangePayload {type_name:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),empty:false,lower_inclusive:true,upper_inclusive:false,bounds})
 }
 fn multi_array_state_raw(first:RangeValue,second:RangeValue)->ArrayElement {
  let mut ranges:Vec<RangeValue>=Vec::new();ranges.push(first);ranges.push(second);
- ArrayElement::Multirange(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,ranges})
+ ArrayElement::Multirange(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),ranges})
 }
 fn multi_array_state_single(element:ArrayElement,kind:i32)->ArrayValue {
  let mut dimensions:Vec<ArrayDimension>=Vec::new();dimensions.push(ArrayDimension {lower:1,length:1});
@@ -345,9 +345,9 @@ fn multi_array_state_revise(input:MultirangeValue)->MultirangeValue {
   let first=payload.ranges[0].clone();
   if let RangeValue::Value(span)=first {
    let mut bounds=span.bounds;bounds[1]=ArrayElement::Int4(4);
-   let revised=make_coerced_range_value(RangePayload {type_name:span.type_name,element_type:span.element_type,element_kind:span.element_kind,empty:span.empty,lower_inclusive:span.lower_inclusive,upper_inclusive:span.upper_inclusive,bounds});
+   let revised=make_coerced_range_value(RangePayload {type_name:span.type_name,element_type:span.element_type,element_kind:span.element_kind,support:span.support,empty:span.empty,lower_inclusive:span.lower_inclusive,upper_inclusive:span.upper_inclusive,bounds});
    let mut ranges=payload.ranges;ranges[0]=revised;
-   return make_coerced_multirange_value(MultirangePayload {type_name:payload.type_name,range_type:payload.range_type,element_type:payload.element_type,element_kind:payload.element_kind,ranges});
+   return make_coerced_multirange_value(MultirangePayload {type_name:payload.type_name,range_type:payload.range_type,element_type:payload.element_type,element_kind:payload.element_kind,support:payload.support,ranges});
   };
  };
  MultirangeValue::Unknown
@@ -411,7 +411,7 @@ pub fn multi_array_state_probe(mode:Int4Value)->BoolValue {
   };
   if selected==14 {
    let mut ranges:Vec<RangeValue>=Vec::new();
-   let empty=make_coerced_multirange_value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,ranges});
+   let empty=make_coerced_multirange_value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),ranges});
    let value=multi_array_make("pg_catalog.int4multirange",empty,MultirangeValue::Null);
    let restored=array_element_to_multirange(array_flat_element(value,make_int4_value(0)));
    return BoolValue::Value(multirange_is_null(restored.clone())==BoolValue::Value(false) && multirange_empty_state(restored)==BoolValue::Value(true));

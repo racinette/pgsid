@@ -130,7 +130,7 @@ fn multirange_partial_span(lower:ArrayElement,upper:ArrayElement)->RangeValue {
 }
 fn multirange_partial_pack(first:RangeValue,second:RangeValue,two:bool)->MultirangeValue {
  let mut ranges:Vec<RangeValue>=Vec::new();ranges.push(first);if two {ranges.push(second);};
- make_coerced_multirange_value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,ranges})
+ make_coerced_multirange_value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),ranges})
 }
 pub fn multirange_partial_probe(mode:Int4Value)->BoolValue {
  if let Int4Value::Value(selected)=mode {
@@ -152,7 +152,7 @@ pub fn multirange_partial_probe(mode:Int4Value)->BoolValue {
   };
   if selected==8 || selected==9 {
    let mut ranges:Vec<RangeValue>=Vec::new();ranges.push(RangeValue::Unknown);
-   let malformed=MultirangeValue::Value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,ranges});
+   let malformed=MultirangeValue::Value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),ranges});
    if selected==8 {return sql__pg_catalog__multirange_contains_elem__aq4j(malformed,ArrayElement::Int4(1));};
    return sql__pg_catalog__multirange_contains_range__bpqf(malformed,b);
   };
@@ -160,7 +160,7 @@ pub fn multirange_partial_probe(mode:Int4Value)->BoolValue {
   if selected==11 {let error=make_sql_error(3452582);return multirange_is_null(finish_multirange_domain_conversion(partial,CheckOutcome::Error(error)));};
   if selected==12 {return multirange_empty_state(finish_multirange_domain_conversion(partial,CheckOutcome::True));};
   if selected==13 {
-   let ranges:Vec<RangeValue>=Vec::new();let bad=make_coerced_multirange_value(MultirangePayload {type_name:"public.other".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,ranges});
+   let ranges:Vec<RangeValue>=Vec::new();let bad=make_coerced_multirange_value(MultirangePayload {type_name:"public.other".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),ranges});
    let empty=sql__pg_catalog__int4multirange__qvfa();return sql__pg_catalog__multirange_eq__9xy5(bad,empty);
   };
  };

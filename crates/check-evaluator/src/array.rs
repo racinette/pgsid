@@ -306,33 +306,33 @@ pub fn array_from_case_guard(input: CheckOutcome) -> ArrayValue {
     ArrayValue::Unknown
 }
 
-fn array_element_owned_state(input: &ArrayPayload, position: usize) -> BoolValue {
-    let element = input.elements[position].clone();
-    if let ArrayElement::Error(error) = element {
-        return BoolValue::Error(error);
-    };
+fn array_coerced_owned_element(element: ArrayElement) -> ArrayElement {
     if let ArrayElement::Array(nested) = element {
-        return array_is_null(make_array_value(nested));
+        return array_element_from_array(make_array_value(nested));
     };
     if let ArrayElement::Range(payload) = element {
-        return range_is_null(make_coerced_range_value(payload));
+        return array_element_from_range(make_coerced_range_value(payload));
     };
     if let ArrayElement::Multirange(payload) = element {
-        return multirange_is_null(make_coerced_multirange_value(payload));
+        return array_element_from_multirange(make_coerced_multirange_value(payload));
     };
-    BoolValue::Value(false)
+    element
 }
 
 pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
+    let mut elements = input.elements;
     let mut position: usize = 0;
-    while position < input.elements.len() {
-        let checked = array_element_owned_state(&input, position);
-        if let BoolValue::Error(error) = checked {
+    while position < elements.len() {
+        let checked = array_coerced_owned_element(elements[position].clone());
+        if let ArrayElement::Error(error) = checked {
             return ArrayValue::Error(error);
         };
-        if let BoolValue::Unknown = checked {
-            return ArrayValue::Unknown;
+        if let ArrayElement::Unknown = checked {
+            if array_element_family(elements[position].clone()) >= 41 {
+                return ArrayValue::Unknown;
+            };
         };
+        elements[position] = checked;
         position += 1;
     }
     let identity: Vec<char> = input.element_type.chars().collect();
@@ -367,12 +367,12 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         count = count * length;
         position += 1;
     }
-    if count != (input.elements.len() as i32) as i64 {
+    if count != (elements.len() as i32) as i64 {
         return ArrayValue::Unknown;
     };
     position = 0;
-    while position < input.elements.len() {
-        let kind = array_element_family(input.elements[position].clone());
+    while position < elements.len() {
+        let kind = array_element_family(elements[position].clone());
         if kind != 0 && kind != input.element_kind {
             return ArrayValue::Unknown;
         };
@@ -386,8 +386,8 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         return ArrayValue::Unknown;
     };
     position = 0;
-    while position < input.elements.len() {
-        let element = input.elements[position].clone();
+    while position < elements.len() {
+        let element = elements[position].clone();
         if let ArrayElement::Null = element {
             if null_bitmap == BoolValue::Value(false) {
                 return ArrayValue::Unknown;
@@ -400,7 +400,7 @@ pub fn make_array_value(input: ArrayPayload) -> ArrayValue {
         element_type: input.element_type,
         element_kind: input.element_kind,
         dimensions: input.dimensions,
-        elements: input.elements,
+        elements: elements,
         null_bitmap: null_bitmap,
     })
 }
@@ -544,18 +544,30 @@ fn array_multirange_element_identity(
 ) -> bool {
     let element = input.elements[position].clone();
     if let ArrayElement::Array(nested) = element {
-        return array_multirange_identity_valid(&nested, type_name, range_type, element_type, element_kind);
+        return array_multirange_identity_valid(
+            &nested,
+            type_name,
+            range_type,
+            element_type,
+            element_kind,
+        );
     };
     if let ArrayElement::Multirange(payload) = element {
-        if payload.type_name.as_str() != type_name || payload.range_type.as_str() != range_type
-            || payload.element_type.as_str() != element_type || payload.element_kind != element_kind {
+        if payload.type_name.as_str() != type_name
+            || payload.range_type.as_str() != range_type
+            || payload.element_type.as_str() != element_type
+            || payload.element_kind != element_kind
+        {
             return false;
         };
         let mut member: usize = 0;
         while member < payload.ranges.len() {
             let span = payload.ranges[member].clone();
             if let RangeValue::Value(value) = span {
-                if value.type_name.as_str() != range_type || value.element_type.as_str() != element_type || value.element_kind != element_kind {
+                if value.type_name.as_str() != range_type
+                    || value.element_type.as_str() != element_type
+                    || value.element_kind != element_kind
+                {
                     return false;
                 };
             };
@@ -574,7 +586,15 @@ fn array_multirange_identity_valid(
 ) -> bool {
     let mut position: usize = 0;
     while position < input.elements.len() {
-        if array_multirange_element_identity(input, position, type_name, range_type, element_type, element_kind) == false {
+        if array_multirange_element_identity(
+            input,
+            position,
+            type_name,
+            range_type,
+            element_type,
+            element_kind,
+        ) == false
+        {
             return false;
         };
         position += 1;
@@ -593,7 +613,14 @@ pub fn array_from_coerced_multirange_tree(
 ) -> ArrayValue {
     if let ArrayValue::Value(payload) = input {
         if array_tree_identity_valid(&payload, types, kinds, 0) == false
-            || array_multirange_identity_valid(&payload, type_name, range_type, element_type, element_kind) == false {
+            || array_multirange_identity_valid(
+                &payload,
+                type_name,
+                range_type,
+                element_type,
+                element_kind,
+            ) == false
+        {
             return ArrayValue::Unknown;
         };
         return make_array_value(payload);

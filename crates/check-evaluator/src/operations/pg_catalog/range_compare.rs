@@ -2,6 +2,7 @@ fn range_same_family(left: &RangePayload, right: &RangePayload) -> bool {
     left.type_name.as_str() == right.type_name.as_str()
         && left.element_type.as_str() == right.element_type.as_str()
         && left.element_kind == right.element_kind
+        && range_support_equal(left.support, right.support)
 }
 
 fn range_endpoint_compare(
@@ -47,7 +48,7 @@ fn range_endpoint_compare(
         };
         return make_int4_value(1);
     };
-    let comparison = range_builtin_compare(a, b, left.element_kind);
+    let comparison = range_builtin_compare(a, b, left.support.comparison);
     if let Int4Value::Value(order) = comparison {
         if order != 0 {
             return comparison;
@@ -150,7 +151,7 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
     if let ArrayElement::Null = b {
         return BoolValue::Value(false);
     };
-    let comparison = range_builtin_compare(a.clone(), b.clone(), left.element_kind);
+    let comparison = range_builtin_compare(a.clone(), b.clone(), left.support.comparison);
     if let Int4Value::Error(error) = comparison {
         return BoolValue::Error(error);
     };
@@ -158,7 +159,13 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
         if order == 0 {
             return BoolValue::Value(left.upper_inclusive != right.lower_inclusive);
         };
-        if order < 0 && (left.element_kind == 2 || left.element_kind == 3 || left.element_kind == 7)
+        if order < 0 && left.support.canonical == 0 {
+            return BoolValue::Unknown;
+        };
+        if order < 0
+            && (left.support.canonical == 2
+                || left.support.canonical == 3
+                || left.support.canonical == 7)
         {
             let mut flags = String::new();
             if left.upper_inclusive {
@@ -171,13 +178,14 @@ fn range_bounds_adjacent(left: &RangePayload, right: &RangePayload) -> BoolValue
             } else {
                 flags.push(']');
             };
-            let gap = range_builtin_construct(
+            let gap = range_construct_with_support(
                 left.type_name.as_str(),
                 left.element_type.as_str(),
                 left.element_kind,
                 a,
                 b,
                 TextValue::Value(flags),
+                left.support,
             );
             return range_empty_state(gap);
         };
@@ -334,7 +342,7 @@ fn range_contains_element(
             has_upper = false;
         };
         if has_lower {
-            let comparison = range_builtin_compare(lower, element.clone(), span.element_kind);
+            let comparison = range_builtin_compare(lower, element.clone(), span.support.comparison);
             if let Int4Value::Error(error) = comparison {
                 return BoolValue::Error(error);
             };
@@ -350,7 +358,7 @@ fn range_contains_element(
             };
         };
         if has_upper {
-            let comparison = range_builtin_compare(upper, element, span.element_kind);
+            let comparison = range_builtin_compare(upper, element, span.support.comparison);
             if let Int4Value::Error(error) = comparison {
                 return BoolValue::Error(error);
             };

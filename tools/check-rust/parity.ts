@@ -1,9 +1,20 @@
 import { isOidType, isRangeType } from '../../src/sql-semantics/expressions.js'
-import { rangeRustInput, rangeGoInput, type RangeInputPayload } from './range-input.js'
-import { arrayRustInput, arrayGoInput, type OwnedArrayInputPayload } from './array-input.js'
+import {
+  rangeRustInput,
+  rangeGoInput,
+  rangeTypescriptInput,
+  type RangeInputPayload,
+} from './range-input.js'
+import {
+  arrayRustInput,
+  arrayGoInput,
+  arrayTypescriptInput,
+  type OwnedArrayInputPayload,
+} from './array-input.js'
 import {
   multirangeRustInput,
   multirangeGoInput,
+  multirangeTypescriptInput,
   type MultirangeInputPayload,
 } from './multirange-input.js'
 import { builtinMultirangeType } from '../../src/postgres/builtins/inventory.js'
@@ -564,7 +575,18 @@ export async function runCheckParity(
         const value = projectedInput(fixture.row[input.name]!, input.nullness)
         if (input.nullness) return value
         if (isRangeType(input.type) && value.kind === 'Value')
-          return generated.makeCoercedRangeValue(value.value)
+          return generated.makeCoercedRangeValue(
+            rangeTypescriptInput(value.value as RangeInputPayload, generated),
+          )
+        if (builtinMultirangeType(input.type) && value.kind === 'Value')
+          return generated.makeCoercedMultirangeValue(
+            multirangeTypescriptInput(value.value as MultirangeInputPayload, generated),
+          )
+        if (input.type.startsWith('array:') && value.kind === 'Value')
+          return {
+            kind: value.kind,
+            value: arrayTypescriptInput(value.value as OwnedArrayInputPayload, generated),
+          }
         if (input.type === 'pg_catalog.jsonpath' && value.kind === 'Value')
           return operations.jsonpathFromCoercedSourceUtf8(generated.makeTextValue(value.value))
         if (input.type === 'pg_catalog.jsonb' && value.kind === 'Value')

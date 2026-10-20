@@ -20,7 +20,7 @@ fn multirange_output_fixture_span(lower:ArrayElement,upper:ArrayElement)->RangeV
 }
 fn multirange_output_fixture_pack(first:RangeValue,second:RangeValue)->MultirangeValue {
  let mut ranges:Vec<RangeValue>=Vec::new();ranges.push(first);ranges.push(second);
- MultirangeValue::Value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,ranges})
+ MultirangeValue::Value(MultirangePayload {type_name:"pg_catalog.int4multirange".to_owned(),range_type:"pg_catalog.int4range".to_owned(),element_type:"pg_catalog.int4".to_owned(),element_kind:2,support:range_builtin_support("pg_catalog.int4range","pg_catalog.int4",2),ranges})
 }
 pub fn multirange_output_partial(mode:Int4Value)->BoolValue {
  let first=multirange_output_fixture_span(ArrayElement::Int4(1),ArrayElement::Int4(3));

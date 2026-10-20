@@ -857,7 +857,7 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
       if(value===null || value.kind!=='Range') return null
       ranges.push({kind:'Value',value:value.value})
     }
-    return {kind:'Multirange',value:{typeName:tree[2]!,rangeType:tree[3]!,elementType:tree[4]!,elementKind:kind,ranges}}
+    return {kind:'Multirange',value:{typeName:tree[2]!,rangeType:tree[3]!,elementType:tree[4]!,elementKind:kind,support:_checkRust.rangeBuiltinSupport(tree[3]!,tree[4]!,kind),ranges}}
   }
   if(input.kind==='Range') {
     if(family!==42 || tree.length!==5 || tree[4]!.length!==1 || !('value' in input) || !input.value || typeof input.value!=='object') return null
@@ -870,7 +870,7 @@ function checkRustArrayElement(input: unknown, family: number, depth: number, tr
       if(cell===null) return null
       bounds.push(cell)
     }
-    return {kind:'Range',value:{typeName:tree[2]!,elementType:tree[3]!,elementKind:kind,empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds}}
+    return {kind:'Range',value:{typeName:tree[2]!,elementType:tree[3]!,elementKind:kind,support:_checkRust.rangeBuiltinSupport(tree[2]!,tree[3]!,kind),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds}}
   }
   if (input.kind==='Float4UnspecifiedNan' && family===19) return {kind:'Float4UnspecifiedNan'}
   if (input.kind==='Float8UnspecifiedNan' && family===20) return {kind:'Float8UnspecifiedNan'}
@@ -1048,7 +1048,7 @@ function checkRustMultirange(row: object, name: string, typeName: string, rangeT
     ranges.push(value)
     if(value.kind==='Unknown' || value.kind==='Error') break
   }
-  return _checkRust.makeCoercedMultirangeValue({typeName,rangeType,elementType,elementKind,ranges})
+  return _checkRust.makeCoercedMultirangeValue({typeName,rangeType,elementType,elementKind,support:_checkRust.rangeBuiltinSupport(rangeType,elementType,elementKind),ranges})
 }
 function checkRustRange(row: object, name: string): _checkRust.RangeValue {
   const input=Reflect.get(row,name)
@@ -1066,7 +1066,7 @@ function checkRustRange(row: object, name: string): _checkRust.RangeValue {
     if (cell===null) return _checkRust.rangeUnknown()
     bounds.push(cell)
   }
-  return _checkRust.makeCoercedRangeValue({typeName:p.typeName as string,elementType:p.elementType as string,elementKind:p.elementKind as number,empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds})
+  return _checkRust.makeCoercedRangeValue({typeName:p.typeName as string,elementType:p.elementType as string,elementKind:p.elementKind as number,support:_checkRust.rangeBuiltinSupport(p.typeName as string,p.elementType as string,p.elementKind as number),empty:p.empty,lowerInclusive:p.lowerInclusive,upperInclusive:p.upperInclusive,bounds})
 }
 function checkRustSnapshot(row: object, name: string): _checkRust.SnapshotValue {
   const value = Reflect.get(row, name)

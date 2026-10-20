@@ -3,12 +3,14 @@ fn multirange_same_family(left: &MultirangePayload, right: &MultirangePayload) -
         && left.range_type.as_str() == right.range_type.as_str()
         && left.element_type.as_str() == right.element_type.as_str()
         && left.element_kind == right.element_kind
+        && range_support_equal(left.support, right.support)
 }
 
 fn multirange_span_family(input: &MultirangePayload, span: &RangePayload) -> bool {
     input.range_type.as_str() == span.type_name.as_str()
         && input.element_type.as_str() == span.element_type.as_str()
         && input.element_kind == span.element_kind
+        && range_support_equal(input.support, span.support)
 }
 
 fn multirange_member_relation(
@@ -429,7 +431,7 @@ fn multirange_element_direction(span: &RangePayload, element: ArrayElement) -> I
         has_upper = false;
     };
     if has_lower {
-        let compared = range_builtin_compare(lower, element.clone(), span.element_kind);
+        let compared = range_builtin_compare(lower, element.clone(), span.support.comparison);
         if let Int4Value::Value(order) = compared {
             if order > 0 || (order == 0 && span.lower_inclusive == false) {
                 return make_int4_value(-1);
@@ -440,7 +442,7 @@ fn multirange_element_direction(span: &RangePayload, element: ArrayElement) -> I
         };
     };
     if has_upper {
-        let compared = range_builtin_compare(upper, element, span.element_kind);
+        let compared = range_builtin_compare(upper, element, span.support.comparison);
         if let Int4Value::Value(order) = compared {
             if order < 0 || (order == 0 && span.upper_inclusive == false) {
                 return make_int4_value(1);

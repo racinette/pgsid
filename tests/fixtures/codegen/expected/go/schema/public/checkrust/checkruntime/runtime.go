@@ -8378,10 +8378,53 @@ func ArrayElementToMultirange(input ArrayElement) MultirangeValue {
 	return MultirangeValue{Kind: MultirangeValueUnknown}
 }
 
+type RangeSupport struct {
+	Comparison int
+	Canonical  int
+}
+
+func RangeUnknownSupport() RangeSupport {
+	return RangeSupport{Comparison: 0, Canonical: 0}
+}
+func RangeBuiltinSupport(typeName string, elementType string, kind int) RangeSupport {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	kind = langruntime.CheckedI32(kind)
+	if typeName == "pg_catalog.int4range" && elementType == "pg_catalog.int4" && kind == 2 {
+		return RangeSupport{Comparison: 2, Canonical: 2}
+	}
+	if typeName == "pg_catalog.int8range" && elementType == "pg_catalog.int8" && kind == 3 {
+		return RangeSupport{Comparison: 3, Canonical: 3}
+	}
+	if typeName == "pg_catalog.daterange" && elementType == "pg_catalog.date" && kind == 7 {
+		return RangeSupport{Comparison: 7, Canonical: 7}
+	}
+	if typeName == "pg_catalog.numrange" && elementType == "pg_catalog.\"numeric\"" && kind == 10 {
+		return RangeSupport{Comparison: 10, Canonical: 1}
+	}
+	if typeName == "pg_catalog.tsrange" && elementType == "pg_catalog.\"timestamp\"" && kind == 4 {
+		return RangeSupport{Comparison: 4, Canonical: 1}
+	}
+	if typeName == "pg_catalog.tstzrange" && elementType == "pg_catalog.timestamptz" && kind == 5 {
+		return RangeSupport{Comparison: 5, Canonical: 1}
+	}
+	return RangeUnknownSupport()
+}
+func RangeSupportEqual(left RangeSupport, right RangeSupport) bool {
+	return left.Comparison == right.Comparison && left.Canonical == right.Canonical
+}
+func RangeSupportValid(input RangeSupport, kind int) bool {
+	kind = langruntime.CheckedI32(kind)
+	comparison := input.Comparison == 0 || (input.Comparison == kind && (kind == 2 || kind == 3 || kind == 4 || kind == 5 || kind == 7 || kind == 10))
+	canonical := input.Canonical == 0 || input.Canonical == 1 || (input.Canonical == kind && (kind == 2 || kind == 3 || kind == 7))
+	return comparison && canonical
+}
+
 type RangePayload struct {
 	TypeName       string
 	ElementType    string
 	ElementKind    int
+	Support        RangeSupport
 	Empty          bool
 	LowerInclusive bool
 	UpperInclusive bool
@@ -8389,7 +8432,7 @@ type RangePayload struct {
 }
 
 func CopyRangePayload(value RangePayload) RangePayload {
-	return RangePayload{TypeName: langruntime.CheckedString(value.TypeName), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Empty: value.Empty, LowerInclusive: value.LowerInclusive, UpperInclusive: value.UpperInclusive, Bounds: langruntime.CheckedStructs(value.Bounds, CopyArrayElement)}
+	return RangePayload{TypeName: langruntime.CheckedString(value.TypeName), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Support: value.Support, Empty: value.Empty, LowerInclusive: value.LowerInclusive, UpperInclusive: value.UpperInclusive, Bounds: langruntime.CheckedStructs(value.Bounds, CopyArrayElement)}
 }
 
 type RangeValueKind uint8
@@ -8426,41 +8469,66 @@ func RangeUnknown() RangeValue {
 func RangeNull() RangeValue {
 	return RangeValue{Kind: RangeValueNull}
 }
+func rangePayloadWithSupport(input RangePayload, support RangeSupport) RangePayload {
+	input = CopyRangePayload(input)
+	return RangePayload{TypeName: input.TypeName, ElementType: input.ElementType, ElementKind: input.ElementKind, Support: support, Empty: input.Empty, LowerInclusive: input.LowerInclusive, UpperInclusive: input.UpperInclusive, Bounds: input.Bounds}
+}
 func MakeCoercedRangeValue(input RangePayload) RangeValue {
 	input = CopyRangePayload(input)
-	if input.TypeName == "" || input.ElementType == "" || input.ElementKind < 1 {
+	value := input
+	support := value.Support
+	if value.TypeName == "" || value.ElementType == "" || value.ElementKind < 1 {
 		return RangeValue{Kind: RangeValueUnknown}
 	}
-	if input.Empty {
-		if len(input.Bounds) != 0 || input.LowerInclusive || input.UpperInclusive {
+	if RangeSupportEqual(support, RangeUnknownSupport()) {
+		support = RangeBuiltinSupport(value.TypeName, value.ElementType, value.ElementKind)
+	}
+	if RangeSupportValid(support, value.ElementKind) == false {
+		return RangeValue{Kind: RangeValueUnknown}
+	}
+	expected := RangeBuiltinSupport(value.TypeName, value.ElementType, value.ElementKind)
+	if RangeSupportEqual(expected, RangeUnknownSupport()) == false && RangeSupportEqual(support, expected) == false {
+		return RangeValue{Kind: RangeValueUnknown}
+	}
+	if value.Empty {
+		if len(value.Bounds) != 0 || value.LowerInclusive || value.UpperInclusive {
 			return RangeValue{Kind: RangeValueUnknown}
 		}
-		return RangeValue{Kind: RangeValueValue, Value: input}
+		return RangeValue{Kind: RangeValueValue, Value: rangePayloadWithSupport(value, support)}
 	}
-	if len(input.Bounds) != 2 {
+	if len(value.Bounds) != 2 {
 		return RangeValue{Kind: RangeValueUnknown}
 	}
 	index := 0
-	for index < len(input.Bounds) {
-		bound := CopyArrayElement(input.Bounds[index])
+	for index < len(value.Bounds) {
+		bound := CopyArrayElement(value.Bounds[index])
 		if bound.Kind == ArrayElementError {
 			error := bound.Error
 			return RangeValue{Kind: RangeValueError, Error: error}
 		}
 		kind := ArrayElementFamily(CopyArrayElement(bound))
-		if kind != 0 && kind != input.ElementKind {
+		if kind != 0 && kind != value.ElementKind {
 			return RangeValue{Kind: RangeValueUnknown}
 		}
 		if bound.Kind == ArrayElementNull {
-			if (index == 0 && input.LowerInclusive) || (index == 1 && input.UpperInclusive) {
+			if (index == 0 && value.LowerInclusive) || (index == 1 && value.UpperInclusive) {
 				return RangeValue{Kind: RangeValueUnknown}
 			}
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return RangeValue{Kind: RangeValueValue, Value: input}
+	return RangeValue{Kind: RangeValueValue, Value: rangePayloadWithSupport(value, support)}
 }
 func RangeFromCoercedBounds(typeName string, elementType string, elementKind int, empty bool, lowerInclusive bool, upperInclusive bool, lower ArrayElement, upper ArrayElement) RangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	lower = CopyArrayElement(lower)
+	upper = CopyArrayElement(upper)
+	support := RangeBuiltinSupport(typeName, elementType, elementKind)
+	return RangeFromProfiledBounds(typeName, elementType, elementKind, empty, lowerInclusive, upperInclusive, lower, upper, support)
+}
+func RangeFromProfiledBounds(typeName string, elementType string, elementKind int, empty bool, lowerInclusive bool, upperInclusive bool, lower ArrayElement, upper ArrayElement, support RangeSupport) RangeValue {
 	typeName = langruntime.CheckedString(typeName)
 	elementType = langruntime.CheckedString(elementType)
 	elementKind = langruntime.CheckedI32(elementKind)
@@ -8473,7 +8541,7 @@ func RangeFromCoercedBounds(typeName string, elementType string, elementKind int
 		langruntime.CheckedAdd(len(bounds), 1)
 		bounds = append(bounds, CopyArrayElement(upper))
 	}
-	return MakeCoercedRangeValue(RangePayload{TypeName: typeName, ElementType: elementType, ElementKind: elementKind, Empty: empty, LowerInclusive: lowerInclusive, UpperInclusive: upperInclusive, Bounds: bounds})
+	return MakeCoercedRangeValue(RangePayload{TypeName: typeName, ElementType: elementType, ElementKind: elementKind, Support: support, Empty: empty, LowerInclusive: lowerInclusive, UpperInclusive: upperInclusive, Bounds: bounds})
 }
 func RangeRequireType(input RangeValue, typeName string, elementType string, elementKind int) RangeValue {
 	input = CopyRangeValue(input)
@@ -8483,6 +8551,21 @@ func RangeRequireType(input RangeValue, typeName string, elementType string, ele
 	if input.Kind == RangeValueValue {
 		value := CopyRangePayload(input.Value)
 		if value.TypeName != typeName || value.ElementType != elementType || value.ElementKind != elementKind {
+			return RangeValue{Kind: RangeValueUnknown}
+		}
+		expected := RangeBuiltinSupport(typeName, elementType, elementKind)
+		if RangeSupportEqual(expected, RangeUnknownSupport()) == false && RangeSupportEqual(value.Support, expected) == false {
+			return RangeValue{Kind: RangeValueUnknown}
+		}
+		return RangeValue{Kind: RangeValueValue, Value: value}
+	}
+	return input
+}
+func RangeRequireSupport(input RangeValue, expected RangeSupport) RangeValue {
+	input = CopyRangeValue(input)
+	if input.Kind == RangeValueValue {
+		value := CopyRangePayload(input.Value)
+		if RangeSupportEqual(value.Support, expected) == false {
 			return RangeValue{Kind: RangeValueUnknown}
 		}
 		return RangeValue{Kind: RangeValueValue, Value: value}
@@ -8585,11 +8668,12 @@ type MultirangePayload struct {
 	RangeType   string
 	ElementType string
 	ElementKind int
+	Support     RangeSupport
 	Ranges      []RangeValue
 }
 
 func CopyMultirangePayload(value MultirangePayload) MultirangePayload {
-	return MultirangePayload{TypeName: langruntime.CheckedString(value.TypeName), RangeType: langruntime.CheckedString(value.RangeType), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Ranges: langruntime.CheckedStructs(value.Ranges, CopyRangeValue)}
+	return MultirangePayload{TypeName: langruntime.CheckedString(value.TypeName), RangeType: langruntime.CheckedString(value.RangeType), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Support: value.Support, Ranges: langruntime.CheckedStructs(value.Ranges, CopyRangeValue)}
 }
 
 type MultirangeValueKind uint8
@@ -8626,42 +8710,85 @@ func MultirangeUnknown() MultirangeValue {
 func MultirangeNull() MultirangeValue {
 	return MultirangeValue{Kind: MultirangeValueNull}
 }
-func multirangeComponentState(input *MultirangePayload, position int) BoolValue {
+func multirangeComponent(input *MultirangePayload, position int, support RangeSupport) RangeValue {
 	position = langruntime.CheckedIndex(position)
 	span := CopyRangeValue(input.Ranges[position])
+	if span.Kind == RangeValueValue {
+		payload := CopyRangePayload(span.Value)
+		span = CopyRangeValue(MakeCoercedRangeValue(payload))
+	}
 	typed := RangeRequireType(span, input.RangeType, input.ElementType, input.ElementKind)
-	if typed.Kind == RangeValueError {
-		error := typed.Error
-		return BoolValue{Kind: BoolValueError, Error: error}
+	supported := RangeRequireSupport(typed, support)
+	if supported.Kind == RangeValueError {
+		error := supported.Error
+		return RangeValue{Kind: RangeValueError, Error: error}
 	}
-	if typed.Kind == RangeValueValue {
-		payload := CopyRangePayload(typed.Value)
+	if supported.Kind == RangeValueValue {
+		payload := CopyRangePayload(supported.Value)
 		if payload.Empty {
-			return BoolValue{Kind: BoolValueUnknown}
+			return RangeValue{Kind: RangeValueUnknown}
 		}
-		checked := MakeCoercedRangeValue(payload)
-		return RangeIsNull(checked)
+		return RangeValue{Kind: RangeValueValue, Value: payload}
 	}
-	return BoolValue{Kind: BoolValueUnknown}
+	return RangeValue{Kind: RangeValueUnknown}
 }
 func MakeCoercedMultirangeValue(input MultirangePayload) MultirangeValue {
 	input = CopyMultirangePayload(input)
-	if input.TypeName == "" || input.RangeType == "" || input.ElementType == "" || input.ElementKind < 1 {
+	payload := input
+	support := payload.Support
+	if payload.TypeName == "" || payload.RangeType == "" || payload.ElementType == "" || payload.ElementKind < 1 {
 		return MultirangeValue{Kind: MultirangeValueUnknown}
 	}
+	expected := RangeBuiltinSupport(payload.RangeType, payload.ElementType, payload.ElementKind)
+	if RangeSupportEqual(support, RangeUnknownSupport()) {
+		support = expected
+	}
+	if RangeSupportValid(support, payload.ElementKind) == false {
+		return MultirangeValue{Kind: MultirangeValueUnknown}
+	}
+	if RangeSupportEqual(expected, RangeUnknownSupport()) == false && RangeSupportEqual(support, expected) == false {
+		return MultirangeValue{Kind: MultirangeValueUnknown}
+	}
+	ranges := []RangeValue{}
 	index := 0
-	for index < len(input.Ranges) {
-		state := multirangeComponentState(&input, index)
-		if state.Kind == BoolValueError {
-			error := state.Error
+	for index < len(payload.Ranges) {
+		member := multirangeComponent(&payload, index, support)
+		if member.Kind == RangeValueError {
+			error := member.Error
 			return MultirangeValue{Kind: MultirangeValueError, Error: error}
 		}
-		if state != (BoolValue{Kind: BoolValueValue, Value: false}) {
+		known := false
+		if member.Kind == RangeValueValue {
+			span := CopyRangePayload(member.Value)
+			langruntime.CheckedAdd(len(ranges), 1)
+			ranges = append(ranges, CopyRangeValue(RangeValue{Kind: RangeValueValue, Value: span}))
+			known = true
+		}
+		if known == false {
 			return MultirangeValue{Kind: MultirangeValueUnknown}
 		}
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return MultirangeValue{Kind: MultirangeValueValue, Value: input}
+	return MultirangeValue{Kind: MultirangeValueValue, Value: MultirangePayload{TypeName: payload.TypeName, RangeType: payload.RangeType, ElementType: payload.ElementType, ElementKind: payload.ElementKind, Support: support, Ranges: ranges}}
+}
+func MultirangeFromProfiledRanges(typeName string, rangeType string, elementType string, elementKind int, ranges []RangeValue, support RangeSupport) MultirangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	ranges = langruntime.CheckedStructs(ranges, CopyRangeValue)
+	return MakeCoercedMultirangeValue(MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: support, Ranges: ranges})
+}
+func MultirangeRequireSupport(input MultirangeValue, expected RangeSupport) MultirangeValue {
+	input = CopyMultirangeValue(input)
+	if input.Kind == MultirangeValueValue {
+		payload := CopyMultirangePayload(input.Value)
+		if RangeSupportEqual(payload.Support, expected) == false {
+			return MultirangeValue{Kind: MultirangeValueUnknown}
+		}
+		return MultirangeValue{Kind: MultirangeValueValue, Value: payload}
+	}
+	return input
 }
 func MultirangeRequireType(input MultirangeValue, typeName string, rangeType string, elementType string, elementKind int) MultirangeValue {
 	input = CopyMultirangeValue(input)
@@ -9158,39 +9285,38 @@ func ArrayFromCaseGuard(input CheckOutcome) ArrayValue {
 	}
 	return ArrayValue{Kind: ArrayValueUnknown}
 }
-func arrayElementOwnedState(input *ArrayPayload, position int) BoolValue {
-	position = langruntime.CheckedIndex(position)
-	element := CopyArrayElement(input.Elements[position])
-	if element.Kind == ArrayElementError {
-		error := element.Error
-		return BoolValue{Kind: BoolValueError, Error: error}
-	}
+func arrayCoercedOwnedElement(element ArrayElement) ArrayElement {
+	element = CopyArrayElement(element)
 	if element.Kind == ArrayElementArray {
 		nested := CopyArrayPayload(element.Array)
-		return ArrayIsNull(MakeArrayValue(nested))
+		return ArrayElementFromArray(MakeArrayValue(nested))
 	}
 	if element.Kind == ArrayElementRange {
 		payload := CopyRangePayload(element.Range)
-		return RangeIsNull(MakeCoercedRangeValue(payload))
+		return ArrayElementFromRange(MakeCoercedRangeValue(payload))
 	}
 	if element.Kind == ArrayElementMultirange {
 		payload := CopyMultirangePayload(element.Multirange)
-		return MultirangeIsNull(MakeCoercedMultirangeValue(payload))
+		return ArrayElementFromMultirange(MakeCoercedMultirangeValue(payload))
 	}
-	return BoolValue{Kind: BoolValueValue, Value: false}
+	return element
 }
 func MakeArrayValue(input ArrayPayload) ArrayValue {
 	input = CopyArrayPayload(input)
+	elements := input.Elements
 	position := 0
-	for position < len(input.Elements) {
-		checked := arrayElementOwnedState(&input, position)
-		if checked.Kind == BoolValueError {
+	for position < len(elements) {
+		checked := arrayCoercedOwnedElement(CopyArrayElement(elements[position]))
+		if checked.Kind == ArrayElementError {
 			error := checked.Error
 			return ArrayValue{Kind: ArrayValueError, Error: error}
 		}
-		if checked.Kind == BoolValueUnknown {
-			return ArrayValue{Kind: ArrayValueUnknown}
+		if checked.Kind == ArrayElementUnknown {
+			if ArrayElementFamily(CopyArrayElement(elements[position])) >= 41 {
+				return ArrayValue{Kind: ArrayValueUnknown}
+			}
 		}
+		elements[position] = CopyArrayElement(checked)
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	identity := []rune(input.ElementType)
@@ -9225,12 +9351,12 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		count = langruntime.CheckedI64Multiply(count, length)
 		position = langruntime.CheckedAdd(position, 1)
 	}
-	if count != int64(langruntime.CheckedI32((int(int32(len(input.Elements)))))) {
+	if count != int64(langruntime.CheckedI32((int(int32(len(elements)))))) {
 		return ArrayValue{Kind: ArrayValueUnknown}
 	}
 	position = langruntime.CheckedIndex(0)
-	for position < len(input.Elements) {
-		kind := ArrayElementFamily(CopyArrayElement(input.Elements[position]))
+	for position < len(elements) {
+		kind := ArrayElementFamily(CopyArrayElement(elements[position]))
 		if kind != 0 && kind != input.ElementKind {
 			return ArrayValue{Kind: ArrayValueUnknown}
 		}
@@ -9244,8 +9370,8 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		return ArrayValue{Kind: ArrayValueUnknown}
 	}
 	position = langruntime.CheckedIndex(0)
-	for position < len(input.Elements) {
-		element := CopyArrayElement(input.Elements[position])
+	for position < len(elements) {
+		element := CopyArrayElement(elements[position])
 		if element.Kind == ArrayElementNull {
 			if nullBitmap == (BoolValue{Kind: BoolValueValue, Value: false}) {
 				return ArrayValue{Kind: ArrayValueUnknown}
@@ -9254,7 +9380,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		}
 		position = langruntime.CheckedAdd(position, 1)
 	}
-	return ArrayValue{Kind: ArrayValueValue, Value: ArrayPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: input.Elements, NullBitmap: nullBitmap}}
+	return ArrayValue{Kind: ArrayValueValue, Value: ArrayPayload{ElementType: input.ElementType, ElementKind: input.ElementKind, Dimensions: input.Dimensions, Elements: elements, NullBitmap: nullBitmap}}
 }
 func ArrayFromCoercedValue(input ArrayValue, elementType string, elementKind int) ArrayValue {
 	input = CopyArrayValue(input)

@@ -3,11 +3,14 @@ import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import {
   multirangeGoInput,
   multirangeRustInput,
+  multirangeTypescriptInput,
   type MultirangeInputPayload,
 } from './multirange-input.js'
 import {
   rangeGoInput,
   rangeRustInput,
+  rangeTypescriptInput,
+  type RangeSupportFactory,
   type RangeInputCell,
   type RangeInputPayload,
 } from './range-input.js'
@@ -108,4 +111,22 @@ export function arrayGoInput(payload: OwnedArrayInputPayload): GoExpression {
       ),
     ]),
   ])
+}
+
+export function arrayTypescriptInput(
+  payload: OwnedArrayInputPayload,
+  runtime: RangeSupportFactory,
+): OwnedArrayInputPayload {
+  return {
+    ...payload,
+    elements: payload.elements.map((cell) => {
+      if (cell.kind === 'Range')
+        return { kind: cell.kind, value: rangeTypescriptInput(cell.value, runtime) }
+      if (cell.kind === 'Multirange')
+        return { kind: cell.kind, value: multirangeTypescriptInput(cell.value, runtime) }
+      if (cell.kind === 'Array')
+        return { kind: cell.kind, value: arrayTypescriptInput(cell.value, runtime) }
+      return cell
+    }),
+  }
 }

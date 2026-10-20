@@ -22825,7 +22825,7 @@ export function multirangeBinaryPayload(input: checkruntime.MultirangeValue): ch
         return payload;
     }
     const ranges: checkruntime.RangeValue[] = [];
-    return { typeName: "", rangeType: "", elementType: "", elementKind: 0, ranges: ranges };
+    return { typeName: "", rangeType: "", elementType: "", elementKind: 0, support: checkruntime.rangeUnknownSupport(), ranges: ranges };
 }
 export function multirangeBinaryCount(input: checkruntime.MultirangePayload): checkruntime.Int4Value {
     if (input.typeName === "" || input.ranges.length > 2147483647) {
@@ -22922,10 +22922,10 @@ export function hashMultirangeExtendedCoup(input: checkruntime.Int8Value): check
     return input;
 }
 function multirangeSameFamily(left: checkruntime.MultirangePayload, right: checkruntime.MultirangePayload): boolean {
-    return left.typeName === right.typeName && left.rangeType === right.rangeType && left.elementType === right.elementType && left.elementKind === right.elementKind;
+    return left.typeName === right.typeName && left.rangeType === right.rangeType && left.elementType === right.elementType && left.elementKind === right.elementKind && checkruntime.rangeSupportEqual(left.support, right.support);
 }
 function multirangeSpanFamily(input: checkruntime.MultirangePayload, span: checkruntime.RangePayload): boolean {
-    return input.rangeType === span.typeName && input.elementType === span.elementType && input.elementKind === span.elementKind;
+    return input.rangeType === span.typeName && input.elementType === span.elementType && input.elementKind === span.elementKind && checkruntime.rangeSupportEqual(input.support, span.support);
 }
 function multirangeMemberRelation(left: checkruntime.MultirangePayload, li: number, right: checkruntime.MultirangePayload, ri: number, strategy: number): checkruntime.BoolValue {
     li = langruntime.checkedIndex(li);
@@ -23355,7 +23355,7 @@ function multirangeElementDirection(span: checkruntime.RangePayload, element: ch
         hasUpper = langruntime.checkedBool(false);
     }
     if (hasLower) {
-        const compared: checkruntime.Int4Value = rangeBuiltinCompare(lower, checkruntime.copyArrayElement(element), span.elementKind);
+        const compared: checkruntime.Int4Value = rangeBuiltinCompare(lower, checkruntime.copyArrayElement(element), span.support.comparison);
         if (compared.kind === "Value") {
             const order: number = langruntime.checkedI32(compared.value);
             if (order > 0 || (order === 0 && span.lowerInclusive === false)) {
@@ -23367,7 +23367,7 @@ function multirangeElementDirection(span: checkruntime.RangePayload, element: ch
         }
     }
     if (hasUpper) {
-        const compared: checkruntime.Int4Value = rangeBuiltinCompare(upper, element, span.elementKind);
+        const compared: checkruntime.Int4Value = rangeBuiltinCompare(upper, element, span.support.comparison);
         if (compared.kind === "Value") {
             const order: number = langruntime.checkedI32(compared.value);
             if (order < 0 || (order === 0 && span.upperInclusive === false)) {
@@ -23958,7 +23958,7 @@ function multirangeConstructNormalize(input: checkruntime.MultirangePayload): ch
         }
         index = langruntime.checkedAdd(index, 1);
     }
-    return checkruntime.makeCoercedMultirangeValue({ typeName: input.typeName, rangeType: input.rangeType, elementType: input.elementType, elementKind: input.elementKind, ranges: ranges });
+    return checkruntime.makeCoercedMultirangeValue({ typeName: input.typeName, rangeType: input.rangeType, elementType: input.elementType, elementKind: input.elementKind, support: input.support, ranges: ranges });
 }
 function multirangeConstructEmpty(typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
     typeName = langruntime.checkedString(typeName);
@@ -23966,7 +23966,7 @@ function multirangeConstructEmpty(typeName: string, rangeType: string, elementTy
     elementType = langruntime.checkedString(elementType);
     elementKind = langruntime.checkedI32(elementKind);
     const ranges: checkruntime.RangeValue[] = [];
-    return checkruntime.makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, ranges: ranges });
+    return checkruntime.makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind), ranges: ranges });
 }
 function multirangeConstructSingle(input: checkruntime.RangeValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
     input = checkruntime.copyRangeValue(input);
@@ -23988,12 +23988,12 @@ function multirangeConstructSingle(input: checkruntime.RangeValue, typeName: str
     }
     if (typed.kind === "Value") {
         const payload: checkruntime.RangePayload = checkruntime.copyRangePayload(typed.value);
-        if (payload.empty) {
-            return multirangeConstructEmpty(typeName, rangeType, elementType, elementKind);
-        }
+        const support: checkruntime.RangeSupport = payload.support;
         let ranges: checkruntime.RangeValue[] = [];
-        langruntime.pushStruct(ranges, { kind: "Value", value: payload }, checkruntime.copyRangeValue);
-        return checkruntime.makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, ranges: ranges });
+        if (payload.empty === false) {
+            langruntime.pushStruct(ranges, { kind: "Value", value: payload }, checkruntime.copyRangeValue);
+        }
+        return checkruntime.makeCoercedMultirangeValue({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: support, ranges: ranges });
     }
     return { kind: "Unknown" };
 }
@@ -24058,7 +24058,7 @@ function multirangeConstructArray(input: checkruntime.ArrayValue, typeName: stri
         if (unknown) {
             return { kind: "Unknown" };
         }
-        return multirangeConstructNormalize({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, ranges: ranges });
+        return multirangeConstructNormalize({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind), ranges: ranges });
     }
     return { kind: "Unknown" };
 }
@@ -24255,7 +24255,7 @@ export function multirangeFromText(input: checkruntime.TextValue, typeName: stri
         if (!(position === chars.length)) {
             return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
         }
-        return multirangeConstructNormalize({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, ranges: ranges });
+        return multirangeConstructNormalize({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, support: checkruntime.rangeBuiltinSupport(rangeType, elementType, elementKind), ranges: ranges });
     }
     return { kind: "Unknown" };
 }
@@ -24350,7 +24350,7 @@ function multirangeSetBooleanFailure(input: checkruntime.BoolValue): checkruntim
 }
 function multirangeSetResult(input: checkruntime.MultirangePayload, ranges: checkruntime.RangeValue[]): checkruntime.MultirangeValue {
     ranges = langruntime.checkedStructs(ranges, checkruntime.copyRangeValue);
-    return multirangeConstructNormalize({ typeName: langruntime.checkedString(input.typeName), rangeType: langruntime.checkedString(input.rangeType), elementType: langruntime.checkedString(input.elementType), elementKind: input.elementKind, ranges: ranges });
+    return multirangeConstructNormalize({ typeName: langruntime.checkedString(input.typeName), rangeType: langruntime.checkedString(input.rangeType), elementType: langruntime.checkedString(input.elementType), elementKind: input.elementKind, support: input.support, ranges: ranges });
 }
 function multirangeSetUnion(left: checkruntime.MultirangePayload, right: checkruntime.MultirangePayload): checkruntime.MultirangeValue {
     let ranges: checkruntime.RangeValue[] = [];
@@ -24626,7 +24626,7 @@ export function rangeMergeF619(input: checkruntime.MultirangeValue): checkruntim
     if (input.kind === "Value") {
         const payload: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(input.value);
         if (payload.ranges.length === 0) {
-            return checkruntime.rangeFromCoercedBounds(payload.rangeType, payload.elementType, payload.elementKind, true, false, false, { kind: "Null" }, { kind: "Null" });
+            return checkruntime.rangeFromProfiledBounds(payload.rangeType, payload.elementType, payload.elementKind, true, false, false, { kind: "Null" }, { kind: "Null" }, payload.support);
         }
         const first: checkruntime.RangeValue = checkruntime.copyRangeValue(langruntime.indexStruct(payload.ranges, langruntime.checkedIndex(0), checkruntime.copyRangeValue));
         if (payload.ranges.length === 1) {
@@ -24645,7 +24645,7 @@ export function rangeMergeF619(input: checkruntime.MultirangeValue): checkruntim
             const a: checkruntime.RangePayload = checkruntime.copyRangePayload(first.value);
             if (last.kind === "Value") {
                 const b: checkruntime.RangePayload = checkruntime.copyRangePayload(last.value);
-                return checkruntime.rangeFromCoercedBounds(payload.rangeType, payload.elementType, payload.elementKind, false, a.lowerInclusive, b.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(a.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(b.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)));
+                return checkruntime.rangeFromProfiledBounds(payload.rangeType, payload.elementType, payload.elementKind, false, a.lowerInclusive, b.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(a.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(b.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), payload.support);
             }
         }
     }
@@ -31919,7 +31919,7 @@ export function rangeSendB1w5(input: checkruntime.RangeValue, lower: checkruntim
     return { kind: "Unknown" };
 }
 function rangeSameFamily(left: checkruntime.RangePayload, right: checkruntime.RangePayload): boolean {
-    return left.typeName === right.typeName && left.elementType === right.elementType && left.elementKind === right.elementKind;
+    return left.typeName === right.typeName && left.elementType === right.elementType && left.elementKind === right.elementKind && checkruntime.rangeSupportEqual(left.support, right.support);
 }
 function rangeEndpointCompare(left: checkruntime.RangePayload, leftUpper: boolean, right: checkruntime.RangePayload, rightUpper: boolean): checkruntime.Int4Value {
     leftUpper = langruntime.checkedBool(leftUpper);
@@ -31961,7 +31961,7 @@ function rangeEndpointCompare(left: checkruntime.RangePayload, leftUpper: boolea
         }
         return checkruntime.makeInt4Value(1);
     }
-    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(a, b, left.elementKind);
+    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(a, b, left.support.comparison);
     if (comparison.kind === "Value") {
         const order: number = langruntime.checkedI32(comparison.value);
         if (!(order === 0)) {
@@ -32071,7 +32071,7 @@ function rangeBoundsAdjacent(left: checkruntime.RangePayload, right: checkruntim
     if (b.kind === "Null") {
         return { kind: "Value", value: false };
     }
-    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(checkruntime.copyArrayElement(a), checkruntime.copyArrayElement(b), left.elementKind);
+    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(checkruntime.copyArrayElement(a), checkruntime.copyArrayElement(b), left.support.comparison);
     if (comparison.kind === "Error") {
         const error: checkruntime.SqlError = comparison.value;
         return { kind: "Error", value: error };
@@ -32081,7 +32081,10 @@ function rangeBoundsAdjacent(left: checkruntime.RangePayload, right: checkruntim
         if (order === 0) {
             return { kind: "Value", value: !(left.upperInclusive === right.lowerInclusive) };
         }
-        if (order < 0 && (left.elementKind === 2 || left.elementKind === 3 || left.elementKind === 7)) {
+        if (order < 0 && left.support.canonical === 0) {
+            return { kind: "Unknown" };
+        }
+        if (order < 0 && (left.support.canonical === 2 || left.support.canonical === 3 || left.support.canonical === 7)) {
             let flags: string = "";
             if (left.upperInclusive) {
                 flags = flags + langruntime.checkedChar("(");
@@ -32095,7 +32098,7 @@ function rangeBoundsAdjacent(left: checkruntime.RangePayload, right: checkruntim
             else {
                 flags = flags + langruntime.checkedChar("]");
             }
-            const gap: checkruntime.RangeValue = rangeBuiltinConstruct(left.typeName, left.elementType, left.elementKind, a, b, { kind: "Value", value: flags });
+            const gap: checkruntime.RangeValue = rangeConstructWithSupport(left.typeName, left.elementType, left.elementKind, a, b, { kind: "Value", value: flags }, left.support);
             return checkruntime.rangeEmptyState(gap);
         }
         return { kind: "Value", value: false };
@@ -32266,7 +32269,7 @@ function rangeContainsElement(input: checkruntime.RangeValue, element: checkrunt
             hasUpper = langruntime.checkedBool(false);
         }
         if (hasLower) {
-            const comparison: checkruntime.Int4Value = rangeBuiltinCompare(lower, checkruntime.copyArrayElement(element), span.elementKind);
+            const comparison: checkruntime.Int4Value = rangeBuiltinCompare(lower, checkruntime.copyArrayElement(element), span.support.comparison);
             if (comparison.kind === "Error") {
                 const error: checkruntime.SqlError = comparison.value;
                 return { kind: "Error", value: error };
@@ -32284,7 +32287,7 @@ function rangeContainsElement(input: checkruntime.RangeValue, element: checkrunt
             }
         }
         if (hasUpper) {
-            const comparison: checkruntime.Int4Value = rangeBuiltinCompare(upper, element, span.elementKind);
+            const comparison: checkruntime.Int4Value = rangeBuiltinCompare(upper, element, span.support.comparison);
             if (comparison.kind === "Error") {
                 const error: checkruntime.SqlError = comparison.value;
                 return { kind: "Error", value: error };
@@ -32437,7 +32440,7 @@ function rangeBuiltinCompare(lower: checkruntime.ArrayElement, upper: checkrunti
     }
     return { kind: "Unknown" };
 }
-function rangeBuiltinSerialize(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInclusive: boolean, upperInclusive: boolean): checkruntime.RangeValue {
+function rangeProfileSerialize(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInclusive: boolean, upperInclusive: boolean, support: checkruntime.RangeSupport): checkruntime.RangeValue {
     typeName = langruntime.checkedString(typeName);
     elementType = langruntime.checkedString(elementType);
     kind = langruntime.checkedI32(kind);
@@ -32445,7 +32448,7 @@ function rangeBuiltinSerialize(typeName: string, elementType: string, kind: numb
     upper = checkruntime.copyArrayElement(upper);
     lowerInclusive = langruntime.checkedBool(lowerInclusive);
     upperInclusive = langruntime.checkedBool(upperInclusive);
-    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(checkruntime.copyArrayElement(lower), checkruntime.copyArrayElement(upper), kind);
+    const comparison: checkruntime.Int4Value = rangeBuiltinCompare(checkruntime.copyArrayElement(lower), checkruntime.copyArrayElement(upper), support.comparison);
     if (comparison.kind === "Error") {
         const error: checkruntime.SqlError = comparison.value;
         return { kind: "Error", value: error };
@@ -32456,7 +32459,7 @@ function rangeBuiltinSerialize(typeName: string, elementType: string, kind: numb
             return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorDataError) };
         }
         if (order === 0 && (lowerInclusive === false || upperInclusive === false)) {
-            return checkruntime.rangeFromCoercedBounds(typeName, elementType, kind, true, false, false, { kind: "Null" }, { kind: "Null" });
+            return checkruntime.rangeFromProfiledBounds(typeName, elementType, kind, true, false, false, { kind: "Null" }, { kind: "Null" }, support);
         }
         let loInc: boolean = lowerInclusive;
         let hiInc: boolean = upperInclusive;
@@ -32466,7 +32469,7 @@ function rangeBuiltinSerialize(typeName: string, elementType: string, kind: numb
         if (upper.kind === "Null") {
             hiInc = langruntime.checkedBool(false);
         }
-        return checkruntime.rangeFromCoercedBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper);
+        return checkruntime.rangeFromProfiledBounds(typeName, elementType, kind, false, loInc, hiInc, lower, upper, support);
     }
     return { kind: "Unknown" };
 }
@@ -32477,11 +32480,17 @@ function rangeBuiltinCanonical(input: checkruntime.RangeValue): checkruntime.Ran
         if (value.empty) {
             return { kind: "Value", value: value };
         }
+        if (value.support.canonical === 0) {
+            return { kind: "Unknown" };
+        }
+        if (value.support.canonical === 1) {
+            return { kind: "Value", value: value };
+        }
         let lower: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement));
         let upper: checkruntime.ArrayElement = checkruntime.copyArrayElement(langruntime.indexStruct(value.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement));
         let loInc: boolean = value.lowerInclusive;
         let hiInc: boolean = value.upperInclusive;
-        if (value.elementKind === 2) {
+        if (value.support.canonical === 2) {
             if (lower.kind === "Int4") {
                 const bound: number = langruntime.checkedI32(lower.value);
                 if (loInc === false) {
@@ -32503,7 +32512,7 @@ function rangeBuiltinCanonical(input: checkruntime.RangeValue): checkruntime.Ran
                 }
             }
         }
-        if (value.elementKind === 3) {
+        if (value.support.canonical === 3) {
             if (lower.kind === "Int8") {
                 const bound: bigint = langruntime.checkedI64(lower.value);
                 if (loInc === false) {
@@ -32525,7 +32534,7 @@ function rangeBuiltinCanonical(input: checkruntime.RangeValue): checkruntime.Ran
                 }
             }
         }
-        if (value.elementKind === 7) {
+        if (value.support.canonical === 7) {
             if (lower.kind === "Date") {
                 const bound: number = langruntime.checkedI32(lower.value);
                 if (!(bound === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) && !(bound === 2147483647) && loInc === false) {
@@ -32547,11 +32556,20 @@ function rangeBuiltinCanonical(input: checkruntime.RangeValue): checkruntime.Ran
                 }
             }
         }
-        return rangeBuiltinSerialize(value.typeName, value.elementType, value.elementKind, lower, upper, loInc, hiInc);
+        return rangeProfileSerialize(value.typeName, value.elementType, value.elementKind, lower, upper, loInc, hiInc, value.support);
     }
     return input;
 }
 function rangeBuiltinConstruct(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, flags: checkruntime.TextValue): checkruntime.RangeValue {
+    typeName = langruntime.checkedString(typeName);
+    elementType = langruntime.checkedString(elementType);
+    kind = langruntime.checkedI32(kind);
+    lower = checkruntime.copyArrayElement(lower);
+    upper = checkruntime.copyArrayElement(upper);
+    const support: checkruntime.RangeSupport = checkruntime.rangeBuiltinSupport(typeName, elementType, kind);
+    return rangeConstructWithSupport(typeName, elementType, kind, lower, upper, flags, support);
+}
+export function rangeConstructWithSupport(typeName: string, elementType: string, kind: number, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, flags: checkruntime.TextValue, support: checkruntime.RangeSupport): checkruntime.RangeValue {
     typeName = langruntime.checkedString(typeName);
     elementType = langruntime.checkedString(elementType);
     kind = langruntime.checkedI32(kind);
@@ -32568,6 +32586,9 @@ function rangeBuiltinConstruct(typeName: string, elementType: string, kind: numb
     if (flags.kind === "Error") {
         const error: checkruntime.SqlError = flags.value;
         return { kind: "Error", value: error };
+    }
+    if (checkruntime.rangeSupportValid(support, kind) === false) {
+        return { kind: "Unknown" };
     }
     if (flags.kind === "Null") {
         return { kind: "Error", value: checkruntime.makeSqlError(rangeConstructorDataError) };
@@ -32586,7 +32607,7 @@ function rangeBuiltinConstruct(typeName: string, elementType: string, kind: numb
         }
         const loInc: boolean = text === "[]" || text === "[)";
         const hiInc: boolean = text === "[]" || text === "(]";
-        const initial: checkruntime.RangeValue = rangeBuiltinSerialize(typeName, elementType, kind, lower, upper, loInc, hiInc);
+        const initial: checkruntime.RangeValue = rangeProfileSerialize(typeName, elementType, kind, lower, upper, loInc, hiInc, support);
         return rangeBuiltinCanonical(initial);
     }
     return { kind: "Unknown" };
@@ -33166,20 +33187,20 @@ export function rangeToText(input: checkruntime.RangeValue): checkruntime.TextVa
 }
 const rangeSetNoncontiguous = 3452544;
 function rangeEmptyLike(input: checkruntime.RangePayload): checkruntime.RangeValue {
-    return checkruntime.rangeFromCoercedBounds(input.typeName, input.elementType, input.elementKind, true, false, false, { kind: "Null" }, { kind: "Null" });
+    return checkruntime.rangeFromProfiledBounds(input.typeName, input.elementType, input.elementKind, true, false, false, { kind: "Null" }, { kind: "Null" }, input.support);
 }
 function rangeCopyPayload(input: checkruntime.RangePayload): checkruntime.RangeValue {
     if (input.empty) {
         return rangeEmptyLike(input);
     }
-    return checkruntime.rangeFromCoercedBounds(input.typeName, input.elementType, input.elementKind, false, input.lowerInclusive, input.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)));
+    return checkruntime.rangeFromProfiledBounds(input.typeName, input.elementType, input.elementKind, false, input.lowerInclusive, input.upperInclusive, checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(0), checkruntime.copyArrayElement)), checkruntime.copyArrayElement(langruntime.indexStruct(input.bounds, langruntime.checkedIndex(1), checkruntime.copyArrayElement)), input.support);
 }
 function rangeRebuild(input: checkruntime.RangePayload, lower: checkruntime.ArrayElement, upper: checkruntime.ArrayElement, lowerInc: boolean, upperInc: boolean): checkruntime.RangeValue {
     lower = checkruntime.copyArrayElement(lower);
     upper = checkruntime.copyArrayElement(upper);
     lowerInc = langruntime.checkedBool(lowerInc);
     upperInc = langruntime.checkedBool(upperInc);
-    const initial: checkruntime.RangeValue = rangeBuiltinSerialize(input.typeName, input.elementType, input.elementKind, lower, upper, lowerInc, upperInc);
+    const initial: checkruntime.RangeValue = rangeProfileSerialize(input.typeName, input.elementType, input.elementKind, lower, upper, lowerInc, upperInc, input.support);
     return rangeBuiltinCanonical(initial);
 }
 function rangePayloadDifference(left: checkruntime.RangePayload, right: checkruntime.RangePayload): checkruntime.RangeValue {

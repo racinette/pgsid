@@ -12,6 +12,7 @@ export type RangeInputPayload = {
   typeName: string
   elementType: string
   elementKind: number
+  support?: { comparison: number; canonical: number }
   empty: boolean
   lowerInclusive: boolean
   upperInclusive: boolean
@@ -29,7 +30,7 @@ export function rangeRustInput(payload: RangeInputPayload): string {
         : String(cell.value) + (typeof cell.value === 'bigint' ? 'i64' : '')
     return `ArrayElement::${cell.kind}(${value})`
   })
-  return `make_coerced_range_value(RangePayload {type_name:${rustStringLiteral(payload.typeName)}.to_owned(),element_type:${rustStringLiteral(payload.elementType)}.to_owned(),element_kind:${payload.elementKind},empty:${payload.empty},lower_inclusive:${payload.lowerInclusive},upper_inclusive:${payload.upperInclusive},bounds:vec![${cells.join(',')}]})`
+  return `make_coerced_range_value(RangePayload {type_name:${rustStringLiteral(payload.typeName)}.to_owned(),element_type:${rustStringLiteral(payload.elementType)}.to_owned(),element_kind:${payload.elementKind},support:${payload.support ? `RangeSupport {comparison:${payload.support.comparison},canonical:${payload.support.canonical}}` : `range_builtin_support(${rustStringLiteral(payload.typeName)},${rustStringLiteral(payload.elementType)},${payload.elementKind})`},empty:${payload.empty},lower_inclusive:${payload.lowerInclusive},upper_inclusive:${payload.upperInclusive},bounds:vec![${cells.join(',')}]})`
 }
 
 export function rangeGoInput(payload: RangeInputPayload): GoExpression {
@@ -39,6 +40,19 @@ export function rangeGoInput(payload: RangeInputPayload): GoExpression {
       go.keyValue('TypeName', go.string(payload.typeName)),
       go.keyValue('ElementType', go.string(payload.elementType)),
       go.keyValue('ElementKind', go.number(payload.elementKind)),
+      go.keyValue(
+        'Support',
+        payload.support
+          ? go.composite(runtime('RangeSupport'), [
+              go.keyValue('Comparison', go.number(payload.support.comparison)),
+              go.keyValue('Canonical', go.number(payload.support.canonical)),
+            ])
+          : go.call(runtime('RangeBuiltinSupport'), [
+              go.string(payload.typeName),
+              go.string(payload.elementType),
+              go.number(payload.elementKind),
+            ]),
+      ),
       go.keyValue('Empty', go.ident(String(payload.empty))),
       go.keyValue('LowerInclusive', go.ident(String(payload.lowerInclusive))),
       go.keyValue('UpperInclusive', go.ident(String(payload.upperInclusive))),
@@ -69,4 +83,21 @@ export function rangeGoInput(payload: RangeInputPayload): GoExpression {
       ),
     ]),
   ])
+}
+
+export type RangeSupportFactory = {
+  rangeBuiltinSupport(
+    typeName: string,
+    elementType: string,
+    kind: number,
+  ): { comparison: number; canonical: number }
+}
+
+export function rangeTypescriptInput(payload: RangeInputPayload, runtime: RangeSupportFactory) {
+  return {
+    ...payload,
+    support:
+      payload.support ??
+      runtime.rangeBuiltinSupport(payload.typeName, payload.elementType, payload.elementKind),
+  }
 }

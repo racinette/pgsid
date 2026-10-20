@@ -341,6 +341,7 @@ fn multirange_construct_normalize(input: MultirangePayload) -> MultirangeValue {
         range_type: input.range_type,
         element_type: input.element_type,
         element_kind: input.element_kind,
+        support: input.support,
         ranges: ranges,
     })
 }
@@ -357,6 +358,7 @@ fn multirange_construct_empty(
         range_type: range_type.to_owned(),
         element_type: element_type.to_owned(),
         element_kind: element_kind,
+        support: range_builtin_support(range_type, element_type, element_kind),
         ranges: ranges,
     })
 }
@@ -379,16 +381,17 @@ fn multirange_construct_single(
         return MultirangeValue::Null;
     };
     if let RangeValue::Value(payload) = typed {
-        if payload.empty {
-            return multirange_construct_empty(type_name, range_type, element_type, element_kind);
-        };
+        let support = payload.support;
         let mut ranges: Vec<RangeValue> = Vec::new();
-        ranges.push(RangeValue::Value(payload));
+        if payload.empty == false {
+            ranges.push(RangeValue::Value(payload));
+        };
         return make_coerced_multirange_value(MultirangePayload {
             type_name: type_name.to_owned(),
             range_type: range_type.to_owned(),
             element_type: element_type.to_owned(),
             element_kind: element_kind,
+            support,
             ranges: ranges,
         });
     };
@@ -461,6 +464,7 @@ fn multirange_construct_array(
             range_type: range_type.to_owned(),
             element_type: element_type.to_owned(),
             element_kind: element_kind,
+            support: range_builtin_support(range_type, element_type, element_kind),
             ranges: ranges,
         });
     };

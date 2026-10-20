@@ -43,7 +43,7 @@ fn range_builtin_compare(lower: ArrayElement, upper: ArrayElement, kind: i32) ->
     Int4Value::Unknown
 }
 
-fn range_builtin_serialize(
+fn range_profile_serialize(
     type_name: &str,
     element_type: &str,
     kind: i32,
@@ -51,8 +51,9 @@ fn range_builtin_serialize(
     upper: ArrayElement,
     lower_inclusive: bool,
     upper_inclusive: bool,
+    support: RangeSupport,
 ) -> RangeValue {
-    let comparison = range_builtin_compare(lower.clone(), upper.clone(), kind);
+    let comparison = range_builtin_compare(lower.clone(), upper.clone(), support.comparison);
     if let Int4Value::Error(error) = comparison {
         return RangeValue::Error(error);
     };
@@ -61,7 +62,7 @@ fn range_builtin_serialize(
             return RangeValue::Error(make_sql_error(RANGE_CONSTRUCTOR_DATA_ERROR));
         };
         if order == 0 && (lower_inclusive == false || upper_inclusive == false) {
-            return range_from_coerced_bounds(
+            return range_from_profiled_bounds(
                 type_name,
                 element_type,
                 kind,
@@ -70,6 +71,7 @@ fn range_builtin_serialize(
                 false,
                 ArrayElement::Null,
                 ArrayElement::Null,
+                support,
             );
         };
         let mut lo_inc = lower_inclusive;
@@ -80,7 +82,7 @@ fn range_builtin_serialize(
         if let ArrayElement::Null = upper {
             hi_inc = false;
         };
-        return range_from_coerced_bounds(
+        return range_from_profiled_bounds(
             type_name,
             element_type,
             kind,
@@ -89,6 +91,7 @@ fn range_builtin_serialize(
             hi_inc,
             lower,
             upper,
+            support,
         );
     };
     RangeValue::Unknown
@@ -99,11 +102,17 @@ fn range_builtin_canonical(input: RangeValue) -> RangeValue {
         if value.empty {
             return RangeValue::Value(value);
         };
+        if value.support.canonical == 0 {
+            return RangeValue::Unknown;
+        };
+        if value.support.canonical == 1 {
+            return RangeValue::Value(value);
+        };
         let mut lower = value.bounds[0].clone();
         let mut upper = value.bounds[1].clone();
         let mut lo_inc = value.lower_inclusive;
         let mut hi_inc = value.upper_inclusive;
-        if value.element_kind == 2 {
+        if value.support.canonical == 2 {
             if let ArrayElement::Int4(bound) = lower {
                 if lo_inc == false {
                     if bound == 2147483647 {
@@ -127,7 +136,7 @@ fn range_builtin_canonical(input: RangeValue) -> RangeValue {
                 };
             };
         };
-        if value.element_kind == 3 {
+        if value.support.canonical == 3 {
             if let ArrayElement::Int8(bound) = lower {
                 if lo_inc == false {
                     if bound == 9223372036854775807i64 {
@@ -151,7 +160,7 @@ fn range_builtin_canonical(input: RangeValue) -> RangeValue {
                 };
             };
         };
-        if value.element_kind == 7 {
+        if value.support.canonical == 7 {
             if let ArrayElement::Date(bound) = lower {
                 if bound != -2147483647 - 1 && bound != 2147483647 && lo_inc == false {
                     if bound >= 2145031948 {
@@ -171,7 +180,7 @@ fn range_builtin_canonical(input: RangeValue) -> RangeValue {
                 };
             };
         };
-        return range_builtin_serialize(
+        return range_profile_serialize(
             value.type_name.as_str(),
             value.element_type.as_str(),
             value.element_kind,
@@ -179,6 +188,7 @@ fn range_builtin_canonical(input: RangeValue) -> RangeValue {
             upper,
             lo_inc,
             hi_inc,
+            value.support,
         );
     };
     input
@@ -192,6 +202,19 @@ fn range_builtin_construct(
     upper: ArrayElement,
     flags: TextValue,
 ) -> RangeValue {
+    let support = range_builtin_support(type_name, element_type, kind);
+    range_construct_with_support(type_name, element_type, kind, lower, upper, flags, support)
+}
+
+pub fn range_construct_with_support(
+    type_name: &str,
+    element_type: &str,
+    kind: i32,
+    lower: ArrayElement,
+    upper: ArrayElement,
+    flags: TextValue,
+    support: RangeSupport,
+) -> RangeValue {
     if let ArrayElement::Error(error) = lower {
         return RangeValue::Error(error);
     };
@@ -200,6 +223,9 @@ fn range_builtin_construct(
     };
     if let TextValue::Error(error) = flags {
         return RangeValue::Error(error);
+    };
+    if range_support_valid(support, kind) == false {
+        return RangeValue::Unknown;
     };
     if let TextValue::Null = flags {
         return RangeValue::Error(make_sql_error(RANGE_CONSTRUCTOR_DATA_ERROR));
@@ -220,8 +246,16 @@ fn range_builtin_construct(
         };
         let lo_inc = text.as_str() == "[]" || text.as_str() == "[)";
         let hi_inc = text.as_str() == "[]" || text.as_str() == "(]";
-        let initial =
-            range_builtin_serialize(type_name, element_type, kind, lower, upper, lo_inc, hi_inc);
+        let initial = range_profile_serialize(
+            type_name,
+            element_type,
+            kind,
+            lower,
+            upper,
+            lo_inc,
+            hi_inc,
+            support,
+        );
         return range_builtin_canonical(initial);
     };
     RangeValue::Unknown
