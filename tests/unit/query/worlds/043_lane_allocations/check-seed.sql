@@ -5697,3 +5697,47 @@ VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
 -- name: flexible_touching_windows
 INSERT INTO lane_flexible_windows(allocated,standby,segments,competing,position,expected_start,expected_contains,expected_adjacent,expected_overlap,expected_empty,expected_intersection_empty,bypass)
 VALUES('[1,2]','[2,3]','{[1,2],[5,6]}','{[2,3]}',2,1,true,true,true,false,false,false);
+
+-- name: flexible_publication_continuous
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES('[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','{[1,2],','[1,2]',false);
+
+-- name: flexible_publication_wrong_allocation
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES('[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','wrong','{[1,2],[5,6]}','[1.2300,3.0000]','{[1,2],','[1,2]',false);
+
+-- name: flexible_publication_wrong_segments
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES('[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','[1,2]','wrong','[1.2300,3.0000]','{[1,2],','[1,2]',false);
+
+-- name: flexible_publication_wrong_numeric_scale
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES('[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','[1,2]','{[1,2],[5,6]}','wrong','{[1,2],','[1,2]',false);
+
+-- name: flexible_publication_wrong_short
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES('[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','wrong','[1,2]',false);
+
+-- name: flexible_publication_wrong_padded
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES('[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','[1,2]','{[1,2],[5,6]}','[1.2300,3.0000]','{[1,2],','wrong',false);
+
+-- name: flexible_publication_label_limit
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES('[1,2]','{[1,2],[4,5],[7,8],[10,11]}','[1.2300,3.0000]','[1,2]','{[1,2],[4,5],[7,8],[10,11]}','[1.2300,3.0000]','{[1,2],','[1,2]',false);
+
+-- name: flexible_publication_skip_limit
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES('[1,2]','{[1,2],[4,5],[7,8],[10,11]}','[1.2300,3.0000]','[1,2]','{[1,2],[4,5],[7,8],[10,11]}','[1.2300,3.0000]','{[1,2],','[1,2]',true);
+
+-- name: flexible_publication_nulls
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,false);
+
+-- name: flexible_publication_empty
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES('empty','{}','empty','empty','{}','empty','{}','empty',false);
+
+-- name: flexible_publication_signed_zero
+INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
+VALUES('(,)','{(,)}','[-0.00,1.2300]','(,)','{(,)}','[0.00,1.2300]','{(,)}','(,)',false);

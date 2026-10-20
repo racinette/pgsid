@@ -7,6 +7,7 @@ import {
   rangeTypeProfile,
   multirangeTypeProfile,
   rangeProfileSupport,
+  rangeTypeOutput,
 } from '../../src/sql-semantics/range-profiles.js'
 import {
   catalogRangeType,
@@ -17,6 +18,11 @@ import {
   isRangeType,
   isMultirangeType,
 } from '../../src/sql-semantics/expressions.js'
+import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
+import { prepareCheckRust } from '../../src/codegen/shared/check-rust-source.js'
+import { portableCheckAtoms } from '../../src/codegen/shared/check-atom-support.js'
+import { hasUncertain } from '../../scripts/check-measurements/probes.js'
+import type { RangeTypeInfo } from '../../src/catalog/types.js'
 
 it('keeps builtin range identities and comparison/canonicalization modes', () => {
   for (const metadata of Object.values(PG18_RANGE_TYPES)) {
@@ -24,6 +30,12 @@ it('keeps builtin range identities and comparison/canonicalization modes', () =>
     expect(profile.rangeType).toBe(metadata.identity)
     expect(profile.multirangeType).toBe(metadata.multirange)
     expect(multirangeTypeProfile(metadata.multirange)).toEqual(profile)
+    expect(rangeTypeOutput(metadata.identity)).toBe(
+      'function:["pg_catalog","range_out"](pg_catalog.anyrange)',
+    )
+    expect(rangeTypeOutput(metadata.multirange)).toBe(
+      'function:["pg_catalog","multirange_out"](pg_catalog.anymultirange)',
+    )
     expect(rangeProfileSupport(profile)).toEqual({
       comparison: {
         'pg_catalog.int4': 2,
@@ -43,6 +55,49 @@ it('keeps builtin range identities and comparison/canonicalization modes', () =>
     expect(catalogScalarType(metadata.identity)).toBe(metadata.identity)
   }
 })
+
+it('requires captured range, member and subtype output identities before local text output', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(`CREATE TYPE output_span AS RANGE(subtype=int4);
+      CREATE TABLE output_profiles(v output_span,m output_span_multirange,label text,
+      CONSTRAINT scalar CHECK(v::text COLLATE "C" IS NOT DISTINCT FROM label COLLATE "C"),
+      CONSTRAINT multi CHECK(m::text COLLATE "C" IS NOT DISTINCT FROM label COLLATE "C"))`)
+    const catalog = await snapshotCatalog(pg),
+      table = catalog.tables[0]!
+    const profile = catalog.rangeTypes[0]!
+    for (const check of table.constraints) {
+      const lower = (range: RangeTypeInfo) =>
+        lowerTableCheck(table, check, catalog.enums, catalog.domains, 'stored', [range])!.expression
+      expect(prepareCheckRust(portableCheckAtoms(lower(profile))).kind).toBe('supported')
+      const changes: Partial<RangeTypeInfo>[] = [
+        { subtypeOutput: null },
+        { subtypeOutput: 'function:["private","unknown_output"](pg_catalog.int4)' },
+        { subtypeOutput: 'function:["pg_catalog","int8out"](pg_catalog.int8)' },
+        { output: null },
+        { output: 'function:["pg_catalog","textout"](pg_catalog.text)' },
+        ...(check.name === 'multi'
+          ? [
+              { multirangeOutput: null },
+              {
+                multirangeOutput: 'function:["private","unknown_output"](pg_catalog.anymultirange)',
+              },
+            ]
+          : []),
+      ]
+      for (const change of changes) {
+        const expression = lower({ ...profile, ...change })
+        const prepared = prepareCheckRust(portableCheckAtoms(expression))
+        expect(
+          hasUncertain(expression) || prepared.kind === 'unsupported',
+          JSON.stringify(change),
+        ).toBe(true)
+      }
+    }
+  } finally {
+    await pg.close()
+  }
+}, 30_000)
 
 it('resolves captured qualified identities, companion namespaces and domain subtypes independently of catalog OIDs', async () => {
   const first = await PGlite.create(),
@@ -81,6 +136,10 @@ CREATE TABLE "Types.A".values(value "Types.A".nested,multiple public.span_set);
       captured: true,
     })
     expect(rangeProfileSupport(profile)).toEqual({ comparison: 2, canonical: 1 })
+    expect(rangeTypeOutput(encoded)).toBe(
+      'function:["pg_catalog","range_out"](pg_catalog.anyrange)',
+    )
+    expect(profile.subtypeOutput).toBe('function:["pg_catalog","int4out"](pg_catalog.int4)')
     expect(isMultirangeType(profile.multirangeType)).toBe(true)
     expect(multirangeTypeProfile(profile.multirangeType)).toEqual(profile)
     const table = a.tables.find((t) => t.schema === 'Types.A' && t.name === 'values')!

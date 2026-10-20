@@ -23,9 +23,13 @@ it('uses portable captured profiles in public custom range and multirange adapte
 CREATE DOMAIN saved_custom_span AS "Custom.Range".integer_span;
 CREATE TABLE custom_payloads(v saved_custom_span,w "Custom.Range".integer_span,m integer_set,n integer_set,p "Custom.Range".positive_span,e "Custom.Range".positive,
  CONSTRAINT bound CHECK(lower(v)=e),CONSTRAINT adjacent CHECK(NOT(v -|- w)),
- CONSTRAINT multi CHECK(NOT(m -|- n)),CONSTRAINT nominal_element CHECK(p @> e));
+ CONSTRAINT multi CHECK(NOT(m -|- n)),CONSTRAINT nominal_element CHECK(p @> e),
+ CONSTRAINT rendered_range CHECK(v::text COLLATE "C"='[1,2]' COLLATE "C"),
+ CONSTRAINT rendered_multirange CHECK(m::text COLLATE "C"='{[1,2]}' COLLATE "C"),
+ CONSTRAINT rendered_domain CHECK(p::text COLLATE "C"='[1,2]' COLLATE "C"));
 CREATE TABLE custom_callbacks(v "Custom.Range".reverse_span,w "Custom.Range".reverse_span,e int4,bypass bool,
- CONSTRAINT bound CHECK(lower(v)=e),CONSTRAINT ordered CHECK(v<w),CONSTRAINT guarded CHECK(CASE WHEN bypass THEN true ELSE v<w END));
+ CONSTRAINT bound CHECK(lower(v)=e),CONSTRAINT ordered CHECK(v<w),CONSTRAINT guarded CHECK(CASE WHEN bypass THEN true ELSE v<w END),
+ CONSTRAINT rendered CHECK(v::text COLLATE "C"='[4,1]' COLLATE "C"));
 CREATE TABLE custom_hulls(m opaque_set,CONSTRAINT hull CHECK(isempty(range_merge(m))));`
   try {
     await pg.exec(schema)
@@ -178,6 +182,7 @@ CREATE TABLE custom_hulls(m opaque_set,CONSTRAINT hull CHECK(isempty(range_merge
     expect(callbacks.bound).toEqual({ certain: true, value: true })
     expect(callbacks.ordered).toMatchObject({ certain: false })
     expect(callbacks.guarded).toEqual({ certain: true, value: true })
+    expect(callbacks.rendered).toEqual({ certain: true, value: true })
     const opaque = pack('opaque_set', span('opaque_span', 1, 2))
     opaque.value.ranges.push(span('opaque_span', 5, 6))
     expect(resultMap(generated.evaluatePublicCustomHullsChecks({ m: opaque })).hull).toMatchObject({

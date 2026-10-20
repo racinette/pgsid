@@ -4,6 +4,7 @@ import {
   builtinRangeType,
   builtinMultirangeType,
   builtinTypeComparison,
+  builtinTypeIO,
 } from '../postgres/builtins/inventory.js'
 
 export type BuiltinRangeType = keyof typeof PG18_RANGE_TYPES
@@ -42,7 +43,15 @@ const textFields = [
   'multirangeSchema',
   'multirangeName',
 ] as const
-const nullableTextFields = ['collation', 'comparator', 'canonical', 'subtypeDiff'] as const
+const nullableTextFields = [
+  'collation',
+  'comparator',
+  'canonical',
+  'subtypeDiff',
+  'output',
+  'multirangeOutput',
+  'subtypeOutput',
+] as const
 const nullableFlags = ['collationDeterministic', 'collationIsC', 'collationIsDefault'] as const
 const validText = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && !value.includes('\0')
@@ -104,6 +113,9 @@ function builtinProfile(profile: RangeTypeMetadata): RangeProfile {
     collationDeterministic: null,
     collationIsC: null,
     collationIsDefault: null,
+    output: builtinTypeIO(profile.identity)?.output ?? null,
+    multirangeOutput: builtinTypeIO(profile.multirange)?.output ?? null,
+    subtypeOutput: builtinTypeIO(profile.subtype)?.output ?? null,
     elementType: profile.subtype as RangeSubtype,
     rangeType: profile.identity as BuiltinRangeType,
     multirangeType: profile.multirange as BuiltinMultirangeType,
@@ -139,6 +151,10 @@ export function multirangeTypeProfile(type: string): RangeProfile | null {
         captured: true,
       }
     : null
+}
+
+export function rangeTypeOutput(type: string): string | null {
+  return rangeTypeProfile(type)?.output ?? multirangeTypeProfile(type)?.multirangeOutput ?? null
 }
 
 export function rangeProfileSupport(profile: RangeProfile): {

@@ -2,6 +2,7 @@ import {
   capturedRangeType,
   rangeTypeProfile,
   multirangeTypeProfile,
+  rangeTypeOutput,
   type RangeProfile,
 } from './range-profiles.js'
 import { alignStoredDomainCoercions } from './stored-coercions.js'
@@ -3318,7 +3319,8 @@ export function bindCatalogCheck(
       ) {
         const value = source ? materialize(operand, source) : null
         const output =
-          operand.enum?.outputFunction ?? (source ? builtinTypeIO(source)?.output : null)
+          operand.enum?.outputFunction ??
+          (source ? (rangeTypeOutput(source) ?? builtinTypeIO(source)?.output) : null)
         const metadata = output ? callables.find((item) => item.signature === output)?.item : null
         if (
           !value ||

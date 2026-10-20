@@ -6,6 +6,14 @@ export type { RangeTypeMetadata } from '../catalog/types.js'
 const typeIdentity = `SELECT quote_ident(n.nspname)||'.'||quote_ident(t.typname)
   FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE t.oid=`
 
+type SelectedFunction = { schema: string; name: string; args: string[] } | null
+const functionIdentity = (oid: string): string => `(SELECT json_build_object(
+  'schema',fn.nspname,'name',p.proname,'args',ARRAY(
+    SELECT (${typeIdentity} u.t) FROM unnest(p.proargtypes) WITH ORDINALITY u(t,ord) ORDER BY u.ord))
+  FROM pg_proc p JOIN pg_namespace fn ON fn.oid=p.pronamespace WHERE p.oid=${oid})`
+const signature = (fn: SelectedFunction): string | null =>
+  fn ? `function:${JSON.stringify([fn.schema, fn.name])}(${fn.args.join(',')})` : null
+
 async function readRangeTypeInfos(
   pg: PGlite,
   schema: string | null,
@@ -36,6 +44,9 @@ async function readRangeTypeInfos(
       diff_schema: string | null
       diff_name: string | null
       diff_args: string[] | null
+      output: SelectedFunction
+      multirange_output: SelectedFunction
+      subtype_output: SelectedFunction
     }>(
       `SELECT n.nspname AS schema,rt.typname AS name,mn.nspname AS multirange_schema,mt.typname AS multirange_name,
         (${typeIdentity} r.rngtypid) AS identity,
@@ -58,11 +69,15 @@ async function readRangeTypeInfos(
           FROM unnest(c.proargtypes) WITH ORDINALITY u(t,ord)) AS canonical_args,
         dn.nspname AS diff_schema,d.proname AS diff_name,
         (SELECT array_agg((${typeIdentity} u.t) ORDER BY u.ord)
-          FROM unnest(d.proargtypes) WITH ORDINALITY u(t,ord)) AS diff_args
+          FROM unnest(d.proargtypes) WITH ORDINALITY u(t,ord)) AS diff_args,
+        ${functionIdentity('rt.typoutput')} AS output,
+        ${functionIdentity('mt.typoutput')} AS multirange_output,
+        ${functionIdentity('st.typoutput')} AS subtype_output
         FROM pg_range r
         JOIN pg_type rt ON rt.oid=r.rngtypid
         JOIN pg_namespace n ON n.oid=rt.typnamespace
         JOIN pg_type mt ON mt.oid=r.rngmultitypid
+        JOIN pg_type st ON st.oid=r.rngsubtype
         JOIN pg_namespace mn ON mn.oid=mt.typnamespace
         JOIN pg_opclass o ON o.oid=r.rngsubopc
         JOIN pg_namespace onsp ON onsp.oid=o.opcnamespace
@@ -109,6 +124,9 @@ async function readRangeTypeInfos(
       row.diff_name === null
         ? null
         : `function:${JSON.stringify([row.diff_schema, row.diff_name])}(${(row.diff_args ?? []).join(',')})`,
+    output: signature(row.output),
+    multirangeOutput: signature(row.multirange_output),
+    subtypeOutput: signature(row.subtype_output),
   }))
 }
 
@@ -126,6 +144,9 @@ export async function readRangeTypes(
       collationDeterministic: _deterministic,
       collationIsC: _isC,
       collationIsDefault: _isDefault,
+      output: _output,
+      multirangeOutput: _multirangeOutput,
+      subtypeOutput: _subtypeOutput,
       ...metadata
     }) => metadata,
   )

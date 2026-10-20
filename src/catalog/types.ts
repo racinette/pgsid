@@ -707,6 +707,9 @@ export interface RangeTypeInfo extends RangeTypeMetadata {
   collationDeterministic: boolean | null
   collationIsC: boolean | null
   collationIsDefault: boolean | null
+  output: string | null
+  multirangeOutput: string | null
+  subtypeOutput: string | null
 }
 
 export interface CatalogSnapshot {
