@@ -24027,81 +24027,59 @@ func TstzmultirangeZ001(input checkruntime.RangeValue) checkruntime.MultirangeVa
 	input = checkruntime.CopyRangeValue(input)
 	return multirangeConstructSingle(input, "pg_catalog.tstzmultirange", "pg_catalog.tstzrange", "pg_catalog.timestamptz", 5)
 }
-func MultirangeFromText(input checkruntime.TextValue, typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
-	typeName = langruntime.CheckedString(typeName)
-	rangeType = langruntime.CheckedString(rangeType)
-	elementType = langruntime.CheckedString(elementType)
-	elementKind = langruntime.CheckedI32(elementKind)
-	if input.Kind == checkruntime.TextValueError {
-		error := input.Error
-		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: error}
+func multirangeTextPayload(characters []rune, position int, member string, started bool, ranges []checkruntime.RangeValue, state int, error checkruntime.SqlError) checkruntime.MultirangeTextPayload {
+	characters = langruntime.CheckedChars(characters)
+	position = langruntime.CheckedIndex(position)
+	member = langruntime.CheckedString(member)
+	ranges = langruntime.CheckedStructs(ranges, checkruntime.CopyRangeValue)
+	state = langruntime.CheckedI32(state)
+	return checkruntime.MultirangeTextPayload{Characters: characters, Position: position, Member: member, Started: started, Ranges: ranges, State: state, Error: error}
+}
+func multirangeTextFailure(input checkruntime.MultirangeTextPayload, error checkruntime.SqlError) checkruntime.MultirangeTextPayload {
+	input = checkruntime.CopyMultirangeTextPayload(input)
+	return multirangeTextPayload(input.Characters, input.Position, input.Member, input.Started, input.Ranges, langruntime.CheckedSignedNegate(2), error)
+}
+func multirangeTextAdvance(input checkruntime.MultirangeTextPayload) checkruntime.MultirangeTextPayload {
+	input = checkruntime.CopyMultirangeTextPayload(input)
+	if input.State != 1 {
+		return input
 	}
-	if input.Kind == checkruntime.TextValueNull {
-		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueNull}
+	characters := input.Characters
+	position := input.Position
+	ranges := input.Ranges
+	for position < len(characters) && rangeInputSpace(characters[position]) {
+		position = langruntime.CheckedAdd(position, 1)
 	}
-	if input.Kind == checkruntime.TextValueValue {
-		text := langruntime.CheckedString(input.Value)
-		chars := []rune(text)
-		position := 0
-		for position < len(chars) && rangeInputSpace(chars[position]) {
+	if input.Started && position < len(characters) && characters[position] == ',' {
+		position = langruntime.CheckedAdd(position, 1)
+		for position < len(characters) && rangeInputSpace(characters[position]) {
 			position = langruntime.CheckedAdd(position, 1)
 		}
-		if position >= len(chars) {
-			return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
-		}
-		if chars[position] != '{' {
-			return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
-		}
+	} else if position < len(characters) && characters[position] == '}' {
 		position = langruntime.CheckedAdd(position, 1)
-		state := 0
-		seen := false
-		member := langruntime.NewTextBuffer("")
-		ranges := []checkruntime.RangeValue{}
-		for position < len(chars) && state != 6 {
-			ch := chars[position]
-			if state >= 1 && state <= 4 {
-				member = append(member, string(langruntime.CheckedChar(ch))...)
-			}
+		for position < len(characters) && rangeInputSpace(characters[position]) {
+			position = langruntime.CheckedAdd(position, 1)
+		}
+		state := 2
+		if position != len(characters) {
+			state = langruntime.CheckedI32(langruntime.CheckedSignedNegate(2))
+		}
+		return multirangeTextPayload(characters, position, "", input.Started, ranges, state, checkruntime.MakeSqlError(rangeInputSyntax))
+	} else if input.Started {
+		return multirangeTextPayload(characters, position, "", true, ranges, langruntime.CheckedSignedNegate(2), checkruntime.MakeSqlError(rangeInputSyntax))
+	}
+	member := langruntime.NewTextBuffer("")
+	state := 0
+	if position < len(characters) && (characters[position] == '[' || characters[position] == '(') {
+		state = langruntime.CheckedI32(1)
+		member = append(member, string(langruntime.CheckedChar(characters[position]))...)
+		position = langruntime.CheckedAdd(position, 1)
+		for position < len(characters) && state != 5 {
+			ch := characters[position]
+			member = append(member, string(langruntime.CheckedChar(ch))...)
 			if rangeInputSpace(ch) == false {
-				if state == 0 {
-					if ch == '[' || ch == '(' {
-						member = langruntime.NewTextBuffer("")
-						member = append(member, string(langruntime.CheckedChar(ch))...)
-						state = langruntime.CheckedI32(1)
-					} else if ch == '}' && seen == false {
-						state = langruntime.CheckedI32(6)
-					} else {
-						empty := false
-						if langruntime.CheckedAdd(position, 4) < len(chars) {
-							empty = (chars[position] == 'e' || chars[position] == 'E') && (chars[langruntime.CheckedAdd(position, 1)] == 'm' || chars[langruntime.CheckedAdd(position, 1)] == 'M') && (chars[langruntime.CheckedAdd(position, 2)] == 'p' || chars[langruntime.CheckedAdd(position, 2)] == 'P') && (chars[langruntime.CheckedAdd(position, 3)] == 't' || chars[langruntime.CheckedAdd(position, 3)] == 'T') && (chars[langruntime.CheckedAdd(position, 4)] == 'y' || chars[langruntime.CheckedAdd(position, 4)] == 'Y')
-						}
-						if empty == false {
-							return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
-						}
-						position = langruntime.CheckedAdd(position, 4)
-						seen = true
-						state = langruntime.CheckedI32(5)
-					}
-				} else if state == 1 {
+				if state == 1 {
 					if ch == ')' || ch == ']' {
-						parsed := RangeFromText(checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: langruntime.CheckedString(string(member))}, rangeType, elementType, elementKind)
-						if parsed.Kind == checkruntime.RangeValueError {
-							error := parsed.Error
-							return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: error}
-						}
-						known := false
-						if parsed.Kind == checkruntime.RangeValueValue {
-							payload := checkruntime.CopyRangePayload(parsed.Value)
-							known = true
-							if payload.Empty == false {
-								langruntime.CheckedAdd(len(ranges), 1)
-								ranges = append(ranges, checkruntime.CopyRangeValue(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: payload}))
-							}
-						}
-						if known == false {
-							return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
-						}
-						seen = true
 						state = langruntime.CheckedI32(5)
 					} else if ch == '"' {
 						state = langruntime.CheckedI32(3)
@@ -24112,7 +24090,7 @@ func MultirangeFromText(input checkruntime.TextValue, typeName string, rangeType
 					state = langruntime.CheckedI32(1)
 				} else if state == 3 {
 					if ch == '"' {
-						if langruntime.CheckedAdd(position, 1) < len(chars) && chars[langruntime.CheckedAdd(position, 1)] == '"' {
+						if langruntime.CheckedAdd(position, 1) < len(characters) && characters[langruntime.CheckedAdd(position, 1)] == '"' {
 							member = append(member, string(langruntime.CheckedChar('"'))...)
 							position = langruntime.CheckedAdd(position, 1)
 						} else {
@@ -24123,28 +24101,106 @@ func MultirangeFromText(input checkruntime.TextValue, typeName string, rangeType
 					}
 				} else if state == 4 {
 					state = langruntime.CheckedI32(3)
-				} else if ch == ',' {
-					state = langruntime.CheckedI32(0)
-				} else if ch == '}' {
-					state = langruntime.CheckedI32(6)
-				} else {
-					return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
 				}
 			}
 			position = langruntime.CheckedAdd(position, 1)
 		}
-		if state != 6 {
-			return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+	} else if langruntime.CheckedAdd(position, 4) < len(characters) {
+		empty := (characters[position] == 'e' || characters[position] == 'E') && (characters[langruntime.CheckedAdd(position, 1)] == 'm' || characters[langruntime.CheckedAdd(position, 1)] == 'M') && (characters[langruntime.CheckedAdd(position, 2)] == 'p' || characters[langruntime.CheckedAdd(position, 2)] == 'P') && (characters[langruntime.CheckedAdd(position, 3)] == 't' || characters[langruntime.CheckedAdd(position, 3)] == 'T') && (characters[langruntime.CheckedAdd(position, 4)] == 'y' || characters[langruntime.CheckedAdd(position, 4)] == 'Y')
+		if empty {
+			member = langruntime.NewTextBuffer("empty")
+			position = langruntime.CheckedAdd(position, 5)
+			state = langruntime.CheckedI32(5)
 		}
-		for position < len(chars) && rangeInputSpace(chars[position]) {
+	}
+	resultState := langruntime.CheckedSignedNegate(2)
+	if state == 5 {
+		resultState = langruntime.CheckedI32(1)
+	}
+	return multirangeTextPayload(characters, position, string(member), true, ranges, resultState, checkruntime.MakeSqlError(rangeInputSyntax))
+}
+func PrepareMultirangeText(input checkruntime.TextValue) checkruntime.MultirangeTextPayload {
+	characters := []rune{}
+	ranges := []checkruntime.RangeValue{}
+	initial := multirangeTextPayload(characters, 0, "", false, ranges, langruntime.CheckedSignedNegate(1), checkruntime.MakeSqlError(rangeInputSyntax))
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return multirangeTextFailure(initial, error)
+	}
+	if input.Kind == checkruntime.TextValueNull {
+		return multirangeTextPayload(initial.Characters, 0, initial.Member, false, initial.Ranges, 0, initial.Error)
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		text := langruntime.CheckedString(input.Value)
+		characters := []rune(text)
+		position := 0
+		for position < len(characters) && rangeInputSpace(characters[position]) {
 			position = langruntime.CheckedAdd(position, 1)
 		}
-		if position != len(chars) {
-			return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: checkruntime.MakeSqlError(rangeInputSyntax)}
+		if position < len(characters) && characters[position] == '{' {
+			return multirangeTextAdvance(multirangeTextPayload(characters, langruntime.CheckedAdd(position, 1), "", false, initial.Ranges, 1, initial.Error))
 		}
-		return multirangeConstructNormalize(checkruntime.MultirangePayload{TypeName: typeName, RangeType: rangeType, ElementType: elementType, ElementKind: elementKind, Support: checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind), Ranges: ranges})
+		return multirangeTextFailure(initial, checkruntime.MakeSqlError(rangeInputSyntax))
 	}
-	return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+	return initial
+}
+func MultirangeTextHasMember(input *checkruntime.MultirangeTextPayload) bool {
+	return input.State == 1
+}
+func MultirangeTextMember(input *checkruntime.MultirangeTextPayload) checkruntime.TextValue {
+	if input.State == 1 {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: langruntime.CheckedString(input.Member)}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+}
+func AppendMultirangeText(input checkruntime.MultirangeTextPayload, member checkruntime.RangeValue) checkruntime.MultirangeTextPayload {
+	if input.State != 1 {
+		return input
+	}
+	if member.Kind == checkruntime.RangeValueError {
+		error := member.Error
+		return multirangeTextFailure(input, error)
+	}
+	if member.Kind == checkruntime.RangeValueValue {
+		payload := checkruntime.CopyRangePayload(member.Value)
+		ranges := input.Ranges
+		if payload.Empty == false {
+			langruntime.CheckedAdd(len(ranges), 1)
+			ranges = append(ranges, checkruntime.CopyRangeValue(checkruntime.RangeValue{Kind: checkruntime.RangeValueValue, Value: payload}))
+		}
+		return multirangeTextAdvance(multirangeTextPayload(input.Characters, input.Position, "", true, ranges, 1, input.Error))
+	}
+	return multirangeTextPayload(input.Characters, input.Position, input.Member, input.Started, input.Ranges, langruntime.CheckedSignedNegate(1), input.Error)
+}
+func FinishMultirangeText(input checkruntime.MultirangeTextPayload, typeName string, rangeType string, elementType string, elementKind int, support checkruntime.RangeSupport) checkruntime.MultirangeValue {
+	if input.State == langruntime.CheckedSignedNegate(2) {
+		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueError, Error: input.Error}
+	}
+	if input.State == 0 {
+		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueNull}
+	}
+	if input.State != 2 {
+		return checkruntime.MultirangeValue{Kind: checkruntime.MultirangeValueUnknown}
+	}
+	typed := checkruntime.MultirangeFromProfiledRanges(typeName, rangeType, elementType, elementKind, input.Ranges, support)
+	if typed.Kind == checkruntime.MultirangeValueValue {
+		payload := checkruntime.CopyMultirangePayload(typed.Value)
+		return multirangeConstructNormalize(payload)
+	}
+	return typed
+}
+func MultirangeFromText(input checkruntime.TextValue, typeName string, rangeType string, elementType string, elementKind int) checkruntime.MultirangeValue {
+	typeName = langruntime.CheckedString(typeName)
+	rangeType = langruntime.CheckedString(rangeType)
+	elementType = langruntime.CheckedString(elementType)
+	elementKind = langruntime.CheckedI32(elementKind)
+	cursor := PrepareMultirangeText(input)
+	for MultirangeTextHasMember(&cursor) {
+		text := MultirangeTextMember(&cursor)
+		member := RangeFromText(text, rangeType, elementType, elementKind)
+		cursor = AppendMultirangeText(cursor, member)
+	}
+	return FinishMultirangeText(cursor, typeName, rangeType, elementType, elementKind, checkruntime.RangeBuiltinSupport(rangeType, elementType, elementKind))
 }
 func IsemptyT80p(input checkruntime.MultirangeValue) checkruntime.BoolValue {
 	input = checkruntime.CopyMultirangeValue(input)

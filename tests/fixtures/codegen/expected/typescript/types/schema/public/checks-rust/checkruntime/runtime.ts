@@ -8887,6 +8887,27 @@ export function copyMultirangeValue(value: MultirangeValue): MultirangeValue {
         case "Value": return { kind: "Value", value: copyMultirangePayload(value.value) };
     }
 }
+export interface MultirangeTextPayload {
+    characters: string[];
+    position: number;
+    member: string;
+    started: boolean;
+    ranges: RangeValue[];
+    state: number;
+    error: SqlError;
+}
+export function copyMultirangeTextPayload(value: MultirangeTextPayload): MultirangeTextPayload {
+    return { characters: langruntime.checkedChars(value.characters), position: langruntime.checkedIndex(value.position), member: langruntime.checkedString(value.member), started: langruntime.checkedBool(value.started), ranges: langruntime.checkedStructs(value.ranges, copyRangeValue), state: langruntime.checkedI32(value.state), error: value.error };
+}
+export type MultirangeTextPlan = {
+    kind: "Value";
+    value: MultirangeTextPayload;
+};
+function copyMultirangeTextPlan(value: MultirangeTextPlan): MultirangeTextPlan {
+    switch (value.kind) {
+        case "Value": return { kind: "Value", value: copyMultirangeTextPayload(value.value) };
+    }
+}
 export function multirangeUnknown(): MultirangeValue {
     return { kind: "Unknown" };
 }

@@ -38,9 +38,9 @@ update its tests when that boundary changes.
   assigned a direct call or bound value. `if` and `else` branches may contain
   those same statements; conditions are direct calls or a direct call compared
   with `false`. The final expression is a bound result or direct call.
-- Array text casts iterate events with `while` conditions in the same call form.
+- Array and multirange text casts iterate events with `while` conditions in the same call form.
   Loop bodies use the existing bindings, assignments and branches. Internal
-  `ArrayArguments` and `ArrayOutputPayload` builders, `ArraySortPayload` merge cursors and `JsonbArrayInputPayload` conversion cursors may be mutable
+  `ArrayArguments` and `ArrayOutputPayload` builders, `ArraySortPayload` merge cursors, `MultirangeTextPayload` member cursors and `JsonbArrayInputPayload` conversion cursors may be mutable
   locals but cannot be entry parameters. Sort cursors remain whole-record values;
   their readonly borrows expose the next comparison without cloning stored cells.
 - Keep evaluation order visible in statements. A deciding boolean result must
