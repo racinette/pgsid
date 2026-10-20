@@ -64,6 +64,11 @@ it('captures user range and multirange support in snapshots with selected identi
       output: 'function:["pg_catalog","range_out"](pg_catalog.anyrange)',
       multirangeOutput: 'function:["pg_catalog","multirange_out"](pg_catalog.anymultirange)',
       subtypeOutput: 'function:["pg_catalog","int4out"](pg_catalog.int4)',
+      input:
+        'function:["pg_catalog","range_in"](pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4)',
+      multirangeInput:
+        'function:["pg_catalog","multirange_in"](pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4)',
+      subtypeInput: 'function:["pg_catalog","int4in"](pg_catalog.cstring)',
     })
     expect(
       (
@@ -93,6 +98,8 @@ it('captures user range and multirange support in snapshots with selected identi
       subtype: '"Range.Types".positive',
       comparator: 'function:["pg_catalog","btint4cmp"](pg_catalog.int4,pg_catalog.int4)',
       subtypeOutput: 'function:["pg_catalog","int4out"](pg_catalog.int4)',
+      subtypeInput:
+        'function:["pg_catalog","domain_in"](pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4)',
     })
     expect(snapshot.rangeTypes.find((r) => r.name === 'ratings')).toMatchObject({
       subtype: '"Range.Types".rating',

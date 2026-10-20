@@ -5741,3 +5741,79 @@ VALUES('empty','{}','empty','empty','{}','empty','{}','empty',false);
 -- name: flexible_publication_signed_zero
 INSERT INTO lane_flexible_publications(allocated,segments,quote_window,allocation_label,segment_label,quote_label,short_label,padded_label,bypass)
 VALUES('(,)','{(,)}','[-0.00,1.2300]','(,)','{(,)}','[0.00,1.2300]','{(,)}','(,)',false);
+
+-- name: flexible_import_valid
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[3,5]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_wrong_slot
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[3,5]','[1.235,3.456]','empty','[3,5]','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_wrong_positive
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[3,5]','[1.235,3.456]','[1,2]','empty','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_wrong_price
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[3,5]','[1.235,3.456]','[1,2]','[3,5]','empty',2,1,false,false);
+
+-- name: flexible_import_wrong_scale
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[3,5]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',3,1,false,false);
+
+-- name: flexible_import_wrong_stored_literal
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[3,5]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,0,false,false);
+
+-- name: flexible_import_wrong_empty_flag
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[3,5]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,1,true,false);
+
+-- name: flexible_import_range_grammar
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[bad,3]junk','[3,5]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_range_bound
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[bad,3]','[3,5]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_current_subtype_check
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[1,5]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_price_precision
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[3,5]','[999.995,1000]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_price_domain
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[3,5]','[-1,3]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_quoted_empty_bound
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','["",5]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_domain_order
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[1,bad]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_grammar_before_domain
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('[1,2]','[1,bad]junk','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,false);
+
+-- name: flexible_import_skipped_invalid
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('malformed','[1,bad]','[1.235,3.456]','[1,2]','[3,5]','[1.24,3.46]',2,1,false,true);
+
+-- name: flexible_import_empty_values
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('empty','empty','empty','empty','empty','empty',NULL,1,true,false);
+
+-- name: flexible_import_null_values
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES(NULL,NULL,NULL,NULL,NULL,NULL,NULL,1,true,false);
+
+-- name: flexible_import_omitted_domain_bounds
+INSERT INTO lane_flexible_imports(slot_text,positive_text,price_text,expected_slot,expected_positive,expected_price,expected_scale,limit_position,expected_empty,bypass)
+VALUES('(,)','(,)','(,)','(,)','(,)','(,)',NULL,1,false,false);

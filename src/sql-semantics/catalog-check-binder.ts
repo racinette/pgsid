@@ -5084,7 +5084,96 @@ export function bindCatalogCheck(
         : {}),
     }
   }
-  const expression = lower(root)
+  const rangeConversions = new Map<string, EvalExpression | null>()
+  const rangeConversion = (type: string, stored = false): EvalExpression | null => {
+    const key = JSON.stringify([type, stored])
+    if (rangeConversions.has(key)) return rangeConversions.get(key)!
+    rangeConversions.set(key, null)
+    const profile = rangeTypeProfile(type)
+    if (!profile?.captured) return null
+    const names = catalogTypeNames(stored ? profile.elementType : profile.subtype)
+    if (!names) return null
+    const converted = bindCatalogCheck(
+      [
+        {
+          name: '__pgsid_range_text_bound',
+          typeName: 'pg_catalog.text',
+          collationIsC: true,
+          isRowType: false,
+        },
+      ],
+      {
+        NullTest: {
+          nulltesttype: 'IS_NOT_NULL',
+          arg: {
+            TypeCast: {
+              arg: { ColumnRef: { fields: [{ String: { sval: '__pgsid_range_text_bound' } }] } },
+              typeName: { names: names.map((sval) => ({ String: { sval } })) },
+            },
+          },
+        },
+      },
+      [],
+      enums,
+      domains,
+      moneyLiterals,
+      literalOrigin,
+      domainStack,
+      true,
+      undefined,
+      undefined,
+      rangeTypes,
+    ).expression
+    const result =
+      converted.kind === 'eval-scalar' && converted.expression.kind === 'null-test'
+        ? converted.expression.operand
+        : null
+    rangeConversions.set(key, result)
+    return result
+  }
+  const attachRangeInput = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+      const items = value.map(attachRangeInput)
+      return items.every((item, index) => item === value[index]) ? value : items
+    }
+    const record = fields(value)
+    if (!record) return value
+    const entries = Object.entries(record).map(
+      ([key, item]) => [key, attachRangeInput(item)] as const,
+    )
+    const result = entries.every(([key, item]) => item === record[key])
+      ? record
+      : Object.fromEntries(entries)
+    const literal = result['kind'] === 'certain' ? fields(result['expression']) : null
+    const type =
+      literal?.['kind'] === 'range'
+        ? literal['type']
+        : result['kind'] === 'text-to-range'
+          ? result['type']
+          : null
+    if (typeof type !== 'string' || !rangeTypeProfile(type)?.captured) return result
+    if (literal && typeof literal['value'] === 'string') {
+      const conversion = rangeConversion(type, literalOrigin === 'stored')
+      return {
+        kind: 'text-to-range',
+        type,
+        literal: true,
+        origin: literalOrigin,
+        operand: {
+          kind: 'certain',
+          expression: { kind: 'text', type: 'pg_catalog.text', value: literal['value'] },
+        },
+        ...(conversion ? { conversion } : {}),
+      }
+    }
+    if (!literal && !result['conversion']) {
+      const conversion = rangeConversion(type)
+      return conversion ? { ...result, conversion } : result
+    }
+    return result
+  }
+  const lowered = lower(root)
+  const expression = rangeTypes.length ? (attachRangeInput(lowered) as EvalBoolExpression) : lowered
   return {
     expression:
       literalOrigin === 'stored' ? (annotate(expression) as EvalBoolExpression) : expression,

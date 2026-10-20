@@ -8382,6 +8382,13 @@ type RangeSupport struct {
 	Comparison int
 	Canonical  int
 }
+
+func MakeRangeSupport(comparison int, canonical int) RangeSupport {
+	comparison = langruntime.CheckedI32(comparison)
+	canonical = langruntime.CheckedI32(canonical)
+	return RangeSupport{Comparison: comparison, Canonical: canonical}
+}
+
 type RangeTextPayload struct {
 	Empty        bool
 	LowerPresent bool

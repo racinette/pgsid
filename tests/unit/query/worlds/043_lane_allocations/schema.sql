@@ -2129,3 +2129,29 @@ CREATE TABLE lane_flexible_publications (
   CONSTRAINT flexible_publication_padded CHECK(CASE WHEN bypass THEN true ELSE (allocated::char(16))::text COLLATE "C" IS NOT DISTINCT FROM padded_label COLLATE "C" END),
   CONSTRAINT flexible_publication_checked CHECK(CASE WHEN bypass THEN true ELSE (segments::lane_publication_label)::text COLLATE "C" IS NOT DISTINCT FROM segment_label COLLATE "C" END)
 );
+
+CREATE DOMAIN lane_positive_position AS integer NOT NULL CHECK(VALUE>0);
+CREATE TYPE lane_positive_window AS RANGE(subtype=lane_positive_position);
+CREATE DOMAIN lane_price_bound AS numeric(5,2) CHECK(VALUE>=0);
+CREATE TYPE lane_price_window AS RANGE(subtype=lane_price_bound);
+
+CREATE TABLE lane_flexible_imports (
+  slot_text text,
+  positive_text text,
+  price_text text,
+  expected_slot lane_retained_window,
+  expected_positive lane_positive_window,
+  expected_price lane_price_window,
+  expected_scale integer,
+  limit_position integer,
+  expected_empty boolean,
+  bypass boolean,
+  CONSTRAINT flexible_import_slot CHECK(CASE WHEN bypass THEN true ELSE slot_text::lane_retained_window IS NOT DISTINCT FROM expected_slot END),
+  CONSTRAINT flexible_import_positive CHECK(CASE WHEN bypass THEN true ELSE positive_text::lane_positive_window IS NOT DISTINCT FROM expected_positive END),
+  CONSTRAINT flexible_import_price CHECK(CASE WHEN bypass THEN true ELSE price_text::lane_price_window IS NOT DISTINCT FROM expected_price END),
+  CONSTRAINT flexible_import_scale CHECK(CASE WHEN bypass THEN true ELSE scale(lower(price_text::lane_price_window)) IS NOT DISTINCT FROM expected_scale END),
+  CONSTRAINT flexible_import_literal CHECK(CASE WHEN bypass THEN true ELSE lower('[1,3]'::lane_positive_window)<=limit_position END),
+  CONSTRAINT flexible_import_empty CHECK(CASE WHEN bypass THEN true ELSE isempty(COALESCE(slot_text::lane_position_window,'empty'::lane_position_window)) IS NOT DISTINCT FROM expected_empty END)
+);
+
+ALTER DOMAIN lane_positive_position ADD CONSTRAINT live_minimum CHECK(VALUE>2) NOT VALID;

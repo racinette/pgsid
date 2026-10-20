@@ -27,6 +27,7 @@ import {
   arrayMultirangeProfile,
 } from './check-array-types.js'
 import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-names.js'
+import { callableIdentity } from '../../postgres/builtins/catalog.js'
 import {
   builtinCast,
   builtinMetadata,
@@ -36,6 +37,7 @@ import {
   builtinRangeType,
   builtinMultirangeType,
   isBuiltinRangeConstructor,
+  builtinCallables,
 } from '../../postgres/builtins/inventory.js'
 import { checkRustCallableNames } from './check-rust-source.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
@@ -1018,6 +1020,7 @@ export function emitCheckRustEvaluator(
         (node.kind === 'text-to-integer' && node.literal === true) ||
         (node.kind === 'text-to-enum' && node.literal === true) ||
         (node.kind === 'text-to-boolean' && node.literal === true) ||
+        (node.kind === 'text-to-range' && node.literal === true) ||
         (node.kind === 'certain' &&
           (node.expression.kind === 'point' ||
             node.expression.kind === 'range' ||
@@ -3940,9 +3943,18 @@ export function emitCheckRustEvaluator(
                     : 'point_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
-    const emitRangeInput = (operand: { name: string; type: string }, type: string) => {
-      const range = builtinRangeType(type)
-      const signature = builtinTypeIO(type)?.input
+    const emitRangeInput = (
+      operand: { name: string; type: string },
+      type: string,
+      conversion?: EvalExpression,
+      stored = false,
+    ) => {
+      const range = rangeTypeProfile(type)
+      const signature = stored ? builtinTypeIO('pg_catalog.int4range')?.input : range?.input
+      if (signature !== builtinTypeIO('pg_catalog.int4range')?.input)
+        throw new UnsupportedCheckRustExpression(
+          'Range input requires its selected catalog implementation',
+        )
       const input = signature ? builtinMetadata(signature) : null
       if (
         !range ||
@@ -3964,6 +3976,127 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           'Range input requires its captured type and catalog I/O identity',
         )
+      if (range.captured) {
+        const subtype = builtinCallables().find(
+          (item) => callableIdentity(item) === range.subtypeInput,
+        )
+        const domain = range.subtype !== range.elementType
+        const validSubtype = stored
+          ? range.output === builtinTypeIO('pg_catalog.int4range')?.output &&
+            range.subtypeOutput === builtinTypeIO(range.elementType)?.output
+          : subtype?.kind === 'function' &&
+            !(domain
+              ? subtype.schema !== 'pg_catalog' ||
+                subtype.name !== 'domain_in' ||
+                subtype.args.join(',') !== 'pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4' ||
+                subtype.result !== 'pg_catalog."any"' ||
+                subtype.strict ||
+                subtype.volatility !== 's'
+              : range.subtypeInput !== builtinTypeIO(range.elementType)?.input) &&
+            !subtype.returnsSet
+        if (!conversion || !validSubtype)
+          throw new UnsupportedCheckRustExpression(
+            'Custom range input requires its captured subtype conversion',
+          )
+        const support = rangeProfileSupport(range)
+        const profile = bind(`make_range_support(${support.comparison},${support.canonical})`)
+        const plan = bind(`prepare_range_text(${ownedOperand(operand)})`)
+        const metadata = `${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.elementType)}, ${profile}`
+        const result = fresh('range_input_result')
+        const initialHelper = stored ? 'range_stored_text_initial' : 'range_text_initial'
+        const finishHelper = stored ? 'finish_range_stored_text' : 'finish_range_text'
+        bindings.push(
+          `let mut ${result}:RangeValue=${initialHelper}(${plan}.clone(), ${metadata});`,
+        )
+        const inner: string[] = []
+        const bound = (upper: boolean, destination: string[]): string => {
+          const element = fresh('range_input_bound')
+          const prefix = rustValuePrefix(rustType(range.elementType))
+          const boundValue = fresh('range_input_bound_value')
+          destination.push(`let mut ${boundValue}:${rustType(range.elementType)}=${prefix}_null();`)
+          const text = fresh('range_input_text'),
+            status = fresh('range_input_prepared'),
+            initial = fresh('range_input_preparation_start')
+          const prepared: string[] = [],
+            lines: string[] = []
+          const key = JSON.stringify(['__pgsid_range_text_bound', false])
+          const outer = localInputs.get(key),
+            outerValidity = arrayValidityScope,
+            outerPreparation = domainInputPreparation,
+            outerDepth = preparationDepth
+          localInputs.set(key, {
+            name: '__pgsid_range_text_bound',
+            type: 'pg_catalog.text',
+            rustName: text,
+            rustType: 'TextValue',
+          })
+          arrayValidityScope = null
+          domainInputPreparation = { lines: prepared, status }
+          preparationDepth = 0
+          let value: { name: string; type: string }
+          try {
+            value = emitScalar(conversion, lines, used)
+          } finally {
+            if (outer) localInputs.set(key, outer)
+            else localInputs.delete(key)
+            arrayValidityScope = outerValidity
+            domainInputPreparation = outerPreparation
+            preparationDepth = outerDepth
+          }
+          if (value.type !== range.elementType)
+            throw new UnsupportedCheckRustExpression(
+              'Range bound input requires its concrete scalar carrier',
+            )
+          const scalar = fresh('range_input_converted')
+          const finished = fresh('range_input_finished')
+          const decoded = fresh('range_input_decoded')
+          destination.push(
+            `if range_text_bound_present(${plan}.clone(),${upper}) {`,
+            `    let ${text}=range_text_bound(${plan}.clone(),${upper});`,
+            `    let ${initial}=make_bool_value(true);`,
+            `    let mut ${status}:CheckOutcome=check_from_bool(${initial});`,
+            ...indent(prepared),
+            ...indent(lines),
+            `    let ${scalar}=array_element_from_${rustValuePrefix(rustType(range.elementType))}(${ownedOperand(value)});`,
+            ...(stored ? [`    let ${decoded}=range_stored_text_bound(${scalar});`] : []),
+            `    let ${finished}=finish_domain_conversion(${stored ? decoded : scalar},${status});`,
+            `    ${boundValue}=array_element_to_${prefix}(${finished});`,
+            '};',
+          )
+          destination.push(
+            `let ${element}=array_element_from_${prefix}(${ownedOperand({ name: boundValue, type: range.elementType })});`,
+          )
+          return element
+        }
+        const lower = bound(false, inner)
+        if (!stored) {
+          const unknown = fresh('range_input_unknown'),
+            unknownElement = fresh('range_input_unknown_element')
+          inner.push(
+            `let ${unknown}=${rustValuePrefix(rustType(range.elementType))}_unknown();`,
+            `let ${unknownElement}=array_element_from_${rustValuePrefix(rustType(range.elementType))}(${ownedOperand({ name: unknown, type: range.elementType })});`,
+          )
+          inner.push(
+            `${result}=${finishHelper}(${plan}.clone(), ${metadata},${lower}.clone(),${unknownElement});`,
+          )
+        }
+        const upperLines: string[] = []
+        const upper = bound(true, upperLines)
+        if (stored)
+          inner.push(
+            ...upperLines,
+            `${result}=${finishHelper}(${plan}.clone(), ${metadata},${lower},${upper});`,
+          )
+        else
+          inner.push(
+            `if range_text_bound_continues(${lower}.clone()) {`,
+            ...indent(upperLines),
+            `    ${result}=${finishHelper}(${plan}.clone(), ${metadata},${lower},${upper});`,
+            '};',
+          )
+        bindings.push(`if range_text_needs_bounds(${plan}.clone()) {`, ...indent(inner), '};')
+        return { name: result, type }
+      }
       return {
         name: bind(
           `range_from_text(${ownedOperand(operand)}, ${rustStringLiteral(range.identity)}, ${rustStringLiteral(range.subtype)}, ${arrayElementFamily(range.subtype)})`,
@@ -3973,7 +4106,12 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'text-to-range') {
       const operand = emitScalar(node.operand, bindings, used)
-      return emitRangeInput(operand, node.type)
+      return emitRangeInput(
+        operand,
+        node.type,
+        node.conversion,
+        node.literal === true && node.origin === 'stored',
+      )
     }
     const emitMultirangeInput = (operand: { name: string; type: string }, type: string) => {
       const multirange = builtinMultirangeType(type)

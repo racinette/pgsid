@@ -47,6 +47,9 @@ async function readRangeTypeInfos(
       output: SelectedFunction
       multirange_output: SelectedFunction
       subtype_output: SelectedFunction
+      input: SelectedFunction
+      multirange_input: SelectedFunction
+      subtype_input: SelectedFunction
     }>(
       `SELECT n.nspname AS schema,rt.typname AS name,mn.nspname AS multirange_schema,mt.typname AS multirange_name,
         (${typeIdentity} r.rngtypid) AS identity,
@@ -72,7 +75,10 @@ async function readRangeTypeInfos(
           FROM unnest(d.proargtypes) WITH ORDINALITY u(t,ord)) AS diff_args,
         ${functionIdentity('rt.typoutput')} AS output,
         ${functionIdentity('mt.typoutput')} AS multirange_output,
-        ${functionIdentity('st.typoutput')} AS subtype_output
+        ${functionIdentity('st.typoutput')} AS subtype_output,
+        ${functionIdentity('rt.typinput')} AS input,
+        ${functionIdentity('mt.typinput')} AS multirange_input,
+        ${functionIdentity('st.typinput')} AS subtype_input
         FROM pg_range r
         JOIN pg_type rt ON rt.oid=r.rngtypid
         JOIN pg_namespace n ON n.oid=rt.typnamespace
@@ -127,6 +133,9 @@ async function readRangeTypeInfos(
     output: signature(row.output),
     multirangeOutput: signature(row.multirange_output),
     subtypeOutput: signature(row.subtype_output),
+    input: signature(row.input),
+    multirangeInput: signature(row.multirange_input),
+    subtypeInput: signature(row.subtype_input),
   }))
 }
 
@@ -147,6 +156,9 @@ export async function readRangeTypes(
       output: _output,
       multirangeOutput: _multirangeOutput,
       subtypeOutput: _subtypeOutput,
+      input: _input,
+      multirangeInput: _multirangeInput,
+      subtypeInput: _subtypeInput,
       ...metadata
     }) => metadata,
   )

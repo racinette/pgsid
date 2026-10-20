@@ -202,6 +202,66 @@ pub fn range_text_bound_present(plan: RangeTextPlan, upper: bool) -> bool {
     false
 }
 
+pub fn range_text_bound_continues(input: ArrayElement) -> bool {
+    if let ArrayElement::Error(_) = input {
+        return false;
+    };
+    if let ArrayElement::Unknown = input {
+        return false;
+    };
+    true
+}
+
+pub fn range_stored_text_bound(input: ArrayElement) -> ArrayElement {
+    if let ArrayElement::Error(_) = input {
+        return ArrayElement::Unknown;
+    };
+    input
+}
+
+pub fn range_stored_text_initial(
+    plan: RangeTextPlan,
+    type_name: &str,
+    element_type: &str,
+    kind: i32,
+    support: RangeSupport,
+) -> RangeValue {
+    let initial = range_text_initial(plan, type_name, element_type, kind, support);
+    if let RangeValue::Error(_) = initial {
+        return RangeValue::Unknown;
+    };
+    initial
+}
+
+pub fn finish_range_stored_text(
+    plan: RangeTextPlan,
+    type_name: &str,
+    element_type: &str,
+    kind: i32,
+    support: RangeSupport,
+    lower: ArrayElement,
+    upper: ArrayElement,
+) -> RangeValue {
+    if range_text_needs_bounds(plan.clone()) == false {
+        return range_stored_text_initial(plan, type_name, element_type, kind, support);
+    };
+    let flags = range_text_flags(plan);
+    if let TextValue::Value(text) = flags {
+        return range_from_profiled_bounds(
+            type_name,
+            element_type,
+            kind,
+            false,
+            text.as_str() == "[]" || text.as_str() == "[)",
+            text.as_str() == "[]" || text.as_str() == "(]",
+            range_stored_text_bound(lower),
+            range_stored_text_bound(upper),
+            support,
+        );
+    };
+    RangeValue::Unknown
+}
+
 pub fn range_text_initial(
     plan: RangeTextPlan,
     type_name: &str,
