@@ -12,6 +12,7 @@ import {
   isArrayStringIO,
   isArrayBinarySend,
   isRangeBinarySend,
+  isMultirangeBinarySend,
 } from './check-rust-evaluator.js'
 import { builtinCast, builtinMetadata } from '../../postgres/builtins/inventory.js'
 import { enumEqualityOperation } from '../../sql-semantics/expressions.js'
@@ -53,7 +54,8 @@ const portable = (signature: string, rustNames: ReadonlySet<string>, rust: boole
         implementation.kind === 'function' &&
         (isArrayStringIO(implementation) ||
           isArrayBinarySend(implementation) ||
-          isRangeBinarySend(implementation)) &&
+          isRangeBinarySend(implementation) ||
+          isMultirangeBinarySend(implementation)) &&
         rustNames.has(implementation.rustName)) ||
       (rust &&
         isJsonpathTimezoneCallable(implementation) &&

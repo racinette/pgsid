@@ -141,6 +141,23 @@ const inputForms = [
             : [],
       scope: 'Ordered member output through captured range and scalar I/O identities',
     },
+    binaryIO: {
+      owner: 'tests/sql-semantics/check-multirange-wire-hash.test.ts',
+      catalogOwner: 'tests/sql-semantics/check-multirange-binary-catalog.test.ts',
+      sendContext: [],
+      format: 'Member count and length-prefixed range wire values; no multirange OID',
+      receive: 'PostgreSQL internal buffer and concrete input type context',
+    },
+    hashing: {
+      owner: 'tests/sql-semantics/check-multirange-wire-hash.test.ts',
+      contextOwner: 'tests/sql-semantics/check-multirange-hash-context.test.ts',
+      stateOwner: 'tests/sql-semantics/check-multirange-wire-state.test.ts',
+      contextRequired:
+        forms.boundType === 'pg_catalog."numeric"'
+          ? ['nativeByteOrder for reached byte-dependent numeric hashes']
+          : [],
+      oidInput: false,
+    },
     oidInput: false,
   })),
   ...rangeInputForms.map((forms) => ({

@@ -1,6 +1,7 @@
 import {
   isArrayHash,
   isRangeHash,
+  isMultirangeHash,
   nativeHashContext,
 } from '../../src/codegen/shared/check-hash-context.js'
 import { characterEncodingContext } from '../../src/codegen/shared/check-character-context.js'
@@ -111,6 +112,21 @@ export async function verifiedCatalog(pg: PGlite): Promise<BuiltinCatalog> {
 }
 
 export function hashValueRequirements(item: BuiltinCallable) {
+  if (isMultirangeHash(item))
+    return [
+      {
+        kind: 'interface',
+        requirement:
+          'Resolve concrete builtin range/subtype hash support from captured metadata; multirange OIDs are not hash inputs.',
+        owner: 'tests/sql-semantics/check-multirange-wire-hash.test.ts',
+      },
+      {
+        kind: 'platform',
+        requirement:
+          'Reached byte-dependent subtype hashes retain nativeByteOrder requirements. With no declared order, compare both complete multirange hash results; empty multiranges and unbounded members do not read bound hashes.',
+        owner: 'tests/sql-semantics/check-multirange-hash-context.test.ts',
+      },
+    ]
   if (isRangeHash(item))
     return [
       {

@@ -22763,6 +22763,108 @@ function moneyWords(input: checkruntime.MoneyValue): checkruntime.TextValue {
 export function cashWordsAtzl(input: checkruntime.MoneyValue): checkruntime.TextValue {
     return moneyWords(input);
 }
+export function multirangeBinaryPayload(input: checkruntime.MultirangeValue): checkruntime.MultirangePayload {
+    if (input.kind === "Value") {
+        const payload: checkruntime.MultirangePayload = checkruntime.copyMultirangePayload(input.value);
+        return payload;
+    }
+    const ranges: checkruntime.RangeValue[] = [];
+    return { typeName: "", rangeType: "", elementType: "", elementKind: 0, ranges: ranges };
+}
+export function multirangeBinaryCount(input: checkruntime.MultirangePayload): checkruntime.Int4Value {
+    if (input.typeName === "" || input.ranges.length > 2147483647) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: langruntime.checkedI32(langruntime.checkedIndex(input.ranges.length)) };
+}
+export function multirangeBinaryMember(input: checkruntime.MultirangePayload, index: checkruntime.Int4Value): checkruntime.RangeValue {
+    if (index.kind === "Value") {
+        const offset: number = langruntime.checkedI32(index.value);
+        const position: number = langruntime.indexFromI32(offset, input.ranges.length);
+        if (position < input.ranges.length) {
+            return checkruntime.copyRangeValue(langruntime.indexStruct(input.ranges, langruntime.checkedIndex(position), checkruntime.copyRangeValue));
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function multirangeBinaryInitial32(state: checkruntime.BoolValue, count: checkruntime.Int4Value, seed: checkruntime.Int8Value): checkruntime.Int4Value {
+    if (state.kind === "Error") {
+        const error: checkruntime.SqlError = state.value;
+        return { kind: "Error", value: error };
+    }
+    if (seed.kind === "Error") {
+        const error: checkruntime.SqlError = seed.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBoolValue(state, { kind: "Value", value: true }) || checkruntime.equalInt8Value(seed, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (checkruntime.equalBoolValue(state, { kind: "Value", value: false })) {
+        if (count.kind === "Value") {
+            if (seed.kind === "Value") {
+                return { kind: "Value", value: 1 };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function multirangeBinaryInitial64(state: checkruntime.BoolValue, count: checkruntime.Int4Value, seed: checkruntime.Int8Value): checkruntime.Int8Value {
+    return int8Mzac(multirangeBinaryInitial32(state, count, seed));
+}
+export function multirangeBinaryInitialSend(state: checkruntime.BoolValue, count: checkruntime.Int4Value): checkruntime.ByteaValue {
+    const initial: checkruntime.Int4Value = multirangeBinaryInitial32(state, count, { kind: "Value", value: 0n });
+    if (checkruntime.equalInt4Value(initial, { kind: "Value", value: 1 })) {
+        return int4sendFjzt(count);
+    }
+    return int4sendFjzt(initial);
+}
+function multirangeBinaryHasMember(count: checkruntime.Int4Value, index: checkruntime.Int4Value): boolean {
+    if (count.kind === "Value") {
+        const length: number = langruntime.checkedI32(count.value);
+        if (index.kind === "Value") {
+            const offset: number = langruntime.checkedI32(index.value);
+            return offset >= 0 && offset < length;
+        }
+    }
+    return false;
+}
+export function multirangeBinaryContinues32(count: checkruntime.Int4Value, index: checkruntime.Int4Value, first: checkruntime.Int4Value, second: checkruntime.Int4Value): boolean {
+    if (first.kind === "Value") {
+        if (second.kind === "Value") {
+            return multirangeBinaryHasMember(count, index);
+        }
+    }
+    return false;
+}
+export function multirangeBinaryContinues64(count: checkruntime.Int4Value, index: checkruntime.Int4Value, first: checkruntime.Int8Value, second: checkruntime.Int8Value): boolean {
+    if (first.kind === "Value") {
+        if (second.kind === "Value") {
+            return multirangeBinaryHasMember(count, index);
+        }
+    }
+    return false;
+}
+export function multirangeBinaryContinuesSend(count: checkruntime.Int4Value, index: checkruntime.Int4Value, output: checkruntime.ByteaValue): boolean {
+    if (output.kind === "Value") {
+        return multirangeBinaryHasMember(count, index);
+    }
+    if (output.kind === "Unspecified") {
+        return multirangeBinaryHasMember(count, index);
+    }
+    return false;
+}
+export function multirangeBinaryAppend(output: checkruntime.ByteaValue, member: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    return rangeBinaryAppend(output, member);
+}
+export function multirangeSendAwvx(input: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    return input;
+}
+export function hashMultirange603b(input: checkruntime.Int4Value): checkruntime.Int4Value {
+    return input;
+}
+export function hashMultirangeExtendedCoup(input: checkruntime.Int8Value): checkruntime.Int8Value {
+    return input;
+}
 function multirangeSameFamily(left: checkruntime.MultirangePayload, right: checkruntime.MultirangePayload): boolean {
     return left.typeName === right.typeName && left.rangeType === right.rangeType && left.elementType === right.elementType && left.elementKind === right.elementKind;
 }
