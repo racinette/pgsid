@@ -697,6 +697,22 @@ describe('CHECK measurement boundaries', () => {
         },
       })
     for (const range of catalog.rangeTypes) {
+      const multirange = report.textInput.find((item) => item.type === range.multirange)!
+      expect(multirange.probe.postgres.accepted).toBe(true)
+      expect(multirange.probe.raw.preparation.kind).toBe('supported')
+      expect(multirange.probe.stored!.preparation.kind).toBe('supported')
+      expect(
+        report.inputForms.types.find((forms) => forms.type === range.multirange),
+      ).toMatchObject({
+        rangeType: range.identity,
+        boundType: range.subtype,
+        suite: 'tests/sql-semantics/check-multirange-input-values.test.ts',
+        bindingOwner: 'tests/sql-semantics/check-multirange-input.test.ts',
+        contextOwner: 'tests/sql-semantics/check-multirange-input-context.test.ts',
+        literalOwner: 'tests/sql-semantics/check-multirange-literals.test.ts',
+        unimplementedGrammar: [],
+        oidInput: false,
+      })
       const entry = report.textInput.find((item) => item.type === range.identity)!
       expect(entry.probe.sql).toContain('isempty(')
       expect(entry.probe.postgres.accepted).toBe(true)

@@ -149,7 +149,8 @@ function prepare(expression: EvalExpression): Preparation | null {
   if (
     expression.kind === 'text-to-array' ||
     expression.kind === 'array-to-text' ||
-    expression.kind === 'text-to-range'
+    expression.kind === 'text-to-range' ||
+    expression.kind === 'text-to-multirange'
   ) {
     const operand = prepare(expression.operand)
     return operand

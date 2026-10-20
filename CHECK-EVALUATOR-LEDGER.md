@@ -29,8 +29,7 @@ The type report separates nullness from portable value representation and uses c
 verifies live callable and cast identities, records raw/stored expression probes, and joins bound corpus expressions to executed world outcomes. Required generated
 inputs and write hooks remain visible beside those outcomes. Values before a
 BEFORE ROW hook can differ from the values PostgreSQL checks.
-Callable candidates, context requirements, new representations, and expression gaps remain separate. Surface measurement rejects world outcomes whose input
-fingerprint differs from the current corpus.
+Callable candidates, context requirements, new representations, and expression gaps remain separate. Surface measurement rejects world outcomes whose input fingerprint differs from the current corpus.
 
 ## Preserve the measurement tools
 
@@ -256,6 +255,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit builtin empty, single-range and variadic multirange constructors plus catalog range casts; sort/merge stored members with exact equal-bound selection and numeric scales, preserve subtype/canonical profiles, domain-array unwrapping, shape/NULL error order, partial values, input snapshots and eager/lazy composition; verify raw/stored and INSERT parity.
 - [x] Admit builtin multirange equality/order, endpoint relations, containment, overlap and outer-edge adjacency, including mixed range and exact subtype operands; preserve nominal polymorphic identities, partial-bound decisions, strict states and argument order. Verify checked domains, extrema, NULLIF, row/list/quantified range comparisons, selected numeric scales, catalog range casts and raw/stored INSERT parity.
 - [x] Admit builtin multirange union, intersection, difference and range hulls through captured profiles and shared subtype support; retain exact selected member bounds/scales, multiple cuts, empty identities, partial hulls, strict states and independent snapshots. Verify nested domains, composed selection, checked result domains, eager constant errors, lazy runtime branches and raw/stored INSERT parity.
+- [x] Admit builtin multirange text grammar, typed literals and catalog-linked character input through ordered member parsing and shared normalization; preserve quoting/escaping, empty removal, exact selected scales, checked domains, unknown-operand operator resolution, strict states, eager literals and lazy stable casts. Verify raw/stored inputs and INSERT parity, retaining reached scalar DateStyle/TimeZone requirements and stored literal normalization.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

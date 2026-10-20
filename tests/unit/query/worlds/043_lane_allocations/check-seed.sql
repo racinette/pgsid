@@ -5269,3 +5269,66 @@ INSERT INTO lane_segment_algebra(divisor,verify_constructor,bypass) VALUES(0,fal
 -- name: segment_algebra_bypass
 INSERT INTO lane_segment_algebra(slots,other_slots,combined_slots,preferred,divisor,verify_constructor,require_bounded,bypass)
 VALUES('{(,)}','{}','{}','{}',0,true,true,true);
+
+-- name: segment_import_null
+INSERT INTO lane_segment_imports(bypass) VALUES(false);
+
+-- name: segment_import_empty
+INSERT INTO lane_segment_imports(slot_text,load_text,price_text,day_text,local_text,instant_text,expected_slots,expected_loads,expected_prices,expected_days,expected_local,expected_instant,expected_empty,require_bounded,bypass)
+VALUES('{empty}','{}','{EMPTY,empty}',' { } ','{[,] , empty}','{empty}','{}','{}','{}','{}','{(,)}','{}',true,true,false);
+
+-- name: segment_import_reordered
+INSERT INTO lane_segment_imports(slot_text,load_text,price_text,day_text,local_text,instant_text,expected_slots,expected_loads,expected_prices,expected_days,expected_local,expected_instant,expected_empty,choose_import,selected_slots,require_bounded,bypass)
+VALUES('{[7,9),empty,[1,3),[3,7)}','{[9007199254740997,9007199254740999),[9007199254740993,9007199254740995)}','{[1.2300,3.4500],[1.23,3.45]}','{[2000-01-05,2000-01-07),[2000-01-01,2000-01-03)}','{["2000-01-05 01:00",2000-01-07),[2000-01-01,2000-01-03)}','{["2000-01-05 01:00+02","2000-01-07 00:00+02"),["2000-01-01 00:00+02","2000-01-03 00:00+02")}', '{[1,9)}','{[9007199254740993,9007199254740995),[9007199254740997,9007199254740999)}','{[1.23,3.45]}','{[2000-01-01,2000-01-03),[2000-01-05,2000-01-07)}','{[2000-01-01,2000-01-03),["2000-01-05 01:00",2000-01-07)}','{["2000-01-01 00:00+02","2000-01-03 00:00+02"),["2000-01-05 01:00+02","2000-01-07 00:00+02")}',false,true,'{[1,9)}',true,false);
+
+-- name: segment_import_infinite
+INSERT INTO lane_segment_imports(price_text,day_text,local_text,instant_text,expected_prices,expected_days,expected_local,expected_instant,bypass)
+VALUES('{[NaN,NaN]}','{[-infinity,infinity]}','{[-infinity,infinity]}','{[-infinity,infinity]}','{[NaN,NaN]}','{[-infinity,infinity]}','{[-infinity,infinity]}','{[-infinity,infinity]}',false);
+
+-- name: segment_import_fallback
+INSERT INTO lane_segment_imports(slot_text,expected_slots,expected_empty,fallback_slots,selected_slots,choose_import,bypass)
+VALUES('{}','{}',true,'{[1,3)}','{[1,3)}',true,false);
+
+-- name: segment_import_slot_mismatch
+INSERT INTO lane_segment_imports(slot_text,expected_slots,expected_empty,bypass) VALUES('{[1,3)}','{}',false,false);
+
+-- name: segment_import_load_mismatch
+INSERT INTO lane_segment_imports(load_text,expected_loads,bypass) VALUES('{[1,3)}','{}',false);
+
+-- name: segment_import_price_mismatch
+INSERT INTO lane_segment_imports(price_text,expected_prices,bypass) VALUES('{[1.0000,3.0000]}','{}',false);
+
+-- name: segment_import_day_mismatch
+INSERT INTO lane_segment_imports(day_text,expected_days,bypass) VALUES('{[2000-01-01,2000-01-03)}','{}',false);
+
+-- name: segment_import_local_mismatch
+INSERT INTO lane_segment_imports(local_text,expected_local,bypass) VALUES('{[2000-01-01,2000-01-03)}','{}',false);
+
+-- name: segment_import_instant_mismatch
+INSERT INTO lane_segment_imports(instant_text,expected_instant,bypass) VALUES('{["2000-01-01 00:00+00","2000-01-03 00:00+00")}','{}',false);
+
+-- name: segment_import_empty_mismatch
+INSERT INTO lane_segment_imports(slot_text,expected_slots,expected_empty,bypass) VALUES('{}','{}',false,false);
+
+-- name: segment_import_choice_mismatch
+INSERT INTO lane_segment_imports(fallback_slots,selected_slots,choose_import,bypass) VALUES('{}','{(,)}',true,false);
+
+-- name: segment_import_bounded_error
+INSERT INTO lane_segment_imports(slot_text,expected_slots,expected_empty,require_bounded,bypass) VALUES('{(,)}','{(,)}',false,true,false);
+
+-- name: segment_import_bound_overflow_before_junk
+INSERT INTO lane_segment_imports(slot_text,bypass) VALUES('{[2147483648,3)junk}',false);
+
+-- name: segment_import_unfinished_before_overflow
+INSERT INTO lane_segment_imports(slot_text,bypass) VALUES('{[2147483648,3}',false);
+
+-- name: segment_import_trailing_comma
+INSERT INTO lane_segment_imports(slot_text,bypass) VALUES('{empty,}',false);
+
+-- name: segment_import_lazy_fallback
+INSERT INTO lane_segment_imports(slot_text,expected_slots,expected_empty,fallback_slots,selected_slots,choose_import,bypass)
+VALUES('{[1,3)}','{[1,3)}',false,'{bad}','{[1,3)}',true,false);
+
+-- name: segment_import_bypass
+INSERT INTO lane_segment_imports(slot_text,load_text,price_text,day_text,local_text,instant_text,fallback_slots,choose_import,require_bounded,bypass)
+VALUES('{bad}','{bad}','{bad}','{bad}','{bad}','{bad}','{bad}',true,true,true);

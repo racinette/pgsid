@@ -549,7 +549,7 @@ export type SqlExpression =
   | { kind: 'tid'; type: TidType; value: string | null }
   | { kind: 'xid8'; type: Xid8Type; value: string | null }
   | { kind: 'snapshot'; type: SnapshotType; value: string | null }
-  | { kind: 'multirange'; type: MultirangeType; value: null }
+  | { kind: 'multirange'; type: MultirangeType; value: string | null }
   | { kind: 'range'; type: RangeType; value: string | null }
   | { kind: 'oid'; type: OidType; value: string | null }
   | { kind: 'polygon'; type: PolygonType; value: string | null }
@@ -1241,7 +1241,11 @@ export function emitSqlExpression<Ast>(
       if (node.value !== null) throw new Error('Snapshot literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
-    if (node.kind === 'multirange') return { type: node.type, expression: backend.text(null) }
+    if (node.kind === 'multirange') {
+      if (node.value !== null)
+        throw new Error('Multirange literals require the Rust CHECK evaluator')
+      return { type: node.type, expression: backend.text(null) }
+    }
     if (node.kind === 'range') {
       if (node.value !== null) throw new Error('Range literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }

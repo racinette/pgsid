@@ -23970,6 +23970,137 @@ export function tstzmultirangeZ001(input: checkruntime.RangeValue): checkruntime
     input = checkruntime.copyRangeValue(input);
     return multirangeConstructSingle(input, "pg_catalog.tstzmultirange", "pg_catalog.tstzrange", "pg_catalog.timestamptz", 5);
 }
+export function multirangeFromText(input: checkruntime.TextValue, typeName: string, rangeType: string, elementType: string, elementKind: number): checkruntime.MultirangeValue {
+    typeName = langruntime.checkedString(typeName);
+    rangeType = langruntime.checkedString(rangeType);
+    elementType = langruntime.checkedString(elementType);
+    elementKind = langruntime.checkedI32(elementKind);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (input.kind === "Null") {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const text: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(text);
+        let position: number = 0;
+        while (position < chars.length && rangeInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (position >= chars.length) {
+            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+        }
+        if (!(langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "{")) {
+            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+        }
+        position = langruntime.checkedAdd(position, 1);
+        let state: number = 0;
+        let seen: boolean = false;
+        let member: string = "";
+        let ranges: checkruntime.RangeValue[] = [];
+        while (position < chars.length && !(state === 6)) {
+            const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(position));
+            if (state >= 1 && state <= 4) {
+                member = member + langruntime.checkedChar(ch);
+            }
+            if (rangeInputSpace(ch) === false) {
+                if (state === 0) {
+                    if (ch === "[" || ch === "(") {
+                        member = langruntime.checkedString("");
+                        member = member + langruntime.checkedChar(ch);
+                        state = langruntime.checkedI32(1);
+                    }
+                    else if (ch === "}" && seen === false) {
+                        state = langruntime.checkedI32(6);
+                    }
+                    else {
+                        let empty: boolean = false;
+                        if (langruntime.checkedAdd(position, 4) < chars.length) {
+                            empty = langruntime.checkedBool((langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "e" || langruntime.indexChar(chars, langruntime.checkedIndex(position)) === "E") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "m" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "M") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "p" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 2))) === "P") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))) === "t" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 3))) === "T") && (langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 4))) === "y" || langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 4))) === "Y"));
+                        }
+                        if (empty === false) {
+                            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+                        }
+                        position = langruntime.checkedAdd(position, 4);
+                        seen = langruntime.checkedBool(true);
+                        state = langruntime.checkedI32(5);
+                    }
+                }
+                else if (state === 1) {
+                    if (ch === ")" || ch === "]") {
+                        const parsed: checkruntime.RangeValue = rangeFromText({ kind: "Value", value: langruntime.checkedString(member) }, rangeType, elementType, elementKind);
+                        if (parsed.kind === "Error") {
+                            const error: checkruntime.SqlError = parsed.value;
+                            return { kind: "Error", value: error };
+                        }
+                        let known: boolean = false;
+                        if (parsed.kind === "Value") {
+                            const payload: checkruntime.RangePayload = checkruntime.copyRangePayload(parsed.value);
+                            known = langruntime.checkedBool(true);
+                            if (payload.empty === false) {
+                                langruntime.pushStruct(ranges, { kind: "Value", value: payload }, checkruntime.copyRangeValue);
+                            }
+                        }
+                        if (known === false) {
+                            return { kind: "Unknown" };
+                        }
+                        seen = langruntime.checkedBool(true);
+                        state = langruntime.checkedI32(5);
+                    }
+                    else if (ch === "\"") {
+                        state = langruntime.checkedI32(3);
+                    }
+                    else if (ch === "\\") {
+                        state = langruntime.checkedI32(2);
+                    }
+                }
+                else if (state === 2) {
+                    state = langruntime.checkedI32(1);
+                }
+                else if (state === 3) {
+                    if (ch === "\"") {
+                        if (langruntime.checkedAdd(position, 1) < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(position, 1))) === "\"") {
+                            member = member + langruntime.checkedChar("\"");
+                            position = langruntime.checkedAdd(position, 1);
+                        }
+                        else {
+                            state = langruntime.checkedI32(1);
+                        }
+                    }
+                    else if (ch === "\\") {
+                        state = langruntime.checkedI32(4);
+                    }
+                }
+                else if (state === 4) {
+                    state = langruntime.checkedI32(3);
+                }
+                else if (ch === ",") {
+                    state = langruntime.checkedI32(0);
+                }
+                else if (ch === "}") {
+                    state = langruntime.checkedI32(6);
+                }
+                else {
+                    return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+                }
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (!(state === 6)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+        }
+        while (position < chars.length && rangeInputSpace(langruntime.indexChar(chars, langruntime.checkedIndex(position)))) {
+            position = langruntime.checkedAdd(position, 1);
+        }
+        if (!(position === chars.length)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(rangeInputSyntax) };
+        }
+        return multirangeConstructNormalize({ typeName: typeName, rangeType: rangeType, elementType: elementType, elementKind: elementKind, ranges: ranges });
+    }
+    return { kind: "Unknown" };
+}
 export function isemptyT80p(input: checkruntime.MultirangeValue): checkruntime.BoolValue {
     input = checkruntime.copyMultirangeValue(input);
     return checkruntime.multirangeEmptyState(input);
