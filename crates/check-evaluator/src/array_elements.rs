@@ -50,9 +50,13 @@ pub enum ArrayElement {
     ByteaUnspecified(i32),
     BoxNonNull,
     Range(RangePayload),
+    Multirange(MultirangePayload),
 }
 
 pub fn array_element_family(input: ArrayElement) -> i32 {
+    if let ArrayElement::Multirange(_) = input {
+        return 43;
+    };
     if let ArrayElement::Range(_) = input {
         return 42;
     };
@@ -1317,4 +1321,30 @@ pub fn array_element_to_range(input: ArrayElement) -> RangeValue {
         return make_coerced_range_value(value);
     };
     RangeValue::Unknown
+}
+
+pub fn array_element_from_multirange(input: MultirangeValue) -> ArrayElement {
+    if let MultirangeValue::Error(error) = input {
+        return ArrayElement::Error(error);
+    };
+    if let MultirangeValue::Null = input {
+        return ArrayElement::Null;
+    };
+    if let MultirangeValue::Value(value) = input {
+        return ArrayElement::Multirange(value);
+    };
+    ArrayElement::Unknown
+}
+
+pub fn array_element_to_multirange(input: ArrayElement) -> MultirangeValue {
+    if let ArrayElement::Error(error) = input {
+        return MultirangeValue::Error(error);
+    };
+    if let ArrayElement::Null = input {
+        return MultirangeValue::Null;
+    };
+    if let ArrayElement::Multirange(value) = input {
+        return make_coerced_multirange_value(value);
+    };
+    MultirangeValue::Unknown
 }

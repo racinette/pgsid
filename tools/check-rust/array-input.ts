@@ -1,6 +1,11 @@
 import { go, type GoExpression } from '../../src/codegen/go/ast.js'
 import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import {
+  multirangeGoInput,
+  multirangeRustInput,
+  type MultirangeInputPayload,
+} from './multirange-input.js'
+import {
   rangeGoInput,
   rangeRustInput,
   type RangeInputCell,
@@ -10,6 +15,7 @@ import {
 export type OwnedArrayInputCell =
   | RangeInputCell
   | { kind: 'Range'; value: RangeInputPayload }
+  | { kind: 'Multirange'; value: MultirangeInputPayload }
   | { kind: 'Array'; value: OwnedArrayInputPayload }
 
 export type OwnedArrayInputPayload = {
@@ -22,6 +28,8 @@ export type OwnedArrayInputPayload = {
 
 export function arrayRustInput(payload: OwnedArrayInputPayload): string {
   const elements = payload.elements.map((cell) => {
+    if (cell.kind === 'Multirange')
+      return `array_element_from_multirange(${multirangeRustInput(cell.value)})`
     if (cell.kind === 'Range') return `array_element_from_range(${rangeRustInput(cell.value)})`
     if (cell.kind === 'Array') return `array_element_from_array(${arrayRustInput(cell.value)})`
     if (cell.kind === 'Null' || cell.kind === 'Unknown') return `ArrayElement::${cell.kind}`
@@ -63,6 +71,8 @@ export function arrayGoInput(payload: OwnedArrayInputPayload): GoExpression {
         go.composite(
           go.slice(runtime('ArrayElement')),
           payload.elements.map((cell) => {
+            if (cell.kind === 'Multirange')
+              return go.call(runtime('ArrayElementFromMultirange'), [multirangeGoInput(cell.value)])
             if (cell.kind === 'Range')
               return go.call(runtime('ArrayElementFromRange'), [rangeGoInput(cell.value)])
             if (cell.kind === 'Array')

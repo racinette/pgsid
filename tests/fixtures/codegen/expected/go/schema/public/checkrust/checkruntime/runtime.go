@@ -6780,6 +6780,7 @@ const (
 	ArrayElementByteaUnspecified
 	ArrayElementBoxNonNull
 	ArrayElementRange
+	ArrayElementMultirange
 )
 
 type ArrayElement struct {
@@ -6829,6 +6830,7 @@ type ArrayElement struct {
 	Array              ArrayPayload
 	ByteaUnspecified   int
 	Range              RangePayload
+	Multirange         MultirangePayload
 }
 
 func CopyArrayElement(value ArrayElement) ArrayElement {
@@ -6933,11 +6935,16 @@ func CopyArrayElement(value ArrayElement) ArrayElement {
 		return ArrayElement{Kind: ArrayElementBoxNonNull}
 	case ArrayElementRange:
 		return ArrayElement{Kind: ArrayElementRange, Range: CopyRangePayload(value.Range)}
+	case ArrayElementMultirange:
+		return ArrayElement{Kind: ArrayElementMultirange, Multirange: CopyMultirangePayload(value.Multirange)}
 	}
 	panic("unknown enum variant")
 }
 func ArrayElementFamily(input ArrayElement) int {
 	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementMultirange {
+		return 43
+	}
 	if input.Kind == ArrayElementRange {
 		return 42
 	}
@@ -8340,6 +8347,36 @@ func ArrayElementToRange(input ArrayElement) RangeValue {
 	}
 	return RangeValue{Kind: RangeValueUnknown}
 }
+func ArrayElementFromMultirange(input MultirangeValue) ArrayElement {
+	input = CopyMultirangeValue(input)
+	if input.Kind == MultirangeValueError {
+		error := input.Error
+		return ArrayElement{Kind: ArrayElementError, Error: error}
+	}
+	if input.Kind == MultirangeValueNull {
+		return ArrayElement{Kind: ArrayElementNull}
+	}
+	if input.Kind == MultirangeValueValue {
+		value := CopyMultirangePayload(input.Value)
+		return ArrayElement{Kind: ArrayElementMultirange, Multirange: value}
+	}
+	return ArrayElement{Kind: ArrayElementUnknown}
+}
+func ArrayElementToMultirange(input ArrayElement) MultirangeValue {
+	input = CopyArrayElement(input)
+	if input.Kind == ArrayElementError {
+		error := input.Error
+		return MultirangeValue{Kind: MultirangeValueError, Error: error}
+	}
+	if input.Kind == ArrayElementNull {
+		return MultirangeValue{Kind: MultirangeValueNull}
+	}
+	if input.Kind == ArrayElementMultirange {
+		value := CopyMultirangePayload(input.Multirange)
+		return MakeCoercedMultirangeValue(value)
+	}
+	return MultirangeValue{Kind: MultirangeValueUnknown}
+}
 
 type RangePayload struct {
 	TypeName       string
@@ -9136,6 +9173,10 @@ func arrayElementOwnedState(input *ArrayPayload, position int) BoolValue {
 		payload := CopyRangePayload(element.Range)
 		return RangeIsNull(MakeCoercedRangeValue(payload))
 	}
+	if element.Kind == ArrayElementMultirange {
+		payload := CopyMultirangePayload(element.Multirange)
+		return MultirangeIsNull(MakeCoercedMultirangeValue(payload))
+	}
 	return BoolValue{Kind: BoolValueValue, Value: false}
 }
 func MakeArrayValue(input ArrayPayload) ArrayValue {
@@ -9153,7 +9194,7 @@ func MakeArrayValue(input ArrayPayload) ArrayValue {
 		position = langruntime.CheckedAdd(position, 1)
 	}
 	identity := []rune(input.ElementType)
-	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 42 {
+	if len(identity) == 0 || input.ElementKind < 1 || input.ElementKind > 43 {
 		return ArrayValue{Kind: ArrayValueUnknown}
 	}
 	position = langruntime.CheckedIndex(0)
