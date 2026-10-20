@@ -1,3 +1,5 @@
+import { arrayElementComparison } from './check-array-types.js'
+import { rangeTypeProfile, multirangeTypeProfile } from '../../sql-semantics/range-profiles.js'
 import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
 import {
   nativeHashContext,
@@ -14,8 +16,6 @@ import {
   builtinMetadata,
   builtinTypeComparison,
   builtinTypeResolution,
-  builtinRangeType,
-  builtinMultirangeType,
 } from '../../postgres/builtins/inventory.js'
 import {
   capturedEnumSupport,
@@ -138,10 +138,12 @@ export function rustCallCanFail(
   const hash = builtinMetadata(call.signature)
   if (isRangeHash(hash) || isMultirangeHash(hash)) {
     const range = isMultirangeHash(hash)
-      ? builtinMultirangeType(types[0] ?? '')
-      : builtinRangeType(types[0] ?? '')
-    const support = range ? builtinTypeComparison(range.subtype) : null
-    if (hash.args.length === 1 ? support?.hash : support?.hashExtended) return false
+      ? multirangeTypeProfile(types[0] ?? '')
+      : rangeTypeProfile(types[0] ?? '')
+    const support = range ? builtinTypeComparison(range.elementType) : null
+    const signature = hash.args.length === 1 ? range?.subtypeHash : range?.subtypeHashExtended
+    if (signature && signature === (hash.args.length === 1 ? support?.hash : support?.hashExtended))
+      return false
   }
   if (
     hash.kind === 'function' &&
@@ -186,6 +188,32 @@ export function rustCallCanFail(
       return false
   }
   if (isArrayHash(hash) && types[0]?.startsWith('array:')) {
+    let current = types[0]
+    let safe = true
+    while (current.startsWith('array:')) {
+      const element = current.slice(6),
+        support = arrayElementComparison(element),
+        signature = hash.args.length === 1 ? support?.hash : support?.hashExtended,
+        metadata = signature
+          ? builtinCallables().find((item) => callableIdentity(item) === signature)
+          : null
+      if (
+        !metadata ||
+        !(isArrayHash(metadata) || isRangeHash(metadata) || isMultirangeHash(metadata))
+      )
+        safe = false
+      current = arrayElementBaseType(element)
+    }
+    const range = rangeTypeProfile(current) ?? multirangeTypeProfile(current)
+    if (range) {
+      const signature = hash.args.length === 1 ? range.subtypeHash : range.subtypeHashExtended,
+        support = builtinTypeComparison(range.elementType)
+      return !(
+        safe &&
+        signature !== null &&
+        signature === (hash.args.length === 1 ? support?.hash : support?.hashExtended)
+      )
+    }
     let element = arrayElementBaseType(types[0].slice(6))
     while (element.startsWith('array:')) element = arrayElementBaseType(element.slice(6))
     const support = builtinTypeComparison(

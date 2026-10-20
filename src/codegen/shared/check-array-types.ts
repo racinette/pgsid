@@ -1,3 +1,5 @@
+import { builtinTypeComparison } from '../../postgres/builtins/inventory.js'
+import { isRangeType, isMultirangeType } from '../../sql-semantics/expressions.js'
 import { arrayElementBaseType, domainElementDefinition } from '../../sql-semantics/expressions.js'
 import {
   rangeTypeProfile,
@@ -155,4 +157,54 @@ export function arrayInputPlan(type: string): string[] {
     : arrayElementFamily(type.slice(6)) === 41
       ? [plan.types, plan.kinds]
       : []
+}
+
+export const arrayElementComparison = (type: string) => {
+  const domain = domainElementDefinition(type)
+  type = arrayElementBaseType(type)
+  const range = rangeTypeProfile(type),
+    multi = multirangeTypeProfile(type),
+    profile = range ?? multi
+  if (profile) {
+    const defaults = builtinTypeComparison(
+      range ? 'pg_catalog.int4range' : 'pg_catalog.int4multirange',
+    )!
+    const equality = range ? profile.rangeEquality : profile.multirangeEquality,
+      comparator = range ? profile.rangeComparator : profile.multirangeComparator,
+      hash = range ? profile.rangeHash : profile.multirangeHash,
+      extended = range ? profile.rangeHashExtended : profile.multirangeHashExtended,
+      unavailable = domain !== null,
+      hashAvailable = hash !== defaults.hash || (profile.subtypeHash !== null && !unavailable),
+      extendedAvailable =
+        extended !== defaults.hashExtended || (profile.subtypeHashExtended !== null && !unavailable)
+    return {
+      ...defaults,
+      identity: range ? profile.identity : profile.multirange,
+      equality,
+      comparator,
+      hash: hashAvailable ? hash : null,
+      hashExtended: extendedAvailable ? extended : null,
+    }
+  }
+  return builtinTypeComparison(
+    type.startsWith('array:')
+      ? 'pg_catalog.anyarray'
+      : type.startsWith('enum:')
+        ? 'pg_catalog.anyenum'
+        : isRangeType(type)
+          ? 'pg_catalog.int4range'
+          : isMultirangeType(type)
+            ? 'pg_catalog.int4multirange'
+            : type,
+  )
+}
+
+export const arrayElementComparisonAvailable = (type: string, equality: boolean): boolean => {
+  while (true) {
+    const support = arrayElementComparison(type)
+    if (!(equality ? support?.equality : support?.comparator)) return false
+    type = arrayElementBaseType(type)
+    if (!type.startsWith('array:')) return true
+    type = type.slice(6)
+  }
 }

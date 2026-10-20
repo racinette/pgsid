@@ -6197,3 +6197,123 @@ VALUES(NULL,NULL,NULL,NULL,NULL,false);
 -- name: flexible_price_batches_skipped
 INSERT INTO lane_flexible_price_batches(payload,pieces,expected,expected_label,expected_scale,bypass)
 VALUES('bad','{"bad"}',NULL,'bad',99,true);
+
+-- name: custom_window_packet_valid
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES ('[1,3)','[1,3)','\x0200000004000000010000000400000003',0,false);
+
+-- name: custom_window_packet_wrong_wire
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES ('[1,3)','[1,3)','\xff',0,false);
+
+-- name: custom_window_packet_wrong_reference
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES ('[1,3)','[1,4)','\x0200000004000000010000000400000003',0,false);
+
+-- name: custom_window_packet_inclusive
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES ('[1,3]','[1,3]','\x0600000004000000010000000400000003',-1,false);
+
+-- name: custom_window_packet_unbounded
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES ('(,)','(,)','\x18',0,false);
+
+-- name: custom_window_packet_lower_only
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES ('[1,)','[1,)','\x120000000400000001',0,false);
+
+-- name: custom_window_packet_upper_only
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES ('(,3)','(,3)','\x080000000400000003',0,false);
+
+-- name: custom_window_packet_empty
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES ('empty','empty','\x01',0,false);
+
+-- name: custom_window_packet_null
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES (NULL,NULL,NULL,0,false);
+
+-- name: custom_window_packet_null_seed
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES ('[1,3)','[1,3)','\x0200000004000000010000000400000003',NULL,false);
+
+-- name: custom_window_packet_skipped
+INSERT INTO lane_window_packets (window_value, reference_window, expected_wire, hash_seed, bypass)
+VALUES ('[1,3)','[1,4)','\xff',0,true);
+
+-- name: custom_segment_packet_valid
+INSERT INTO lane_segment_packets (segment_values, reference_segments, expected_wire, hash_seed, bypass)
+VALUES ('{[1,3),[5,7)}','{[1,3),[5,7)}','\x00000002000000110200000004000000010000000400000003000000110200000004000000050000000400000007',0,false);
+
+-- name: custom_segment_packet_wrong_wire
+INSERT INTO lane_segment_packets (segment_values, reference_segments, expected_wire, hash_seed, bypass)
+VALUES ('{[1,3),[5,7)}','{[1,3),[5,7)}','\xff',0,false);
+
+-- name: custom_segment_packet_wrong_reference
+INSERT INTO lane_segment_packets (segment_values, reference_segments, expected_wire, hash_seed, bypass)
+VALUES ('{[1,3),[5,7)}','{[1,4),[5,7)}','\x00000002000000110200000004000000010000000400000003000000110200000004000000050000000400000007',0,false);
+
+-- name: custom_segment_packet_empty
+INSERT INTO lane_segment_packets (segment_values, reference_segments, expected_wire, hash_seed, bypass)
+VALUES ('{}','{}','\x00000000',0,false);
+
+-- name: custom_segment_packet_unbounded
+INSERT INTO lane_segment_packets (segment_values, reference_segments, expected_wire, hash_seed, bypass)
+VALUES ('{(,)}','{(,)}','\x000000010000000118',-1,false);
+
+-- name: custom_segment_packet_null
+INSERT INTO lane_segment_packets (segment_values, reference_segments, expected_wire, hash_seed, bypass)
+VALUES (NULL,NULL,NULL,0,false);
+
+-- name: custom_segment_packet_null_seed
+INSERT INTO lane_segment_packets (segment_values, reference_segments, expected_wire, hash_seed, bypass)
+VALUES ('{[1,3),[5,7)}','{[1,3),[5,7)}','\x00000002000000110200000004000000010000000400000003000000110200000004000000050000000400000007',NULL,false);
+
+-- name: custom_segment_packet_skipped
+INSERT INTO lane_segment_packets (segment_values, reference_segments, expected_wire, hash_seed, bypass)
+VALUES ('{[1,3),[5,7)}','{[1,4),[5,7)}','\xff',0,true);
+
+-- name: custom_window_fingerprint_valid
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES ('{"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}',NULL,'{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,3)\",\"[5,7)\"}"}',0,false);
+
+-- name: custom_window_fingerprint_wrong_windows
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES ('{"[1,3)","[5,7)"}','{"[1,4)","[5,7)"}',NULL,'{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,3)\",\"[5,7)\"}"}',0,false);
+
+-- name: custom_window_fingerprint_wrong_history
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES ('{"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}',NULL,'{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,4)\",\"[5,7)\"}"}',0,false);
+
+-- name: custom_window_fingerprint_retained_values
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES ('{"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}','{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,3)\",\"[5,7)\"}"}',0,false);
+
+-- name: custom_window_fingerprint_retained_empty
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES ('{"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}','{}','{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,3)\",\"[5,7)\"}"}',0,false);
+
+-- name: custom_window_fingerprint_retained_null_cell
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES ('{"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}','{NULL}','{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,3)\",\"[5,7)\"}"}',0,false);
+
+-- name: custom_window_fingerprint_empty
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES ('{}','{}',NULL,'{}','{}',0,false);
+
+-- name: custom_window_fingerprint_null
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES (NULL,NULL,NULL,NULL,NULL,0,false);
+
+-- name: custom_window_fingerprint_null_seed
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES ('{"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}',NULL,'{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,3)\",\"[5,7)\"}"}',NULL,false);
+
+-- name: custom_window_fingerprint_shifted
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES ('[-2:-1]={"[1,3)","[5,7)"}','{"[1,3)","[5,7)"}',NULL,'{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,3)\",\"[5,7)\"}"}',-9223372036854775808,false);
+
+-- name: custom_window_fingerprint_skipped
+INSERT INTO lane_window_fingerprints (windows, reference_windows, retained_windows, histories, reference_histories, hash_seed, bypass)
+VALUES ('{"[1,3)","[5,7)"}','{"[1,4)","[5,7)"}','{"[1,3)","[5,7)"}','{"{\"[1,3)\",\"[5,7)\"}"}','{"{\"[1,4)\",\"[5,7)\"}"}',0,true);

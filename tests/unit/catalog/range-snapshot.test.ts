@@ -69,6 +69,15 @@ it('captures user range and multirange support in snapshots with selected identi
       multirangeInput:
         'function:["pg_catalog","multirange_in"](pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4)',
       subtypeInput: 'function:["pg_catalog","int4in"](pg_catalog.cstring)',
+      send: 'function:["pg_catalog","range_send"](pg_catalog.anyrange)',
+      multirangeSend: 'function:["pg_catalog","multirange_send"](pg_catalog.anymultirange)',
+      subtypeSend: 'function:["pg_catalog","int4send"](pg_catalog.int4)',
+      subtypeHash: 'function:["pg_catalog","hashint4"](pg_catalog.int4)',
+      subtypeHashExtended:
+        'function:["pg_catalog","hashint4extended"](pg_catalog.int4,pg_catalog.int8)',
+      subtypeHashEqualityCompatible: true,
+      rangeHashEqualityCompatible: true,
+      multirangeHashEqualityCompatible: true,
     })
     expect(
       (
@@ -100,6 +109,10 @@ it('captures user range and multirange support in snapshots with selected identi
       subtypeOutput: 'function:["pg_catalog","int4out"](pg_catalog.int4)',
       subtypeInput:
         'function:["pg_catalog","domain_in"](pg_catalog.cstring,pg_catalog.oid,pg_catalog.int4)',
+      subtypeSend: 'function:["pg_catalog","int4send"](pg_catalog.int4)',
+      subtypeHash: 'function:["pg_catalog","hashint4"](pg_catalog.int4)',
+      subtypeHashExtended:
+        'function:["pg_catalog","hashint4extended"](pg_catalog.int4,pg_catalog.int8)',
     })
     expect(snapshot.rangeTypes.find((r) => r.name === 'ratings')).toMatchObject({
       subtype: '"Range.Types".rating',
@@ -161,7 +174,8 @@ it('captures user range and multirange support in snapshots with selected identi
 
 it('compares profiles and quoted type identities across independent catalog OIDs and detects support changes', async () => {
   const snapshots: CatalogSnapshot[] = [],
-    oids: number[] = []
+    oids: number[] = [],
+    nativeBinary: unknown[] = []
   for (const noisy of [false, true]) {
     const pg = await PGlite.create()
     try {
@@ -178,6 +192,14 @@ it('compares profiles and quoted type identities across independent catalog OIDs
         ).rows[0]!.oid,
       )
       const snapshot = await snapshotCatalog(pg)
+      nativeBinary.push(
+        (
+          await pg.query(`SELECT encode(range_send('[1,3)'::"Range.Types"."Continuous"),'hex')AS wire,
+        hash_range('[1,3)'::"Range.Types"."Continuous")AS h32,hash_range_extended('[1,3)'::"Range.Types"."Continuous",-1)::text AS h64,
+        encode(multirange_send('{[1,3),[5,7)}'::public."Continuous Set"),'hex')AS multi_wire,
+        hash_multirange('{[1,3),[5,7)}'::public."Continuous Set")AS m32,hash_multirange_extended('{[1,3),[5,7)}'::public."Continuous Set",-1)::text AS m64`)
+        ).rows,
+      )
       const onlyRanges = emptyCatalogSnapshot()
       onlyRanges.rangeTypes = snapshot.rangeTypes
       snapshots.push(onlyRanges)
@@ -186,6 +208,7 @@ it('compares profiles and quoted type identities across independent catalog OIDs
     }
   }
   expect(oids[0]).not.toBe(oids[1])
+  expect(nativeBinary[0]).toEqual(nativeBinary[1])
   const stableProfiles = (snapshot: CatalogSnapshot) =>
     snapshot.rangeTypes.map(({ callResolution: _resolution, ...profile }) => profile)
   expect(stableProfiles(snapshots[0]!)).toEqual(stableProfiles(snapshots[1]!))
@@ -207,7 +230,17 @@ it('compares profiles and quoted type identities across independent catalog OIDs
     removed: [],
     modified: [],
   })
-  for (const field of ['comparator', 'canonical', 'subtypeDiff', 'collation'] as const) {
+  for (const field of [
+    'comparator',
+    'canonical',
+    'subtypeDiff',
+    'collation',
+    'send',
+    'multirangeSend',
+    'subtypeSend',
+    'subtypeHash',
+    'subtypeHashExtended',
+  ] as const) {
     const changed = structuredClone(snapshots[0]!)
     const range = changed.rangeTypes.find((r) => r.name === 'Continuous')!
     range[field] = 'new captured support'
@@ -225,4 +258,33 @@ it('compares profiles and quoted type identities across independent catalog OIDs
   const empty = emptyCatalogSnapshot()
   expect(diffCatalogs(empty, snapshots[0]!).added).toHaveLength(14)
   expect(diffCatalogs(snapshots[0]!, empty).removed).toHaveLength(14)
+}, 30_000)
+
+it('retains absent subtype hash support and rolls back index probes before reading the next subtype', async () => {
+  const pg = await PGlite.create()
+  try {
+    await pg.exec(
+      `CREATE DOMAIN required_cash AS money NOT NULL;CREATE TYPE cash_span AS RANGE(subtype=required_cash);CREATE TYPE integer_span AS RANGE(subtype=int4)`,
+    )
+    const ranges = await readCatalogRangeTypes(pg, ['public'])
+    expect(ranges.find((r) => r.name === 'cash_span')).toMatchObject({
+      subtypeHash: null,
+      subtypeHashExtended: null,
+      subtypeSend: 'function:["pg_catalog","cash_send"](pg_catalog.money)',
+    })
+    expect(ranges.find((r) => r.name === 'integer_span')).toMatchObject({
+      subtypeHash: 'function:["pg_catalog","hashint4"](pg_catalog.int4)',
+    })
+    expect(
+      (await pg.query("SELECT to_regclass('pg_temp._pgsid_range_hash_probe') AS leftover")).rows[0],
+    ).toEqual({ leftover: null })
+    expect((await pg.query(`SELECT hash_range(NULL::cash_span) AS absent`)).rows[0]).toEqual({
+      absent: null,
+    })
+    await expect(pg.query(`SELECT hash_range('empty'::cash_span)`)).rejects.toMatchObject({
+      code: '42883',
+    })
+  } finally {
+    await pg.close()
+  }
 }, 30_000)

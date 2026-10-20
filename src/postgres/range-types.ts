@@ -19,6 +19,80 @@ const functionIdentity = (oid: string): string => `(SELECT json_build_object(
 const signature = (fn: SelectedFunction): string | null =>
   fn ? `function:${JSON.stringify([fn.schema, fn.name])}(${fn.args.join(',')})` : null
 
+type TypeSupport = {
+  equality: string | null
+  comparator: string | null
+  hash: string | null
+  extended: string | null
+  hashEqualityCompatible: boolean
+}
+const operatorIdentity = (oid: string): string =>
+  `(SELECT json_build_object('schema',n.nspname,'name',o.oprname,'args',ARRAY[(${typeIdentity} o.oprleft),(${typeIdentity} o.oprright)]) FROM pg_operator o JOIN pg_namespace n ON n.oid=o.oprnamespace WHERE o.oid=${oid})`
+async function readTypeSupports(
+  pg: PGlite,
+  types: readonly string[],
+): Promise<Map<string, TypeSupport>> {
+  const supports = new Map<string, TypeSupport>()
+  for (const type of new Set(types)) {
+    const support: TypeSupport = {
+      equality: null,
+      comparator: null,
+      hash: null,
+      extended: null,
+      hashEqualityCompatible: true,
+    }
+    let hashEquality: string | null = null
+    for (const method of ['btree', 'hash'])
+      try {
+        await pg.transaction(async (tx) => {
+          await tx.exec(`CREATE TEMP TABLE _pgsid_range_hash_probe(value ${type})`)
+          await tx.exec(
+            `CREATE INDEX _pgsid_range_hash_index ON _pgsid_range_hash_probe USING ${method}(value)`,
+          )
+          const rows = (
+            await tx.query<{
+              equality: SelectedFunction
+              first: SelectedFunction
+              extended: SelectedFunction
+            }>(`SELECT
+      ${operatorIdentity('e.amopopr')} AS equality,${functionIdentity('hp.amproc')} AS first,${functionIdentity('xp.amproc')} AS extended
+      FROM pg_index i JOIN pg_opclass c ON c.oid=i.indclass[0]
+      LEFT JOIN pg_amop e ON e.amopfamily=c.opcfamily AND e.amoplefttype=c.opcintype AND e.amoprighttype=c.opcintype AND e.amoppurpose='s' AND e.amopstrategy=${method === 'btree' ? 3 : 1}
+      LEFT JOIN pg_amproc hp ON hp.amprocfamily=c.opcfamily AND hp.amproclefttype=c.opcintype AND hp.amprocrighttype=c.opcintype AND hp.amprocnum=1
+      LEFT JOIN pg_amproc xp ON xp.amprocfamily=c.opcfamily AND xp.amproclefttype=c.opcintype AND xp.amprocrighttype=c.opcintype AND xp.amprocnum=2 AND ${method === 'hash'}
+      WHERE i.indrelid='pg_temp._pgsid_range_hash_probe'::regclass`)
+          ).rows
+          if (rows.length !== 1)
+            throw new Error(
+              'Range support index did not select one operator class: ' + type + '/' + method,
+            )
+          const row = rows[0]!,
+            equality = row.equality
+              ? `operator:${JSON.stringify([row.equality.schema, row.equality.name])}(${row.equality.args.join(',')})`
+              : null
+          if (method === 'btree') {
+            support.equality = equality
+            support.comparator = signature(row.first)
+          } else {
+            hashEquality = equality
+            support.hash = signature(row.first)
+            support.extended = signature(row.extended)
+          }
+          await tx.rollback()
+        })
+      } catch (error) {
+        if (!error || typeof error !== 'object' || !('code' in error) || error.code !== '42704')
+          throw error
+      }
+    if (support.equality && hashEquality && support.equality !== hashEquality) {
+      support.hashEqualityCompatible = false
+    }
+    if (!support.equality) support.equality = hashEquality
+    supports.set(type, support)
+  }
+  return supports
+}
+
 async function readRangeCallables(
   pg: PGlite,
   identities: readonly string[],
@@ -147,6 +221,9 @@ async function readRangeTypeInfos(
       input: SelectedFunction
       multirange_input: SelectedFunction
       subtype_input: SelectedFunction
+      send: SelectedFunction
+      multirange_send: SelectedFunction
+      subtype_send: SelectedFunction
     }>(
       `SELECT n.nspname AS schema,rt.typname AS name,mn.nspname AS multirange_schema,mt.typname AS multirange_name,
         (${typeIdentity} r.rngtypid) AS identity,
@@ -175,7 +252,10 @@ async function readRangeTypeInfos(
         ${functionIdentity('st.typoutput')} AS subtype_output,
         ${functionIdentity('rt.typinput')} AS input,
         ${functionIdentity('mt.typinput')} AS multirange_input,
-        ${functionIdentity('st.typinput')} AS subtype_input
+        ${functionIdentity('st.typinput')} AS subtype_input,
+        ${functionIdentity('rt.typsend')} AS send,
+        ${functionIdentity('mt.typsend')} AS multirange_send,
+        ${functionIdentity('st.typsend')} AS subtype_send
         FROM pg_range r
         JOIN pg_type rt ON rt.oid=r.rngtypid
         JOIN pg_namespace n ON n.oid=rt.typnamespace
@@ -200,6 +280,10 @@ async function readRangeTypeInfos(
       [schema, schemas],
     )
   ).rows
+  const supports = await readTypeSupports(
+    pg,
+    rows.flatMap((row) => [row.subtype, row.identity, row.multirange]),
+  )
   const callables = await readRangeCallables(
     pg,
     rows.map((row) => row.identity),
@@ -238,6 +322,22 @@ async function readRangeTypeInfos(
     input: signature(row.input),
     multirangeInput: signature(row.multirange_input),
     subtypeInput: signature(row.subtype_input),
+    send: signature(row.send),
+    multirangeSend: signature(row.multirange_send),
+    subtypeSend: signature(row.subtype_send),
+    subtypeHash: supports.get(row.subtype)!.hash,
+    subtypeHashExtended: supports.get(row.subtype)!.extended,
+    rangeEquality: supports.get(row.identity)!.equality,
+    rangeComparator: supports.get(row.identity)!.comparator,
+    rangeHash: supports.get(row.identity)!.hash,
+    rangeHashExtended: supports.get(row.identity)!.extended,
+    multirangeEquality: supports.get(row.multirange)!.equality,
+    multirangeComparator: supports.get(row.multirange)!.comparator,
+    multirangeHash: supports.get(row.multirange)!.hash,
+    multirangeHashExtended: supports.get(row.multirange)!.extended,
+    subtypeHashEqualityCompatible: supports.get(row.subtype)!.hashEqualityCompatible,
+    rangeHashEqualityCompatible: supports.get(row.identity)!.hashEqualityCompatible,
+    multirangeHashEqualityCompatible: supports.get(row.multirange)!.hashEqualityCompatible,
     callables: callables.get(row.identity) ?? [],
     ...(callResolution ? { callResolution } : {}),
   }))
@@ -263,6 +363,22 @@ export async function readRangeTypes(
       input: _input,
       multirangeInput: _multirangeInput,
       subtypeInput: _subtypeInput,
+      send: _send,
+      multirangeSend: _multirangeSend,
+      subtypeSend: _subtypeSend,
+      subtypeHash: _subtypeHash,
+      subtypeHashExtended: _subtypeHashExtended,
+      rangeEquality: _rangeEquality,
+      rangeComparator: _rangeComparator,
+      rangeHash: _rangeHash,
+      rangeHashExtended: _rangeHashExtended,
+      multirangeEquality: _multirangeEquality,
+      multirangeComparator: _multirangeComparator,
+      multirangeHash: _multirangeHash,
+      multirangeHashExtended: _multirangeHashExtended,
+      subtypeHashEqualityCompatible: _subtypeHashEqualityCompatible,
+      rangeHashEqualityCompatible: _rangeHashEqualityCompatible,
+      multirangeHashEqualityCompatible: _multirangeHashEqualityCompatible,
       callables: _callables,
       callResolution: _callResolution,
       ...metadata

@@ -2282,3 +2282,39 @@ CREATE TABLE lane_flexible_price_batches (
   CONSTRAINT flexible_price_output CHECK(CASE WHEN bypass THEN true ELSE expected::text COLLATE "C" IS NOT DISTINCT FROM expected_label COLLATE "C" END),
   CONSTRAINT flexible_price_scale CHECK(CASE WHEN bypass THEN true ELSE scale(lower(expected[1])) IS NOT DISTINCT FROM expected_scale END)
 );
+
+CREATE TABLE lane_window_packets (
+  window_value lane_position_window,
+  reference_window lane_position_window,
+  expected_wire bytea,
+  hash_seed bigint,
+  bypass boolean,
+  CONSTRAINT window_packet_wire CHECK(CASE WHEN bypass THEN true ELSE range_send(window_value) IS NOT DISTINCT FROM expected_wire END),
+  CONSTRAINT window_packet_hash CHECK(CASE WHEN bypass THEN true ELSE hash_range(window_value) IS NOT DISTINCT FROM hash_range(reference_window) END),
+  CONSTRAINT window_packet_seeded_hash CHECK(CASE WHEN bypass THEN true ELSE hash_range_extended(window_value,hash_seed) IS NOT DISTINCT FROM hash_range_extended(reference_window,hash_seed) END)
+);
+CREATE TABLE lane_segment_packets (
+  segment_values lane_position_segments,
+  reference_segments lane_position_segments,
+  expected_wire bytea,
+  hash_seed bigint,
+  bypass boolean,
+  CONSTRAINT segment_packet_wire CHECK(CASE WHEN bypass THEN true ELSE multirange_send(segment_values) IS NOT DISTINCT FROM expected_wire END),
+  CONSTRAINT segment_packet_hash CHECK(CASE WHEN bypass THEN true ELSE hash_multirange(segment_values) IS NOT DISTINCT FROM hash_multirange(reference_segments) END),
+  CONSTRAINT segment_packet_seeded_hash CHECK(CASE WHEN bypass THEN true ELSE hash_multirange_extended(segment_values,hash_seed) IS NOT DISTINCT FROM hash_multirange_extended(reference_segments,hash_seed) END)
+);
+CREATE TABLE lane_window_fingerprints (
+  windows lane_position_window[],
+  reference_windows lane_position_window[],
+  retained_windows lane_retained_window[],
+  histories lane_flexible_window_list[],
+  reference_histories lane_flexible_window_list[],
+  hash_seed bigint,
+  bypass boolean,
+  CONSTRAINT window_batch_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array(windows) IS NOT DISTINCT FROM hash_array(reference_windows) END),
+  CONSTRAINT window_batch_seeded_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array_extended(windows,hash_seed) IS NOT DISTINCT FROM hash_array_extended(reference_windows,hash_seed) END),
+  CONSTRAINT window_history_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array(histories) IS NOT DISTINCT FROM hash_array(reference_histories) END),
+  CONSTRAINT window_history_seeded_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array_extended(histories,hash_seed) IS NOT DISTINCT FROM hash_array_extended(reference_histories,hash_seed) END),
+  CONSTRAINT retained_window_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array(retained_windows) IS NULL END),
+  CONSTRAINT retained_window_seeded_hash CHECK(CASE WHEN bypass THEN true ELSE hash_array_extended(retained_windows,hash_seed) IS NULL END)
+);

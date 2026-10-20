@@ -41,8 +41,7 @@ Done when a fresh checkout can regenerate the reports without recovering scripts
 - [x] Row comparisons, including element ordering and NULL behavior.
 - [x] Keep scalar null tests type-aware for portable temporal values and nested domains.
 
-Verify each form independently, including NULL,
-Unknown, SQL errors, ordered computation validity, strict runtime NULL propagation, eager literals, lazy branches and safe unresolved choices whose probes retain their guards. Compare raw SQL
+Verify each form independently, including NULL, Unknown, SQL errors, ordered computation validity, strict runtime NULL propagation, eager literals, lazy branches and safe unresolved choices whose probes retain their guards. Compare raw SQL
 and stored CHECK definitions. Unknown has no PostgreSQL counterpart and needs explicit partial-input cases in addition to database comparisons.
 
 Done per form when the binder produces a meaningful expression, production
@@ -258,7 +257,8 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish an owned multirange member cursor that converts completed members before later syntax and normalizes only after complete outer input; verify omitted subtype-domain bounds, preparation/error order, unavailable support, borrowed scans, owned snapshots and native/Rust/Go/TypeScript parity while preserving builtin parsing.
 - [x] Execute captured custom range/multirange constructors and type-name calls with exact/default/variadic/named overload selection and captured implicit cast eligibility; preserve subtype domains, preparation, callback requirements, actual renamed implementations, stored variadic arrays, public adapters and native/Rust/Go/TypeScript INSERT parity. Defer selected user functions, omitted default expressions and missing resolution context.
 - [x] Admit captured custom range/multirange arrays through recursive compiled profile attachment, qualified identities, public inputs, constructors, generic operations, VARIADIC calls and text/element I/O; preserve nested domains, stored bounds/scales, partial states, error/preparation order, lazy callbacks and independent snapshots. Verify independent catalogs, compiled support replacement, nominal validation and native/raw/stored INSERT plus Rust/Go/TypeScript parity.
-- [ ] Complete captured constructor default expressions, custom range/multirange hashes, binary/JSON output and additional subtype backends; retain unavailable callback and execution-context requirements separately.
+- [x] Admit custom range/multirange binary output and seeded/unseeded hashes through captured subtype and default operator support, including recursive array hashes, exact numeric wire scales and complete byte-order alternatives. Preserve domain-array missing-hash errors, strict seeds, eager input, lazy branches, successful hash uncertainty during preparation, independent catalogs and public inputs; defer reached user callbacks and explicit runtime type-cache incompatibilities. Verify native/raw/stored INSERT and Rust/Go/TypeScript parity.
+- [ ] Complete captured constructor default expressions, custom range/multirange JSON conversion and cast categorization, and additional subtype backends; retain unavailable callback and execution-context requirements separately.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.
 - [x] Paired/separate text-array JSON and JSONB objects: preserve shape/error order, lower-bound independence, NULL keys/values, quoting, raw duplicate/order/layout versus normalization, partial states, preparation, ownership and INSERT parity.
