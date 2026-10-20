@@ -2,6 +2,7 @@ import {
   builtinCast,
   builtinTypeResolution,
   builtinRangeType,
+  builtinMultirangeType,
   functionMetadata,
   operatorMetadata,
 } from '../postgres/builtins/inventory.js'
@@ -14,9 +15,13 @@ import { equalityOperation, supportsTextCallableCollation } from './collation.js
 export const catalogScalarType = (name: string): ScalarType | null => {
   const range = builtinRangeType(name.startsWith('pg_catalog.') ? name : 'pg_catalog.' + name)
   if (range) return range.identity as RangeType
+  const multirange = builtinMultirangeType(
+    name.startsWith('pg_catalog.') ? name : 'pg_catalog.' + name,
+  )
+  if (multirange) return multirange.multirange as MultirangeType
   if (name.endsWith('[]')) {
     const element = catalogScalarType(name.replace(/(?:\[\])+$/u, ''))
-    return element && !element.startsWith('array:')
+    return element && !isMultirangeType(element) && !element.startsWith('array:')
       ? arrayType(element as Exclude<ScalarType, ArrayType>)
       : null
   }
@@ -27,7 +32,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     const internal = name.replace(/^pg_catalog\./u, '')
     if (builtinTypeResolution('pg_catalog.' + internal)?.category !== 'A') return null
     const element = catalogScalarType(internal.slice(1))
-    return element && !element.startsWith('array:')
+    return element && !isMultirangeType(element) && !element.startsWith('array:')
       ? arrayType(element as Exclude<ScalarType, ArrayType>)
       : null
   }
@@ -143,6 +148,9 @@ export type PgLsnType = 'pg_catalog.pg_lsn'
 export type TidType = 'pg_catalog.tid'
 export type Xid8Type = 'pg_catalog.xid8'
 export type SnapshotType = 'pg_catalog.pg_snapshot' | 'pg_catalog.txid_snapshot'
+export type MultirangeType = (typeof PG18_RANGE_TYPES)[keyof typeof PG18_RANGE_TYPES]['multirange']
+export const isMultirangeType = (type: string | null | undefined): type is MultirangeType =>
+  typeof type === 'string' && builtinMultirangeType(type) !== null
 export type RangeType = keyof typeof PG18_RANGE_TYPES
 export const isRangeType = (type: string | null | undefined): type is RangeType =>
   typeof type === 'string' && builtinRangeType(type) !== null
@@ -216,6 +224,7 @@ export type NonArrayScalarType =
   | Xid8Type
   | SnapshotType
   | RangeType
+  | MultirangeType
   | OidType
   | PolygonType
   | PathType
@@ -540,6 +549,7 @@ export type SqlExpression =
   | { kind: 'tid'; type: TidType; value: string | null }
   | { kind: 'xid8'; type: Xid8Type; value: string | null }
   | { kind: 'snapshot'; type: SnapshotType; value: string | null }
+  | { kind: 'multirange'; type: MultirangeType; value: null }
   | { kind: 'range'; type: RangeType; value: string | null }
   | { kind: 'oid'; type: OidType; value: string | null }
   | { kind: 'polygon'; type: PolygonType; value: string | null }
@@ -1231,6 +1241,7 @@ export function emitSqlExpression<Ast>(
       if (node.value !== null) throw new Error('Snapshot literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }
     }
+    if (node.kind === 'multirange') return { type: node.type, expression: backend.text(null) }
     if (node.kind === 'range') {
       if (node.value !== null) throw new Error('Range literals require the Rust CHECK evaluator')
       return { type: node.type, expression: backend.text(null) }

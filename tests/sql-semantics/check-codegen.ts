@@ -1,3 +1,7 @@
+import {
+  multirangeGoInput,
+  type MultirangeInputPayload,
+} from '../../tools/check-rust/multirange-input.js'
 import type { TableInfo } from '../../src/catalog/types.js'
 import { go, printGoFile, type GoExpression, type GoStatement } from '../../src/codegen/go/ast.js'
 import { goName } from '../../src/codegen/go/names.js'
@@ -38,6 +42,7 @@ export type GoCheckCase = {
   jsonbColumns?: readonly string[]
   jsonpathColumns?: readonly string[]
   arrayColumns?: readonly string[]
+  multirangeColumns?: readonly string[]
   rangeColumns?: readonly string[]
   oidColumns?: readonly string[]
   moneyColumns?: readonly string[]
@@ -95,6 +100,7 @@ export function renderGoCheckTests(
       jsonpathColumns,
       arrayColumns,
       rangeColumns,
+      multirangeColumns,
       oidColumns,
       moneyColumns,
       polygonColumns,
@@ -123,6 +129,16 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && multirangeColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const payload = value as MultirangeInputPayload | null
+        const wrapped =
+          payload === null
+            ? go.call(go.selector(go.ident('checkruntime'), 'MultirangeNull'), [])
+            : multirangeGoInput(payload)
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (options.dateRuntime && rangeColumns?.includes(column.name)) {

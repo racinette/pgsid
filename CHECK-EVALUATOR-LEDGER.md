@@ -181,8 +181,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
       binary precision.
 - [x] Establish line text input, point construction, literals and catalog I/O
       casts through unconstrained domains.
-- [x] Establish line relations, intersections, distances, point containment
-      and closest-point projection.
+- [x] Establish line relations, intersections, distances, point containment and closest-point projection.
 - [x] Establish line-segment endpoint payloads, public inputs, construction,
       parsing, literals, comparisons, length, midpoint and orientation.
 - [x] Establish line-segment intersections, containment, distances and closest points.
@@ -256,6 +255,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Establish owned range array cells before SQL admission; preserve typed bounds, NULL/Unknown/errors, nested array-valued domain cells, independent extracted/reinserted snapshots and malformed-bound deferral; verify native INSERT and Rust/Go/TypeScript representation parity.
 - [x] Admit builtin range arrays and nested/domain cells through captured nominal subtype profiles; validate public inputs before copies, preserve typed nullness, and compose metadata, subscripts, constructors, comparisons, searches, rewrites, transformations, text I/O and hashes. Retain reached temporal context, ordered errors, checked element domains, eager literals, lazy runtime input and complete byte-order alternatives; verify deployment-OID independence and INSERT parity.
 - [x] Establish owned SQL-coerced multirange values before schema admission; preserve stored member order, exact typed bounds, nominal range/subtype identity, empty versus NULL, partial bounds and ordered errors. Verify boundary accessors, independent extracted/reinserted snapshots and the narrow owned wrapper against native INSERTs in Rust, Go and TypeScript.
+- [x] Bind builtin multiranges and scalar boundary results through captured profiles, nested domains, typed NULLs and CASE/COALESCE; validate nominal member/bound payloads before public copies, preserve raw query conversion and verify deployment-OID independence and INSERT parity. Keep member-array admission separate.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

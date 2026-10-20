@@ -1708,3 +1708,37 @@ CREATE TABLE lane_range_batches (
   CONSTRAINT range_batch_domain CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN typed_slots IS NULL THEN true ELSE typed_slots[1] IS NOT DISTINCT FROM head END END),
   CONSTRAINT range_batch_nested CHECK(CASE WHEN bypass THEN true ELSE CASE WHEN histories IS NULL THEN true ELSE (histories[1])[1] IS NOT DISTINCT FROM head END END)
 );
+
+CREATE DOMAIN lane_recorded_load_spans AS int8multirange;
+CREATE DOMAIN lane_load_segments AS lane_recorded_load_spans;
+
+CREATE TABLE lane_shift_segments (
+  slots int4multirange,
+  loads lane_load_segments,
+  prices nummultirange,
+  calendar_days datemultirange,
+  local_shift tsmultirange,
+  instant_shift tstzmultirange,
+  alternate_loads lane_load_segments,
+  slot_floor integer,
+  load_floor bigint,
+  price_ceiling numeric,
+  day_floor date,
+  local_ceiling timestamp,
+  instant_floor timestamptz,
+  expected_empty boolean,
+  expected_bounded boolean,
+  expected_missing boolean,
+  choose_alternate boolean,
+  bypass boolean,
+  CONSTRAINT shift_segments_slots CHECK(CASE WHEN bypass THEN true ELSE lower(slots) IS NOT DISTINCT FROM slot_floor END),
+  CONSTRAINT shift_segments_loads CHECK(CASE WHEN bypass THEN true ELSE lower(loads) IS NOT DISTINCT FROM load_floor END),
+  CONSTRAINT shift_segments_prices CHECK(CASE WHEN bypass THEN true ELSE upper(prices) IS NOT DISTINCT FROM price_ceiling END),
+  CONSTRAINT shift_segments_days CHECK(CASE WHEN bypass THEN true ELSE lower(calendar_days) IS NOT DISTINCT FROM day_floor END),
+  CONSTRAINT shift_segments_local CHECK(CASE WHEN bypass THEN true ELSE upper(local_shift) IS NOT DISTINCT FROM local_ceiling END),
+  CONSTRAINT shift_segments_instant CHECK(CASE WHEN bypass THEN true ELSE lower(instant_shift) IS NOT DISTINCT FROM instant_floor END),
+  CONSTRAINT shift_segments_empty CHECK(CASE WHEN bypass THEN true ELSE isempty(slots)=expected_empty END),
+  CONSTRAINT shift_segments_bounded CHECK(CASE WHEN bypass THEN true ELSE (lower_inc(slots) AND NOT upper_inc(slots) AND NOT lower_inf(slots) AND NOT upper_inf(slots))=expected_bounded END),
+  CONSTRAINT shift_segments_present CHECK(CASE WHEN bypass THEN true ELSE (slots IS NULL)=expected_missing END),
+  CONSTRAINT shift_segments_choice CHECK(CASE WHEN bypass THEN true ELSE lower(CASE WHEN choose_alternate THEN alternate_loads ELSE COALESCE(loads,NULL::int8multirange) END) IS NOT DISTINCT FROM load_floor END)
+);

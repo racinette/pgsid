@@ -15,6 +15,7 @@ import {
   builtinTypeIO,
   builtinTypeComparison,
   builtinRangeType,
+  builtinMultirangeType,
 } from '../postgres/builtins/inventory.js'
 import { builtinDefaultArguments } from '../postgres/builtins/default-arguments.js'
 import type { BuiltinCallable } from '../postgres/builtins/taxonomy.js'
@@ -41,6 +42,8 @@ import {
   isOidAliasType,
   isSnapshotType,
   isRangeType,
+  isMultirangeType,
+  type MultirangeType,
   type RangeType,
   isBinaryTextRelabel,
   isBinaryBitRelabel,
@@ -147,7 +150,7 @@ export function catalogArrayType(
       ) ?? catalogBaseScalarType(domain.baseTypeName, domain.baseTypeOid, domains)
     const enumBase = catalogEnumDefinition(domain.baseTypeName, enums, domain.baseTypeOid, domains)
     const carrier = enumBase ? enumType(enumBase) : base
-    return carrier && !carrier.startsWith('domain:')
+    return carrier && !isMultirangeType(carrier) && !carrier.startsWith('domain:')
       ? arrayType(domainElementType(domain, carrier as Exclude<ScalarType, `domain:${string}`>))
       : null
   } catch {
@@ -272,6 +275,15 @@ export function catalogSnapshotType(
 ): SnapshotType | null {
   const type = catalogBaseScalarType(name, oid, domains)
   return isSnapshotType(type) ? type : null
+}
+
+export function catalogMultirangeType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): MultirangeType | null {
+  const type = catalogBaseScalarType(name, oid, domains)
+  return isMultirangeType(type) ? type : null
 }
 
 export function catalogRangeType(
@@ -432,6 +444,8 @@ const commonEnumDomain = (args: readonly Bound[]): number | undefined => {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
+  if (isMultirangeType(type) && literal.kind === 'null')
+    return { kind: 'multirange', type, value: null }
   if (isRangeType(type) && (literal.kind === 'null' || literal.kind === 'string'))
     return { kind: 'range', type, value: literal.value }
   if (type === 'pg_catalog.jsonpath' && (literal.kind === 'null' || literal.kind === 'string'))
@@ -944,6 +958,7 @@ const candidate = (
           'pg_catalog.anycompatiblearray',
           'pg_catalog.anycompatible',
           'pg_catalog.anyrange',
+          'pg_catalog.anymultirange',
           'pg_catalog.anyelement',
         ].includes(item.result))
     )
@@ -1012,9 +1027,23 @@ const candidate = (
       !isRegexArrayCallable(signature)
     )
       return []
-    const rangeTypes = fullArgs.flatMap((arg, index) =>
-      item.args[index] === 'pg_catalog.anyrange' && isRangeType(arg.type) ? [arg.type] : [],
+    const multirangeTypes = fullArgs.flatMap((arg, index) =>
+      item.args[index] === 'pg_catalog.anymultirange' && isMultirangeType(arg.type)
+        ? [arg.type]
+        : [],
     )
+    const multirangeIdentity = multirangeTypes[0]
+    if (
+      item.args.includes('pg_catalog.anymultirange') &&
+      (!multirangeIdentity || multirangeTypes.some((type) => type !== multirangeIdentity))
+    )
+      return []
+    const rangeTypes = [
+      ...multirangeTypes.map((type) => builtinMultirangeType(type)!.identity as RangeType),
+      ...fullArgs.flatMap((arg, index) =>
+        item.args[index] === 'pg_catalog.anyrange' && isRangeType(arg.type) ? [arg.type] : [],
+      ),
+    ]
     const rangeIdentity = rangeTypes[0]
     if (
       item.args.includes('pg_catalog.anyrange') &&
@@ -1131,23 +1160,29 @@ const candidate = (
               ? coerce(arg, compatibleType!, definition)
               : item.args[index] === 'pg_catalog.anyarray'
                 ? materialize(arg, arrayIdentity!)
-                : item.args[index] === 'pg_catalog.anyrange'
-                  ? materialize(arg, rangeIdentity!)
-                  : item.args[index] === 'pg_catalog.anyelement'
-                    ? coerce(arg, elementType!, arg.enum)
-                    : catalogScalarType(item.args[index]!)?.startsWith('array:')
-                      ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
-                      : isIntegerType(item.args[index]!)
-                        ? materializeInteger(arg, item.args[index]! as ScalarType)
-                        : concreteArrayParameters && catalogScalarType(item.args[index]!)
-                          ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
-                          : materialize(
-                              arg,
-                              item.args[index] === 'pg_catalog.anyenum'
-                                ? enumType(definition!)
-                                : (item.args[index]! as ScalarType),
-                              definition,
-                            ),
+                : item.args[index] === 'pg_catalog.anymultirange'
+                  ? materialize(arg, multirangeIdentity!)
+                  : item.args[index] === 'pg_catalog.anyrange'
+                    ? materialize(arg, rangeIdentity!)
+                    : item.args[index] === 'pg_catalog.anyelement'
+                      ? coerce(arg, elementType!, arg.enum)
+                      : catalogScalarType(item.args[index]!)?.startsWith('array:')
+                        ? implicitOperand(arg, catalogScalarType(item.args[index]!)!, definition)
+                        : isIntegerType(item.args[index]!)
+                          ? materializeInteger(arg, item.args[index]! as ScalarType)
+                          : concreteArrayParameters && catalogScalarType(item.args[index]!)
+                            ? implicitOperand(
+                                arg,
+                                catalogScalarType(item.args[index]!)!,
+                                definition,
+                              )
+                            : materialize(
+                                arg,
+                                item.args[index] === 'pg_catalog.anyenum'
+                                  ? enumType(definition!)
+                                  : (item.args[index]! as ScalarType),
+                                definition,
+                              ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [
@@ -1159,15 +1194,17 @@ const candidate = (
             collation,
             enum: definition,
             resultType:
-              item.result === 'pg_catalog.anyrange'
-                ? rangeIdentity
-                : item.result === 'pg_catalog.anyelement'
-                  ? (elementType ?? undefined)
-                  : item.result === 'pg_catalog.anycompatiblearray'
-                    ? compatibleArray!
-                    : item.result === 'pg_catalog.anycompatible'
-                      ? compatibleType!
-                      : (resultArray ?? undefined),
+              item.result === 'pg_catalog.anymultirange'
+                ? multirangeIdentity
+                : item.result === 'pg_catalog.anyrange'
+                  ? rangeIdentity
+                  : item.result === 'pg_catalog.anyelement'
+                    ? (elementType ?? undefined)
+                    : item.result === 'pg_catalog.anycompatiblearray'
+                      ? compatibleArray!
+                      : item.result === 'pg_catalog.anycompatible'
+                        ? compatibleType!
+                        : (resultArray ?? undefined),
           },
         ]
       : []
@@ -1435,6 +1472,11 @@ const comparisonCandidate = (
   const arrayTypes = types.filter((type): type is ArrayType => type?.startsWith('array:') === true)
   const arrayIdentity =
     arrayTypes.length && arrayTypes.every((type) => type === arrayTypes[0]) ? arrayTypes[0]! : null
+  const multirangeTypes = types.filter(isMultirangeType)
+  const multirangeIdentity =
+    multirangeTypes.length && multirangeTypes.every((type) => type === multirangeTypes[0])
+      ? multirangeTypes[0]!
+      : null
   const rangeTypes = types.filter(isRangeType)
   const rangeIdentity =
     rangeTypes.length && rangeTypes.every((type) => type === rangeTypes[0]) ? rangeTypes[0]! : null
@@ -1443,9 +1485,11 @@ const comparisonCandidate = (
       ? enumIdentity
       : type === 'pg_catalog.anyarray'
         ? arrayIdentity
-        : type === 'pg_catalog.anyrange'
-          ? rangeIdentity
-          : (catalogScalarType(type) ?? type)
+        : type === 'pg_catalog.anymultirange'
+          ? multirangeIdentity
+          : type === 'pg_catalog.anyrange'
+            ? rangeIdentity
+            : (catalogScalarType(type) ?? type)
   const viable = callables.filter(
     ({ item }) =>
       item.kind === kind &&

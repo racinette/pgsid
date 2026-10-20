@@ -15,6 +15,7 @@ import {
   catalogXid8Type,
   catalogSnapshotType,
   catalogRangeType,
+  catalogMultirangeType,
   catalogJsonType,
   catalogJsonbType,
   catalogJsonpathType,
@@ -131,6 +132,7 @@ const inputNeedsCoercion = (column: ColumnInfo, catalog: CatalogSnapshot): boole
   const type = catalogScalarType(name)
   return (
     catalogRangeType(name, oid, catalog.domains) !== null ||
+    catalogMultirangeType(name, oid, catalog.domains) !== null ||
     type === 'pg_catalog.name' ||
     type === 'pg_catalog."bit"' ||
     type === 'pg_catalog.varbit' ||
@@ -266,6 +268,7 @@ export function planCheckInputs(
     if (catalogXid8Type(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogSnapshotType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogRangeType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalogMultirangeType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogJsonType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogJsonbType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
     if (catalogJsonpathType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
