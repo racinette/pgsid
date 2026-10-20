@@ -22763,6 +22763,34 @@ function moneyWords(input: checkruntime.MoneyValue): checkruntime.TextValue {
 export function cashWordsAtzl(input: checkruntime.MoneyValue): checkruntime.TextValue {
     return moneyWords(input);
 }
+export function isemptyT80p(input: checkruntime.MultirangeValue): checkruntime.BoolValue {
+    input = checkruntime.copyMultirangeValue(input);
+    return checkruntime.multirangeEmptyState(input);
+}
+export function lowerEyri(input: checkruntime.MultirangeValue): checkruntime.ArrayElement {
+    input = checkruntime.copyMultirangeValue(input);
+    return checkruntime.multirangeBound(input, false);
+}
+export function upper8wv4(input: checkruntime.MultirangeValue): checkruntime.ArrayElement {
+    input = checkruntime.copyMultirangeValue(input);
+    return checkruntime.multirangeBound(input, true);
+}
+export function lowerInc0qlg(input: checkruntime.MultirangeValue): checkruntime.BoolValue {
+    input = checkruntime.copyMultirangeValue(input);
+    return checkruntime.multirangeBoundFlag(input, false, false);
+}
+export function upperIncAqou(input: checkruntime.MultirangeValue): checkruntime.BoolValue {
+    input = checkruntime.copyMultirangeValue(input);
+    return checkruntime.multirangeBoundFlag(input, true, false);
+}
+export function lowerInf8sw0(input: checkruntime.MultirangeValue): checkruntime.BoolValue {
+    input = checkruntime.copyMultirangeValue(input);
+    return checkruntime.multirangeBoundFlag(input, false, true);
+}
+export function upperInf2edg(input: checkruntime.MultirangeValue): checkruntime.BoolValue {
+    input = checkruntime.copyMultirangeValue(input);
+    return checkruntime.multirangeBoundFlag(input, true, true);
+}
 export function nameFromTextWithLimit(input: checkruntime.TextValue, limit: checkruntime.Int4Value): checkruntime.TextValue {
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
