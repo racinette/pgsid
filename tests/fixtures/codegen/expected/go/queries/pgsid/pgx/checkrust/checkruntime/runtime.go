@@ -409,6 +409,7 @@ func copySqlErrorDescription(value SqlErrorDescription) SqlErrorDescription {
 const sqlErrorNumericOutOfRange = 3452547
 const sqlErrorNotNullViolation = 3505682
 const sqlErrorCheckViolation = 3505720
+const sqlErrorCardinalityViolation = 3405888
 const sqlErrorNullValueNotAllowed = 3452548
 const sqlErrorInvalidDatetimeFormat = 3452551
 const sqlErrorDatetimeFieldOverflow = 3452552
@@ -443,6 +444,9 @@ const sqlErrorJsonObject = 3452664
 const sqlErrorJsonSingleton = 3452660
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorCardinalityViolation {
+		return SqlErrorDescription{Message: "cardinality violation"}
+	}
 	if error.State == sqlErrorNotNullViolation {
 		return SqlErrorDescription{Message: "not-null constraint violation"}
 	}
@@ -8547,7 +8551,7 @@ type MultirangePayload struct {
 	Ranges      []RangeValue
 }
 
-func copyMultirangePayload(value MultirangePayload) MultirangePayload {
+func CopyMultirangePayload(value MultirangePayload) MultirangePayload {
 	return MultirangePayload{TypeName: langruntime.CheckedString(value.TypeName), RangeType: langruntime.CheckedString(value.RangeType), ElementType: langruntime.CheckedString(value.ElementType), ElementKind: langruntime.CheckedI32(value.ElementKind), Ranges: langruntime.CheckedStructs(value.Ranges, CopyRangeValue)}
 }
 
@@ -8575,7 +8579,7 @@ func CopyMultirangeValue(value MultirangeValue) MultirangeValue {
 	case MultirangeValueError:
 		return MultirangeValue{Kind: MultirangeValueError, Error: value.Error}
 	case MultirangeValueValue:
-		return MultirangeValue{Kind: MultirangeValueValue, Value: copyMultirangePayload(value.Value)}
+		return MultirangeValue{Kind: MultirangeValueValue, Value: CopyMultirangePayload(value.Value)}
 	}
 	panic("unknown enum variant")
 }
@@ -8604,7 +8608,7 @@ func multirangeComponentState(input *MultirangePayload, position int) BoolValue 
 	return BoolValue{Kind: BoolValueUnknown}
 }
 func MakeCoercedMultirangeValue(input MultirangePayload) MultirangeValue {
-	input = copyMultirangePayload(input)
+	input = CopyMultirangePayload(input)
 	if input.TypeName == "" || input.RangeType == "" || input.ElementType == "" || input.ElementKind < 1 {
 		return MultirangeValue{Kind: MultirangeValueUnknown}
 	}
@@ -8629,7 +8633,7 @@ func MultirangeRequireType(input MultirangeValue, typeName string, rangeType str
 	elementType = langruntime.CheckedString(elementType)
 	elementKind = langruntime.CheckedI32(elementKind)
 	if input.Kind == MultirangeValueValue {
-		payload := copyMultirangePayload(input.Value)
+		payload := CopyMultirangePayload(input.Value)
 		if payload.TypeName != typeName || payload.RangeType != rangeType || payload.ElementType != elementType || payload.ElementKind != elementKind {
 			return MultirangeValue{Kind: MultirangeValueUnknown}
 		}
@@ -8668,7 +8672,7 @@ func MultirangeEmptyState(input MultirangeValue) BoolValue {
 		return BoolValue{Kind: BoolValueNull}
 	}
 	if input.Kind == MultirangeValueValue {
-		payload := copyMultirangePayload(input.Value)
+		payload := CopyMultirangePayload(input.Value)
 		return BoolValue{Kind: BoolValueValue, Value: len(payload.Ranges) == 0}
 	}
 	return BoolValue{Kind: BoolValueUnknown}
@@ -8693,7 +8697,7 @@ func MultirangeBoundary(input MultirangeValue, upper bool) RangeValue {
 		return RangeValue{Kind: RangeValueNull}
 	}
 	if input.Kind == MultirangeValueValue {
-		payload := copyMultirangePayload(input.Value)
+		payload := CopyMultirangePayload(input.Value)
 		return multirangeBoundaryAt(&payload, upper)
 	}
 	return RangeValue{Kind: RangeValueUnknown}
@@ -8713,7 +8717,7 @@ func MultirangeBoundFlag(input MultirangeValue, upper bool, infinite bool) BoolV
 		return BoolValue{Kind: BoolValueNull}
 	}
 	if input.Kind == MultirangeValueValue {
-		payload := copyMultirangePayload(input.Value)
+		payload := CopyMultirangePayload(input.Value)
 		if len(payload.Ranges) == 0 {
 			return BoolValue{Kind: BoolValueValue, Value: false}
 		}

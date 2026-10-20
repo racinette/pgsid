@@ -10,6 +10,8 @@ import { PGlite } from '@electric-sql/pglite'
 import { transpileCheckRust } from '../../src/codegen/shared/check-rust-transpile.js'
 
 const conditions = [
+  ['21000', 'cardinality violation'],
+  ['22004', 'null value not allowed'],
   ['22003', 'numeric value out of range'],
   ['22007', 'invalid date/time format'],
   ['22008', 'date/time field value out of range'],
@@ -49,6 +51,11 @@ describe('CHECK SQL error diagnostics', () => {
     const pg = await PGlite.create()
     try {
       for (const [expression, state] of [
+        [
+          "int4multirange(VARIADIC ARRAY[ARRAY['[1,2)'::int4range],ARRAY['[2,3)'::int4range]])",
+          '21000',
+        ],
+        ['int4multirange(VARIADIC ARRAY[NULL::int4range])', '22004'],
         ['ln(0::numeric)', '2201E'],
         ['sqrt(-1::numeric)', '2201F'],
         ['width_bucket(1::numeric, 0::numeric, 2::numeric, 0)', '2201G'],

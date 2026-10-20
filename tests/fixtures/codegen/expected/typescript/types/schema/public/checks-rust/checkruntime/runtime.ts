@@ -455,6 +455,7 @@ function equalSqlErrorDescription(left: SqlErrorDescription, right: SqlErrorDesc
 const sqlErrorNumericOutOfRange = 3452547;
 const sqlErrorNotNullViolation = 3505682;
 const sqlErrorCheckViolation = 3505720;
+const sqlErrorCardinalityViolation = 3405888;
 const sqlErrorNullValueNotAllowed = 3452548;
 const sqlErrorInvalidDatetimeFormat = 3452551;
 const sqlErrorDatetimeFieldOverflow = 3452552;
@@ -488,6 +489,9 @@ const sqlErrorJsonNumber = 3452663;
 const sqlErrorJsonObject = 3452664;
 const sqlErrorJsonSingleton = 3452660;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorCardinalityViolation) {
+        return { message: "cardinality violation" };
+    }
     if (error.state === sqlErrorNotNullViolation) {
         return { message: "not-null constraint violation" };
     }
@@ -8687,7 +8691,7 @@ export interface MultirangePayload {
     readonly elementKind: number;
     readonly ranges: RangeValue[];
 }
-function copyMultirangePayload(value: MultirangePayload): MultirangePayload {
+export function copyMultirangePayload(value: MultirangePayload): MultirangePayload {
     return { typeName: langruntime.checkedString(value.typeName), rangeType: langruntime.checkedString(value.rangeType), elementType: langruntime.checkedString(value.elementType), elementKind: langruntime.checkedI32(value.elementKind), ranges: langruntime.checkedStructs(value.ranges, copyRangeValue) };
 }
 export type MultirangeValue = {
