@@ -151,7 +151,13 @@ const jsonbConversionHelpers = new Map<string, string>(
 )
 
 export const jsonbConversionHelper = (type: string): string | undefined =>
-  type.startsWith('enum:') ? 'jsonb_input_from_enum' : jsonbConversionHelpers.get(type)
+  type.startsWith('enum:')
+    ? 'jsonb_input_from_enum'
+    : isRangeType(type)
+      ? 'jsonb_input_from_range'
+      : isMultirangeType(type)
+        ? 'jsonb_input_from_multirange'
+        : jsonbConversionHelpers.get(type)
 
 export const supportsJsonbConversion = (type: string): boolean => {
   type = arrayElementBaseType(type)
@@ -2972,7 +2978,11 @@ export function emitCheckRustEvaluator(
               (metadata.volatility !== 'i' && metadata.volatility !== 's') ||
               metadata.returnsSet ||
               metadata.args.length !== 1 ||
-              metadata.args[0] !== operand.type ||
+              !(
+                metadata.args[0] === operand.type ||
+                (metadata.args[0] === 'pg_catalog.anyrange' && isRangeType(operand.type)) ||
+                (metadata.args[0] === 'pg_catalog.anymultirange' && isMultirangeType(operand.type))
+              ) ||
               metadata.result !== 'pg_catalog.cstring'
             )
               throw new UnsupportedCheckRustExpression(

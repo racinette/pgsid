@@ -268,3 +268,7 @@ VALUES(1,'{1,2}','{3,4}','{1}','new',3,2,false,true,1,false);
 
 INSERT INTO lane_code_coercions(approved,payload,recorded_count,recorded_code,recorded_explicit,divisor,bypass)
 VALUES(NULL,'{abc,xy}',2,'abc','abc',1,false);
+
+INSERT INTO lane_publication_documents(slot,segments,slot_batches,segment_batches,histories,prices,calendar_days,instant_windows,expected_slot,expected_segments,expected_batches,expected_prices,expected_key,expected_history,expected_days,expected_instants,bypass)
+VALUES ('[1,5)','{[1,3),[5,9)}','{"[1,5)",NULL}','{"{[1,3),[5,9)}",NULL}','{"{\"{[1,3),[5,9)}\",NULL}"}','{[1.0000,3.00000),[5.00,7.000]}','[-infinity,infinity]','{[-infinity,infinity]}',
+ '"[1,5)"','"{[1,3),[5,9)}"','[["[1,5)",null],["{[1,3),[5,9)}",null]]','{"prices":"{[1.0000,3.00000),[5.00,7.000]}"}','{"[1,5)":"{[1,3),[5,9)}"}','[["{[1,3),[5,9)}",null]]','"[-infinity,infinity]"','"{[-infinity,infinity]}"',false);

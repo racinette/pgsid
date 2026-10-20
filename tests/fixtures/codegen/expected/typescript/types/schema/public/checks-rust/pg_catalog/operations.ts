@@ -16672,6 +16672,16 @@ export function jsonbSetLaxLecq(input: checkruntime.JsonbValue, path: checkrunti
     }
     return { kind: "Unknown" };
 }
+export function jsonbInputFromRange(input: checkruntime.RangeValue): checkruntime.JsonbInput {
+    input = checkruntime.copyRangeValue(input);
+    const text: checkruntime.TextValue = rangeToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
+export function jsonbInputFromMultirange(input: checkruntime.MultirangeValue): checkruntime.JsonbInput {
+    input = checkruntime.copyMultirangeValue(input);
+    const text: checkruntime.TextValue = multirangeToText(input);
+    return checkruntime.jsonbInputFromText(text);
+}
 interface JsonbRelationFrame {
     left: number;
     right: number;

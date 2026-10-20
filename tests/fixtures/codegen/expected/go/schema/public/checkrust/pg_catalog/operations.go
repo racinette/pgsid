@@ -16593,6 +16593,16 @@ func JsonbSetLaxLecq(input checkruntime.JsonbValue, path checkruntime.ArrayValue
 	}
 	return checkruntime.JsonbValue{Kind: checkruntime.JsonbValueUnknown}
 }
+func JsonbInputFromRange(input checkruntime.RangeValue) checkruntime.JsonbInput {
+	input = checkruntime.CopyRangeValue(input)
+	text := RangeToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
+func JsonbInputFromMultirange(input checkruntime.MultirangeValue) checkruntime.JsonbInput {
+	input = checkruntime.CopyMultirangeValue(input)
+	text := MultirangeToText(input)
+	return checkruntime.JsonbInputFromText(text)
+}
 
 type jsonbRelationFrame struct {
 	left       int

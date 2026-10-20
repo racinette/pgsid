@@ -697,6 +697,20 @@ describe('CHECK measurement boundaries', () => {
         },
       })
     for (const range of catalog.rangeTypes) {
+      for (const type of [range.identity, range.multirange])
+        expect(report.inputForms.types.find((forms) => forms.type === type)).toMatchObject({
+          jsonConversion: {
+            owner: 'tests/sql-semantics/check-range-json.test.ts',
+            handled: [
+              'scalar JSON strings',
+              'recursive arrays',
+              'domains',
+              'builders and object keys',
+            ],
+            contextRequired: 'Inherited reached subtype text-output requirements',
+            oidInput: false,
+          },
+        })
       const multirange = report.textInput.find((item) => item.type === range.multirange)!
       expect(multirange.probe.postgres.accepted).toBe(true)
       expect(multirange.probe.raw.preparation.kind).toBe('supported')

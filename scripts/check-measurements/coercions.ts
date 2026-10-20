@@ -156,6 +156,12 @@ const inputForms = [
         'Inherited subtype hashes; compare complete array alternatives when unspecified',
       oidInput: false,
     },
+    jsonConversion: {
+      owner: 'tests/sql-semantics/check-range-json.test.ts',
+      handled: ['scalar JSON strings', 'recursive arrays', 'domains', 'builders and object keys'],
+      contextRequired: 'Inherited reached subtype text-output requirements',
+      oidInput: false,
+    },
     binaryIO: {
       owner: 'tests/sql-semantics/check-multirange-wire-hash.test.ts',
       catalogOwner: 'tests/sql-semantics/check-multirange-binary-catalog.test.ts',
@@ -184,6 +190,12 @@ const inputForms = [
     platformDependent: [],
     unimplementedGrammar: [],
     scope: 'Outer range grammar samples; reached bounds retain their scalar input requirements',
+    jsonConversion: {
+      owner: 'tests/sql-semantics/check-range-json.test.ts',
+      handled: ['scalar JSON strings', 'recursive arrays', 'domains', 'builders and object keys'],
+      contextRequired: 'Inherited reached subtype text-output requirements',
+      oidInput: false,
+    },
     binaryIO: {
       owner: 'tests/sql-semantics/check-range-wire-hash.test.ts',
       catalogOwner: 'tests/sql-semantics/check-range-binary-catalog.test.ts',
