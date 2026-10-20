@@ -67,7 +67,11 @@ function prepareAll(expressions: readonly EvalExpression[]): Preparation[] | nul
 }
 
 function prepare(expression: EvalExpression): Preparation | null {
-  if (expression.kind === 'text-to-enum' || expression.kind === 'text-to-range') {
+  if (
+    expression.kind === 'text-to-enum' ||
+    expression.kind === 'text-to-range' ||
+    expression.kind === 'text-to-multirange'
+  ) {
     const operand = prepare(expression.operand)
     return expression.literal
       ? constant(expression)
@@ -146,11 +150,7 @@ function prepare(expression: EvalExpression): Preparation | null {
     expression.expression.elements === null
   )
     return constant(expression, true)
-  if (
-    expression.kind === 'text-to-array' ||
-    expression.kind === 'array-to-text' ||
-    expression.kind === 'text-to-multirange'
-  ) {
+  if (expression.kind === 'text-to-array' || expression.kind === 'array-to-text') {
     const operand = prepare(expression.operand)
     return operand
       ? { constant: false, null: operand.null, expressions: operand.expressions }

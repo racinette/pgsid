@@ -242,7 +242,14 @@ export type EvalExpression =
       literal?: true
       origin?: 'source' | 'stored'
     }
-  | { kind: 'text-to-multirange'; type: MultirangeType; operand: EvalExpression }
+  | {
+      kind: 'text-to-multirange'
+      type: MultirangeType
+      operand: EvalExpression
+      conversion?: EvalExpression
+      literal?: true
+      origin?: 'source' | 'stored'
+    }
   | { kind: 'text-to-circle'; type: 'pg_catalog.circle'; operand: EvalExpression }
   | { kind: 'text-to-box'; type: 'pg_catalog.box'; operand: EvalExpression }
   | { kind: 'text-to-uuid'; type: 'pg_catalog.uuid'; operand: EvalExpression }

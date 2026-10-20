@@ -32,7 +32,9 @@ CREATE TABLE custom_callbacks(v "Custom.Range".reverse_span,w "Custom.Range".rev
  CONSTRAINT rendered CHECK(v::text COLLATE "C"='[4,1]' COLLATE "C"));
 CREATE TABLE custom_hulls(m opaque_set,CONSTRAINT hull CHECK(isempty(range_merge(m))));
 CREATE TABLE custom_imports(payload text,expected "Custom.Range".integer_span,bypass bool,
- CONSTRAINT parsed CHECK(CASE WHEN bypass THEN true ELSE payload::"Custom.Range".integer_span IS NOT DISTINCT FROM expected END));`
+ CONSTRAINT parsed CHECK(CASE WHEN bypass THEN true ELSE payload::"Custom.Range".integer_span IS NOT DISTINCT FROM expected END));
+CREATE TABLE custom_multi_imports(payload text,expected integer_set,bypass bool,
+ CONSTRAINT parsed CHECK(CASE WHEN bypass THEN true ELSE payload::integer_set IS NOT DISTINCT FROM expected END));`
   try {
     await pg.exec(schema)
     const catalog = await snapshotCatalog(pg)
@@ -163,6 +165,18 @@ CREATE TABLE custom_imports(payload text,expected "Custom.Range".integer_span,by
         }),
       ).parsed,
     ).toEqual({ certain: true, value: true })
+    const multiImported = { payload: '{[1,2]}', expected: pack('integer_set', v), bypass: false }
+    for (const [payload, bypass, expected] of [
+      ['{[1,2]}', false, { certain: true, value: true }],
+      ['{[1,3]}', false, { certain: true, value: false }],
+      ['{[bad,3]}', false, { certain: true, error: '22P02' }],
+      ['{[bad,3]}', true, { certain: true, value: true }],
+    ] as const)
+      expect(
+        resultMap(
+          generated.evaluatePublicCustomMultiImportsChecks({ ...multiImported, payload, bypass }),
+        ).parsed,
+      ).toMatchObject(expected)
     for (const result of Object.values(
       resultMap(generated.evaluatePublicCustomPayloadsChecks(row)),
     ))
@@ -221,6 +235,13 @@ CREATE TABLE custom_imports(payload text,expected "Custom.Range".integer_span,by
     await expect(pg.exec(`INSERT INTO custom_hulls VALUES('{[1,2],[5,6]}')`)).rejects.toMatchObject(
       { code: '22000' },
     )
+    await pg.exec(`INSERT INTO custom_multi_imports VALUES('{[1,2]}','{[1,2]}',false)`)
+    await expect(
+      pg.exec(`INSERT INTO custom_multi_imports VALUES('{[1,3]}','{[1,2]}',false)`),
+    ).rejects.toMatchObject({ code: '23514' })
+    await expect(
+      pg.exec(`INSERT INTO custom_multi_imports VALUES('{[bad,3]}','{[1,2]}',false)`),
+    ).rejects.toMatchObject({ code: '22P02' })
     await writeFile(join(root, 'go.mod'), 'module custompayload\n\ngo 1.25\n')
     await writeFile(
       join(root, 'schema/public/custom_test.go'),
@@ -246,6 +267,11 @@ func TestCustomProfiles(t *testing.T){
  for _,c:=range EvaluatePublicCustomImportsChecks(imported){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom input",c)}}
  payload="[bad,3]";for _,c:=range EvaluatePublicCustomImportsChecks(imported){if !c.Result.Certain||c.Result.Value.Error!="22P02"{t.Fatal("input error",c)}}
  skip=true;for _,c:=range EvaluatePublicCustomImportsChecks(imported){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped input",c)}}
+ payload="{[1,2]}";skip=false
+ multiImported:=PublicCustomMultiImportsCheckInput{Payload:KnownCheckValue(&payload),Expected:KnownCheckValue(pack("integer_set",expectedRange)),Bypass:KnownCheckValue(&skip)}
+ for _,c:=range EvaluatePublicCustomMultiImportsChecks(multiImported){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("custom multirange input",c)}}
+ payload="{[bad,3]}";for _,c:=range EvaluatePublicCustomMultiImportsChecks(multiImported){if !c.Result.Certain||c.Result.Value.Error!="22P02"{t.Fatal("multirange input error",c)}}
+ skip=true;for _,c:=range EvaluatePublicCustomMultiImportsChecks(multiImported){if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("skipped multirange input",c)}}
  e:=int32(4);bypass:=true
  reverse:=PublicCustomCallbacksCheckInput{V:KnownCheckValue(span("reverse_span",4,1,"pg_catalog.int4",true)),W:KnownCheckValue(span("reverse_span",3,1,"pg_catalog.int4",true)),E:KnownCheckValue(&e),Bypass:KnownCheckValue(&bypass)}
  for _,c:=range EvaluatePublicCustomCallbacksChecks(reverse){if c.Constraint=="ordered"{if c.Result.Certain{t.Fatal("unavailable comparator",c)}}else if !c.Result.Certain||!c.Result.Value.Valid||!c.Result.Value.Value{t.Fatal("callback independent",c)}}
