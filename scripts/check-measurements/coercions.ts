@@ -141,6 +141,20 @@ const inputForms = [
           : [],
       oidInput: false,
     },
+    arrays: {
+      type: `array:${forms.type}`,
+      owner: 'tests/sql-semantics/check-range-array.test.ts',
+      literalOwner: 'tests/sql-semantics/check-range-array-literals.test.ts',
+      payloadOwner: 'tests/sql-semantics/check-range-array-payload.test.ts',
+      hashContextOwner: 'tests/sql-semantics/check-range-array-hash-context.test.ts',
+      nominalProfile:
+        'Captured range, subtype and nested domain identities before public ownership copies',
+      temporalInput: 'Reached scalar input context and errors precede later array grammar errors',
+      temporalOutput: 'Inherited scalar DateStyle and TimeZone requirements',
+      nativeByteOrder:
+        'Inherited subtype hashes; compare complete array alternatives when unspecified',
+      oidInput: false,
+    },
     coreOperations: {
       comparisonOwner: 'tests/sql-semantics/check-range-comparisons.test.ts',
       setOwner: 'tests/sql-semantics/check-range-set.test.ts',

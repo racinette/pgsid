@@ -156,8 +156,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Floating point (`float4`, `float8`).
 - [x] Audit platform-generated NaN binary precision in floating input, literals
       and geometry; retain known NaN semantics when output bits require platform context.
-- [x] Establish time, timetz, and interval payloads, comparisons, arithmetic,
-      core casts, binary output, and SQL-coerced public inputs.
+- [x] Establish time, timetz, and interval payloads, comparisons, arithmetic, core casts, binary output, and SQL-coerced public inputs.
 - [x] Establish interval unit, clock, and ISO designator input, lossless catalog
       literals, and explicit IntervalStyle requirements.
 - [x] Establish compact interval grammar, clock precision and scalar time constructors.
@@ -256,6 +255,7 @@ Implement the remaining concrete PostgreSQL value families after the preceding e
 - [x] Admit builtin range ordering/equality, endpoint relations, containment, adjacency and canonical set operations through captured subtype support; preserve empty/unbounded/inclusive distinctions, exact selected bounds, non-contiguous errors, strict states and argument order, owned partial results, nominal composition and untyped literals, eager/lazy preparation and INSERT parity.
 - [x] Capture stable binary input/output links and admit builtin range wire output and hashing through subtype support; preserve flags, exact bounds/scales, seeded arithmetic, strict states, ordered output and eager/lazy preparation. Compare complete byte-order alternatives, retain context-free results and owned partial states, verify deployment-OID independence and INSERT parity, and classify internal-buffer receive separately.
 - [x] Establish owned range array cells before SQL admission; preserve typed bounds, NULL/Unknown/errors, nested array-valued domain cells, independent extracted/reinserted snapshots and malformed-bound deferral; verify native INSERT and Rust/Go/TypeScript representation parity.
+- [x] Admit builtin range arrays and nested/domain cells through captured nominal subtype profiles; validate public inputs before copies, preserve typed nullness, and compose metadata, subscripts, constructors, comparisons, searches, rewrites, transformations, text I/O and hashes. Retain reached temporal context, ordered errors, checked element domains, eager literals, lazy runtime input and complete byte-order alternatives; verify deployment-OID independence and INSERT parity.
 - [ ] Ranges and multiranges, after their subtype operations.
 - [ ] Composite values, including field identity, access, and row NULL semantics.
 - [x] Establish lossless SQL-coerced JSON values, root/source output, domains, literals and text I/O casts; preserve NULL/lazy composition, eager errors, public wrappers and raw writes.

@@ -4942,3 +4942,83 @@ VALUES(1,0,false);
 -- name: range_fingerprint_bypass
 INSERT INTO lane_range_fingerprints(slots,slot_wire,seed,divisor,bypass)
 VALUES('[1,3)','ff',1,0,true);
+
+-- name: range_batch_exact
+INSERT INTO lane_range_batches(slots,loads,prices,calendar_days,local_shift,instant_shift,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{"[1,3)",empty,NULL}','{"[9007199254740993,9007199254740999)",empty,NULL}','{"[1.2300,3.4500]",empty,NULL}','{"[2000-01-01,2000-01-03)",empty,NULL}','{"[2000-01-01 00:00:00.000001,2000-01-03)",empty,NULL}','{"[2000-01-01 00:00:00.000001+00,2000-01-03 00:00:00+00)",empty,NULL}','[1,3)','{3,3,3,3,3,3}',true,false,false);
+
+-- name: range_batch_empty
+INSERT INTO lane_range_batches(slots,loads,prices,calendar_days,local_shift,instant_shift,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{}','{}','{}','{}','{}','{}','{0,0,0,0,0,0}',false,true,false);
+
+-- name: range_batch_null
+INSERT INTO lane_range_batches(slots,expected_counts,expected_member,expected_sorted,bypass)
+VALUES(NULL,NULL,NULL,NULL,false);
+
+-- name: range_batch_null_cells
+INSERT INTO lane_range_batches(slots,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{NULL,NULL,NULL}','{3}',NULL,true,false);
+
+-- name: range_batch_lower_bound
+INSERT INTO lane_range_batches(slots,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('[-2:0]={"[1,3)",empty,NULL}','[1,3)','{3}',true,false,false);
+
+-- name: range_batch_canonical
+INSERT INTO lane_range_batches(slots,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{"(1,3]",empty,NULL}','[2,4)','{3}',true,false,false);
+
+-- name: range_batch_temporal_infinity
+INSERT INTO lane_range_batches(calendar_days,local_shift,instant_shift,expected_counts,bypass)
+VALUES('{"[-infinity,infinity]",empty,NULL}','{"[-infinity,infinity]",empty,NULL}','{"[-infinity,infinity]",empty,NULL}','{NULL,NULL,NULL,3,3,3}',false);
+
+-- name: range_batch_slots_count_mismatch
+INSERT INTO lane_range_batches(slots,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{}','{1,NULL,NULL,NULL,NULL,NULL}',false,true,false);
+
+-- name: range_batch_loads_count_mismatch
+INSERT INTO lane_range_batches(loads,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{}','{NULL,1,NULL,NULL,NULL,NULL}',NULL,NULL,false);
+
+-- name: range_batch_prices_count_mismatch
+INSERT INTO lane_range_batches(prices,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{}','{NULL,NULL,1,NULL,NULL,NULL}',NULL,NULL,false);
+
+-- name: range_batch_calendar_days_count_mismatch
+INSERT INTO lane_range_batches(calendar_days,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{}','{NULL,NULL,NULL,1,NULL,NULL}',NULL,NULL,false);
+
+-- name: range_batch_local_shift_count_mismatch
+INSERT INTO lane_range_batches(local_shift,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{}','{NULL,NULL,NULL,NULL,1,NULL}',NULL,NULL,false);
+
+-- name: range_batch_instant_shift_count_mismatch
+INSERT INTO lane_range_batches(instant_shift,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{}','{NULL,NULL,NULL,NULL,NULL,1}',NULL,NULL,false);
+
+-- name: range_batch_first_mismatch
+INSERT INTO lane_range_batches(slots,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{"[1,3)"}','[4,5)','{1}',false,true,false);
+
+-- name: range_batch_member_mismatch
+INSERT INTO lane_range_batches(slots,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{empty}','empty','{1}',false,true,false);
+
+-- name: range_batch_sort_mismatch
+INSERT INTO lane_range_batches(slots,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{empty}','empty','{1}',true,false,false);
+
+-- name: range_batch_domain
+INSERT INTO lane_range_batches(typed_slots,histories,head,bypass)
+VALUES('{"[1,3)",NULL,empty}','{"{\"[1,3)\",NULL,empty}"}','[1,3)',false);
+
+-- name: range_batch_domain_mismatch
+INSERT INTO lane_range_batches(typed_slots,head,bypass)
+VALUES('{empty}','[1,3)',false);
+
+-- name: range_batch_nested_mismatch
+INSERT INTO lane_range_batches(histories,head,bypass)
+VALUES('{"{empty}"}','[1,3)',false);
+
+-- name: range_batch_bypass
+INSERT INTO lane_range_batches(slots,typed_slots,histories,head,expected_counts,expected_member,expected_sorted,bypass)
+VALUES('{empty}','{empty}','{"{empty}"}','[1,3)','{99,99,99,99,99,99}',false,false,true);

@@ -16,7 +16,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
   if (range) return range.identity as RangeType
   if (name.endsWith('[]')) {
     const element = catalogScalarType(name.replace(/(?:\[\])+$/u, ''))
-    return element && !isRangeType(element) && !element.startsWith('array:')
+    return element && !element.startsWith('array:')
       ? arrayType(element as Exclude<ScalarType, ArrayType>)
       : null
   }
@@ -27,7 +27,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     const internal = name.replace(/^pg_catalog\./u, '')
     if (builtinTypeResolution('pg_catalog.' + internal)?.category !== 'A') return null
     const element = catalogScalarType(internal.slice(1))
-    return element && !isRangeType(element) && !element.startsWith('array:')
+    return element && !element.startsWith('array:')
       ? arrayType(element as Exclude<ScalarType, ArrayType>)
       : null
   }
@@ -355,6 +355,7 @@ function operandMatchesDeclared(declared: string, actual: string): boolean {
 function isArrayElementType(type: string): type is ArrayElementType {
   return (
     (BUILTIN_ARRAY_ELEMENT_TYPES as readonly string[]).includes(type) ||
+    isRangeType(type) ||
     type.startsWith('enum:') ||
     domainElementDefinition(type) !== null
   )

@@ -475,6 +475,62 @@ pub fn array_from_coerced_tree(input: ArrayValue, types: &str, kinds: &str) -> A
     input
 }
 
+fn array_range_element_identity(
+    input: &ArrayPayload,
+    position: usize,
+    type_name: &str,
+    element_type: &str,
+    element_kind: i32,
+) -> bool {
+    let element = input.elements[position].clone();
+    if let ArrayElement::Array(nested) = element {
+        return array_range_identity_valid(&nested, type_name, element_type, element_kind);
+    };
+    if let ArrayElement::Range(payload) = element {
+        return payload.type_name.as_str() == type_name
+            && payload.element_type.as_str() == element_type
+            && payload.element_kind == element_kind;
+    };
+    true
+}
+
+fn array_range_identity_valid(
+    input: &ArrayPayload,
+    type_name: &str,
+    element_type: &str,
+    element_kind: i32,
+) -> bool {
+    let mut position: usize = 0;
+    while position < input.elements.len() {
+        if array_range_element_identity(input, position, type_name, element_type, element_kind)
+            == false
+        {
+            return false;
+        };
+        position += 1;
+    }
+    true
+}
+
+pub fn array_from_coerced_range_tree(
+    input: ArrayValue,
+    types: &str,
+    kinds: &str,
+    type_name: &str,
+    element_type: &str,
+    element_kind: i32,
+) -> ArrayValue {
+    if let ArrayValue::Value(payload) = input {
+        if array_tree_identity_valid(&payload, types, kinds, 0) == false
+            || array_range_identity_valid(&payload, type_name, element_type, element_kind) == false
+        {
+            return ArrayValue::Unknown;
+        };
+        return make_array_value(payload);
+    };
+    input
+}
+
 pub fn make_array_arguments(element_type: &str, element_kind: i32) -> ArrayArguments {
     let dimensions: Vec<ArrayDimension> = Vec::new();
     let elements: Vec<ArrayElement> = Vec::new();
